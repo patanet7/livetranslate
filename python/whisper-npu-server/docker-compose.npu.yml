@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  whisper-npu-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.npu
+    container_name: whisper-server-npu
+    ports:
+      - "8009:5000"
+    volumes:
+      # Mount the Windows equivalent of ~/.whisper/models
+      - ${USERPROFILE}/.whisper/models:/root/.whisper/models
+      # Mount current directory for testing files
+      - .:/src/dictation
+      # Mount WSL2 device directory for NPU access (Windows Docker)
+      - /dev:/dev
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Force NPU usage in OpenVINO
+      - OPENVINO_DEVICE=NPU
+      - OPENVINO_LOG_LEVEL=1
+      # Windows Docker specific settings
+      - DOCKER_HOST_OS=windows
+      - ENABLE_GPU_ACCELERATION=false
+    # For Windows with WSL2 + Docker Desktop: Use privileged mode for NPU access
+    # This allows the container to access hardware devices through WSL2
+    privileged: true
+    # Enable host IPC for better NPU driver communication
+    ipc: host
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    # Health check to monitor server status
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+  # Enhanced fallback service for testing without NPU
+  whisper-npu-server-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.npu
+    container_name: whisper-server-cpu
+    ports:
+      - "8010:5000"
+    volumes:
+      - ${USERPROFILE}/.whisper/models:/root/.whisper/models
+      - .:/src/dictation
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Force CPU usage in OpenVINO
+      - OPENVINO_DEVICE=CPU
+      - DOCKER_HOST_OS=windows
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - cpu-fallback
+
+  # Alternative service using pre-built image (fallback if build fails)
+  whisper-npu-server-prebuilt:
+    image: ghcr.io/mecattaf/whisper-npu-server:latest
+    container_name: whisper-server-fallback
+    ports:
+      - "8010:5000"
+    volumes:
+      - ${USERPROFILE}/.whisper/models:/root/.whisper/models
+      - .:/src/dictation
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DOCKER_HOST_OS=windows
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - fallback
+
+  # Frontend service for easy access
+  whisper-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: whisper-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - whisper-npu-server
+    environment:
+      - WHISPER_API_URL=http://whisper-npu-server:5000
+    restart: unless-stopped
+    profiles:
+      - frontend
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Windows-specific volume configuration for better performance
+volumes:
+  whisper_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${USERPROFILE}/.whisper/models 

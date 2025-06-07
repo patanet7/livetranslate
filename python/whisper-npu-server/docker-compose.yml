@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  whisper-npu-server:
+    image: ghcr.io/mecattaf/whisper-npu-server:latest
+    container_name: whisper-server
+    ports:
+      - "8009:5000"
+    volumes:
+      # Mount the Windows equivalent of ~/.whisper/models
+      - ${USERPROFILE}/.whisper/models:/root/.whisper/models
+      # Mount current directory for testing files
+      - .:/src/dictation
+    environment:
+      - PYTHONUNBUFFERED=1
+    # For Windows, we can't directly access NPU devices like on Linux
+    # These device mappings won't work on Windows, but keeping them commented for reference
+    # devices:
+    #   - /dev/dri
+    #   - /dev/accel/accel0
+    restart: unless-stopped
+    stdin_open: true
+    tty: true 
