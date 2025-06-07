@@ -1,0 +1,158 @@
+# Start with a clean Ubuntu base for NPU support
+FROM ubuntu:22.04
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-dev \
+    wget \
+    curl \
+    build-essential \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symbolic link for python
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Download and install libtbb12 and dependencies (required for OpenVINO)
+RUN cd /tmp && \
+    wget http://ftp.us.debian.org/debian/pool/main/o/onetbb/libtbb12_2021.8.0-2_amd64.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/o/onetbb/libtbbbind-2-5_2021.8.0-2_amd64.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/o/onetbb/libtbbmalloc2_2021.8.0-2_amd64.deb && \
+    wget http://ftp.us.debian.org/debian/pool/main/h/hwloc/libhwloc15_2.9.0-1_amd64.deb && \
+    dpkg -i *.deb || apt-get install -f -y && \
+    dpkg -i *.deb && \
+    rm -f *.deb
+
+# Download and install Intel NPU drivers
+ARG NPU_DRIVER_VERSION=v1.13.0
+RUN cd /tmp && \
+    wget https://github.com/intel/linux-npu-driver/releases/download/${NPU_DRIVER_VERSION}/intel-driver-compiler-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb && \
+    wget https://github.com/intel/linux-npu-driver/releases/download/${NPU_DRIVER_VERSION}/intel-level-zero-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb && \
+    wget https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u22.04_amd64.deb && \
+    dpkg -i *.deb || apt-get install -f -y && \
+    dpkg -i *.deb && \
+    rm -f *.deb
+
+# Install Python packages with compatible versions
+RUN pip3 install --upgrade pip && \
+    pip3 install \
+    flask \
+    librosa \
+    numpy \
+    scipy \
+    soundfile \
+    requests \
+    openvino==2024.4.0 \
+    openvino-genai==2024.4.0
+
+# Copy the server code from the original image (or we can create our own)
+WORKDIR /src/dictation
+
+# Create a simple server.py file
+RUN echo '#!/usr/bin/env python3\n\
+import os\n\
+import sys\n\
+import tempfile\n\
+import librosa\n\
+import numpy as np\n\
+from flask import Flask, request, jsonify\n\
+import openvino_genai as ov_genai\n\
+from pathlib import Path\n\
+\n\
+app = Flask(__name__)\n\
+\n\
+# Configuration\n\
+MODEL_DIR = Path("/root/.whisper/models")\n\
+DEFAULT_MODEL = "whisper-medium.en"\n\
+DEVICE = os.getenv("OPENVINO_DEVICE", "NPU")\n\
+\n\
+print(f"Starting Whisper NPU Server...")\n\
+print(f"Device: {DEVICE}")\n\
+print(f"Model directory: {MODEL_DIR}")\n\
+\n\
+# Test NPU availability\n\
+try:\n\
+    import openvino as ov\n\
+    core = ov.Core()\n\
+    available_devices = core.available_devices\n\
+    print(f"Available OpenVINO devices: {available_devices}")\n\
+    if "NPU" in available_devices:\n\
+        print("✓ NPU detected!")\n\
+    else:\n\
+        print("⚠ NPU not detected, will use CPU fallback")\n\
+        DEVICE = "CPU"\n\
+except Exception as e:\n\
+    print(f"Error checking devices: {e}")\n\
+    DEVICE = "CPU"\n\
+\n\
+@app.route("/models", methods=["GET"])\n\
+def list_models():\n\
+    try:\n\
+        models = [d.name for d in MODEL_DIR.iterdir() if d.is_dir()]\n\
+        return jsonify({"models": models})\n\
+    except Exception as e:\n\
+        return jsonify({"error": str(e)}), 500\n\
+\n\
+@app.route("/transcribe", methods=["POST"])\n\
+@app.route("/transcribe/<model_name>", methods=["POST"])\n\
+def transcribe(model_name=DEFAULT_MODEL):\n\
+    try:\n\
+        # Get audio data\n\
+        audio_data = request.get_data()\n\
+        if not audio_data:\n\
+            return jsonify({"error": "No audio data provided"}), 400\n\
+        \n\
+        # Save to temporary file\n\
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:\n\
+            tmp_file.write(audio_data)\n\
+            tmp_path = tmp_file.name\n\
+        \n\
+        try:\n\
+            # Load audio\n\
+            speech, sr = librosa.load(tmp_path, sr=16000)\n\
+            \n\
+            # Load model\n\
+            model_path = MODEL_DIR / model_name\n\
+            if not model_path.exists():\n\
+                return jsonify({"error": f"Model {model_name} not found"}), 404\n\
+            \n\
+            print(f"Loading model: {model_path} on device: {DEVICE}")\n\
+            pipeline = ov_genai.WhisperPipeline(str(model_path), device=DEVICE)\n\
+            \n\
+            # Generate transcription\n\
+            result = pipeline.generate(speech)\n\
+            \n\
+            return jsonify({"text": result})\n\
+        \n\
+        finally:\n\
+            # Clean up temp file\n\
+            if os.path.exists(tmp_path):\n\
+                os.unlink(tmp_path)\n\
+    \n\
+    except Exception as e:\n\
+        print(f"Transcription error: {e}")\n\
+        return jsonify({"error": str(e)}), 500\n\
+\n\
+@app.route("/health", methods=["GET"])\n\
+def health():\n\
+    return jsonify({"status": "healthy", "device": DEVICE})\n\
+\n\
+if __name__ == "__main__":\n\
+    app.run(host="0.0.0.0", port=5000, debug=False)\n\
+' > server.py
+
+# Verify NPU support is available
+RUN python3 -c "import openvino as ov; core = ov.Core(); print('Available devices:', core.available_devices)"
+
+# Models will be mounted from user's home directory
+VOLUME /root/.whisper/models
+
+EXPOSE 5000
+
+CMD ["python3", "server.py"] 

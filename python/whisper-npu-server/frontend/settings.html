@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whisper NPU Server - Advanced Settings</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 20px; 
+            background: #f8f9fa; 
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .header h1 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 2.2rem;
+            font-weight: 600;
+        }
+        .server-status {
+            text-align: right;
+            font-size: 0.9rem;
+        }
+        .section { 
+            margin: 30px 0; 
+            padding: 25px; 
+            border: 1px solid #dee2e6; 
+            border-radius: 10px; 
+            background: #fdfdfd;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .section h3 { 
+            margin-top: 0; 
+            color: #495057; 
+            font-size: 1.4rem;
+            font-weight: 600;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .setting { 
+            margin: 20px 0; 
+            display: grid; 
+            grid-template-columns: 2fr 2fr 1fr; 
+            gap: 15px; 
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .setting label { 
+            font-weight: 600; 
+            color: #495057;
+        }
+        .setting input, .setting select { 
+            padding: 10px; 
+            border: 2px solid #dee2e6; 
+            border-radius: 6px; 
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        .setting input:focus, .setting select:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+        }
+        .setting small {
+            color: #6c757d;
+            font-size: 0.85rem;
+            grid-column: 1 / -1;
+            margin-top: 5px;
+        }
+        button { 
+            margin: 8px; 
+            padding: 12px 20px; 
+            background: linear-gradient(135deg, #007bff, #0056b3); 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        button:hover { 
+            background: linear-gradient(135deg, #0056b3, #004085); 
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,123,255,0.3);
+        }
+        button.success { 
+            background: linear-gradient(135deg, #28a745, #1e7e34); 
+        }
+        button.success:hover { 
+            background: linear-gradient(135deg, #1e7e34, #155724); 
+        }
+        button.warning { 
+            background: linear-gradient(135deg, #ffc107, #e0a800); 
+            color: #212529; 
+        }
+        button.warning:hover { 
+            background: linear-gradient(135deg, #e0a800, #d39e00); 
+        }
+        button.danger { 
+            background: linear-gradient(135deg, #dc3545, #c82333); 
+        }
+        button.danger:hover { 
+            background: linear-gradient(135deg, #c82333, #bd2130); 
+        }
+        .status { 
+            padding: 15px; 
+            margin: 15px 0; 
+            border-radius: 8px; 
+            font-weight: 500;
+        }
+        .status.success { 
+            background: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb; 
+        }
+        .status.error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb; 
+        }
+        .status.info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border: 1px solid #bee5eb; 
+        }
+        .status.warning { 
+            background: #fff3cd; 
+            color: #856404; 
+            border: 1px solid #ffeaa7; 
+        }
+        pre { 
+            background: #f8f9fa; 
+            padding: 20px; 
+            border-radius: 8px; 
+            overflow-x: auto; 
+            font-size: 13px;
+            border: 1px solid #dee2e6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #log { 
+            max-height: 300px; 
+            overflow-y: auto; 
+            font-family: 'Courier New', monospace; 
+            font-size: 12px;
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .status-item {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .status-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .collapsible {
+            background: #e9ecef;
+            color: #495057;
+            cursor: pointer;
+            padding: 15px;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            margin: 10px 0;
+            transition: background-color 0.3s;
+        }
+        .collapsible:hover {
+            background: #dee2e6;
+        }
+        .collapsible.active {
+            background: #007bff;
+            color: white;
+        }
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .collapsible-content.active {
+            max-height: 1000px;
+        }
+        .diarization-panel {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 2px solid #007bff;
+        }
+        .advanced-panel {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border: 2px solid #ffc107;
+        }
+
+        /* Navigation Menu Styles */
+        .nav-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 250px;
+            background: var(--background-primary);
+            border-right: 1px solid var(--border-color);
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-menu-content {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-primary);
+            text-decoration: none;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-item:hover {
+            background: var(--background-secondary);
+        }
+
+        .nav-item.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .nav-icon {
+            font-size: 1.2rem;
+        }
+
+        /* Adjust main container for sidebar */
+        .main-container {
+            margin-left: 250px;
+            padding: 1rem;
+        }
+
+        /* Hamburger menu for mobile */
+        .hamburger-menu {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .hamburger-menu span {
+            display: block;
+            width: 24px;
+            height: 2px;
+            background: var(--text-primary);
+            transition: 0.3s;
+        }
+
+        @media (max-width: 768px) {
+        .nav-menu {
+                transform: translateX(-100%);
+            }
+
+            .nav-menu.active {
+                transform: translateX(0);
+            }
+
+            .main-container {
+                margin-left: 0;
+            }
+
+            .hamburger-menu {
+                display: flex;
+            }
+        }
+
+        /* Audio Visualization Styles */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin: 0.5rem 0;
+        }
+
+        .audio-controls-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 1rem;
+        }
+
+        .device-select {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .audio-level-container-vertical {
+            width: 20px;
+            height: 60px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .audio-level-bar-vertical {
+            width: 100%;
+            background: linear-gradient(to top, #4CAF50, #FFC107, #F44336);
+            position: absolute;
+            bottom: 0;
+            transition: height 0.1s ease;
+        }
+
+        .audio-level-text {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7rem;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .spectrum-container {
+            margin-top: 0.5rem;
+        }
+
+        .spectrum-container canvas {
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background: #f8f9fa;
+            width: 100%;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="header">
+            <h1>⚙️ Whisper NPU Server - Advanced Settings</h1>
+            <div class="server-status">
+                <div><strong>Server:</strong> <span id="serverStatus">Checking...</span></div>
+                <div><strong>Models:</strong> <span id="modelCount">Loading...</span></div>
+                <div><strong>CORS:</strong> <span id="corsStatus">Not tested</span></div>
+        </div>
+    </div>
+
+    <!-- Navigation Menu -->
+    <div class="nav-menu" id="navMenu">
+        <div class="nav-menu-content">
+            <a href="index.html" class="nav-item">
+                <span class="nav-icon">🎤</span>
+                <span>Live Transcription</span>
+            </a>
+            <a href="test-audio.html" class="nav-item">
+                <span class="nav-icon">🔊</span>
+                <span>Audio Testing</span>
+            </a>
+            <a href="settings.html" class="nav-item active">
+                <span class="nav-icon">⚙️</span>
+                <span>Settings</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div id="statusArea"></div>
+        
+        <!-- Quick Status Dashboard -->
+        <div class="section">
+            <h3>📊 Server Dashboard</h3>
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-value" id="deviceType">NPU</div>
+                    <div class="status-label">Device</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value" id="currentModel">Loading...</div>
+                    <div class="status-label">Current Model</div>
+            </div>
+                <div class="status-item">
+                    <div class="status-value" id="serverUptime">0s</div>
+                    <div class="status-label">Uptime</div>
+                        </div>
+                <div class="status-item">
+                    <div class="status-value" id="modelsLoaded">0</div>
+                    <div class="status-label">Models Loaded</div>
+                </div>
+            </div>
+            <div class="controls-grid">
+                <button onclick="checkStatus()">🔄 Refresh Status</button>
+                <button onclick="testCors()">🔬 Test CORS</button>
+                <button class="warning" onclick="restartServer()">🔄 Restart Server</button>
+                <button class="danger" onclick="stopServer()">⏹ Stop Server</button>
+            </div>
+        </div>
+
+        <!-- Core Settings -->
+        <div class="section">
+            <h3>🤖 Core Model Settings</h3>
+            <div class="setting">
+                        <label for="defaultModel">Default Model:</label>
+                <select id="defaultModel">
+                            <option value="whisper-base">whisper-base (loading...)</option>
+                        </select>
+                <button onclick="updateDefaultModel()">💾 Update</button>
+                    </div>
+            <div class="setting">
+                        <label for="devicePreference">Device Preference:</label>
+                <select id="devicePreference">
+                    <option value="NPU">NPU (Recommended)</option>
+                            <option value="GPU">GPU</option>
+                            <option value="CPU">CPU</option>
+                        </select>
+                <button onclick="updateDevicePreference()">💾 Update</button>
+                    </div>
+            <div class="setting">
+                        <label for="minInferenceInterval">Min Inference Interval (ms):</label>
+                <input type="number" id="minInferenceInterval" value="200" min="50" max="2000" step="50">
+                <button onclick="updateMinInferenceInterval()">💾 Update</button>
+                <small>Minimum time between inference calls to prevent NPU overload</small>
+            </div>
+        </div>
+
+        <!-- Audio Processing -->
+        <div class="section">
+            <h3>🎵 Audio Processing Settings</h3>
+            <div class="controls">
+                <div class="control-group">
+                    <div class="audio-controls-wrapper">
+                        <div class="device-select">
+                            <label>Audio Device:</label>
+                            <select id="audioDevice">
+                                <option value="">Default Device</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Vertical Audio Level Bar -->
+                        <div class="audio-level-container-vertical">
+                            <div id="audioLevelBar" class="audio-level-bar-vertical"></div>
+                            <span id="audioLevelText" class="audio-level-text">0%</span>
+            </div>
+                    </div>
+                    
+                    <!-- Compact FFT Spectrum -->
+                    <div class="spectrum-container">
+                        <canvas id="fftCanvas" width="150" height="30"></canvas>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Sample Rate:</label>
+                    <select id="sampleRate">
+                        <option value="16000">16kHz</option>
+                            <option value="22050">22kHz</option>
+                            <option value="44100">44kHz</option>
+                            <option value="48000">48kHz</option>
+                        </select>
+                    </div>
+                </div>
+            <div class="setting">
+                <label for="bufferDuration">Buffer Duration (s):</label>
+                <input type="number" id="bufferDuration" value="6.0" min="3" max="30" step="0.5">
+                <button onclick="updateBufferDuration()">💾 Update</button>
+                <small>Duration of rolling audio buffer for processing</small>
+            </div>
+            <div class="setting">
+                <label for="inferenceInterval">Inference Interval (s):</label>
+                <input type="number" id="inferenceInterval" value="3.0" min="1" max="10" step="0.5">
+                <button onclick="updateInferenceInterval()">💾 Update</button>
+                <small>How often to run inference on the buffer</small>
+                    </div>
+            <div class="setting">
+                <label for="vadEnabled">Voice Activity Detection:</label>
+                <input type="checkbox" id="vadEnabled" checked>
+                <button onclick="updateVadEnabled()">💾 Update</button>
+                <small>Detect voice activity to improve processing</small>
+                </div>
+            <div class="setting">
+                        <label for="vadAggressiveness">VAD Aggressiveness:</label>
+                <select id="vadAggressiveness">
+                            <option value="0">0 - Least aggressive</option>
+                            <option value="1">1 - Less aggressive</option>
+                            <option value="2" selected>2 - Moderately aggressive</option>
+                            <option value="3">3 - Most aggressive</option>
+                        </select>
+                <button onclick="updateVadAggressiveness()">💾 Update</button>
+                    </div>
+            <div class="setting">
+                <label for="speechEnhancementEnabled">Speech Enhancement:</label>
+                <input type="checkbox" id="speechEnhancementEnabled" checked>
+                <button onclick="updateSpeechEnhancement()">💾 Update</button>
+                <small>Apply noise reduction and audio enhancement</small>
+            </div>
+        </div>
+
+        <!-- Speaker Diarization -->
+        <button class="collapsible">🎤 Speaker Diarization Settings</button>
+        <div class="collapsible-content">
+            <div class="section diarization-panel">
+                <h3>🎤 Speaker Diarization Configuration</h3>
+                <div class="setting">
+                    <label for="diarizationEnabled">Enable Diarization:</label>
+                    <input type="checkbox" id="diarizationEnabled">
+                    <button onclick="updateDiarization()">💾 Update</button>
+                    <small>Identify different speakers in audio</small>
+            </div>
+                <div class="setting">
+                        <label for="nSpeakers">Number of Speakers:</label>
+                    <input type="number" id="nSpeakers" value="" min="1" max="10" placeholder="Auto-detect">
+                    <button onclick="updateNSpeakers()">💾 Update</button>
+                    <small>Leave empty for auto-detection</small>
+                    </div>
+                <div class="setting">
+                        <label for="embeddingMethod">Embedding Method:</label>
+                    <select id="embeddingMethod">
+                            <option value="resemblyzer" selected>Resemblyzer</option>
+                            <option value="speechbrain">SpeechBrain</option>
+                        </select>
+                    <button onclick="updateEmbeddingMethod()">💾 Update</button>
+                    </div>
+                <div class="setting">
+                        <label for="clusteringMethod">Clustering Method:</label>
+                    <select id="clusteringMethod">
+                            <option value="hdbscan" selected>HDBSCAN (Auto-speakers)</option>
+                            <option value="agglomerative">Agglomerative (Fixed speakers)</option>
+                        </select>
+                    <button onclick="updateClusteringMethod()">💾 Update</button>
+                    </div>
+                <div class="setting">
+                    <label for="overlapDuration">Overlap Duration (s):</label>
+                    <input type="number" id="overlapDuration" value="2.0" min="0.5" max="5.0" step="0.5">
+                    <button onclick="updateOverlapDuration()">💾 Update</button>
+                    <small>Overlap between analysis windows for continuity</small>
+                </div>
+                <div class="controls-grid">
+                    <button onclick="configureAllDiarization()">🎤 Configure All Diarization</button>
+                    <button onclick="testDiarizationStatus()">📊 Check Diarization Status</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Settings -->
+        <button class="collapsible">🔬 Advanced Settings</button>
+        <div class="collapsible-content">
+            <div class="section advanced-panel">
+                <h3>🔬 Advanced Configuration</h3>
+                <div class="setting">
+                    <label for="maxQueueSize">Max Queue Size:</label>
+                    <input type="number" id="maxQueueSize" value="10" min="1" max="50">
+                    <button onclick="updateMaxQueueSize()">💾 Update</button>
+                    <small>Maximum concurrent transcription requests</small>
+            </div>
+                <div class="setting">
+                    <label for="maxTranscriptionHistory">Max History:</label>
+                    <input type="number" id="maxTranscriptionHistory" value="200" min="50" max="1000" step="50">
+                    <button onclick="updateMaxHistory()">💾 Update</button>
+                    <small>Number of transcriptions to keep in memory</small>
+                </div>
+                <div class="setting">
+                        <label for="logLevel">Log Level:</label>
+                    <select id="logLevel">
+                            <option value="DEBUG">DEBUG</option>
+                            <option value="INFO" selected>INFO</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="ERROR">ERROR</option>
+                        </select>
+                    <button onclick="updateLogLevel()">💾 Update</button>
+                    </div>
+                <div class="setting">
+                    <label for="enableFileLogging">File Logging:</label>
+                    <input type="checkbox" id="enableFileLogging" checked>
+                    <button onclick="updateFileLogging()">💾 Update</button>
+                    <small>Save logs to whisper-npu-server.log</small>
+                    </div>
+                <div class="setting">
+                    <label for="openvinoDevice">OpenVINO Device:</label>
+                    <input type="text" id="openvinoDevice" value="" placeholder="NPU">
+                    <button onclick="updateOpenvinoDevice()">💾 Update</button>
+                    <small>Force specific OpenVINO device</small>
+                </div>
+                <div class="setting">
+                    <label for="openvinoLogLevel">OpenVINO Log Level:</label>
+                    <select id="openvinoLogLevel">
+                            <option value="0">0 - Silent</option>
+                            <option value="1" selected>1 - Error</option>
+                            <option value="2">2 - Warning</option>
+                            <option value="3">3 - Info</option>
+                            <option value="4">4 - Debug</option>
+                        </select>
+                    <button onclick="updateOpenvinoLogLevel()">💾 Update</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mass Operations -->
+        <div class="section">
+            <h3>🔧 Bulk Operations</h3>
+            <div class="controls-grid">
+                <button class="success" onclick="saveAllSettings()">💾 Save All Settings</button>
+                <button onclick="loadCurrentConfig()">🔄 Reload Configuration</button>
+                <button onclick="exportConfig()">📥 Export Config</button>
+                <button onclick="refreshModels()">🔄 Refresh Models</button>
+            </div>
+        </div>
+        
+        <!-- Current Configuration -->
+        <div class="section">
+            <h3>📊 Current Configuration</h3>
+            <button onclick="loadCurrentConfig()">🔄 Load Current Config</button>
+            <pre id="currentConfig">Click "Load Current Config" to see settings...</pre>
+        </div>
+        
+        <!-- Debug Log -->
+        <div class="section">
+            <h3>🐛 Debug Log</h3>
+            <button onclick="clearLog()">🧹 Clear Log</button>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        const serverUrl = 'http://localhost:5000';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logDiv.textContent += logEntry;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(`[Settings] ${message}`);
+        }
+        
+        function showStatus(message, type = 'info') {
+            const statusArea = document.getElementById('statusArea');
+            statusArea.innerHTML = `<div class="status ${type}">${message}</div>`;
+            log(`Status: ${message}`, type);
+            
+            // Auto-clear after 5 seconds
+            setTimeout(() => {
+                statusArea.innerHTML = '';
+            }, 5000);
+        }
+        
+        async function apiCall(endpoint, options = {}) {
+            try {
+                log(`API call: ${endpoint}`);
+                const response = await fetch(`${serverUrl}${endpoint}`, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`API success: ${endpoint}`);
+                return data;
+            } catch (error) {
+                log(`API error: ${endpoint} - ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        async function checkStatus() {
+            try {
+                const health = await apiCall('/health');
+                document.getElementById('serverStatus').textContent = `✅ Online (${health.device || 'Unknown'})`;
+                document.getElementById('deviceType').textContent = health.device || 'Unknown';
+                document.getElementById('currentModel').textContent = health.current_model || 'Unknown';
+                document.getElementById('modelsLoaded').textContent = health.models_loaded || '0';
+                
+                if (health.server_uptime) {
+                    const hours = Math.floor(health.server_uptime / 3600);
+                    const minutes = Math.floor((health.server_uptime % 3600) / 60);
+                    document.getElementById('serverUptime').textContent = `${hours}h ${minutes}m`;
+                }
+                
+                showStatus('Server status checked successfully', 'success');
+            } catch (error) {
+                document.getElementById('serverStatus').textContent = '❌ Offline';
+                showStatus(`Failed to check server status: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testCors() {
+            try {
+                log('Testing CORS functionality...');
+                document.getElementById('corsStatus').textContent = '🔄 Testing...';
+                
+                const response = await fetch(`${serverUrl}/cors-test`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+                
+                if (corsHeaders['Access-Control-Allow-Origin']) {
+                    document.getElementById('corsStatus').textContent = '✅ Working';
+                    showStatus('CORS test successful - headers present', 'success');
+                } else {
+                    document.getElementById('corsStatus').textContent = '❌ Failed';
+                    showStatus('CORS test failed - headers missing', 'error');
+                }
+                
+            } catch (error) {
+                document.getElementById('corsStatus').textContent = '❌ Error';
+                showStatus(`CORS test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadModels() {
+            try {
+                const models = await apiCall('/models');
+                const modelSelect = document.getElementById('defaultModel');
+                const currentValue = modelSelect.value;
+                
+                modelSelect.innerHTML = '';
+                if (models.models && models.models.length > 0) {
+                    models.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        modelSelect.appendChild(option);
+                    });
+                    
+                    if (models.models.includes(currentValue)) {
+                        modelSelect.value = currentValue;
+                    }
+                    
+                    document.getElementById('modelCount').textContent = models.models.length;
+                    showStatus(`Loaded ${models.models.length} models`, 'success');
+                } else {
+                    modelSelect.innerHTML = '<option value="">No models found</option>';
+                    showStatus('No models found', 'error');
+                }
+            } catch (error) {
+                showStatus(`Failed to load models: ${error.message}`, 'error');
+            }
+        }
+        
+        async function updateSetting(key, value) {
+            try {
+                await apiCall(`/settings/${key}`, {
+                    method: 'POST',
+                    body: JSON.stringify({ value })
+                });
+                showStatus(`${key} updated to: ${value}`, 'success');
+                
+                // For model changes, show longer loading message
+                if (key === 'default_model') {
+                    showStatus('Loading new model... This may take up to 60 seconds', 'info');
+                    setTimeout(async () => {
+                        await checkStatus();
+                        await loadCurrentConfig();
+                    }, 5000);
+                }
+            } catch (error) {
+                showStatus(`Failed to update ${key}: ${error.message}`, 'error');
+            }
+        }
+        
+        // Individual setting update functions
+        async function updateDefaultModel() {
+            const value = document.getElementById('defaultModel').value;
+            await updateSetting('default_model', value);
+        }
+        
+        async function updateDevicePreference() {
+            const value = document.getElementById('devicePreference').value;
+            await updateSetting('device_preference', value);
+        }
+        
+        async function updateMinInferenceInterval() {
+            const value = parseInt(document.getElementById('minInferenceInterval').value);
+            await updateSetting('min_inference_interval', value);
+        }
+        
+        async function updateBufferDuration() {
+            const value = parseFloat(document.getElementById('bufferDuration').value);
+            await updateSetting('buffer_duration', value);
+        }
+        
+        async function updateInferenceInterval() {
+            const value = parseFloat(document.getElementById('inferenceInterval').value);
+            await updateSetting('inference_interval', value);
+        }
+        
+        async function updateSampleRate() {
+            const value = parseInt(document.getElementById('sampleRate').value);
+            await updateSetting('sample_rate', value);
+        }
+        
+        async function updateVadEnabled() {
+            const value = document.getElementById('vadEnabled').checked;
+            await updateSetting('vad_enabled', value);
+        }
+        
+        async function updateVadAggressiveness() {
+            const value = parseInt(document.getElementById('vadAggressiveness').value);
+            await updateSetting('vad_aggressiveness', value);
+        }
+        
+        async function updateSpeechEnhancement() {
+            const value = document.getElementById('speechEnhancementEnabled').checked;
+            await updateSetting('speech_enhancement_enabled', value);
+        }
+        
+        async function updateDiarization() {
+            const value = document.getElementById('diarizationEnabled').checked;
+            await updateSetting('diarization_enabled', value);
+        }
+        
+        async function updateNSpeakers() {
+            const value = document.getElementById('nSpeakers').value;
+            await updateSetting('n_speakers', value ? parseInt(value) : null);
+        }
+        
+        async function updateEmbeddingMethod() {
+            const value = document.getElementById('embeddingMethod').value;
+            await updateSetting('embedding_method', value);
+        }
+        
+        async function updateClusteringMethod() {
+            const value = document.getElementById('clusteringMethod').value;
+            await updateSetting('clustering_method', value);
+        }
+        
+        async function updateOverlapDuration() {
+            const value = parseFloat(document.getElementById('overlapDuration').value);
+            await updateSetting('overlap_duration', value);
+        }
+        
+        async function updateMaxQueueSize() {
+            const value = parseInt(document.getElementById('maxQueueSize').value);
+            await updateSetting('max_queue_size', value);
+        }
+        
+        async function updateMaxHistory() {
+            const value = parseInt(document.getElementById('maxTranscriptionHistory').value);
+            await updateSetting('max_transcription_history', value);
+        }
+        
+        async function updateLogLevel() {
+            const value = document.getElementById('logLevel').value;
+            await updateSetting('log_level', value);
+        }
+        
+        async function updateFileLogging() {
+            const value = document.getElementById('enableFileLogging').checked;
+            await updateSetting('enable_file_logging', value);
+        }
+        
+        async function updateOpenvinoDevice() {
+            const value = document.getElementById('openvinoDevice').value;
+            await updateSetting('openvino_device', value);
+        }
+        
+        async function updateOpenvinoLogLevel() {
+            const value = parseInt(document.getElementById('openvinoLogLevel').value);
+            await updateSetting('openvino_log_level', value);
+        }
+        
+        async function saveAllSettings() {
+            try {
+                const settings = {
+                    default_model: document.getElementById('defaultModel').value,
+                    device_preference: document.getElementById('devicePreference').value,
+                    min_inference_interval: parseInt(document.getElementById('minInferenceInterval').value),
+                    buffer_duration: parseFloat(document.getElementById('bufferDuration').value),
+                    inference_interval: parseFloat(document.getElementById('inferenceInterval').value),
+                    sample_rate: parseInt(document.getElementById('sampleRate').value),
+                    vad_enabled: document.getElementById('vadEnabled').checked,
+                    vad_aggressiveness: parseInt(document.getElementById('vadAggressiveness').value),
+                    speech_enhancement_enabled: document.getElementById('speechEnhancementEnabled').checked,
+                    diarization_enabled: document.getElementById('diarizationEnabled').checked,
+                    n_speakers: document.getElementById('nSpeakers').value ? parseInt(document.getElementById('nSpeakers').value) : null,
+                    embedding_method: document.getElementById('embeddingMethod').value,
+                    clustering_method: document.getElementById('clusteringMethod').value,
+                    overlap_duration: parseFloat(document.getElementById('overlapDuration').value),
+                    max_queue_size: parseInt(document.getElementById('maxQueueSize').value),
+                    max_transcription_history: parseInt(document.getElementById('maxTranscriptionHistory').value),
+                    log_level: document.getElementById('logLevel').value,
+                    enable_file_logging: document.getElementById('enableFileLogging').checked,
+                    openvino_device: document.getElementById('openvinoDevice').value,
+                    openvino_log_level: parseInt(document.getElementById('openvinoLogLevel').value)
+                };
+                
+                await apiCall('/settings', {
+                    method: 'POST',
+                    body: JSON.stringify(settings)
+                });
+                
+                showStatus('All settings saved successfully', 'success');
+                setTimeout(() => {
+                    checkStatus();
+                    loadCurrentConfig();
+                }, 1000);
+                
+            } catch (error) {
+                showStatus(`Failed to save settings: ${error.message}`, 'error');
+            }
+        }
+        
+        async function configureAllDiarization() {
+            try {
+                const config = {
+                    enable: document.getElementById('diarizationEnabled').checked,
+                    n_speakers: document.getElementById('nSpeakers').value ? parseInt(document.getElementById('nSpeakers').value) : null,
+                    embedding_method: document.getElementById('embeddingMethod').value,
+                    clustering_method: document.getElementById('clusteringMethod').value,
+                    overlap_duration: parseFloat(document.getElementById('overlapDuration').value)
+                };
+                
+                await apiCall('/diarization/configure', {
+                    method: 'POST',
+                    body: JSON.stringify(config)
+                });
+                
+                showStatus('Diarization configured successfully', 'success');
+            } catch (error) {
+                showStatus(`Failed to configure diarization: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testDiarizationStatus() {
+            try {
+                const status = await apiCall('/diarization/status');
+                showStatus(`Diarization Status: Available=${status.available}, Enabled=${status.enabled}`, 'info');
+                log(`Diarization details: ${JSON.stringify(status, null, 2)}`);
+            } catch (error) {
+                showStatus(`Failed to get diarization status: ${error.message}`, 'error');
+            }
+        }
+        
+        async function loadCurrentConfig() {
+            try {
+                const config = await apiCall('/settings');
+                document.getElementById('currentConfig').textContent = JSON.stringify(config, null, 2);
+                
+                // Populate form fields
+                if (config.default_model) document.getElementById('defaultModel').value = config.default_model;
+                if (config.device_preference) document.getElementById('devicePreference').value = config.device_preference;
+                if (config.min_inference_interval) document.getElementById('minInferenceInterval').value = config.min_inference_interval;
+                if (config.buffer_duration) document.getElementById('bufferDuration').value = config.buffer_duration;
+                if (config.inference_interval) document.getElementById('inferenceInterval').value = config.inference_interval;
+                if (config.sample_rate) document.getElementById('sampleRate').value = config.sample_rate;
+                if (config.vad_enabled !== undefined) document.getElementById('vadEnabled').checked = config.vad_enabled;
+                if (config.vad_aggressiveness) document.getElementById('vadAggressiveness').value = config.vad_aggressiveness;
+                if (config.speech_enhancement_enabled !== undefined) document.getElementById('speechEnhancementEnabled').checked = config.speech_enhancement_enabled;
+                if (config.diarization_enabled !== undefined) document.getElementById('diarizationEnabled').checked = config.diarization_enabled;
+                if (config.n_speakers) document.getElementById('nSpeakers').value = config.n_speakers;
+                if (config.embedding_method) document.getElementById('embeddingMethod').value = config.embedding_method;
+                if (config.clustering_method) document.getElementById('clusteringMethod').value = config.clustering_method;
+                if (config.overlap_duration) document.getElementById('overlapDuration').value = config.overlap_duration;
+                if (config.max_queue_size) document.getElementById('maxQueueSize').value = config.max_queue_size;
+                if (config.max_transcription_history) document.getElementById('maxTranscriptionHistory').value = config.max_transcription_history;
+                if (config.log_level) document.getElementById('logLevel').value = config.log_level;
+                if (config.enable_file_logging !== undefined) document.getElementById('enableFileLogging').checked = config.enable_file_logging;
+                if (config.openvino_device) document.getElementById('openvinoDevice').value = config.openvino_device;
+                if (config.openvino_log_level) document.getElementById('openvinoLogLevel').value = config.openvino_log_level;
+                
+                showStatus('Configuration loaded successfully', 'success');
+            } catch (error) {
+                showStatus(`Failed to load configuration: ${error.message}`, 'error');
+            }
+        }
+        
+        async function restartServer() {
+            if (!confirm('Are you sure you want to restart the server? This will interrupt any ongoing transcriptions.')) {
+                return;
+            }
+            
+            try {
+                showStatus('Initiating server restart...', 'info');
+                document.getElementById('serverStatus').textContent = '🔄 Restarting...';
+                
+                await apiCall('/restart', { method: 'POST' });
+                showStatus('Server restart initiated - waiting for server to come back online...', 'info');
+                
+                // Wait for restart with longer timeouts
+                setTimeout(async () => {
+                    showStatus('Checking if server is back online...', 'info');
+                    
+                    for (let attempt = 1; attempt <= 15; attempt++) {
+                        try {
+                            await new Promise(resolve => setTimeout(resolve, 4000));
+                            const health = await apiCall('/health');
+                            
+                            if (health.status === 'healthy') {
+                                document.getElementById('serverStatus').textContent = `✅ Online (${health.device || 'Unknown'})`;
+                                showStatus('Server restart completed successfully!', 'success');
+                                
+                                setTimeout(async () => {
+                                    await loadModels();
+                                    await loadCurrentConfig();
+                                    await testCors();
+                                }, 2000);
+                                
+                                break;
+                            }
+                        } catch (error) {
+                            if (attempt === 15) {
+                                document.getElementById('serverStatus').textContent = '❌ Restart failed';
+                                showStatus('Server restart may have failed - please check manually', 'error');
+                            } else {
+                                showStatus(`Restart attempt ${attempt}/15 - server not ready yet...`, 'info');
+                            }
+                        }
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                document.getElementById('serverStatus').textContent = '❌ Restart failed';
+                showStatus(`Failed to restart server: ${error.message}`, 'error');
+            }
+        }
+        
+        async function stopServer() {
+            if (!confirm('Are you sure you want to stop the server?')) return;
+            
+            try {
+                await apiCall('/shutdown', { method: 'POST' });
+                showStatus('Server shutdown initiated', 'warning');
+            } catch (error) {
+                showStatus(`Failed to stop server: ${error.message}`, 'error');
+            }
+        }
+        
+        async function refreshModels() {
+            await loadModels();
+        }
+        
+        function exportConfig() {
+            try {
+                const configText = document.getElementById('currentConfig').textContent;
+                if (!configText || configText === 'Click "Load Current Config" to see settings...') {
+                    showStatus('Please load configuration first', 'warning');
+                    return;
+                }
+                
+                const blob = new Blob([configText], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `whisper-npu-config-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                URL.revokeObjectURL(url);
+                showStatus('Configuration exported', 'success');
+            } catch (error) {
+                showStatus(`Failed to export configuration: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+        
+        // Collapsible functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const collapsibles = document.querySelectorAll('.collapsible');
+            collapsibles.forEach(function(collapsible) {
+                collapsible.addEventListener('click', function() {
+                    this.classList.toggle('active');
+                    const content = this.nextElementSibling;
+                    content.classList.toggle('active');
+                });
+            });
+        });
+        
+        // Initialize on page load
+        window.onload = function() {
+            log('Advanced settings page loaded');
+            checkStatus();
+            loadModels();
+            loadCurrentConfig();
+
+            // Initialize hamburger menu
+            const hamburgerMenu = document.getElementById('hamburgerMenu');
+            const navMenu = document.getElementById('navMenu');
+            
+            if (hamburgerMenu && navMenu) {
+                hamburgerMenu.addEventListener('click', () => {
+                    navMenu.classList.toggle('active');
+                });
+            }
+        };
+    </script>
+</body>
+</html> 

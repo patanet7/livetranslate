@@ -1,0 +1,10 @@
+Hello, how are you today?
+I am learning to speak multiple languages.
+The weather is beautiful outside.
+这是一个中文句子，用来测试翻译。
+我喜欢学习新的编程语言。
+人工智能正在改变我们的生活方式。
+Can you translate this sentence to Chinese?
+这句话能翻译成英文吗？
+Technology is advancing at an incredible pace.
+世界是一个多彩多姿的地方. 

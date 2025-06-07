@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  whisper-npu-server:
+    build:
+      context: ./external/whisper-npu-server
+      dockerfile: Dockerfile
+    container_name: livetranslate-whisper-npu
+    volumes:
+      - ${HOME}/.whisper/models:/root/.whisper/models
+      - ./external/whisper-npu-server:/src/dictation
+    ports:
+      - "8009:5000"
+    # Commented out NPU-specific requirements for compatibility
+    # devices:
+    #   - /dev/dri
+    #   - /dev/accel/accel0
+    # security_opt:
+    #   - seccomp=unconfined
+    # ipc: host
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+
+  transcription-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: livetranslate-whisper
+    container_name: livetranslate-transcription
+    volumes:
+      - ${HOME}/.whisper/models:/root/.whisper/models
+      - ./python:/app/python
+      - ./tests:/app/tests
+    ports:
+      - "8765:8765"
+    command: ["python", "-m", "python.server", "--host", "0.0.0.0", "--port", "8765"]
+    depends_on:
+      - whisper-npu-server
+    environment:
+      - WHISPER_SERVER_URL=http://whisper-npu-server:5000
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  translation-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: livetranslate-whisper
+    container_name: livetranslate-translation
+    volumes:
+      - ${HOME}/.whisper/models:/root/.whisper/models
+      - ./python:/app/python
+      - ./tests:/app/tests
+    ports:
+      - "8010:8010"
+    command: ["python", "-m", "python.translation_server", "--host", "0.0.0.0", "--port", "8010", "--model", "Qwen/Qwen3-14B-AWQ"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    restart: unless-stopped
+
+  logging-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: livetranslate-whisper
+    container_name: livetranslate-logging
+    volumes:
+      - ./python:/app/python
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8766:8766"
+    command: ["python", "-m", "python.logging_server", "--host", "0.0.0.0", "--port", "8766"]
+    restart: unless-stopped
+
+  frontend:
+    image: nginx:alpine
+    container_name: livetranslate-frontend
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    ports:
+      - "8080:80"
+    depends_on:
+      - transcription-server
+      - translation-server
+      - logging-server
+    restart: unless-stopped 

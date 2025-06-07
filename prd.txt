@@ -1,0 +1,419 @@
+# LiveTranslate Product Requirements Document (PRD)
+
+## Overview  
+LiveTranslate is a real-time audio transcription and translation system designed to capture live audio from applications, transcribe it using AI (Whisper), translate it through local LLM models, and display synchronized captions. The system aims to break down language barriers in digital communications, particularly for video conferencing platforms like Google Meet, by providing real-time multilingual captions with speaker identification.
+
+The product solves the critical problem of language barriers in global digital communications while maintaining privacy through local processing and offering enterprise-grade performance through NPU acceleration.
+
+## Core Features  
+
+### 1. Real-time Audio Capture & Processing
+**What it does**: Captures audio from system output, microphone input, or streaming sources and processes it in real-time chunks
+**Why it's important**: Foundation for all transcription functionality, must be low-latency and high-quality
+**How it works**: Uses WebSocket connections to stream audio data with configurable sample rates (16kHz-48kHz), automatic resampling, and VAD (Voice Activity Detection)
+
+### 2. AI-Powered Transcription (Whisper NPU)
+**What it does**: Converts speech to text using OpenAI's Whisper model with NPU acceleration support
+**Why it's important**: Core transcription accuracy with hardware acceleration for performance
+**How it works**: Implements Whisper models with OpenVINO integration, rolling buffer system for continuous transcription, and multiple model support (whisper-medium.en, etc.)
+
+### 3. Speaker Diarization (In Development)
+**What it does**: Identifies and separates different speakers in audio streams
+**Why it's important**: Essential for multi-speaker scenarios like meetings to attribute speech correctly
+**How it works**: Advanced speaker diarization system with voice activity detection, speaker embedding, and clustering algorithms
+
+### 4. Multi-language Translation
+**What it does**: Translates transcribed text between languages using local LLM models
+**Why it's important**: Enables cross-language communication without cloud dependencies
+**How it works**: Uses vLLM with quantized models (Qwen3-14B-AWQ) for English-Chinese translation with automatic language detection
+
+### 5. Modern Web Interface
+**What it does**: Provides intuitive control panel for configuration, monitoring, and transcription management
+**Why it's important**: User-friendly interface crucial for adoption and operational efficiency
+**How it works**: Modern HTML5/CSS3/JavaScript frontend with real-time WebSocket connections, audio visualization, and responsive design
+
+### 6. Data Logging & Export
+**What it does**: Captures, stores, and exports transcription/translation data in various formats
+**Why it's important**: Essential for record-keeping, analysis, and integration with other systems
+**How it works**: CSV export functionality, session persistence, and structured data logging with timestamps
+
+### 7. Docker-based Deployment
+**What it does**: Containerized deployment for easy setup and scalability
+**Why it's important**: Simplifies deployment across different environments and ensures consistency
+**How it works**: Multi-container architecture with separate services for transcription, translation, logging, and frontend
+
+## User Experience  
+
+### User Personas
+1. **Enterprise Users**: IT professionals deploying for company-wide video conferencing
+2. **Content Creators**: Streamers and content creators needing live captions
+3. **Accessibility Advocates**: Organizations requiring ADA-compliant live captions
+4. **International Teams**: Global companies with multilingual communications
+
+### Key User Flows
+
+#### Primary Flow: Live Meeting Transcription
+1. User starts LiveTranslate system via `start_livetranslate.bat`
+2. System launches Docker containers (transcription, translation, frontend)
+3. User accesses web interface at `localhost:8080`
+4. User configures audio input device and selects Whisper model
+5. User starts recording/streaming audio
+6. System provides real-time transcription with speaker identification
+7. Transcriptions are automatically translated and displayed
+8. User can export session data as CSV files
+
+#### Secondary Flow: Google Meet Integration (Future)
+1. User launches Google Meet bot component
+2. Bot joins meeting as participant
+3. Bot captures meeting audio and sends to transcription pipeline
+4. Real-time captions are overlaid on bot's video feed
+5. Meeting participants see live translated captions
+
+### UI/UX Considerations
+- **Accessibility**: High contrast design, keyboard navigation, screen reader compatibility
+- **Real-time Feedback**: Live audio visualization, connection status indicators, processing status
+- **Minimal Latency**: < 2 second end-to-end latency from speech to caption display
+- **Error Handling**: Graceful degradation, clear error messages, automatic reconnection
+
+## Technical Architecture  
+
+### System Components
+
+#### Backend Services
+1. **Transcription Server** (`server.py`) - WebSocket server handling audio streams and Whisper processing
+2. **Translation Server** (`translation_server.py`) - LLM-based translation service using vLLM
+3. **Whisper NPU Server** (`whisper-npu-server/server.py`) - NPU-accelerated Whisper inference with Flask API
+4. **Logging Server** (`logging_server.py`) - Centralized logging and data persistence
+5. **Audio Client** (`audio_client.py`) - Audio capture and streaming client
+
+#### Frontend Components
+1. **Web Interface** - Modern HTML5 interface with real-time updates
+2. **Audio Visualization** - Real-time audio level monitoring
+3. **Configuration Panel** - Device selection, model configuration, settings management
+4. **Transcription Display** - Live transcript with speaker attribution
+5. **Export Tools** - CSV download, session management
+
+### Data Models
+
+#### Transcription Data
+```json
+{
+  "timestamp": "ISO timestamp",
+  "text": "transcribed text",
+  "is_final": boolean,
+  "confidence": float,
+  "speaker_id": "speaker identifier",
+  "language": "detected language"
+}
+```
+
+#### Translation Data
+```json
+{
+  "timestamp": "ISO timestamp", 
+  "original_text": "source text",
+  "translated_text": "translated result",
+  "source_lang": "source language",
+  "target_lang": "target language"
+}
+```
+
+### APIs and Integrations
+
+#### WebSocket APIs
+- `ws://localhost:8765` - Transcription service
+- `ws://localhost:8010` - Translation service
+- `ws://localhost:8766` - Logging service
+
+#### HTTP APIs  
+- `/transcribe/<model_name>` - Single-shot transcription
+- `/stream/configure` - Configure streaming parameters
+- `/stream/audio` - Stream audio chunks
+- `/models` - List available models
+- `/health` - Service health check
+
+### Infrastructure Requirements
+
+#### Hardware Requirements
+- **Minimum**: 8GB RAM, modern CPU with AVX support
+- **Recommended**: 16GB+ RAM, NVIDIA GPU with Tensor Cores, Intel NPU (for acceleration)
+- **Storage**: 5GB+ for models and session data
+
+#### Software Dependencies
+- Docker & Docker Compose
+- Python 3.9+
+- NVIDIA Container Toolkit (for GPU acceleration)
+- OpenVINO Runtime (for NPU acceleration)
+
+## Development Roadmap  
+
+### Phase 1: Core MVP (Foundation)
+**Scope**: Basic transcription pipeline with web interface
+
+#### Features to Build:
+1. **Audio Capture Pipeline**
+   - WebSocket audio streaming
+   - Basic VAD implementation
+   - Audio format standardization (16kHz mono)
+
+2. **Basic Whisper Integration**
+   - Single model support (whisper-medium.en)
+   - Real-time transcription processing
+   - Simple WebSocket API
+
+3. **Minimal Web Interface**
+   - Start/stop recording
+   - Live transcription display
+   - Basic device selection
+
+4. **Docker Deployment**
+   - Single-container deployment
+   - Basic configuration management
+
+**Success Criteria**: User can capture audio from microphone and see real-time transcription in web browser
+
+### Phase 2: Enhanced Transcription (Performance & Accuracy)
+**Scope**: NPU acceleration, multiple models, improved accuracy
+
+#### Features to Build:
+1. **NPU Integration**
+   - OpenVINO model optimization
+   - NPU device detection and utilization
+   - Performance monitoring
+
+2. **Multi-model Support**
+   - Model switching without restart
+   - Automatic model downloading
+   - Performance comparison tools
+
+3. **Audio Enhancement**
+   - Noise reduction preprocessing
+   - Audio quality optimization
+   - Advanced VAD with silence detection
+
+4. **Rolling Buffer System**
+   - Continuous transcription processing
+   - Overlap handling for better accuracy
+   - Configurable buffer management
+
+**Success Criteria**: < 1 second latency, 95%+ transcription accuracy, smooth model switching
+
+### Phase 3: Translation & Multi-language (Intelligence)
+**Scope**: Local LLM integration, translation pipeline
+
+#### Features to Build:
+1. **LLM Integration**
+   - vLLM server setup
+   - Model quantization (AWQ/GPTQ)
+   - Translation quality optimization
+
+2. **Translation Pipeline**
+   - Automatic language detection
+   - Bidirectional translation (EN↔ZH)
+   - Translation confidence scoring
+
+3. **Multi-language Support**
+   - Additional language pairs
+   - Language-specific model optimization
+   - Cultural context handling
+
+4. **Enhanced Web Interface**
+   - Translation display panels
+   - Language selection controls
+   - Translation history management
+
+**Success Criteria**: Accurate translations with < 2 second latency, support for 5+ language pairs
+
+### Phase 4: Speaker Intelligence (Speaker Diarization)
+**Scope**: Speaker identification and attribution
+
+#### Features to Build:
+1. **Speaker Diarization System**
+   - Voice activity detection
+   - Speaker embedding extraction
+   - Clustering algorithms for speaker identification
+
+2. **Speaker Management**
+   - Speaker profile creation
+   - Voice training for known speakers
+   - Speaker statistics and analytics
+
+3. **Enhanced Transcription Display**
+   - Color-coded speaker attribution
+   - Speaker timeline visualization
+   - Confidence indicators per speaker
+
+4. **Export Enhancements**
+   - Speaker-attributed transcripts
+   - Meeting summary generation
+   - Speaker analytics reports
+
+**Success Criteria**: 90%+ speaker identification accuracy, clear speaker attribution in transcripts
+
+### Phase 5: Advanced Features (Production Ready)
+**Scope**: System output capture, advanced integrations
+
+#### Features to Build:
+1. **System Audio Capture**
+   - Application audio interception
+   - Multiple audio source management
+   - Audio routing and mixing
+
+2. **Data Management**
+   - Session persistence
+   - Advanced export formats (SRT, VTT, etc.)
+   - Search and filtering capabilities
+
+3. **Configuration Management**
+   - Advanced settings panel
+   - Profile management
+   - Backup/restore functionality
+
+4. **Performance Optimization**
+   - Memory usage optimization
+   - CPU/GPU load balancing
+   - Automatic quality adjustment
+
+**Success Criteria**: Can capture audio from any application, enterprise-grade reliability
+
+### Phase 6: Google Meet Integration (Bot Platform)
+**Scope**: Meeting bot integration, video platform support
+
+#### Features to Build:
+1. **Meeting Bot Framework**
+   - Automated meeting joining
+   - Audio capture from meeting platforms
+   - Bot session management
+
+2. **Google Meet Integration**
+   - Chrome extension for meeting detection
+   - Bot deployment and control
+   - Caption overlay system
+
+3. **Video Integration**
+   - Real-time caption rendering
+   - Multiple display modes
+   - Customizable caption appearance
+
+4. **Enterprise Features**
+   - Multi-tenant support
+   - Admin dashboard
+   - Usage analytics and reporting
+
+**Success Criteria**: Bot can join Google Meet, provide real-time captions visible to all participants
+
+## Logical Dependency Chain
+
+### Foundation Layer (Must Build First)
+1. **Audio Processing Pipeline** - Core infrastructure for all audio operations
+2. **WebSocket Communication** - Essential for real-time data flow
+3. **Docker Infrastructure** - Deployment and scaling foundation
+4. **Basic Web Interface** - User interaction foundation
+
+### Core Functionality (Build on Foundation)
+1. **Whisper Integration** - Depends on audio pipeline
+2. **NPU Acceleration** - Depends on Whisper integration
+3. **Translation Service** - Independent of transcription, can be parallel
+4. **Data Logging** - Depends on transcription and translation services
+
+### Advanced Features (Build on Core)
+1. **Speaker Diarization** - Depends on stable transcription pipeline
+2. **System Audio Capture** - Depends on mature audio processing
+3. **Multi-model Support** - Depends on NPU optimization
+
+### Integration Layer (Final Components)
+1. **Google Meet Bot** - Depends on all previous components
+2. **Enterprise Features** - Depends on stable bot platform
+
+### Quick Visibility Targets
+1. **Day 1**: Basic audio capture and display in web browser
+2. **Week 1**: Real-time transcription working end-to-end
+3. **Week 2**: NPU acceleration showing performance gains
+4. **Month 1**: Translation pipeline working with decent accuracy
+5. **Month 2**: Speaker diarization providing basic speaker separation
+
+## Risks and Mitigations  
+
+### Technical Challenges
+
+#### NPU Integration Complexity
+**Risk**: NPU support may be hardware-specific and difficult to implement
+**Mitigation**: Implement fallback to CPU/GPU processing, extensive testing on target hardware
+
+#### Real-time Performance Requirements
+**Risk**: Latency requirements may be too aggressive for hardware capabilities
+**Mitigation**: Implement adaptive quality settings, performance profiling tools, hardware requirement documentation
+
+#### Speaker Diarization Accuracy
+**Risk**: Current speaker diarization implementation shows limited accuracy
+**Mitigation**: Research alternative approaches, implement fallback to speaker-agnostic transcription, gradual improvement iterations
+
+### MVP Scope Management
+
+#### Feature Creep Prevention
+**Risk**: Attempting to build too many features simultaneously
+**Mitigation**: Strict phase-based development, clear success criteria per phase, regular scope reviews
+
+#### Hardware Dependency Management
+**Risk**: Different hardware configurations may require different implementations
+**Mitigation**: Abstract hardware interfaces, extensive compatibility testing, clear hardware requirements documentation
+
+### Resource Constraints
+
+#### Model Size and Performance
+**Risk**: Large language models may consume excessive resources
+**Mitigation**: Model quantization, efficient caching strategies, resource monitoring tools
+
+#### Development Complexity
+**Risk**: Multiple components may be too complex to maintain
+**Mitigation**: Comprehensive documentation, modular architecture, automated testing suites
+
+## Appendix  
+
+### Research Findings
+
+#### Current Implementation Status
+- ✅ **Working**: Basic transcription pipeline, WebSocket communication, Docker deployment
+- ⚠️ **Partial**: Speaker diarization (implemented but accuracy issues), NPU integration
+- ❌ **Missing**: System audio capture, Google Meet integration, advanced export formats
+
+#### Performance Benchmarks
+- **Transcription Latency**: Currently ~2-3 seconds end-to-end
+- **Memory Usage**: ~4GB for basic transcription, ~8GB with translation
+- **Model Loading**: ~30 seconds for large models on first load
+
+### Technical Specifications
+
+#### Audio Specifications
+- **Sample Rates**: 16kHz (primary), 22kHz, 44kHz, 48kHz
+- **Bit Depth**: 16-bit PCM
+- **Channels**: Mono (converted from stereo if needed)
+- **Chunk Size**: 8000 samples (~0.5 seconds at 16kHz)
+
+#### Model Specifications
+- **Whisper Models**: whisper-medium.en (primary), whisper-large variants
+- **Translation Models**: Qwen3-14B-AWQ (quantized), fallback to smaller models
+- **NPU Requirements**: Intel NPU support through OpenVINO
+
+#### WebSocket API Specifications
+```javascript
+// Audio streaming format
+{
+  "audio": "base64_encoded_pcm_data",
+  "config": {
+    "sample_rate": 16000,
+    "channels": 1,
+    "format": "pcm_s16le"
+  }
+}
+
+// Transcription response format  
+{
+  "text": "transcribed text",
+  "is_final": true,
+  "confidence": 0.95,
+  "timestamp": "2024-01-01T12:00:00Z"
+}
+```
+
+This PRD provides a comprehensive roadmap for developing LiveTranslate into a production-ready real-time translation and captioning system, with clear phases for iterative development and specific technical requirements for each component. 
