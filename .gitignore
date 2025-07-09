@@ -202,7 +202,7 @@ export_*.csv
 *.iso
 *.img
 
-
+.cursor/
 
 # Environment specific
 config.local.json
