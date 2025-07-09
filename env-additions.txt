@@ -1,4 +1,0 @@
-python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128;
-git clone https://github.com/casper-hansen/AutoAWQ.git;
-cd AutoAWQ;
-pip install -e . --no-deps //You can't quantize your own here, but still use for inference

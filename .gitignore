@@ -202,9 +202,7 @@ export_*.csv
 *.iso
 *.img
 
-# FFmpeg binaries (if included locally)
-ffmpeg/
-*/ffmpeg/
+
 
 # Environment specific
 config.local.json
@@ -221,3 +219,27 @@ yarn-error.log*
 # Jupyter Notebooks
 .ipynb_checkpoints/
 *.ipynb
+
+# Added by Task Master AI
+# Logs
+logs
+dev-debug.log
+# Dependency directories
+# Environment variables
+# Editor directories and files
+.idea
+.vscode
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+# Task files
+
+# LiveTranslate Secrets (DO NOT COMMIT)
+.secrets/
+*.key
+*.pem
+*.p12
+.env.local
+.env.production

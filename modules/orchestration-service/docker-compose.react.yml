@@ -1,0 +1,296 @@
+# Docker Compose configuration for React + FastAPI Migration
+# This configuration supports the React migration plan outlined in REACT_MIGRATION_PLAN.md
+
+version: '3.8'
+
+services:
+  # Main orchestration service with React frontend + FastAPI backend
+  orchestration:
+    build:
+      context: .
+      dockerfile: Dockerfile.react
+      target: production
+    container_name: livetranslate-orchestration-react
+    ports:
+      - "3000:8000"
+    environment:
+      # Application settings
+      - APP_NAME=LiveTranslate Orchestration Service
+      - APP_VERSION=2.0.0
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      
+      # Database and caching
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=sqlite:///./app.db
+      
+      # External services
+      - WHISPER_SERVICE_URL=http://whisper-service:5001
+      - TRANSLATION_SERVICE_URL=http://translation-service:5003
+      - SPEAKER_SERVICE_URL=http://speaker-service:5002
+      
+      # WebSocket settings
+      - WEBSOCKET_MAX_CONNECTIONS=10000
+      - WEBSOCKET_HEARTBEAT_INTERVAL=30
+      - WEBSOCKET_TIMEOUT=300
+      
+      # Audio processing settings
+      - AUDIO_UPLOAD_MAX_SIZE=100MB
+      - AUDIO_PROCESSING_TIMEOUT=300
+      - AUDIO_SAMPLE_RATE=16000
+      
+      # Security settings
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-here}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:3001
+      
+      # Monitoring
+      - PROMETHEUS_ENABLED=true
+      - METRICS_PORT=9090
+      
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./config:/app/config
+    networks:
+      - livetranslate-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: livetranslate-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - livetranslate-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL database (optional, for persistent data)
+  postgres:
+    image: postgres:15-alpine
+    container_name: livetranslate-postgres
+    environment:
+      - POSTGRES_DB=livetranslate
+      - POSTGRES_USER=livetranslate
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-livetranslate-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - livetranslate-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U livetranslate"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Nginx reverse proxy (optional, for production)
+  nginx:
+    image: nginx:alpine
+    container_name: livetranslate-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - orchestration
+    networks:
+      - livetranslate-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # Development services
+  orchestration-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.react
+      target: development
+    container_name: livetranslate-orchestration-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - REDIS_URL=redis://redis:6379
+      - WHISPER_SERVICE_URL=http://whisper-service:5001
+      - TRANSLATION_SERVICE_URL=http://translation-service:5003
+      - SPEAKER_SERVICE_URL=http://speaker-service:5002
+    depends_on:
+      - redis
+    volumes:
+      - ./backend:/app
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - livetranslate-network
+    restart: unless-stopped
+    profiles:
+      - development
+
+  # Frontend development server (React)
+  frontend-dev:
+    image: node:18-alpine
+    container_name: livetranslate-frontend-dev
+    working_dir: /app
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    networks:
+      - livetranslate-network
+    profiles:
+      - development
+
+  # Testing service
+  orchestration-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.react
+      target: testing
+    container_name: livetranslate-orchestration-test
+    environment:
+      - TESTING=true
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    volumes:
+      - ./backend:/app
+      - ./test-results:/app/test-results
+    networks:
+      - livetranslate-network
+    profiles:
+      - testing
+
+  # Monitoring services
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: livetranslate-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    networks:
+      - livetranslate-network
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: livetranslate-grafana
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - livetranslate-network
+    profiles:
+      - monitoring
+
+# Networks
+networks:
+  livetranslate-network:
+    driver: bridge
+    name: livetranslate-network
+
+# Volumes
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# Development compose override
+# Usage: docker-compose -f docker-compose.react.yml -f docker-compose.dev.yml up
+---
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  orchestration:
+    profiles:
+      - never  # Disable production service in development
+
+  orchestration-dev:
+    profiles:
+      - ""  # Enable development service by default
+
+  frontend-dev:
+    profiles:
+      - ""  # Enable frontend development by default
+
+# Production compose override
+# Usage: docker-compose -f docker-compose.react.yml -f docker-compose.prod.yml up
+---
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  orchestration:
+    profiles:
+      - ""  # Enable production service by default
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - WORKERS=4
+
+  nginx:
+    profiles:
+      - ""  # Enable nginx in production
+
+  orchestration-dev:
+    profiles:
+      - never  # Disable development service in production
+
+  frontend-dev:
+    profiles:
+      - never  # Disable frontend development in production

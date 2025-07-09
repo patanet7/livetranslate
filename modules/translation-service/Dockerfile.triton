@@ -1,0 +1,65 @@
+# Triton-based Translation Service Dockerfile
+# Uses NVIDIA Triton Inference Server with vLLM backend as base
+
+# Use the official Triton vLLM container as base
+ARG TRITON_VERSION=24.12
+FROM nvcr.io/nvidia/tritonserver:${TRITON_VERSION}-vllm-python-py3
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app:/app/src
+
+# Install additional system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements for additional dependencies
+COPY modules/translation-service/requirements-triton-minimal.txt .
+
+# Install additional Python dependencies for our translation service
+# (Triton container already has vLLM, PyTorch, etc.)
+# Use --force-reinstall to handle system package conflicts
+RUN pip install --force-reinstall --no-deps -r requirements-triton-minimal.txt
+
+# Copy shared inference modules first (when building from project root)
+COPY modules/shared/src/inference/ ./shared/inference/
+
+# Copy translation service code
+COPY modules/translation-service/src/ ./src/
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/models /app/cache
+
+# Create model repository structure for Triton
+RUN mkdir -p /app/model_repository/vllm_model/1
+
+# Copy Triton model configuration
+COPY modules/translation-service/triton-config/ /app/model_repository/
+
+# Set permissions (skip user creation, Triton container handles this)
+RUN chmod +x /app/src/*.py || true
+
+# Expose ports
+# 8000: HTTP inference
+# 8001: gRPC inference  
+# 8002: Metrics
+# 5003: Translation service API
+EXPOSE 8000 8001 8002 5003
+
+# Health check for both Triton and our service
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:8000/v2/health && curl -f http://localhost:5003/api/health || exit 1
+
+# Copy startup script
+COPY modules/translation-service/scripts/start-triton-translation.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Default command - start both Triton server and translation service
+CMD ["/app/start.sh"]

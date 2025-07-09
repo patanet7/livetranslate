@@ -1,0 +1,2 @@
+# This directory is required by Triton but can be empty for vLLM backend
+# The vLLM backend loads models directly from HuggingFace Hub or local cache

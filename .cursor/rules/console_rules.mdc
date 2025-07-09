@@ -1,8 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-You are working in a windows environment, always use powershell specific commands. 
-
-Do not use &&, power shell uses semicolons for chaining. 

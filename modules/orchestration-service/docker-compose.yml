@@ -1,0 +1,47 @@
+# Docker Compose for Current Flask-based Orchestration Service
+# NOTE: This will be replaced by docker-compose.react.yml during the React migration
+# See REACT_MIGRATION_PLAN.md for details on the upcoming React + FastAPI architecture
+
+version: '3.8'
+
+services:
+  orchestration-service:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      # Service URLs
+      - WHISPER_SERVICE_URL=http://whisper-service:5001
+      - SPEAKER_SERVICE_URL=http://speaker-service:5002  
+      - TRANSLATION_SERVICE_URL=http://translation-service:5003
+      
+      # Configuration
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=orchestration-secret-key-change-in-production
+      
+      # WebSocket settings
+      - WEBSOCKET_MAX_CONNECTIONS=10000
+      - WEBSOCKET_TIMEOUT=1800
+      
+      # Monitoring
+      - HEALTH_CHECK_INTERVAL=10
+      
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    
+    networks:
+      - livetranslate
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  livetranslate:
+    external: true

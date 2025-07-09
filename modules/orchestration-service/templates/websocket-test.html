@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test - LiveTranslate</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .websocket-test {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .connection-status {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--error);
+        }
+        
+        .status-dot.connected {
+            background: var(--success);
+        }
+        
+        .test-section {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .message-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+        
+        .messages-log {
+            background: var(--bg-secondary);
+            border-radius: 4px;
+            padding: 1rem;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .message {
+            margin-bottom: 0.5rem;
+            padding: 0.25rem 0;
+        }
+        
+        .message.sent {
+            color: var(--primary);
+        }
+        
+        .message.received {
+            color: var(--success);
+        }
+        
+        .message.error {
+            color: var(--error);
+        }
+        
+        .message.system {
+            color: var(--text-muted);
+        }
+        
+        .timestamp {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <button class="menu-toggle" id="menuToggle">☰</button>
+            <h1 class="logo">🎙️ LiveTranslate</h1>
+        </div>
+        <div class="header-right">
+            <div class="status-indicator">
+                <div class="status-dot" id="headerStatusDot"></div>
+                <span>WebSocket Test</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Menu -->
+    <div class="nav-menu" id="navMenu">
+        <div class="nav-menu-content">
+            <a href="{{ url_for('dashboard') }}" class="nav-item">
+                <span class="nav-icon">🎤</span>
+                <span>Live Transcription</span>
+            </a>
+            <a href="{{ url_for('audio_test') }}" class="nav-item">
+                <span class="nav-icon">🔊</span>
+                <span>Audio Testing</span>
+            </a>
+            <a href="{{ url_for('websocket_test') }}" class="nav-item active">
+                <span class="nav-icon">🔌</span>
+                <span>WebSocket Test</span>
+            </a>
+            <a href="{{ url_for('settings') }}" class="nav-item">
+                <span class="nav-icon">⚙️</span>
+                <span>Settings</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="websocket-test">
+        <h1>🔌 WebSocket Connection Test</h1>
+        
+        <!-- Connection Status -->
+        <div class="connection-status">
+            <div class="status-indicator">
+                <div class="status-dot" id="connectionStatus"></div>
+                <span id="connectionText">Disconnected</span>
+            </div>
+            <div class="test-controls">
+                <button id="connectBtn" class="button primary">Connect</button>
+                <button id="disconnectBtn" class="button" disabled>Disconnect</button>
+            </div>
+        </div>
+
+        <!-- Message Testing -->
+        <div class="test-section">
+            <h3>Message Testing</h3>
+            <input type="text" id="messageInput" class="message-input" placeholder="Enter message to send..." disabled>
+            <div class="test-controls">
+                <button id="sendBtn" class="button" disabled>Send Message</button>
+                <button id="pingBtn" class="button" disabled>Send Ping</button>
+                <button id="clearBtn" class="button">Clear Log</button>
+            </div>
+        </div>
+
+        <!-- Messages Log -->
+        <div class="test-section">
+            <h3>Messages Log</h3>
+            <div id="messagesLog" class="messages-log"></div>
+        </div>
+
+        <!-- Connection Info -->
+        <div class="test-section">
+            <h3>Connection Information</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>WebSocket URL:</label>
+                    <span id="wsUrl">ws://localhost:3000/ws</span>
+                </div>
+                <div class="info-item">
+                    <label>Connection State:</label>
+                    <span id="wsState">CLOSED</span>
+                </div>
+                <div class="info-item">
+                    <label>Messages Sent:</label>
+                    <span id="messagesSent">0</span>
+                </div>
+                <div class="info-item">
+                    <label>Messages Received:</label>
+                    <span id="messagesReceived">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let messagesSent = 0;
+        let messagesReceived = 0;
+
+        // DOM elements
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const sendBtn = document.getElementById('sendBtn');
+        const pingBtn = document.getElementById('pingBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const messageInput = document.getElementById('messageInput');
+        const messagesLog = document.getElementById('messagesLog');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const connectionText = document.getElementById('connectionText');
+        const headerStatusDot = document.getElementById('headerStatusDot');
+        const wsState = document.getElementById('wsState');
+        const messagesSentSpan = document.getElementById('messagesSent');
+        const messagesReceivedSpan = document.getElementById('messagesReceived');
+
+        // Connect to WebSocket
+        connectBtn.addEventListener('click', () => {
+            const wsUrl = `ws://${window.location.host}/ws`;
+            addMessage('system', `Connecting to ${wsUrl}...`);
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    addMessage('system', 'WebSocket connected successfully');
+                    updateConnectionStatus(true);
+                    updateStats();
+                };
+                
+                ws.onmessage = (event) => {
+                    messagesReceived++;
+                    addMessage('received', `Received: ${event.data}`);
+                    updateStats();
+                };
+                
+                ws.onclose = (event) => {
+                    addMessage('system', `WebSocket closed (code: ${event.code})`);
+                    updateConnectionStatus(false);
+                    updateStats();
+                };
+                
+                ws.onerror = (error) => {
+                    addMessage('error', `WebSocket error: ${error.message || 'Unknown error'}`);
+                    updateConnectionStatus(false);
+                };
+                
+            } catch (error) {
+                addMessage('error', `Failed to connect: ${error.message}`);
+                updateConnectionStatus(false);
+            }
+        });
+
+        // Disconnect from WebSocket
+        disconnectBtn.addEventListener('click', () => {
+            if (ws) {
+                ws.close();
+                ws = null;
+                addMessage('system', 'Disconnected by user');
+                updateConnectionStatus(false);
+            }
+        });
+
+        // Send message
+        sendBtn.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message && ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                    ws.send(message);
+                    messagesSent++;
+                    addMessage('sent', `Sent: ${message}`);
+                    messageInput.value = '';
+                    updateStats();
+                } catch (error) {
+                    addMessage('error', `Failed to send message: ${error.message}`);
+                }
+            }
+        });
+
+        // Send ping
+        pingBtn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                    const pingMessage = JSON.stringify({
+                        type: 'ping',
+                        timestamp: Date.now()
+                    });
+                    ws.send(pingMessage);
+                    messagesSent++;
+                    addMessage('sent', 'Sent ping');
+                    updateStats();
+                } catch (error) {
+                    addMessage('error', `Failed to send ping: ${error.message}`);
+                }
+            }
+        });
+
+        // Clear messages log
+        clearBtn.addEventListener('click', () => {
+            messagesLog.innerHTML = '';
+        });
+
+        // Enter key to send message
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+
+        // Add message to log
+        function addMessage(type, message) {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            messageEl.innerHTML = `
+                <span class="timestamp">[${timestamp}]</span> ${message}
+            `;
+            
+            messagesLog.appendChild(messageEl);
+            messagesLog.scrollTop = messagesLog.scrollHeight;
+        }
+
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionStatus.classList.add('connected');
+                headerStatusDot.classList.add('connected');
+                connectionText.textContent = 'Connected';
+                wsState.textContent = 'OPEN';
+                
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                sendBtn.disabled = false;
+                pingBtn.disabled = false;
+                messageInput.disabled = false;
+            } else {
+                connectionStatus.classList.remove('connected');
+                headerStatusDot.classList.remove('connected');
+                connectionText.textContent = 'Disconnected';
+                wsState.textContent = 'CLOSED';
+                
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                sendBtn.disabled = true;
+                pingBtn.disabled = true;
+                messageInput.disabled = true;
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            messagesSentSpan.textContent = messagesSent;
+            messagesReceivedSpan.textContent = messagesReceived;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            addMessage('system', 'WebSocket test page loaded');
+            updateConnectionStatus(false);
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+# LiveTranslate Docker Volumes Architecture
+# Created: 2025-06-07
+# Purpose: Define persistent storage strategy for LiveTranslate services
+
+# Volume Architecture Overview:
+# - Data Persistence: Database and cache storage
+# - Model Storage: AI models for each service
+# - Session Storage: User sessions and transcription history
+# - Temporary Storage: Audio uploads and processing
+# - Monitoring Storage: Observability data
+# - Log Storage: Centralized application logs
+
+volumes:
+  # === DATA PERSISTENCE VOLUMES ===
+  
+  # PostgreSQL Database Storage
+  livetranslate-postgres-data:
+    external: true
+    # Purpose: Main database for user data, sessions, transcriptions
+    # Mount: /var/lib/postgresql/data
+    # Services: PostgreSQL
+    
+  # Redis Cache and Session Storage
+  livetranslate-redis-data:
+    external: true
+    # Purpose: Cache, session storage, real-time data
+    # Mount: /data
+    # Services: Redis
+    
+  # === AI MODEL STORAGE VOLUMES ===
+  
+  # Whisper Models Storage
+  livetranslate-models-whisper:
+    external: true
+    # Purpose: Whisper AI models (OpenVINO, ONNX, PyTorch)
+    # Mount: /app/models
+    # Services: Whisper Service
+    # Models: whisper-base, whisper-large, custom NPU models
+    
+  # Speaker Diarization Models Storage
+  livetranslate-models-speaker:
+    external: true
+    # Purpose: Speaker embedding and clustering models
+    # Mount: /app/models
+    # Services: Speaker Service
+    # Models: Resemblyzer, PyAnnote, spectral models
+    
+  # Translation Models Storage
+  livetranslate-models-translation:
+    external: true
+    # Purpose: Local inference models (vLLM, Ollama)
+    # Mount: /app/models
+    # Services: Translation Service
+    # Models: LLaMA, Mistral, custom translation models
+    
+  # === SESSION AND USER DATA VOLUMES ===
+  
+  # Session Data Storage
+  livetranslate-sessions:
+    external: true
+    # Purpose: User sessions, transcription history, preferences
+    # Mount: /app/sessions
+    # Services: All backend services
+    # Data: Session files, user preferences, history
+    
+  # === TEMPORARY STORAGE VOLUMES ===
+  
+  # Audio Upload Storage
+  livetranslate-audio-uploads:
+    external: true
+    # Purpose: Temporary audio file storage during processing
+    # Mount: /app/uploads
+    # Services: Frontend, Whisper Service
+    # Data: Uploaded audio files, processing queue
+    
+  # === MONITORING AND OBSERVABILITY VOLUMES ===
+  
+  # Prometheus Metrics Storage
+  livetranslate-prometheus-data:
+    external: true
+    # Purpose: Time-series metrics data
+    # Mount: /prometheus
+    # Services: Prometheus
+    # Data: Performance metrics, alerts, rules
+    
+  # Grafana Dashboard Storage
+  livetranslate-grafana-data:
+    external: true
+    # Purpose: Dashboard configurations, user settings
+    # Mount: /var/lib/grafana
+    # Services: Grafana
+    # Data: Dashboards, data sources, user accounts
+    
+  # === LOG STORAGE VOLUMES ===
+  
+  # Centralized Log Storage
+  livetranslate-logs:
+    external: true
+    # Purpose: Application logs from all services
+    # Mount: /app/logs
+    # Services: All services
+    # Data: Application logs, error logs, access logs
+
+# Volume Usage Examples:
+# 1. Database Service:
+#   volumes:
+#     - livetranslate-postgres-data:/var/lib/postgresql/data
+#
+# 2. Whisper Service:
+#   volumes:
+#     - livetranslate-models-whisper:/app/models
+#     - livetranslate-sessions:/app/sessions
+#     - livetranslate-logs:/app/logs
+#
+# 3. Frontend Service:
+#   volumes:
+#     - livetranslate-audio-uploads:/app/uploads
+#     - livetranslate-logs:/app/logs
+
+# Volume Management Commands:
+# Create volume: docker volume create <volume-name>
+# List volumes: docker volume ls | findstr livetranslate
+# Inspect volume: docker volume inspect <volume-name>
+# Remove volume: docker volume rm <volume-name>
+# Backup volume: docker run --rm -v <volume>:/data -v $(pwd):/backup alpine tar czf /backup/backup.tar.gz -C /data .
+# Restore volume: docker run --rm -v <volume>:/data -v $(pwd):/backup alpine tar xzf /backup/backup.tar.gz -C /data
+
+# Volume Security Considerations:
+# - Volumes are isolated between containers by default
+# - Use proper file permissions within containers
+# - Regular backups for critical data volumes
+# - Monitor volume usage and implement cleanup policies
+# - Use secrets management for sensitive configuration data
+
+# Volume Performance Optimization:
+# - Use local driver for best performance
+# - Consider volume placement on fast storage (SSD)
+# - Monitor volume I/O performance
+# - Implement log rotation for log volumes
+# - Use appropriate volume sizes for each service 

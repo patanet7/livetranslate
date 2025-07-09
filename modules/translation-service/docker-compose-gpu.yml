@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  translation-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.vllm
+    container_name: livetranslate-translation-gpu
+    ports:
+      - "5003:5003"   # Main API port for frontend compatibility
+      - "8010:8010"   # vLLM REST API
+      - "8011:8011"   # WebSocket server
+    environment:
+      # GPU Configuration
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - CUDA_VISIBLE_DEVICES=0
+      
+      # CUDA Environment
+      - CUDA_HOME=/usr/local/cuda
+      - CUDA_DEVICE_ORDER=PCI_BUS_ID
+      - TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0"
+      
+      # Force GPU detection
+      - VLLM_BACKEND=cuda
+      - VLLM_DEVICE=cuda
+      
+      # Model Configuration
+      - MODEL_NAME=Qwen/Qwen2.5-14B-Instruct-AWQ
+      - MAX_MODEL_LEN=2048
+      - GPU_MEMORY_UTILIZATION=0.8
+      - TENSOR_PARALLEL_SIZE=1
+      
+      # Cache Configuration
+      - HF_HOME=/app/cache/huggingface
+      - TRANSFORMERS_CACHE=/app/cache/transformers
+      - VLLM_CACHE_ROOT=/app/cache/vllm
+      
+      # Service Configuration
+      - USE_MOCK_TRANSLATION=false
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=dev-secret-key-change-in-production
+      
+      # API Configuration
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+      
+    volumes:
+      - translation_models:/app/models
+      - translation_cache:/app/cache
+      - ./logs:/app/logs
+      - ./config:/app/config
+    
+    # GPU Runtime Configuration for Windows
+    runtime: nvidia
+    
+    # Alternative GPU configuration for Docker Desktop
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s  # Give more time for model loading
+    
+    networks:
+      - translation-network
+
+  # Model downloader (run once to cache models)
+  model-downloader:
+    build:
+      context: .
+      dockerfile: Dockerfile.vllm
+    container_name: livetranslate-model-downloader
+    environment:
+      - HF_HOME=/app/cache/huggingface
+      - TRANSFORMERS_CACHE=/app/cache/transformers
+      - MODEL_NAME=Qwen/Qwen2.5-14B-Instruct-AWQ
+      - HF_TOKEN=${HF_TOKEN:-}
+    volumes:
+      - translation_models:/app/models
+      - translation_cache:/app/cache
+    command: python src/model_downloader.py --model Qwen/Qwen2.5-14B-Instruct-AWQ --cache-dir /app/cache
+    profiles:
+      - download
+    networks:
+      - translation-network
+
+networks:
+  translation-network:
+    driver: bridge
+    name: livetranslate-translation-network
+
+volumes:
+  translation_models:
+    driver: local
+  translation_cache:
+    driver: local 

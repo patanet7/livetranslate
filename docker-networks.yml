@@ -1,0 +1,69 @@
+# LiveTranslate Docker Network Architecture
+# Created: 2025-06-07
+# Purpose: Define network segmentation for LiveTranslate services
+
+
+# Network Architecture Overview:
+# - livetranslate-frontend: Client-facing services (Frontend, Gateway)
+# - livetranslate-backend: Core processing services (Whisper, Speaker, Translation)
+# - livetranslate-data: Data persistence services (Redis, PostgreSQL)
+# - livetranslate-monitoring: Observability services (Prometheus, Grafana)
+
+networks:
+  # Frontend Network - Client-facing services
+  livetranslate-frontend:
+    external: true
+    # Subnet: 172.20.0.0/16, Gateway: 172.20.0.1
+    # Services: Frontend UI, API Gateway, Load Balancer
+    
+  # Backend Network - Core processing services  
+  livetranslate-backend:
+    external: true
+    # Subnet: 172.25.0.0/16, Gateway: 172.25.0.1
+    # Services: Whisper Service, Speaker Service, Translation Service
+    
+  # Data Network - Persistence and caching
+  livetranslate-data:
+    external: true
+    # Subnet: 172.26.0.0/16, Gateway: 172.26.0.1
+    # Services: Redis, PostgreSQL, File Storage
+    
+  # Monitoring Network - Observability stack
+  livetranslate-monitoring:
+    external: true
+    # Subnet: 172.27.0.0/16, Gateway: 172.27.0.1
+    # Services: Prometheus, Grafana, Loki, Jaeger
+
+# Network Security Model:
+# - Frontend can communicate with Backend (API calls)
+# - Backend can communicate with Data (persistence)
+# - Monitoring can access all networks (observability)
+# - Data network is isolated from Frontend (security)
+
+# Usage Examples:
+# 1. Frontend Service:
+#   networks:
+#     - livetranslate-frontend
+#     - livetranslate-backend  # For API calls
+#
+# 2. Backend Service:
+#   networks:
+#     - livetranslate-backend
+#     - livetranslate-data     # For database access
+#
+# 3. Database Service:
+#   networks:
+#     - livetranslate-data
+#
+# 4. Monitoring Service:
+#   networks:
+#     - livetranslate-monitoring
+#     - livetranslate-frontend   # Monitor frontend
+#     - livetranslate-backend    # Monitor backend
+#     - livetranslate-data       # Monitor data services
+
+# Network Commands:
+# Create networks: docker network create --driver bridge --subnet=172.X.0.0/16 --gateway=172.X.0.1 <network-name>
+# List networks: docker network ls | findstr livetranslate
+# Inspect network: docker network inspect <network-name>
+# Remove network: docker network rm <network-name> 

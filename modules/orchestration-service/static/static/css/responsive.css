@@ -1,0 +1,565 @@
+/* Responsive Design for LiveTranslate */
+
+/* Large Desktop (1200px and up) */
+@media (min-width: 1200px) {
+    .main-content {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+    
+    .content-grid {
+        grid-template-columns: 2.5fr 1fr;
+    }
+    
+    .test-panels {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* Desktop (992px and up) */
+@media (min-width: 992px) and (max-width: 1199px) {
+    .main-content {
+        padding: 1.5rem;
+    }
+    
+    .control-panel {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+}
+
+/* Tablet (768px and up) */
+@media (min-width: 768px) and (max-width: 991px) {
+    .navbar {
+        padding: 1rem 1.5rem;
+    }
+    
+    .navbar-nav {
+        gap: 0.5rem;
+    }
+    
+    .nav-item {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .nav-item span {
+        display: none;
+    }
+    
+    .main-content {
+        padding: 1.5rem;
+    }
+    
+    .content-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    
+    .test-panels {
+        grid-template-columns: 1fr;
+    }
+    
+    .control-panel {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        padding: 1rem;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
+    
+    .settings-panels {
+        grid-template-columns: 1fr;
+    }
+    
+    .translation-controls {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .service-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .service-actions .btn {
+        width: 100%;
+    }
+}
+
+/* Mobile Large (576px and up) */
+@media (min-width: 576px) and (max-width: 767px) {
+    .navbar {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1.25rem;
+    }
+    
+    .navbar-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+    
+    .nav-item {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .nav-item span {
+        display: none;
+    }
+    
+    .navbar-status {
+        order: -1;
+        gap: 0.5rem;
+    }
+    
+    .service-info {
+        font-size: 0.8rem;
+    }
+    
+    .main-content {
+        padding: 1rem;
+    }
+    
+    .content-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .control-panel {
+        grid-template-columns: 1fr;
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+    
+    .control-group.actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+    
+    .control-group.actions .btn {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .panel-content {
+        padding: 1rem;
+        max-height: 400px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+    
+    .stat-card {
+        padding: 1rem;
+    }
+    
+    .stat-value {
+        font-size: 1.5rem;
+    }
+    
+    .test-panels {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .test-controls {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .test-controls .btn {
+        width: 100%;
+    }
+    
+    .service-test {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    
+    .translation-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+    }
+    
+    .language-selector {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .swap-languages {
+        align-self: center;
+        transform: rotate(90deg);
+    }
+    
+    .modal-content {
+        margin: 1rem;
+        max-width: calc(100vw - 2rem);
+    }
+    
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: 1rem;
+    }
+    
+    .notification-container {
+        right: 1rem;
+        left: 1rem;
+    }
+    
+    .notification {
+        min-width: auto;
+        font-size: 0.9rem;
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* Mobile Small (up to 575px) */
+@media (max-width: 575px) {
+    .navbar {
+        padding: 0.75rem;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+    
+    .navbar-nav {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+    
+    .nav-item {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.75rem;
+        min-width: 60px;
+        justify-content: center;
+    }
+    
+    .nav-item span {
+        display: none;
+    }
+    
+    .navbar-status {
+        order: -1;
+        flex-direction: column;
+        gap: 0.25rem;
+        text-align: center;
+        font-size: 0.8rem;
+    }
+    
+    .service-info {
+        font-size: 0.7rem;
+    }
+    
+    .main-content {
+        padding: 0.75rem;
+    }
+    
+    .content-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .control-panel {
+        grid-template-columns: 1fr;
+        padding: 0.75rem;
+        gap: 0.75rem;
+    }
+    
+    .control-group.actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .btn {
+        font-size: 0.8rem;
+        padding: 0.6rem 1rem;
+    }
+    
+    .panel-header {
+        padding: 0.75rem 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    
+    .panel-header h3 {
+        font-size: 1rem;
+    }
+    
+    .panel-actions {
+        justify-content: center;
+    }
+    
+    .panel-content {
+        padding: 0.75rem;
+        max-height: 300px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+    }
+    
+    .stat-card {
+        padding: 0.75rem;
+    }
+    
+    .stat-value {
+        font-size: 1.25rem;
+    }
+    
+    .test-panels {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .test-controls {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .service-test {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        text-align: center;
+        padding: 0.75rem;
+    }
+    
+    .service-test .btn {
+        width: 100%;
+    }
+    
+    .translation-controls {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .language-selector {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .swap-languages {
+        align-self: center;
+        transform: rotate(90deg);
+        width: 35px;
+        height: 35px;
+    }
+    
+    .test-input-group textarea {
+        min-height: 80px;
+        font-size: 0.9rem;
+    }
+    
+    .transcription-content {
+        min-height: 200px;
+    }
+    
+    .transcription-item {
+        padding: 0.75rem;
+    }
+    
+    .transcription-meta {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .logs-content {
+        font-size: 0.75rem;
+        max-height: 200px;
+    }
+    
+    .log-entry {
+        padding: 0.25rem 0;
+        font-size: 0.75rem;
+    }
+    
+    .timeline-item {
+        padding: 0.75rem 0 0.75rem 2.5rem;
+    }
+    
+    .timeline-content {
+        padding: 0.75rem;
+    }
+    
+    .modal-content {
+        margin: 0.5rem;
+        max-width: calc(100vw - 1rem);
+        max-height: calc(100vh - 1rem);
+    }
+    
+    .modal-header {
+        padding: 0.75rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .modal-body {
+        padding: 0.75rem;
+    }
+    
+    .modal-footer {
+        padding: 0.75rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer .btn {
+        width: 100%;
+    }
+    
+    .notification-container {
+        top: 80px;
+        right: 0.5rem;
+        left: 0.5rem;
+    }
+    
+    .notification {
+        font-size: 0.8rem;
+        padding: 0.6rem 0.8rem;
+        border-radius: 6px;
+    }
+    
+    .loading-spinner {
+        padding: 1.5rem;
+        margin: 0.5rem;
+    }
+    
+    .loading-spinner i {
+        font-size: 1.5rem;
+    }
+    
+    /* Hide some elements on very small screens */
+    .audio-level-text {
+        display: none;
+    }
+    
+    .service-info span:last-child {
+        display: none;
+    }
+}
+
+/* Extra Small Mobile (up to 375px) */
+@media (max-width: 375px) {
+    .navbar {
+        padding: 0.5rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1rem;
+    }
+    
+    .nav-item {
+        padding: 0.3rem 0.4rem;
+        font-size: 0.7rem;
+        min-width: 50px;
+    }
+    
+    .main-content {
+        padding: 0.5rem;
+    }
+    
+    .control-panel {
+        padding: 0.5rem;
+    }
+    
+    .panel-content {
+        padding: 0.5rem;
+        max-height: 250px;
+    }
+    
+    .btn {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .stat-value {
+        font-size: 1.1rem;
+    }
+    
+    .notification {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.6rem;
+    }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+    .navbar {
+        padding: 0.5rem 1rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1rem;
+    }
+    
+    .main-content {
+        padding: 1rem;
+    }
+    
+    .panel-content {
+        max-height: 200px;
+    }
+    
+    .transcription-content {
+        min-height: 150px;
+    }
+    
+    .modal-content {
+        max-height: 90vh;
+    }
+}
+
+/* Print styles */
+@media print {
+    .navbar,
+    .control-panel,
+    .panel-actions,
+    .btn,
+    .notification-container,
+    .loading-overlay {
+        display: none !important;
+    }
+    
+    .main-content {
+        padding: 0;
+    }
+    
+    .panel {
+        box-shadow: none;
+        border: 1px solid #000;
+        break-inside: avoid;
+    }
+    
+    .panel-header {
+        background: #f0f0f0 !important;
+        -webkit-print-color-adjust: exact;
+    }
+    
+    .transcription-item {
+        border: 1px solid #ccc;
+        margin-bottom: 0.5rem;
+    }
+    
+    .log-entry {
+        font-size: 0.7rem;
+    }
+} 

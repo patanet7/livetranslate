@@ -1,0 +1,55 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alertmanager@livetranslate.local'
+  smtp_auth_username: 'alertmanager@livetranslate.local'
+  smtp_auth_password: 'password'
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+  routes:
+  - receiver: 'critical-alerts'
+    matchers:
+    - severity="critical"
+  - receiver: 'warning-alerts'
+    matchers:
+    - severity="warning"
+  - receiver: 'livetranslate-alerts'
+    matchers:
+    - service=~"livetranslate.*"
+
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/'
+    send_resolved: true
+
+- name: 'critical-alerts'
+  email_configs:
+  - to: 'admin@livetranslate.local'
+    send_resolved: true
+
+- name: 'warning-alerts'
+  email_configs:
+  - to: 'alerts@livetranslate.local'
+    send_resolved: true
+
+- name: 'livetranslate-alerts'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/livetranslate-webhook'
+    send_resolved: true
+    http_config:
+      basic_auth:
+        username: 'alertmanager'
+        password: 'webhook-secret'
+
+inhibit_rules:
+- source_matchers:
+  - severity="critical"
+  target_matchers:
+  - severity="warning"
+  equal: ['alertname', 'cluster', 'service'] 

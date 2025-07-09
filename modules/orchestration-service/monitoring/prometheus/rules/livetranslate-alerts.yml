@@ -1,0 +1,382 @@
+groups:
+  - name: livetranslate.rules
+    rules:
+      # === SERVICE AVAILABILITY ALERTS ===
+      - alert: ServiceDown
+        expr: up == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: livetranslate
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service {{ $labels.job }} has been down for more than 30 seconds."
+
+      # === ORCHESTRATION SERVICE ARCHITECTURE ALERTS ===
+      
+      - alert: OrchestrationServiceDown
+        expr: up{job="orchestration-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: orchestration
+        annotations:
+          summary: "Orchestration service is down"
+          description: "Orchestration service (main hub) has been unreachable for more than 30 seconds."
+
+      - alert: AudioServiceDown
+        expr: up{job="audio-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: audio
+        annotations:
+          summary: "Audio service is down"
+          description: "Audio service (NPU/GPU optimized) has been unreachable for more than 30 seconds."
+
+      - alert: TranslationServiceDown
+        expr: up{job="translation-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: translation
+        annotations:
+          summary: "Translation service is down"
+          description: "Translation service (GPU optimized) has been unreachable for more than 30 seconds."
+        annotations:
+          summary: "Post-processing service is down"
+          description: "Post-processing service has been unreachable for more than 30 seconds."
+
+      - alert: FrontendServiceDown
+        expr: up{job="frontend-service"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: frontend
+        annotations:
+          summary: "Frontend service is down"
+          description: "Frontend service has been unreachable for more than 30 seconds."
+
+      # === PERFORMANCE ALERTS ===
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for more than 2 minutes on {{ $labels.instance }}."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 85% for more than 2 minutes on {{ $labels.instance }}."
+
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "High disk usage detected"
+          description: "Disk usage is above 90% for more than 5 minutes on {{ $labels.instance }}."
+
+      # === CONTAINER ALERTS ===
+      - alert: ContainerHighCPU
+        expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "Container high CPU usage"
+          description: "Container {{ $labels.name }} CPU usage is above 80% for more than 2 minutes."
+
+      - alert: ContainerHighMemory
+        expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "Container high memory usage"
+          description: "Container {{ $labels.name }} memory usage is above 90% for more than 2 minutes."
+
+      - alert: ContainerRestarting
+        expr: increase(container_start_time_seconds[1h]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          service: container
+        annotations:
+          summary: "Container restarting frequently"
+          description: "Container {{ $labels.name }} has restarted more than 3 times in the last hour."
+
+      # === APPLICATION-SPECIFIC ALERTS ===
+      - alert: TranslationHighLatency
+        expr: histogram_quantile(0.95, rate(translation_request_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: translation
+        annotations:
+          summary: "Translation service high latency"
+          description: "95th percentile latency is above 5 seconds for translation requests."
+
+      - alert: WhisperHighLatency
+        expr: histogram_quantile(0.95, rate(whisper_processing_duration_seconds_bucket[5m])) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: whisper
+        annotations:
+          summary: "Whisper service high latency"
+          description: "95th percentile latency is above 10 seconds for whisper processing."
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: livetranslate
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is above 10% for {{ $labels.job }} service."
+
+      # === REDIS ALERTS ===
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 30 seconds."
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis memory usage is above 90% for more than 2 minutes."
+
+      # === MONITORING STACK ALERTS ===
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          service: monitoring
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus has been down for more than 30 seconds."
+
+      - alert: GrafanaDown
+        expr: up{job="grafana"} == 0
+        for: 30s
+        labels:
+          severity: warning
+          service: monitoring
+        annotations:
+          summary: "Grafana is down"
+          description: "Grafana has been down for more than 30 seconds."
+
+      - alert: LokiDown
+        expr: up{job="loki"} == 0
+        for: 30s
+        labels:
+          severity: warning
+          service: monitoring
+        annotations:
+          summary: "Loki is down"
+          description: "Loki has been down for more than 30 seconds."
+
+  - name: livetranslate-business-metrics
+    rules:
+      # === TRANSLATION QUALITY ALERTS ===
+      - alert: LowTranslationQuality
+        expr: avg_over_time(translation_quality_score[10m]) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low translation quality detected"
+          description: "Average translation quality score is {{ $value }} over the last 10 minutes"
+
+      # === PROCESSING TIME ALERTS ===
+      - alert: SlowTranscription
+        expr: avg_over_time(whisper_processing_time_seconds[5m]) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow transcription processing"
+          description: "Average transcription time is {{ $value }}s over the last 5 minutes"
+
+      - alert: SlowTranslation
+        expr: avg_over_time(translation_processing_time_seconds[5m]) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow translation processing"
+          description: "Average translation time is {{ $value }}s over the last 5 minutes"
+
+      # === SESSION ALERTS ===
+      - alert: HighSessionFailureRate
+        expr: rate(session_failures_total[5m]) / rate(session_starts_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High session failure rate"
+          description: "Session failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+  # === ORCHESTRATION SERVICE SPECIFIC ALERTS ===
+  - name: orchestration-service-alerts
+    rules:
+      # === WEBSOCKET CONNECTION ALERTS ===
+      - alert: HighWebSocketConnections
+        expr: websocket_active_connections > 8000
+        for: 2m
+        labels:
+          severity: warning
+          service: orchestration
+        annotations:
+          summary: "High WebSocket connection count"
+          description: "Active WebSocket connections ({{ $value }}) approaching limit of 10,000"
+
+      - alert: WebSocketConnectionOverload
+        expr: websocket_active_connections > 9500
+        for: 1m
+        labels:
+          severity: critical
+          service: orchestration
+        annotations:
+          summary: "WebSocket connection overload"
+          description: "Active WebSocket connections ({{ $value }}) very close to limit of 10,000"
+
+      - alert: HighWebSocketMessageRate
+        expr: rate(websocket_messages_total[5m]) > 1000
+        for: 2m
+        labels:
+          severity: warning
+          service: orchestration
+        annotations:
+          summary: "High WebSocket message rate"
+          description: "WebSocket message rate is {{ $value }} messages/second"
+
+      # === API GATEWAY ALERTS ===
+      - alert: APIGatewayHighLatency
+        expr: histogram_quantile(0.95, rate(api_gateway_request_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+          service: orchestration
+        annotations:
+          summary: "API Gateway high latency"
+          description: "95th percentile API Gateway latency is {{ $value }}s"
+
+      - alert: APIGatewayHighErrorRate
+        expr: rate(api_gateway_requests_total{status=~"5.."}[5m]) / rate(api_gateway_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: orchestration
+        annotations:
+          summary: "API Gateway high error rate"
+          description: "API Gateway error rate is {{ $value | humanizePercentage }}"
+
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: critical
+          service: orchestration
+        annotations:
+          summary: "Circuit breaker is open"
+          description: "Circuit breaker for {{ $labels.service }} is open, blocking requests"
+
+      # === SERVICE HEALTH MONITORING ALERTS ===
+      - alert: ServiceHealthMonitorDown
+        expr: health_monitor_running == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: orchestration
+        annotations:
+          summary: "Service health monitor is down"
+          description: "Health monitoring system is not running"
+
+      - alert: MultipleServicesUnhealthy
+        expr: count(service_health_status == 0) > 1
+        for: 2m
+        labels:
+          severity: critical
+          service: orchestration
+        annotations:
+          summary: "Multiple services unhealthy"
+          description: "{{ $value }} services are currently unhealthy"
+
+      # === FRONTEND PERFORMANCE ALERTS ===
+      - alert: FrontendHighLatency
+        expr: histogram_quantile(0.95, rate(frontend_request_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          service: orchestration
+        annotations:
+          summary: "Frontend high latency"
+          description: "95th percentile frontend response time is {{ $value }}s"
+
+      - alert: HighConcurrentSessions
+        expr: active_sessions > 500
+        for: 2m
+        labels:
+          severity: warning
+          service: orchestration
+        annotations:
+          summary: "High concurrent session count"
+          description: "Active sessions ({{ $value }}) are high"
+
+  - name: infrastructure-alerts
+    rules:
+      # === DISK SPACE ALERTS ===
+      - alert: LowDiskSpace
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is {{ $value | humanizePercentage }} full on {{ $labels.instance }}"
+
+      # === REDIS ALERTS ===
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance has been down for more than 1 minute"
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis high memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}" 

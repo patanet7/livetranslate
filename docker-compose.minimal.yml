@@ -1,0 +1,148 @@
+version: '3.8'
+
+# Minimal working setup for LiveTranslate
+# This removes problematic dependencies and focuses on getting basic functionality working
+
+services:
+  # Frontend Service (should work)
+  frontend:
+    build:
+      context: ./modules/frontend-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-frontend-minimal
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - WHISPER_SERVICE_URL=http://whisper-mock:5001
+      - TRANSLATION_SERVICE_URL=http://translation-mock:5003
+      - SPEAKER_SERVICE_URL=http://speaker-mock:5002
+    networks:
+      - livetranslate
+    restart: unless-stopped
+
+  # Mock Whisper Service (for testing)
+  whisper-mock:
+    image: python:3.11-slim
+    container_name: livetranslate-whisper-mock
+    ports:
+      - "5001:5001"
+    networks:
+      - livetranslate
+    working_dir: /app
+    command: >
+      sh -c "
+        pip install flask flask-cors &&
+        python -c \"
+        from flask import Flask, request, jsonify
+        from flask_cors import CORS
+        import json
+        import time
+        app = Flask(__name__)
+        CORS(app)
+        
+        @app.route('/health')
+        def health(): return {'status': 'ok', 'service': 'whisper-mock'}
+        
+        @app.route('/api/health')
+        def api_health(): return {'status': 'ok', 'service': 'whisper-mock'}
+        
+        @app.route('/models')
+        def models(): return {'models': ['whisper-tiny', 'whisper-base']}
+        
+        @app.route('/transcribe', methods=['POST'])
+        def transcribe():
+            time.sleep(0.5)  # Simulate processing
+            return {'text': 'Mock transcription: Hello world', 'language': 'en', 'confidence': 0.9}
+        
+        app.run(host='0.0.0.0', port=5001, debug=True)
+        \"
+      "
+
+  # Mock Translation Service (for testing)
+  translation-mock:
+    image: python:3.11-slim
+    container_name: livetranslate-translation-mock
+    ports:
+      - "5003:5003"
+    networks:
+      - livetranslate
+    working_dir: /app
+    command: >
+      sh -c "
+        pip install flask flask-cors &&
+        python -c \"
+        from flask import Flask, request, jsonify
+        from flask_cors import CORS
+        import json
+        import time
+        app = Flask(__name__)
+        CORS(app)
+        
+        @app.route('/health')
+        def health(): return {'status': 'ok', 'service': 'translation-mock'}
+        
+        @app.route('/api/health')
+        def api_health(): return {'status': 'ok', 'service': 'translation-mock'}
+        
+        @app.route('/translate', methods=['POST'])
+        def translate():
+            data = request.json
+            text = data.get('text', 'Hello')
+            target = data.get('target_language', 'Spanish')
+            time.sleep(0.3)  # Simulate processing
+            return {
+                'translated_text': f'Mock translation to {target}: {text}',
+                'source_language': 'en',
+                'target_language': target,
+                'confidence': 0.85
+            }
+        
+        app.run(host='0.0.0.0', port=5003, debug=True)
+        \"
+      "
+
+  # Mock Speaker Service (for testing)
+  speaker-mock:
+    image: python:3.11-slim
+    container_name: livetranslate-speaker-mock
+    ports:
+      - "5002:5002"
+    networks:
+      - livetranslate
+    working_dir: /app
+    command: >
+      sh -c "
+        pip install flask flask-cors &&
+        python -c \"
+        from flask import Flask, request, jsonify
+        from flask_cors import CORS
+        import json
+        import time
+        app = Flask(__name__)
+        CORS(app)
+        
+        @app.route('/health')
+        def health(): return {'status': 'ok', 'service': 'speaker-mock'}
+        
+        @app.route('/api/health')
+        def api_health(): return {'status': 'ok', 'service': 'speaker-mock'}
+        
+        @app.route('/diarize', methods=['POST'])
+        def diarize():
+            time.sleep(0.4)  # Simulate processing
+            return {
+                'speakers': [
+                    {'speaker_id': 'Speaker_1', 'start': 0.0, 'end': 5.0},
+                    {'speaker_id': 'Speaker_2', 'start': 5.1, 'end': 10.0}
+                ]
+            }
+        
+        app.run(host='0.0.0.0', port=5002, debug=True)
+        \"
+      "
+
+networks:
+  livetranslate:
+    driver: bridge
+    name: livetranslate-minimal

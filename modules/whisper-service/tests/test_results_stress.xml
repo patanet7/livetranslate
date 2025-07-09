@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest" errors="0" failures="11" skipped="0" tests="13" time="14.944" timestamp="2025-07-06T16:08:33.976892" hostname="Thomas-PC"><testcase classname="test_stress.TestConnectionStress" name="test_high_connection_count" time="10.300"><failure message="AssertionError: Only 0.0% connections succeeded&#10;assert 0.0 &gt;= 0.8">test_stress.py:56: in test_high_connection_count
+    assert success_rate &gt;= 0.8, f"Only {success_rate:.1%} connections succeeded"
+E   AssertionError: Only 0.0% connections succeeded
+E   assert 0.0 &gt;= 0.8</failure></testcase><testcase classname="test_stress.TestConnectionStress" name="test_rapid_connect_disconnect" time="2.198"><failure message="AssertionError: Success rate too low: 0.0%&#10;assert 0.0 &gt;= 0.9">test_stress.py:110: in test_rapid_connect_disconnect
+    assert stats["success_rate"] &gt;= 0.9, f"Success rate too low: {stats['success_rate']:.1%}"
+E   AssertionError: Success rate too low: 0.0%
+E   assert 0.0 &gt;= 0.9</failure></testcase><testcase classname="test_stress.TestConnectionStress" name="test_connection_timeout_handling" time="0.003" /><testcase classname="test_stress.TestMessageStress" name="test_high_message_throughput" time="0.017"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_stress.py:140: in test_high_message_throughput
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_stress.TestMessageStress" name="test_large_message_handling" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_stress.py:192: in test_large_message_handling
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_stress.TestMessageStress" name="test_concurrent_message_streams" time="0.005"><failure message="AssertionError: Need at least 3 clients for concurrent test&#10;assert 0 &gt;= 3&#10; +  where 0 = len([])">test_stress.py:237: in test_concurrent_message_streams
+    assert len(clients) &gt;= 3, "Need at least 3 clients for concurrent test"
+E   AssertionError: Need at least 3 clients for concurrent test
+E   assert 0 &gt;= 3
+E    +  where 0 = len([])</failure></testcase><testcase classname="test_stress.TestAudioStress" name="test_concurrent_audio_streams" time="0.004"><failure message="AssertionError: Need at least 2 clients for concurrent audio test&#10;assert 0 &gt;= 2&#10; +  where 0 = len([])">test_stress.py:309: in test_concurrent_audio_streams
+    assert len(clients) &gt;= 2, "Need at least 2 clients for concurrent audio test"
+E   AssertionError: Need at least 2 clients for concurrent audio test
+E   assert 0 &gt;= 2
+E    +  where 0 = len([])</failure></testcase><testcase classname="test_stress.TestAudioStress" name="test_large_audio_file_processing" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_stress.py:390: in test_large_audio_file_processing
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_stress.TestMemoryStress" name="test_memory_leak_detection" time="0.114" /><testcase classname="test_stress.TestMemoryStress" name="test_connection_pool_stress" time="2.205"><failure message="assert 0 &gt;= ((20 * 5) * 0.8)">test_stress.py:542: in test_connection_pool_stress
+    assert connections_created &gt;= max_iterations * batch_size * 0.8
+E   assert 0 &gt;= ((20 * 5) * 0.8)</failure></testcase><testcase classname="test_stress.TestErrorStress" name="test_rapid_invalid_messages" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_stress.py:551: in test_rapid_invalid_messages
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_stress.TestErrorStress" name="test_connection_failure_recovery" time="0.005"><failure message="AssertionError: Recovery rate too low: 0.0%&#10;assert 0.0 &gt;= 0.7">test_stress.py:634: in test_connection_failure_recovery
+    assert recovery_rate &gt;= 0.7, f"Recovery rate too low: {recovery_rate:.1%}"
+E   AssertionError: Recovery rate too low: 0.0%
+E   assert 0.0 &gt;= 0.7</failure></testcase><testcase classname="test_stress.TestPerformanceBenchmarks" name="test_baseline_performance_benchmark" time="0.003"><failure message="assert False is True">test_stress.py:651: in test_baseline_performance_benchmark
+    assert connected is True
+E   assert False is True</failure></testcase></testsuite></testsuites>

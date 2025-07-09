@@ -1,0 +1,59 @@
+# Simplified Triton-based Translation Service Dockerfile
+# Uses NVIDIA Triton Inference Server with vLLM backend as base
+
+ARG TRITON_VERSION=24.12
+FROM nvcr.io/nvidia/tritonserver:${TRITON_VERSION}-vllm-python-py3
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app:/app/src
+
+# Set working directory
+WORKDIR /app
+
+# Install minimal additional dependencies
+# Use --ignore-installed to avoid conflicts with system packages
+# Also use --force-reinstall for problematic packages
+RUN pip install --no-cache-dir --ignore-installed \
+    flask>=2.3.0 \
+    flask-cors>=4.0.0 \
+    aiohttp>=3.8.0 \
+    requests>=2.31.0 \
+    langdetect>=1.0.9 \
+    python-dotenv>=1.0.0 || \
+    pip install --no-cache-dir --force-reinstall --ignore-installed \
+    flask>=2.3.0 \
+    flask-cors>=4.0.0 \
+    aiohttp>=3.8.0 \
+    requests>=2.31.0 \
+    langdetect>=1.0.9 \
+    python-dotenv>=1.0.0
+
+# Copy shared inference modules first (when building from project root)
+COPY modules/shared/src/inference/ ./shared/inference/
+
+# Copy translation service code
+COPY modules/translation-service/src/ ./src/
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/models /app/cache
+
+# Create model repository structure for Triton
+RUN mkdir -p /app/model_repository/vllm_model/1
+
+# Copy Triton model configuration
+COPY modules/translation-service/triton-config/ /app/model_repository/
+
+# Copy startup script
+COPY modules/translation-service/scripts/start-triton-translation.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Expose ports
+EXPOSE 8000 8001 8002 5003
+
+# Health check for both Triton and our service
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:8000/v2/health && curl -f http://localhost:5003/api/health || exit 1
+
+# Default command - start both Triton server and translation service
+CMD ["/app/start.sh"]

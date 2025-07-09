@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  translation-api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: livetranslate-translation-simple
+    ports:
+      - "5003:5003"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - USE_MOCK_TRANSLATION=true
+      - USE_LOCAL_INFERENCE=false
+      - USE_LEGACY_APIS=false
+      - LOG_LEVEL=DEBUG
+      - SECRET_KEY=dev-secret-key
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+      - ./config:/app/config
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  default:
+    driver: bridge 

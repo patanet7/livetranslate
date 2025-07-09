@@ -1,0 +1,35 @@
+# Prometheus configuration for Triton-based Translation Service
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Triton Inference Server metrics
+  - job_name: 'triton-server'
+    static_configs:
+      - targets: ['triton-translation:8002']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    
+  # Translation Service metrics
+  - job_name: 'translation-service'
+    static_configs:
+      - targets: ['triton-translation:5003']
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    
+  # Redis metrics (if redis_exporter is added)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-triton:6379']
+    scrape_interval: 30s
+    
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

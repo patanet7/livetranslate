@@ -1,0 +1,98 @@
+# vLLM Translation Server Dockerfile
+# Optimized for GPU acceleration and Qwen model support with CUDA 12.8
+
+# Use CUDA 12.8 base image for GPU acceleration
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    python3.10-venv \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    curl \
+    software-properties-common \
+    pkg-config \
+    libssl-dev \
+    libffi-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libncurses5-dev \
+    libncursesw5-dev \
+    xz-utils \
+    tk-dev \
+    libxml2-dev \
+    libxmlsec1-dev \
+    libffi-dev \
+    liblzma-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create symbolic links for python
+RUN ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
+    ln -sf /usr/bin/python3.10 /usr/bin/python
+
+# Upgrade pip and install build tools
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+# Remove problematic system packages that conflict with pip
+RUN apt-get update && apt-get remove -y python3-blinker || true && \
+    rm -rf /var/lib/apt/lists/*
+
+# Create and activate virtual environment to avoid system package conflicts
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Upgrade pip in virtual environment
+RUN pip install --upgrade pip setuptools wheel
+
+# Set working directory
+WORKDIR /app
+
+# Copy minimal requirements first for better caching
+COPY requirements-minimal.txt .
+
+# Install essential Python dependencies (without PyTorch yet)
+# Virtual environment isolates us from system packages
+RUN pip install -r requirements-minimal.txt
+
+# Install vLLM with CUDA support first (this will install its own PyTorch version)
+RUN pip install vllm[cuda] --extra-index-url https://download.pytorch.org/whl/cu128
+
+# NOW install the correct PyTorch with CUDA 12.8 support AFTER vLLM
+# This ensures compatibility and proper CUDA detection
+RUN pip install --force-reinstall torch==2.7.1+cu128 torchvision==0.22.1+cu128 torchaudio==2.7.1+cu128 \
+    --index-url https://download.pytorch.org/whl/cu128
+
+# Clean up pip cache to reduce image size
+RUN pip cache purge
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/models /app/cache
+
+# Set permissions
+RUN chmod +x /app/src/*.py
+
+# Expose ports
+EXPOSE 5003 8010
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:5003/health || exit 1
+
+# Default command - run the enhanced vLLM translation server with REST API
+CMD ["/opt/venv/bin/python", "src/vllm_server_simple.py", "--host", "0.0.0.0", "--port", "8010"] 
