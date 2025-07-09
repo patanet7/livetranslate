@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite name="pytest" errors="1" failures="20" skipped="0" tests="22" time="4.430" timestamp="2025-07-06T16:08:29.281703" hostname="Thomas-PC"><testcase classname="test_integration.TestWebSocketConnections" name="test_websocket_connection_lifecycle" time="0.005"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_integration.py:33: in test_websocket_connection_lifecycle
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_integration.TestWebSocketConnections" name="test_websocket_authentication" time="0.029"><failure message="assert False is True">test_integration.py:61: in test_websocket_authentication
+    assert connected is True
+E   assert False is True</failure></testcase><testcase classname="test_integration.TestWebSocketConnections" name="test_websocket_audio_streaming" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_integration.py:80: in test_websocket_audio_streaming
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_integration.TestWebSocketConnections" name="test_websocket_room_management" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_integration.py:108: in test_websocket_room_management
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_integration.TestHTTPEndpoints" name="test_health_endpoint" time="0.001"><failure message="TypeError: 'async_generator' object does not support the asynchronous context manager protocol">test_integration.py:141: in test_health_endpoint
+    async with http_client as client:
+E   TypeError: 'async_generator' object does not support the asynchronous context manager protocol</failure></testcase><testcase classname="test_integration.TestHTTPEndpoints" name="test_models_endpoint" time="0.001"><failure message="TypeError: 'async_generator' object does not support the asynchronous context manager protocol">test_integration.py:162: in test_models_endpoint
+    async with http_client as client:
+E   TypeError: 'async_generator' object does not support the asynchronous context manager protocol</failure></testcase><testcase classname="test_integration.TestHTTPEndpoints" name="test_connections_endpoint" time="0.001"><failure message="TypeError: 'async_generator' object does not support the asynchronous context manager protocol">test_integration.py:179: in test_connections_endpoint
+    async with http_client as client:
+E   TypeError: 'async_generator' object does not support the asynchronous context manager protocol</failure></testcase><testcase classname="test_integration.TestHTTPEndpoints" name="test_performance_endpoint" time="0.001"><failure message="TypeError: 'async_generator' object does not support the asynchronous context manager protocol">test_integration.py:193: in test_performance_endpoint
+    async with http_client as client:
+E   TypeError: 'async_generator' object does not support the asynchronous context manager protocol</failure></testcase><testcase classname="test_integration.TestHTTPEndpoints" name="test_transcribe_endpoint" time="0.045"><failure message="TypeError: 'async_generator' object does not support the asynchronous context manager protocol">test_integration.py:211: in test_transcribe_endpoint
+    async with http_client as client:
+E   TypeError: 'async_generator' object does not support the asynchronous context manager protocol</failure></testcase><testcase classname="test_integration.TestErrorHandling" name="test_invalid_websocket_message" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_integration.py:232: in test_invalid_websocket_message
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_integration.TestErrorHandling" name="test_authentication_error" time="0.002" /><testcase classname="test_integration.TestErrorHandling" name="test_unsupported_audio_format" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_integration.py:277: in test_unsupported_audio_format
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_integration.TestConcurrentConnections" name="test_multiple_websocket_connections" time="0.001"><failure message="TypeError: object of type 'async_generator' has no len()">test_integration.py:298: in test_multiple_websocket_connections
+    assert len(multiple_websocket_clients) &gt; 0
+E   TypeError: object of type 'async_generator' has no len()</failure></testcase><testcase classname="test_integration.TestConcurrentConnections" name="test_concurrent_audio_streaming" time="0.017"><failure message="assert 0 &gt; 0&#10; +  where 0 = len([])">test_integration.py:327: in test_concurrent_audio_streaming
+    assert len(clients) &gt; 0
+E   assert 0 &gt; 0
+E    +  where 0 = len([])</failure></testcase><testcase classname="test_integration.TestReconnectionFlow" name="test_normal_reconnection" time="0.002"><failure message="assert False is True">test_integration.py:368: in test_normal_reconnection
+    assert connected is True
+E   assert False is True</failure></testcase><testcase classname="test_integration.TestReconnectionFlow" name="test_session_expiry_reconnection" time="0.002"><failure message="assert False is True">test_integration.py:414: in test_session_expiry_reconnection
+    assert connected is True
+E   assert False is True</failure></testcase><testcase classname="test_integration.TestPerformanceIntegration" name="test_connection_performance" time="0.002"><failure message="assert False is True">test_integration.py:459: in test_connection_performance
+    assert connected is True
+E   assert False is True</failure></testcase><testcase classname="test_integration.TestPerformanceIntegration" name="test_message_response_performance" time="0.001"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_integration.py:470: in test_message_response_performance
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase><testcase classname="test_integration.TestPerformanceIntegration" name="test_throughput_performance" time="0.002"><failure message="assert False is True">test_integration.py:494: in test_throughput_performance
+    assert connected is True
+E   assert False is True</failure></testcase><testcase classname="test_integration.TestServiceIntegration" name="test_whisper_service_integration" time="0.021"><failure message="TypeError: 'async_generator' object does not support the asynchronous context manager protocol">test_integration.py:528: in test_whisper_service_integration
+    async with http_client as client:
+E   TypeError: 'async_generator' object does not support the asynchronous context manager protocol</failure></testcase><testcase classname="test_integration.TestServiceIntegration" name="test_redis_integration" time="4.065"><error message="failed on setup with &quot;redis.exceptions.ConnectionError: Error 10061 connecting to localhost:6379. No connection could be made because the target machine actively refused it.&quot;">C:\Users\patan\miniconda3\Lib\site-packages\redis\connection.py:385: in connect_check_health
+    sock = self.retry.call_with_retry(
+C:\Users\patan\miniconda3\Lib\site-packages\redis\retry.py:87: in call_with_retry
+    return do()
+C:\Users\patan\miniconda3\Lib\site-packages\redis\connection.py:386: in &lt;lambda&gt;
+    lambda: self._connect(), lambda error: self.disconnect(error)
+C:\Users\patan\miniconda3\Lib\site-packages\redis\connection.py:797: in _connect
+    raise err
+C:\Users\patan\miniconda3\Lib\site-packages\redis\connection.py:781: in _connect
+    sock.connect(socket_address)
+E   ConnectionRefusedError: [WinError 10061] No connection could be made because the target machine actively refused it
+
+During handling of the above exception, another exception occurred:
+fixtures.py:104: in redis_helper
+    helper.clear_test_data()
+utils.py:298: in clear_test_data
+    keys = self.client.keys(pattern)
+C:\Users\patan\miniconda3\Lib\site-packages\redis\commands\core.py:1950: in keys
+    return self.execute_command("KEYS", pattern, **kwargs)
+C:\Users\patan\miniconda3\Lib\site-packages\redis\client.py:623: in execute_command
+    return self._execute_command(*args, **options)
+C:\Users\patan\miniconda3\Lib\site-packages\redis\client.py:629: in _execute_command
+    conn = self.connection or pool.get_connection()
+C:\Users\patan\miniconda3\Lib\site-packages\redis\utils.py:191: in wrapper
+    return func(*args, **kwargs)
+C:\Users\patan\miniconda3\Lib\site-packages\redis\connection.py:1530: in get_connection
+    connection.connect()
+C:\Users\patan\miniconda3\Lib\site-packages\redis\connection.py:379: in connect
+    self.connect_check_health(check_health=True)
+C:\Users\patan\miniconda3\Lib\site-packages\redis\connection.py:391: in connect_check_health
+    raise ConnectionError(self._error_message(e))
+E   redis.exceptions.ConnectionError: Error 10061 connecting to localhost:6379. No connection could be made because the target machine actively refused it.</error></testcase><testcase classname="test_integration.TestServiceIntegration" name="test_end_to_end_audio_flow" time="0.003"><failure message="AttributeError: 'async_generator' object has no attribute 'connect'">test_integration.py:559: in test_end_to_end_audio_flow
+    connected = await websocket_client.connect()
+E   AttributeError: 'async_generator' object has no attribute 'connect'</failure></testcase></testsuite></testsuites>

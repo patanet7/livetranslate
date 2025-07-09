@@ -1,0 +1,210 @@
+version: '3.8'
+
+services:
+  whisper-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livetranslate-whisper-service
+    ports:
+      - "5001:5001"
+    environment:
+      # Model settings
+      - WHISPER_MODELS_DIR=/app/models
+      - WHISPER_DEFAULT_MODEL=whisper-base
+      - OPENVINO_DEVICE=${OPENVINO_DEVICE:-AUTO}
+      
+      # Audio settings
+      - SAMPLE_RATE=16000
+      - BUFFER_DURATION=6.0
+      - INFERENCE_INTERVAL=3.0
+      - ENABLE_VAD=true
+      
+      # Performance settings
+      - MIN_INFERENCE_INTERVAL=0.2
+      - MAX_CONCURRENT_REQUESTS=10
+      
+      # Session settings
+      - SESSION_DIR=/app/session_data
+      
+      # Logging
+      - LOG_LEVEL=INFO
+      
+      # Security
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      
+    volumes:
+      - ./models:/app/models
+      - ./session_data:/app/session_data
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - whisper-network
+    devices:
+      # NPU access for Intel devices
+      - /dev/accel/accel0:/dev/accel/accel0
+      - /dev/accel/accel1:/dev/accel/accel1
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    profiles:
+      - npu
+    
+  # GPU-accelerated service for CUDA systems
+  whisper-service-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livetranslate-whisper-service-gpu
+    ports:
+      - "5001:5001"
+    environment:
+      - WHISPER_MODELS_DIR=/app/models
+      - WHISPER_DEFAULT_MODEL=whisper-base
+      - OPENVINO_DEVICE=GPU
+      - SAMPLE_RATE=16000
+      - BUFFER_DURATION=6.0
+      - INFERENCE_INTERVAL=3.0
+      - ENABLE_VAD=true
+      - MIN_INFERENCE_INTERVAL=0.2
+      - MAX_CONCURRENT_REQUESTS=10
+      - SESSION_DIR=/app/session_data
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+    volumes:
+      - ./models:/app/models
+      - ./session_data:/app/session_data
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - whisper-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - gpu
+      
+  # CPU-only service for compatibility
+  whisper-service-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livetranslate-whisper-service-cpu
+    ports:
+      - "5001:5001"
+    environment:
+      - WHISPER_MODELS_DIR=/app/models
+      - WHISPER_DEFAULT_MODEL=whisper-base
+      - OPENVINO_DEVICE=CPU
+      - SAMPLE_RATE=16000
+      - BUFFER_DURATION=6.0
+      - INFERENCE_INTERVAL=3.0
+      - ENABLE_VAD=true
+      - MIN_INFERENCE_INTERVAL=0.2
+      - MAX_CONCURRENT_REQUESTS=5
+      - SESSION_DIR=/app/session_data
+      - LOG_LEVEL=INFO
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+    volumes:
+      - ./models:/app/models
+      - ./session_data:/app/session_data
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - whisper-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 1G
+          cpus: '1'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - cpu
+      
+  # Redis for session management and caching
+  redis:
+    image: redis:7-alpine
+    container_name: livetranslate-whisper-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - whisper-network
+    command: redis-server --appendonly yes
+    
+  # Model downloader service
+  model-downloader:
+    image: python:3.11-slim
+    container_name: livetranslate-model-downloader
+    volumes:
+      - ./models:/app/models
+    working_dir: /app
+    command: >
+      sh -c "
+        pip install huggingface_hub &&
+        python -c \"
+        from huggingface_hub import snapshot_download
+        import os
+        models = ['whisper-tiny', 'whisper-base', 'whisper-small']
+        for model in models:
+            try:
+                print(f'Downloading {model}...')
+                snapshot_download(
+                    repo_id=f'openai/{model}',
+                    local_dir=f'/app/models/{model}',
+                    local_dir_use_symlinks=False
+                )
+                print(f'✓ Downloaded {model}')
+            except Exception as e:
+                print(f'Failed to download {model}: {e}')
+        \"
+      "
+    profiles:
+      - download-models
+    networks:
+      - whisper-network
+
+networks:
+  whisper-network:
+    driver: bridge
+    name: livetranslate-whisper
+
+volumes:
+  redis_data:
+    name: livetranslate-whisper-redis 

@@ -1,0 +1,277 @@
+# === LIVETRANSLATE DEVELOPMENT DOCKER COMPOSE ===
+# This file sets up the LiveTranslate system for development with:
+# - Volume mounting for live code editing (no rebuilds needed)
+# - Simplified configuration for faster iteration
+# - Development-friendly environment variables
+
+version: '3.8'
+
+services:
+  # === CORE SERVICES ===
+  
+  # Frontend Service
+  frontend:
+    build:
+      context: ./modules/frontend-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - WHISPER_SERVICE_URL=http://whisper:5001
+      - SPEAKER_SERVICE_URL=http://speaker:5002
+      - TRANSLATION_SERVICE_URL=http://translation:5003
+      - TRITON_SERVER_URL=http://translation:8000
+    networks:
+      - livetranslate-dev
+    volumes:
+      # Volume mount for live development
+      - ./modules/frontend-service/public:/app/public
+      - ./modules/frontend-service/src:/app/src
+      - livetranslate-sessions:/app/sessions
+    depends_on:
+      - whisper
+      - translation
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Whisper Service (with volume mounting)
+  whisper:
+    build:
+      context: ./modules/whisper-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-whisper-dev
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - REDIS_URL=redis://whisper-redis:6379
+      - MODEL_CACHE_DIR=/app/models
+      - ENABLE_NPU=true
+      - ENABLE_VAD=true
+    networks:
+      - livetranslate-dev
+    volumes:
+      # Volume mount for live development - our enhanced code!
+      - ./modules/whisper-service/src:/app/src
+      - ./modules/whisper-service/requirements.txt:/app/requirements.txt
+      - livetranslate-models-whisper:/app/models
+      - livetranslate-audio-uploads:/app/uploads
+    depends_on:
+      - whisper-redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Speaker Service (with volume mounting)
+  speaker:
+    build:
+      context: ./modules/speaker-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-speaker-dev
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - MODEL_CACHE_DIR=/app/models
+      - ENABLE_CUDA=true
+    networks:
+      - livetranslate-dev
+    volumes:
+      # Volume mount for live development
+      - ./modules/speaker-service/src:/app/src
+      - ./modules/speaker-service/requirements.txt:/app/requirements.txt
+      - livetranslate-models-speaker:/app/models
+      - livetranslate-sessions:/app/sessions
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # Translation Service (with volume mounting)
+  translation:
+    build:
+      context: .  # Build from project root to access shared modules
+      dockerfile: modules/translation-service/Dockerfile.triton-simple
+      args:
+        TRITON_VERSION: "24.12"
+    container_name: livetranslate-translation-dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # Triton HTTP inference
+      - "8001:8001"  # Triton gRPC inference
+      - "8002:8002"  # Triton metrics
+      - "5003:5003"  # Translation service API
+    environment:
+      # Development environment
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      
+      # Model configuration
+      - MODEL_NAME=meta-llama/Llama-3.1-8B-Instruct
+      - TENSOR_PARALLEL_SIZE=1
+      - MAX_MODEL_LEN=4096
+      - GPU_MEMORY_UTILIZATION=0.9
+      
+      # Triton configuration
+      - TRITON_MODEL_REPOSITORY=/app/model_repository
+      - TRITON_HTTP_PORT=8000
+      - TRITON_GRPC_PORT=8001
+      - TRITON_METRICS_PORT=8002
+      
+      # Translation service configuration
+      - TRANSLATION_SERVICE_PORT=5003
+      - TRITON_BASE_URL=http://localhost:8000
+      - INFERENCE_BACKEND=triton
+      
+      # Integration with other services
+      - REDIS_URL=redis://translation-redis:6379
+      - WHISPER_SERVICE_URL=http://whisper:5001
+      - SPEAKER_SERVICE_URL=http://speaker:5002
+      - FRONTEND_SERVICE_URL=http://frontend:3000
+      
+      # CUDA configuration
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      
+      # Cache directories
+      - HF_HOME=/app/cache/huggingface
+      - TRANSFORMERS_CACHE=/app/cache/transformers
+    networks:
+      - livetranslate-dev
+    volumes:
+      # Volume mount for live development
+      - ./modules/translation-service/src:/app/src
+      - ./modules/translation-service/requirements-triton-minimal.txt:/app/requirements.txt
+      - livetranslate-models-translation:/app/cache
+      - livetranslate-triton-logs:/app/logs
+    depends_on:
+      - translation-redis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health", "&&", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # === DATA SERVICES ===
+  
+  # Redis for Whisper Service
+  whisper-redis:
+    image: redis:7-alpine
+    container_name: livetranslate-whisper-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - livetranslate-dev
+    volumes:
+      - redis-data-dev:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for Translation Service
+  translation-redis:
+    image: redis:7-alpine
+    container_name: livetranslate-translation-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    networks:
+      - livetranslate-dev
+    volumes:
+      - redis-translation-data-dev:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === OPTIONAL MONITORING (Lightweight for dev) ===
+  
+  # Prometheus (simplified for dev)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: livetranslate-prometheus-dev
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'  # Shorter retention for dev
+      - '--web.enable-lifecycle'
+    networks:
+      - livetranslate-dev
+    volumes:
+      - ./modules/monitoring-service/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data-dev:/prometheus
+    depends_on:
+      - frontend
+      - whisper
+      - translation
+
+# === NETWORKS ===
+networks:
+  livetranslate-dev:
+    driver: bridge
+
+# === VOLUMES ===
+volumes:
+  # Data persistence (dev versions)
+  redis-data-dev:
+  redis-translation-data-dev:
+  
+  # AI models (shared with production)
+  livetranslate-models-whisper:
+    external: true
+  livetranslate-models-speaker:
+    external: true
+  livetranslate-models-translation:
+    external: true
+  livetranslate-triton-logs:
+    external: true
+  
+  # Sessions and uploads
+  livetranslate-sessions:
+    external: true
+  livetranslate-audio-uploads:
+    external: true
+  
+  # Monitoring data (dev)
+  prometheus-data-dev: 

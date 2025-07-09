@@ -1,0 +1,180 @@
+version: '3.8'
+
+services:
+  # NPU-enabled Whisper Service
+  whisper-npu-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.npu
+    container_name: whisper-server-npu
+    ports:
+      - "5001:5001"
+    volumes:
+      # Mount the Windows equivalent of ~/.whisper/models
+      - ${USERPROFILE}/.whisper/models:/root/.whisper/models
+      # Mount current directory for testing files
+      - .:/app
+      # Mount WSL2 device directory for NPU access (Windows Docker)
+      - /dev:/dev
+      # Session data and uploads
+      - whisper-sessions:/app/session_data
+      - whisper-uploads:/app/uploads
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Force NPU usage in OpenVINO
+      - OPENVINO_DEVICE=NPU
+      - OPENVINO_LOG_LEVEL=1
+      # Windows Docker specific settings
+      - DOCKER_HOST_OS=windows
+      - ENABLE_GPU_ACCELERATION=false
+      # Whisper service specific
+      - WHISPER_PORT=5001
+      - WHISPER_HOST=0.0.0.0
+      # Redis connection
+      - REDIS_URL=redis://whisper-redis:6379
+      # Model and cache settings
+      - MODEL_CACHE_DIR=/app/models
+      - ENABLE_NPU=true
+      - ENABLE_VAD=true
+    # For Windows with WSL2 + Docker Desktop: Use privileged mode for NPU access
+    # This allows the container to access hardware devices through WSL2
+    privileged: true
+    # Enable host IPC for better NPU driver communication
+    ipc: host
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    networks:
+      - whisper-backend
+      - whisper-data
+    depends_on:
+      - whisper-redis
+    # Health check to monitor server status
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+  # Enhanced fallback service for testing without NPU
+  whisper-npu-server-cpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.npu
+    container_name: whisper-server-cpu
+    ports:
+      - "5002:5001"
+    volumes:
+      - ${USERPROFILE}/.whisper/models:/root/.whisper/models
+      - .:/app
+      - whisper-sessions:/app/session_data
+      - whisper-uploads:/app/uploads
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Force CPU usage in OpenVINO
+      - OPENVINO_DEVICE=CPU
+      - DOCKER_HOST_OS=windows
+      - WHISPER_PORT=5001
+      - WHISPER_HOST=0.0.0.0
+      - REDIS_URL=redis://whisper-redis:6379
+      - MODEL_CACHE_DIR=/app/models
+      - ENABLE_NPU=false
+      - ENABLE_VAD=true
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    networks:
+      - whisper-backend
+      - whisper-data
+    depends_on:
+      - whisper-redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - cpu-fallback
+
+  # Alternative service using standard whisper service (fallback if NPU build fails)
+  whisper-standard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whisper-server-standard
+    ports:
+      - "5003:5001"
+    volumes:
+      - .:/app
+      - whisper-sessions:/app/session_data
+      - whisper-uploads:/app/uploads
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WHISPER_PORT=5001
+      - WHISPER_HOST=0.0.0.0
+      - REDIS_URL=redis://whisper-redis:6379
+      - MODEL_CACHE_DIR=/app/models
+      - ENABLE_VAD=true
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    networks:
+      - whisper-backend
+      - whisper-data
+    depends_on:
+      - whisper-redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - standard-fallback
+
+  # Redis for Whisper Service
+  whisper-redis:
+    image: redis:7-alpine
+    container_name: whisper-redis-npu
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - whisper-data
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  whisper-backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  whisper-data:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+# Volumes for persistent data
+volumes:
+  whisper_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${USERPROFILE}/.whisper/models
+  whisper-sessions:
+    driver: local
+  whisper-uploads:
+    driver: local
+  redis-data:
+    driver: local 

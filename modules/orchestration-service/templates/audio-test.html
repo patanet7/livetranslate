@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Testing - LiveTranslate</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        .audio-test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .test-nav {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .test-nav-button {
+            padding: 0.75rem 1.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .test-nav-button:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .test-nav-button.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .test-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .test-section h2 {
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .test-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .test-status {
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+        
+        .test-status.ready {
+            background: rgba(46, 213, 115, 0.2);
+            color: #2ed573;
+        }
+        
+        .test-status.recording {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+        }
+        
+        .test-status.processing {
+            background: rgba(0, 123, 255, 0.2);
+            color: #007bff;
+        }
+        
+        .test-status.error {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+        }
+        
+        .audio-visualizer {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            border: 1px solid var(--border-color);
+        }
+        
+        .audio-level-bar {
+            height: 20px;
+            background: var(--bg-primary);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .audio-level-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2ed573 0%, #ffa502 70%, #ff4757 100%);
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+        
+        .spectrum-display {
+            margin-top: 1rem;
+        }
+        
+        .spectrum-canvas {
+            width: 100%;
+            height: 100px;
+            background: var(--bg-primary);
+            border-radius: 4px;
+        }
+        
+        .test-results {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .result-item {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: var(--bg-primary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .result-label {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+        
+        .result-value {
+            color: var(--text-secondary);
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        
+        .pipeline-stages {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .stage-card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .stage-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stage-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .stage-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .stage-status.active {
+            background: rgba(46, 213, 115, 0.2);
+            color: #2ed573;
+        }
+        
+        .stage-status.inactive {
+            background: rgba(255, 71, 87, 0.2);
+            color: #ff4757;
+        }
+        
+        .stage-controls {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        
+        .stage-button {
+            padding: 0.25rem 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .stage-button:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        
+        .logs-container {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        
+        .log-entry.INFO {
+            background: rgba(0, 123, 255, 0.1);
+            color: #007bff;
+        }
+        
+        .log-entry.WARNING {
+            background: rgba(255, 193, 7, 0.1);
+            color: #ffa502;
+        }
+        
+        .log-entry.ERROR {
+            background: rgba(255, 71, 87, 0.1);
+            color: #ff4757;
+        }
+        
+        .log-entry.SUCCESS {
+            background: rgba(46, 213, 115, 0.1);
+            color: #2ed573;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <button class="menu-toggle" id="menuToggle">☰</button>
+            <h1 class="logo">🎙️ LiveTranslate</h1>
+        </div>
+        <div class="header-right">
+            <div class="status-indicator">
+                <div class="status-dot connected"></div>
+                <span>Audio Testing</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Menu -->
+    <div class="nav-menu" id="navMenu">
+        <div class="nav-menu-content">
+            <a href="{{ url_for('dashboard') }}" class="nav-item">
+                <span class="nav-icon">🎤</span>
+                <span>Live Transcription</span>
+            </a>
+            <a href="{{ url_for('audio_test') }}" class="nav-item active">
+                <span class="nav-icon">🔊</span>
+                <span>Audio Testing</span>
+            </a>
+            <a href="{{ url_for('websocket_test') }}" class="nav-item">
+                <span class="nav-icon">🔌</span>
+                <span>WebSocket Test</span>
+            </a>
+            <a href="{{ url_for('settings') }}" class="nav-item">
+                <span class="nav-icon">⚙️</span>
+                <span>Settings</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="audio-test-container">
+        <h1>🔊 Audio Testing & Diagnostics</h1>
+        
+        <!-- Test Navigation -->
+        <div class="test-nav">
+            <a href="#" class="test-nav-button active" data-test="basic">
+                <span>🎤</span>
+                <span>Basic Audio Test</span>
+            </a>
+            <a href="{{ url_for('static', filename='audio-processing-controls.html') }}" class="test-nav-button">
+                <span>🎛️</span>
+                <span>Pipeline Controls</span>
+            </a>
+            <a href="{{ url_for('static', filename='audio-diagnostic.html') }}" class="test-nav-button">
+                <span>📊</span>
+                <span>Live Diagnostics</span>
+            </a>
+            <a href="{{ url_for('static', filename='test-audio.html') }}" class="test-nav-button">
+                <span>🧪</span>
+                <span>Advanced Testing</span>
+            </a>
+        </div>
+
+        <!-- Basic Audio Test -->
+        <div class="test-section" id="basicTest">
+            <h2>🎤 Basic Audio Recording Test</h2>
+            <p>Test your microphone and audio recording capabilities with real-time visualization.</p>
+            
+            <div class="test-controls">
+                <button id="startRecording" class="button primary">🎤 Start Recording</button>
+                <button id="stopRecording" class="button" disabled>⏹️ Stop Recording</button>
+                <button id="playRecording" class="button" disabled>▶️ Play Recording</button>
+                <button id="clearRecording" class="button">🗑️ Clear</button>
+            </div>
+            
+            <div id="recordingStatus" class="test-status ready">Ready to record</div>
+            
+            <!-- Audio Visualizer -->
+            <div class="audio-visualizer">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <span style="font-weight: 500;">Audio Level</span>
+                    <span id="audioLevel">0%</span>
+                </div>
+                <div class="audio-level-bar">
+                    <div id="audioLevelFill" class="audio-level-fill"></div>
+                </div>
+                
+                <div class="spectrum-display">
+                    <canvas id="spectrumCanvas" class="spectrum-canvas"></canvas>
+                </div>
+            </div>
+            
+            <!-- Test Results -->
+            <div id="testResults" class="test-results" style="display: none;">
+                <h3>Recording Results</h3>
+                <div id="resultsContent">
+                    <!-- Results will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Audio Processing Pipeline -->
+        <div class="test-section" id="pipelineTest">
+            <h2>⚙️ Audio Processing Pipeline</h2>
+            <p>Test the enhanced audio processing pipeline with real-time controls.</p>
+            
+            <div class="test-controls">
+                <button id="processAudio" class="button primary" disabled>🔧 Process Audio</button>
+                <button id="resetPipeline" class="button">🔄 Reset Pipeline</button>
+                <button id="pausePipeline" class="button">⏸️ Pause at Next Stage</button>
+                <button id="exportResults" class="button">📤 Export Results</button>
+            </div>
+            
+            <div id="pipelineStatus" class="test-status ready">Pipeline ready</div>
+            
+            <!-- Pipeline Stages -->
+            <div id="pipelineStages" class="pipeline-stages">
+                <!-- Pipeline stages will be populated here -->
+            </div>
+        </div>
+
+        <!-- Service Integration Test -->
+        <div class="test-section" id="serviceTest">
+            <h2>🌐 Service Integration Test</h2>
+            <p>Test connectivity and integration with backend services.</p>
+            
+            <div class="test-controls">
+                <button id="testServices" class="button primary">🔗 Test All Services</button>
+                <button id="testWhisper" class="button">🗣️ Test Whisper</button>
+                <button id="testTranslation" class="button">🌍 Test Translation</button>
+                <button id="testSpeaker" class="button">👥 Test Speaker</button>
+            </div>
+            
+            <div id="serviceStatus" class="test-status ready">Ready to test services</div>
+            
+            <div id="serviceResults" class="test-results" style="display: none;">
+                <h3>Service Test Results</h3>
+                <div id="serviceResultsContent">
+                    <!-- Service results will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Logs -->
+        <div class="test-section">
+            <h2>📋 Activity Logs</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <span></span>
+                <button id="clearLogs" class="button small">Clear Logs</button>
+            </div>
+            <div id="activityLogs" class="logs-container">
+                <div class="log-entry INFO">[System] Audio test page initialized</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Audio test state
+        let audioTestState = {
+            mediaRecorder: null,
+            audioContext: null,
+            analyser: null,
+            microphone: null,
+            recordedChunks: [],
+            isRecording: false,
+            recordedBlob: null,
+            animationFrame: null,
+            currentPlayback: null,
+            isPlaying: false
+        };
+
+        // DOM elements
+        const startRecordingBtn = document.getElementById('startRecording');
+        const stopRecordingBtn = document.getElementById('stopRecording');
+        const playRecordingBtn = document.getElementById('playRecording');
+        const clearRecordingBtn = document.getElementById('clearRecording');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const audioLevel = document.getElementById('audioLevel');
+        const audioLevelFill = document.getElementById('audioLevelFill');
+        const spectrumCanvas = document.getElementById('spectrumCanvas');
+        const testResults = document.getElementById('testResults');
+        const resultsContent = document.getElementById('resultsContent');
+        const activityLogs = document.getElementById('activityLogs');
+
+        // Initialize audio test
+        async function initializeAudioTest() {
+            try {
+                // Request microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Create audio context
+                audioTestState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioTestState.microphone = audioTestState.audioContext.createMediaStreamSource(stream);
+                audioTestState.analyser = audioTestState.audioContext.createAnalyser();
+                audioTestState.analyser.fftSize = 2048;
+                audioTestState.microphone.connect(audioTestState.analyser);
+                
+                // Create media recorder
+                audioTestState.mediaRecorder = new MediaRecorder(stream);
+                audioTestState.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioTestState.recordedChunks.push(event.data);
+                    }
+                };
+                
+                audioTestState.mediaRecorder.onstop = () => {
+                    audioTestState.recordedBlob = new Blob(audioTestState.recordedChunks, { type: 'audio/webm' });
+                    playRecordingBtn.disabled = false;
+                    addLog('SUCCESS', 'Recording completed successfully');
+                    showRecordingResults();
+                    
+                    // Store recording for pipeline testing
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        localStorage.setItem('livetranslate-recorded-audio', e.target.result);
+                        addLog('INFO', 'Recording saved for pipeline testing');
+                    };
+                    reader.readAsDataURL(audioTestState.recordedBlob);
+                };
+                
+                startVisualization();
+                addLog('INFO', 'Audio system initialized successfully');
+                
+            } catch (error) {
+                addLog('ERROR', `Failed to initialize audio: ${error.message}`);
+                recordingStatus.textContent = 'Failed to access microphone';
+                recordingStatus.className = 'test-status error';
+            }
+        }
+
+        // Start recording
+        startRecordingBtn.addEventListener('click', () => {
+            if (audioTestState.mediaRecorder && audioTestState.mediaRecorder.state === 'inactive') {
+                audioTestState.recordedChunks = [];
+                audioTestState.mediaRecorder.start();
+                audioTestState.isRecording = true;
+                
+                startRecordingBtn.disabled = true;
+                stopRecordingBtn.disabled = false;
+                playRecordingBtn.disabled = true;
+                
+                recordingStatus.textContent = 'Recording in progress...';
+                recordingStatus.className = 'test-status recording';
+                
+                addLog('INFO', 'Recording started');
+            }
+        });
+
+        // Stop recording
+        stopRecordingBtn.addEventListener('click', () => {
+            if (audioTestState.mediaRecorder && audioTestState.mediaRecorder.state === 'recording') {
+                audioTestState.mediaRecorder.stop();
+                audioTestState.isRecording = false;
+                
+                startRecordingBtn.disabled = false;
+                stopRecordingBtn.disabled = true;
+                
+                recordingStatus.textContent = 'Processing recording...';
+                recordingStatus.className = 'test-status processing';
+                
+                addLog('INFO', 'Recording stopped');
+            }
+        });
+
+        // Play/Stop recording
+        playRecordingBtn.addEventListener('click', () => {
+            if (audioTestState.isPlaying) {
+                // Stop current playback
+                if (audioTestState.currentPlayback) {
+                    audioTestState.currentPlayback.pause();
+                    audioTestState.currentPlayback.currentTime = 0;
+                    audioTestState.currentPlayback = null;
+                }
+                audioTestState.isPlaying = false;
+                playRecordingBtn.textContent = '▶️ Play Recording';
+                playRecordingBtn.className = 'button';
+                addLog('INFO', 'Playback stopped');
+            } else {
+                // Start playback
+                if (audioTestState.recordedBlob) {
+                    audioTestState.currentPlayback = new Audio(URL.createObjectURL(audioTestState.recordedBlob));
+                    
+                    audioTestState.currentPlayback.onended = () => {
+                        audioTestState.isPlaying = false;
+                        playRecordingBtn.textContent = '▶️ Play Recording';
+                        playRecordingBtn.className = 'button';
+                        addLog('INFO', 'Playback completed');
+                    };
+                    
+                    audioTestState.currentPlayback.onerror = () => {
+                        audioTestState.isPlaying = false;
+                        playRecordingBtn.textContent = '▶️ Play Recording';
+                        playRecordingBtn.className = 'button';
+                        addLog('ERROR', 'Playback failed');
+                    };
+                    
+                    audioTestState.currentPlayback.play();
+                    audioTestState.isPlaying = true;
+                    playRecordingBtn.textContent = '⏹️ Stop Playing';
+                    playRecordingBtn.className = 'button primary';
+                    addLog('INFO', 'Playing recorded audio');
+                }
+            }
+        });
+
+        // Clear recording
+        clearRecordingBtn.addEventListener('click', () => {
+            // Stop any current playback
+            if (audioTestState.currentPlayback) {
+                audioTestState.currentPlayback.pause();
+                audioTestState.currentPlayback = null;
+            }
+            
+            audioTestState.recordedChunks = [];
+            audioTestState.recordedBlob = null;
+            audioTestState.isPlaying = false;
+            
+            playRecordingBtn.disabled = true;
+            playRecordingBtn.textContent = '▶️ Play Recording';
+            playRecordingBtn.className = 'button';
+            testResults.style.display = 'none';
+            
+            recordingStatus.textContent = 'Ready to record';
+            recordingStatus.className = 'test-status ready';
+            
+            addLog('INFO', 'Recording cleared');
+        });
+
+        // Audio visualization
+        function startVisualization() {
+            if (!audioTestState.analyser) return;
+            
+            const canvas = spectrumCanvas;
+            const ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            
+            function updateVisualization() {
+                if (!audioTestState.analyser) return;
+                
+                // Get audio data
+                const bufferLength = audioTestState.analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                audioTestState.analyser.getByteFrequencyData(dataArray);
+                
+                // Calculate audio level
+                const timeDataArray = new Uint8Array(audioTestState.analyser.fftSize);
+                audioTestState.analyser.getByteTimeDomainData(timeDataArray);
+                
+                let sum = 0;
+                for (let i = 0; i < timeDataArray.length; i++) {
+                    sum += Math.abs(timeDataArray[i] - 128);
+                }
+                const average = sum / timeDataArray.length;
+                const level = Math.min(100, (average / 128) * 100);
+                
+                // Update level display
+                audioLevel.textContent = `${Math.round(level)}%`;
+                audioLevelFill.style.width = `${level}%`;
+                
+                // Draw spectrum
+                ctx.fillStyle = '#1a1d2e';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                const barWidth = (canvas.width / bufferLength) * 2.5;
+                let x = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    const barHeight = (dataArray[i] / 255) * canvas.height;
+                    
+                    const hue = (i / bufferLength) * 120;
+                    ctx.fillStyle = `hsl(${120 - hue}, 70%, 50%)`;
+                    ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                    
+                    x += barWidth + 1;
+                }
+                
+                audioTestState.animationFrame = requestAnimationFrame(updateVisualization);
+            }
+            
+            updateVisualization();
+        }
+
+        // Show recording results
+        function showRecordingResults() {
+            if (!audioTestState.recordedBlob) return;
+            
+            const duration = audioTestState.recordedBlob.size / 1024; // Approximate
+            const format = audioTestState.recordedBlob.type;
+            
+            resultsContent.innerHTML = `
+                <div class="result-item">
+                    <div class="result-label">File Size</div>
+                    <div class="result-value">${Math.round(audioTestState.recordedBlob.size / 1024)} KB</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Format</div>
+                    <div class="result-value">${format}</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Duration</div>
+                    <div class="result-value">~${(duration / 16).toFixed(1)} seconds</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Status</div>
+                    <div class="result-value">Ready for processing</div>
+                </div>
+            `;
+            
+            testResults.style.display = 'block';
+            
+            // Enable pipeline processing
+            document.getElementById('processAudio').disabled = false;
+            
+            recordingStatus.textContent = 'Recording ready for processing';
+            recordingStatus.className = 'test-status ready';
+        }
+
+        // Test services
+        document.getElementById('testServices').addEventListener('click', async () => {
+            addLog('INFO', 'Testing all services...');
+            document.getElementById('serviceStatus').textContent = 'Testing services...';
+            document.getElementById('serviceStatus').className = 'test-status processing';
+            
+            const services = [
+                { name: 'Whisper', url: '/api/whisper/health' },
+                { name: 'Translation', url: '/api/translation/health' },
+                { name: 'Speaker', url: '/api/speaker/health' }
+            ];
+            
+            const results = [];
+            
+            for (const service of services) {
+                try {
+                    const response = await fetch(service.url);
+                    const data = await response.json();
+                    results.push({
+                        name: service.name,
+                        status: response.ok ? 'healthy' : 'unhealthy',
+                        data: data
+                    });
+                    addLog('INFO', `${service.name} service: ${response.ok ? 'OK' : 'FAILED'}`);
+                } catch (error) {
+                    results.push({
+                        name: service.name,
+                        status: 'error',
+                        error: error.message
+                    });
+                    addLog('ERROR', `${service.name} service: ${error.message}`);
+                }
+            }
+            
+            // Show results
+            const serviceResultsContent = document.getElementById('serviceResultsContent');
+            serviceResultsContent.innerHTML = results.map(result => `
+                <div class="result-item">
+                    <div class="result-label">${result.name} Service</div>
+                    <div class="result-value">${result.status}: ${result.error || 'OK'}</div>
+                </div>
+            `).join('');
+            
+            document.getElementById('serviceResults').style.display = 'block';
+            document.getElementById('serviceStatus').textContent = 'Service tests completed';
+            document.getElementById('serviceStatus').className = 'test-status ready';
+        });
+
+        // Add log entry
+        function addLog(level, message) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${level}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            
+            activityLogs.appendChild(logEntry);
+            activityLogs.scrollTop = activityLogs.scrollHeight;
+        }
+
+        // Clear logs
+        document.getElementById('clearLogs').addEventListener('click', () => {
+            activityLogs.innerHTML = '';
+            addLog('INFO', 'Activity logs cleared');
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeAudioTest();
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/audio-processing-config.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/navigation.js') }}"></script>
+</body>
+</html>

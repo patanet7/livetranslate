@@ -1,0 +1,443 @@
+# === LIVETRANSLATE COMPREHENSIVE DOCKER COMPOSE ===
+# This file brings up the complete LiveTranslate system including:
+# - Core services (Frontend, Whisper, Speaker, Translation)
+# - Data services (Redis, PostgreSQL)
+# - Monitoring stack (Prometheus, Grafana, Loki, Alertmanager)
+# - Proper networking and volume management
+
+
+
+services:
+  # === CORE SERVICES ===
+  
+  # Frontend Service
+  frontend:
+    build:
+      context: ./modules/frontend-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - WHISPER_SERVICE_URL=http://whisper:5001
+      - SPEAKER_SERVICE_URL=http://speaker:5002
+      - TRANSLATION_SERVICE_URL=http://translation:5003
+      - TRITON_SERVER_URL=http://translation:8000
+    networks:
+      - livetranslate-frontend
+      - livetranslate-backend
+    volumes:
+      - livetranslate-sessions:/app/sessions
+    depends_on:
+      - whisper
+      - translation
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Whisper Service
+  whisper:
+    build:
+      context: ./modules/whisper-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-whisper-service
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - REDIS_URL=redis://whisper-redis:6379
+      - MODEL_CACHE_DIR=/app/models
+      - ENABLE_NPU=true
+      - ENABLE_VAD=true
+    networks:
+      - livetranslate-backend
+      - livetranslate-data
+    volumes:
+      - livetranslate-models-whisper:/app/models
+      - livetranslate-audio-uploads:/app/uploads
+    depends_on:
+      - whisper-redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Speaker Service
+  speaker:
+    build:
+      context: ./modules/speaker-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-speaker-service
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      - MODEL_CACHE_DIR=/app/models
+      - ENABLE_CUDA=true
+    networks:
+      - livetranslate-backend
+    volumes:
+      - livetranslate-models-speaker:/app/models
+      - livetranslate-sessions:/app/sessions
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # Translation Service
+  translation:
+    build:
+      context: .  # Build from project root to access shared modules
+      dockerfile: modules/translation-service/Dockerfile.triton-simple
+      args:
+        TRITON_VERSION: "24.12"
+    container_name: livetranslate-triton-translation
+    restart: unless-stopped
+    ports:
+      - "8000:8000"  # Triton HTTP inference
+      - "8001:8001"  # Triton gRPC inference
+      - "8002:8002"  # Triton metrics
+      - "5003:5003"  # Translation service API
+    environment:
+      # Model configuration
+      - MODEL_NAME=meta-llama/Llama-3.1-8B-Instruct
+      - TENSOR_PARALLEL_SIZE=1
+      - MAX_MODEL_LEN=4096
+      - GPU_MEMORY_UTILIZATION=0.9
+      
+      # Triton configuration
+      - TRITON_MODEL_REPOSITORY=/app/model_repository
+      - TRITON_HTTP_PORT=8000
+      - TRITON_GRPC_PORT=8001
+      - TRITON_METRICS_PORT=8002
+      
+      # Translation service configuration
+      - TRANSLATION_SERVICE_PORT=5003
+      - TRITON_BASE_URL=http://localhost:8000
+      - INFERENCE_BACKEND=triton
+      
+      # Integration with other services
+      - REDIS_URL=redis://translation-redis:6379
+      - WHISPER_SERVICE_URL=http://whisper:5001
+      - SPEAKER_SERVICE_URL=http://speaker:5002
+      - FRONTEND_SERVICE_URL=http://frontend:3000
+      
+      # CUDA configuration
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      
+      # Cache directories
+      - HF_HOME=/app/cache/huggingface
+      - TRANSFORMERS_CACHE=/app/cache/transformers
+    networks:
+      - livetranslate-backend
+      - livetranslate-data
+    volumes:
+      - livetranslate-models-translation:/app/cache
+      - livetranslate-triton-logs:/app/logs
+    depends_on:
+      - translation-redis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health", "&&", "curl", "-f", "http://localhost:5003/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Longer startup time for model loading
+
+  # === DATA SERVICES ===
+  
+  # Redis for Whisper Service
+  whisper-redis:
+    image: redis:7-alpine
+    container_name: livetranslate-whisper-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - livetranslate-data
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for Translation Service
+  translation-redis:
+    image: redis:7-alpine
+    container_name: livetranslate-translation-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    networks:
+      - livetranslate-data
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: livetranslate-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=livetranslate
+      - POSTGRES_USER=livetranslate
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+    networks:
+      - livetranslate-data
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U livetranslate"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # === MONITORING SERVICES ===
+  
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: livetranslate-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=10GB'
+      - '--web.enable-lifecycle'
+    networks:
+      - livetranslate-monitoring
+      - livetranslate-backend
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - frontend
+      - whisper
+      - translation
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: livetranslate-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    networks:
+      - livetranslate-monitoring
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: livetranslate-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - livetranslate-monitoring
+    volumes:
+      - loki-data:/loki
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Promtail
+  promtail:
+    image: grafana/promtail:latest
+    container_name: livetranslate-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - livetranslate-monitoring
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - livetranslate-logs:/var/log/livetranslate
+    depends_on:
+      - loki
+
+  # Alertmanager
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: livetranslate-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+    networks:
+      - livetranslate-monitoring
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - livetranslate-alertmanager-data:/alertmanager
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node Exporter
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: livetranslate-node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - livetranslate-monitoring
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  # cAdvisor
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: livetranslate-cadvisor
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    networks:
+      - livetranslate-monitoring
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# === NETWORKS ===
+networks:
+  livetranslate-frontend:
+    external: true
+  livetranslate-backend:
+    external: true
+  livetranslate-data:
+    external: true
+  livetranslate-monitoring:
+    external: true
+
+# === VOLUMES ===
+volumes:
+  # Data persistence
+  postgres-data:
+    external: true
+  redis-data:
+    external: true
+  
+  # AI models
+  livetranslate-models-whisper:
+    external: true
+  livetranslate-models-speaker:
+    external: true
+  livetranslate-models-translation:
+    external: true
+  livetranslate-triton-logs:
+    external: true
+  
+  # Sessions and uploads
+  livetranslate-sessions:
+    external: true
+  livetranslate-audio-uploads:
+    external: true
+  
+  # Monitoring data
+  prometheus-data:
+    external: true
+  grafana-data:
+    external: true
+  loki-data:
+    external: true
+  livetranslate-alertmanager-data:
+    external: true
+  livetranslate-logs:
+    external: true
+
+# === SECRETS ===
+secrets:
+  db_password:
+    file: ./.secrets/db_password.txt 

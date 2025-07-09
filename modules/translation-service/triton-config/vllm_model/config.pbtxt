@@ -1,0 +1,103 @@
+# Triton Model Configuration for vLLM Backend
+# This configures the vLLM model for use with Triton Inference Server
+
+name: "vllm_model"
+backend: "vllm"
+max_batch_size: 32
+
+# Model instance configuration
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+    gpus: [0]
+  }
+]
+
+# Input configuration
+input [
+  {
+    name: "text_input"
+    data_type: TYPE_STRING
+    dims: [1]
+  },
+  {
+    name: "stream"
+    data_type: TYPE_BOOL
+    dims: [1]
+    optional: true
+  },
+  {
+    name: "sampling_parameters"
+    data_type: TYPE_STRING
+    dims: [1]
+    optional: true
+  }
+]
+
+# Output configuration
+output [
+  {
+    name: "text_output"
+    data_type: TYPE_STRING
+    dims: [1]
+  }
+]
+
+# vLLM-specific parameters
+parameters: {
+  key: "model"
+  value: {
+    string_value: "${MODEL_NAME:meta-llama/Llama-3.1-8B-Instruct}"
+  }
+}
+
+parameters: {
+  key: "tensor_parallel_size"
+  value: {
+    string_value: "${TENSOR_PARALLEL_SIZE:1}"
+  }
+}
+
+parameters: {
+  key: "max_model_len"
+  value: {
+    string_value: "${MAX_MODEL_LEN:4096}"
+  }
+}
+
+parameters: {
+  key: "gpu_memory_utilization"
+  value: {
+    string_value: "${GPU_MEMORY_UTILIZATION:0.9}"
+  }
+}
+
+parameters: {
+  key: "enforce_eager"
+  value: {
+    string_value: "${ENFORCE_EAGER:false}"
+  }
+}
+
+parameters: {
+  key: "disable_log_stats"
+  value: {
+    string_value: "false"
+  }
+}
+
+# Enable custom metrics reporting
+parameters: {
+  key: "REPORT_CUSTOM_METRICS"
+  value: {
+    string_value: "true"
+  }
+}
+
+# Model versioning
+version_policy: {
+  latest: {
+    num_versions: 1
+  }
+}

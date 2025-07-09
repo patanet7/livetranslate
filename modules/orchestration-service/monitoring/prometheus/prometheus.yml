@@ -1,0 +1,149 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'livetranslate'
+    environment: 'development'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "rules/*.yml"
+
+# LiveTranslate Orchestration Service - Consolidated Monitoring Configuration
+scrape_configs:
+  # === PROMETHEUS SELF-MONITORING ===
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # === ORCHESTRATION SERVICE MONITORING ===
+  
+  # Orchestration Service (Main Hub)
+  - job_name: 'orchestration-service'
+    static_configs:
+      - targets: ['orchestration-service:3000']
+    scrape_interval: 15s
+    metrics_path: /api/metrics
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # === LIVETRANSLATE CORE SERVICES ===
+  
+  # Audio Service (NPU/GPU Optimized)
+  - job_name: 'audio-service'
+    static_configs:
+      - targets: ['audio-service:5001']
+    scrape_interval: 15s
+    metrics_path: /api/metrics
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # Translation Service (GPU Optimized)
+  - job_name: 'translation-service'
+    static_configs:
+      - targets: ['translation-service:5003']
+    scrape_interval: 15s
+    metrics_path: /api/metrics
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # === SYSTEM MONITORING ===
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # === CONTAINER MONITORING ===
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # === INFRASTRUCTURE SERVICES ===
+  
+  # Redis (Session and Cache Storage)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+    metrics_path: /metrics
+    scrape_timeout: 10s
+
+  # === MONITORING STACK ===
+  
+  # Grafana
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Loki
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Alertmanager
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+# === ORCHESTRATION SERVICE SPECIFIC METRICS ===
+# Custom metrics for LiveTranslate platform monitoring
+
+  # WebSocket Connection Metrics
+  - job_name: 'websocket-metrics'
+    static_configs:
+      - targets: ['orchestration-service:3000']
+    scrape_interval: 10s
+    metrics_path: /api/websocket/metrics
+    scrape_timeout: 5s
+
+  # API Gateway Metrics  
+  - job_name: 'gateway-metrics'
+    static_configs:
+      - targets: ['orchestration-service:3000']
+    scrape_interval: 15s
+    metrics_path: /api/gateway/metrics
+    scrape_timeout: 5s
+
+  # Service Health Metrics
+  - job_name: 'health-metrics'
+    static_configs:
+      - targets: ['orchestration-service:3000']
+    scrape_interval: 30s
+    metrics_path: /api/health/metrics
+    scrape_timeout: 10s
+
+# === REMOTE WRITE (Optional - for external monitoring) ===
+# remote_write:
+#   - url: "https://your-remote-prometheus-endpoint/api/v1/write"
+#     basic_auth:
+#       username: "your-username"
+#       password: "your-password"
+
+# === STORAGE CONFIGURATION ===
+# Note: Storage settings are configured via command line flags in docker-compose.yml
+# --storage.tsdb.retention.time=30d
+# --storage.tsdb.retention.size=10GB

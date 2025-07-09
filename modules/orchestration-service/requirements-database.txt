@@ -1,0 +1,20 @@
+# Database Integration Requirements
+# Additional dependencies for PostgreSQL database integration
+
+# PostgreSQL async driver
+asyncpg>=0.28.0
+
+# File I/O operations
+aiofiles>=23.0.0
+
+# Data processing
+numpy>=1.21.0
+
+# Path handling
+pathlib2>=2.3.0
+
+# JSON handling (built-in json module is sufficient, but these provide additional features)
+orjson>=3.8.0  # Fast JSON library (optional)
+
+# Hashing and cryptography
+hashlib2>=1.0.0  # Enhanced hashlib (optional, built-in hashlib is usually sufficient)
