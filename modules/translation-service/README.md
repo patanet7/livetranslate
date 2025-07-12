@@ -1,6 +1,30 @@
-# Translation Service Module
+# Translation Service - GPU Optimized Multi-Language Translation
 
-Modular translation service that integrates local inference (vLLM/Ollama) with existing LiveTranslate translation functionality.
+**Hardware Target**: NVIDIA GPU (primary), CPU (fallback)
+
+## 🆕 Latest Enhancements
+
+### ✅ **Device Information API** - NEW!
+- **Device Status Endpoint**: `/api/device-info` for GPU/CPU status monitoring with CUDA detection
+- **Backend Detection**: Intelligent device reporting based on vLLM/Triton/Ollama backends
+- **CUDA Integration**: GPU availability detection with detailed device information
+- **Service Integration**: Complete orchestration service compatibility for dynamic model loading
+
+### ✅ **Enhanced Service Integration** - COMPLETED!
+- **Orchestration Compatibility**: Full integration with orchestration service for device status reporting
+- **Dynamic Backend Selection**: Automatic detection of optimal backend based on available hardware
+- **Real-time Device Monitoring**: Live GPU/CPU status reporting with acceleration details
+- **Graceful Fallback**: Intelligent fallback when GPU acceleration is unavailable
+
+## Service Overview
+
+The Translation Service is a GPU-optimized microservice that provides:
+- **High-Performance Local LLM Translation**: vLLM, Ollama, and Triton inference backends with GPU acceleration
+- **Multi-Language Support**: 50+ languages with automatic detection and intelligent routing
+- **Real-time Streaming**: WebSocket-based streaming translation with partial results
+- **Quality Scoring**: Confidence metrics and validation with performance tracking
+- **Intelligent Fallback**: Local → External API fallback chain with automatic recovery
+- **Device Monitoring**: Real-time GPU/CPU status with acceleration details
 
 ## 🚀 Quick Start (Standalone)
 
@@ -34,16 +58,20 @@ curl -X POST http://localhost:5003/translate \
 **Service will be available at:**
 - **REST API**: http://localhost:5003
 - **Health Check**: http://localhost:5003/api/health
+- **Device Info**: http://localhost:5003/api/device-info (NEW - GPU/CPU status with CUDA details)
+- **Service Status**: http://localhost:5003/api/status (backend information and device details)
 - **WebSocket**: ws://localhost:5003/translate/stream
 - **Test Interface**: http://localhost:5003/test (development mode)
 
 ## 📋 Prerequisites
 
 ### System Requirements
-- **CPU**: Modern x86_64 processor
-- **RAM**: 8-32GB depending on model size
+- **CPU**: Modern x86_64 processor with AVX support
+- **RAM**: 8-32GB depending on model size (16GB+ recommended for GPU models)
 - **Storage**: 10GB for models and cache
-- **Optional**: NVIDIA GPU for acceleration (recommended for vLLM)
+- **GPU**: NVIDIA GPU with 8GB+ VRAM for optimal performance (GTX 1080 Ti / RTX 3060 or better)
+- **CUDA**: CUDA 11.8+ with cuDNN for GPU acceleration
+- **Networking**: Gigabit Ethernet for high-throughput translation
 
 ### Software Dependencies
 ```bash
@@ -55,11 +83,18 @@ docker --version
 docker-compose --version
 
 # For local LLM inference (choose one)
-# Option A: Ollama (easiest setup)
+# Option A: Ollama (CPU/GPU support, easiest setup)
 curl -fsSL https://ollama.ai/install.sh | sh
 
-# Option B: vLLM (GPU acceleration)
+# Option B: vLLM (GPU acceleration, high performance)
 pip install vllm
+
+# Option C: Triton (enterprise inference server)
+# docker pull nvcr.io/nvidia/tritonserver:latest
+
+# For GPU acceleration
+# NVIDIA CUDA Toolkit 11.8+
+# PyTorch with CUDA support
 ```
 
 ## 🛠️ Installation & Setup
@@ -208,10 +243,13 @@ The service automatically selects the best available backend:
 # Basic health check
 GET /health
 
-# Detailed health check with backend status
+# API health check (orchestration compatible)
 GET /api/health
 
-# Service status with model information
+# Device information (NEW - for orchestration integration)
+GET /api/device-info
+
+# Service status with comprehensive backend and device information
 GET /api/status
 ```
 
@@ -359,19 +397,65 @@ GET /api/whisper/status/{session_id}
 
 ### Health Check
 ```bash
+# Basic health check
 curl http://localhost:5003/api/health
+
+# Device information (NEW)
+curl http://localhost:5003/api/device-info
+
+# Comprehensive status
+curl http://localhost:5003/api/status
 ```
 
-Expected response:
+Expected responses:
 ```json
+// Health Check
 {
   "status": "healthy",
-  "service": "translation-service",
-  "version": "1.0.0",
-  "backend": "ollama",
-  "model": "llama3.1:8b",
-  "uptime": 123.45,
-  "backends_available": ["ollama", "openai"]
+  "service": "translation",
+  "backend": "vllm",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "version": "1.0.0"
+}
+
+// Device Info (NEW)
+{
+  "device": "gpu",
+  "device_type": "gpu",
+  "acceleration": "cuda",
+  "status": "healthy",
+  "details": {
+    "backend": "vllm",
+    "gpu_available": true,
+    "cuda_available": true,
+    "cuda_version": "12.1",
+    "device_count": 2,
+    "current_device": 0,
+    "device_name": "NVIDIA RTX 4090"
+  },
+  "service_info": {
+    "version": "1.0.0",
+    "backend": "vllm",
+    "active_sessions": 3
+  }
+}
+
+// Status (Enhanced)
+{
+  "status": "ok",
+  "service": "translation",
+  "backend": "vllm",
+  "backends": {
+    "vllm": {"status": "healthy", "gpu_memory": "6.2GB/24.0GB"},
+    "ollama": {"status": "unavailable"},
+    "triton": {"status": "unavailable"}
+  },
+  "active_sessions": 3,
+  "device_info": {
+    "device": "gpu",
+    "acceleration": "cuda",
+    "utilization": "65%"
+  }
 }
 ```
 
@@ -504,35 +588,53 @@ curl http://localhost:5003/metrics
 ```
 
 Key metrics:
-- `translation_requests_total`
-- `translation_duration_seconds`
-- `translation_errors_total`
-- `translation_backend_switches_total`
-- `translation_model_load_duration_seconds`
+- `translation_requests_total` - Total requests by backend and language pair
+- `translation_duration_seconds` - Processing latency by device type (GPU/CPU)
+- `translation_errors_total` - Error rates by category and backend
+- `translation_backend_switches_total` - Fallback frequency
+- `translation_model_load_duration_seconds` - Model loading performance
+- `translation_gpu_utilization` - GPU utilization percentage
+- `translation_gpu_memory_usage` - GPU memory consumption
+- `translation_quality_score` - Translation quality metrics
+- `translation_tokens_per_second` - Throughput by device type
 
-### Backend Status
+### Backend Status with Device Information
 ```bash
-# Check which backends are available
+# Check backend availability with device details
 curl http://localhost:5003/api/backends
 
-# Response:
+# Enhanced response with device information:
 {
   "backends": {
+    "vllm": {
+      "status": "available",
+      "model": "meta-llama/Llama-3.1-8B-Instruct",
+      "device": "gpu",
+      "gpu_memory": "6.2GB/24.0GB",
+      "acceleration": "cuda"
+    },
     "ollama": {
       "status": "available",
       "model": "llama3.1:8b",
+      "device": "cpu",
       "url": "http://localhost:11434"
     },
-    "vllm": {
+    "triton": {
       "status": "unavailable",
-      "error": "CUDA not available"
+      "error": "Service not running"
     },
     "openai": {
       "status": "available",
-      "model": "gpt-4"
+      "model": "gpt-4",
+      "device": "external"
     }
   },
-  "current_backend": "ollama"
+  "current_backend": "vllm",
+  "device_summary": {
+    "primary_device": "gpu",
+    "acceleration": "cuda",
+    "fallback_available": true
+  }
 }
 ```
 
@@ -596,12 +698,16 @@ nvidia-smi  # GPU for vLLM
 # Check disk space
 df -h
 
-# Check GPU memory
+# Check GPU memory and status
 nvidia-smi
+curl http://localhost:5003/api/device-info
 
 # Download model manually
 ollama pull llama3.1:8b  # For Ollama
 python -c "from vllm import LLM; LLM('meta-llama/Llama-3.1-8B-Instruct')"  # For vLLM
+
+# Check CUDA availability
+python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}, Devices: {torch.cuda.device_count()}')"
 ```
 
 **Poor translation quality:**
@@ -625,7 +731,9 @@ curl -X POST http://localhost:5003/translate \
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Service health check |
-| GET | `/api/backends` | List available backends |
+| GET | `/api/device-info` | GPU/CPU status with CUDA details |
+| GET | `/api/status` | Detailed service status with device information |
+| GET | `/api/backends` | Available backends with device details |
 | POST | `/translate` | Single text translation |
 | POST | `/translate/batch` | Batch translation |
 | POST | `/detect-language` | Language detection |

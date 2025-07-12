@@ -1,8 +1,36 @@
-# LiveTranslate Whisper Service
+# Whisper Service - NPU Optimized Audio Processing
 
-**🎤 NPU-Optimized Speech-to-Text Processing Service**
+**Hardware Target**: NPU (Intel NPU), GPU, CPU fallback - **NPU OPTIMIZED**
 
-Production-ready real-time speech-to-text transcription service with Intel NPU acceleration, advanced speaker diarization, and enterprise-grade WebSocket infrastructure.
+## 🆕 Latest Enhancements
+
+### ✅ **Complete API Endpoints** - NEW!
+- **Models API**: `/api/models` endpoint for orchestration integration with dynamic model listing
+- **Device Information API**: `/api/device-info` with real-time NPU/GPU/CPU status reporting
+- **Enhanced Model Management**: Dynamic model loading with availability reporting to frontend
+- **Hardware Detection**: Automatic NPU/GPU/CPU detection with OpenVINO integration
+
+### ✅ **Critical Audio Processing Fixes** - RESOLVED!
+- **Audio Resampling Fix**: Fixed `pydub.set_frame_rate()` bug with librosa fallback for proper 16kHz resampling
+- **Browser Audio Processing Fix**: Disabled echoCancellation, noiseSuppression, autoGainControl for loopback audio
+- **Backend Noise Reduction Fix**: Disabled aggressive noise reduction that was removing loopback audio content
+- **Enhanced Audio Quality Validation**: Lowered silence detection threshold and improved debug logging
+
+### ✅ **Service Integration** - COMPLETED!
+- **Orchestration Integration**: Complete API gateway routing through `/api/whisper/*` endpoints
+- **Frontend Integration**: Dynamic model loading support for Meeting Test Dashboard
+- **Device Status Monitoring**: Real-time hardware acceleration status reporting
+- **Graceful Fallback**: Service unavailability handling with fallback models
+
+## Service Overview
+
+The Whisper Service is an NPU-optimized microservice that provides:
+- **Real-time Speech-to-Text**: Advanced Whisper model inference with OpenVINO optimization
+- **NPU Hardware Acceleration**: Intel NPU detection and automatic fallback (NPU → GPU → CPU)
+- **Speaker Diarization**: Multi-speaker identification and timeline tracking
+- **Voice Activity Detection**: Real-time VAD with WebRTC and Silero integration
+- **Enterprise WebSocket Infrastructure**: Production-ready real-time streaming with 1000+ concurrent connections
+- **Multi-format Audio Processing**: Complete audio pipeline with format detection and conversion
 
 ## 🚀 Quick Start (Standalone)
 
@@ -30,8 +58,10 @@ curl -X POST -F "audio=@test_audio.wav" http://localhost:5001/transcribe/whisper
 **Service will be available at:**
 - **REST API**: http://localhost:5001
 - **Health Check**: http://localhost:5001/health
-- **WebSocket**: ws://localhost:5001 (for real-time streaming)
-- **NPU Status**: http://localhost:5001/device-info
+- **Models API**: http://localhost:5001/api/models (NEW - for orchestration integration)
+- **Device Info**: http://localhost:5001/api/device-info (NEW - NPU/GPU/CPU status)
+- **WebSocket**: ws://localhost:5001 (enterprise-grade real-time streaming)
+- **NPU Status**: Automatic detection with OpenVINO integration
 
 ## 📋 Prerequisites
 

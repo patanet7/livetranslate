@@ -301,6 +301,78 @@ def list_models():
         logger.error(f"Failed to list models: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/models', methods=['GET'])
+def api_list_models():
+    """List available models (API endpoint for orchestration integration)"""
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+    
+    try:
+        models = whisper_service.get_available_models()
+        status = whisper_service.get_service_status()
+        
+        return jsonify({
+            "models": models,
+            "available_models": models,
+            "loaded_models": status["loaded_models"],
+            "default_model": whisper_service.config.get("default_model", "whisper-base"),
+            "device": status["device"],
+            "status": "success",
+            "service": "whisper"
+        })
+    except Exception as e:
+        logger.error(f"Failed to list models: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/device-info', methods=['GET'])
+def get_device_info():
+    """Get current device information (CPU/GPU/NPU) and acceleration status"""
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+    
+    try:
+        status = whisper_service.get_service_status()
+        
+        # Extract device information from service status
+        device = status.get("device", "unknown")
+        device_details = status.get("device_details", {})
+        
+        # Determine device type and acceleration
+        device_type = "unknown"
+        acceleration = "none"
+        
+        if device.upper() == "NPU":
+            device_type = "npu"
+            acceleration = "intel_npu"
+        elif device.upper() == "GPU":
+            device_type = "gpu"
+            acceleration = "cuda" if device_details.get("cuda_available") else "opencl"
+        elif device.upper() == "CPU":
+            device_type = "cpu"
+            acceleration = "none"
+        
+        return jsonify({
+            "device": device.lower(),
+            "device_type": device_type,
+            "status": "healthy" if status.get("ready", False) else "unavailable",
+            "acceleration": acceleration,
+            "details": {
+                "models_loaded": status.get("loaded_models", []),
+                "memory_usage": device_details.get("memory_usage", "unknown"),
+                "device_name": device_details.get("device_name", "unknown"),
+                "capabilities": device_details.get("capabilities", [])
+            },
+            "service_info": {
+                "version": status.get("version", "unknown"),
+                "uptime": status.get("uptime", 0),
+                "ready": status.get("ready", False)
+            }
+        })
+    except Exception as e:
+        logger.error(f"Failed to get device info: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/clear-cache', methods=['POST'])
 def clear_cache():
