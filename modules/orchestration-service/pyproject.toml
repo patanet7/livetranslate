@@ -1,0 +1,175 @@
+[tool.poetry]
+name = "livetranslate-orchestration-service"
+version = "1.0.0"
+description = "LiveTranslate Orchestration Service - Backend API & Service Coordination"
+authors = ["LiveTranslate Team <team@livetranslate.com>"]
+readme = "README.md"
+packages = [{include = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+# Core web framework
+fastapi = "^0.104.1"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+
+# WebSocket support
+python-socketio = "^5.8.0"
+eventlet = "^0.33.3"
+
+# Legacy Flask (for static files serving)
+flask = "^2.3.3"
+flask-cors = "^4.0.0"
+flask-socketio = "^5.3.5"
+
+# HTTP client
+requests = "^2.31.0"
+
+# FastAPI dependencies
+pydantic = "^2.4.2"
+pydantic-settings = "^2.0.3"
+python-multipart = "^0.0.6"
+
+# Configuration
+pyyaml = "^6.0.1"
+
+# Data processing
+python-dateutil = "^2.8.2"
+
+# Bot management and Google Meet integration
+google-api-python-client = "^2.100.0"
+google-auth = "^2.23.0"
+google-auth-oauthlib = "^1.0.0"
+google-auth-httplib2 = "^0.1.0"
+
+# Database integration
+psycopg2-binary = "^2.9.7"
+sqlalchemy = "^2.0.21"
+alembic = "^1.12.0"
+aiosqlite = "^0.19.0"
+
+# JWT and security
+pyjwt = "^2.8.0"
+cryptography = "^41.0.4"
+
+# HTTP async client
+aiohttp = "^3.8.5"
+
+# File watching for config hot-reload
+watchdog = "^3.0.0"
+
+# Audio processing (Windows-compatible versions)
+numpy = "^1.24.3"
+# Note: Audio processing libraries moved to optional audio group for Windows compatibility
+
+# Redis for session management
+redis = "^5.0.0"
+
+# Monitoring and logging
+prometheus-client = "^0.18.0"
+structlog = "^23.1.0"
+
+# Development dependencies
+werkzeug = "^2.3.7"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.2"
+pytest-asyncio = "^0.21.1"
+pytest-cov = "^4.1.0"
+black = "^23.9.1"
+isort = "^5.12.0"
+flake8 = "^6.0.0"
+mypy = "^1.5.1"
+pre-commit = "^3.4.0"
+
+[tool.poetry.group.test.dependencies]
+httpx = "^0.25.0"
+pytest-mock = "^3.11.1"
+faker = "^19.6.2"
+
+[tool.poetry.group.audio.dependencies]
+# Optional audio processing dependencies for advanced features
+# Install with: poetry install --with audio
+scipy = "^1.11.3"
+librosa = "^0.10.1"
+soundfile = "^0.12.1"
+pydub = "^0.25.1"
+ffmpeg-python = "^0.2.0"
+# Note: webrtcvad may require C++ build tools on Windows
+# Use alternative VAD implementations or install manually if needed
+
+[tool.poetry.group.monitoring.dependencies]
+# Optional monitoring dependencies
+# Install with: poetry install --with monitoring
+grafana-api = "^1.0.3"
+psutil = "^5.9.5"
+
+[tool.poetry.scripts]
+start-backend = "src.orchestration_service:main"
+start-fastapi = "backend.main:main"
+run-tests = "pytest:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["src"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v"
+# Temporarily disabled coverage for test collection debugging
+# addopts = "-v --cov=src --cov-report=html --cov-report=term-missing"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/conftest.py",
+    "*/venv/*",
+    "*/virtualenv/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

@@ -10,7 +10,7 @@ LiveTranslate is a real-time speech-to-text transcription and translation system
 
 ### Hardware-Optimized Service Architecture
 
-The system is organized into **3 core services** optimized for specific hardware acceleration:
+The system is organized into **4 core services** optimized for specific hardware acceleration and clean separation of concerns:
 
 1. **Whisper Service** (`modules/whisper-service/`) - **[NPU OPTIMIZED]** ✅
    - **Combined**: Whisper + Speaker Diarization + Audio Processing + VAD
@@ -34,18 +34,24 @@ The system is organized into **3 core services** optimized for specific hardware
      - Memory-efficient model management
 
 3. **Orchestration Service** (`modules/orchestration-service/`) - **[CPU OPTIMIZED]** ✅
-   - **Combined**: Frontend + WebSocket + Coordination + Monitoring + Analytics + **Google Meet Bot Management**
+   - **Purpose**: Backend API coordination and service management
    - **Hardware**: CPU-optimized (lightweight)
    - **Features**:
-     - Modern responsive web interface (extracted from frontend-service)
+     - FastAPI backend with async/await patterns
      - Enterprise WebSocket connection management (10,000+ concurrent)
      - Service health monitoring and auto-recovery
-     - Real-time dashboard and performance analytics
+     - API Gateway with load balancing and circuit breaking
      - Session management and coordination
-     - API gateway with load balancing and circuit breaking
-     - Comprehensive monitoring with Prometheus integration
-     - **🆕 Google Meet Bot Management**: Central "brain" for spawning, monitoring, and managing Google Meet bots
-     - **🆕 Official Google Meet API Integration**: OAuth 2.0 authentication, space management, real-time monitoring
+
+4. **Frontend Service** (`modules/frontend-service/`) - **[BROWSER OPTIMIZED]** ✅
+   - **Purpose**: Modern React user interface for audio testing and bot management
+   - **Technology**: React 18 + TypeScript + Material-UI + Vite
+   - **Features**:
+     - Modern responsive web interface with dark/light themes
+     - Real-time audio capture and testing interface
+     - Comprehensive bot management dashboard
+     - Real-time system monitoring and analytics
+     - Progressive Web App (PWA) capabilities
      - **🆕 Comprehensive Database Integration**: PostgreSQL with time-coded transcripts, translations, and correlations
 
 ### Supporting Infrastructure
@@ -56,18 +62,24 @@ The system is organized into **3 core services** optimized for specific hardware
 
 ### Deployment Strategy
 
-#### Single Machine (Development/Testing)
+#### Development Environment (Recommended)
 ```bash
-# All services on one machine with hardware optimization
-docker-compose -f docker-compose.optimized.yml up -d
+# Start complete development environment
+./start-development.ps1
+
+# Or start services individually:
+# Backend (Port 3000)
+cd modules/orchestration-service && ./start-backend.ps1
+
+# Frontend (Port 5173) 
+cd modules/frontend-service && ./start-frontend.ps1
 
 # Requirements:
-# - 16GB+ RAM
-# - Intel NPU OR NVIDIA GPU
-# - Modern CPU with AVX support
+# - Node.js 18+, Python 3.9+, pnpm
+# - 8GB+ RAM for development
 ```
 
-#### Distributed (Production)
+#### Production Deployment
 ```bash
 # Machine 1: Whisper Service (NPU/GPU accelerated)
 cd modules/whisper-service && docker-compose up -d
@@ -75,24 +87,38 @@ cd modules/whisper-service && docker-compose up -d
 # Machine 2: Translation Service (GPU accelerated) 
 cd modules/translation-service && docker-compose -f docker-compose-gpu.yml up -d
 
-# Machine 3: Orchestration Service (CPU optimized)
+# Machine 3: Orchestration Backend (CPU optimized)
 cd modules/orchestration-service && docker-compose up -d
+
+# Machine 4: Frontend Service (CDN/Web Server)
+cd modules/frontend-service && docker-compose up -d
 ```
 
 ### Service Communication Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Orchestration-Centric Architecture          │
+│                 Clean Service Architecture                      │
 ├─────────────────────────────────────────────────────────────────┤
-│                  Orchestration Service                         │
-│        [Frontend + WebSocket + Bot Management + DB]            │
+│                    Frontend Service                             │
+│          [React + TypeScript + Material-UI]                    │
+│                       (Port 5173)                              │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
+│  │ Audio Testing   │  │ Bot Management  │  │ System Monitor  │  │
+│  │ • Recording     │  │ • Dashboard     │  │ • Health        │  │
+│  │ • Visualization │  │ • Analytics     │  │ • Metrics       │  │
+│  │ • Processing    │  │ • Controls      │  │ • Real-time     │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
+│                           ↓ API Proxy                          │
+├─────────────────────────────────────────────────────────────────┤
+│                 Orchestration Service Backend                  │
+│            [FastAPI + WebSocket + Bot Management]              │
 │                        (Port 3000)                             │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
-│  │ Google Meet API │  │ Bot Manager     │  │ Database Mgr    │  │
-│  │ • OAuth 2.0     │  │ • Lifecycle     │  │ • PostgreSQL    │  │
-│  │ • Spaces        │  │ • Health        │  │ • Time-coded    │  │
-│  │ • Monitoring    │  │ • Recovery      │  │ • Analytics     │  │
+│  │ API Gateway     │  │ Bot Manager     │  │ Database Mgr    │  │
+│  │ • REST APIs     │  │ • Lifecycle     │  │ • PostgreSQL    │  │
+│  │ • WebSocket     │  │ • Health        │  │ • Time-coded    │  │
+│  │ • Routing       │  │ • Recovery      │  │ • Analytics     │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
 ├─────────────────┬─────────────────┬─────────────────────────────┤
 │                 │                 │                             │
@@ -106,160 +132,6 @@ cd modules/orchestration-service && docker-compose up -d
 │ • WebRTC VAD    │ • Integration   │  • Quality Metrics         │
 └─────────────────┴─────────────────┴─────────────────────────────┘
 ```
-
-### Legacy Code
-
-The `legacy/` directory contains the original monolithic implementation that has been systematically extracted and optimized into the microservices architecture. Legacy code should not be modified for new features.
-
-**Legacy Extraction Status**: ✅ COMPLETED
-- **Source**: `legacy/python/whisper-npu-server/` (2546-line monolithic server.py)
-- **Extracted to**: Modern microservices in `modules/` directory
-- **Improvements**: Thread-safe operations, NPU optimization, comprehensive error handling, production-ready components
-
-## Legacy System Extraction Summary
-
-The legacy monolithic system has been systematically extracted and optimized into production-ready microservices:
-
-### Whisper Service Extraction (`modules/whisper-service/`)
-
-**Extracted Components:**
-1. **ModelManager** (`src/model_manager.py`)
-   - Enhanced NPU device detection and management
-   - Thread-safe inference with automatic fallback (NPU → GPU → CPU)
-   - Memory optimization and resource management
-   - Comprehensive error handling and recovery
-
-2. **RollingBufferManager** (`src/buffer_manager.py`)
-   - Real-time audio buffering with VAD integration
-   - Memory-efficient circular buffer implementation
-   - Voice Activity Detection with WebRTC and Silero fallback
-   - Speaker diarization integration
-   - Configurable buffer sizes and inference intervals
-
-3. **AudioProcessor** (`src/audio_processor.py`)
-   - Multi-format audio support (WAV, MP3, WebM, OGG, MP4)
-   - Advanced format detection including streaming chunks
-   - Multiple conversion backends with fallback strategies
-   - Audio enhancement and preprocessing
-   - Comprehensive validation and error handling
-
-4. **Enhanced API Server** (`src/enhanced_api_server.py`)
-   - Production-ready Flask server with WebSocket support
-   - Real-time streaming endpoints
-   - Performance monitoring and health checks
-   - Hot-reloadable settings management
-   - Comprehensive error handling and recovery
-
-5. **Speaker Diarization** (`src/speaker_diarization.py`)
-   - Advanced speaker identification with multiple embedding methods
-   - Real-time speaker tracking and continuity management
-   - Multiple clustering algorithms (HDBSCAN, DBSCAN, Agglomerative)
-   - Speech enhancement and noise reduction
-   - Cross-segment speaker consistency
-
-### Frontend Service Extraction (`modules/frontend-service/`)
-
-**Extracted Components:**
-1. **Enhanced Frontend Service** (`src/frontend_service.py`)
-   - Modern Flask server with WebSocket integration
-   - Service health monitoring and auto-recovery
-   - API proxying to backend services
-   - Performance analytics and monitoring
-   - Progressive Web App (PWA) support
-
-2. **Modern UI Templates** (`templates/`)
-   - Responsive dashboard with real-time updates
-   - Advanced audio visualization
-   - Speaker diarization timeline
-   - Service status monitoring
-   - Comprehensive settings management
-
-3. **Enhanced Styling** (`static/css/`)
-   - Modern CSS with CSS custom properties
-   - Dark theme optimization
-   - Responsive design patterns
-   - Accessibility improvements
-   - Performance optimizations
-
-4. **Optimized JavaScript** (`static/js/`)
-   - Modular ES6+ architecture
-   - Real-time WebSocket communication
-   - Advanced audio processing
-   - Comprehensive error handling
-   - Performance monitoring
-
-### Key Improvements Made
-
-1. **Architecture**:
-   - Monolithic → Microservices architecture
-   - Enhanced separation of concerns
-   - Improved scalability and maintainability
-
-2. **Performance**:
-   - NPU optimization with Intel NPU support
-   - Thread-safe operations with proper locking
-   - Memory-efficient implementations
-   - Optimized audio processing pipelines
-
-3. **Reliability**:
-   - Comprehensive error handling and recovery
-   - Automatic device fallback (NPU → GPU → CPU)
-   - Connection pooling and heartbeat monitoring
-   - Zero-message-loss design patterns
-
-4. **Security**:
-   - Input validation and sanitization
-   - Secure file handling with size limits
-   - Path traversal protection
-   - Resource usage monitoring
-
-5. **Monitoring**:
-   - Real-time performance metrics
-   - Health check endpoints
-   - Service status monitoring
-   - Comprehensive logging
-
-### Files Created/Enhanced
-
-**Whisper Service:**
-- `modules/whisper-service/src/model_manager.py` (374 lines) - Enhanced NPU model management
-- `modules/whisper-service/src/buffer_manager.py` (593 lines) - Real-time audio buffering
-- `modules/whisper-service/src/audio_processor.py` (587 lines) - Advanced audio processing
-- `modules/whisper-service/src/enhanced_api_server.py` (766 lines) - Production API server
-- `modules/whisper-service/src/speaker_diarization.py` (621 lines) - Advanced speaker identification
-
-**Frontend Service:**
-- `modules/frontend-service/src/frontend_service.py` (500+ lines) - Enhanced frontend server
-- `modules/frontend-service/templates/index.html` (300+ lines) - Modern dashboard UI
-- `modules/frontend-service/static/css/styles.css` (800+ lines) - Enhanced styling
-- `modules/frontend-service/static/js/main.js` (800+ lines) - Optimized JavaScript controller
-
-**🆕 Google Meet Bot System:**
-- `modules/orchestration-service/src/bot/bot_manager.py` (1100+ lines) - Central bot lifecycle management
-- `modules/orchestration-service/src/bot/google_meet_client.py` (800+ lines) - Official Google Meet API integration
-- `modules/orchestration-service/src/database/bot_session_manager.py` (1000+ lines) - Comprehensive database integration
-- `modules/google-meet-bot/src/audio_capture.py` (600+ lines) - Real-time audio capture from Google Meet
-- `modules/google-meet-bot/src/caption_processor.py` (400+ lines) - Google Meet caption processing
-- `modules/google-meet-bot/src/time_correlation.py` (580+ lines) - Time correlation engine
-- `modules/google-meet-bot/src/bot_integration.py` (840+ lines) - Complete bot-to-services integration
-- `scripts/bot-sessions-schema.sql` (500+ lines) - Comprehensive PostgreSQL schema with 8 tables, views, and functions
-
-### Legacy Issues Identified and Fixed
-
-1. **Security Vulnerabilities**:
-   - ❌ No file size limits → ✅ 100MB limit with validation
-   - ❌ Path validation gaps → ✅ Comprehensive path sanitization
-   - ❌ Resource management issues → ✅ Proper resource cleanup
-
-2. **Performance Issues**:
-   - ❌ Thread safety concerns → ✅ Proper locking mechanisms
-   - ❌ Memory leaks potential → ✅ Memory-efficient implementations
-   - ❌ No connection pooling → ✅ Enterprise-grade connection management
-
-3. **Reliability Issues**:
-   - ❌ Basic error handling → ✅ Comprehensive error recovery
-   - ❌ No device fallback → ✅ Automatic NPU/GPU/CPU fallback
-   - ❌ Limited monitoring → ✅ Real-time performance monitoring
 
 ## 🆕 Google Meet Bot Management System
 
@@ -415,19 +287,38 @@ print(f"Languages: {session_data['statistics']['languages_detected']}")
 
 ## Development Commands
 
-### Optimized Deployment (Recommended)
+### Quick Start (Recommended)
 
 ```bash
-# Full optimized system (3-service architecture)
-docker-compose -f docker-compose.optimized.yml up -d
+# Start complete development environment
+./start-development.ps1
 
-# Individual service development
+# Access services:
+# Frontend: http://localhost:5173
+# Backend:  http://localhost:3000
+# API Docs: http://localhost:3000/docs
+```
+
+### Individual Service Development
+
+```bash
+# Frontend Service (React + TypeScript)
+cd modules/frontend-service
+./start-frontend.ps1
+# or manually:
+pnpm install && pnpm dev
+
+# Backend Service (FastAPI + Python)
+cd modules/orchestration-service  
+./start-backend.ps1
+# or manually:
+python -m venv venv && venv\Scripts\activate
+pip install -r requirements.txt
+python backend/main.py
+
+# Other Services
 cd modules/whisper-service && docker-compose up -d      # NPU/GPU optimized
 cd modules/translation-service && docker-compose up -d  # GPU optimized  
-cd modules/orchestration-service && docker-compose up -d # CPU optimized
-
-# Development with hot-reload
-docker-compose -f docker-compose.dev.yml up -d
 ```
 
 ### Service Development

@@ -152,6 +152,90 @@ async def get_status():
         logger.error(f"Failed to get status: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# Device information endpoint
+@app.route('/api/device-info', methods=['GET'])
+async def get_device_info():
+    """Get current device information (CPU/GPU) and acceleration status"""
+    if translation_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+    
+    try:
+        # Get service status which includes device information
+        status = await translation_service.get_service_status()
+        backend = os.getenv("INFERENCE_BACKEND", "auto")
+        
+        # Determine device type and acceleration based on backend
+        device = "unknown"
+        device_type = "unknown"
+        acceleration = "unknown"
+        
+        # Check for GPU availability
+        gpu_available = False
+        try:
+            import torch
+            gpu_available = torch.cuda.is_available()
+        except ImportError:
+            pass
+        
+        # Determine device based on backend and GPU availability
+        if backend == "vllm" and gpu_available:
+            device = "gpu"
+            device_type = "gpu"
+            acceleration = "cuda"
+        elif backend == "triton" and gpu_available:
+            device = "gpu"
+            device_type = "gpu"
+            acceleration = "cuda"
+        elif backend == "ollama":
+            if gpu_available:
+                device = "gpu"
+                device_type = "gpu"
+                acceleration = "cuda"
+            else:
+                device = "cpu"
+                device_type = "cpu"
+                acceleration = "none"
+        else:
+            device = "cpu"
+            device_type = "cpu"
+            acceleration = "none"
+        
+        # Additional device details
+        device_details = {}
+        if gpu_available:
+            try:
+                import torch
+                device_details = {
+                    "cuda_available": True,
+                    "cuda_version": torch.version.cuda,
+                    "device_count": torch.cuda.device_count(),
+                    "current_device": torch.cuda.current_device() if torch.cuda.is_available() else None,
+                    "device_name": torch.cuda.get_device_name(0) if torch.cuda.device_count() > 0 else "unknown"
+                }
+            except Exception:
+                device_details = {"cuda_available": False}
+        
+        return jsonify({
+            "device": device.lower(),
+            "device_type": device_type,
+            "status": "healthy" if status else "unavailable",
+            "acceleration": acceleration,
+            "details": {
+                "backend": backend,
+                "gpu_available": gpu_available,
+                "backends_status": status or {},
+                **device_details
+            },
+            "service_info": {
+                "version": "1.0.0",
+                "backend": backend,
+                "active_sessions": len(active_sessions)
+            }
+        })
+    except Exception as e:
+        logger.error(f"Failed to get device info: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # Translation endpoint
 @app.route('/translate', methods=['POST'])
 async def translate_text():
