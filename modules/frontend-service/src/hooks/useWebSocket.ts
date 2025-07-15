@@ -39,6 +39,7 @@ export const useWebSocket = () => {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const hasShownInitialConnectionRef = useRef(false);
   
   // API fallback
   const apiClient = useApiClient();
@@ -152,12 +153,20 @@ export const useWebSocket = () => {
 
       case 'system:health_update':
         if ('services' in message.data) {
-          const healthData = message.data as { services: any[]; timestamp: number };
-          dispatch(updateSystemMetrics({
-            serviceHealth: healthData.services.reduce((acc: any, service: any) => {
-              acc[service.serviceName.toLowerCase()] = service;
+          const healthData = message.data as { services: any; timestamp: number };
+          // Handle both array and object formats for services
+          let serviceHealth: any = {};
+          if (Array.isArray(healthData.services)) {
+            serviceHealth = healthData.services.reduce((acc: any, service: any) => {
+              acc[service.serviceName?.toLowerCase() || service.name?.toLowerCase() || 'unknown'] = service;
               return acc;
-            }, {})
+            }, {});
+          } else if (typeof healthData.services === 'object' && healthData.services !== null) {
+            serviceHealth = healthData.services;
+          }
+          
+          dispatch(updateSystemMetrics({
+            serviceHealth
           }));
         }
         break;
@@ -319,12 +328,16 @@ export const useWebSocket = () => {
           }
         }, 1000);
         
-        dispatch(addNotification({
-          type: 'success',
-          title: 'WebSocket Connected',
-          message: 'Real-time communication established',
-          autoHide: true
-        }));
+        // Only show initial connection notification once per session
+        if (!hasShownInitialConnectionRef.current) {
+          hasShownInitialConnectionRef.current = true;
+          dispatch(addNotification({
+            type: 'success',
+            title: 'WebSocket Connected',
+            message: 'Real-time communication established',
+            autoHide: true
+          }));
+        }
       };
 
       websocketRef.current.onmessage = (event) => {

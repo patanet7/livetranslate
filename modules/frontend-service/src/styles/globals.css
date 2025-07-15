@@ -107,6 +107,10 @@ body {
   border: 0;
 }
 
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;

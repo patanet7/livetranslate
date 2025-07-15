@@ -1,0 +1,80 @@
+{
+  "whisper_config": {
+    "capabilities": {
+      "buffer_management": true,
+      "chunk_metadata_support": true,
+      "enhanced_processing": true,
+      "internal_chunking": true,
+      "orchestration_chunks": false,
+      "streaming_support": true
+    },
+    "compatibility": {
+      "api_version": "2.0",
+      "chunk_processing_version": "1.0",
+      "orchestration_api_version": "1.0"
+    },
+    "configuration": {
+      "buffer_duration": 6.0,
+      "default_model": "whisper-base",
+      "enable_vad": true,
+      "inference_interval": 3.0,
+      "max_concurrent_requests": 10,
+      "overlap_duration": 0.2,
+      "sample_rate": 16000
+    },
+    "orchestration_mode": false,
+    "service_mode": "legacy",
+    "statistics": {
+      "active_sessions": 0,
+      "average_processing_time": 0.0,
+      "errors": 0,
+      "orchestration_chunks_processed": 0,
+      "requests_processed": 0,
+      "total_processing_time": 0.0
+    }
+  },
+  "orchestration_config": {
+    "chunk_duration": 3.0,
+    "overlap_duration": 0.2,
+    "processing_interval": 2.4000000000000004,
+    "buffer_duration": 6.0,
+    "min_quality_threshold": 0.3,
+    "silence_threshold": 0.01,
+    "noise_threshold": 0.02,
+    "speaker_correlation_enabled": true,
+    "correlation_confidence_threshold": 0.7,
+    "correlation_temporal_window": 3.0,
+    "store_audio_files": true,
+    "store_transcripts": true,
+    "store_translations": true,
+    "store_correlations": true,
+    "track_chunk_lineage": true,
+    "max_concurrent_chunks": 10,
+    "chunk_processing_timeout": 30.0,
+    "database_batch_size": 100,
+    "audio_storage_path": "/data/audio",
+    "file_compression_enabled": true,
+    "cleanup_old_files": true,
+    "file_retention_days": 30
+  },
+  "translation_config": {
+    "configuration": {
+      "active_sessions": 0,
+      "backend": "vllm",
+      "gpu_enable": true,
+      "internal_port": 8010,
+      "internal_vllm_ready": false,
+      "max_tokens": 1024,
+      "model_name": "./models/Llama-3.1-8B-Instruct",
+      "service_status": "running",
+      "temperature": 0.3,
+      "timestamp": "2025-07-14T11:09:50.302416",
+      "use_internal_vllm": true,
+      "version": "1.0.0"
+    },
+    "status": "success"
+  },
+  "last_sync": "2025-07-14T18:09:50.265816",
+  "saved_at": "2025-07-14T18:09:50.266091",
+  "version": "1.1"
+}

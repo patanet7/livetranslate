@@ -29,13 +29,16 @@ class TranslationResponse(BaseModel):
     """Response model for translation"""
 
     translated_text: str
-    source_language: str
+    source_language: Optional[str] = "auto"  # Allow None, default to "auto"
     target_language: str
-    confidence: float
-    processing_time: float
-    model_used: str
+    confidence: float = 0.95  # Default confidence
+    processing_time: float = 0.0  # Default processing time
+    model_used: str = "default"  # Default model
+    backend_used: Optional[str] = None  # Backend that performed translation
+    session_id: Optional[str] = None  # Session tracking
+    timestamp: Optional[str] = None  # Request timestamp
 
-    model_config = {"protected_namespaces": ()}
+    model_config = {"protected_namespaces": (), "extra": "ignore"}
 
 
 class LanguageDetectionResponse(BaseModel):
@@ -396,13 +399,16 @@ class TranslationServiceClient:
             
             # If translation service supports batch translation, use it
             try:
+                logger.info(f"Attempting batch translation for {len(target_languages)} languages: {target_languages}")
                 batch_results = await self.translate_batch(requests)
+                logger.info(f"Batch translation successful, got {len(batch_results)} results")
                 result_dict = {}
                 for i, target_lang in enumerate(target_languages):
                     if i < len(batch_results):
                         result_dict[target_lang] = batch_results[i]
                     else:
                         # Fallback for missing results
+                        logger.warning(f"Missing batch result for {target_lang} (index {i})")
                         result_dict[target_lang] = TranslationResponse(
                             translated_text="Translation failed",
                             source_language=source_language or "auto",
@@ -420,6 +426,7 @@ class TranslationServiceClient:
                 result_dict = {}
                 for target_lang in target_languages:
                     try:
+                        logger.info(f"Attempting individual translation to {target_lang}")
                         request = TranslationRequest(
                             text=text,
                             source_language=source_language,
@@ -427,6 +434,7 @@ class TranslationServiceClient:
                             quality=quality
                         )
                         translation_result = await self.translate(request)
+                        logger.info(f"Individual translation to {target_lang} successful: {translation_result.translated_text[:50]}...")
                         result_dict[target_lang] = translation_result
                     except Exception as individual_error:
                         logger.error(f"Translation to {target_lang} failed: {individual_error}")

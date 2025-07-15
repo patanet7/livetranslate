@@ -19,16 +19,16 @@ services:
       # CUDA Environment
       - CUDA_HOME=/usr/local/cuda
       - CUDA_DEVICE_ORDER=PCI_BUS_ID
-      - TORCH_CUDA_ARCH_LIST="8.0;8.6;8.9;9.0"
+      - TORCH_CUDA_ARCH_LIST="8.9"  # RTX 4090 specific
       
       # Force GPU detection
       - VLLM_BACKEND=cuda
       - VLLM_DEVICE=cuda
       
-      # Model Configuration
-      - MODEL_NAME=Qwen/Qwen2.5-14B-Instruct-AWQ
-      - MAX_MODEL_LEN=2048
-      - GPU_MEMORY_UTILIZATION=0.8
+      # Model Configuration - Optimized for RTX 4090 24GB
+      - MODEL_NAME=microsoft/DialoGPT-medium  # Smaller model for initial testing
+      - MAX_MODEL_LEN=4096
+      - GPU_MEMORY_UTILIZATION=0.7
       - TENSOR_PARALLEL_SIZE=1
       
       # Cache Configuration

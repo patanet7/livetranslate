@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-class List[BotInstance](BaseModel):
+class BotListResponse(BaseModel):
     """Response model for bot list"""
 
     bots: List[BotResponse]

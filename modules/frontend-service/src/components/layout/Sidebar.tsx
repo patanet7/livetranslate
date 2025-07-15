@@ -70,7 +70,7 @@ export const Sidebar: React.FC = () => {
     isConnected 
   } = useAppSelector(state => state.websocket.connection);
 
-  const [expandedSections, setExpandedSections] = React.useState<string[]>(['audio']);
+  const [expandedSections, setExpandedSections] = React.useState<string[]>(['audio', 'transcription', 'translation', 'analytics']);
 
   // Navigation structure
   const navigationItems: NavigationItem[] = [
@@ -85,26 +85,18 @@ export const Sidebar: React.FC = () => {
       label: 'Audio Testing',
       path: '/audio-testing',
       icon: <AudioFile />,
-      children: [
-        {
-          id: 'audio-recording',
-          label: 'Recording',
-          path: '/audio-testing#recording',
-          icon: <Mic />,
-        },
-        {
-          id: 'audio-processing',
-          label: 'Processing',
-          path: '/audio-testing#processing',
-          icon: <Equalizer />,
-        },
-        {
-          id: 'audio-analysis',
-          label: 'Analysis',
-          path: '/audio-testing#analysis',
-          icon: <Analytics />,
-        },
-      ],
+    },
+    {
+      id: 'transcription',
+      label: 'Transcription Testing',
+      path: '/transcription-testing',
+      icon: <Mic />,
+    },
+    {
+      id: 'translation',
+      label: 'Translation Testing',
+      path: '/translation-testing',
+      icon: <Translate />,
     },
     {
       id: 'meeting-test',
@@ -119,38 +111,12 @@ export const Sidebar: React.FC = () => {
       icon: <SmartToy />,
       badge: activeBots > 0 ? activeBots.toString() : undefined,
       badgeColor: 'success',
-      children: [
-        {
-          id: 'bot-dashboard',
-          label: 'Dashboard',
-          path: '/bot-management#dashboard',
-          icon: <Dashboard />,
-        },
-        {
-          id: 'bot-spawner',
-          label: 'Spawn Bot',
-          path: '/bot-management#spawner',
-          icon: <SmartToy />,
-        },
-        {
-          id: 'virtual-webcam',
-          label: 'Virtual Webcam',
-          path: '/bot-management#webcam',
-          icon: <VideoCall />,
-        },
-        {
-          id: 'translations',
-          label: 'Translations',
-          path: '/bot-management#translations',
-          icon: <Translate />,
-        },
-        {
-          id: 'speaker-timeline',
-          label: 'Speaker Timeline',
-          path: '/bot-management#timeline',
-          icon: <Timeline />,
-        },
-      ],
+    },
+    {
+      id: 'analytics',
+      label: 'Analytics Dashboard',
+      path: '/analytics',
+      icon: <Analytics />,
     },
     {
       id: 'websocket',
@@ -317,6 +283,8 @@ export const Sidebar: React.FC = () => {
         '& .MuiDrawer-paper': {
           width: sidebarWidth,
           boxSizing: 'border-box',
+          backgroundColor: theme.palette.background.default,
+          borderRight: `1px solid ${theme.palette.divider}`,
           transition: theme.transitions.create('width', {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,

@@ -235,7 +235,7 @@ class TranslationHTTPHandler(BaseHTTPRequestHandler):
 class SimpleVLLMTranslationServer:
     """Simple vLLM translation server with real AI translation"""
     
-    def __init__(self, host="0.0.0.0", port=8010, model_name="Qwen/Qwen2.5-14B-Instruct-AWQ"):
+    def __init__(self, host="0.0.0.0", port=8010, model_name="./models/Llama-3.1-8B-Instruct"):
         self.host = host
         self.port = port
         self.clients = set()
@@ -308,15 +308,34 @@ class SimpleVLLMTranslationServer:
             logger.info(f"Loading vLLM model: {self.model_name}")
             logger.info("This may take a few minutes for first-time download...")
             
-            self.llm = LLM(
-                model=self.model_name,
-                quantization="awq",  # Use AWQ quantization
-                dtype="half",
-                tensor_parallel_size=1,
-                max_model_len=2048,
-                gpu_memory_utilization=0.9,
-                trust_remote_code=True
-            )
+            # Configure vLLM based on model type
+            vllm_kwargs = {
+                "model": self.model_name,
+                "dtype": "half",
+                "tensor_parallel_size": 1,
+                "gpu_memory_utilization": 0.9,
+                "trust_remote_code": True
+            }
+            
+            # NLLB-200 specific optimizations
+            if "nllb" in self.model_name.lower():
+                # NLLB models are typically smaller and optimized for translation
+                vllm_kwargs["max_model_len"] = 1024  # NLLB works well with shorter contexts
+                logger.info("Configured for NLLB-200 translation model")
+            else:
+                vllm_kwargs["max_model_len"] = 2048
+            
+            # Handle quantization for specific models
+            if "8bit" in self.model_name.lower():
+                # Note: vLLM handles 8-bit models automatically, no special quantization needed
+                logger.info("Detected 8-bit model - vLLM will handle automatically")
+            elif "awq" in self.model_name.lower() or "gptq" in self.model_name.lower():
+                vllm_kwargs["quantization"] = "awq" if "awq" in self.model_name.lower() else "gptq"
+                logger.info(f"Using quantization: {vllm_kwargs['quantization']}")
+            else:
+                logger.info("Using base model without explicit quantization")
+            
+            self.llm = LLM(**vllm_kwargs)
             
             with self.lock:
                 self.is_model_ready = True
@@ -344,24 +363,53 @@ class SimpleVLLMTranslationServer:
             return 'en'
     
     def create_prompt(self, text, source_lang, target_lang):
-        """Create translation prompt"""
-        if source_lang == 'zh' and target_lang == 'en':
-            system = "You are an expert translator. Translate the Chinese text to natural, fluent English. Return only the English translation."
-        elif source_lang == 'en' and target_lang == 'zh':
-            system = "You are an expert translator. Translate the English text to natural, fluent Chinese. Return only the Chinese translation."
+        """Create translation prompt - optimized for NLLB-200"""
+        
+        # NLLB-200 uses special language codes and prompt format
+        if "nllb" in self.model_name.lower():
+            # NLLB language code mapping
+            lang_map = {
+                'en': 'eng_Latn',
+                'es': 'spa_Latn', 
+                'fr': 'fra_Latn',
+                'de': 'deu_Latn',
+                'zh': 'zho_Hans',
+                'ja': 'jpn_Jpan',
+                'ko': 'kor_Hang',
+                'pt': 'por_Latn',
+                'it': 'ita_Latn',
+                'ru': 'rus_Cyrl',
+                'ar': 'arb_Arab'
+            }
+            
+            src_code = lang_map.get(source_lang, 'eng_Latn')
+            tgt_code = lang_map.get(target_lang, 'spa_Latn')
+            
+            # NLLB format: source_lang_code text target_lang_code
+            return f"{src_code} {text} {tgt_code}"
         else:
-            system = "You are an expert translator. Translate the text accurately. Return only the translation."
-        
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": f"Translate: {text}"}
-        ]
-        
-        return self.tokenizer.apply_chat_template(
-            messages,
-            tokenize=False,
-            add_generation_prompt=True
-        )
+            # Fallback for chat models
+            if source_lang == 'zh' and target_lang == 'en':
+                system = "You are an expert translator. Translate the Chinese text to natural, fluent English. Return only the English translation."
+            elif source_lang == 'en' and target_lang == 'zh':
+                system = "You are an expert translator. Translate the English text to natural, fluent Chinese. Return only the Chinese translation."
+            else:
+                system = "You are an expert translator. Translate the text accurately. Return only the translation."
+            
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": f"Translate: {text}"}
+            ]
+            
+            try:
+                return self.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+            except:
+                # Fallback if chat template fails
+                return f"{system}\n\nTranslate: {text}\n\nTranslation:"
     
     def translate_text(self, input_text):
         """Translate text using vLLM"""

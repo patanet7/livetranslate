@@ -26,8 +26,11 @@ import { initializeUI, setBreakpoint } from '@/store/slices/uiSlice';
 // Lazy-loaded pages for code splitting
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
 const AudioTesting = React.lazy(() => import('@/pages/AudioTesting'));
+const TranscriptionTesting = React.lazy(() => import('@/pages/TranscriptionTesting'));
+const TranslationTesting = React.lazy(() => import('@/pages/TranslationTesting'));
 const MeetingTest = React.lazy(() => import('@/pages/MeetingTest'));
 const BotManagement = React.lazy(() => import('@/pages/BotManagement'));
+const Analytics = React.lazy(() => import('@/pages/Analytics'));
 const WebSocketTest = React.lazy(() => import('@/pages/WebSocketTest'));
 const Settings = React.lazy(() => import('@/pages/Settings'));
 
@@ -86,6 +89,16 @@ const App: React.FC = () => {
                   <Route path="/audio-test" element={<AudioTesting />} />
                   <Route path="/audio-testing" element={<AudioTesting />} />
                   
+                  {/* Transcription Testing */}
+                  <Route path="/transcription-testing" element={<TranscriptionTesting />} />
+                  <Route path="/transcription-test" element={<TranscriptionTesting />} />
+                  <Route path="/transcription" element={<TranscriptionTesting />} />
+                  
+                  {/* Translation Testing */}
+                  <Route path="/translation-testing" element={<TranslationTesting />} />
+                  <Route path="/translation-test" element={<TranslationTesting />} />
+                  <Route path="/translation" element={<TranslationTesting />} />
+                  
                   {/* Meeting Test Dashboard */}
                   <Route path="/meeting-test" element={<MeetingTest />} />
                   <Route path="/meeting" element={<MeetingTest />} />
@@ -93,6 +106,10 @@ const App: React.FC = () => {
                   {/* Bot Management */}
                   <Route path="/bot-management" element={<BotManagement />} />
                   <Route path="/bots" element={<BotManagement />} />
+                  
+                  {/* Analytics Dashboard */}
+                  <Route path="/analytics" element={<Analytics />} />
+                  <Route path="/metrics" element={<Analytics />} />
                   
                   {/* WebSocket Testing */}
                   <Route path="/websocket-test" element={<WebSocketTest />} />

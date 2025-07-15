@@ -8,6 +8,7 @@ Provides methods for transcription, speaker diarization, and audio analysis.
 import logging
 import asyncio
 import json
+import ssl
 from typing import Dict, Any, Optional, List, AsyncGenerator
 from pathlib import Path
 import aiohttp
@@ -24,7 +25,7 @@ class TranscriptionRequest(BaseModel):
     task: str = "transcribe"  # transcribe or translate
     enable_diarization: bool = True
     enable_vad: bool = True
-    model: str = "base"
+    model: str = "whisper-base"
 
 
 class TranscriptionResponse(BaseModel):
@@ -41,22 +42,48 @@ class TranscriptionResponse(BaseModel):
 class AudioServiceClient:
     """Client for the Audio/Whisper service"""
 
-    def __init__(self, config_manager=None):
+    def __init__(self, config_manager=None, settings=None):
         self.config_manager = config_manager
+        self.settings = settings
         self.base_url = self._get_base_url()
         self.session: Optional[aiohttp.ClientSession] = None
         self.timeout = aiohttp.ClientTimeout(total=300)  # 5 minute timeout
+        
+        # Create SSL context that doesn't verify certificates for localhost
+        self.ssl_context = ssl.create_default_context()
+        self.ssl_context.check_hostname = False
+        self.ssl_context.verify_mode = ssl.CERT_NONE
 
     def _get_base_url(self) -> str:
         """Get the audio service base URL from configuration"""
-        if self.config_manager:
+        # Try settings first, then config_manager, then fallback
+        if self.settings:
+            return self.settings.services.audio_service_url
+        elif self.config_manager:
             return self.config_manager.get_service_url("audio", "http://localhost:5001")
-        return "http://localhost:5001"
+        return "http://localhost:5001"  # Use localhost as default
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
         if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession(timeout=self.timeout)
+            logger.debug(f"Creating new session for base_url: {self.base_url}")
+            
+            # For HTTP URLs, explicitly disable SSL
+            if self.base_url.startswith("http://"):
+                logger.debug(f"Using HTTP connection without SSL for audio service at {self.base_url}")
+                # Explicitly disable SSL for HTTP connections
+                connector = aiohttp.TCPConnector(ssl=False)
+                self.session = aiohttp.ClientSession(
+                    connector=connector,
+                    timeout=self.timeout
+                )
+            else:
+                logger.debug(f"Using HTTPS connection with SSL context for audio service at {self.base_url}")
+                connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+                self.session = aiohttp.ClientSession(
+                    connector=connector,
+                    timeout=self.timeout
+                )
         return self.session
 
     async def close(self):
@@ -67,10 +94,14 @@ class AudioServiceClient:
     async def health_check(self) -> Dict[str, Any]:
         """Check audio service health"""
         try:
+            url = f"{self.base_url}/health"
+            logger.info(f"Checking audio service health at: {url}")
+            
             session = await self._get_session()
-            async with session.get(f"{self.base_url}/health") as response:
+            async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
+                    logger.info(f"Audio service health check successful")
                     return {
                         "status": "healthy",
                         "service": "audio",
@@ -78,19 +109,41 @@ class AudioServiceClient:
                         "details": data,
                     }
                 else:
+                    logger.warning(f"Audio service health check failed with status {response.status}")
                     return {
                         "status": "unhealthy",
                         "service": "audio",
                         "url": self.base_url,
                         "error": f"HTTP {response.status}",
                     }
+        except aiohttp.ClientConnectorError as e:
+            error_msg = str(e)
+            if "ssl" in error_msg.lower() and self.base_url.startswith("http://"):
+                logger.error(f"SSL error when connecting to audio service at {url}")
+                logger.error(f"This usually means an HTTPS request is being made to an HTTP endpoint")
+                logger.error(f"Full error: {error_msg}")
+                return {
+                    "status": "unhealthy",
+                    "service": "audio",
+                    "url": self.base_url,
+                    "error": "SSL error on HTTP endpoint - check proxy/redirect configuration",
+                }
+            else:
+                logger.error(f"Connection error to audio service at {url}: {error_msg}")
+                return {
+                    "status": "unhealthy",
+                    "service": "audio",
+                    "url": self.base_url,
+                    "error": f"Connection error: {error_msg}",
+                }
         except Exception as e:
-            logger.error(f"Audio service health check failed: {e}")
+            logger.error(f"Audio service health check failed: {type(e).__name__}: {e}")
+            logger.error(f"URL attempted: {url}")
             return {
                 "status": "unhealthy",
                 "service": "audio",
                 "url": self.base_url,
-                "error": str(e),
+                "error": f"{type(e).__name__}: {str(e)}",
             }
 
     async def get_models(self) -> List[str]:
@@ -100,13 +153,13 @@ class AudioServiceClient:
             async with session.get(f"{self.base_url}/api/models") as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data.get("models", ["base"])
+                    return data.get("models", ["whisper-base"])
                 else:
                     logger.error(f"Failed to get models: HTTP {response.status}")
-                    return ["base"]  # fallback
+                    return ["whisper-base"]  # fallback
         except Exception as e:
             logger.error(f"Failed to get models: {e}")
-            return ["base"]  # fallback
+            return ["whisper-base"]  # fallback
 
     async def get_device_info(self) -> Dict[str, Any]:
         """Get current device information (CPU/GPU/NPU) from audio service"""
@@ -146,7 +199,7 @@ class AudioServiceClient:
                 data.add_field("audio", file_content, filename=audio_file.name)
 
             async with session.post(
-                f"{self.base_url}/api/transcribe", data=data
+                f"{self.base_url}/transcribe", data=data
             ) as response:
                 if response.status == 200:
                     result = await response.json()
@@ -180,7 +233,7 @@ class AudioServiceClient:
             data.add_field("audio", audio_data, filename="stream.wav")
 
             async with session.post(
-                f"{self.base_url}/api/transcribe", data=data
+                f"{self.base_url}/transcribe", data=data
             ) as response:
                 if response.status == 200:
                     result = await response.json()
@@ -417,22 +470,19 @@ class AudioServiceClient:
             async with aiofiles.open(file_path, 'rb') as f:
                 file_content = await f.read()
             
-            # Prepare form data
+            # Prepare form data for whisper service
             data = aiohttp.FormData()
             data.add_field("audio", file_content, filename=Path(file_path).name)
-            data.add_field("request_id", request_id)
             
-            # Add configuration
-            if 'config' in request_data:
-                data.add_field("config", json.dumps(request_data['config']))
+            # Add whisper-specific parameters
+            data.add_field("language", "auto")
+            data.add_field("task", "transcribe")
+            data.add_field("enable_diarization", str(request_data.get('speaker_diarization', True)).lower())
+            data.add_field("enable_vad", str(request_data.get('enable_vad', True)).lower())
+            data.add_field("model", request_data.get('whisper_model', 'whisper-base'))
                 
-            # Add processing options from request
-            for key in ['transcription', 'speaker_diarization', 'target_languages']:
-                if key in request_data:
-                    data.add_field(key, str(request_data[key]))
-            
-            # Process uploaded file with enhanced pipeline
-            async with session.post(f"{self.base_url}/api/upload-process", data=data) as response:
+            # Use the standard whisper service transcribe endpoint
+            async with session.post(f"{self.base_url}/transcribe", data=data) as response:
                 if response.status == 200:
                     result = await response.json()
                     logger.info(f"File processing completed for request {request_id}")

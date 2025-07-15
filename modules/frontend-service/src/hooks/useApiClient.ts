@@ -149,7 +149,7 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
   // Audio processing API endpoints
   const uploadAudio = useCallback(async (audioBlob: Blob, options: any = {}) => {
     const formData = new FormData();
-    formData.append('file', audioBlob);
+    formData.append('audio', audioBlob);
     
     Object.entries(options).forEach(([key, value]) => {
       formData.append(key, String(value));
@@ -181,12 +181,17 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
   }, [apiRequest, dispatch]);
 
   // Translation API endpoints  
-  const translateText = useCallback(async (text: string, options: any = {}) => {
-    const response = await apiRequest<any>('/translate', {
+  const translateText = useCallback(async (request: any) => {
+    const response = await apiRequest<any>('/translate/', {
       method: 'POST',
       body: JSON.stringify({
-        text,
-        ...options,
+        text: request.text,
+        target_language: request.target_language || request.targetLanguage,
+        source_language: request.source_language || request.sourceLanguage,
+        model: request.model || 'default',
+        quality: request.quality || 'balanced',
+        prompt_id: request.prompt_id || request.promptId,
+        session_id: request.session_id || request.sessionId,
       }),
     });
 
@@ -228,7 +233,7 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
         
       case 'translate:text':
         if ('text' in data) {
-          return await translateText((data as any).text, (data as any).options);
+          return await translateText(data as any);
         }
         break;
         

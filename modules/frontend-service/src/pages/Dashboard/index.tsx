@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Grid,
   Card,
@@ -9,6 +10,10 @@ import {
   LinearProgress,
   Paper,
   Stack,
+  Button,
+  CardActions,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   SmartToy,
@@ -17,6 +22,11 @@ import {
   Warning,
   CheckCircle,
   Error,
+  Analytics,
+  Translate,
+  Settings,
+  ArrowForward,
+  Assessment,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store';
 import { useGetSystemHealthQuery, useGetBotsQuery } from '@/store/slices/apiSlice';
@@ -349,17 +359,205 @@ const ConnectionWidget: React.FC = () => {
   );
 };
 
+const QuickActionsWidget: React.FC = () => {
+  const navigate = useNavigate();
+
+  const quickActions = [
+    {
+      title: 'Translation Testing',
+      description: 'Test translation capabilities and prompt performance',
+      icon: <Translate />,
+      path: '/translation-testing',
+      color: 'primary' as const,
+    },
+    {
+      title: 'Analytics Dashboard',
+      description: 'View comprehensive performance metrics',
+      icon: <Analytics />,
+      path: '/analytics',
+      color: 'secondary' as const,
+    },
+    {
+      title: 'Bot Management',
+      description: 'Spawn and manage translation bots',
+      icon: <SmartToy />,
+      path: '/bot-management',
+      color: 'success' as const,
+    },
+    {
+      title: 'Audio Testing',
+      description: 'Test audio capture and processing',
+      icon: <AudioFile />,
+      path: '/audio-testing',
+      color: 'warning' as const,
+    },
+  ];
+
+  return (
+    <Card>
+      <CardContent>
+        <Typography variant="h6" component="h2" gutterBottom>
+          Quick Actions
+        </Typography>
+        <Grid container spacing={2}>
+          {quickActions.map((action, index) => (
+            <Grid item xs={12} sm={6} key={index}>
+              <Paper 
+                variant="outlined" 
+                sx={{ 
+                  p: 2, 
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    elevation: 2,
+                    transform: 'translateY(-2px)',
+                    borderColor: `${action.color}.main`,
+                  }
+                }}
+                onClick={() => navigate(action.path)}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box
+                    sx={{
+                      p: 1,
+                      borderRadius: 1,
+                      backgroundColor: `${action.color}.main`,
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {action.icon}
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle2" fontWeight="medium">
+                      {action.title}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {action.description}
+                    </Typography>
+                  </Box>
+                  <ArrowForward fontSize="small" color="action" />
+                </Box>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </CardContent>
+    </Card>
+  );
+};
+
+const TranslationStatsWidget: React.FC = () => {
+  // Mock data - in real implementation, this would come from the analytics API
+  const translationStats = {
+    totalTranslations: 12847,
+    successRate: 98.2,
+    avgQualityScore: 0.89,
+    avgLatency: 240,
+    dailyGrowth: 12.5,
+  };
+
+  return (
+    <Card>
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h6" component="h2">
+            Translation Performance
+          </Typography>
+          <Assessment color="primary" />
+        </Box>
+
+        <Grid container spacing={2}>
+          <Grid item xs={6}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" color="primary.main">
+                {translationStats.totalTranslations.toLocaleString()}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Total Translations
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mt: 0.5 }}>
+                <Typography variant="caption" color="success.main">
+                  +{translationStats.dailyGrowth}% today
+                </Typography>
+              </Box>
+            </Box>
+          </Grid>
+          <Grid item xs={6}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" color="success.main">
+                {translationStats.successRate}%
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Success Rate
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={6}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" color="secondary.main">
+                {translationStats.avgQualityScore.toFixed(2)}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Avg Quality Score
+              </Typography>
+            </Box>
+          </Grid>
+          <Grid item xs={6}>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="h4" color="warning.main">
+                {translationStats.avgLatency}ms
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Avg Latency
+              </Typography>
+            </Box>
+          </Grid>
+        </Grid>
+      </CardContent>
+      <CardActions>
+        <Button
+          size="small"
+          startIcon={<Analytics />}
+          onClick={() => window.location.href = '/analytics'}
+          fullWidth
+        >
+          View Full Analytics
+        </Button>
+      </CardActions>
+    </Card>
+  );
+};
+
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
     <Box>
       {/* Page header */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Dashboard
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Real-time monitoring and control for LiveTranslate orchestration services
-        </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Box>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Dashboard
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Real-time monitoring and control for LiveTranslate orchestration services
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="View Analytics">
+            <IconButton onClick={() => navigate('/analytics')} color="primary">
+              <Analytics />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="System Settings">
+            <IconButton onClick={() => navigate('/settings')} color="inherit">
+              <Settings />
+            </IconButton>
+          </Tooltip>
+        </Box>
       </Box>
 
       {/* Dashboard widgets */}
@@ -382,6 +580,16 @@ const Dashboard: React.FC = () => {
         {/* WebSocket Connection */}
         <Grid item xs={12} md={6} lg={3}>
           <ConnectionWidget />
+        </Grid>
+
+        {/* Translation Performance */}
+        <Grid item xs={12} md={6}>
+          <TranslationStatsWidget />
+        </Grid>
+
+        {/* Quick Actions */}
+        <Grid item xs={12} md={6}>
+          <QuickActionsWidget />
         </Grid>
       </Grid>
     </Box>

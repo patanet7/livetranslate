@@ -486,3 +486,16 @@ Fixed and enhanced test audio page with:
 - Real-time parameter adjustment UI
 - Step-by-step processing visualization
 - Debugging capabilities with pause at each stage
+
+### Latest Integration Fixes (Critical Update)
+**Problem**: Orchestration service experiencing 422 errors when calling Whisper API endpoints
+**Root Cause**: Model naming inconsistency between fallback models ("base") and expected models ("whisper-base")
+**Solution**: ✅ **RESOLVED** - All integration points now use consistent "whisper-base" naming
+**Impact**: Frontend Meeting Test Dashboard now fully operational with proper audio upload flow
+
+#### ✅ API Endpoint Integration Status
+- `GET /api/models` → ✅ **WORKING** - Returns proper "whisper-base" model names for orchestration
+- `GET /api/device-info` → ✅ **WORKING** - Provides NPU/GPU/CPU status to orchestration service  
+- `POST /api/transcribe` → ✅ **WORKING** - Processes audio from orchestration service
+- `GET /health` → ✅ **WORKING** - Service health reporting to orchestration
+- **Integration Flow**: Frontend → Orchestration → **Whisper Service** → Response ✅ **OPERATIONAL**

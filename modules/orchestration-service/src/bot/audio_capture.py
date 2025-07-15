@@ -529,7 +529,7 @@ class GoogleMeetAudioCapture:
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.whisper_service_url}/api/transcribe/stream",
+                    f"{self.whisper_service_url}/transcribe/stream",
                     files=files,
                     data=data,
                     timeout=30.0,

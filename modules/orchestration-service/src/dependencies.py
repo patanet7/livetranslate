@@ -18,6 +18,8 @@ _health_monitor = None
 _bot_manager = None
 _audio_client = None
 _translation_client = None
+_audio_coordinator = None
+_config_sync_manager = None
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -52,8 +54,10 @@ def get_health_monitor():
     global _health_monitor
     if _health_monitor is None:
         from managers.health_monitor import HealthMonitor
+        from config import get_settings
 
-        _health_monitor = HealthMonitor()
+        settings = get_settings()
+        _health_monitor = HealthMonitor(settings=settings)
     return _health_monitor
 
 
@@ -77,11 +81,11 @@ def get_audio_service_client():
     global _audio_client
     if _audio_client is None:
         from clients.audio_service_client import AudioServiceClient
+        from config import get_settings
 
         config_manager = get_config_manager()
-        _audio_client = AudioServiceClient(
-            config_manager.config.services.get("audio-service")
-        )
+        settings = get_settings()
+        _audio_client = AudioServiceClient(config_manager=config_manager, settings=settings)
     return _audio_client
 
 
@@ -91,11 +95,79 @@ def get_translation_service_client():
     if _translation_client is None:
         from clients.translation_service_client import TranslationServiceClient
 
-        config_manager = get_config_manager()
-        _translation_client = TranslationServiceClient(
-            config_manager.config.services.get("translation-service")
-        )
+        try:
+            config_manager = get_config_manager()
+            # Get translation service config, fallback to default if not configured
+            translation_config = None
+            if hasattr(config_manager, "config") and hasattr(config_manager.config, "services"):
+                translation_config = config_manager.config.services.get("translation-service")
+            _translation_client = TranslationServiceClient(translation_config)
+        except Exception as e:
+            logger.warning(f"Failed to get translation config, using default: {e}")
+            # Create with default config
+            _translation_client = TranslationServiceClient(None)
     return _translation_client
+
+
+def get_audio_coordinator():
+    """Get the audio coordinator instance"""
+    global _audio_coordinator
+    if _audio_coordinator is None:
+        from audio.audio_coordinator import create_audio_coordinator
+        from audio.models import get_default_chunking_config
+        import os
+
+        # Get database URL from environment or disable for development
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            # For development without PostgreSQL, disable database features
+            logger.warning("No DATABASE_URL set, audio coordinator will run without database persistence")
+            database_url = None
+
+        # Configure service URLs
+        service_urls = {
+            "whisper_service": os.getenv("WHISPER_SERVICE_URL", "http://localhost:5001"),
+            "translation_service": os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003"),
+        }
+
+        # Create audio coordinator with default config
+        config = get_default_chunking_config()
+        _audio_coordinator = create_audio_coordinator(
+            database_url=database_url, service_urls=service_urls, config=config
+        )
+    return _audio_coordinator
+
+
+def get_database_adapter():
+    """Get the database adapter instance"""
+    import os
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        logger.warning("No DATABASE_URL set, database adapter disabled")
+        return None
+    
+    from audio.database_adapter import AudioDatabaseAdapter
+    return AudioDatabaseAdapter(database_url)
+
+
+def get_config_sync_manager():
+    """Get the configuration sync manager instance"""
+    global _config_sync_manager
+    if _config_sync_manager is None:
+        from audio.config_sync import ConfigurationSyncManager
+        import os
+
+        # Get service URLs for sync manager
+        whisper_url = os.getenv("WHISPER_SERVICE_URL", "http://localhost:5001")
+        translation_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+        orchestration_url = os.getenv("ORCHESTRATION_SERVICE_URL", "http://localhost:3000")
+
+        _config_sync_manager = ConfigurationSyncManager(
+            whisper_service_url=whisper_url,
+            orchestration_service_url=orchestration_url,
+            translation_service_url=translation_url
+        )
+    return _config_sync_manager
 
 
 # ============================================================================
@@ -180,9 +252,7 @@ async def require_admin(user: Dict[str, Any] = Depends(require_auth)) -> Dict[st
     Raises HTTPException if user doesn't have admin role
     """
     if "admin" not in user.get("roles", []):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
 
 
@@ -208,9 +278,7 @@ async def rate_limit_general(request: Request, rate_limiter=Depends(get_rate_lim
         )
 
 
-async def rate_limit_websocket(
-    request: Request, rate_limiter=Depends(get_rate_limiter)
-):
+async def rate_limit_websocket(request: Request, rate_limiter=Depends(get_rate_limiter)):
     """WebSocket rate limiting (10 connections per IP)"""
     client_ip = request.client.host
     if not await rate_limiter.is_allowed(client_ip, "websocket", limit=10, window=60):
@@ -274,7 +342,16 @@ def get_security_utils():
 async def initialize_dependencies():
     """Initialize all dependencies during application startup"""
     global _config_manager, _websocket_manager, _health_monitor, _bot_manager
-    global _audio_client, _translation_client
+    global _audio_client, _translation_client, _audio_coordinator, _config_sync_manager
+
+    # Validate environment and dependencies first
+    try:
+        from utils.dependency_check import validate_startup_environment
+        feature_availability = validate_startup_environment()
+        logger.info(f"🎯 Available features: {feature_availability}")
+    except Exception as e:
+        logger.warning(f"⚠️  Dependency validation failed: {e}")
+        feature_availability = {}
 
     logger.info("🔧 Initializing dependencies...")
 
@@ -289,6 +366,10 @@ async def initialize_dependencies():
         _audio_client = get_audio_service_client()
         _translation_client = get_translation_service_client()
 
+        # Initialize audio processing components
+        _audio_coordinator = get_audio_coordinator()
+        _config_sync_manager = get_config_sync_manager()
+
         # Start async managers
         if hasattr(_websocket_manager, "start"):
             await _websocket_manager.start()
@@ -296,6 +377,10 @@ async def initialize_dependencies():
             await _health_monitor.start()
         if hasattr(_bot_manager, "start"):
             await _bot_manager.start()
+        if hasattr(_audio_coordinator, "initialize"):
+            await _audio_coordinator.initialize()
+        if hasattr(_config_sync_manager, "initialize"):
+            await _config_sync_manager.initialize()
 
         logger.info("✅ Dependencies initialized successfully")
 
@@ -307,11 +392,17 @@ async def initialize_dependencies():
 async def cleanup_dependencies():
     """Cleanup all dependencies during application shutdown"""
     global _config_manager, _websocket_manager, _health_monitor, _bot_manager
-    global _audio_client, _translation_client
+    global _audio_client, _translation_client, _audio_coordinator, _config_sync_manager
 
     logger.info("🛑 Cleaning up dependencies...")
 
     try:
+        # Stop audio processing components
+        if _audio_coordinator and hasattr(_audio_coordinator, "shutdown"):
+            await _audio_coordinator.shutdown()
+        if _config_sync_manager and hasattr(_config_sync_manager, "shutdown"):
+            await _config_sync_manager.shutdown()
+
         # Stop async managers
         if _bot_manager and hasattr(_bot_manager, "stop"):
             await _bot_manager.stop()
