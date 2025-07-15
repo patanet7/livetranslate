@@ -21,7 +21,7 @@ import threading
 import time
 import json
 import tempfile
-from typing import Dict, List, Optional, AsyncGenerator, Union, Tuple
+from typing import Dict, List, Optional, AsyncGenerator, Union, Tuple, Any
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
@@ -540,13 +540,24 @@ class WhisperService:
         """Initialize Whisper service with configuration"""
         self.config = config or self._load_config()
         
+        # Check if running in orchestration mode (disable internal chunking)
+        self.orchestration_mode = self.config.get("orchestration_mode", False)
+        
         # Initialize components
         self.model_manager = ModelManager(self.config.get("models_dir"))
-        self.buffer_manager = AudioBufferManager(
-            buffer_duration=self.config.get("buffer_duration", 6.0),
-            sample_rate=self.config.get("sample_rate", 16000),
-            enable_vad=self.config.get("enable_vad", True)
-        )
+        
+        # Initialize buffer manager only if not in orchestration mode
+        if not self.orchestration_mode:
+            self.buffer_manager = AudioBufferManager(
+                buffer_duration=self.config.get("buffer_duration", 6.0),
+                sample_rate=self.config.get("sample_rate", 16000),
+                enable_vad=self.config.get("enable_vad", True)
+            )
+            logger.info("🎤 Internal audio buffering enabled")
+        else:
+            self.buffer_manager = None
+            logger.info("🎯 Orchestration mode enabled - internal chunking disabled")
+        
         self.session_manager = SessionManager(self.config.get("session_dir"))
         
         # Streaming settings
@@ -554,7 +565,17 @@ class WhisperService:
         self.streaming_thread = None
         self.inference_interval = self.config.get("inference_interval", 3.0)
         
-        logger.info("WhisperService initialized successfully")
+        # Enhanced statistics for orchestration mode
+        self.stats = {
+            "requests_processed": 0,
+            "orchestration_chunks_processed": 0,
+            "total_processing_time": 0.0,
+            "average_processing_time": 0.0,
+            "errors": 0,
+            "active_sessions": 0
+        }
+        
+        logger.info(f"WhisperService initialized successfully (orchestration_mode: {self.orchestration_mode})")
     
     async def transcribe(self, request: TranscriptionRequest) -> TranscriptionResult:
         """
@@ -606,6 +627,9 @@ class WhisperService:
             logger.info(f"[WHISPER] 🔍 Result type: {type(result)}")
             logger.info(f"[WHISPER] 🔍 Result attributes: {[attr for attr in dir(result) if not attr.startswith('_')]}")
             
+            # Initialize confidence score
+            confidence_score = 0.1  # Default for unclear/noise
+            
             # Handle OpenVINO WhisperDecodedResults structure
             if hasattr(result, 'texts') and result.texts:
                 # OpenVINO returns 'texts' (plural) - get the first text
@@ -619,10 +643,31 @@ class WhisperService:
                     logger.info(f"[WHISPER] 📋 Chunks/segments count: {len(segments)}")
                     logger.info(f"[WHISPER] 🔍 First chunk structure: {type(segments[0]) if segments else 'No chunks'}")
                     
-                    # Debug first chunk attributes
+                    # Debug first chunk attributes and extract confidence
                     if segments and hasattr(segments[0], '__dict__'):
                         chunk_attrs = [attr for attr in dir(segments[0]) if not attr.startswith('_')]
                         logger.info(f"[WHISPER] 🔍 First chunk attributes: {chunk_attrs}")
+                        
+                        # Try to extract confidence from first chunk
+                        if segments and hasattr(segments[0], 'confidence'):
+                            confidence_score = segments[0].confidence
+                            logger.info(f"[WHISPER] 📊 Chunk confidence: {confidence_score}")
+                        elif segments and hasattr(segments[0], 'prob'):
+                            confidence_score = segments[0].prob
+                            logger.info(f"[WHISPER] 📊 Chunk probability: {confidence_score}")
+                        elif segments and hasattr(segments[0], 'score'):
+                            confidence_score = segments[0].score
+                            logger.info(f"[WHISPER] 📊 Chunk score: {confidence_score}")
+                    else:
+                        # No segments, check result scores
+                        if hasattr(result, 'scores') and result.scores:
+                            try:
+                                # Get average score
+                                avg_score = sum(result.scores) / len(result.scores)
+                                confidence_score = avg_score
+                                logger.info(f"[WHISPER] 📊 Average result score: {avg_score}")
+                            except:
+                                pass
                 
             elif hasattr(result, 'text'):
                 # Fallback to 'text' attribute
@@ -676,11 +721,34 @@ class WhisperService:
                     logger.info(f"[WHISPER] 🌍 Auto-detected language: {language}")
             
             # Create result
+            # Check for hallucinations/noise - common nonsensical outputs
+            noise_indicators = [
+                '你好', 'MBC', '뉴스', 'Be all ears', 'Thank you', 'Thanks for watching',
+                'Subscribe', 'Like and subscribe', '謝謝', 'ありがとう', 'Merci',
+                'Danke', 'Gracias', '1.5%', 'you', 'I', 'the', 'and', 'or', 'but',
+                '이것은', '김정진입니다', '이는', '어떤', '무엇', '정말'
+            ]
+            
+            # If text is very short and matches noise patterns, mark as low confidence
+            is_likely_noise = (
+                len(text.strip()) < 3 or 
+                any(indicator in text.lower() for indicator in [x.lower() for x in noise_indicators]) or
+                len(text.strip().split()) <= 2
+            )
+            
+            # Use extracted confidence or default based on content quality
+            if 'confidence_score' not in locals():
+                confidence_score = 0.1  # Default for unclear cases
+            
+            if is_likely_noise:
+                confidence_score = min(confidence_score, 0.3)
+                logger.info(f"[WHISPER] ⚠️ Detected likely noise/hallucination: '{text}' - reduced confidence to {confidence_score}")
+            
             transcription_result = TranscriptionResult(
                 text=text,
                 segments=segments,
                 language=language,
-                confidence_score=0.9,  # Default confidence, could be extracted from result
+                confidence_score=confidence_score,  # Now using extracted confidence
                 processing_time=processing_time,
                 model_used=request.model_name,
                 device_used=self.model_manager.device,
@@ -785,8 +853,101 @@ class WhisperService:
         logger.info("Stopped streaming transcription")
     
     def add_audio_chunk(self, audio_chunk: np.ndarray) -> int:
-        """Add audio chunk to the streaming buffer"""
-        return self.buffer_manager.add_audio_chunk(audio_chunk)
+        """Add audio chunk to the streaming buffer (legacy mode only)"""
+        if self.orchestration_mode:
+            logger.warning("add_audio_chunk called in orchestration mode - use process_orchestration_chunk instead")
+            return 0
+        
+        if self.buffer_manager:
+            return self.buffer_manager.add_audio_chunk(audio_chunk)
+        return 0
+    
+    async def process_orchestration_chunk(self, 
+                                        chunk_id: str,
+                                        session_id: str,
+                                        audio_data: bytes,
+                                        chunk_metadata: Dict[str, Any],
+                                        model_name: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Process a single audio chunk from orchestration service.
+        This bypasses internal buffering and processes chunks directly.
+        """
+        if not self.orchestration_mode:
+            logger.warning("process_orchestration_chunk called in legacy mode")
+        
+        start_time = time.time()
+        
+        try:
+            logger.info(f"[ORCHESTRATION] 🎯 Processing chunk {chunk_id} for session {session_id}")
+            logger.debug(f"[ORCHESTRATION] Chunk metadata: {chunk_metadata}")
+            
+            # Create transcription request for the chunk
+            transcription_request = TranscriptionRequest(
+                audio_data=audio_data,
+                model_name=model_name or self.config.get("default_model", "whisper-base"),
+                session_id=session_id,
+                streaming=False,  # Single chunk processing
+                enhanced=chunk_metadata.get('enable_enhancement', False),
+                sample_rate=chunk_metadata.get('sample_rate', 16000),
+                enable_vad=False,  # VAD already applied by orchestration
+                timestamp_mode=chunk_metadata.get('timestamp_mode', 'word')
+            )
+            
+            # Process the chunk directly (bypass buffering)
+            result = await self.transcribe(transcription_request)
+            processing_time = time.time() - start_time
+            
+            # Update statistics
+            self.stats["orchestration_chunks_processed"] += 1
+            self.stats["total_processing_time"] += processing_time
+            
+            # Prepare orchestration-compatible response
+            response = {
+                "chunk_id": chunk_id,
+                "session_id": session_id,
+                "status": "success",
+                "transcription": {
+                    "text": result.text,
+                    "language": result.language,
+                    "confidence_score": result.confidence_score,
+                    "segments": result.segments,
+                    "timestamp": result.timestamp
+                },
+                "processing_info": {
+                    "model_used": result.model_used,
+                    "device_used": result.device_used,
+                    "processing_time": processing_time,
+                    "chunk_metadata": chunk_metadata,
+                    "service_mode": "orchestration"
+                },
+                "chunk_sequence": chunk_metadata.get('sequence_number', 0),
+                "chunk_timing": {
+                    "start_time": chunk_metadata.get('start_time', 0.0),
+                    "end_time": chunk_metadata.get('end_time', 0.0),
+                    "duration": chunk_metadata.get('duration', 0.0),
+                    "overlap_start": chunk_metadata.get('overlap_start', 0.0),
+                    "overlap_end": chunk_metadata.get('overlap_end', 0.0)
+                }
+            }
+            
+            logger.info(f"[ORCHESTRATION] ✅ Chunk {chunk_id} processed successfully in {processing_time:.2f}s")
+            return response
+            
+        except Exception as e:
+            processing_time = time.time() - start_time
+            self.stats["errors"] += 1
+            
+            logger.error(f"[ORCHESTRATION] ❌ Failed to process chunk {chunk_id}: {e}")
+            
+            return {
+                "chunk_id": chunk_id,
+                "session_id": session_id,
+                "status": "error",
+                "error": str(e),
+                "error_type": "orchestration_processing_error",
+                "processing_time": processing_time,
+                "chunk_metadata": chunk_metadata
+            }
     
     def get_available_models(self) -> List[str]:
         """Get list of available models"""
@@ -850,6 +1011,10 @@ class WhisperService:
             # Performance settings
             "min_inference_interval": float(os.getenv("MIN_INFERENCE_INTERVAL", "0.2")),
             "max_concurrent_requests": int(os.getenv("MAX_CONCURRENT_REQUESTS", "10")),
+            
+            # Orchestration integration settings
+            "orchestration_mode": os.getenv("ORCHESTRATION_MODE", "false").lower() == "true",
+            "orchestration_endpoint": os.getenv("ORCHESTRATION_ENDPOINT", "http://localhost:3000/api/audio"),
         }
         
         # Load from config file if exists

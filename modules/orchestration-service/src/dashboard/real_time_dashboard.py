@@ -225,7 +225,7 @@ class RealTimeDashboard:
         self.running = False
         self.start_time = time.time()
         self._collection_thread = None
-        self._socketio = None  # Will be set by orchestration service
+        self._websocket_manager = None  # Will be set by orchestration service
 
         # Dashboard data
         self.dashboard_data = {
@@ -238,10 +238,10 @@ class RealTimeDashboard:
 
         logger.info("Real-time dashboard initialized")
 
-    def set_socketio(self, socketio):
-        """Set SocketIO instance for real-time updates"""
-        self._socketio = socketio
-        logger.info("SocketIO instance attached to dashboard")
+    def set_websocket_manager(self, websocket_manager):
+        """Set WebSocket manager instance for real-time updates"""
+        self._websocket_manager = websocket_manager
+        logger.info("WebSocket manager attached to dashboard")
 
     async def start(self):
         """Start the dashboard"""
@@ -382,12 +382,23 @@ class RealTimeDashboard:
             "timestamp": time.time(),
         }
 
-    def broadcast_metrics_update(self):
+    async def broadcast_metrics_update(self):
         """Broadcast metrics update via WebSocket"""
-        if self._socketio and self.enable_real_time:
+        if self._websocket_manager and self.enable_real_time:
             try:
                 metrics_data = self.get_real_time_metrics()
-                self._socketio.emit("metrics_update", metrics_data)
+                
+                # Broadcast to all connected clients
+                for connection_id, connection in self._websocket_manager.connections.items():
+                    try:
+                        await connection.send_message({
+                            "type": "metrics:update",
+                            "data": metrics_data,
+                            "timestamp": int(time.time() * 1000),
+                        })
+                    except Exception as e:
+                        logger.error(f"Failed to send metrics update to {connection_id}: {e}")
+                        
             except Exception as e:
                 logger.error(f"Failed to broadcast metrics update: {e}")
 

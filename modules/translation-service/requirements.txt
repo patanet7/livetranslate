@@ -8,7 +8,7 @@ python-socketio>=5.8.0
 
 # vLLM for local LLM inference
 vllm>=0.6.0
-torch>=2.7.0
+# torch>=2.7.0
 transformers>=4.40.0
 tokenizers>=0.19.0
 huggingface-hub>=0.20.0
@@ -74,4 +74,4 @@ uvicorn[standard]>=0.24.0
 
 # Translation APIs (optional external providers)
 googletrans>=4.0.0
-deep-translator>=1.11.0 
+deep-translator>=1.11.0 `

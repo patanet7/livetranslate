@@ -18,6 +18,7 @@ import json
 import os
 import logging
 import asyncio
+import aiohttp
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -27,7 +28,23 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 import aiofiles
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+
 # Try to import dependencies, fallback to basic functionality if not available
+try:
+    from audio.config_sync import (
+        get_config_sync_manager,
+        get_unified_configuration,
+        update_configuration,
+        apply_configuration_preset,
+        sync_all_configurations
+    )
+    CONFIG_SYNC_AVAILABLE = True
+    logger.info(" Configuration sync manager available")
+except ImportError as e:
+    CONFIG_SYNC_AVAILABLE = False
+    logger.warning(f" Configuration sync manager not available: {e}")
 try:
     from dependencies import get_config_manager
 except ImportError:
@@ -655,7 +672,7 @@ async def reset_settings_to_defaults(
 # ============================================================================
 
 # Configuration file paths
-CONFIG_DIR = Path("/config")
+CONFIG_DIR = Path("./config")
 AUDIO_CONFIG_FILE = CONFIG_DIR / "audio_processing.json"
 CHUNKING_CONFIG_FILE = CONFIG_DIR / "chunking.json"
 CORRELATION_CONFIG_FILE = CONFIG_DIR / "correlation.json"
@@ -1488,3 +1505,841 @@ async def reset_all_settings():
     except Exception as e:
         logger.error(f"Error resetting settings: {e}")
         raise HTTPException(status_code=500, detail="Failed to reset settings")
+
+
+# ============================================================================
+# Configuration Synchronization with Whisper Service
+# ============================================================================
+
+@router.get("/sync/status")
+async def get_configuration_sync_status():
+    """Get current configuration synchronization status"""
+    if not CONFIG_SYNC_AVAILABLE:
+        return {
+            "sync_available": False,
+            "message": "Configuration sync manager not available",
+            "fallback_mode": True
+        }
+    
+    try:
+        config_manager = await get_config_sync_manager()
+        unified_config = await config_manager.get_unified_configuration()
+        
+        translation_config = unified_config.get("translation_service", {})
+        return {
+            "sync_available": True,
+            "last_sync": unified_config.get("sync_info", {}).get("last_sync"),
+            "services_synced": unified_config.get("sync_info", {}).get("services_synced", ["whisper", "orchestration"]),
+            "whisper_service_mode": unified_config.get("whisper_service", {}).get("service_mode", "unknown"),
+            "orchestration_mode": unified_config.get("orchestration_service", {}).get("service_mode", "unknown"),
+            "translation_service_status": translation_config.get("service_status", "unknown"),
+            "translation_backend": translation_config.get("backend", "unknown"),
+            "translation_model": translation_config.get("model_name", "unknown"),
+            "compatibility_status": "synchronized",
+            "configuration_version": unified_config.get("sync_info", {}).get("configuration_version", "1.1")
+        }
+    except Exception as e:
+        logger.error(f"Error getting sync status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get sync status")
+
+@router.get("/sync/unified")
+async def get_unified_configuration_endpoint():
+    """Get unified configuration from all services (whisper + orchestration + frontend compatible)"""
+    if not CONFIG_SYNC_AVAILABLE:
+        return {
+            "error": "Configuration sync not available",
+            "fallback": True,
+            "basic_config": {
+                "whisper_service": {"status": "unknown"},
+                "orchestration_service": {"status": "unknown"}
+            }
+        }
+    
+    try:
+        unified_config = await get_unified_configuration()
+        return unified_config
+    except Exception as e:
+        logger.error(f"Error getting unified configuration: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get unified configuration")
+
+@router.post("/sync/update/{component}")
+async def update_component_configuration(component: str, config_updates: Dict[str, Any]):
+    """
+    Update configuration for a specific component (whisper, orchestration, or unified)
+    Changes will be propagated to other components automatically
+    """
+    if not CONFIG_SYNC_AVAILABLE:
+        raise HTTPException(
+            status_code=503, 
+            detail="Configuration sync not available - cannot update component configuration"
+        )
+    
+    valid_components = ["whisper", "orchestration", "translation", "unified"]
+    if component not in valid_components:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid component. Must be one of: {valid_components}"
+        )
+    
+    try:
+        update_result = await update_configuration(component, config_updates, propagate=True)
+        
+        if not update_result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Configuration update failed: {update_result['errors']}"
+            )
+        
+        return {
+            "success": True,
+            "component": component,
+            "changes_applied": update_result["changes_applied"],
+            "propagation_results": update_result["propagation_results"],
+            "message": f"Configuration updated successfully for {component}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating {component} configuration: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update {component} configuration")
+
+@router.post("/sync/preset/{preset_name}")
+async def apply_configuration_preset_endpoint(preset_name: str):
+    """Apply a configuration preset to all components"""
+    if not CONFIG_SYNC_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Configuration sync not available - cannot apply presets"
+        )
+    
+    try:
+        result = await apply_configuration_preset(preset_name)
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error", "Failed to apply preset")
+            )
+        
+        return {
+            "success": True,
+            "preset_applied": preset_name,
+            "preset_description": result.get("preset_description", ""),
+            "changes_applied": result["changes_applied"],
+            "propagation_results": result["propagation_results"],
+            "message": f"Configuration preset '{preset_name}' applied successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error applying preset {preset_name}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to apply preset {preset_name}")
+
+@router.post("/sync/force")
+async def force_configuration_sync():
+    """Force synchronization of all service configurations"""
+    if not CONFIG_SYNC_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Configuration sync not available"
+        )
+    
+    try:
+        sync_result = await sync_all_configurations()
+        
+        return {
+            "success": sync_result["success"],
+            "sync_time": sync_result["sync_time"],
+            "services_synced": sync_result["services_synced"],
+            "compatibility_status": sync_result.get("compatibility_status", {}),
+            "errors": sync_result.get("errors", []),
+            "message": "Configuration synchronization completed"
+        }
+    except Exception as e:
+        logger.error(f"Error forcing configuration sync: {e}")
+        raise HTTPException(status_code=500, detail="Failed to force configuration sync")
+
+@router.get("/sync/presets")
+async def get_available_configuration_presets():
+    """Get available configuration presets"""
+    try:
+        # Import presets from the compatibility layer
+        from ..audio.whisper_compatibility import CONFIGURATION_PRESETS
+        
+        return {
+            "available_presets": list(CONFIGURATION_PRESETS.keys()),
+            "presets": CONFIGURATION_PRESETS,
+            "message": "Configuration presets retrieved successfully"
+        }
+    except Exception as e:
+        logger.error(f"Error getting configuration presets: {e}")
+        return {
+            "available_presets": ["exact_whisper_match", "optimized_performance", "high_accuracy", "real_time_optimized"],
+            "presets": {},
+            "message": "Using fallback preset list"
+        }
+
+@router.get("/sync/whisper-status")
+async def get_whisper_service_sync_status():
+    """Get detailed status of whisper service configuration sync"""
+    if not CONFIG_SYNC_AVAILABLE:
+        return {
+            "sync_available": False,
+            "message": "Configuration sync not available"
+        }
+    
+    try:
+        config_manager = await get_config_sync_manager()
+        unified_config = await config_manager.get_unified_configuration()
+        
+        whisper_config = unified_config.get("whisper_service", {})
+        
+        return {
+            "whisper_service": {
+                "available": whisper_config is not None,
+                "service_mode": whisper_config.get("service_mode", "unknown"),
+                "orchestration_mode": whisper_config.get("orchestration_mode", False),
+                "configuration": whisper_config.get("configuration", {}),
+                "capabilities": whisper_config.get("capabilities", {}),
+                "statistics": whisper_config.get("statistics", {})
+            },
+            "sync_info": unified_config.get("sync_info", {}),
+            "compatibility": {
+                "chunking_compatible": True,
+                "metadata_support": True,
+                "api_version_compatible": True
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting whisper sync status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get whisper service sync status")
+
+
+@router.get("/sync/compatibility")
+async def get_configuration_compatibility():
+    """Get configuration compatibility status between services"""
+    if not CONFIG_SYNC_AVAILABLE:
+        return {
+            "compatible": False,
+            "issues": ["Configuration sync manager not available"],
+            "warnings": [],
+            "sync_required": False,
+            "message": "Configuration sync not available"
+        }
+    
+    try:
+        config_manager = await get_config_sync_manager()
+        compatibility_status = await config_manager._validate_configuration_compatibility()
+        
+        return compatibility_status
+    except Exception as e:
+        logger.error(f"Error checking configuration compatibility: {e}")
+        return {
+            "compatible": False,
+            "issues": [f"Failed to check compatibility: {str(e)}"],
+            "warnings": [],
+            "sync_required": True,
+            "message": "Error checking compatibility"
+        }
+
+
+@router.post("/sync/preset")
+async def apply_configuration_preset_by_name(preset_data: Dict[str, Any]):
+    """Apply a configuration preset by name"""
+    if not CONFIG_SYNC_AVAILABLE:
+        raise HTTPException(
+            status_code=501,
+            detail="Configuration sync not available - cannot apply presets"
+        )
+    
+    preset_name = preset_data.get("preset_name")
+    if not preset_name:
+        raise HTTPException(
+            status_code=400,
+            detail="preset_name is required"
+        )
+    
+    try:
+        from ..audio.config_sync import apply_configuration_preset
+        result = await apply_configuration_preset(preset_name)
+        
+        return {
+            "success": result.get("success", False),
+            "preset_applied": preset_name,
+            "preset_description": result.get("preset_description", ""),
+            "changes_applied": result.get("changes_applied", {}),
+            "propagation_results": result.get("propagation_results", {}),
+            "errors": result.get("errors", []),
+            "message": f"Applied preset: {preset_name}" if result.get("success") else f"Failed to apply preset: {preset_name}"
+        }
+    except Exception as e:
+        logger.error(f"Error applying configuration preset {preset_name}: {e}")
+        return {
+            "success": False,
+            "preset_applied": preset_name,
+            "errors": [str(e)],
+            "message": f"Failed to apply preset: {preset_name}"
+        }
+
+@router.get("/sync/translation")
+async def get_translation_service_configuration():
+    """Get current translation service configuration with sync status"""
+    if not CONFIG_SYNC_AVAILABLE:
+        return {
+            "error": "Configuration sync not available",
+            "fallback": True,
+            "basic_config": {"status": "unknown"}
+        }
+    
+    try:
+        config_manager = await get_config_sync_manager()
+        unified_config = await config_manager.get_unified_configuration()
+        translation_config = unified_config.get("translation_service", {})
+        
+        return {
+            "success": True,
+            "translation_service": translation_config,
+            "sync_info": {
+                "last_sync": unified_config.get("sync_info", {}).get("last_sync"),
+                "services_synced": unified_config.get("sync_info", {}).get("services_synced", []),
+                "configuration_version": unified_config.get("sync_info", {}).get("configuration_version", "1.1")
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting translation service configuration: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get translation service configuration")
+
+@router.post("/sync/translation")
+async def update_translation_service_configuration(config_updates: Dict[str, Any]):
+    """Update translation service configuration with automatic synchronization"""
+    if not CONFIG_SYNC_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail="Configuration sync not available - cannot update translation configuration"
+        )
+    
+    try:
+        update_result = await update_configuration("translation", config_updates, propagate=True)
+        
+        if not update_result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Translation configuration update failed: {update_result['errors']}"
+            )
+        
+        return {
+            "success": True,
+            "component": "translation",
+            "changes_applied": update_result["changes_applied"],
+            "propagation_results": update_result.get("propagation_results", {}),
+            "message": "Translation service configuration updated successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating translation configuration: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update translation configuration: {str(e)}")
+
+
+# ============================================================================
+# Prompt Management Endpoints
+# ============================================================================
+
+class PromptTemplateRequest(BaseModel):
+    """Request model for prompt template creation/update"""
+    id: str = Field(..., description="Unique prompt ID")
+    name: str = Field(..., description="Prompt name")
+    description: str = Field(..., description="Prompt description")
+    template: str = Field(..., description="Prompt template with variables")
+    system_message: Optional[str] = Field(None, description="System message for AI model")
+    language_pairs: Optional[List[str]] = Field(default=['*'], description="Supported language pairs")
+    category: str = Field(default='general', description="Prompt category")
+    version: str = Field(default='1.0', description="Prompt version")
+    is_active: bool = Field(default=True, description="Whether prompt is active")
+    metadata: Optional[Dict[str, Any]] = Field(default={}, description="Additional metadata")
+
+class PromptTestRequest(BaseModel):
+    """Request model for prompt testing"""
+    text: str = Field(..., description="Text to translate")
+    source_language: str = Field(default='auto', description="Source language")
+    target_language: str = Field(default='en', description="Target language")
+    context: Optional[str] = Field(default='', description="Additional context")
+    style: Optional[str] = Field(default='', description="Translation style")
+    domain: Optional[str] = Field(default='', description="Domain/field")
+    session_id: Optional[str] = Field(None, description="Session ID")
+    confidence_threshold: float = Field(default=0.8, description="Confidence threshold")
+    preserve_formatting: bool = Field(default=True, description="Preserve formatting")
+
+# Translation service URL configuration
+TRANSLATION_SERVICE_URL = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+
+async def get_translation_service_client():
+    """Get HTTP client for translation service"""
+    timeout = aiohttp.ClientTimeout(total=30)
+    return aiohttp.ClientSession(timeout=timeout)
+
+@router.get("/prompts")
+async def get_prompts(
+    active: Optional[bool] = None,
+    category: Optional[str] = None,
+    language_pair: Optional[str] = None
+):
+    """Get all prompt templates with optional filtering"""
+    try:
+        async with await get_translation_service_client() as client:
+            params = {}
+            if active is not None:
+                params['active'] = 'true' if active else 'false'
+            if category:
+                params['category'] = category
+            if language_pair:
+                params['language_pair'] = language_pair
+            
+            async with client.get(f"{TRANSLATION_SERVICE_URL}/prompts", params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return {
+                        "success": True,
+                        "prompts": data.get("prompts", []),
+                        "total_count": data.get("total_count", 0),
+                        "filters_applied": data.get("filters_applied", {}),
+                        "message": "Prompts retrieved successfully"
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving prompts: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve prompts: {str(e)}"
+        )
+
+@router.get("/prompts/{prompt_id}")
+async def get_prompt(prompt_id: str):
+    """Get a specific prompt template"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.get(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}") as response:
+                if response.status == 200:
+                    prompt_data = await response.json()
+                    return {
+                        "success": True,
+                        "prompt": prompt_data,
+                        "message": "Prompt retrieved successfully"
+                    }
+                elif response.status == 404:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Prompt not found"
+                    )
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving prompt {prompt_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve prompt: {str(e)}"
+        )
+
+@router.post("/prompts")
+async def create_prompt(prompt: PromptTemplateRequest):
+    """Create a new prompt template"""
+    try:
+        async with await get_translation_service_client() as client:
+            prompt_data = prompt.dict()
+            async with client.post(f"{TRANSLATION_SERVICE_URL}/prompts", json=prompt_data) as response:
+                if response.status == 201:
+                    result = await response.json()
+                    return {
+                        "success": True,
+                        "prompt_id": result.get("prompt_id"),
+                        "message": "Prompt created successfully"
+                    }
+                elif response.status == 409:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Prompt with this ID already exists"
+                    )
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating prompt: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create prompt: {str(e)}"
+        )
+
+@router.put("/prompts/{prompt_id}")
+async def update_prompt(prompt_id: str, updates: Dict[str, Any]):
+    """Update an existing prompt template"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.put(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}", json=updates) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": True,
+                        "prompt_id": prompt_id,
+                        "message": "Prompt updated successfully"
+                    }
+                elif response.status == 404:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Prompt not found"
+                    )
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating prompt {prompt_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update prompt: {str(e)}"
+        )
+
+@router.delete("/prompts/{prompt_id}")
+async def delete_prompt(prompt_id: str):
+    """Delete a prompt template"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.delete(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}") as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": True,
+                        "prompt_id": prompt_id,
+                        "message": "Prompt deleted successfully"
+                    }
+                elif response.status == 404:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Prompt not found or cannot be deleted (default prompts are protected)"
+                    )
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting prompt {prompt_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete prompt: {str(e)}"
+        )
+
+@router.post("/prompts/{prompt_id}/test")
+async def test_prompt(prompt_id: str, test_data: PromptTestRequest):
+    """Test a prompt template with sample data"""
+    try:
+        async with await get_translation_service_client() as client:
+            test_payload = test_data.dict()
+            async with client.post(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}/test", json=test_payload) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": True,
+                        "test_result": result.get("test_result"),
+                        "prompt_used": result.get("prompt_used"),
+                        "system_message": result.get("system_message"),
+                        "prompt_analysis": result.get("prompt_analysis"),
+                        "message": "Prompt test completed successfully"
+                    }
+                elif response.status == 404:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Prompt not found"
+                    )
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error testing prompt {prompt_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to test prompt: {str(e)}"
+        )
+
+@router.get("/prompts/{prompt_id}/performance")
+async def get_prompt_performance(prompt_id: str):
+    """Get performance analysis for a prompt"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.get(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}/performance") as response:
+                if response.status == 200:
+                    analysis = await response.json()
+                    return {
+                        "success": True,
+                        "performance_analysis": analysis,
+                        "message": "Performance analysis retrieved successfully"
+                    }
+                elif response.status == 404:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="Prompt not found"
+                    )
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving performance analysis for prompt {prompt_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve performance analysis: {str(e)}"
+        )
+
+@router.post("/prompts/compare")
+async def compare_prompts(comparison_request: Dict[str, Any]):
+    """Compare performance of multiple prompts"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.post(f"{TRANSLATION_SERVICE_URL}/prompts/compare", json=comparison_request) as response:
+                if response.status == 200:
+                    comparison = await response.json()
+                    return {
+                        "success": True,
+                        "comparison_results": comparison,
+                        "message": "Prompt comparison completed successfully"
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error comparing prompts: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to compare prompts: {str(e)}"
+        )
+
+@router.get("/prompts/statistics")
+async def get_prompt_statistics():
+    """Get overall prompt management statistics"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.get(f"{TRANSLATION_SERVICE_URL}/prompts/statistics") as response:
+                if response.status == 200:
+                    stats = await response.json()
+                    return {
+                        "success": True,
+                        "statistics": stats,
+                        "message": "Prompt statistics retrieved successfully"
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving prompt statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve prompt statistics: {str(e)}"
+        )
+
+@router.get("/prompts/categories")
+async def get_prompt_categories():
+    """Get available prompt categories"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.get(f"{TRANSLATION_SERVICE_URL}/prompts/categories") as response:
+                if response.status == 200:
+                    categories = await response.json()
+                    return {
+                        "success": True,
+                        "categories": categories.get("categories", []),
+                        "total_count": categories.get("total_count", 0),
+                        "message": "Prompt categories retrieved successfully"
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving prompt categories: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve prompt categories: {str(e)}"
+        )
+
+@router.get("/prompts/variables")
+async def get_prompt_variables():
+    """Get available prompt template variables"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.get(f"{TRANSLATION_SERVICE_URL}/prompts/variables") as response:
+                if response.status == 200:
+                    variables = await response.json()
+                    return {
+                        "success": True,
+                        "variables": variables.get("variables", []),
+                        "usage_example": variables.get("usage_example", ""),
+                        "message": "Prompt variables retrieved successfully"
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving prompt variables: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve prompt variables: {str(e)}"
+        )
+
+@router.post("/translation/test")
+async def test_translation_with_prompt(translation_request: Dict[str, Any]):
+    """Test translation using a specific prompt template"""
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.post(f"{TRANSLATION_SERVICE_URL}/translate/with_prompt", json=translation_request) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": True,
+                        "translation_result": {
+                            "translated_text": result.get("translated_text"),
+                            "source_language": result.get("source_language"),
+                            "target_language": result.get("target_language"),
+                            "confidence_score": result.get("confidence_score"),
+                            "processing_time": result.get("processing_time"),
+                            "backend_used": result.get("backend_used"),
+                            "prompt_id": result.get("prompt_id"),
+                            "prompt_used": result.get("prompt_used")
+                        },
+                        "message": "Translation test completed successfully"
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error testing translation: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to test translation: {str(e)}"
+        )

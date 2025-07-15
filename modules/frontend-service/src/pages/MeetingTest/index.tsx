@@ -124,7 +124,7 @@ const MeetingTest: React.FC = () => {
     enableTranslation: true,
     enableDiarization: true,
     enableVAD: true,
-    whisperModel: 'base',
+    whisperModel: 'whisper-base',
     translationQuality: 'balanced',
     audioProcessing: true,
     noiseReduction: false,
@@ -678,9 +678,9 @@ const MeetingTest: React.FC = () => {
                             disabled={modelsLoading}
                           >
                             {modelsLoading ? (
-                              <MenuItem value="base">Loading models...</MenuItem>
+                              <MenuItem value="whisper-base">Loading models...</MenuItem>
                             ) : modelsError ? (
-                              <MenuItem value="base">Error loading models</MenuItem>
+                              <MenuItem value="whisper-base">Error loading models</MenuItem>
                             ) : availableModels.length > 0 ? (
                               availableModels.map((model) => (
                                 <MenuItem key={model.name} value={model.name}>
@@ -688,7 +688,7 @@ const MeetingTest: React.FC = () => {
                                 </MenuItem>
                               ))
                             ) : (
-                              <MenuItem value="base">No models available</MenuItem>
+                              <MenuItem value="whisper-base">No models available</MenuItem>
                             )}
                           </Select>
                         </FormControl>

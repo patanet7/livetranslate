@@ -2,17 +2,12 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
-# WebSocket support
-python-socketio==5.8.0
-eventlet==0.33.3
-
-# Legacy Flask (for static files serving)
-Flask==2.3.3
-Flask-CORS==4.0.0
-Flask-SocketIO==5.3.5
+# WebSocket support (FastAPI native)
+websockets==11.0.3
 
 # HTTP client
 requests==2.31.0
+httpx[http2]==0.25.2  # Async HTTP client with HTTP/2 support for service communication
 
 # FastAPI dependencies
 pydantic==2.4.2
@@ -24,6 +19,14 @@ PyYAML==6.0.1
 
 # Data processing
 python-dateutil==2.8.2
+
+# Audio processing dependencies (for orchestration audio pipeline)
+numpy==1.24.3
+soundfile==0.12.1
+scipy==1.11.3
+librosa==0.10.1
+pydub==0.25.1
+ffmpeg-python==0.2.0
 
 # Development
 Werkzeug==2.3.7

@@ -13,6 +13,10 @@ The Orchestration Service is a CPU-optimized backend microservice that provides:
 - **Monitoring Dashboard**: Real-time performance analytics
 - **Enterprise Monitoring Stack**: Prometheus, Grafana, AlertManager, Loki integration
 - **🆕 Google Meet Bot Management**: Complete bot lifecycle and virtual webcam generation
+- **🆕 Configuration Synchronization**: Real-time config sync between all services with compatibility validation
+- **🆕 Advanced Audio Processing Pipeline**: Professional-grade modular audio processing with 11 stages
+- **🆕 Audio Analysis APIs**: FFT analysis, LUFS metering, and spectral analysis endpoints
+- **🆕 Preset Management System**: Built-in and custom presets with intelligent comparison
 
 **Note**: Frontend UI has been moved to `modules/frontend-service/` for clean separation
 
@@ -87,6 +91,232 @@ The Orchestration Service is a CPU-optimized backend microservice that provides:
 - **Audio Processing Pipeline** → ✅ **Enhanced controls** with real-time visualization
 - **API Documentation** → ✅ **Auto-generated** OpenAPI/Swagger with interactive docs
 - **Configuration Management** → ✅ **Hot-reloadable** Pydantic settings with validation
+- **🆕 Configuration Synchronization** → ✅ **Complete** real-time config sync between all services
+- **🆕 Audio Upload API** → ✅ **Fixed 422 validation errors** with proper dependency injection
+- **🆕 Model Name Consistency** → ✅ **Standardized** whisper-base model naming across all fallbacks
+- **🆕 Advanced Audio Processing Pipeline** → ✅ **Professional 11-stage modular pipeline** with individual gain controls
+- **🆕 Audio Analysis APIs** → ✅ **FFT analysis, LUFS metering** with broadcast compliance
+- **🆕 Preset Management System** → ✅ **7 built-in presets** with comparison and custom save/load
+
+### 🆕 CONFIGURATION SYNCHRONIZATION SYSTEM - FULLY INTEGRATED
+
+#### **Real-time Configuration Management**
+The orchestration service now includes a comprehensive configuration synchronization system that ensures all services maintain consistent configuration across the entire LiveTranslate architecture.
+
+##### **Core Components:**
+
+1. **ConfigurationSyncManager** (`src/audio/config_sync.py`)
+   - **Bidirectional Synchronization**: Frontend ↔ Orchestration ↔ Whisper service
+   - **Real-time Updates**: Hot-reloadable configuration changes without service restarts
+   - **Compatibility Validation**: Automatic detection and reconciliation of configuration differences
+   - **Configuration Presets**: Professional templates for different deployment scenarios
+   - **Persistent Storage**: Configuration caching and recovery mechanisms
+
+2. **Enhanced Settings API** (`src/routers/settings.py`)
+   - **15+ Synchronization Endpoints**: Complete configuration management API
+   - **Unified Configuration**: `/api/settings/sync/unified` - Get complete system config
+   - **Component Updates**: `/api/settings/sync/update/{component}` - Update specific services
+   - **Compatibility Checking**: `/api/settings/sync/compatibility` - Validate alignment
+   - **Force Synchronization**: `/api/settings/sync/force` - Manual sync trigger
+   - **Preset Management**: `/api/settings/sync/preset` - Apply configuration templates
+
+3. **Whisper Service Integration** (`modules/whisper-service/src/api_server.py`)
+   - **Orchestration Mode**: Native support for orchestration-managed configuration
+   - **Configuration Endpoints**: Remote configuration management with hot-reload
+   - **Compatibility Layer**: Seamless migration from internal to orchestration-managed settings
+
+##### **Configuration Synchronization Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│            Configuration Synchronization Architecture          │
+├─────────────────────────────────────────────────────────────────┤
+│                      Frontend Service                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
+│  │ Settings Pages  │  │ Config Sync     │  │ Real-time UI    │  │
+│  │ • 7 Tabs        │  │ • Status        │  │ • Validation    │  │
+│  │ • Parameter     │  │ • Presets       │  │ • Error Handle  │  │
+│  │ • Controls      │  │ • Force Sync    │  │ • Notifications │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
+│                           ↓ REST API Calls                     │
+├─────────────────────────────────────────────────────────────────┤
+│                  Orchestration Service                         │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
+│  │ Settings Router │↔ │ Config Sync     │↔ │ Whisper Compat  │  │
+│  │ • 15+ Endpoints │  │ Manager         │  │ Manager         │  │
+│  │ • Validation    │  │ • Unification   │  │ • Migration     │  │
+│  │ • Error Handle  │  │ • Callbacks     │  │ • Validation    │  │
+│  │ • Hot-reload    │  │ • Persistence   │  │ • Templates     │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
+│                           ↓ HTTP Service Calls                 │
+├─────────────────────────────────────────────────────────────────┤
+│                     Whisper Service                            │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
+│  │ Configuration   │  │ Orchestration   │  │ Compatibility   │  │
+│  │ • NPU Settings  │  │ Mode Support    │  │ • Migration     │  │
+│  │ • Audio Params  │  │ • Chunk API     │  │ • Validation    │  │
+│  │ │ • Model Config │  │ • Config Sync   │  │ • Hot-reload    │  │
+│  │ • Performance   │  │ • Remote Mgmt   │  │ • Fallbacks     │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+##### **Production Benefits:**
+- **Eliminates Configuration Drift**: All services maintain consistent parameters
+- **Zero-downtime Updates**: Hot-reload configuration changes without service restarts
+- **Automated Validation**: Prevents incompatible configuration combinations
+- **Professional Templates**: Optimized presets for different deployment scenarios
+- **Complete Audit Trail**: Comprehensive logging of all configuration changes
+
+### 🎧 ADVANCED AUDIO PROCESSING PIPELINE - PROFESSIONAL MODULAR SYSTEM
+
+#### **11-Stage Professional Audio Pipeline**
+The orchestration service now includes a state-of-the-art modular audio processing pipeline designed for professional speech recognition optimization and broadcast-quality audio processing.
+
+##### **Core Audio Processing Stages:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                Professional Audio Pipeline                     │
+├─────────────────────────────────────────────────────────────────┤
+│  📤 Input Audio → Stage 1 → Stage 2 → ... → Stage 11 → 📥 Output  │
+├─────────────────────────────────────────────────────────────────┤
+│  🎛️ Individual Gain Controls: Each stage has -20dB to +20dB      │
+│  📊 Real-time Monitoring: <100ms target latency per pipeline     │
+│  🔧 Modular Architecture: Add/remove/reorder stages dynamically  │
+│  📋 Preset Management: Professional templates + custom configs   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+##### **1. Voice Activity Detection (VAD)**
+- **Purpose**: Intelligent speech detection and silence filtering
+- **Modes**: WebRTC, Silero, Energy-based, Aggressive
+- **Performance**: 5ms target latency
+- **Use Cases**: Bandwidth optimization, real-time transcription
+
+##### **2. Voice Frequency Filter**
+- **Purpose**: Human voice frequency enhancement (85-300Hz fundamental)
+- **Features**: Formant preservation, sibilance enhancement
+- **Performance**: 8ms target latency
+- **Use Cases**: Telephone audio, noisy environments
+
+##### **3. Noise Reduction**
+- **Purpose**: Background noise suppression with voice protection
+- **Modes**: Light, Moderate, Aggressive, Adaptive
+- **Performance**: 15ms target latency
+- **Use Cases**: Office environments, street recordings
+
+##### **4. Voice Enhancement**
+- **Purpose**: Speech clarity and intelligibility improvement
+- **Features**: Compression, de-essing, clarity boost
+- **Performance**: 10ms target latency
+- **Use Cases**: Podcast production, voice-overs
+
+##### **5. Parametric Equalizer**
+- **Purpose**: Frequency response shaping with professional presets
+- **Features**: Multi-band EQ, voice/broadcast/podcast presets
+- **Performance**: 12ms target latency
+- **Use Cases**: Audio mastering, tonal correction
+
+##### **6. Spectral Denoising**
+- **Purpose**: Advanced frequency-domain noise reduction
+- **Modes**: Spectral subtraction, Wiener filtering, Adaptive
+- **Performance**: 20ms target latency
+- **Use Cases**: Music restoration, complex noise removal
+
+##### **7. Conventional Denoising**
+- **Purpose**: Fast time-domain noise reduction
+- **Modes**: Median, Gaussian, Bilateral, Wavelet, Adaptive filters
+- **Performance**: 8ms target latency
+- **Use Cases**: Real-time processing, low-latency applications
+
+##### **8. LUFS Normalization**
+- **Purpose**: Professional loudness standardization (ITU-R BS.1770-4)
+- **Modes**: Streaming (-14 LUFS), Broadcast TV (-23 LUFS), Podcast (-18 LUFS)
+- **Performance**: 18ms target latency
+- **Use Cases**: Broadcast compliance, streaming platforms
+
+##### **9. Auto Gain Control (AGC)**
+- **Purpose**: Automatic level management with adaptive control
+- **Modes**: Fast, Medium, Slow, Adaptive
+- **Performance**: 12ms target latency
+- **Use Cases**: Live streaming, conference calls
+
+##### **10. Dynamic Range Compression**
+- **Purpose**: Professional audio compression for dynamic control
+- **Modes**: Soft/Hard knee, Voice-optimized, Adaptive
+- **Performance**: 8ms target latency
+- **Use Cases**: Music production, voice processing
+
+##### **11. Peak Limiter**
+- **Purpose**: Transparent peak limiting to prevent clipping
+- **Features**: Soft knee, lookahead, true peak detection
+- **Performance**: 6ms target latency
+- **Use Cases**: Mastering, broadcast safety
+
+#### **🎛️ Professional Audio Analysis APIs**
+
+##### **FFT Analysis Endpoint** (`POST /api/audio/analyze/fft`)
+- **Real-time Frequency Analysis**: Configurable FFT size (256-8192)
+- **Spectral Features**: Centroid, rolloff, bandwidth, flatness
+- **Peak Detection**: Voice frequency identification and analysis
+- **Quality Indicators**: SNR estimation, noise characterization
+- **Format Support**: Multiple audio formats with librosa fallback
+
+##### **LUFS Metering Endpoint** (`POST /api/audio/analyze/lufs`)
+- **Broadcast Compliance**: ITU-R BS.1770-4 and EBU R128 standards
+- **K-weighting Filter**: Professional loudness measurement
+- **Multi-timeframe Analysis**: Momentary, short-term, integrated loudness
+- **True Peak Detection**: Oversampling-based peak measurement
+- **Compliance Checking**: TV, radio, streaming, podcast standards
+
+##### **Individual Stage Processing** (`POST /api/audio/process/stage/{stage_name}`)
+- **Single Stage Testing**: Process audio through any individual stage
+- **Custom Configuration**: JSON-based parameter overrides
+- **Performance Monitoring**: Stage-specific latency and quality metrics
+- **Audio Encoding**: Base64 encoding for frontend integration
+- **Detailed Metadata**: Stage-specific processing information
+
+#### **🎵 Preset Management System**
+
+##### **7 Built-in Professional Presets:**
+1. **Default Processing**: Balanced for general speech (7 stages)
+2. **Voice Optimized**: Maximum clarity for podcasts/voice-overs (7 stages)
+3. **Noisy Environment**: Heavy noise reduction for challenging acoustics (7 stages)
+4. **Broadcast Quality**: Professional standards with LUFS normalization (6 stages)
+5. **Minimal Processing**: Low-latency for real-time applications (4 stages)
+6. **Music Content**: Optimized for music and mixed content (5 stages)
+7. **Conference Call**: Multi-participant communication optimization (6 stages)
+
+##### **Preset Management APIs:**
+- **`GET /api/audio/presets`**: List all available presets with characteristics
+- **`GET /api/audio/presets/{name}`**: Get detailed preset configuration
+- **`POST /api/audio/presets/{name}/apply`**: Apply preset with optional overrides
+- **`POST /api/audio/presets/save`**: Save custom user-defined presets
+- **`DELETE /api/audio/presets/{name}`**: Delete custom presets
+- **`GET /api/audio/presets/compare/{preset1}/{preset2}`**: Intelligent preset comparison
+
+##### **Intelligent Preset Comparison:**
+- **Performance Analysis**: Latency, CPU usage, quality comparison
+- **Stage Differences**: Detailed analysis of enabled stages and parameters
+- **Use Case Recommendations**: Context-aware suggestions based on characteristics
+- **Configuration Merging**: Smart override handling for preset customization
+
+#### **🏗️ Modular Architecture Benefits:**
+
+##### **Professional Features:**
+- **Individual Gain Controls**: -20dB to +20dB input/output gain per stage
+- **Real-time Performance**: <100ms total pipeline latency target
+- **Hot-reload Configuration**: Update parameters without service restart
+- **Database Metrics**: Performance tracking and aggregation
+- **Broadcast Quality**: ITU-R and EBU standard compliance
+
+##### **Development Features:**
+- **Modular Testing**: Individual stage validation and debugging
+- **Performance Monitoring**: Per-stage latency tracking with targets
+- **Error Recovery**: Graceful degradation on stage failures
+- **Configuration Validation**: Parameter range checking and validation
+- **Comprehensive Logging**: Detailed processing metadata and diagnostics
 
 ### 🚀 REACT MIGRATION COMPLETED - Phase 7 FastAPI Backend
 - **FastAPI Application** → ✅ **Modern async/await** with lifespan management (`backend/main.py`)
@@ -605,12 +835,34 @@ socket.onmessage = function(event) {
 
 ### Gateway API Routes
 
+#### Audio Processing (Fixed - Dependency Injection)
+```http
+# Audio upload endpoint - NOW WORKING ✅
+POST /api/audio/upload
+Content-Type: multipart/form-data
+
+# Fixed Issues:
+# ✅ Proper FastAPI dependency injection (audio_client=Depends())
+# ✅ Consistent model naming (whisper-base fallbacks)
+# ✅ No more 422 validation errors
+
+# Form fields supported:
+# - file: Audio file (WebM, WAV, MP3, OGG, MP4, FLAC)
+# - chunk_id: Unique chunk identifier
+# - session_id: Session identifier
+# - target_languages: JSON array ["es", "fr", "de"]
+# - enable_transcription: boolean
+# - enable_translation: boolean
+# - enable_diarization: boolean
+# - whisper_model: Model name (whisper-base, whisper-large, etc.)
+```
+
 #### Service Proxying
 ```http
 # All service requests are proxied through the gateway
 POST /api/audio/transcribe    → http://audio-service:5001/api/transcribe
 POST /api/translate           → http://translation-service:5003/api/translate
-GET  /api/whisper/models      → http://audio-service:5001/api/models
+GET  /api/audio/models        → Aggregated models from all services
 ```
 
 #### System Management
@@ -992,4 +1244,29 @@ This comprehensive audio processing frontend provides professional-grade control
 
 ---
 
-This CPU-optimized Orchestration Service provides comprehensive service coordination, real-time dashboard, enterprise-grade WebSocket infrastructure, and professional audio processing control for the LiveTranslate system.
+## Recent Critical Fixes (Latest Update)
+
+### ✅ Audio Upload Endpoint Resolution
+**Problem**: Frontend Meeting Test Dashboard experiencing 422 validation errors on `/api/audio/upload`
+**Root Cause**: FastAPI dependency injection not properly implemented in upload endpoint
+**Solution**: 
+- Added `audio_client=Depends(get_audio_service_client)` to function signature
+- Fixed direct function call to use injected parameter
+- Resolved all 422 Unprocessable Content errors
+
+### ✅ Model Name Standardization  
+**Problem**: Inconsistent model naming causing frontend model selection issues
+**Root Cause**: Fallback models using "base" while services expect "whisper-base" prefix
+**Solution**:
+- Updated all fallback model arrays to use "whisper-" prefix
+- Fixed audio service client fallbacks to use "whisper-base"
+- Ensured consistency across frontend and backend model handling
+
+### ✅ Complete Audio Flow Validation
+**Flow**: Frontend → Orchestration → Whisper → Translation → Response
+**Status**: ✅ **FULLY OPERATIONAL** with proper request tracking and error handling
+**Features**: Real-time streaming, hardware acceleration fallback, comprehensive monitoring
+
+---
+
+This CPU-optimized Orchestration Service provides comprehensive service coordination, real-time dashboard, enterprise-grade WebSocket infrastructure, and **now fully functional** audio processing control for the LiveTranslate system.

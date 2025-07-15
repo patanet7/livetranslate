@@ -470,7 +470,12 @@ class APIGateway:
                             fixed_files[key] = file_info
                     request_data["files"] = fixed_files
 
-                # Make the actual request
+                # Make the actual request with proper SSL handling
+                # For HTTP URLs, disable SSL verification to avoid SSL errors
+                if url.startswith("http://"):
+                    request_data["verify"] = False
+                    logger.debug(f"Using HTTP connection without SSL for {url}")
+                
                 response = requests.request(method, url, **request_data)
 
                 # Record timing
@@ -557,14 +562,24 @@ class APIGateway:
         """Perform health check on service instance"""
         try:
             health_url = f"{instance.url}/health"
-            response = requests.get(health_url, timeout=5)
+            
+            # Configure session for HTTP endpoints - disable SSL verification
+            session = requests.Session()
+            if health_url.startswith("http://"):
+                # For HTTP URLs, ensure no SSL verification
+                session.verify = False
+                logger.debug(f"Using HTTP connection without SSL for {service_name} at {health_url}")
+            
+            response = session.get(health_url, timeout=5)
 
             if response.status_code == 200:
                 instance.status = ServiceStatus.HEALTHY
                 instance.last_check = time.time()
+                logger.debug(f"Health check passed for {service_name} at {health_url}")
                 return True
             else:
                 instance.status = ServiceStatus.UNHEALTHY
+                logger.warning(f"Health check failed for {service_name}: HTTP {response.status_code}")
                 return False
 
         except Exception as e:

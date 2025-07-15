@@ -5,6 +5,7 @@ Provides security features including request validation, rate limiting, and secu
 """
 
 import logging
+import json
 from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -35,6 +36,14 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
 
         try:
+            # Skip security middleware for WebSocket connections
+            is_websocket = (
+                request.url.path == "/ws" or 
+                request.url.path.startswith("/api/websocket/") or
+                request.headers.get("upgrade", "").lower() == "websocket"
+            )
+            if is_websocket:
+                return await call_next(request)
             # Check blocked IPs
             client_ip = request.client.host
             if client_ip in self.blocked_ips:
@@ -70,7 +79,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as e:
-            logger.error(f"Security middleware error: {e}")
+            # Convert exception to string to avoid JSON serialization issues
+            error_msg = str(e)
+            logger.error(f"Security middleware error: {error_msg}")
             return JSONResponse(
                 status_code=500, content={"error": "Internal server error"}
             )

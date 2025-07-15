@@ -219,6 +219,11 @@ socketio = SocketIO(
     max_http_buffer_size=10**8  # 100MB for large audio chunks
 )
 
+# Add favicon endpoint to prevent 404 errors
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  # No content response
+
 # Global whisper service instance
 whisper_service: Optional[WhisperService] = None
 
@@ -394,6 +399,129 @@ def clear_cache():
 async def transcribe():
     """Transcribe audio using default model"""
     return await transcribe_with_model(whisper_service.config.get("default_model", "whisper-base"))
+
+# Orchestration-managed chunk processing endpoint
+@app.route('/api/process-chunk', methods=['POST'])
+async def process_orchestration_chunk():
+    """Process audio chunk from orchestration service with metadata"""
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+    
+    try:
+        logger.info("[WHISPER] 🎯 Orchestration chunk processing request received")
+        
+        # Parse request data
+        if request.content_type and 'application/json' in request.content_type:
+            data = request.get_json()
+            if not data:
+                return jsonify({"error": "No JSON data provided"}), 400
+        else:
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+        
+        # Extract required fields
+        chunk_id = data.get('chunk_id')
+        session_id = data.get('session_id')
+        audio_data_b64 = data.get('audio_data')
+        chunk_metadata = data.get('chunk_metadata', {})
+        model_name = data.get('model_name', whisper_service.config.get("default_model", "whisper-base"))
+        
+        if not chunk_id:
+            return jsonify({"error": "chunk_id is required"}), 400
+        if not session_id:
+            return jsonify({"error": "session_id is required"}), 400
+        if not audio_data_b64:
+            return jsonify({"error": "audio_data is required"}), 400
+        
+        # Decode base64 audio data
+        import base64
+        try:
+            audio_bytes = base64.b64decode(audio_data_b64)
+        except Exception as e:
+            return jsonify({"error": f"Invalid base64 audio data: {str(e)}"}), 400
+        
+        logger.info(f"[WHISPER] 🎯 Processing chunk {chunk_id} for session {session_id}")
+        logger.info(f"[WHISPER] 📊 Chunk metadata: {chunk_metadata}")
+        logger.info(f"[WHISPER] 📏 Audio data size: {len(audio_bytes)} bytes")
+        
+        # Create transcription request with chunk metadata
+        transcription_request = TranscriptionRequest(
+            audio_data=audio_bytes,
+            model_name=model_name,
+            session_id=session_id,
+            streaming=False,  # Process as single chunk
+            enhanced=chunk_metadata.get('enable_enhancement', False),
+            sample_rate=chunk_metadata.get('sample_rate', 16000),
+            enable_vad=chunk_metadata.get('enable_vad', False),  # VAD already applied by orchestration
+            timestamp_mode=chunk_metadata.get('timestamp_mode', 'word')
+        )
+        
+        # Process the chunk using orchestration-aware method
+        if hasattr(whisper_service, 'process_orchestration_chunk'):
+            # Use the new orchestration chunk processing method
+            response_data = await whisper_service.process_orchestration_chunk(
+                chunk_id=chunk_id,
+                session_id=session_id,
+                audio_data=audio_bytes,
+                chunk_metadata=chunk_metadata,
+                model_name=model_name
+            )
+            
+            logger.info(f"[WHISPER] ✅ Chunk {chunk_id} processed via orchestration method")
+            if response_data.get("status") == "success":
+                logger.info(f"[WHISPER] 📝 Transcription result: {response_data['transcription']['text'][:100]}...")
+            else:
+                logger.error(f"[WHISPER] ❌ Chunk processing failed: {response_data.get('error', 'Unknown error')}")
+        else:
+            # Fallback to legacy processing
+            logger.warning("[WHISPER] Using legacy processing method - orchestration features unavailable")
+            start_time = time.time()
+            result = await whisper_service.transcribe(transcription_request)
+            processing_time = time.time() - start_time
+            
+            logger.info(f"[WHISPER] ✅ Chunk {chunk_id} processed in {processing_time:.2f}s (legacy)")
+            logger.info(f"[WHISPER] 📝 Transcription result: {result.text[:100]}...")
+            
+            # Prepare response with chunk context (legacy format)
+            response_data = {
+                "chunk_id": chunk_id,
+                "session_id": session_id,
+                "status": "success",
+                "transcription": {
+                    "text": result.text,
+                    "language": result.language,
+                    "confidence_score": result.confidence_score,
+                    "segments": result.segments,
+                    "timestamp": result.timestamp
+                },
+                "processing_info": {
+                    "model_used": result.model_used,
+                    "device_used": result.device_used,
+                    "processing_time": processing_time,
+                    "chunk_metadata": chunk_metadata,
+                    "service_mode": "legacy"
+                },
+                "chunk_sequence": chunk_metadata.get('sequence_number', 0),
+                "chunk_timing": {
+                    "start_time": chunk_metadata.get('start_time', 0.0),
+                    "end_time": chunk_metadata.get('end_time', 0.0),
+                    "duration": chunk_metadata.get('duration', 0.0)
+                }
+            }
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        logger.error(f"[WHISPER] ❌ Failed to process orchestration chunk: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return jsonify({
+            "chunk_id": chunk_id if 'chunk_id' in locals() else "unknown",
+            "session_id": session_id if 'session_id' in locals() else "unknown",
+            "status": "error", 
+            "error": str(e),
+            "error_type": "processing_error"
+        }), 500
 
 # Model-specific transcription endpoint
 @app.route('/transcribe/<model_name>', methods=['POST'])
@@ -2263,6 +2391,100 @@ error_handler.register_recovery_handler(ErrorCategory.MODEL_LOAD_FAILED, recover
 # Initialize service on startup (for Docker/production usage)
 # Skip automatic initialization to avoid event loop conflicts
 # Will be initialized when called from main.py
+
+# Configuration and compatibility endpoints
+@app.route('/api/config', methods=['GET'])
+async def get_whisper_configuration():
+    """Get current whisper service configuration and capabilities"""
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+    
+    try:
+        config_info = {
+            "service_mode": "orchestration" if getattr(whisper_service, 'orchestration_mode', False) else "legacy",
+            "orchestration_mode": getattr(whisper_service, 'orchestration_mode', False),
+            "configuration": {
+                "sample_rate": whisper_service.config.get("sample_rate", 16000),
+                "buffer_duration": whisper_service.config.get("buffer_duration", 4.0),
+                "inference_interval": whisper_service.config.get("inference_interval", 3.0),
+                "overlap_duration": whisper_service.config.get("overlap_duration", 0.2),
+                "enable_vad": whisper_service.config.get("enable_vad", True),
+                "default_model": whisper_service.config.get("default_model", "whisper-base"),
+                "max_concurrent_requests": whisper_service.config.get("max_concurrent_requests", 10)
+            },
+            "capabilities": {
+                "internal_chunking": not getattr(whisper_service, 'orchestration_mode', False),
+                "orchestration_chunks": getattr(whisper_service, 'orchestration_mode', False),
+                "buffer_management": hasattr(whisper_service, 'buffer_manager') and whisper_service.buffer_manager is not None,
+                "streaming_support": True,
+                "enhanced_processing": True,
+                "chunk_metadata_support": True
+            },
+            "statistics": getattr(whisper_service, 'stats', {}),
+            "compatibility": {
+                "api_version": "2.0",
+                "orchestration_api_version": "1.0",
+                "chunk_processing_version": "1.0"
+            }
+        }
+        
+        return jsonify(config_info), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to get configuration: {e}")
+        return jsonify({"error": "Failed to retrieve configuration"}), 500
+
+
+@app.route('/api/compatibility', methods=['GET'])
+async def get_compatibility_info():
+    """Get compatibility information for orchestration service integration"""
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+    
+    try:
+        compatibility_info = {
+            "whisper_service": {
+                "version": "2.0",
+                "orchestration_ready": True,
+                "chunking_compatible": True,
+                "metadata_support": True
+            },
+            "chunking_configuration": {
+                "current": {
+                    "buffer_duration": whisper_service.config.get("buffer_duration", 4.0),
+                    "inference_interval": whisper_service.config.get("inference_interval", 3.0),
+                    "overlap_duration": whisper_service.config.get("overlap_duration", 0.2),
+                    "sample_rate": whisper_service.config.get("sample_rate", 16000)
+                },
+                "orchestration_compatible": {
+                    "chunk_duration": whisper_service.config.get("inference_interval", 3.0),
+                    "overlap_duration": whisper_service.config.get("overlap_duration", 0.2),
+                    "processing_interval": whisper_service.config.get("inference_interval", 3.0) * 0.8,
+                    "buffer_duration": whisper_service.config.get("buffer_duration", 4.0)
+                }
+            },
+            "endpoints": {
+                "orchestration_chunk_processing": "/api/process-chunk",
+                "legacy_transcription": "/transcribe",
+                "configuration": "/api/config",
+                "compatibility": "/api/compatibility",
+                "health": "/api/health"
+            },
+            "migration_notes": [
+                "Orchestration mode disables internal audio buffering",
+                "Chunk metadata provides processing context", 
+                "VAD and enhancement should be applied by orchestration service",
+                "Timing information is preserved through chunk metadata",
+                "Statistics include both legacy and orchestration metrics"
+            ]
+        }
+        
+        return jsonify(compatibility_info), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to get compatibility info: {e}")
+        return jsonify({"error": "Failed to retrieve compatibility information"}), 500
+
 
 if __name__ == '__main__':
     import argparse

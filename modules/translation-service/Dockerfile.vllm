@@ -1,8 +1,8 @@
 # vLLM Translation Server Dockerfile
 # Optimized for GPU acceleration and Qwen model support with CUDA 12.8
 
-# Use CUDA 12.8 base image for GPU acceleration
-FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
+# Use CUDA 12.2 base image for GPU acceleration (Docker Hub compatibility)
+FROM nvidia/cuda:12.2.2-devel-ubuntu22.04
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive

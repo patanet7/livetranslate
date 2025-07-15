@@ -1,0 +1,93 @@
+# LiveTranslate Orchestration Service - Audio Processing Configuration
+# Local configuration file for audio processing pipeline
+
+# Audio Processing Configuration
+audio_processing:
+  # Preset name for this configuration
+  preset_name: "default"
+  
+  # Version for compatibility tracking
+  version: "1.0.0"
+  
+  # Voice Activity Detection (VAD)
+  vad:
+    enabled: true
+    aggressiveness: 2  # 0-3, higher = more aggressive
+    energy_threshold: 0.01
+    speech_duration_threshold: 0.3
+    silence_duration_threshold: 0.5
+  
+  # Voice Frequency Filtering
+  voice_filter:
+    enabled: true
+    fundamental_min: 85   # Hz - minimum human voice frequency
+    fundamental_max: 300  # Hz - maximum human voice frequency
+    formant_preservation: true
+    sibilance_enhancement: true
+  
+  # Noise Reduction
+  noise_reduction:
+    enabled: false  # Disabled for loopback audio debugging
+    reduction_strength: 0.3
+    voice_protection: true
+    spectral_subtraction: false
+    adaptive_gating: true
+  
+  # Voice Enhancement
+  voice_enhancement:
+    enabled: true
+    compressor:
+      threshold: -20.0  # dB
+      ratio: 3.0
+      attack: 0.003    # seconds
+      release: 0.1     # seconds
+      mode: "soft_knee"  # soft_knee, hard_knee
+    clarity_enhancement: true
+    de_esser:
+      enabled: false
+      frequency: 6000  # Hz
+      threshold: -15.0 # dB
+  
+  # Quality Control
+  quality:
+    min_quality_threshold: 0.3
+    clipping_prevention: true
+    phase_coherence: true
+    artifact_detection: true
+  
+  # Performance
+  performance:
+    chunk_size: 1024
+    overlap_samples: 256
+    processing_threads: 2
+  
+  # Enabled stages (can be toggled individually)
+  enabled_stages:
+    - "vad"
+    - "voice_filter" 
+    - "voice_enhancement"
+    # "noise_reduction" is disabled for loopback compatibility
+
+# Preset Configurations
+presets:
+  default:
+    description: "Balanced processing for general use"
+    noise_reduction: false
+    voice_enhancement: true
+    
+  high_quality:
+    description: "Maximum quality processing"
+    noise_reduction: true
+    voice_enhancement: true
+    
+  low_latency:
+    description: "Minimal processing for low latency"
+    noise_reduction: false
+    voice_enhancement: false
+    enabled_stages: ["vad"]
+    
+  debug:
+    description: "Debug mode with minimal processing"
+    noise_reduction: false
+    voice_enhancement: false
+    enabled_stages: []

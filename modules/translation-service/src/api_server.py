@@ -7,17 +7,23 @@ Provides endpoints for translation, language detection, and service management.
 """
 
 import os
+import time
 import asyncio
 import logging
 from typing import Dict, Any, Optional
 import json
 from datetime import datetime
+from pathlib import Path
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import uuid
 
 from translation_service import TranslationService, TranslationRequest, create_translation_service
+from prompt_manager import PromptManager, PromptTemplate, PromptPerformanceMetric
+from vllm_server_simple import SimpleVLLMTranslationServer
+from nllb_translator import get_nllb_translator
+from llama_translator import get_llama_translator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,52 +40,215 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 # Global translation service instance
 translation_service: Optional[TranslationService] = None
 
+# Global prompt manager instance
+prompt_manager: Optional[PromptManager] = None
+
 # Active sessions
 active_sessions: Dict[str, Dict] = {}
 
-async def initialize_service():
-    """Initialize the translation service before handling requests"""
-    global translation_service
+# Global internal vLLM server instance
+internal_vllm_server: Optional[SimpleVLLMTranslationServer] = None
+
+# Global NLLB translator instance
+nllb_translator = None
+
+# Global Llama translator instance
+llama_translator = None
+
+def validate_local_model(model_path: str) -> tuple:
+    """
+    Validate that a local model directory contains required files
+    
+    Returns:
+        (is_valid, message): Boolean indicating if valid, and descriptive message
+    """
     try:
-        # Initialize translation service based on backend preference
-        backend = os.getenv("INFERENCE_BACKEND", "auto").lower()
+        model_path = Path(model_path)
         
-        if backend == "triton":
-            # Use Triton backend
-            config = {
-                "backend": "triton",
-                "triton_base_url": os.getenv("TRITON_BASE_URL", "http://localhost:8000"),
-                "model_name": os.getenv("MODEL_NAME", "vllm_model")
-            }
-            translation_service = await create_translation_service(config)
-            logger.info("Initialized with Triton backend")
+        if not model_path.exists():
+            return False, f"Model directory does not exist: {model_path}"
+        
+        if not model_path.is_dir():
+            return False, f"Model path is not a directory: {model_path}"
+        
+        # Check for required model files
+        required_files = ["config.json"]
+        model_files = [f for f in model_path.iterdir() if f.suffix in ['.bin', '.safetensors']]
+        tokenizer_files = [f for f in model_path.iterdir() if 'tokenizer' in f.name.lower()]
+        
+        missing_files = []
+        
+        # Check config.json
+        if not (model_path / "config.json").exists():
+            missing_files.append("config.json")
+        
+        # Check for model weights
+        if not model_files:
+            missing_files.append("model weights (.bin or .safetensors files)")
+        
+        # Check for tokenizer files
+        if not tokenizer_files:
+            missing_files.append("tokenizer files")
+        
+        if missing_files:
+            return False, f"Missing required files: {', '.join(missing_files)}"
+        
+        return True, f"Model directory is valid: {len(model_files)} model files, {len(tokenizer_files)} tokenizer files"
+        
+    except Exception as e:
+        return False, f"Error validating model: {str(e)}"
+
+# Global configuration storage
+current_config: Dict[str, Any] = {
+    "backend": "vllm",
+    "model_name": "./models/Llama-3.1-8B-Instruct",  # Local Llama model path
+    "temperature": 0.3,
+    "max_tokens": 1024,
+    "gpu_enable": True,
+    "use_internal_vllm": True,
+    "internal_port": 8010,
+    "version": "1.0.0"
+}
+
+async def initialize_internal_vllm() -> Optional[SimpleVLLMTranslationServer]:
+    """Initialize and start the internal vLLM server"""
+    global internal_vllm_server, current_config
+    
+    try:
+        # Use configuration from global config (with environment variable fallbacks)
+        # Default to local Llama model path
+        default_model = os.getenv("TRANSLATION_MODEL", current_config.get("model_name", "./models/Llama-3.1-8B-Instruct"))
+        logger.info(f"🎯 Using model: {default_model}")
+        vllm_port = int(os.getenv("VLLM_INTERNAL_PORT", current_config.get("internal_port", 8010)))
+        vllm_host = os.getenv("VLLM_INTERNAL_HOST", "0.0.0.0")
+        
+        # Validate local model if it's a local path
+        if default_model.startswith('./') or default_model.startswith('/'):
+            is_valid, validation_message = validate_local_model(default_model)
+            if not is_valid:
+                logger.error(f"❌ Model validation failed: {validation_message}")
+                logger.error(f"💡 Please ensure your model is downloaded to: {default_model}")
+                logger.error(f"💡 The model directory should contain: config.json, tokenizer files, and model weights")
+                return None
+            else:
+                logger.info(f"✅ Model validation passed: {validation_message}")
+        
+        # Update current config with actual values
+        current_config.update({
+            "model_name": default_model,
+            "internal_port": vllm_port,
+            "internal_host": vllm_host
+        })
+        
+        logger.info(f"🔧 Initializing internal vLLM server...")
+        logger.info(f"   Model: {default_model}")
+        logger.info(f"   Host: {vllm_host}:{vllm_port}")
+        
+        # Create internal vLLM server instance
+        internal_vllm_server = SimpleVLLMTranslationServer(
+            host=vllm_host,
+            port=vllm_port,
+            model_name=default_model
+        )
+        
+        # The server automatically starts model loading in background thread
+        # and starts HTTP/WebSocket servers
+        logger.info("✅ Internal vLLM server initialized successfully")
+        logger.info(f"   REST API: http://{vllm_host}:{vllm_port}")
+        logger.info(f"   Health Check: http://{vllm_host}:{vllm_port}/health")
+        logger.info(f"   Model loading in background...")
+        
+        return internal_vllm_server
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize internal vLLM server: {e}")
+        logger.error(f"   This may be due to insufficient GPU memory or missing dependencies")
+        logger.error(f"   Will fallback to external services...")
+        return None
+
+async def initialize_service():
+    """Initialize the translation service with internal vLLM server"""
+    global translation_service, prompt_manager
+    try:
+        logger.info("🚀 Starting LiveTranslate Translation Service with internal vLLM...")
+        
+        # Get the model path to decide which approach to use
+        default_model = os.getenv("TRANSLATION_MODEL", current_config.get("model_name", "./models/Llama-3.1-8B-Instruct"))
+        logger.info(f"🎯 Primary model: {default_model}")
+        
+        # Try direct transformers approach first (more reliable)
+        global llama_translator
+        if "llama" in default_model.lower() or "meta-llama" in default_model.lower():
+            logger.info("🔄 Llama model detected - using direct transformers implementation")
+            logger.info("💡 Using transformers.pipeline for better compatibility")
             
-        elif backend == "vllm":
-            # Use vLLM backend
-            config = {
-                "backend": "vllm",
-                "vllm_base_url": os.getenv("VLLM_BASE_URL", "http://localhost:8000")
-            }
-            translation_service = await create_translation_service(config)
-            logger.info("Initialized with vLLM backend")
+            device = "cuda" if current_config.get("gpu_enable") else "cpu"
+            try:
+                llama_translator = get_llama_translator(default_model, device)
+                
+                if llama_translator.is_ready:
+                    logger.info("✅ Llama translator initialized successfully")
+                    # Create a minimal translation service that uses the Llama translator
+                    translation_service = await create_translation_service({"backend": "llama_direct"})
+                else:
+                    logger.error("❌ Failed to initialize Llama translator")
+                    llama_translator = None
+            except Exception as llama_error:
+                logger.error(f"❌ Llama translator error: {llama_error}")
+                llama_translator = None
+        
+        # If Llama transformer failed, try NLLB as fallback (skip vLLM for now)
+        if llama_translator is None or not llama_translator.is_ready:
+            logger.info("🔄 Llama transformers failed, trying NLLB as fallback...")
+            logger.info("💡 Skipping vLLM due to compatibility issues")
             
-        elif backend == "ollama":
-            # Use Ollama backend  
-            config = {
-                "backend": "ollama",
-                "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-            }
-            translation_service = await create_translation_service(config)
-            logger.info("Initialized with Ollama backend")
+            # Try NLLB model as fallback
+            nllb_model_path = "./models/nllb-200-distilled-1.3B-8bit"
             
-        else:
-            # Auto-detect backend (Triton -> vLLM -> Ollama)
-            translation_service = await create_translation_service()
-            logger.info("Initialized with auto-detected backend")
+            # Try NLLB as fallback translator
+            logger.info("🔄 Trying NLLB model as backup translator...")
+            logger.info("💡 NLLB models use encoder-decoder architecture which requires transformers")
+            
+            global nllb_translator
+            device = "cuda" if current_config.get("gpu_enable") else "cpu"
+            try:
+                nllb_translator = get_nllb_translator(nllb_model_path, device)
+                if nllb_translator.is_ready:
+                    logger.info("✅ NLLB backup translator initialized successfully")
+                else:
+                    logger.warning("⚠️ NLLB backup translator failed to initialize")
+            except Exception as nllb_error:
+                logger.warning(f"⚠️ NLLB backup translator error: {nllb_error}")
+                nllb_translator = None
+            
+            # Initialize translation service with available translators
+            if nllb_translator and nllb_translator.is_ready:
+                logger.info("📱 Using NLLB translator as fallback")
+                translation_service = await create_translation_service({"backend": "nllb_direct"})
+            else:
+                # Try local Ollama as final fallback
+                logger.warning("⚠️ Trying local Ollama as final fallback...")
+                try:
+                    config = {
+                        "backend": "ollama",
+                        "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+                    }
+                    translation_service = await create_translation_service(config)
+                    logger.info("✅ Initialized with local Ollama fallback")
+                except Exception as ollama_error:
+                    logger.error(f"❌ Local Ollama fallback also failed: {ollama_error}")
+                    logger.error("💡 All translation backends failed")
+                    raise RuntimeError("Translation service initialization failed: No working backends available")
             
         logger.info("Translation service initialized successfully")
+        
+        # Initialize prompt manager
+        prompt_storage_path = os.getenv("PROMPT_STORAGE_PATH", "./prompts")
+        prompt_manager = PromptManager(storage_path=prompt_storage_path, enable_analytics=True)
+        logger.info("Prompt manager initialized successfully")
+        
     except Exception as e:
-        logger.error(f"Failed to initialize translation service: {e}")
+        logger.error(f"Failed to initialize services: {e}")
         raise
 
 # Initialize service on startup
@@ -128,7 +297,7 @@ async def get_status():
         return jsonify({"status": "error", "message": "Service not initialized"}), 503
     
     try:
-        status = await translation_service.get_service_status()
+        status = asyncio.run(translation_service.get_service_status())
         return jsonify({
             "status": "ok",
             "service": "translation",
@@ -161,7 +330,7 @@ async def get_device_info():
     
     try:
         # Get service status which includes device information
-        status = await translation_service.get_service_status()
+        status = asyncio.run(translation_service.get_service_status())
         backend = os.getenv("INFERENCE_BACKEND", "auto")
         
         # Determine device type and acceleration based on backend
@@ -236,6 +405,67 @@ async def get_device_info():
         logger.error(f"Failed to get device info: {e}")
         return jsonify({"error": str(e)}), 500
 
+# Configuration endpoints
+@app.route('/api/config', methods=['GET'])
+async def get_configuration():
+    """Get current service configuration"""
+    global current_config
+    
+    try:
+        # Add runtime information to configuration
+        runtime_config = current_config.copy()
+        runtime_config.update({
+            "service_status": "running" if translation_service else "initializing",
+            "internal_vllm_ready": internal_vllm_server.is_model_ready if internal_vllm_server else False,
+            "active_sessions": len(active_sessions),
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return jsonify({
+            "status": "success",
+            "configuration": runtime_config
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to get configuration: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/config', methods=['POST'])
+async def update_configuration():
+    """Update service configuration"""
+    global current_config
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No configuration data provided"}), 400
+        
+        # Track what changes were made
+        changes_applied = {}
+        
+        # Update allowed configuration parameters
+        allowed_params = ["backend", "model_name", "temperature", "max_tokens", "gpu_enable"]
+        for key, value in data.items():
+            if key in allowed_params:
+                old_value = current_config.get(key)
+                current_config[key] = value
+                changes_applied[key] = {"old": old_value, "new": value}
+                logger.info(f"Configuration updated: {key} = {value}")
+        
+        # Update timestamp
+        current_config["last_updated"] = datetime.now().isoformat()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Configuration updated successfully",
+            "changes_applied": changes_applied,
+            "configuration": current_config
+        })
+    
+    except Exception as e:
+        logger.error(f"Failed to update configuration: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # Translation endpoint
 @app.route('/translate', methods=['POST'])
 async def translate_text():
@@ -259,8 +489,65 @@ async def translate_text():
             context=data.get('context')
         )
         
-        # Perform translation
-        result = await translation_service.translate(translation_request)
+        # Check if we should use Llama translator directly
+        if llama_translator and llama_translator.is_ready:
+            logger.info("Using Llama transformer for direct translation")
+            try:
+                llama_result = llama_translator.translate(
+                    text=translation_request.text,
+                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
+                    target_lang=translation_request.target_language
+                )
+                
+                if "error" not in llama_result:
+                    logger.info(f"Llama translation result: {llama_result['translated_text']}")
+                    return jsonify({
+                        "translated_text": llama_result['translated_text'],
+                        "source_language": llama_result.get('source_language', translation_request.source_language or 'auto'),
+                        "target_language": llama_result.get('target_language', translation_request.target_language),
+                        "confidence": llama_result.get('confidence_score', 0.9),
+                        "confidence_score": llama_result.get('confidence_score', 0.9),
+                        "processing_time": llama_result.get('processing_time', 0.0),
+                        "backend_used": llama_result.get('backend_used', 'llama_transformers'),
+                        "session_id": translation_request.session_id,
+                        "timestamp": llama_result.get('timestamp', datetime.utcnow().isoformat()),
+                        "model_used": llama_result.get('model_used', 'llama-transformers')
+                    })
+                else:
+                    logger.warning(f"Llama translation error: {llama_result['error']}")
+            except Exception as llama_error:
+                logger.error(f"Llama translator failed: {llama_error}")
+        
+        # Check if we should use NLLB translator as fallback
+        elif nllb_translator and nllb_translator.is_ready:
+            logger.info("Using NLLB translator for direct translation")
+            try:
+                nllb_result = nllb_translator.translate(
+                    text=translation_request.text,
+                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
+                    target_lang=translation_request.target_language
+                )
+                
+                if "error" not in nllb_result:
+                    logger.info(f"NLLB translation result: {nllb_result['translated_text']}")
+                    return jsonify({
+                        "translated_text": nllb_result['translated_text'],
+                        "source_language": nllb_result.get('source_language', translation_request.source_language),
+                        "target_language": nllb_result.get('target_language', translation_request.target_language),
+                        "confidence_score": nllb_result.get('confidence_score', 0.9),
+                        "processing_time": nllb_result.get('processing_time', 0.0),
+                        "backend_used": nllb_result.get('backend_used', 'nllb_transformers'),
+                        "session_id": translation_request.session_id,
+                        "timestamp": nllb_result.get('timestamp', datetime.utcnow().isoformat()),
+                        "model_used": nllb_result.get('model_used', current_config.get('model_name', 'nllb'))
+                    })
+                else:
+                    logger.warning(f"NLLB translation error: {nllb_result['error']}")
+            except Exception as nllb_error:
+                logger.error(f"NLLB translator failed: {nllb_error}")
+        
+        # Fallback to standard translation service
+        result = asyncio.run(translation_service.translate(translation_request))
         
         return jsonify({
             "translated_text": result.translated_text,
@@ -275,6 +562,128 @@ async def translate_text():
         
     except Exception as e:
         logger.error(f"Translation failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# Simple test endpoint
+@app.route('/api/test', methods=['GET'])
+def api_test():
+    """Simple test endpoint"""
+    return jsonify({
+        "status": "ok",
+        "service": "translation-service",
+        "translation_service_initialized": translation_service is not None,
+        "fallback_mode": getattr(translation_service, 'fallback_mode', False) if translation_service else None
+    })
+
+# API endpoint for compatibility with orchestration service
+@app.route('/api/translate', methods=['POST'])
+def api_translate_text():
+    """API translate endpoint for orchestration service compatibility"""
+    global translation_service
+    
+    try:
+        # Check if service is initialized
+        if translation_service is None:
+            logger.error("Translation service not initialized")
+            return jsonify({"error": "Translation service not initialized"}), 503
+            
+        data = request.get_json()
+        if not data or 'text' not in data:
+            return jsonify({"error": "Missing 'text' field"}), 400
+        
+        logger.info(f"API translate request: {data}")
+        
+        # Create translation request
+        translation_request = TranslationRequest(
+            text=data['text'],
+            source_language=data.get('source_language', 'auto'),
+            target_language=data.get('target_language', 'en'),
+            session_id=data.get('session_id'),
+            confidence_threshold=data.get('confidence_threshold', 0.8),
+            preserve_formatting=data.get('preserve_formatting', True),
+            context=data.get('context')
+        )
+        
+        # Check if we should use Llama translator directly
+        if llama_translator and llama_translator.is_ready:
+            logger.info("Using Llama transformer for direct translation")
+            try:
+                llama_result = llama_translator.translate(
+                    text=translation_request.text,
+                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
+                    target_lang=translation_request.target_language
+                )
+                
+                if "error" not in llama_result:
+                    logger.info(f"Llama translation result: {llama_result['translated_text']}")
+                    return jsonify({
+                        "translated_text": llama_result['translated_text'],
+                        "source_language": llama_result.get('source_language', translation_request.source_language or 'auto'),
+                        "target_language": llama_result.get('target_language', translation_request.target_language),
+                        "confidence": llama_result.get('confidence_score', 0.9),
+                        "confidence_score": llama_result.get('confidence_score', 0.9),
+                        "processing_time": llama_result.get('processing_time', 0.0),
+                        "backend_used": llama_result.get('backend_used', 'llama_transformers'),
+                        "session_id": translation_request.session_id,
+                        "timestamp": llama_result.get('timestamp', datetime.utcnow().isoformat()),
+                        "model_used": llama_result.get('model_used', 'llama-transformers')
+                    })
+                else:
+                    logger.warning(f"Llama translation error: {llama_result['error']}")
+            except Exception as llama_error:
+                logger.error(f"Llama translator failed: {llama_error}")
+        
+        # Check if we should use NLLB translator as fallback
+        elif nllb_translator and nllb_translator.is_ready:
+            logger.info("Using NLLB translator for direct translation")
+            try:
+                nllb_result = nllb_translator.translate(
+                    text=translation_request.text,
+                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
+                    target_lang=translation_request.target_language
+                )
+                
+                if "error" not in nllb_result:
+                    logger.info(f"NLLB translation result: {nllb_result['translated_text']}")
+                    return jsonify({
+                        "translated_text": nllb_result['translated_text'],
+                        "source_language": nllb_result.get('source_language', translation_request.source_language),
+                        "target_language": nllb_result.get('target_language', translation_request.target_language),
+                        "confidence_score": nllb_result.get('confidence_score', 0.9),
+                        "processing_time": nllb_result.get('processing_time', 0.0),
+                        "backend_used": nllb_result.get('backend_used', 'nllb_transformers'),
+                        "session_id": translation_request.session_id,
+                        "timestamp": nllb_result.get('timestamp', datetime.utcnow().isoformat()),
+                        "model_used": nllb_result.get('model_used', current_config.get('model_name', 'nllb'))
+                    })
+                else:
+                    logger.warning(f"NLLB translation error: {nllb_result['error']}")
+            except Exception as nllb_error:
+                logger.error(f"NLLB translator failed: {nllb_error}")
+        
+        # Fallback to standard translation service
+        try:
+            result = asyncio.run(translation_service.translate(translation_request))
+            logger.info(f"Translation result: {result.translated_text}")
+        except Exception as trans_error:
+            logger.error(f"Translation execution failed: {trans_error}")
+            return jsonify({"error": f"Translation failed: {str(trans_error)}"}), 500
+        
+        return jsonify({
+            "translated_text": result.translated_text,
+            "source_language": result.source_language,
+            "target_language": result.target_language,
+            "confidence_score": result.confidence_score,
+            "processing_time": result.processing_time,
+            "backend_used": result.backend_used,
+            "session_id": result.session_id,
+            "timestamp": result.timestamp
+        })
+        
+    except Exception as e:
+        logger.error(f"API translate failed: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 # Streaming translation endpoint
@@ -361,13 +770,13 @@ async def translate_with_continuity():
         logger.info(f"Continuity translation request: session={session_id}, chunk={chunk_id}, clean_text='{clean_text[:50]}...'")
         
         # Process with continuity management (no deduplication needed)
-        result = await translation_service.translate_with_continuity(
+        result = asyncio.run(translation_service.translate_with_continuity(
             text=clean_text,
             session_id=session_id,
             target_language=target_language,
             source_language=source_language,
             chunk_id=chunk_id
-        )
+        ))
         
         # Add session context info
         context_info = translation_service.get_session_context_info(session_id)
@@ -407,13 +816,13 @@ async def process_clean_text():
         logger.info(f"Processing clean text from whisper service: session={session_id}, text='{clean_text[:50]}...'")
         
         # Process with continuity management
-        result = await translation_service.translate_with_continuity(
+        result = asyncio.run(translation_service.translate_with_continuity(
             text=clean_text,
             session_id=session_id,
             target_language=target_language,
             source_language=source_language,
             chunk_id=metadata.get('inference_number')
-        )
+        ))
         
         return jsonify({
             "status": "success",
@@ -468,7 +877,7 @@ async def detect_language():
         if not data or 'text' not in data:
             return jsonify({"error": "Missing 'text' field"}), 400
         
-        language, confidence = await translation_service.detect_language(data['text'])
+        language, confidence = asyncio.run(translation_service.detect_language(data['text']))
         
         return jsonify({
             "language": language,
@@ -488,7 +897,7 @@ async def get_supported_languages():
         return jsonify({"error": "Service not initialized"}), 503
     
     try:
-        languages = await translation_service.get_supported_languages()
+        languages = asyncio.run(translation_service.get_supported_languages())
         return jsonify({
             "languages": languages,
             "count": len(languages),
@@ -510,10 +919,10 @@ async def create_session():
         data = request.get_json() or {}
         session_id = data.get('session_id', str(uuid.uuid4()))
         
-        session_config = await translation_service.create_session(
+        session_config = asyncio.run(translation_service.create_session(
             session_id, 
             data.get('config')
-        )
+        ))
         
         # Track in active sessions
         active_sessions[session_id] = session_config
@@ -535,7 +944,7 @@ async def get_session(session_id: str):
         return jsonify({"error": "Service not initialized"}), 503
     
     try:
-        session = await translation_service.get_session(session_id)
+        session = asyncio.run(translation_service.get_session(session_id))
         if not session:
             return jsonify({"error": "Session not found"}), 404
         
@@ -556,7 +965,7 @@ async def close_session(session_id: str):
         return jsonify({"error": "Service not initialized"}), 503
     
     try:
-        session = await translation_service.close_session(session_id)
+        session = asyncio.run(translation_service.close_session(session_id))
         
         # Remove from active sessions
         active_sessions.pop(session_id, None)
@@ -658,6 +1067,510 @@ def handle_translate_stream(data):
     except Exception as e:
         logger.error(f"WebSocket streaming failed: {e}")
         emit('error', {'message': str(e)})
+
+# Prompt Management Endpoints
+
+@app.route('/prompts', methods=['GET'])
+def get_prompts():
+    """Get all prompt templates"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        filter_active = request.args.get('active', '').lower() == 'true'
+        category = request.args.get('category')
+        language_pair = request.args.get('language_pair')
+        
+        if filter_active:
+            prompts = prompt_manager.get_active_prompts()
+        elif category:
+            prompts = prompt_manager.get_prompts_by_category(category)
+        elif language_pair:
+            source_lang, target_lang = language_pair.split('-') if '-' in language_pair else ('auto', language_pair)
+            prompts = prompt_manager.get_prompts_for_language_pair(source_lang, target_lang)
+        else:
+            prompts = list(prompt_manager.prompts.values())
+        
+        # Convert to dict for JSON serialization
+        prompt_data = []
+        for prompt in prompts:
+            prompt_dict = {
+                'id': prompt.id,
+                'name': prompt.name,
+                'description': prompt.description,
+                'template': prompt.template,
+                'system_message': prompt.system_message,
+                'language_pairs': prompt.language_pairs,
+                'category': prompt.category,
+                'version': prompt.version,
+                'is_active': prompt.is_active,
+                'is_default': prompt.is_default,
+                'metadata': prompt.metadata,
+                'performance_metrics': prompt.performance_metrics,
+                'test_results': prompt.test_results
+            }
+            prompt_data.append(prompt_dict)
+        
+        return jsonify({
+            "prompts": prompt_data,
+            "total_count": len(prompt_data),
+            "filters_applied": {
+                "active_only": filter_active,
+                "category": category,
+                "language_pair": language_pair
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get prompts: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/<prompt_id>', methods=['GET'])
+def get_prompt(prompt_id):
+    """Get a specific prompt template"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        prompt = prompt_manager.get_prompt(prompt_id)
+        if not prompt:
+            return jsonify({"error": "Prompt not found"}), 404
+        
+        prompt_dict = {
+            'id': prompt.id,
+            'name': prompt.name,
+            'description': prompt.description,
+            'template': prompt.template,
+            'system_message': prompt.system_message,
+            'language_pairs': prompt.language_pairs,
+            'category': prompt.category,
+            'version': prompt.version,
+            'is_active': prompt.is_active,
+            'is_default': prompt.is_default,
+            'metadata': prompt.metadata,
+            'performance_metrics': prompt.performance_metrics,
+            'test_results': prompt.test_results
+        }
+        
+        return jsonify(prompt_dict)
+        
+    except Exception as e:
+        logger.error(f"Failed to get prompt {prompt_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts', methods=['POST'])
+def create_prompt():
+    """Create a new prompt template"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Validate required fields
+        required_fields = ['id', 'name', 'description', 'template']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
+        
+        # Create prompt template
+        prompt = PromptTemplate(
+            id=data['id'],
+            name=data['name'],
+            description=data['description'],
+            template=data['template'],
+            system_message=data.get('system_message'),
+            language_pairs=data.get('language_pairs', ['*']),
+            category=data.get('category', 'general'),
+            version=data.get('version', '1.0'),
+            is_active=data.get('is_active', True),
+            is_default=False,  # Only system can create default prompts
+            metadata=data.get('metadata', {})
+        )
+        
+        # Create the prompt
+        success = prompt_manager.create_prompt(prompt)
+        if not success:
+            return jsonify({"error": "Prompt with this ID already exists"}), 409
+        
+        return jsonify({
+            "message": "Prompt created successfully",
+            "prompt_id": prompt.id
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Failed to create prompt: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/<prompt_id>', methods=['PUT'])
+def update_prompt(prompt_id):
+    """Update an existing prompt template"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Update the prompt
+        success = prompt_manager.update_prompt(prompt_id, data)
+        if not success:
+            return jsonify({"error": "Prompt not found"}), 404
+        
+        return jsonify({
+            "message": "Prompt updated successfully",
+            "prompt_id": prompt_id
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to update prompt {prompt_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/<prompt_id>', methods=['DELETE'])
+def delete_prompt(prompt_id):
+    """Delete a prompt template"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        success = prompt_manager.delete_prompt(prompt_id)
+        if not success:
+            return jsonify({"error": "Prompt not found or cannot be deleted (default prompts are protected)"}), 404
+        
+        return jsonify({
+            "message": "Prompt deleted successfully",
+            "prompt_id": prompt_id
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to delete prompt {prompt_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/<prompt_id>/test', methods=['POST'])
+async def test_prompt(prompt_id):
+    """Test a prompt template with sample data"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    if translation_service is None:
+        return jsonify({"error": "Translation service not initialized"}), 503
+    
+    try:
+        data = request.get_json()
+        if not data or 'text' not in data:
+            return jsonify({"error": "Missing 'text' field"}), 400
+        
+        # Get prompt
+        prompt = prompt_manager.get_prompt(prompt_id)
+        if not prompt:
+            return jsonify({"error": "Prompt not found"}), 404
+        
+        # Build prompt with variables
+        variables = {
+            'text': data['text'],
+            'source_language': data.get('source_language', 'auto'),
+            'target_language': data.get('target_language', 'en'),
+            'context': data.get('context', ''),
+            'style': data.get('style', ''),
+            'domain': data.get('domain', ''),
+            'preserve_formatting': data.get('preserve_formatting', True)
+        }
+        
+        built_prompt, system_message = prompt_manager.build_prompt(prompt_id, variables)
+        if not built_prompt:
+            return jsonify({"error": "Failed to build prompt - missing variables"}), 400
+        
+        # Create translation request with custom prompt
+        start_time = time.time()
+        translation_request = TranslationRequest(
+            text=data['text'],
+            source_language=variables['source_language'],
+            target_language=variables['target_language'],
+            session_id=data.get('session_id'),
+            confidence_threshold=data.get('confidence_threshold', 0.8),
+            preserve_formatting=variables['preserve_formatting'],
+            context=variables['context'],
+            custom_prompt=built_prompt,
+            system_message=system_message
+        )
+        
+        # Perform translation using asyncio.run for sync/async compatibility
+        result = asyncio.run(translation_service.translate(translation_request))
+        processing_time = (time.time() - start_time) * 1000
+        
+        # Record performance metric
+        metric = PromptPerformanceMetric(
+            prompt_id=prompt_id,
+            quality_score=result.confidence_score,  # Using confidence as quality proxy
+            processing_time=processing_time,
+            confidence_score=result.confidence_score,
+            success=True,
+            timestamp=time.time(),
+            language_pair=f"{variables['source_language']}-{variables['target_language']}",
+            text_length=len(data['text'])
+        )
+        prompt_manager.record_performance(metric)
+        
+        return jsonify({
+            "test_result": {
+                "translated_text": result.translated_text,
+                "source_language": result.source_language,
+                "target_language": result.target_language,
+                "confidence": result.confidence_score,
+                "processing_time": processing_time,
+                "backend_used": result.backend_used,
+                "quality_score": result.confidence_score
+            },
+            "prompt_used": built_prompt,
+            "system_message": system_message,
+            "prompt_analysis": f"Test completed successfully. Quality: {result.confidence_score:.2f}, Speed: {processing_time:.0f}ms"
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to test prompt {prompt_id}: {e}")
+        
+        # Record failed metric
+        if prompt_manager and 'data' in locals():
+            metric = PromptPerformanceMetric(
+                prompt_id=prompt_id,
+                quality_score=0.0,
+                processing_time=0.0,
+                confidence_score=0.0,
+                success=False,
+                timestamp=time.time(),
+                language_pair=f"{data.get('source_language', 'auto')}-{data.get('target_language', 'en')}",
+                text_length=len(data.get('text', '')),
+                error_message=str(e)
+            )
+            prompt_manager.record_performance(metric)
+        
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/<prompt_id>/performance', methods=['GET'])
+def get_prompt_performance(prompt_id):
+    """Get performance analysis for a prompt"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        analysis = prompt_manager.get_performance_analysis(prompt_id)
+        return jsonify(analysis)
+        
+    except Exception as e:
+        logger.error(f"Failed to get performance analysis for prompt {prompt_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/compare', methods=['POST'])
+def compare_prompts():
+    """Compare performance of multiple prompts"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        data = request.get_json()
+        if not data or 'prompt_ids' not in data:
+            return jsonify({"error": "Missing 'prompt_ids' field"}), 400
+        
+        prompt_ids = data['prompt_ids']
+        days = data.get('days', 7)
+        
+        comparison = prompt_manager.compare_prompts(prompt_ids, days)
+        return jsonify(comparison)
+        
+    except Exception as e:
+        logger.error(f"Failed to compare prompts: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/statistics', methods=['GET'])
+def get_prompt_statistics():
+    """Get overall prompt management statistics"""
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        stats = prompt_manager.get_prompt_statistics()
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Failed to get prompt statistics: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/prompts/categories', methods=['GET'])
+def get_prompt_categories():
+    """Get available prompt categories"""
+    categories = [
+        {'value': 'general', 'label': 'General Purpose', 'description': 'Standard translation prompts'},
+        {'value': 'conversational', 'label': 'Conversational', 'description': 'Natural conversational style'},
+        {'value': 'technical', 'label': 'Technical', 'description': 'Technical documentation and manuals'},
+        {'value': 'medical', 'label': 'Medical', 'description': 'Medical and healthcare content'},
+        {'value': 'legal', 'label': 'Legal', 'description': 'Legal documents and contracts'},
+        {'value': 'creative', 'label': 'Creative', 'description': 'Literary and creative content'},
+        {'value': 'formal', 'label': 'Formal', 'description': 'Business and formal communications'}
+    ]
+    
+    return jsonify({
+        "categories": categories,
+        "total_count": len(categories)
+    })
+
+@app.route('/prompts/variables', methods=['GET'])
+def get_prompt_variables():
+    """Get available prompt template variables"""
+    variables = [
+        {
+            'name': 'text',
+            'description': 'The text to be translated',
+            'type': 'text',
+            'required': True,
+            'example': 'Hello world!'
+        },
+        {
+            'name': 'source_language',
+            'description': 'Source language code or name',
+            'type': 'language',
+            'required': True,
+            'example': 'English'
+        },
+        {
+            'name': 'target_language',
+            'description': 'Target language code or name',
+            'type': 'language',
+            'required': True,
+            'example': 'Spanish'
+        },
+        {
+            'name': 'context',
+            'description': 'Additional context for translation',
+            'type': 'text',
+            'required': False,
+            'example': 'This is a greeting message'
+        },
+        {
+            'name': 'style',
+            'description': 'Translation style (formal, casual, etc.)',
+            'type': 'text',
+            'required': False,
+            'example': 'formal'
+        },
+        {
+            'name': 'domain',
+            'description': 'Domain/field (medical, legal, technical)',
+            'type': 'text',
+            'required': False,
+            'example': 'medical'
+        },
+        {
+            'name': 'preserve_formatting',
+            'description': 'Whether to preserve text formatting',
+            'type': 'boolean',
+            'required': False,
+            'default_value': True
+        }
+    ]
+    
+    return jsonify({
+        "variables": variables,
+        "usage_example": "Use variables like {text}, {source_language}, {target_language} in your prompt templates"
+    })
+
+# Enhanced translation endpoint with prompt support
+@app.route('/translate/with_prompt', methods=['POST'])
+async def translate_with_custom_prompt():
+    """Translate text using a specific prompt template"""
+    if translation_service is None:
+        return jsonify({"error": "Translation service not initialized"}), 503
+    
+    if prompt_manager is None:
+        return jsonify({"error": "Prompt manager not initialized"}), 503
+    
+    try:
+        data = request.get_json()
+        if not data or 'text' not in data:
+            return jsonify({"error": "Missing 'text' field"}), 400
+        
+        prompt_id = data.get('prompt_id', 'default')
+        
+        # Build prompt with variables
+        variables = {
+            'text': data['text'],
+            'source_language': data.get('source_language', 'auto'),
+            'target_language': data.get('target_language', 'en'),
+            'context': data.get('context', ''),
+            'style': data.get('style', ''),
+            'domain': data.get('domain', ''),
+            'preserve_formatting': data.get('preserve_formatting', True)
+        }
+        
+        built_prompt, system_message = prompt_manager.build_prompt(prompt_id, variables)
+        if not built_prompt:
+            return jsonify({"error": "Failed to build prompt - check prompt template and variables"}), 400
+        
+        # Create translation request with custom prompt
+        start_time = time.time()
+        translation_request = TranslationRequest(
+            text=data['text'],
+            source_language=variables['source_language'],
+            target_language=variables['target_language'],
+            session_id=data.get('session_id'),
+            confidence_threshold=data.get('confidence_threshold', 0.8),
+            preserve_formatting=variables['preserve_formatting'],
+            context=variables['context'],
+            custom_prompt=built_prompt,
+            system_message=system_message
+        )
+        
+        # Perform translation using asyncio.run for sync/async compatibility
+        result = asyncio.run(translation_service.translate(translation_request))
+        processing_time = (time.time() - start_time) * 1000
+        
+        # Record performance metric
+        metric = PromptPerformanceMetric(
+            prompt_id=prompt_id,
+            quality_score=result.confidence_score,
+            processing_time=processing_time,
+            confidence_score=result.confidence_score,
+            success=True,
+            timestamp=time.time(),
+            language_pair=f"{variables['source_language']}-{variables['target_language']}",
+            text_length=len(data['text'])
+        )
+        prompt_manager.record_performance(metric)
+        
+        return jsonify({
+            "translated_text": result.translated_text,
+            "source_language": result.source_language,
+            "target_language": result.target_language,
+            "confidence_score": result.confidence_score,
+            "processing_time": processing_time,
+            "backend_used": result.backend_used,
+            "session_id": result.session_id,
+            "timestamp": result.timestamp,
+            "prompt_id": prompt_id,
+            "prompt_used": built_prompt
+        })
+        
+    except Exception as e:
+        logger.error(f"Translation with prompt failed: {e}")
+        
+        # Record failed metric
+        if 'data' in locals() and 'prompt_id' in locals():
+            metric = PromptPerformanceMetric(
+                prompt_id=prompt_id,
+                quality_score=0.0,
+                processing_time=0.0,
+                confidence_score=0.0,
+                success=False,
+                timestamp=time.time(),
+                language_pair=f"{data.get('source_language', 'auto')}-{data.get('target_language', 'en')}",
+                text_length=len(data.get('text', '')),
+                error_message=str(e)
+            )
+            prompt_manager.record_performance(metric)
+        
+        return jsonify({"error": str(e)}), 500
 
 # Error handlers
 @app.errorhandler(404)

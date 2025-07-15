@@ -16,8 +16,10 @@ import AudioProcessingSettings from './components/AudioProcessingSettings';
 import ChunkingSettings from './components/ChunkingSettings';
 import CorrelationSettings from './components/CorrelationSettings';
 import TranslationSettings from './components/TranslationSettings';
+import { PromptManagementSettings } from './components/PromptManagementSettings';
 import SystemSettings from './components/SystemSettings';
 import BotSettings from './components/BotSettings';
+import ConfigSyncSettings from './components/ConfigSyncSettings';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -99,8 +101,10 @@ const Settings: React.FC = () => {
               <Tab label="Chunking" {...a11yProps(1)} />
               <Tab label="Speaker Correlation" {...a11yProps(2)} />
               <Tab label="Translation" {...a11yProps(3)} />
-              <Tab label="Bot Management" {...a11yProps(4)} />
-              <Tab label="System" {...a11yProps(5)} />
+              <Tab label="Prompt Management" {...a11yProps(4)} />
+              <Tab label="Bot Management" {...a11yProps(5)} />
+              <Tab label="Config Sync" {...a11yProps(6)} />
+              <Tab label="System" {...a11yProps(7)} />
             </Tabs>
           </Box>
 
@@ -122,10 +126,18 @@ const Settings: React.FC = () => {
             </TabPanel>
             
             <TabPanel value={activeTab} index={4}>
-              <BotSettings onSave={handleSettingsSaved} />
+              <PromptManagementSettings />
             </TabPanel>
             
             <TabPanel value={activeTab} index={5}>
+              <BotSettings onSave={handleSettingsSaved} />
+            </TabPanel>
+            
+            <TabPanel value={activeTab} index={6}>
+              <ConfigSyncSettings onSave={handleSettingsSaved} />
+            </TabPanel>
+            
+            <TabPanel value={activeTab} index={7}>
               <SystemSettings onSave={handleSettingsSaved} />
             </TabPanel>
           </CardContent>

@@ -9,6 +9,7 @@ import logging
 import time
 import psutil
 import aiohttp
+import ssl
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict
@@ -51,22 +52,40 @@ class SystemMetrics:
 class HealthMonitor:
     """Simple health monitoring manager"""
     
-    def __init__(self):
+    def __init__(self, settings=None):
+        self.settings = settings
         self.services = {}
+        
+        # Get service URLs from configuration if available, otherwise use defaults
+        if settings:
+            audio_service_url = settings.services.audio_service_url
+            translation_service_url = settings.services.translation_service_url
+            orchestration_url = f"http://{settings.host}:{settings.port}"
+        else:
+            # Fallback defaults
+            audio_service_url = "http://localhost:5001"
+            translation_service_url = "http://localhost:5003"
+            orchestration_url = "http://localhost:3000"
+        
         self.service_configs = {
             "whisper": {
-                "url": "http://localhost:5001",
+                "url": audio_service_url,
                 "health_endpoint": "/health"
             },
             "translation": {
-                "url": "http://localhost:5003", 
+                "url": translation_service_url,
                 "health_endpoint": "/api/health"
             },
             "orchestration": {
-                "url": "http://localhost:3000",
+                "url": orchestration_url,
                 "health_endpoint": "/api/system/status"
             }
         }
+        
+        # Create SSL context that doesn't verify certificates for localhost
+        self.ssl_context = ssl.create_default_context()
+        self.ssl_context.check_hostname = False
+        self.ssl_context.verify_mode = ssl.CERT_NONE
         
         # Initialize service trackers
         for name, config in self.service_configs.items():
@@ -78,7 +97,7 @@ class HealthMonitor:
                 response_time=0
             )
         
-        logger.info("Health monitor initialized")
+        logger.info(f"Health monitor initialized with service URLs: {[config['url'] for config in self.service_configs.values()]}")
     
     async def get_system_health(self) -> Dict[str, Any]:
         """Get overall system health"""
@@ -98,10 +117,13 @@ class HealthMonitor:
             else:
                 overall_status = "unknown"
             
+            services_dict = {name: asdict(service) for name, service in self.services.items()}
+            logger.info(f"Health check returning services: {list(services_dict.keys())}")
+            
             return {
                 "status": overall_status,
                 "timestamp": time.time(),
-                "services": {name: asdict(service) for name, service in self.services.items()},
+                "services": services_dict,
                 "performance": asdict(performance),
                 "uptime": time.time() - psutil.boot_time()
             }
@@ -187,22 +209,57 @@ class HealthMonitor:
         
         try:
             start_time = time.time()
+            logger.info(f"Checking health for {service_name} at: {health_url}")
             
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.get(health_url) as response:
-                    response_time = (time.time() - start_time) * 1000  # ms
-                    
-                    if response.status == 200:
-                        service.status = "healthy"
-                        service.error_count = 0
-                        service.last_error = None
-                    else:
-                        service.status = "unhealthy"
-                        service.error_count += 1
-                        service.last_error = f"HTTP {response.status}"
-                    
-                    service.response_time = response_time
-                    service.last_check = time.time()
+            # For HTTP URLs, don't use any SSL configuration
+            if health_url.startswith("http://"):
+                logger.debug(f"Using plain HTTP connection for {service_name}")
+                # Explicitly disable SSL for HTTP connections
+                connector = aiohttp.TCPConnector(ssl=False)
+                async with aiohttp.ClientSession(
+                    connector=connector,
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as session:
+                    async with session.get(health_url) as response:
+                        response_time = (time.time() - start_time) * 1000  # ms
+                        
+                        if response.status == 200:
+                            service.status = "healthy"
+                            service.error_count = 0
+                            service.last_error = None
+                            logger.debug(f"Service {service_name} health check successful: {health_url}")
+                        else:
+                            service.status = "unhealthy"
+                            service.error_count += 1
+                            service.last_error = f"HTTP {response.status}"
+                            logger.warning(f"Service {service_name} health check failed with HTTP {response.status}: {health_url}")
+                        
+                        service.response_time = response_time
+                        service.last_check = time.time()
+            else:
+                # HTTPS URLs need SSL context
+                logger.debug(f"Using HTTPS connection for {service_name}")
+                connector = aiohttp.TCPConnector(ssl=self.ssl_context)
+                async with aiohttp.ClientSession(
+                    connector=connector,
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as session:
+                    async with session.get(health_url) as response:
+                        response_time = (time.time() - start_time) * 1000  # ms
+                        
+                        if response.status == 200:
+                            service.status = "healthy"
+                            service.error_count = 0
+                            service.last_error = None
+                            logger.debug(f"Service {service_name} health check successful: {health_url}")
+                        else:
+                            service.status = "unhealthy"
+                            service.error_count += 1
+                            service.last_error = f"HTTP {response.status}"
+                            logger.warning(f"Service {service_name} health check failed with HTTP {response.status}: {health_url}")
+                        
+                        service.response_time = response_time
+                        service.last_check = time.time()
                     
         except asyncio.TimeoutError:
             service.status = "unhealthy"
@@ -210,13 +267,41 @@ class HealthMonitor:
             service.last_error = "Connection timeout"
             service.response_time = 5000  # Timeout value
             service.last_check = time.time()
+            logger.warning(f"Service {service_name} health check timeout: {health_url}")
+            
+        except aiohttp.ClientConnectorError as e:
+            # More specific error handling for connection issues
+            service.status = "unhealthy"
+            service.error_count += 1
+            error_msg = str(e)
+            
+            # Check if this is an SSL error on an HTTP endpoint
+            if "ssl" in error_msg.lower() and health_url.startswith("http://"):
+                service.last_error = "SSL error on HTTP endpoint - check configuration"
+                logger.error(f"SSL error for {service_name} at {health_url} - this usually means HTTPS is being forced on an HTTP endpoint")
+                logger.error(f"  Full error: {error_msg}")
+            else:
+                service.last_error = f"Connection error: {error_msg}"
+                logger.error(f"Connection error for {service_name} at {health_url}: {error_msg}")
+            
+            service.response_time = 0
+            service.last_check = time.time()
             
         except Exception as e:
             service.status = "unhealthy"
             service.error_count += 1
-            service.last_error = str(e)
+            service.last_error = f"{e.__class__.__name__}: {str(e)}"
             service.response_time = 0
             service.last_check = time.time()
+            logger.error(f"Service {service_name} health check error: {health_url}")
+            logger.error(f"  Error type: {e.__class__.__name__}")
+            logger.error(f"  Error details: {str(e)}")
+            
+            # Additional debug info for SSL errors
+            if "ssl" in str(e).lower():
+                logger.error(f"  This appears to be an SSL/TLS error")
+                logger.error(f"  URL scheme: {health_url.split('://')[0]}")
+                logger.error(f"  If using HTTP, ensure no HTTPS redirect is happening")
     
     async def get_all_services_status(self) -> List[Dict[str, Any]]:
         """Get status of all services"""
