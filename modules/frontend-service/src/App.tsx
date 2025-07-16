@@ -26,6 +26,7 @@ import { initializeUI, setBreakpoint } from '@/store/slices/uiSlice';
 // Lazy-loaded pages for code splitting
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
 const AudioTesting = React.lazy(() => import('@/pages/AudioTesting'));
+const PipelineStudio = React.lazy(() => import('@/pages/PipelineStudio'));
 const TranscriptionTesting = React.lazy(() => import('@/pages/TranscriptionTesting'));
 const TranslationTesting = React.lazy(() => import('@/pages/TranslationTesting'));
 const MeetingTest = React.lazy(() => import('@/pages/MeetingTest'));
@@ -88,6 +89,10 @@ const App: React.FC = () => {
                   {/* Audio Testing */}
                   <Route path="/audio-test" element={<AudioTesting />} />
                   <Route path="/audio-testing" element={<AudioTesting />} />
+                  
+                  {/* Pipeline Studio */}
+                  <Route path="/pipeline-studio" element={<PipelineStudio />} />
+                  <Route path="/pipeline" element={<PipelineStudio />} />
                   
                   {/* Transcription Testing */}
                   <Route path="/transcription-testing" element={<TranscriptionTesting />} />

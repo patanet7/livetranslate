@@ -608,21 +608,21 @@ async def transcribe_with_model(model_name: str):
         result = await whisper_service.transcribe(transcription_request)
         processing_time = time.time() - start_time
         
-        # Check for hallucinations (repetitive text)
+        # Improved repetitive text detection - only flag extreme cases
         if result and result.text:
             words = result.text.split()
-            if len(words) > 10:
-                # Check if text is highly repetitive
+            if len(words) > 15:  # Only check longer texts
+                # Check if text is extremely repetitive
                 unique_words = set(words)
                 repetition_ratio = len(unique_words) / len(words)
                 
-                if repetition_ratio < 0.1:  # Less than 10% unique words
-                    logger.warning(f"[WHISPER] Detected hallucination - repetition ratio: {repetition_ratio:.2f}")
+                if repetition_ratio < 0.15:  # Less than 15% unique words (was 10%)
+                    logger.warning(f"[WHISPER] Detected extreme repetition - ratio: {repetition_ratio:.2f}")
                     logger.warning(f"[WHISPER] Original text: {result.text[:100]}...")
                     
-                    # Return empty result for hallucinated text
-                    result.text = "[Audio unclear - please try again]"
-                    result.confidence_score = 0.1
+                    # Reduce confidence but don't completely invalidate
+                    result.confidence_score = max(0.2, result.confidence_score * 0.5)
+                    logger.info(f"[WHISPER] Adjusted confidence to {result.confidence_score:.3f} due to repetition")
         
         logger.info(f"[WHISPER] ✅ Transcription completed successfully")
         logger.info(f"[WHISPER] 📝 Result: '{result.text}'")

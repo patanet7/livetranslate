@@ -99,6 +99,11 @@ try:
     import_logger.info("[OK] translation_router imported successfully")
     routers_status['translation_router'] = {'status': 'success', 'routes': len(translation_router.routes) if hasattr(translation_router, 'routes') else 0}
     
+    import_logger.debug("Importing analytics_router...")
+    from routers.analytics import router as analytics_router
+    import_logger.info("[OK] analytics_router imported successfully")
+    routers_status['analytics_router'] = {'status': 'success', 'routes': len(analytics_router.routes) if hasattr(analytics_router, 'routes') else 0}
+    
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
@@ -324,7 +329,19 @@ registered_routes.append(("/api/settings", "settings_router"))
 router_logger.info(" settings_router registered successfully")
 
 # Register translation_router
-router_logger.info("[7] Registering translation_router...")
+# Register pipeline_router for Pipeline Studio
+router_logger.info("[7] Registering pipeline_router...")
+try:
+    from routers.pipeline import router as pipeline_router
+    log_router_details("pipeline_router", pipeline_router, "/api/pipeline")
+    conflicts = check_route_conflicts("/api/pipeline", "pipeline_router", registered_routes)
+    app.include_router(pipeline_router, prefix="/api/pipeline", tags=["Pipeline Processing"])
+    registered_routes.append(("/api/pipeline", "pipeline_router"))
+    router_logger.info("✓ pipeline_router registered successfully")
+except Exception as e:
+    router_logger.error(f"✗ Failed to register pipeline_router: {str(e)}")
+
+router_logger.info("[8] Registering translation_router...")
 log_router_details("translation_router", translation_router, "/api/translation")
 conflicts = check_route_conflicts("/api/translation", "translation_router", registered_routes)
 app.include_router(translation_router, prefix="/api/translation", tags=["Translation"])
@@ -338,6 +355,14 @@ conflicts = check_route_conflicts("/api/translate", "translation_router_alias", 
 app.include_router(translation_router, prefix="/api/translate", tags=["Translation Direct"])
 registered_routes.append(("/api/translate", "translation_router_alias"))
 router_logger.info(" translation_router compatibility alias registered successfully")
+
+# Register analytics_router
+router_logger.info("[9] Registering analytics_router...")
+log_router_details("analytics_router", analytics_router, "/api/analytics")
+conflicts = check_route_conflicts("/api/analytics", "analytics_router", registered_routes)
+app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
+registered_routes.append(("/api/analytics", "analytics_router"))
+router_logger.info(" analytics_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
