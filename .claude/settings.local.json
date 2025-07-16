@@ -9,7 +9,11 @@
       "Bash(python:*)",
       "Bash(source:*)",
       "Bash(conda activate:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(cp:*)",
+      "Bash(chmod:*)",
+      "Bash(git clone:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }
