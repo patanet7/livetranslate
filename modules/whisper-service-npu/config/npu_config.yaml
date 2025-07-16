@@ -1,0 +1,157 @@
+# NPU-Specific Configuration for Intel NPU Optimized Whisper Service
+
+# NPU Hardware Configuration
+npu:
+  # Device detection and fallback
+  device_priority: ["NPU", "GPU", "CPU"]
+  auto_detect: true
+  fallback_timeout: 10  # seconds
+  
+  # NPU-specific optimizations
+  precision: "FP16"  # FP16, FP32, INT8
+  batch_size: 1      # NPU works best with batch_size=1
+  threads: 1         # NPU threads (usually 1)
+  
+  # Memory management
+  memory_pool_size: "2GB"
+  cache_models: true
+  max_cached_models: 3
+  
+  # Power management
+  power_profile: "balanced"  # performance, balanced, power_saver
+  thermal_throttling: true
+  
+# OpenVINO Configuration
+openvino:
+  # Model format preferences
+  model_format: "IR"  # IR (Intermediate Representation)
+  cache_dir: "cache/openvino"
+  
+  # Performance optimization
+  enable_dynamic_shapes: false
+  inference_precision: "FP16"
+  
+  # Device-specific settings
+  npu_config:
+    PERFORMANCE_HINT: "LATENCY"
+    INFERENCE_PRECISION_HINT: "f16"
+    
+  gpu_config:
+    PERFORMANCE_HINT: "THROUGHPUT"
+    INFERENCE_PRECISION_HINT: "f16"
+    
+  cpu_config:
+    PERFORMANCE_HINT: "LATENCY"
+    INFERENCE_NUM_THREADS: 4
+
+# Model Configuration
+models:
+  # Supported models for NPU
+  supported_models:
+    - "whisper-tiny"
+    - "whisper-base"
+    - "whisper-small"
+    # Note: medium/large may require GPU/CPU fallback
+  
+  # Default model
+  default_model: "whisper-base"
+  
+  # Model paths (relative to models directory)
+  model_paths:
+    openvino: "openvino/{model_name}"
+    base: "base/{model_name}"
+    cache: "cache/openvino/{model_name}"
+  
+  # Model conversion settings
+  conversion:
+    auto_convert: true
+    quantization: "FP16"  # FP16, INT8
+    compression: true
+
+# Audio Processing
+audio:
+  # Input settings
+  sample_rate: 16000
+  channels: 1
+  format: "float32"
+  
+  # Processing settings
+  chunk_duration: 30.0    # seconds
+  overlap_duration: 1.0   # seconds
+  vad_enabled: true
+  
+  # NPU-optimized preprocessing
+  normalize: true
+  noise_reduction: false  # Disabled for NPU to reduce overhead
+  
+# Streaming Configuration
+streaming:
+  # Real-time settings
+  buffer_duration: 6.0    # seconds
+  inference_interval: 3.0 # seconds
+  max_buffer_size: "100MB"
+  
+  # NPU-specific streaming
+  low_latency_mode: true
+  predictive_loading: true
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 5001
+  workers: 1  # NPU services typically run single worker
+  
+  # Endpoints
+  endpoints:
+    health: "/health"
+    models: "/api/models"
+    device_info: "/api/device-info"
+    transcribe: "/transcribe"
+    process_chunk: "/api/process-chunk"
+  
+  # Request limits
+  max_file_size: "50MB"
+  request_timeout: 30
+  concurrent_requests: 5  # Conservative for NPU
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "structured"
+  
+  # NPU-specific logging
+  log_device_stats: true
+  log_power_usage: true
+  log_thermal_status: true
+  
+  # Performance logging
+  log_inference_time: true
+  log_memory_usage: true
+
+# Monitoring
+monitoring:
+  # Health checks
+  health_check_interval: 30
+  
+  # Metrics
+  enable_metrics: true
+  metrics_port: 9001
+  
+  # NPU-specific metrics
+  track_npu_utilization: true
+  track_power_consumption: true
+  track_thermal_status: true
+
+# Error Handling
+error_handling:
+  # Fallback strategy
+  enable_fallback: true
+  fallback_chain: ["GPU", "CPU"]
+  
+  # Retry configuration
+  max_retries: 3
+  retry_delay: 1.0
+  
+  # Recovery
+  auto_recovery: true
+  recovery_timeout: 60

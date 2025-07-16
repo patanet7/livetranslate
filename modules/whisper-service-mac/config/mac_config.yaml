@@ -1,0 +1,199 @@
+# macOS-Specific Configuration for Apple Silicon Optimized Whisper Service
+
+# Apple Silicon Configuration
+apple_silicon:
+  # Device detection and acceleration
+  metal_enabled: true
+  coreml_enabled: true
+  ane_enabled: true  # Apple Neural Engine
+  unified_memory: true
+  
+  # Performance optimization
+  threads: 4  # Optimal for Apple Silicon
+  precision: "FP16"  # Best for Metal/ANE
+  batch_size: 1
+  
+  # Memory management
+  memory_pool_size: "4GB"  # Unified memory pool
+  cache_models: true
+  max_cached_models: 5
+  
+  # Thermal management
+  thermal_monitoring: true
+  performance_scaling: true
+
+# whisper.cpp Configuration
+whispercpp:
+  # Model format preferences
+  model_format: "GGML"  # Native whisper.cpp format
+  quantization: "q5_0"  # Good balance of size/quality
+  
+  # Build options
+  metal_enabled: true
+  coreml_enabled: true
+  accelerate_enabled: true
+  
+  # Performance settings
+  threads: 4
+  n_processors: 1
+  use_gpu: true
+
+# Model Configuration
+models:
+  # Supported GGML models for macOS
+  supported_models:
+    - "ggml-tiny.en"
+    - "ggml-base.en"
+    - "ggml-small.en"
+    - "ggml-medium.en"
+    - "ggml-large-v3"
+  
+  # Default model
+  default_model: "ggml-base.en"
+  
+  # Model paths (relative to models directory)
+  model_paths:
+    ggml: "ggml/{model_name}.bin"
+    ggml_quantized: "ggml/{model_name}-{quantization}.bin"
+    coreml: "ggml/{model_name}-encoder.mlmodelc"
+    base: "base/{model_name}"
+  
+  # Model download settings
+  auto_download: true
+  download_source: "https://huggingface.co/ggerganov/whisper.cpp"
+  
+  # Core ML model generation
+  coreml:
+    auto_generate: true
+    encoder_only: true  # Generate Core ML for encoder only
+    precision: "fp16"
+
+# Audio Processing
+audio:
+  # Input settings
+  sample_rate: 16000
+  channels: 1
+  format: "float32"
+  
+  # Processing settings
+  chunk_duration: 30.0    # seconds
+  overlap_duration: 1.0   # seconds
+  vad_enabled: true
+  
+  # macOS-optimized preprocessing
+  normalize: true
+  noise_reduction: false  # Keep minimal for performance
+  
+  # AudioUnit integration
+  audio_unit:
+    enabled: true
+    buffer_size: 1024
+    use_hardware_codec: true
+
+# Streaming Configuration
+streaming:
+  # Real-time settings
+  buffer_duration: 6.0    # seconds
+  inference_interval: 2.0 # seconds (faster on Apple Silicon)
+  max_buffer_size: "200MB"
+  
+  # Apple Silicon streaming optimizations
+  metal_compute: true
+  unified_memory_access: true
+  predictive_loading: true
+  
+  # Word-level timestamps
+  word_timestamps: true
+  max_len: 1  # Enable word-level timing
+
+# API Configuration
+api:
+  host: "0.0.0.0"
+  port: 5002  # Different port from NPU service
+  workers: 1  # Single worker optimal for whisper.cpp
+  
+  # Endpoints
+  endpoints:
+    health: "/health"
+    models: "/api/models"
+    device_info: "/api/device-info"
+    transcribe: "/transcribe"
+    process_chunk: "/api/process-chunk"
+    word_timestamps: "/api/word-timestamps"
+  
+  # Request limits
+  max_file_size: "100MB"  # Larger files OK with Apple Silicon
+  request_timeout: 60
+  concurrent_requests: 3  # Can handle more concurrent requests
+
+# Performance Optimization
+performance:
+  # Metal compute settings
+  metal:
+    command_buffer_size: 4
+    resource_options: "storage_mode_shared"
+    use_unified_memory: true
+  
+  # Core ML settings
+  coreml:
+    compute_units: "all"  # Use ANE + GPU + CPU
+    prediction_options:
+      use_cpu_only: false
+  
+  # Memory optimization
+  memory:
+    mmap_models: true  # Memory-mapped model loading
+    preload_models: false  # Load on demand
+    cache_size: "2GB"
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "structured"
+  
+  # macOS-specific logging
+  log_metal_usage: true
+  log_coreml_performance: true
+  log_thermal_status: true
+  
+  # Performance logging
+  log_inference_time: true
+  log_memory_usage: true
+  log_word_timestamps: true
+
+# Monitoring
+monitoring:
+  # Health checks
+  health_check_interval: 30
+  
+  # Metrics
+  enable_metrics: true
+  metrics_port: 9002
+  
+  # Apple Silicon metrics
+  track_metal_utilization: true
+  track_ane_usage: true
+  track_thermal_status: true
+  track_power_consumption: true
+
+# Integration
+integration:
+  # Orchestration service
+  orchestration_endpoint: "http://localhost:3000"
+  register_on_startup: true
+  
+  # Service discovery
+  service_name: "whisper-service-mac"
+  capabilities: ["metal", "coreml", "ane", "word_timestamps", "real_time"]
+  priority: 2  # Second priority after NPU
+
+# Development
+development:
+  debug_mode: false
+  hot_reload: false
+  benchmark_mode: false
+  
+  # Debugging options
+  debug_metal: false
+  debug_coreml: false
+  profile_inference: false
