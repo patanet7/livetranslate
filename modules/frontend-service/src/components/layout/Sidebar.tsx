@@ -87,6 +87,14 @@ export const Sidebar: React.FC = () => {
       icon: <AudioFile />,
     },
     {
+      id: 'pipeline-studio',
+      label: 'Pipeline Studio',
+      path: '/pipeline-studio',
+      icon: <Equalizer />,
+      badge: 'NEW',
+      badgeColor: 'primary',
+    },
+    {
       id: 'transcription',
       label: 'Transcription Testing',
       path: '/transcription-testing',

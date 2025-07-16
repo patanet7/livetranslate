@@ -298,33 +298,38 @@ const MeetingTest: React.FC = () => {
   // Handle response from streaming endpoint directly (no WebSocket needed for simple testing)
   const handleStreamingResponse = useCallback((response: any, chunkId: string) => {
     try {
-      if (response.transcription_result && processingConfig.enableTranscription) {
+      // Look for transcription in processing_result (backend format) or transcription_result (fallback)
+      const transcriptionData = response.processing_result || response.transcription_result;
+      
+      if (transcriptionData && processingConfig.enableTranscription) {
         const result: TranscriptionResult = {
-          id: response.transcription_result.id || `trans_${Date.now()}`,
+          id: transcriptionData.id || `transcription-${Date.now()}-${chunkId}`,
           chunkId: chunkId,
-          text: response.transcription_result.text || response.transcription_result.transcription || '',
-          confidence: response.transcription_result.confidence || 0.9,
-          language: response.transcription_result.language || 'en',
-          speakers: response.transcription_result.speakers,
+          text: transcriptionData.text || transcriptionData.transcription || '',
+          confidence: transcriptionData.confidence || transcriptionData.confidence_score || 0.9,
+          language: transcriptionData.language || transcriptionData.detected_language || 'en',
+          speakers: transcriptionData.speakers || transcriptionData.segments?.speakers,
           timestamp: Date.now(),
-          processing_time: response.processing_time || 0
+          processing_time: transcriptionData.processing_time || response.processing_time || 0
         };
         
         setTranscriptionResults(prev => [...prev, result]);
         
         dispatch(addProcessingLog({
           level: 'SUCCESS',
-          message: `Transcription: "${result.text.substring(0, 50)}..."`,
+          message: `Transcription: "${result.text.substring(0, 50)}..." (confidence: ${(result.confidence * 100).toFixed(1)}%)`,
           timestamp: Date.now()
         }));
       }
       
       if (response.translations && processingConfig.enableTranslation) {
         Object.entries(response.translations).forEach(([lang, translation]: [string, any]) => {
+          const transcriptionText = transcriptionData?.text || transcriptionData?.transcription || '';
+          
           const result: TranslationResult = {
-            id: `trans_${Date.now()}_${lang}`,
-            transcriptionId: response.transcription_result?.id || '',
-            sourceText: translation.source_text || response.transcription_result?.text || '',
+            id: `translation-${Date.now()}-${chunkId}-${lang}`,
+            transcriptionId: transcriptionData?.id || '',
+            sourceText: translation.source_text || transcriptionText,
             translatedText: translation.translated_text || '',
             sourceLanguage: translation.source_language || 'en',
             targetLanguage: lang,

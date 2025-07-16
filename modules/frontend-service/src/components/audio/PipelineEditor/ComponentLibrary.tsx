@@ -966,6 +966,8 @@ const ComponentLibrary: React.FC<ComponentLibraryProps> = ({
   };
 
   const handleDragStart = (event: React.DragEvent, component: AudioComponent) => {
+    event.dataTransfer.setData('application/audioComponent', JSON.stringify(component));
+    event.dataTransfer.effectAllowed = 'move';
     onDragStart(event, component);
   };
 
@@ -1048,14 +1050,14 @@ const ComponentLibrary: React.FC<ComponentLibraryProps> = ({
                       }}
                     >
                       <ListItemIcon sx={{ minWidth: 36 }}>
-                        <component.icon 
-                          sx={{ 
+                        {React.createElement(component.icon, { 
+                          sx: { 
                             fontSize: 20,
                             color: component.type === 'input' ? '#2196f3' :
                                    component.type === 'processing' ? '#4caf50' :
                                    component.type === 'output' ? '#ff9800' : '#9e9e9e'
-                          }} 
-                        />
+                          }
+                        })}
                       </ListItemIcon>
                       
                       <ListItemText

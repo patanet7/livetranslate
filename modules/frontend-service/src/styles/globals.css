@@ -248,3 +248,81 @@ body {
     }
   }
 }
+
+/* ReactFlow Pipeline Studio Fixes */
+.react-flow__renderer {
+  margin: 0 !important;
+  padding: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.react-flow__background {
+  margin: 0 !important;
+  padding: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+.react-flow__container {
+  margin: 0 !important;
+  padding: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+}
+
+.react-flow__viewport {
+  margin: 0 !important;
+  padding: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+  transform-origin: 0 0 !important;
+}
+
+/* Pipeline Studio specific overrides */
+.pipeline-studio .react-flow {
+  margin: 0 !important;
+  padding: 0 !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.pipeline-studio .react-flow__background {
+  margin: 0 !important;
+  padding: 0 !important;
+  left: 0 !important;
+  top: 0 !important;
+}
+
+/* Fix ReactFlow panels positioning */
+.react-flow__panel {
+  margin: 8px !important;
+}
+
+/* Position minimap in top-right corner */
+.react-flow__minimap {
+  top: 8px !important;
+  right: 8px !important;
+  left: auto !important;
+  bottom: auto !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Ensure ReactFlow fills the entire container */
+.react-flow__pane {
+  cursor: default !important;
+}

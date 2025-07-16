@@ -205,7 +205,11 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
                 alignItems: 'center',
               }}
             >
-              <data.icon sx={{ fontSize: 16 }} />
+              {data.icon && typeof data.icon === 'function' ? (
+                React.createElement(data.icon, { sx: { fontSize: 16 } })
+              ) : (
+                <Settings sx={{ fontSize: 16 }} />
+              )}
             </Box>
             <Typography variant="subtitle2" fontWeight="bold">
               {data.label}
@@ -267,6 +271,8 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
                 step={0.5}
                 size="small"
                 onChange={(_, value) => onGainChange(id, 'in', value as number)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 sx={{
                   color: colors.primary,
                   '& .MuiSlider-thumb': {
@@ -296,6 +302,8 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
                 step={0.5}
                 size="small"
                 onChange={(_, value) => onGainChange(id, 'out', value as number)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 sx={{
                   color: colors.primary,
                   '& .MuiSlider-thumb': {
