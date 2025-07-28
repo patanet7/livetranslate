@@ -448,21 +448,21 @@ async def upload_audio_file(
                         config_details={"config_error": str(e)}
                     )
 
-        # Create processing request
-        processing_request = AudioProcessingRequest(
-            audio_data=None,
-            file_upload=request_id,
-            config=audio_config,
-            transcription=transcription,
-            speaker_diarization=speaker_diarization,
-            session_id=session_id,
-            metadata={
-                "filename": audio.filename,
-                "file_size": file_size,
-                "content_type": audio.content_type,
-                "upload_timestamp": datetime.utcnow().isoformat(),
-            },
-        )
+            # Create processing request
+            processing_request = AudioProcessingRequest(
+                audio_data=None,
+                file_upload=request_id,
+                config=audio_config,
+                transcription=transcription,
+                speaker_diarization=speaker_diarization,
+                session_id=session_id,
+                metadata={
+                    "filename": audio.filename,
+                    "file_size": file_size,
+                    "content_type": audio.content_type,
+                    "upload_timestamp": datetime.utcnow().isoformat(),
+                },
+            )
 
             # Store file temporarily with error handling
             try:
@@ -520,149 +520,149 @@ async def upload_audio_file(
                     details={"processing_error": str(e)}
                 )
 
-        # Initialize response
-        response = {
-            "request_id": request_id,
-            "filename": audio.filename,
-            "file_size": file_size,
-            "audio_metadata": audio_metadata,
-            "processing_result": result,
-            "translations": {},
-        }
+            # Initialize response
+            response = {
+                "request_id": request_id,
+                "filename": audio.filename,
+                "file_size": file_size,
+                "audio_metadata": audio_metadata,
+                "processing_result": result,
+                "translations": {},
+            }
 
-        # Process translation if requested
-        logger.info(
-            f"[{request_id}] Translation check - target_languages: {target_languages}, enable_translation: {enable_translation}, result: {type(result) if result else None}"
-        )
-        logger.info(f"[{request_id}] Raw target_languages parameter: {repr(target_languages)}")
-        if target_languages and enable_translation and result:
-            try:
-                # Parse target languages
-                target_langs = (
-                    json.loads(target_languages)
-                    if isinstance(target_languages, str)
-                    else target_languages
-                )
-                if not isinstance(target_langs, list):
-                    target_langs = [target_langs]
-
-                logger.info(f"[{request_id}] Parsed target_langs: {target_langs} (type: {type(target_langs)})")
-                logger.info(f"[{request_id}] Starting translation to languages: {target_langs}")
-
-                # Extract transcription text from result
-                transcription_text = None
-                source_language = None
-
-                if isinstance(result, dict):
-                    # Try different possible keys for the transcription text
-                    transcription_text = (
-                        result.get("text")
-                        or result.get("transcription")
-                        or result.get("transcript")
+            # Process translation if requested
+            logger.info(
+                f"[{request_id}] Translation check - target_languages: {target_languages}, enable_translation: {enable_translation}, result: {type(result) if result else None}"
+            )
+            logger.info(f"[{request_id}] Raw target_languages parameter: {repr(target_languages)}")
+            if target_languages and enable_translation and result:
+                try:
+                    # Parse target languages
+                    target_langs = (
+                        json.loads(target_languages)
+                        if isinstance(target_languages, str)
+                        else target_languages
                     )
-                    source_language = result.get("language") or result.get("detected_language")
-                elif hasattr(result, "text"):
-                    transcription_text = result.text
-                    source_language = getattr(result, "language", None)
+                    if not isinstance(target_langs, list):
+                        target_langs = [target_langs]
 
-                if transcription_text and transcription_text.strip():
-                    logger.info(
-                        f"[{request_id}] Found transcription text: '{transcription_text[:50]}...' (source: {source_language})"
-                    )
-                    # Use the enhanced translation client method
-                    translation_results = await translation_client.translate_to_multiple_languages(
-                        text=transcription_text,
-                        source_language=source_language,
-                        target_languages=target_langs,
-                        quality=translation_quality or "balanced",
-                    )
-                    logger.info(
-                        f"[{request_id}] Translation client returned {len(translation_results)} results: {list(translation_results.keys())}"
-                    )
+                    logger.info(f"[{request_id}] Parsed target_langs: {target_langs} (type: {type(target_langs)})")
+                    logger.info(f"[{request_id}] Starting translation to languages: {target_langs}")
 
-                    # Convert TranslationResponse objects to dictionaries
-                    translations_dict = {}
-                    for lang, trans_response in translation_results.items():
-                        try:
-                            # Try Pydantic v2 first, then v1, then manual conversion
-                            if hasattr(trans_response, "model_dump"):
-                                translations_dict[lang] = trans_response.model_dump()
-                            elif hasattr(trans_response, "dict"):
-                                translations_dict[lang] = trans_response.dict()
-                            else:
-                                # Manual conversion for non-pydantic objects
+                    # Extract transcription text from result
+                    transcription_text = None
+                    source_language = None
+
+                    if isinstance(result, dict):
+                        # Try different possible keys for the transcription text
+                        transcription_text = (
+                            result.get("text")
+                            or result.get("transcription")
+                            or result.get("transcript")
+                        )
+                        source_language = result.get("language") or result.get("detected_language")
+                    elif hasattr(result, "text"):
+                        transcription_text = result.text
+                        source_language = getattr(result, "language", None)
+
+                    if transcription_text and transcription_text.strip():
+                        logger.info(
+                            f"[{request_id}] Found transcription text: '{transcription_text[:50]}...' (source: {source_language})"
+                        )
+                        # Use the enhanced translation client method
+                        translation_results = await translation_client.translate_to_multiple_languages(
+                            text=transcription_text,
+                            source_language=source_language,
+                            target_languages=target_langs,
+                            quality=translation_quality or "balanced",
+                        )
+                        logger.info(
+                            f"[{request_id}] Translation client returned {len(translation_results)} results: {list(translation_results.keys())}"
+                        )
+
+                        # Convert TranslationResponse objects to dictionaries
+                        translations_dict = {}
+                        for lang, trans_response in translation_results.items():
+                            try:
+                                # Try Pydantic v2 first, then v1, then manual conversion
+                                if hasattr(trans_response, "model_dump"):
+                                    translations_dict[lang] = trans_response.model_dump()
+                                elif hasattr(trans_response, "dict"):
+                                    translations_dict[lang] = trans_response.dict()
+                                else:
+                                    # Manual conversion for non-pydantic objects
+                                    translations_dict[lang] = {
+                                        "translated_text": getattr(
+                                            trans_response,
+                                            "translated_text",
+                                            str(trans_response),
+                                        ),
+                                        "source_language": getattr(
+                                            trans_response,
+                                            "source_language",
+                                            source_language,
+                                        ),
+                                        "target_language": getattr(
+                                            trans_response, "target_language", lang
+                                        ),
+                                        "confidence": getattr(trans_response, "confidence", 0.0),
+                                        "processing_time": getattr(
+                                            trans_response, "processing_time", 0.0
+                                        ),
+                                        "model_used": getattr(trans_response, "model_used", "unknown"),
+                                        "backend_used": getattr(
+                                            trans_response, "backend_used", "unknown"
+                                        ),
+                                        "session_id": getattr(trans_response, "session_id", None),
+                                        "timestamp": getattr(trans_response, "timestamp", None),
+                                    }
+                            except Exception as conversion_error:
+                                logger.warning(
+                                    f"[{request_id}] Failed to convert translation for {lang}: {conversion_error}"
+                                )
+                                # Create a basic response
                                 translations_dict[lang] = {
-                                    "translated_text": getattr(
-                                        trans_response,
-                                        "translated_text",
-                                        str(trans_response),
-                                    ),
-                                    "source_language": getattr(
-                                        trans_response,
-                                        "source_language",
-                                        source_language,
-                                    ),
-                                    "target_language": getattr(
-                                        trans_response, "target_language", lang
-                                    ),
-                                    "confidence": getattr(trans_response, "confidence", 0.0),
-                                    "processing_time": getattr(
-                                        trans_response, "processing_time", 0.0
-                                    ),
-                                    "model_used": getattr(trans_response, "model_used", "unknown"),
-                                    "backend_used": getattr(
-                                        trans_response, "backend_used", "unknown"
-                                    ),
-                                    "session_id": getattr(trans_response, "session_id", None),
-                                    "timestamp": getattr(trans_response, "timestamp", None),
+                                    "translated_text": f"Translation conversion failed: {str(conversion_error)}",
+                                    "source_language": source_language or "auto",
+                                    "target_language": lang,
+                                    "confidence": 0.0,
+                                    "processing_time": 0.0,
+                                    "model_used": "error",
+                                    "backend_used": "error",
+                                    "session_id": None,
+                                    "timestamp": datetime.utcnow().isoformat(),
                                 }
-                        except Exception as conversion_error:
-                            logger.warning(
-                                f"[{request_id}] Failed to convert translation for {lang}: {conversion_error}"
-                            )
-                            # Create a basic response
-                            translations_dict[lang] = {
-                                "translated_text": f"Translation conversion failed: {str(conversion_error)}",
-                                "source_language": source_language or "auto",
-                                "target_language": lang,
-                                "confidence": 0.0,
-                                "processing_time": 0.0,
-                                "model_used": "error",
-                                "backend_used": "error",
-                                "session_id": None,
-                                "timestamp": datetime.utcnow().isoformat(),
-                            }
 
-                    response["translations"] = translations_dict
-                    logger.info(
-                        f"[{request_id}] Translation completed for {len(translations_dict)} languages"
-                    )
-                else:
-                    logger.warning(f"[{request_id}] No transcription text found for translation")
-                    response[
-                        "translation_error"
-                    ] = "No transcription text available for translation"
+                        response["translations"] = translations_dict
+                        logger.info(
+                            f"[{request_id}] Translation completed for {len(translations_dict)} languages"
+                        )
+                    else:
+                        logger.warning(f"[{request_id}] No transcription text found for translation")
+                        response[
+                            "translation_error"
+                        ] = "No transcription text available for translation"
 
-            except json.JSONDecodeError as e:
-                error_msg = f"Invalid target_languages format: {str(e)}"
-                logger.error(f"[{request_id}] Invalid target_languages JSON: {str(e)}")
-                response["translation_error"] = error_msg
-            except Exception as e:
-                error_msg = f"Translation failed: {str(e)}"
-                logger.error(f"[{request_id}] Translation failed: {str(e)}")
-                response["translation_error"] = error_msg
+                except json.JSONDecodeError as e:
+                    error_msg = f"Invalid target_languages format: {str(e)}"
+                    logger.error(f"[{request_id}] Invalid target_languages JSON: {str(e)}")
+                    response["translation_error"] = error_msg
+                except Exception as e:
+                    error_msg = f"Translation failed: {str(e)}"
+                    logger.error(f"[{request_id}] Translation failed: {str(e)}")
+                    response["translation_error"] = error_msg
 
-        return response
+            return response
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"[{request_id}] File upload processing failed: {error_msg}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"File upload processing failed: {error_msg}",
-        )
+        except HTTPException:
+            raise
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"[{request_id}] File upload processing failed: {error_msg}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"File upload processing failed: {error_msg}",
+            )
 
 
 @router.get("/stream/{session_id}")

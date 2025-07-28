@@ -46,7 +46,8 @@ from utils.audio_errors import (
     ModelLoadingError, ModelInferenceError, ValidationError as WhisperValidationError,
     ConfigurationError, MemoryError, HardwareError, TimeoutError as WhisperTimeoutError,
     CircuitBreaker, ErrorRecoveryStrategy, ModelRecoveryStrategy, FormatRecoveryStrategy,
-    ErrorLogger, error_boundary, default_circuit_breaker, default_error_logger
+    ErrorLogger, error_boundary, default_circuit_breaker, default_error_logger,
+    model_recovery, format_recovery
 )
 
 # Configure logging
@@ -556,121 +557,121 @@ async def transcribe_with_model(model_name: str):
             
             # Enhanced input validation
             await _validate_transcription_request(request, model_name, correlation_id)
-        
-        # Check if model is loaded or needs loading
-        if whisper_service.model_manager and model_name not in whisper_service.model_manager.pipelines:
-            logger.info(f"[WHISPER] 🔄 Model {model_name} not loaded, loading now...")
-        else:
-            logger.info(f"[WHISPER] ✅ Model {model_name} already loaded and ready")
-        
-        # Handle different content types
-        logger.info(f"[WHISPER] 📥 Request content type: {request.content_type}")
-        logger.info(f"[WHISPER] 📁 Request files keys: {list(request.files.keys()) if request.files else 'None'}")
-        logger.info(f"[WHISPER] 📝 Request form keys: {list(request.form.keys()) if request.form else 'None'}")
-        logger.info(f"[WHISPER] 📊 Request data length: {len(request.data) if request.data else 0}")
-        
-        if request.content_type and 'multipart/form-data' in request.content_type:
-            # File upload
-            if 'audio' not in request.files:
-                logger.error(f"No 'audio' field in files. Available fields: {list(request.files.keys())}")
-                return jsonify({"error": "No audio file provided"}), 400
             
-            audio_file = request.files['audio']
-            if audio_file.filename == '':
-                return jsonify({"error": "No file selected"}), 400
+            # Check if model is loaded or needs loading
+            if whisper_service.model_manager and model_name not in whisper_service.model_manager.pipelines:
+                logger.info(f"[WHISPER] 🔄 Model {model_name} not loaded, loading now...")
+            else:
+                logger.info(f"[WHISPER] ✅ Model {model_name} already loaded and ready")
             
-            # Read audio data
-            audio_data = audio_file.read()
+            # Handle different content types
+            logger.info(f"[WHISPER] 📥 Request content type: {request.content_type}")
+            logger.info(f"[WHISPER] 📁 Request files keys: {list(request.files.keys()) if request.files else 'None'}")
+            logger.info(f"[WHISPER] 📝 Request form keys: {list(request.form.keys()) if request.form else 'None'}")
+            logger.info(f"[WHISPER] 📊 Request data length: {len(request.data) if request.data else 0}")
             
-        elif request.content_type and 'application/octet-stream' in request.content_type:
-            # Raw audio data
-            audio_data = request.data
-            logger.info(f"Received raw audio data: {len(audio_data)} bytes")
-            
-        elif request.data and len(request.data) > 0:
-            # Fallback: try to use raw data if available
-            audio_data = request.data
-            logger.info(f"Fallback: using raw request data: {len(audio_data)} bytes")
-            
-        else:
-            logger.error(f"Unsupported request format. Content-Type: {request.content_type}, Files: {bool(request.files)}, Data: {len(request.data) if request.data else 0}")
-            return jsonify({"error": "Unsupported content type. Use multipart/form-data or application/octet-stream"}), 400
-        
-        # Get additional parameters
-        language = request.form.get('language') if request.form else None
-        session_id = request.form.get('session_id') if request.form else None
-        enable_vad = request.form.get('enable_vad', 'false').lower() == 'true' if request.form else False  # Temporarily disable VAD to debug
-        
-        # Process audio
-        logger.info(f"[WHISPER] 🔊 Processing audio data: {len(audio_data)} bytes")
-        audio_array = _process_audio_data(audio_data)
-        logger.info(f"[WHISPER] 📊 Audio processed to array: {audio_array.shape if hasattr(audio_array, 'shape') else len(audio_array)} samples")
-        
-        # Audio quality debug info
-        if hasattr(audio_array, 'shape') and len(audio_array) > 0:
-            duration = len(audio_array) / 16000  # Duration in seconds at 16kHz
-            rms_level = np.sqrt(np.mean(audio_array**2))
-            max_amplitude = np.max(np.abs(audio_array))
-            logger.info(f"[WHISPER] 🎵 Audio duration: {duration:.3f}s, RMS: {rms_level:.6f}, Max amp: {max_amplitude:.3f}")
-            logger.info(f"[WHISPER] 🎯 VAD enabled: {enable_vad}")
-        else:
-            logger.warning(f"[WHISPER] ⚠️ Invalid audio array: {type(audio_array)}")
-        
-        # Create transcription request
-        transcription_request = TranscriptionRequest(
-            audio_data=audio_array,
-            model_name=model_name,
-            language=language,
-            session_id=session_id,
-            enable_vad=enable_vad,
-            sample_rate=16000
-        )
-        
-        # Perform transcription
-        logger.info(f"[WHISPER] 🚀 Starting transcription with model: {model_name}")
-        start_time = time.time()
-        result = await whisper_service.transcribe(transcription_request)
-        processing_time = time.time() - start_time
-        
-        # Improved repetitive text detection - only flag extreme cases
-        if result and result.text:
-            words = result.text.split()
-            if len(words) > 15:  # Only check longer texts
-                # Check if text is extremely repetitive
-                unique_words = set(words)
-                repetition_ratio = len(unique_words) / len(words)
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                # File upload
+                if 'audio' not in request.files:
+                    logger.error(f"No 'audio' field in files. Available fields: {list(request.files.keys())}")
+                    return jsonify({"error": "No audio file provided"}), 400
                 
-                if repetition_ratio < 0.15:  # Less than 15% unique words (was 10%)
-                    logger.warning(f"[WHISPER] Detected extreme repetition - ratio: {repetition_ratio:.2f}")
-                    logger.warning(f"[WHISPER] Original text: {result.text[:100]}...")
+                audio_file = request.files['audio']
+                if audio_file.filename == '':
+                    return jsonify({"error": "No file selected"}), 400
+                
+                # Read audio data
+                audio_data = audio_file.read()
+                
+            elif request.content_type and 'application/octet-stream' in request.content_type:
+                # Raw audio data
+                audio_data = request.data
+                logger.info(f"Received raw audio data: {len(audio_data)} bytes")
+                
+            elif request.data and len(request.data) > 0:
+                # Fallback: try to use raw data if available
+                audio_data = request.data
+                logger.info(f"Fallback: using raw request data: {len(audio_data)} bytes")
+                
+            else:
+                logger.error(f"Unsupported request format. Content-Type: {request.content_type}, Files: {bool(request.files)}, Data: {len(request.data) if request.data else 0}")
+                return jsonify({"error": "Unsupported content type. Use multipart/form-data or application/octet-stream"}), 400
+            
+            # Get additional parameters
+            language = request.form.get('language') if request.form else None
+            session_id = request.form.get('session_id') if request.form else None
+            enable_vad = request.form.get('enable_vad', 'false').lower() == 'true' if request.form else False  # Temporarily disable VAD to debug
+            
+            # Process audio
+            logger.info(f"[WHISPER] 🔊 Processing audio data: {len(audio_data)} bytes")
+            audio_array = _process_audio_data(audio_data)
+            logger.info(f"[WHISPER] 📊 Audio processed to array: {audio_array.shape if hasattr(audio_array, 'shape') else len(audio_array)} samples")
+            
+            # Audio quality debug info
+            if hasattr(audio_array, 'shape') and len(audio_array) > 0:
+                duration = len(audio_array) / 16000  # Duration in seconds at 16kHz
+                rms_level = np.sqrt(np.mean(audio_array**2))
+                max_amplitude = np.max(np.abs(audio_array))
+                logger.info(f"[WHISPER] 🎵 Audio duration: {duration:.3f}s, RMS: {rms_level:.6f}, Max amp: {max_amplitude:.3f}")
+                logger.info(f"[WHISPER] 🎯 VAD enabled: {enable_vad}")
+            else:
+                logger.warning(f"[WHISPER] ⚠️ Invalid audio array: {type(audio_array)}")
+            
+            # Create transcription request
+            transcription_request = TranscriptionRequest(
+                audio_data=audio_array,
+                model_name=model_name,
+                language=language,
+                session_id=session_id,
+                enable_vad=enable_vad,
+                sample_rate=16000
+            )
+            
+            # Perform transcription
+            logger.info(f"[WHISPER] 🚀 Starting transcription with model: {model_name}")
+            start_time = time.time()
+            result = await whisper_service.transcribe(transcription_request)
+            processing_time = time.time() - start_time
+            
+            # Improved repetitive text detection - only flag extreme cases
+            if result and result.text:
+                words = result.text.split()
+                if len(words) > 15:  # Only check longer texts
+                    # Check if text is extremely repetitive
+                    unique_words = set(words)
+                    repetition_ratio = len(unique_words) / len(words)
                     
-                    # Reduce confidence but don't completely invalidate
-                    result.confidence_score = max(0.2, result.confidence_score * 0.5)
-                    logger.info(f"[WHISPER] Adjusted confidence to {result.confidence_score:.3f} due to repetition")
-        
-        logger.info(f"[WHISPER] ✅ Transcription completed successfully")
-        logger.info(f"[WHISPER] 📝 Result: '{result.text}'")
-        logger.info(f"[WHISPER] ⏱️ Processing time: {processing_time:.2f}s")
-        logger.info(f"[WHISPER] 🧠 Model used: {result.model_used}")
-        logger.info(f"[WHISPER] 💻 Device used: {result.device_used}")
-        logger.info(f"[WHISPER] 🌍 Language detected: {result.language}")
-        logger.info(f"[WHISPER] 📊 Confidence: {result.confidence_score:.2f}")
-        
-        return jsonify({
-            "text": result.text,
-            "segments": result.segments,
-            "language": result.language,
-            "confidence": result.confidence_score,
-            "processing_time": result.processing_time,
-            "model_used": result.model_used,
-            "device_used": result.device_used,
-            "timestamp": result.timestamp,
-            "session_id": result.session_id
-        })
-        
-    except Exception as e:
-        logger.error(f"Transcription failed: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+                    if repetition_ratio < 0.15:  # Less than 15% unique words (was 10%)
+                        logger.warning(f"[WHISPER] Detected extreme repetition - ratio: {repetition_ratio:.2f}")
+                        logger.warning(f"[WHISPER] Original text: {result.text[:100]}...")
+                        
+                        # Reduce confidence but don't completely invalidate
+                        result.confidence_score = max(0.2, result.confidence_score * 0.5)
+                        logger.info(f"[WHISPER] Adjusted confidence to {result.confidence_score:.3f} due to repetition")
+            
+            logger.info(f"[WHISPER] ✅ Transcription completed successfully")
+            logger.info(f"[WHISPER] 📝 Result: '{result.text}'")
+            logger.info(f"[WHISPER] ⏱️ Processing time: {processing_time:.2f}s")
+            logger.info(f"[WHISPER] 🧠 Model used: {result.model_used}")
+            logger.info(f"[WHISPER] 💻 Device used: {result.device_used}")
+            logger.info(f"[WHISPER] 🌍 Language detected: {result.language}")
+            logger.info(f"[WHISPER] 📊 Confidence: {result.confidence_score:.2f}")
+            
+            return jsonify({
+                "text": result.text,
+                "segments": result.segments,
+                "language": result.language,
+                "confidence": result.confidence_score,
+                "processing_time": result.processing_time,
+                "model_used": result.model_used,
+                "device_used": result.device_used,
+                "timestamp": result.timestamp,
+                "session_id": result.session_id
+            })
+            
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}", exc_info=True)
+            return jsonify({"error": str(e)}), 500
 
 # Enhanced transcription with preprocessing
 @app.route('/transcribe/enhanced/<model_name>', methods=['POST'])
@@ -2355,15 +2356,75 @@ def _process_audio_data(audio_data: bytes, enhance: bool = False, target_sr: int
                     
         except Exception as direct_error:
             logger.warning(f"[AUDIO] Direct processing failed: {direct_error}")
-            # Universal fallback: Create temp file and use librosa
-            suffix = '.wav' if format_hint == 'unknown' else f'.{format_hint}'
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_file:
-                tmp_file.write(audio_data)
-                tmp_file.flush()
-                audio_array, current_sr = librosa.load(tmp_file.name, sr=target_sr, dtype=np.float32)
-                os.unlink(tmp_file.name)
-            processing_stages.append("librosa_fallback")
-            current_sr = target_sr  # librosa already resampled
+            # Universal fallback: Try pydub with proper file handling
+            tmp_file_path = None
+            try:
+                # First try pydub (works with most formats via ffmpeg)
+                suffix = '.wav' if format_hint == 'unknown' else f'.{format_hint}'
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_file:
+                    tmp_file.write(audio_data)
+                    tmp_file.flush()
+                    tmp_file_path = tmp_file.name
+                
+                # Try pydub conversion
+                audio_segment = AudioSegment.from_file(tmp_file_path)
+                
+                # Convert to mono and get raw data
+                if audio_segment.channels > 1:
+                    audio_segment = audio_segment.set_channels(1)
+                
+                # Get raw audio data
+                samples = np.array(audio_segment.get_array_of_samples(), dtype=np.float32)
+                
+                # Normalize based on bit depth
+                if audio_segment.sample_width == 2:  # 16-bit
+                    audio_array = samples / 32768.0
+                elif audio_segment.sample_width == 4:  # 32-bit
+                    audio_array = samples / 2147483648.0
+                else:  # 8-bit or other
+                    audio_array = (samples - 128) / 128.0
+                
+                current_sr = audio_segment.frame_rate
+                processing_stages.append("pydub_fallback")
+                
+            except Exception as pydub_error:
+                logger.warning(f"[AUDIO] Pydub fallback failed: {pydub_error}")
+                # Last resort: Convert to WAV using pydub then use that
+                wav_file_path = None
+                try:
+                    # Try to convert to WAV first using pydub, then load with soundfile
+                    if tmp_file_path:
+                        audio_segment = AudioSegment.from_file(tmp_file_path)
+                        
+                        # Export as WAV
+                        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
+                            wav_file_path = wav_file.name
+                        
+                        audio_segment.export(wav_file_path, format="wav")
+                        
+                        # Load the WAV file with soundfile
+                        audio_array, current_sr = sf.read(wav_file_path, dtype='float32')
+                        processing_stages.append("pydub_wav_conversion")
+                        
+                except Exception as wav_error:
+                    logger.error(f"[AUDIO] All fallback methods failed: {wav_error}")
+                    raise Exception(f"Could not process audio format {format_hint}: {wav_error}")
+                
+                finally:
+                    # Clean up WAV file
+                    if wav_file_path and os.path.exists(wav_file_path):
+                        try:
+                            os.unlink(wav_file_path)
+                        except:
+                            pass
+                            
+            finally:
+                # Clean up original temp file
+                if tmp_file_path and os.path.exists(tmp_file_path):
+                    try:
+                        os.unlink(tmp_file_path)
+                    except:
+                        pass
         
         # Ensure we have mono audio (convert stereo to mono in-place)
         if len(audio_array.shape) > 1:

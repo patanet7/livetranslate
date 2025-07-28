@@ -219,9 +219,9 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
   const getCompatibilityStatusIcon = () => {
     if (!compatibilityStatus) return <Info color="action" />;
     
-    if (compatibilityStatus.compatible && compatibilityStatus.issues.length === 0) {
+    if (compatibilityStatus.compatible && (compatibilityStatus.issues?.length || 0) === 0) {
       return <CheckCircle color="success" />;
-    } else if (compatibilityStatus.issues.length > 0) {
+    } else if ((compatibilityStatus.issues?.length || 0) > 0) {
       return <Error color="error" />;
     } else {
       return <Warning color="warning" />;
@@ -231,9 +231,9 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
   const getCompatibilityStatusText = () => {
     if (!compatibilityStatus) return "Unknown";
     
-    if (compatibilityStatus.compatible && compatibilityStatus.issues.length === 0) {
+    if (compatibilityStatus.compatible && (compatibilityStatus.issues?.length || 0) === 0) {
       return "Fully Compatible";
-    } else if (compatibilityStatus.issues.length > 0) {
+    } else if ((compatibilityStatus.issues?.length || 0) > 0) {
       return "Compatibility Issues";
     } else {
       return "Warnings Present";
@@ -309,7 +309,7 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
 
           {compatibilityStatus && (
             <Box mt={2}>
-              {compatibilityStatus.issues.length > 0 && (
+              {(compatibilityStatus?.issues?.length || 0) > 0 && (
                 <Alert severity="error" sx={{ mb: 1 }}>
                   <Typography variant="subtitle2">Configuration Issues:</Typography>
                   <List dense>
@@ -322,7 +322,7 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
                 </Alert>
               )}
 
-              {compatibilityStatus.warnings.length > 0 && (
+              {(compatibilityStatus?.warnings?.length || 0) > 0 && (
                 <Alert severity="warning" sx={{ mb: 1 }}>
                   <Typography variant="subtitle2">Configuration Warnings:</Typography>
                   <List dense>
@@ -537,7 +537,7 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
               />
             </Box>
 
-            {lastSyncResult.services_synced.length > 0 && (
+            {(lastSyncResult?.services_synced?.length || 0) > 0 && (
               <Box mb={2}>
                 <Typography variant="subtitle2" gutterBottom>
                   Services Synchronized:
@@ -556,7 +556,7 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
               </Box>
             )}
 
-            {lastSyncResult.errors.length > 0 && (
+            {(lastSyncResult?.errors?.length || 0) > 0 && (
               <Alert severity="error">
                 <Typography variant="subtitle2">Sync Errors:</Typography>
                 <List dense>

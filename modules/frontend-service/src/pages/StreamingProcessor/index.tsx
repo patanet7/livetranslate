@@ -1,70 +1,44 @@
-/**
- * Professional Streaming Processor
- * 
- * Advanced real-time audio streaming and processing interface providing:
- * - Professional-grade audio capture and streaming
- * - Real-time transcription with speaker diarization
- * - Multi-language translation capabilities
- * - Advanced audio processing pipeline
- * - Comprehensive monitoring and analytics
- * - Export capabilities and session management
- */
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
+  Paper,
   Grid,
+  Button,
   Card,
   CardContent,
-  Button,
-  IconButton,
-  Chip,
   Alert,
+  Chip,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Switch,
+  FormGroup,
   FormControlLabel,
-  Slider,
-  Tooltip,
+  Checkbox,
+  Switch,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Divider,
+  List,
+  ListItem,
+  ListItemText,
   LinearProgress,
-  CircularProgress,
-  Tab,
-  Tabs,
-  useTheme,
-  alpha,
+  Stack,
 } from '@mui/material';
 import {
   Mic,
   MicOff,
   PlayArrow,
   Stop,
-  Pause,
   Settings,
   Translate,
   RecordVoiceOver,
-  GraphicEq,
-  Timeline,
-  Assessment,
-  Download,
-  Refresh,
-  Fullscreen,
-  VolumeUp,
-  Speed,
-  Language,
-  Computer,
-  Headphones,
-  RadioButtonChecked,
-  Waves,
+  ExpandMore,
+  Tune,
 } from '@mui/icons-material';
-
-// Import components
-import { AudioVisualizer } from '../AudioTesting/components/AudioVisualizer';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { useAvailableModels } from '@/hooks/useAvailableModels';
 import {
   setAudioDevices,
   setVisualizationData,
@@ -72,71 +46,54 @@ import {
   setAudioQualityMetrics,
   updateConfig,
 } from '@/store/slices/audioSlice';
+import { AudioVisualizer } from '../AudioTesting/components/AudioVisualizer';
+import {
+  calculateMeetingAudioLevel,
+  getMeetingAudioQuality,
+  getDisplayLevel,
+} from '@/utils/audioLevelCalculation';
+import { useAvailableModels } from '@/hooks/useAvailableModels';
 
-// Types
-interface StreamingSession {
+interface StreamingChunk {
   id: string;
-  startTime: Date;
-  duration: number;
-  chunksProcessed: number;
-  totalTranscriptions: number;
-  totalTranslations: number;
-  averageLatency: number;
-  errorCount: number;
-}
-
-interface ProcessingMetrics {
-  chunkLatency: number[];
-  transcriptionLatency: number[];
-  translationLatency: number[];
-  audioQuality: number[];
-  confidenceScores: number[];
-}
-
-interface StreamingResult {
-  id: string;
-  type: 'transcription' | 'translation';
+  audio: Blob;
   timestamp: number;
-  sourceLanguage: string;
-  targetLanguage?: string;
+  duration: number;
+}
+
+interface TranscriptionResult {
+  id: string;
+  chunkId: string;
   text: string;
   confidence: number;
-  processingTime: number;
+  language: string;
   speakers?: Array<{
-    id: string;
-    name: string;
-    start: number;
-    end: number;
+    speaker_id: string;
+    speaker_name: string;
+    start_time: number;
+    end_time: number;
   }>;
+  timestamp: number;
+  processing_time: number;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`streaming-tabpanel-${index}`}
-      aria-labelledby={`streaming-tab-${index}`}
-      {...other}
-    >
-      {value === index && children}
-    </div>
-  );
+interface TranslationResult {
+  id: string;
+  transcriptionId: string;
+  sourceText: string;
+  translatedText: string;
+  sourceLanguage: string;
+  targetLanguage: string;
+  confidence: number;
+  timestamp: number;
+  processing_time: number;
 }
 
 const StreamingProcessor: React.FC = () => {
-  const theme = useTheme();
   const dispatch = useAppDispatch();
   const { devices, visualization, config } = useAppSelector(state => state.audio);
   
-  // Load available models and device information
+  // Load available models and device information dynamically
   const { 
     models: availableModels, 
     loading: modelsLoading, 
@@ -146,48 +103,49 @@ const StreamingProcessor: React.FC = () => {
     deviceInfo,
     refetch: refetchModels 
   } = useAvailableModels();
-
-  // UI State
-  const [activeTab, setActiveTab] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   
-  // Streaming State
+  // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [currentSession, setCurrentSession] = useState<StreamingSession | null>(null);
-  const [streamingResults, setStreamingResults] = useState<StreamingResult[]>([]);
-  const [processingMetrics, setProcessingMetrics] = useState<ProcessingMetrics>({
-    chunkLatency: [],
-    transcriptionLatency: [],
-    translationLatency: [],
-    audioQuality: [],
-    confidenceScores: [],
+  const [streamingStats, setStreamingStats] = useState({
+    chunksStreamed: 0,
+    totalDuration: 0,
+    averageProcessingTime: 0,
+    errorCount: 0,
   });
-
-  // Configuration State
+  
+  // Audio streaming - CHANGE 1: Add English as first option
+  const [chunkDuration, setChunkDuration] = useState(3); // 3 seconds default
+  const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', 'es', 'fr', 'de']);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  const [chunkDuration, setChunkDuration] = useState(3);
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['es', 'fr', 'de']);
+  
+  // Processing configuration - CHANGE 2: Disable audio pipeline features by default
   const [processingConfig, setProcessingConfig] = useState({
     enableTranscription: true,
     enableTranslation: true,
-    enableDiarization: true,
-    enableVAD: true,
+    enableDiarization: false,
+    enableVAD: false,
     whisperModel: 'whisper-base',
     translationQuality: 'balanced',
-    audioProcessing: true,
+    audioProcessing: false,
     noiseReduction: false,
-    speechEnhancement: true,
+    speechEnhancement: false,
   });
-
-  // Audio References
+  
+  // Results
+  const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
+  const [translationResults, setTranslationResults] = useState<TranslationResult[]>([]);
+  const [activeChunks, setActiveChunks] = useState<Set<string>>(new Set());
+  
+  // Audio refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-
+  const chunkIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
+  
   // Initialize audio devices
   useEffect(() => {
     const initializeDevices = async () => {
@@ -206,838 +164,890 @@ const StreamingProcessor: React.FC = () => {
         if (audioDevices.length > 0 && !selectedDevice) {
           setSelectedDevice(audioDevices[0].deviceId);
         }
+        
+        dispatch(addProcessingLog({
+          level: 'INFO',
+          message: `Found ${audioDevices.length} audio input devices`,
+          timestamp: Date.now()
+        }));
       } catch (error) {
-        console.error('Failed to load audio devices:', error);
+        dispatch(addProcessingLog({
+          level: 'ERROR',
+          message: `Failed to load audio devices: ${error}`,
+          timestamp: Date.now()
+        }));
       }
     };
 
     initializeDevices();
   }, [dispatch, selectedDevice]);
 
-  // Session Management
-  const startSession = useCallback(async () => {
-    try {
-      const newSession: StreamingSession = {
-        id: `session-${Date.now()}`,
-        startTime: new Date(),
-        duration: 0,
-        chunksProcessed: 0,
-        totalTranscriptions: 0,
-        totalTranslations: 0,
-        averageLatency: 0,
-        errorCount: 0,
-      };
-      
-      setCurrentSession(newSession);
-      setIsStreaming(true);
-      setIsPaused(false);
-      setStreamingResults([]);
-      
-      // Initialize audio streaming
-      const constraints = {
-        audio: {
-          deviceId: selectedDevice,
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        }
-      };
+  // Initialize audio visualization
+  useEffect(() => {
+    if (!selectedDevice) return;
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      audioStreamRef.current = stream;
-      
-      // Initialize audio context for visualization
+    const initializeAudioVisualization = async () => {
+      try {
+        const constraints = {
+          audio: {
+            deviceId: selectedDevice,
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        audioStreamRef.current = stream;
+        
+        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+          audioContextRef.current.close();
+        }
+        
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 2048;
+        microphoneRef.current.connect(analyserRef.current);
+
+        startVisualization();
+        
+        dispatch(addProcessingLog({
+          level: 'SUCCESS',
+          message: `Audio visualization initialized with device: ${selectedDevice}`,
+          timestamp: Date.now()
+        }));
+      } catch (error) {
+        dispatch(addProcessingLog({
+          level: 'ERROR',
+          message: `Failed to initialize audio visualization: ${error}`,
+          timestamp: Date.now()
+        }));
+      }
+    };
+
+    initializeAudioVisualization();
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close();
       }
-      
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 2048;
-      microphoneRef.current.connect(analyserRef.current);
-
-      startVisualization();
-      startAudioProcessing();
-      
-    } catch (error) {
-      console.error('Failed to start streaming session:', error);
-      setIsStreaming(false);
-    }
-  }, [selectedDevice]);
-
-  const stopSession = useCallback(() => {
-    setIsStreaming(false);
-    setIsPaused(false);
-    
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close();
-    }
-    if (audioStreamRef.current) {
-      audioStreamRef.current.getTracks().forEach(track => track.stop());
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    
-    // Update session with final stats
-    if (currentSession) {
-      const updatedSession = {
-        ...currentSession,
-        duration: Date.now() - currentSession.startTime.getTime(),
-      };
-      setCurrentSession(updatedSession);
-    }
-  }, [currentSession]);
-
-  const pauseSession = useCallback(() => {
-    setIsPaused(!isPaused);
-    if (mediaRecorderRef.current) {
-      if (isPaused) {
-        mediaRecorderRef.current.resume();
-      } else {
-        mediaRecorderRef.current.pause();
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
       }
-    }
-  }, [isPaused]);
+    };
+  }, [dispatch, selectedDevice]);
 
   const startVisualization = useCallback(() => {
     if (!analyserRef.current) return;
 
     const updateVisualization = () => {
-      if (!analyserRef.current || !isStreaming) return;
+      if (!analyserRef.current) return;
 
       const bufferLength = analyserRef.current.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      analyserRef.current.getByteFrequencyData(dataArray);
+      const frequencyData = new Uint8Array(bufferLength);
+      analyserRef.current.getByteFrequencyData(frequencyData);
 
-      // Update visualization data
+      const timeData = new Uint8Array(analyserRef.current.fftSize);
+      analyserRef.current.getByteTimeDomainData(timeData);
+
+      // Calculate professional meeting-optimized audio metrics
+      const audioMetrics = calculateMeetingAudioLevel(timeData, frequencyData, 16000);
+      const qualityAssessment = getMeetingAudioQuality(audioMetrics);
+      const displayLevel = getDisplayLevel(audioMetrics);
+
+      // Update Redux store with enhanced visualization data
       dispatch(setVisualizationData({
-        frequencyData: Array.from(dataArray),
-        timestamp: Date.now(),
+        frequencyData: Array.from(frequencyData),
+        timeData: Array.from(timeData),
+        audioLevel: displayLevel
+      }));
+
+      // Update comprehensive audio quality metrics
+      dispatch(setAudioQualityMetrics({
+        rmsLevel: audioMetrics.rmsDb,
+        peakLevel: audioMetrics.peakDb,
+        signalToNoise: audioMetrics.signalToNoise,
+        frequency: 16000,
+        clipping: audioMetrics.clipping * 100,
+        voiceActivity: audioMetrics.voiceActivity,
+        spectralCentroid: audioMetrics.spectralCentroid,
+        dynamicRange: audioMetrics.dynamicRange,
+        speechClarity: audioMetrics.speechClarity,
+        backgroundNoise: audioMetrics.backgroundNoise,
+        qualityAssessment: qualityAssessment.quality,
+        qualityScore: qualityAssessment.score,
+        recommendations: qualityAssessment.recommendations,
+        issues: qualityAssessment.issues
       }));
 
       animationFrameRef.current = requestAnimationFrame(updateVisualization);
     };
 
     updateVisualization();
-  }, [dispatch, isStreaming]);
+  }, [dispatch]);
 
-  const startAudioProcessing = useCallback(() => {
-    if (!audioStreamRef.current) return;
-
-    const mediaRecorder = new MediaRecorder(audioStreamRef.current, {
-      mimeType: 'audio/webm;codecs=opus'
-    });
-
-    const chunks: Blob[] = [];
-    
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunks.push(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = async () => {
-      if (chunks.length > 0) {
-        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-        await processAudioChunk(audioBlob);
-        chunks.length = 0;
-      }
-    };
-
-    // Record in chunks
-    mediaRecorder.start();
-    const intervalId = setInterval(() => {
-      if (mediaRecorder.state === 'recording' && !isPaused) {
-        mediaRecorder.stop();
-        mediaRecorder.start();
-      }
-    }, chunkDuration * 1000);
-
-    mediaRecorderRef.current = mediaRecorder;
-    
-    return () => {
-      clearInterval(intervalId);
-      if (mediaRecorder.state !== 'inactive') {
-        mediaRecorder.stop();
-      }
-    };
-  }, [chunkDuration, isPaused]);
-
-  const processAudioChunk = useCallback(async (audioBlob: Blob) => {
-    if (!currentSession) return;
-
-    const startTime = Date.now();
-    
+  // Simple session management for testing
+  const [sessionId] = useState(() => `streaming_test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  
+  // Handle response from streaming endpoint directly (no WebSocket needed for simple testing)
+  const handleStreamingResponse = useCallback((response: any, chunkId: string) => {
     try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'audio.webm');
-      formData.append('model', processingConfig.whisperModel);
-      formData.append('enable_diarization', processingConfig.enableDiarization.toString());
-      formData.append('enable_vad', processingConfig.enableVAD.toString());
-      formData.append('target_languages', JSON.stringify(targetLanguages));
-
-      const response = await fetch('/api/audio/stream-process', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      const result = await response.json();
-      const processingTime = Date.now() - startTime;
-
-      // Add transcription result
-      if (result.transcription && result.transcription.text) {
-        const transcriptionResult: StreamingResult = {
-          id: `trans-${Date.now()}`,
-          type: 'transcription',
+      // Look for transcription in processing_result (backend format) or transcription_result (fallback)
+      const transcriptionData = response.processing_result || response.transcription_result;
+      
+      if (transcriptionData && processingConfig.enableTranscription) {
+        const result: TranscriptionResult = {
+          id: transcriptionData.id || `transcription-${Date.now()}-${chunkId}`,
+          chunkId: chunkId,
+          text: transcriptionData.text || transcriptionData.transcription || '',
+          confidence: transcriptionData.confidence || transcriptionData.confidence_score || 0.9,
+          language: transcriptionData.language || transcriptionData.detected_language || 'en',
+          speakers: transcriptionData.speakers || transcriptionData.segments?.speakers,
           timestamp: Date.now(),
-          sourceLanguage: result.transcription.language || 'unknown',
-          text: result.transcription.text,
-          confidence: result.transcription.confidence || 0,
-          processingTime,
-          speakers: result.transcription.speakers || [],
+          processing_time: transcriptionData.processing_time || response.processing_time || 0
         };
         
-        setStreamingResults(prev => [...prev, transcriptionResult]);
-      }
-
-      // Add translation results
-      if (result.translations && result.translations.length > 0) {
-        const translationResults: StreamingResult[] = result.translations.map((trans: any) => ({
-          id: `trans-${Date.now()}-${trans.target_language}`,
-          type: 'translation',
-          timestamp: Date.now(),
-          sourceLanguage: result.transcription?.language || 'unknown',
-          targetLanguage: trans.target_language,
-          text: trans.text,
-          confidence: trans.confidence || 0,
-          processingTime,
-        }));
+        setTranscriptionResults(prev => [...prev, result]);
         
-        setStreamingResults(prev => [...prev, ...translationResults]);
+        dispatch(addProcessingLog({
+          level: 'SUCCESS',
+          message: `Transcription: "${result.text.substring(0, 50)}..." (confidence: ${(result.confidence * 100).toFixed(1)}%)`,
+          timestamp: Date.now()
+        }));
       }
-
-      // Update session stats
-      setCurrentSession(prev => prev ? {
-        ...prev,
-        chunksProcessed: prev.chunksProcessed + 1,
-        totalTranscriptions: prev.totalTranscriptions + (result.transcription ? 1 : 0),
-        totalTranslations: prev.totalTranslations + (result.translations?.length || 0),
-        averageLatency: (prev.averageLatency * prev.chunksProcessed + processingTime) / (prev.chunksProcessed + 1),
-      } : null);
-
-      // Update metrics
-      setProcessingMetrics(prev => ({
-        chunkLatency: [...prev.chunkLatency.slice(-49), processingTime],
-        transcriptionLatency: result.transcription ? [...prev.transcriptionLatency.slice(-49), processingTime] : prev.transcriptionLatency,
-        translationLatency: result.translations?.length > 0 ? [...prev.translationLatency.slice(-49), processingTime] : prev.translationLatency,
-        audioQuality: [...prev.audioQuality.slice(-49), result.audio_quality || 0.8],
-        confidenceScores: [...prev.confidenceScores.slice(-49), result.transcription?.confidence || 0],
-      }));
-
+      
+      if (response.translations && processingConfig.enableTranslation) {
+        Object.entries(response.translations).forEach(([lang, translation]: [string, any]) => {
+          const transcriptionText = transcriptionData?.text || transcriptionData?.transcription || '';
+          
+          const result: TranslationResult = {
+            id: `translation-${Date.now()}-${chunkId}-${lang}`,
+            transcriptionId: transcriptionData?.id || '',
+            sourceText: translation.source_text || transcriptionText,
+            translatedText: translation.translated_text || '',
+            sourceLanguage: translation.source_language || 'en',
+            targetLanguage: lang,
+            confidence: translation.confidence || 0.9,
+            timestamp: Date.now(),
+            processing_time: translation.processing_time || 0
+          };
+          
+          setTranslationResults(prev => [...prev, result]);
+          
+          dispatch(addProcessingLog({
+            level: 'SUCCESS',
+            message: `Translation (${lang}): "${result.translatedText.substring(0, 50)}..."`,
+            timestamp: Date.now()
+          }));
+        });
+      }
+      
     } catch (error) {
-      console.error('Failed to process audio chunk:', error);
-      setCurrentSession(prev => prev ? {
+      dispatch(addProcessingLog({
+        level: 'ERROR',
+        message: `Failed to process streaming response: ${error}`,
+        timestamp: Date.now()
+      }));
+    }
+  }, [processingConfig, dispatch]);
+
+  // Start streaming
+  const startStreaming = useCallback(async () => {
+    if (!selectedDevice || !audioStreamRef.current) {
+      dispatch(addProcessingLog({
+        level: 'ERROR',
+        message: 'No audio device selected or audio stream not available',
+        timestamp: Date.now()
+      }));
+      return;
+    }
+
+    try {
+      setIsStreaming(true);
+      
+      // Initialize MediaRecorder for chunk recording
+      recordingChunksRef.current = [];
+      
+      const mediaRecorder = new MediaRecorder(audioStreamRef.current, {
+        mimeType: 'audio/webm; codecs=opus',
+        audioBitsPerSecond: 128000
+      });
+      
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = async (event) => {
+        if (event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        if (recordingChunksRef.current.length > 0) {
+          const audioBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+          const chunkId = `chunk_${Date.now()}`;
+          
+          setActiveChunks(prev => new Set([...prev, chunkId]));
+          
+          // Send audio chunk to orchestration service
+          await sendAudioChunk(chunkId, audioBlob);
+          
+          setStreamingStats(prev => ({
+            ...prev,
+            chunksStreamed: prev.chunksStreamed + 1,
+            totalDuration: prev.totalDuration + chunkDuration
+          }));
+          
+          recordingChunksRef.current = [];
+        }
+      };
+
+      // Start recording and set up interval for chunks
+      mediaRecorder.start();
+      
+      chunkIntervalRef.current = setInterval(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          mediaRecorderRef.current.stop();
+          mediaRecorderRef.current.start();
+        }
+      }, chunkDuration * 1000);
+      
+      dispatch(addProcessingLog({
+        level: 'SUCCESS',
+        message: `Started streaming with ${chunkDuration}s chunks`,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      setIsStreaming(false);
+      dispatch(addProcessingLog({
+        level: 'ERROR',
+        message: `Failed to start streaming: ${error}`,
+        timestamp: Date.now()
+      }));
+    }
+  }, [selectedDevice, chunkDuration, dispatch]);
+
+  // Stop streaming
+  const stopStreaming = useCallback(() => {
+    setIsStreaming(false);
+    
+    if (chunkIntervalRef.current) {
+      clearInterval(chunkIntervalRef.current);
+      chunkIntervalRef.current = null;
+    }
+    
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    
+    dispatch(addProcessingLog({
+      level: 'INFO',
+      message: 'Streaming stopped',
+      timestamp: Date.now()
+    }));
+  }, [dispatch]);
+
+  // Send audio chunk to orchestration service
+  const sendAudioChunk = useCallback(async (chunkId: string, audioBlob: Blob) => {
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'chunk.webm');
+      formData.append('chunk_id', chunkId);
+      formData.append('session_id', sessionId);
+      console.log('🌐 Frontend: targetLanguages state:', targetLanguages);
+      console.log('🌐 Frontend: targetLanguages JSON:', JSON.stringify(targetLanguages));
+      formData.append('target_languages', JSON.stringify(targetLanguages));
+      formData.append('enable_transcription', processingConfig.enableTranscription.toString());
+      formData.append('enable_translation', processingConfig.enableTranslation.toString());
+      formData.append('enable_diarization', processingConfig.enableDiarization.toString());
+      formData.append('whisper_model', processingConfig.whisperModel);
+      formData.append('translation_quality', processingConfig.translationQuality);
+      formData.append('enable_vad', processingConfig.enableVAD.toString());
+      formData.append('audio_processing', processingConfig.audioProcessing.toString());
+      formData.append('noise_reduction', processingConfig.noiseReduction.toString());
+      formData.append('speech_enhancement', processingConfig.speechEnhancement.toString());
+      
+      const response = await fetch('/api/audio/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      // Handle the response directly
+      handleStreamingResponse(result, chunkId);
+      
+      // Remove from active chunks
+      setActiveChunks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(chunkId);
+        return newSet;
+      });
+      
+      dispatch(addProcessingLog({
+        level: 'INFO',
+        message: `Audio chunk ${chunkId} processed successfully`,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      dispatch(addProcessingLog({
+        level: 'ERROR',
+        message: `Failed to process audio chunk ${chunkId}: ${error}`,
+        timestamp: Date.now()
+      }));
+      
+      setActiveChunks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(chunkId);
+        return newSet;
+      });
+      
+      setStreamingStats(prev => ({
         ...prev,
-        errorCount: prev.errorCount + 1,
-      } : null);
+        errorCount: prev.errorCount + 1
+      }));
     }
-  }, [currentSession, processingConfig, targetLanguages]);
+  }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, dispatch]);
 
-  const exportSession = useCallback(() => {
-    if (!currentSession) return;
-
-    const exportData = {
-      session: currentSession,
-      results: streamingResults,
-      metrics: processingMetrics,
-      config: processingConfig,
-      timestamp: new Date().toISOString(),
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
-      type: 'application/json' 
+  const handleLanguageToggle = useCallback((language: string) => {
+    console.log('🌐 Frontend: Toggling language:', language);
+    setTargetLanguages(prev => {
+      const newLanguages = prev.includes(language) 
+        ? prev.filter(lang => lang !== language)
+        : [...prev, language];
+      console.log('🌐 Frontend: Languages updated from', prev, 'to', newLanguages);
+      return newLanguages;
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `streaming-session-${currentSession.id}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [currentSession, streamingResults, processingMetrics, processingConfig]);
-
-  const toggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setIsFullscreen(true);
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
-    }
   }, []);
 
-  // Calculate current metrics
-  const currentLatency = processingMetrics.chunkLatency.length > 0 
-    ? processingMetrics.chunkLatency[processingMetrics.chunkLatency.length - 1] 
-    : 0;
-  
-  const averageConfidence = processingMetrics.confidenceScores.length > 0
-    ? processingMetrics.confidenceScores.reduce((a, b) => a + b, 0) / processingMetrics.confidenceScores.length
-    : 0;
+  // Debug: Track targetLanguages changes
+  useEffect(() => {
+    console.log('🌐 Frontend: targetLanguages state changed to:', targetLanguages);
+  }, [targetLanguages]);
+
+  const clearResults = useCallback(() => {
+    setTranscriptionResults([]);
+    setTranslationResults([]);
+    setActiveChunks(new Set());
+    setStreamingStats({
+      chunksStreamed: 0,
+      totalDuration: 0,
+      averageProcessingTime: 0,
+      errorCount: 0,
+    });
+  }, []);
 
   return (
-    <Box sx={{ 
-      minHeight: '100vh',
-      background: theme.palette.mode === 'dark' 
-        ? `linear-gradient(135deg, ${alpha(theme.palette.background.default, 0.95)} 0%, ${alpha(theme.palette.primary.dark, 0.1)} 100%)`
-        : `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.background.default, 0.95)} 100%)`,
-      p: 3,
-    }}>
-      {/* Header */}
-      <Card sx={{ 
-        mb: 3,
-        bgcolor: alpha(theme.palette.background.paper, 0.9),
-        backdropFilter: 'blur(20px)',
-        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-      }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Waves sx={{ fontSize: 40, color: 'primary.main' }} />
-              <Box>
-                <Typography variant="h4" component="h1" sx={{ fontWeight: 600 }}>
-                  Professional Streaming Processor
+    <Box>
+      <Typography variant="h4" component="h1" gutterBottom>
+        🎤 Real-time Streaming Processor
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+        Test real-time audio streaming with live transcription and translation. Audio is streamed in {chunkDuration}-second chunks to the orchestration service.
+      </Typography>
+
+      <Alert severity="info" sx={{ mb: 3 }}>
+        <Typography variant="body2">
+          This interface streams audio in real-time to the orchestration service, which coordinates with the whisper service for transcription and translation service for multi-language output.
+          Each audio chunk is processed separately, showing transcription and translation results as they arrive.
+        </Typography>
+      </Alert>
+
+      <Grid container spacing={3}>
+        {/* Left Panel - Controls and Configuration */}
+        <Grid item xs={12} lg={4}>
+          <Stack spacing={3}>
+            {/* Audio Device Selection */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  <Settings /> Audio Configuration
                 </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Real-time audio streaming with advanced transcription and translation
-                </Typography>
-              </Box>
-            </Box>
-            
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              {!isStreaming ? (
-                <Button
-                  variant="contained"
-                  size="large"
-                  startIcon={<PlayArrow />}
-                  onClick={startSession}
-                  disabled={!selectedDevice || modelsLoading}
-                  sx={{ minWidth: 120 }}
-                >
-                  Start Stream
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outlined"
-                    startIcon={isPaused ? <PlayArrow /> : <Pause />}
-                    onClick={pauseSession}
+                
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Audio Input Device</InputLabel>
+                  <Select
+                    value={selectedDevice}
+                    onChange={(e) => setSelectedDevice(e.target.value)}
+                    label="Audio Input Device"
                   >
-                    {isPaused ? 'Resume' : 'Pause'}
-                  </Button>
+                    {devices.map((device) => (
+                      <MenuItem key={device.deviceId} value={device.deviceId}>
+                        {device.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Chunk Duration</InputLabel>
+                  <Select
+                    value={chunkDuration}
+                    onChange={(e) => setChunkDuration(Number(e.target.value))}
+                    label="Chunk Duration"
+                  >
+                    <MenuItem value={2}>2 seconds</MenuItem>
+                    <MenuItem value={3}>3 seconds (recommended)</MenuItem>
+                    <MenuItem value={4}>4 seconds</MenuItem>
+                    <MenuItem value={5}>5 seconds</MenuItem>
+                  </Select>
+                </FormControl>
+
+                {/* CHANGE 3: Move audio visualization here by the device selection */}
+                <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                  📊 Live Audio Visualization
+                </Typography>
+                <Card sx={{ p: 1, bgcolor: 'background.default' }}>
+                  <AudioVisualizer
+                    frequencyData={visualization.frequencyData}
+                    timeData={visualization.timeData}
+                    audioLevel={visualization.audioLevel}
+                    isRecording={isStreaming}
+                    height={120}
+                  />
+                </Card>
+              </CardContent>
+            </Card>
+
+            {/* Processing Configuration */}
+            <Card>
+              <CardContent>
+                <Accordion>
+                  <AccordionSummary expandIcon={<ExpandMore />}>
+                    <Typography variant="h6">
+                      <Tune /> Processing Configuration
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Stack spacing={2}>
+                      {/* Core Processing Options */}
+                      <Box>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Core Processing
+                        </Typography>
+                        <FormGroup>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={processingConfig.enableTranscription}
+                                onChange={(e) => setProcessingConfig(prev => ({
+                                  ...prev,
+                                  enableTranscription: e.target.checked
+                                }))}
+                              />
+                            }
+                            label="Enable Transcription"
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={processingConfig.enableTranslation}
+                                onChange={(e) => setProcessingConfig(prev => ({
+                                  ...prev,
+                                  enableTranslation: e.target.checked
+                                }))}
+                                disabled={!processingConfig.enableTranscription}
+                              />
+                            }
+                            label="Enable Translation"
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={processingConfig.enableDiarization}
+                                onChange={(e) => setProcessingConfig(prev => ({
+                                  ...prev,
+                                  enableDiarization: e.target.checked
+                                }))}
+                                disabled={true}
+                              />
+                            }
+                            label="Speaker Diarization (Coming Soon)"
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={processingConfig.enableVAD}
+                                onChange={(e) => setProcessingConfig(prev => ({
+                                  ...prev,
+                                  enableVAD: e.target.checked
+                                }))}
+                                disabled={true}
+                              />
+                            }
+                            label="Voice Activity Detection (Coming Soon)"
+                          />
+                        </FormGroup>
+                      </Box>
+
+                      <Divider />
+
+                      {/* Model Selection */}
+                      <Box>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Model Configuration
+                        </Typography>
+                        <FormControl fullWidth size="small" sx={{ mb: 1 }}>
+                          <InputLabel>Whisper Model</InputLabel>
+                          <Select
+                            value={processingConfig.whisperModel}
+                            onChange={(e) => setProcessingConfig(prev => ({
+                              ...prev,
+                              whisperModel: e.target.value
+                            }))}
+                            label="Whisper Model"
+                            disabled={modelsLoading}
+                          >
+                            {modelsLoading ? (
+                              <MenuItem value="whisper-base">Loading models...</MenuItem>
+                            ) : modelsError ? (
+                              <MenuItem value="whisper-base">Error loading models</MenuItem>
+                            ) : availableModels.length > 0 ? (
+                              availableModels.map((model) => (
+                                <MenuItem key={model.name} value={model.name}>
+                                  {model.displayName}
+                                </MenuItem>
+                              ))
+                            ) : (
+                              <MenuItem value="whisper-base">No models available</MenuItem>
+                            )}
+                          </Select>
+                        </FormControl>
+                        
+                        {/* Device Information Display */}
+                        {deviceInfo && (
+                          <Box sx={{ mt: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                            <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                              Service Devices:
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                              <Chip 
+                                label={`Audio: ${deviceInfo.audio_service.device.toUpperCase()}`}
+                                size="small"
+                                color={deviceInfo.audio_service.status === 'healthy' ? 'success' : 'warning'}
+                                sx={{ fontSize: '0.7rem' }}
+                              />
+                              <Chip 
+                                label={`Translation: ${deviceInfo.translation_service.device.toUpperCase()}`}
+                                size="small"
+                                color={deviceInfo.translation_service.status === 'healthy' ? 'success' : 'warning'}
+                                sx={{ fontSize: '0.7rem' }}
+                              />
+                            </Box>
+                          </Box>
+                        )}
+                        
+                        {/* Service Status Message */}
+                        {(modelsStatus === 'fallback' || serviceMessage) && (
+                          <Alert severity="warning" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                            {serviceMessage || 'Using fallback models'}
+                          </Alert>
+                        )}
+                        
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Translation Quality</InputLabel>
+                          <Select
+                            value={processingConfig.translationQuality}
+                            onChange={(e) => setProcessingConfig(prev => ({
+                              ...prev,
+                              translationQuality: e.target.value
+                            }))}
+                            label="Translation Quality"
+                            disabled={!processingConfig.enableTranslation}
+                          >
+                            <MenuItem value="fast">Fast</MenuItem>
+                            <MenuItem value="balanced">Balanced (recommended)</MenuItem>
+                            <MenuItem value="high_quality">High Quality</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Box>
+
+                      <Divider />
+
+                      {/* Audio Processing */}
+                      <Box>
+                        <Typography variant="subtitle2" gutterBottom>
+                          Audio Enhancement
+                        </Typography>
+                        <FormGroup>
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={processingConfig.audioProcessing}
+                                onChange={(e) => setProcessingConfig(prev => ({
+                                  ...prev,
+                                  audioProcessing: e.target.checked
+                                }))}
+                                disabled={true}
+                              />
+                            }
+                            label="Audio Processing Pipeline (Coming Soon)"
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={processingConfig.noiseReduction}
+                                onChange={(e) => setProcessingConfig(prev => ({
+                                  ...prev,
+                                  noiseReduction: e.target.checked
+                                }))}
+                                disabled={true}
+                              />
+                            }
+                            label="Noise Reduction (Coming Soon)"
+                          />
+                          <FormControlLabel
+                            control={
+                              <Switch
+                                checked={processingConfig.speechEnhancement}
+                                onChange={(e) => setProcessingConfig(prev => ({
+                                  ...prev,
+                                  speechEnhancement: e.target.checked
+                                }))}
+                                disabled={true}
+                              />
+                            }
+                            label="Speech Enhancement (Coming Soon)"
+                          />
+                        </FormGroup>
+                      </Box>
+                    </Stack>
+                  </AccordionDetails>
+                </Accordion>
+              </CardContent>
+            </Card>
+
+            {/* Language Selection */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  <Translate /> Target Languages
+                </Typography>
+                
+                <FormGroup>
+                  {[
+                    { code: 'en', name: 'English' },
+                    { code: 'es', name: 'Spanish' },
+                    { code: 'fr', name: 'French' },
+                    { code: 'de', name: 'German' },
+                    { code: 'it', name: 'Italian' },
+                    { code: 'pt', name: 'Portuguese' },
+                    { code: 'ja', name: 'Japanese' },
+                    { code: 'ko', name: 'Korean' },
+                    { code: 'zh', name: 'Chinese' },
+                  ].map((lang) => (
+                    <FormControlLabel
+                      key={lang.code}
+                      control={
+                        <Checkbox
+                          checked={targetLanguages.includes(lang.code)}
+                          onChange={() => handleLanguageToggle(lang.code)}
+                          size="small"
+                          disabled={!processingConfig.enableTranslation}
+                        />
+                      }
+                      label={lang.name}
+                    />
+                  ))}
+                </FormGroup>
+                
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Selected: {targetLanguages.length} languages
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {targetLanguages.map((lang) => (
+                      <Chip
+                        key={lang}
+                        label={lang.toUpperCase()}
+                        size="small"
+                        color="primary"
+                        onDelete={() => handleLanguageToggle(lang)}
+                      />
+                    ))}
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+
+            {/* Controls */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  🎮 Streaming Controls
+                </Typography>
+                
+                <Stack spacing={2}>
                   <Button
                     variant="contained"
-                    color="error"
-                    startIcon={<Stop />}
-                    onClick={stopSession}
+                    color={isStreaming ? "error" : "primary"}
+                    size="large"
+                    startIcon={isStreaming ? <MicOff /> : <Mic />}
+                    onClick={isStreaming ? stopStreaming : startStreaming}
+                    disabled={
+                      !selectedDevice || 
+                      (!processingConfig.enableTranscription && !processingConfig.enableTranslation) ||
+                      (processingConfig.enableTranslation && targetLanguages.length === 0)
+                    }
+                    fullWidth
                   >
-                    Stop
+                    {isStreaming ? 'Stop Streaming' : 'Start Streaming'}
                   </Button>
-                </>
-              )}
-              
-              <Tooltip title="Export Session">
-                <IconButton 
-                  onClick={exportSession} 
-                  disabled={!currentSession}
-                  color="secondary"
-                >
-                  <Download />
-                </IconButton>
-              </Tooltip>
-              
-              <Tooltip title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>
-                <IconButton onClick={toggleFullscreen} color="info">
-                  <Fullscreen />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
+                  
+                  <Button
+                    variant="outlined"
+                    onClick={clearResults}
+                    disabled={isStreaming}
+                    fullWidth
+                  >
+                    Clear Results
+                  </Button>
+                </Stack>
+                
+                {/* Streaming Stats */}
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Session Statistics:
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Chunks: {streamingStats.chunksStreamed} | 
+                    Duration: {streamingStats.totalDuration}s | 
+                    Errors: {streamingStats.errorCount}
+                  </Typography>
+                  
+                  {activeChunks.size > 0 && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption">
+                        Processing {activeChunks.size} chunk(s)...
+                      </Typography>
+                      <LinearProgress />
+                    </Box>
+                  )}
+                </Box>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
 
-          {/* Status and Quick Stats */}
+        {/* Right Panel - Results */}
+        <Grid item xs={12} lg={8}>
           <Grid container spacing={2}>
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5,
-                p: 2,
-                bgcolor: alpha(theme.palette.primary.main, 0.1),
-                borderRadius: 2,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-              }}>
-                <RadioButtonChecked sx={{ color: isStreaming ? 'success.main' : 'text.secondary' }} />
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1 }}>
-                    {isStreaming ? (isPaused ? 'Paused' : 'Live') : 'Stopped'}
+            {/* Transcription Results */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
+                <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Typography variant="h6" gutterBottom>
+                    <RecordVoiceOver /> Transcription Results
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Stream Status
-                  </Typography>
-                </Box>
-              </Box>
+                  
+                  <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+                    {transcriptionResults.length === 0 ? (
+                      <Alert severity="info">
+                        No transcriptions yet. Start streaming to see real-time results.
+                      </Alert>
+                    ) : (
+                      <List dense>
+                        {transcriptionResults.slice(-10).reverse().map((result) => (
+                          <ListItem key={result.id} sx={{ px: 0 }}>
+                            <ListItemText
+                              primary={result.text}
+                              secondary={
+                                <Box>
+                                  <Typography variant="caption">
+                                    {new Date(result.timestamp).toLocaleTimeString()} | 
+                                    Confidence: {(result.confidence * 100).toFixed(1)}% | 
+                                    Lang: {result.language.toUpperCase()} |
+                                    Time: {result.processing_time}ms
+                                  </Typography>
+                                  {result.speakers && result.speakers.length > 0 && (
+                                    <Box sx={{ mt: 0.5 }}>
+                                      {result.speakers.map((speaker, idx) => (
+                                        <Chip
+                                          key={idx}
+                                          label={speaker.speaker_name || `Speaker ${speaker.speaker_id}`}
+                                          size="small"
+                                          sx={{ mr: 0.5, mb: 0.5 }}
+                                        />
+                                      ))}
+                                    </Box>
+                                  )}
+                                </Box>
+                              }
+                            />
+                            <Divider />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
             </Grid>
-            
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5,
-                p: 2,
-                bgcolor: alpha(theme.palette.info.main, 0.1),
-                borderRadius: 2,
-                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
-              }}>
-                <Speed sx={{ color: 'info.main' }} />
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1 }}>
-                    {currentLatency.toFixed(0)}ms
+
+            {/* Translation Results */}
+            <Grid item xs={12} md={6}>
+              <Card sx={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
+                <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Typography variant="h6" gutterBottom>
+                    <Translate /> Translation Results
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Current Latency
-                  </Typography>
-                </Box>
-              </Box>
-            </Grid>
-            
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5,
-                p: 2,
-                bgcolor: alpha(theme.palette.success.main, 0.1),
-                borderRadius: 2,
-                border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`,
-              }}>
-                <Assessment sx={{ color: 'success.main' }} />
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1 }}>
-                    {(averageConfidence * 100).toFixed(0)}%
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Avg Confidence
-                  </Typography>
-                </Box>
-              </Box>
-            </Grid>
-            
-            <Grid item xs={6} sm={3}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 1.5,
-                p: 2,
-                bgcolor: alpha(theme.palette.warning.main, 0.1),
-                borderRadius: 2,
-                border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`,
-              }}>
-                <Language sx={{ color: 'warning.main' }} />
-                <Box>
-                  <Typography variant="h6" sx={{ fontWeight: 600, lineHeight: 1 }}>
-                    {currentSession?.totalTranslations || 0}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Translations
-                  </Typography>
-                </Box>
-              </Box>
+                  
+                  <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+                    {translationResults.length === 0 ? (
+                      <Alert severity="info">
+                        No translations yet. Start streaming to see real-time translations.
+                      </Alert>
+                    ) : (
+                      <List dense>
+                        {translationResults.slice(-15).reverse().map((result) => (
+                          <ListItem key={result.id} sx={{ px: 0 }}>
+                            <ListItemText
+                              primary={
+                                <Box>
+                                  <Chip 
+                                    label={result.targetLanguage.toUpperCase()} 
+                                    size="small" 
+                                    color="primary"
+                                    sx={{ mr: 1 }}
+                                  />
+                                  {result.translatedText}
+                                </Box>
+                              }
+                              secondary={
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Original: {result.sourceText}
+                                  </Typography>
+                                  <br />
+                                  <Typography variant="caption">
+                                    {new Date(result.timestamp).toLocaleTimeString()} | 
+                                    Confidence: {(result.confidence * 100).toFixed(1)}% |
+                                    Time: {result.processing_time}ms
+                                  </Typography>
+                                </Box>
+                              }
+                            />
+                            <Divider />
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
             </Grid>
           </Grid>
-        </CardContent>
-      </Card>
-
-      {/* Main Content with Tabs */}
-      <Card sx={{ 
-        bgcolor: alpha(theme.palette.background.paper, 0.98),
-        backdropFilter: 'blur(20px)',
-        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-        minHeight: 600,
-      }}>
-        {/* Tab Navigation */}
-        <Tabs 
-          value={activeTab} 
-          onChange={(_, newValue) => setActiveTab(newValue)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            borderBottom: 1,
-            borderColor: 'divider',
-            '& .MuiTab-root': {
-              minHeight: 64,
-              textTransform: 'none',
-              fontWeight: 500,
-              fontSize: '0.95rem',
-            },
-          }}
-        >
-          <Tab icon={<GraphicEq />} label="Live Stream" iconPosition="start" />
-          <Tab icon={<RecordVoiceOver />} label="Transcriptions" iconPosition="start" />
-          <Tab icon={<Translate />} label="Translations" iconPosition="start" />
-          <Tab icon={<Timeline />} label="Analytics" iconPosition="start" />
-          <Tab icon={<Settings />} label="Configuration" iconPosition="start" />
-        </Tabs>
-
-        {/* Tab Content */}
-        <Box sx={{ p: 3 }}>
-          {/* Live Stream Tab */}
-          <TabPanel value={activeTab} index={0}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
-                <Card sx={{ height: 400 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Live Audio Visualization
-                    </Typography>
-                    <AudioVisualizer 
-                      height={320}
-                      showControls={false}
-                      isLive={isStreaming}
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <Card sx={{ height: 400 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Session Info
-                    </Typography>
-                    {currentSession ? (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <Box>
-                          <Typography variant="body2" color="text.secondary">Session ID:</Typography>
-                          <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
-                            {currentSession.id}
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="body2" color="text.secondary">Started:</Typography>
-                          <Typography variant="body1">
-                            {currentSession.startTime.toLocaleTimeString()}
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="body2" color="text.secondary">Chunks Processed:</Typography>
-                          <Typography variant="h4" color="primary">
-                            {currentSession.chunksProcessed}
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="body2" color="text.secondary">Error Rate:</Typography>
-                          <Typography variant="body1" color={currentSession.errorCount > 0 ? 'error' : 'success'}>
-                            {((currentSession.errorCount / Math.max(currentSession.chunksProcessed, 1)) * 100).toFixed(1)}%
-                          </Typography>
-                        </Box>
-                      </Box>
-                    ) : (
-                      <Alert severity="info">
-                        No active session. Click "Start Stream" to begin.
-                      </Alert>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
-
-          {/* Transcriptions Tab */}
-          <TabPanel value={activeTab} index={1}>
-            <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
-              {streamingResults.filter(r => r.type === 'transcription').length > 0 ? (
-                streamingResults
-                  .filter(r => r.type === 'transcription')
-                  .sort((a, b) => b.timestamp - a.timestamp)
-                  .map((result) => (
-                    <Card key={result.id} sx={{ mb: 2 }}>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                          <Typography variant="body1" sx={{ flex: 1 }}>
-                            {result.text}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
-                            <Chip 
-                              label={result.sourceLanguage} 
-                              size="small" 
-                              color="primary" 
-                            />
-                            <Chip 
-                              label={`${(result.confidence * 100).toFixed(0)}%`} 
-                              size="small" 
-                              color={result.confidence > 0.8 ? 'success' : 'warning'} 
-                            />
-                          </Box>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary">
-                          {new Date(result.timestamp).toLocaleTimeString()} • 
-                          Processing: {result.processingTime}ms
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  ))
-              ) : (
-                <Alert severity="info">
-                  No transcriptions yet. Start streaming to see results.
-                </Alert>
-              )}
-            </Box>
-          </TabPanel>
-
-          {/* Translations Tab */}
-          <TabPanel value={activeTab} index={2}>
-            <Box sx={{ maxHeight: 500, overflow: 'auto' }}>
-              {streamingResults.filter(r => r.type === 'translation').length > 0 ? (
-                streamingResults
-                  .filter(r => r.type === 'translation')
-                  .sort((a, b) => b.timestamp - a.timestamp)
-                  .map((result) => (
-                    <Card key={result.id} sx={{ mb: 2 }}>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                          <Typography variant="body1" sx={{ flex: 1 }}>
-                            {result.text}
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
-                            <Chip 
-                              label={`${result.sourceLanguage} → ${result.targetLanguage}`} 
-                              size="small" 
-                              color="secondary" 
-                            />
-                            <Chip 
-                              label={`${(result.confidence * 100).toFixed(0)}%`} 
-                              size="small" 
-                              color={result.confidence > 0.8 ? 'success' : 'warning'} 
-                            />
-                          </Box>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary">
-                          {new Date(result.timestamp).toLocaleTimeString()} • 
-                          Processing: {result.processingTime}ms
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  ))
-              ) : (
-                <Alert severity="info">
-                  No translations yet. Enable translation and start streaming.
-                </Alert>
-              )}
-            </Box>
-          </TabPanel>
-
-          {/* Analytics Tab */}
-          <TabPanel value={activeTab} index={3}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Processing Latency Trend
-                    </Typography>
-                    <Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {processingMetrics.chunkLatency.length > 0 ? (
-                        <Alert severity="info">
-                          Latency chart visualization would be displayed here showing the trend of processing times.
-                          Current average: {(processingMetrics.chunkLatency.reduce((a, b) => a + b, 0) / processingMetrics.chunkLatency.length).toFixed(0)}ms
-                        </Alert>
-                      ) : (
-                        <Alert severity="info">
-                          No latency data available. Start streaming to see analytics.
-                        </Alert>
-                      )}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Confidence Score Distribution
-                    </Typography>
-                    <Box sx={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {processingMetrics.confidenceScores.length > 0 ? (
-                        <Alert severity="info">
-                          Confidence score histogram would be displayed here.
-                          Current average: {(averageConfidence * 100).toFixed(1)}%
-                        </Alert>
-                      ) : (
-                        <Alert severity="info">
-                          No confidence data available. Start streaming to see analytics.
-                        </Alert>
-                      )}
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
-
-          {/* Configuration Tab */}
-          <TabPanel value={activeTab} index={4}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Audio Configuration
-                    </Typography>
-                    
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                      <InputLabel>Audio Input Device</InputLabel>
-                      <Select
-                        value={selectedDevice}
-                        onChange={(e) => setSelectedDevice(e.target.value)}
-                        disabled={isStreaming}
-                      >
-                        {devices.map((device) => (
-                          <MenuItem key={device.deviceId} value={device.deviceId}>
-                            {device.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-
-                    <Typography gutterBottom>
-                      Chunk Duration: {chunkDuration}s
-                    </Typography>
-                    <Slider
-                      value={chunkDuration}
-                      onChange={(_, value) => setChunkDuration(value as number)}
-                      min={1}
-                      max={10}
-                      step={1}
-                      marks
-                      disabled={isStreaming}
-                      sx={{ mb: 2 }}
-                    />
-
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                      <InputLabel>Whisper Model</InputLabel>
-                      <Select
-                        value={processingConfig.whisperModel}
-                        onChange={(e) => setProcessingConfig(prev => ({
-                          ...prev,
-                          whisperModel: e.target.value
-                        }))}
-                        disabled={isStreaming}
-                      >
-                        {availableModels.map((model) => (
-                          <MenuItem key={model} value={model}>
-                            {model}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </CardContent>
-                </Card>
-              </Grid>
-              
-              <Grid item xs={12} md={6}>
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      Processing Options
-                    </Typography>
-                    
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={processingConfig.enableTranscription}
-                          onChange={(e) => setProcessingConfig(prev => ({
-                            ...prev,
-                            enableTranscription: e.target.checked
-                          }))}
-                          disabled={isStreaming}
-                        />
-                      }
-                      label="Enable Transcription"
-                    />
-                    
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={processingConfig.enableTranslation}
-                          onChange={(e) => setProcessingConfig(prev => ({
-                            ...prev,
-                            enableTranslation: e.target.checked
-                          }))}
-                          disabled={isStreaming}
-                        />
-                      }
-                      label="Enable Translation"
-                    />
-                    
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={processingConfig.enableDiarization}
-                          onChange={(e) => setProcessingConfig(prev => ({
-                            ...prev,
-                            enableDiarization: e.target.checked
-                          }))}
-                          disabled={isStreaming}
-                        />
-                      }
-                      label="Speaker Diarization"
-                    />
-                    
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={processingConfig.enableVAD}
-                          onChange={(e) => setProcessingConfig(prev => ({
-                            ...prev,
-                            enableVAD: e.target.checked
-                          }))}
-                          disabled={isStreaming}
-                        />
-                      }
-                      label="Voice Activity Detection"
-                    />
-                    
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={processingConfig.speechEnhancement}
-                          onChange={(e) => setProcessingConfig(prev => ({
-                            ...prev,
-                            speechEnhancement: e.target.checked
-                          }))}
-                          disabled={isStreaming}
-                        />
-                      }
-                      label="Speech Enhancement"
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </TabPanel>
-        </Box>
-      </Card>
+        </Grid>
+      </Grid>
     </Box>
   );
 };

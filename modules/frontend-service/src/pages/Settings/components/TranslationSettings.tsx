@@ -510,7 +510,7 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Language Configuration</Typography>
           <Chip 
-            label={`${config.languages.target_languages.length} target languages`} 
+            label={`${config.languages?.target_languages?.length || 0} target languages`} 
             color="primary"
             size="small"
             sx={{ ml: 2 }}

@@ -39,6 +39,7 @@ import {
 // Import existing components
 import PipelineStudio from '../PipelineStudio';
 import MeetingTest from '../MeetingTest';
+import StreamingProcessor from '../StreamingProcessor';
 import TranscriptionTesting from '../TranscriptionTesting';
 import TranslationTesting from '../TranslationTesting';
 
@@ -95,7 +96,7 @@ const AUDIO_PROCESSING_TABS: AudioProcessingTab[] = [
     label: 'Streaming Processor',
     icon: <StreamingIcon />,
     description: 'Real-time streaming audio processing and meeting integration',
-    component: MeetingTest,
+    component: StreamingProcessor,
     badge: 'RT',
     color: 'warning',
   },

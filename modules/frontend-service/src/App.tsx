@@ -26,6 +26,7 @@ import { initializeUI, setBreakpoint } from '@/store/slices/uiSlice';
 // Lazy-loaded pages for code splitting
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
 const AudioProcessingHub = React.lazy(() => import('@/pages/AudioProcessingHub'));
+const StreamingProcessor = React.lazy(() => import('@/pages/StreamingProcessor'));
 const BotManagement = React.lazy(() => import('@/pages/BotManagement'));
 const Analytics = React.lazy(() => import('@/pages/Analytics'));
 const SystemAnalytics = React.lazy(() => import('@/pages/SystemAnalytics'));
@@ -100,9 +101,9 @@ const App: React.FC = () => {
                   <Route path="/translation" element={<AudioProcessingHub />} />
                   <Route path="/meeting-test" element={<AudioProcessingHub />} />
                   <Route path="/meeting" element={<AudioProcessingHub />} />
-                  <Route path="/streaming-processor" element={<AudioProcessingHub />} />
-                  <Route path="/streaming" element={<AudioProcessingHub />} />
-                  <Route path="/stream" element={<AudioProcessingHub />} />
+                  <Route path="/streaming-processor" element={<StreamingProcessor />} />
+                  <Route path="/streaming" element={<StreamingProcessor />} />
+                  <Route path="/stream" element={<StreamingProcessor />} />
                   
                   {/* Bot Management */}
                   <Route path="/bot-management" element={<BotManagement />} />
