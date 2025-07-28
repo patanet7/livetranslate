@@ -459,6 +459,8 @@ const MeetingTest: React.FC = () => {
       formData.append('audio', audioBlob, 'chunk.webm');
       formData.append('chunk_id', chunkId);
       formData.append('session_id', sessionId);
+      console.log('🌐 Frontend: targetLanguages state:', targetLanguages);
+      console.log('🌐 Frontend: targetLanguages JSON:', JSON.stringify(targetLanguages));
       formData.append('target_languages', JSON.stringify(targetLanguages));
       formData.append('enable_transcription', processingConfig.enableTranscription.toString());
       formData.append('enable_translation', processingConfig.enableTranslation.toString());
@@ -517,12 +519,20 @@ const MeetingTest: React.FC = () => {
   }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, dispatch]);
 
   const handleLanguageToggle = useCallback((language: string) => {
-    setTargetLanguages(prev => 
-      prev.includes(language) 
+    console.log('🌐 Frontend: Toggling language:', language);
+    setTargetLanguages(prev => {
+      const newLanguages = prev.includes(language) 
         ? prev.filter(lang => lang !== language)
-        : [...prev, language]
-    );
+        : [...prev, language];
+      console.log('🌐 Frontend: Languages updated from', prev, 'to', newLanguages);
+      return newLanguages;
+    });
   }, []);
+
+  // Debug: Track targetLanguages changes
+  useEffect(() => {
+    console.log('🌐 Frontend: targetLanguages state changed to:', targetLanguages);
+  }, [targetLanguages]);
 
   const clearResults = useCallback(() => {
     setTranscriptionResults([]);

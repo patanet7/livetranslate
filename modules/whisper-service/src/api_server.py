@@ -41,6 +41,13 @@ from heartbeat_manager import heartbeat_manager, HeartbeatState
 from message_router import message_router, MessageType, RoutePermission, MessageContext
 from simple_auth import simple_auth, auth_middleware, UserRole
 from reconnection_manager import reconnection_manager, SessionState, BufferedMessage
+from utils.audio_errors import (
+    WhisperProcessingBaseError, AudioFormatError, AudioCorruptionError,
+    ModelLoadingError, ModelInferenceError, ValidationError as WhisperValidationError,
+    ConfigurationError, MemoryError, HardwareError, TimeoutError as WhisperTimeoutError,
+    CircuitBreaker, ErrorRecoveryStrategy, ModelRecoveryStrategy, FormatRecoveryStrategy,
+    ErrorLogger, error_boundary, default_circuit_breaker, default_error_logger
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -526,12 +533,29 @@ async def process_orchestration_chunk():
 # Model-specific transcription endpoint
 @app.route('/transcribe/<model_name>', methods=['POST'])
 async def transcribe_with_model(model_name: str):
-    """Transcribe audio using specified model"""
+    """Transcribe audio using specified model with comprehensive error handling"""
     if whisper_service is None:
         return jsonify({"error": "Service not initialized"}), 503
     
-    try:
-        logger.info(f"[WHISPER] 🎤 Transcription request received for model: {model_name}")
+    # Generate correlation ID for this request
+    correlation_id = f"transcribe_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
+    
+    with error_boundary(
+        correlation_id=correlation_id,
+        context={
+            "operation": "transcribe_with_model",
+            "model_name": model_name,
+            "request_method": request.method,
+            "content_type": request.content_type
+        },
+        recovery_strategies=[model_recovery, format_recovery],
+        circuit_breaker=default_circuit_breaker
+    ) as correlation_id:
+        try:
+            logger.info(f"[WHISPER] [{correlation_id}] 🎤 Transcription request received for model: {model_name}")
+            
+            # Enhanced input validation
+            await _validate_transcription_request(request, model_name, correlation_id)
         
         # Check if model is loaded or needs loading
         if whisper_service.model_manager and model_name not in whisper_service.model_manager.pipelines:
@@ -2089,187 +2113,302 @@ def handle_buffer_message(data):
         emit('buffer_error', {'message': 'Failed to buffer message'})
 
 # Helper functions
-def _process_audio_data(audio_data: bytes, enhance: bool = False) -> np.ndarray:
-    """Process audio data and convert to numpy array with performance optimization"""
-    start_time = time.time()
+# Audio processing configuration
+AUDIO_CONFIG = {
+    'default_sample_rate': 16000,
+    'resampling_quality': 'kaiser_fast',  # Options: 'kaiser_best', 'kaiser_fast', 'scipy'
+    'enable_format_cache': True,
+    'max_cache_size': 50,
+    'quality_thresholds': {
+        'silence_rms': 0.0001,
+        'quiet_rms': 0.005,
+        'clipping_threshold': 0.99
+    }
+}
+
+# Format detection cache for improved performance
+_format_cache = {}
+_format_cache_size = 0
+
+def _detect_audio_format_optimized(audio_data: bytes) -> str:
+    """Optimized format detection with smart magic number checking"""
+    global _format_cache, _format_cache_size
+    
+    # Use first 32 bytes as cache key for format detection
+    cache_key = audio_data[:32] if len(audio_data) >= 32 else audio_data
+    cache_hash = hash(cache_key)
+    
+    if AUDIO_CONFIG['enable_format_cache'] and cache_hash in _format_cache:
+        return _format_cache[cache_hash]
+    
+    # Enhanced format detection with more precise magic numbers
+    format_hint = "unknown"
+    
+    # WAV format detection (RIFF header)
+    if audio_data.startswith(b'RIFF') and b'WAVE' in audio_data[:12]:
+        format_hint = "wav"
+    # MP4/M4A format detection (ftyp box)
+    elif b'ftyp' in audio_data[:32]:
+        if b'M4A ' in audio_data[:32] or b'mp41' in audio_data[:32] or b'mp42' in audio_data[:32]:
+            format_hint = "mp4"
+        elif b'qt  ' in audio_data[:32]:
+            format_hint = "mov"
+    # MP3 format detection (ID3 tag or frame sync)
+    elif audio_data.startswith(b'ID3') or audio_data.startswith(b'\xff\xfb') or audio_data.startswith(b'\xff\xfa'):
+        format_hint = "mp3"
+    # WebM format detection (EBML header)
+    elif audio_data.startswith(b'\x1a\x45\xdf\xa3'):
+        format_hint = "webm"
+    # OGG format detection
+    elif audio_data.startswith(b'OggS'):
+        format_hint = "ogg"
+    # FLAC format detection
+    elif audio_data.startswith(b'fLaC'):
+        format_hint = "flac"
+    # AAC format detection (ADTS header)
+    elif audio_data.startswith(b'\xff\xf1') or audio_data.startswith(b'\xff\xf9'):
+        format_hint = "aac"
+    
+    # Update cache if enabled
+    if AUDIO_CONFIG['enable_format_cache']:
+        if _format_cache_size >= AUDIO_CONFIG['max_cache_size']:
+            # Clear half the cache when full
+            _format_cache.clear()
+            _format_cache_size = 0
+        _format_cache[cache_hash] = format_hint
+        _format_cache_size += 1
+    
+    return format_hint
+
+def _high_quality_resample(audio: np.ndarray, orig_sr: int, target_sr: int, quality: str = 'kaiser_fast') -> np.ndarray:
+    """High-quality resampling with configurable quality settings"""
+    if orig_sr == target_sr:
+        return audio
     
     try:
-        # Log audio data info
-        logger.info(f"[AUDIO] Processing {len(audio_data)} bytes of audio data")
-        logger.info(f"[AUDIO] First 20 bytes (hex): {audio_data[:20].hex() if len(audio_data) >= 20 else audio_data.hex()}")
+        if quality == 'kaiser_best':
+            # Highest quality resampling for critical applications
+            return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr, res_type='kaiser_best')
+        elif quality == 'kaiser_fast':
+            # Good quality with faster processing
+            return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr, res_type='kaiser_fast')
+        elif quality == 'scipy':
+            # Use scipy for alternative resampling
+            try:
+                from scipy import signal
+                resample_ratio = target_sr / orig_sr
+                num_samples = int(len(audio) * resample_ratio)
+                return signal.resample(audio, num_samples).astype(np.float32)
+            except ImportError:
+                logger.warning("Scipy not available, falling back to librosa for resampling")
+                return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr)
+        else:
+            # Default librosa resampling
+            return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr)
+    except Exception as e:
+        logger.warning(f"High-quality resampling failed ({quality}), using default: {e}")
+        return librosa.resample(audio, orig_sr=orig_sr, target_sr=target_sr)
+
+def _calculate_audio_quality_metrics(audio: np.ndarray, sr: int) -> dict:
+    """Calculate comprehensive audio quality metrics"""
+    metrics = {}
+    
+    # Basic statistics
+    metrics['duration'] = len(audio) / sr
+    metrics['samples'] = len(audio)
+    metrics['sample_rate'] = sr
+    metrics['channels'] = 1 if len(audio.shape) == 1 else audio.shape[1]
+    
+    # Amplitude metrics
+    metrics['rms'] = float(np.sqrt(np.mean(audio**2)))
+    metrics['peak'] = float(np.max(np.abs(audio)))
+    metrics['mean'] = float(np.mean(audio))
+    metrics['std'] = float(np.std(audio))
+    
+    # Dynamic range
+    metrics['dynamic_range'] = float(metrics['peak'] - np.min(np.abs(audio[audio != 0]))) if np.any(audio != 0) else 0.0
+    
+    # Zero crossing rate (speech indicator)
+    zero_crossings = np.sum(np.diff(np.sign(audio)) != 0)
+    metrics['zero_crossing_rate'] = zero_crossings / len(audio)
+    
+    # Spectral centroid (brightness measure)
+    try:
+        spectral_centroids = librosa.feature.spectral_centroid(y=audio, sr=sr)[0]
+        metrics['spectral_centroid_mean'] = float(np.mean(spectral_centroids))
+        metrics['spectral_centroid_std'] = float(np.std(spectral_centroids))
+    except:
+        metrics['spectral_centroid_mean'] = 0.0
+        metrics['spectral_centroid_std'] = 0.0
+    
+    # Quality assessment flags
+    metrics['is_silent'] = metrics['rms'] < AUDIO_CONFIG['quality_thresholds']['silence_rms']
+    metrics['is_quiet'] = metrics['rms'] < AUDIO_CONFIG['quality_thresholds']['quiet_rms']
+    metrics['is_clipped'] = metrics['peak'] >= AUDIO_CONFIG['quality_thresholds']['clipping_threshold']
+    
+    return metrics
+
+def _process_audio_data(audio_data: bytes, enhance: bool = False, target_sr: int = None, quality: str = None) -> np.ndarray:
+    """Optimized audio processing with smart format detection and minimal memory usage"""
+    start_time = time.time()
+    
+    # Use configuration defaults
+    target_sr = target_sr or AUDIO_CONFIG['default_sample_rate']
+    quality = quality or AUDIO_CONFIG['resampling_quality']
+    
+    try:
+        # Enhanced format detection
+        format_hint = _detect_audio_format_optimized(audio_data)
+        logger.info(f"[AUDIO] Processing {len(audio_data)} bytes, detected format: {format_hint}")
         
-        # Detect format
-        format_hint = "unknown"
-        if audio_data.startswith(b'RIFF'):
-            format_hint = "wav"
-        elif b'ftyp' in audio_data[:32]:  # More flexible MP4 detection
-            format_hint = "mp4"
-        elif audio_data.startswith(b'ID3') or audio_data.startswith(b'\xff\xfb'):
-            format_hint = "mp3"
-        elif audio_data.startswith(b'\x1a\x45\xdf\xa3') or audio_data.startswith(b'\x1a\x45'):
-            format_hint = "webm"
-        elif audio_data.startswith(b'OggS'):
-            format_hint = "ogg"
+        # Initialize quality tracking
+        processing_stages = []
+        audio_array = None
+        current_sr = None
         
-        logger.info(f"[AUDIO] Detected format: {format_hint}")
-        
-        # Use in-memory processing to avoid file I/O when possible
+        # Stage 1: Format-specific fast paths for optimal processing
         try:
-            # Try to process directly from bytes using soundfile
-            audio_io = io.BytesIO(audio_data)
-            audio_array, sr = sf.read(audio_io, dtype=np.float32)
-            logger.info(f"[AUDIO] Successfully read with soundfile: {len(audio_array)} samples at {sr}Hz")
-            
-            # Resample if needed
-            if sr != 16000:
-                logger.info(f"[AUDIO] Resampling from {sr}Hz to 16000Hz")
-                audio_array = librosa.resample(audio_array, orig_sr=sr, target_sr=16000)
+            if format_hint == "wav":
+                # WAV files: Direct soundfile processing (fastest path)
+                audio_io = io.BytesIO(audio_data)
+                audio_array, current_sr = sf.read(audio_io, dtype=np.float32)
+                processing_stages.append("soundfile_direct")
+                logger.info(f"[AUDIO] WAV fast path: {len(audio_array)} samples at {current_sr}Hz")
                 
-        except Exception as sf_error:
-            logger.info(f"[AUDIO] Soundfile failed: {sf_error}, trying librosa with temp file")
-            # Fallback to temporary file method for unsupported formats
-            # Use appropriate suffix based on detected format
-            suffix_map = {
-                'mp4': '.mp4',
-                'webm': '.webm',
-                'ogg': '.ogg',
-                'mp3': '.mp3',
-                'wav': '.wav'
-            }
-            suffix = suffix_map.get(format_hint, '.wav')
-            
+            elif format_hint in ["mp3", "flac", "ogg"]:
+                # These formats: Try soundfile first, then librosa
+                try:
+                    audio_io = io.BytesIO(audio_data)
+                    audio_array, current_sr = sf.read(audio_io, dtype=np.float32)
+                    processing_stages.append("soundfile_direct")
+                except Exception:
+                    # Fallback to librosa for better format support
+                    with tempfile.NamedTemporaryFile(suffix=f'.{format_hint}', delete=False) as tmp_file:
+                        tmp_file.write(audio_data)
+                        tmp_file.flush()
+                        audio_array, current_sr = librosa.load(tmp_file.name, sr=None, dtype=np.float32)
+                        os.unlink(tmp_file.name)
+                    processing_stages.append("librosa_file")
+                logger.info(f"[AUDIO] {format_hint.upper()} processing: {len(audio_array)} samples at {current_sr}Hz")
+                
+            elif format_hint in ["mp4", "webm", "mov", "aac"]:
+                # Complex formats: Use pydub with ffmpeg or librosa
+                ffmpeg_available = bool(which('ffmpeg'))
+                
+                if ffmpeg_available:
+                    # Use pydub for better format support
+                    suffix_map = {'mp4': '.mp4', 'webm': '.webm', 'mov': '.mov', 'aac': '.aac'}
+                    suffix = suffix_map.get(format_hint, '.mp4')
+                    
+                    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_file:
+                        tmp_file.write(audio_data)
+                        tmp_file.flush()
+                        
+                        audio_segment = AudioSegment.from_file(tmp_file.name)
+                        os.unlink(tmp_file.name)
+                        
+                        # Convert to mono and target sample rate efficiently
+                        if audio_segment.channels > 1:
+                            audio_segment = audio_segment.set_channels(1)
+                        
+                        # Get raw audio data
+                        samples = np.array(audio_segment.get_array_of_samples(), dtype=np.float32)
+                        
+                        # Normalize based on bit depth
+                        if audio_segment.sample_width == 2:  # 16-bit
+                            audio_array = samples / 32768.0
+                        elif audio_segment.sample_width == 4:  # 32-bit
+                            audio_array = samples / 2147483648.0
+                        else:  # 8-bit or other
+                            audio_array = (samples - 128) / 128.0
+                        
+                        current_sr = audio_segment.frame_rate
+                        processing_stages.append("pydub_ffmpeg")
+                        
+                else:
+                    # Fallback to librosa without ffmpeg
+                    with tempfile.NamedTemporaryFile(suffix=f'.{format_hint}', delete=False) as tmp_file:
+                        tmp_file.write(audio_data)
+                        tmp_file.flush()
+                        audio_array, current_sr = librosa.load(tmp_file.name, sr=None, dtype=np.float32)
+                        os.unlink(tmp_file.name)
+                    processing_stages.append("librosa_file")
+                    
+                logger.info(f"[AUDIO] {format_hint.upper()} processing: {len(audio_array)} samples at {current_sr}Hz")
+                
+            else:
+                # Unknown format: Try all methods in order of preference
+                methods = [("soundfile", lambda: sf.read(io.BytesIO(audio_data), dtype=np.float32)),
+                          ("librosa_memory", lambda: librosa.load(io.BytesIO(audio_data), sr=None, dtype=np.float32))]
+                
+                for method_name, method_func in methods:
+                    try:
+                        audio_array, current_sr = method_func()
+                        processing_stages.append(method_name)
+                        break
+                    except Exception as e:
+                        logger.debug(f"[AUDIO] {method_name} failed: {e}")
+                        continue
+                
+                if audio_array is None:
+                    raise Exception("All direct processing methods failed")
+                    
+        except Exception as direct_error:
+            logger.warning(f"[AUDIO] Direct processing failed: {direct_error}")
+            # Universal fallback: Create temp file and use librosa
+            suffix = '.wav' if format_hint == 'unknown' else f'.{format_hint}'
             with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_file:
                 tmp_file.write(audio_data)
                 tmp_file.flush()
-                
-                logger.info(f"[AUDIO] Created temp file: {tmp_file.name} with suffix {suffix}")
-                
-                try:
-                    # Load audio with librosa
-                    audio_array, sr = librosa.load(tmp_file.name, sr=16000, dtype=np.float32)
-                    logger.info(f"[AUDIO] Librosa loaded: {len(audio_array)} samples")
-                except Exception as librosa_error:
-                    logger.error(f"[AUDIO] Librosa also failed: {librosa_error}")
-                    # Try with pydub as final fallback (now that we have ffmpeg)
-                    logger.info("[AUDIO] Attempting with pydub backend...")
-                    
-                    # Check if ffmpeg is available for pydub
-                    import shutil
-                    local_ffmpeg = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'ffmpeg', 'bin', 'ffmpeg.exe')
-                    ffmpeg_available = shutil.which('ffmpeg') is not None or os.path.exists(local_ffmpeg)
-                    if not ffmpeg_available and format_hint in ['webm', 'mp4', 'ogg']:
-                        logger.warning(f"[AUDIO] ffmpeg not found for {format_hint} format.")
-                        # For WebM, we need ffmpeg. Provide clear instructions
-                        logger.error(f"[AUDIO] Cannot process {format_hint} format without ffmpeg.")
-                        logger.info("[AUDIO] To install ffmpeg on Windows:")
-                        logger.info("[AUDIO] Option 1: winget install ffmpeg")
-                        logger.info("[AUDIO] Option 2: Download from https://www.gyan.dev/ffmpeg/builds/")
-                        logger.info("[AUDIO] Option 3: Use scoop: scoop install ffmpeg")
-                        raise Exception(f"ffmpeg is required to process {format_hint} audio. Please install ffmpeg and restart the service.")
-                    
-                    try:
-                        # Load with pydub using appropriate format
-                        if format_hint == 'mp4':
-                            audio_segment = AudioSegment.from_file(tmp_file.name, format="mp4")
-                        elif format_hint == 'webm':
-                            audio_segment = AudioSegment.from_file(tmp_file.name, format="webm")
-                        elif format_hint == 'ogg':
-                            audio_segment = AudioSegment.from_file(tmp_file.name, format="ogg")
-                        else:
-                            # Let pydub auto-detect
-                            audio_segment = AudioSegment.from_file(tmp_file.name)
-                        
-                        logger.info(f"[AUDIO] Pydub loaded audio: {audio_segment.duration_seconds}s, {audio_segment.frame_rate}Hz")
-                        
-                        # Convert to mono if needed
-                        if audio_segment.channels > 1:
-                            audio_segment = audio_segment.set_channels(1)
-                            
-                        # Resample to 16kHz if needed - MUST use proper resampling
-                        if audio_segment.frame_rate != 16000:
-                            logger.info(f"[AUDIO] Resampling from {audio_segment.frame_rate}Hz to 16000Hz")
-                            # set_frame_rate() alone doesn't resample! Must export and reimport
-                            audio_segment = audio_segment.set_frame_rate(16000).set_sample_width(2)
-                        
-                        # Convert to numpy array
-                        samples = np.array(audio_segment.get_array_of_samples())
-                        
-                        # Determine the correct normalization factor based on bit depth
-                        if audio_segment.sample_width == 2:  # 16-bit
-                            normalization_factor = 32768.0
-                        elif audio_segment.sample_width == 4:  # 32-bit
-                            normalization_factor = 2147483648.0
-                        else:  # 8-bit or other
-                            normalization_factor = 128.0
-                        
-                        audio_array = samples.astype(np.float32) / normalization_factor  # Normalize to [-1, 1]
-                        logger.info(f"[AUDIO] Pydub converted to array: {len(audio_array)} samples, sample_width: {audio_segment.sample_width}")
-                        
-                        # Double-check resampling - if still at wrong sample rate, use librosa
-                        expected_samples = int(audio_segment.duration_seconds * 16000)
-                        if abs(len(audio_array) - expected_samples) > 100:  # More than 100 samples difference
-                            logger.warning(f"[AUDIO] Pydub resampling failed! Expected ~{expected_samples} samples, got {len(audio_array)}")
-                            logger.info(f"[AUDIO] Using librosa for proper resampling from {audio_segment.frame_rate}Hz to 16000Hz")
-                            # Use librosa for proper resampling
-                            audio_array = librosa.resample(audio_array, orig_sr=audio_segment.frame_rate, target_sr=16000)
-                            logger.info(f"[AUDIO] Librosa resampled to {len(audio_array)} samples")
-                        
-                    except Exception as pydub_error:
-                        logger.error(f"[AUDIO] Pydub also failed: {pydub_error}")
-                        raise Exception(f"Failed to load audio file. Tried soundfile, librosa, and pydub. Format: {format_hint}. Last error: {pydub_error}")
-                finally:
-                    # Clean up
-                    try:
-                        os.unlink(tmp_file.name)
-                    except:
-                        pass
+                audio_array, current_sr = librosa.load(tmp_file.name, sr=target_sr, dtype=np.float32)
+                os.unlink(tmp_file.name)
+            processing_stages.append("librosa_fallback")
+            current_sr = target_sr  # librosa already resampled
         
-        # Apply enhancement if requested
+        # Ensure we have mono audio (convert stereo to mono in-place)
+        if len(audio_array.shape) > 1:
+            audio_array = np.mean(audio_array, axis=1)
+        
+        # Stage 2: High-quality resampling if needed
+        if current_sr != target_sr:
+            logger.info(f"[AUDIO] Resampling from {current_sr}Hz to {target_sr}Hz using {quality}")
+            audio_array = _high_quality_resample(audio_array, current_sr, target_sr, quality)
+            processing_stages.append(f"resample_{quality}")
+        
+        # Stage 3: Calculate comprehensive quality metrics
+        quality_metrics = _calculate_audio_quality_metrics(audio_array, target_sr)
+        
+        # Stage 4: Apply quality-based processing
+        if quality_metrics['is_clipped']:
+            logger.warning(f"[AUDIO] Audio clipping detected (peak: {quality_metrics['peak']:.3f})")
+            # Apply soft clipping in-place to prevent artifacts
+            np.tanh(audio_array * 0.9, out=audio_array)
+            audio_array /= 0.9
+            processing_stages.append("soft_clipping")
+        
+        if quality_metrics['is_silent']:
+            logger.warning(f"[AUDIO] Silent audio detected (RMS: {quality_metrics['rms']:.6f})")
+            # Return minimal silence instead of processing
+            return np.zeros(target_sr, dtype=np.float32)  # 1 second of silence
+        elif quality_metrics['is_quiet']:
+            logger.info(f"[AUDIO] Quiet audio detected (RMS: {quality_metrics['rms']:.6f}) - continuing")
+        
+        # Stage 5: Optional enhancement
         if enhance:
-            # Optimized enhancement pipeline
             audio_array = _enhance_audio_optimized(audio_array)
+            processing_stages.append("enhancement")
         
-        # Audio quality checks
-        logger.info(f"[AUDIO] Final audio shape: {audio_array.shape}")
-        logger.info(f"[AUDIO] Audio range: [{np.min(audio_array):.3f}, {np.max(audio_array):.3f}]")
-        logger.info(f"[AUDIO] Audio mean: {np.mean(audio_array):.3f}, std: {np.std(audio_array):.3f}")
-        
-        # Check for silence or low audio - Fixed threshold and logic
-        rms = np.sqrt(np.mean(audio_array**2))
-        logger.info(f"[AUDIO] RMS level: {rms:.3f}")
-        
-        # Use a more reasonable threshold for speech audio
-        # Speech typically has RMS values between 0.01-0.3, so 0.001 was too restrictive
-        silence_threshold = 0.0001  # Much lower threshold - only catch truly silent audio
-        
-        if rms < silence_threshold:
-            logger.warning(f"[AUDIO] Audio appears to be truly silent (RMS: {rms:.6f} < {silence_threshold})")
-            # Only return silence for truly silent audio to avoid false positives
-            return np.zeros(16000, dtype=np.float32)  # 1 second of silence
-        elif rms < 0.005:
-            logger.info(f"[AUDIO] Audio is quiet but not silent (RMS: {rms:.6f}) - continuing processing")
-        else:
-            logger.info(f"[AUDIO] Audio level normal (RMS: {rms:.6f})")
-        
-        # Check for clipping
-        if np.max(np.abs(audio_array)) >= 0.99:
-            logger.warning("[AUDIO] Audio may be clipped!")
-            # Apply soft clipping to prevent artifacts
-            audio_array = np.tanh(audio_array * 0.9) / 0.9
-        
-        # Apply spectral gating to reduce noise that causes hallucinations
-        # DISABLED - noise reduction is destroying loopback audio content
-        try:
-            import noisereduce as nr
-            # TEMPORARILY DISABLED: Noise reduction is removing all loopback audio content
-            logger.info("[AUDIO] Skipping noise reduction - disabled for loopback audio debugging")
-            # audio_array = nr.reduce_noise(y=audio_array, sr=16000, stationary=True)
-        except ImportError:
-            logger.debug("[AUDIO] noisereduce not available, skipping noise reduction")
-        
-        # Record performance metric
+        # Record performance metrics
         processing_time = time.time() - start_time
         performance_monitor.record_metric('audio_processing_times', processing_time)
+        
+        # Log comprehensive results
+        logger.info(f"[AUDIO] Processing complete: {quality_metrics['duration']:.2f}s, "
+                   f"RMS: {quality_metrics['rms']:.4f}, Peak: {quality_metrics['peak']:.4f}")
+        logger.info(f"[AUDIO] Processing stages: {' -> '.join(processing_stages)}")
+        logger.info(f"[AUDIO] Quality metrics: ZCR={quality_metrics['zero_crossing_rate']:.4f}, "
+                   f"SC={quality_metrics['spectral_centroid_mean']:.1f}Hz")
+        logger.info(f"[AUDIO] Processing time: {processing_time:.3f}s")
         
         return audio_array
         
@@ -2278,17 +2417,25 @@ def _process_audio_data(audio_data: bytes, enhance: bool = False) -> np.ndarray:
         raise
 
 def _enhance_audio_optimized(audio_array: np.ndarray) -> np.ndarray:
-    """Optimized audio enhancement with minimal overhead"""
+    """Optimized audio enhancement with minimal overhead and in-place operations"""
     try:
-        # Fast normalization
+        # In-place normalization to prevent unnecessary copies
         max_val = np.abs(audio_array).max()
-        if max_val > 0:
-            audio_array = audio_array / max_val
+        if max_val > 0.001:  # Avoid division by very small numbers
+            audio_array /= max_val
         
         # Optional: simple high-pass filter for noise reduction
-        # Only apply if array is large enough to benefit
-        if len(audio_array) > 1000:
-            audio_array = librosa.effects.preemphasis(audio_array, coef=0.97)
+        # Only apply if array is large enough to benefit and not too large to cause slowdown
+        if 1000 < len(audio_array) < 500000:  # Between 1000 samples and ~31 seconds at 16kHz
+            # Use in-place preemphasis to save memory
+            enhanced = librosa.effects.preemphasis(audio_array, coef=0.97)
+            # Copy back to original array to maintain in-place operation
+            audio_array[:] = enhanced
+        
+        # Light dynamic range compression for consistent levels
+        if len(audio_array) > 0:
+            # Simple soft limiting to prevent harsh clipping
+            np.clip(audio_array, -0.95, 0.95, out=audio_array)
         
         return audio_array
         
@@ -2484,6 +2631,132 @@ async def get_compatibility_info():
     except Exception as e:
         logger.error(f"Failed to get compatibility info: {e}")
         return jsonify({"error": "Failed to retrieve compatibility information"}), 500
+
+
+# Enhanced validation and error handling functions
+async def _validate_transcription_request(flask_request, model_name: str, correlation_id: str):
+    """Enhanced transcription request validation"""
+    # Validate model name
+    if not model_name or not isinstance(model_name, str):
+        raise WhisperValidationError(
+            "Invalid model name provided",
+            correlation_id=correlation_id,
+            validation_details={"model_name": model_name}
+        )
+    
+    # Validate audio file presence
+    if 'audio' not in flask_request.files:
+        raise WhisperValidationError(
+            "No audio file provided in request",
+            correlation_id=correlation_id,
+            validation_details={"files_in_request": list(flask_request.files.keys())}
+        )
+    
+    audio_file = flask_request.files['audio']
+    
+    # Validate file has content
+    if not audio_file.filename:
+        raise WhisperValidationError(
+            "Audio file has no filename",
+            correlation_id=correlation_id,
+            validation_details={"file_size": getattr(audio_file, 'content_length', 'unknown')}
+        )
+    
+    # Read and validate audio data
+    try:
+        audio_data = audio_file.read()
+        if len(audio_data) == 0:
+            raise AudioCorruptionError(
+                "Audio file is empty",
+                correlation_id=correlation_id,
+                corruption_details={"filename": audio_file.filename}
+            )
+        
+        # Check file size (100MB limit)
+        if len(audio_data) > 100 * 1024 * 1024:
+            raise WhisperValidationError(
+                "Audio file too large (max 100MB)",
+                correlation_id=correlation_id,
+                validation_details={
+                    "file_size": len(audio_data),
+                    "max_size": 100 * 1024 * 1024,
+                    "filename": audio_file.filename
+                }
+            )
+        
+        # Reset file pointer for subsequent reads
+        audio_file.seek(0)
+        
+    except Exception as e:
+        if isinstance(e, WhisperProcessingBaseError):
+            raise
+        raise AudioCorruptionError(
+            f"Failed to read audio file: {str(e)}",
+            correlation_id=correlation_id,
+            corruption_details={
+                "filename": audio_file.filename,
+                "read_error": str(e)
+            }
+        )
+
+
+def _safe_model_loading(model_name: str, correlation_id: str):
+    """Safe model loading with error handling"""
+    try:
+        if whisper_service.model_manager and model_name not in whisper_service.model_manager.pipelines:
+            logger.info(f"[WHISPER] [{correlation_id}] 🔄 Model {model_name} not loaded, loading now...")
+            
+            # Attempt to load model with circuit breaker
+            def load_model():
+                return whisper_service.load_model(model_name)
+            
+            success = default_circuit_breaker.call(load_model)
+            
+            if not success:
+                raise ModelLoadingError(
+                    f"Failed to load model {model_name}",
+                    correlation_id=correlation_id,
+                    model_details={"model_name": model_name}
+                )
+        
+        return True
+        
+    except Exception as e:
+        if isinstance(e, WhisperProcessingBaseError):
+            raise
+        raise ModelLoadingError(
+            f"Model loading failed: {str(e)}",
+            correlation_id=correlation_id,
+            model_details={
+                "model_name": model_name,
+                "error": str(e)
+            }
+        )
+
+
+def _safe_audio_processing(audio_data: bytes, correlation_id: str):
+    """Safe audio processing with error handling"""
+    try:
+        return _process_audio_enhanced(audio_data)
+    except Exception as e:
+        if "memory" in str(e).lower() or "allocation" in str(e).lower():
+            raise MemoryError(
+                f"Memory error during audio processing: {str(e)}",
+                correlation_id=correlation_id,
+                memory_details={"audio_size": len(audio_data)}
+            )
+        elif "cuda" in str(e).lower() or "gpu" in str(e).lower():
+            raise HardwareError(
+                f"GPU/CUDA error during audio processing: {str(e)}",
+                correlation_id=correlation_id,
+                hardware_details={"device": "cuda"}
+            )
+        else:
+            raise AudioCorruptionError(
+                f"Audio processing failed: {str(e)}",
+                correlation_id=correlation_id,
+                corruption_details={"processing_error": str(e)}
+            )
 
 
 if __name__ == '__main__':

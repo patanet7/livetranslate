@@ -34,6 +34,14 @@ from dependencies import (
 from utils.audio_processing import AudioProcessor
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
+from utils.audio_errors import (
+    AudioProcessingBaseError, AudioFormatError, AudioCorruptionError, 
+    AudioProcessingError, ServiceUnavailableError, ValidationError, 
+    ConfigurationError, NetworkError, TimeoutError,
+    CircuitBreaker, RetryManager, RetryConfig,
+    FormatRecoveryStrategy, ServiceRecoveryStrategy,
+    ErrorLogger, error_boundary, default_circuit_breaker, default_retry_manager
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +50,35 @@ router = APIRouter()
 # Initialize utilities
 rate_limiter = RateLimiter()
 security_utils = SecurityUtils()
+
+# Initialize error handling components
+audio_service_circuit_breaker = CircuitBreaker(
+    name="audio_service",
+    failure_threshold=5,
+    recovery_timeout=60,
+    success_threshold=2
+)
+
+translation_service_circuit_breaker = CircuitBreaker(
+    name="translation_service", 
+    failure_threshold=3,
+    recovery_timeout=30,
+    success_threshold=2
+)
+
+retry_manager = RetryManager(RetryConfig(
+    max_attempts=3,
+    base_delay=1.0,
+    max_delay=30.0,
+    exponential_base=2.0,
+    jitter=True
+))
+
+error_logger = ErrorLogger("orchestration_audio")
+
+# Recovery strategies
+format_recovery = FormatRecoveryStrategy()
+service_recovery = ServiceRecoveryStrategy()
 
 
 @router.post("/process", response_model=AudioProcessingResponse)
@@ -52,7 +89,7 @@ async def process_audio(
     # Rate limiting will be handled by middleware
 ) -> AudioProcessingResponse:
     """
-    Process audio with configured pipeline stages
+    Process audio with configured pipeline stages with comprehensive error handling
 
     - **audio_data**: Base64 encoded audio data
     - **audio_url**: URL to audio file
@@ -64,41 +101,229 @@ async def process_audio(
     """
     request_id = f"req_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
 
+    async with error_boundary(
+        correlation_id=request_id,
+        context={
+            "service": "orchestration",
+            "endpoint": "/process",
+            "streaming": request.streaming,
+            "request_size": len(str(request))
+        },
+        recovery_strategies=[format_recovery, service_recovery]
+    ) as correlation_id:
+        try:
+            logger.info(f"[{correlation_id}] Processing audio request")
+
+            # Enhanced input validation
+            await _validate_audio_request(request, correlation_id)
+
+            # Get audio service configuration with error handling
+            try:
+                audio_service_config = await config_manager.get_service_config("audio")
+            except Exception as e:
+                raise ConfigurationError(
+                    f"Failed to get audio service configuration: {str(e)}",
+                    correlation_id=correlation_id,
+                    config_details={"service": "audio"}
+                )
+
+            # Process through enhanced pipeline with circuit breaker
+            if request.streaming:
+                return await audio_service_circuit_breaker.call(
+                    _process_audio_streaming_with_retry,
+                    request, correlation_id, audio_client, audio_service_config
+                )
+            else:
+                return await audio_service_circuit_breaker.call(
+                    _process_audio_batch_with_retry,
+                    request, correlation_id, audio_client, audio_service_config
+                )
+
+        except AudioProcessingBaseError:
+            # Re-raise our custom errors
+            raise
+        except Exception as e:
+            # Convert unknown exceptions to AudioProcessingError
+            raise AudioProcessingError(
+                f"Unexpected error in audio processing: {str(e)}",
+                correlation_id=correlation_id,
+                processing_stage="main_pipeline",
+                details={"exception_type": type(e).__name__}
+            )
+
+
+async def _validate_audio_request(request: AudioProcessingRequest, correlation_id: str):
+    """Enhanced audio request validation"""
+    # Validate audio source
+    if not any([request.audio_data, request.audio_url, request.file_upload]):
+        raise ValidationError(
+            "No audio source provided",
+            correlation_id=correlation_id,
+            validation_details={
+                "missing_fields": ["audio_data", "audio_url", "file_upload"],
+                "provided_fields": [k for k, v in request.dict().items() if v is not None]
+            }
+        )
+    
+    # Validate audio data if provided
+    if request.audio_data:
+        try:
+            import base64
+            audio_bytes = base64.b64decode(request.audio_data)
+            if len(audio_bytes) == 0:
+                raise AudioCorruptionError(
+                    "Audio data is empty after base64 decoding",
+                    correlation_id=correlation_id,
+                    corruption_details={"original_length": len(request.audio_data)}
+                )
+            if len(audio_bytes) > 100 * 1024 * 1024:  # 100MB limit
+                raise ValidationError(
+                    "Audio file too large (max 100MB)",
+                    correlation_id=correlation_id,
+                    validation_details={"size_bytes": len(audio_bytes), "max_size": 100 * 1024 * 1024}
+                )
+        except Exception as e:
+            if isinstance(e, AudioProcessingBaseError):
+                raise
+            raise AudioFormatError(
+                f"Invalid base64 audio data: {str(e)}",
+                correlation_id=correlation_id,
+                format_details={"encoding": "base64", "error": str(e)}
+            )
+    
+    # Validate configuration
+    if request.config:
+        try:
+            if isinstance(request.config, str):
+                json.loads(request.config)
+        except json.JSONDecodeError as e:
+            raise ValidationError(
+                f"Invalid JSON configuration: {str(e)}",
+                correlation_id=correlation_id,
+                validation_details={"config_error": str(e)}
+            )
+
+
+async def _process_audio_streaming_with_retry(
+    request: AudioProcessingRequest,
+    correlation_id: str,
+    audio_client,
+    audio_service_config: Dict[str, Any]
+) -> AudioProcessingResponse:
+    """Streaming audio processing with retry mechanism"""
+    return await retry_manager.execute_with_retry(
+        _process_audio_streaming,
+        request, correlation_id, audio_client, audio_service_config,
+        correlation_id=correlation_id,
+        retryable_exceptions=(NetworkError, TimeoutError, ServiceUnavailableError)
+    )
+
+
+async def _process_audio_batch_with_retry(
+    request: AudioProcessingRequest,
+    correlation_id: str,
+    audio_client,
+    audio_service_config: Dict[str, Any]
+) -> AudioProcessingResponse:
+    """Batch audio processing with retry mechanism"""
+    return await retry_manager.execute_with_retry(
+        _process_audio_batch,
+        request, correlation_id, audio_client, audio_service_config,
+        correlation_id=correlation_id,
+        retryable_exceptions=(NetworkError, TimeoutError, ServiceUnavailableError)
+    )
+
+
+async def _process_uploaded_file_safe(
+    processing_request: AudioProcessingRequest,
+    correlation_id: str,
+    temp_file_path: str,
+    audio_client,
+    request_data: Dict[str, Any],
+    audio_coordinator,
+    config_sync_manager
+) -> Dict[str, Any]:
+    """Safe wrapper for uploaded file processing with error handling"""
     try:
-        logger.info(f"[{request_id}] Processing audio request")
-
-        # Validate audio source
-        if not any([request.audio_data, request.audio_url, request.file_upload]):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No audio source provided",
-            )
-
-        # Get audio service configuration
-        audio_service_config = await config_manager.get_service_config("audio")
-
-        # Process through enhanced pipeline
-        if request.streaming:
-            return await _process_audio_streaming(
-                request, request_id, audio_client, audio_service_config
-            )
-        else:
-            return await _process_audio_batch(
-                request, request_id, audio_client, audio_service_config
-            )
-
-    except ValidationError as e:
-        logger.error(f"[{request_id}] Validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid audio processing request: {str(e)}",
+        return await _process_uploaded_file(
+            processing_request,
+            correlation_id,
+            temp_file_path,
+            audio_client,
+            request_data,
+            audio_coordinator,
+            config_sync_manager
         )
     except Exception as e:
-        logger.error(f"[{request_id}] Audio processing failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Audio processing failed: {str(e)}",
+        # Convert generic exceptions to appropriate audio errors
+        if "network" in str(e).lower() or "connection" in str(e).lower():
+            raise NetworkError(
+                f"Network error during audio processing: {str(e)}",
+                correlation_id=correlation_id,
+                network_details={"original_error": str(e)}
+            )
+        elif "timeout" in str(e).lower():
+            raise TimeoutError(
+                f"Timeout during audio processing: {str(e)}",
+                correlation_id=correlation_id,
+                timeout_details={"original_error": str(e)}
+            )
+        elif "service" in str(e).lower() or "unavailable" in str(e).lower():
+            raise ServiceUnavailableError(
+                f"Audio service unavailable: {str(e)}",
+                correlation_id=correlation_id,
+                service_name="whisper_service"
+            )
+        else:
+            raise AudioProcessingError(
+                f"Audio processing failed: {str(e)}",
+                correlation_id=correlation_id,
+                processing_stage="file_processing",
+                details={"original_error": str(e)}
+            )
+
+
+async def _validate_upload_file(audio: UploadFile, correlation_id: str):
+    """Enhanced file upload validation"""
+    # Validate filename
+    if not audio.filename:
+        raise ValidationError(
+            "No filename provided",
+            correlation_id=correlation_id,
+            validation_details={"missing_field": "filename"}
         )
+    
+    # Validate content type
+    allowed_types = {
+        'audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 
+        'audio/webm', 'audio/mp4', 'audio/flac', 'audio/x-flac',
+        'application/octet-stream'  # Allow generic binary for various formats
+    }
+    
+    if audio.content_type and audio.content_type not in allowed_types:
+        raise AudioFormatError(
+            f"Unsupported audio format: {audio.content_type}",
+            correlation_id=correlation_id,
+            format_details={
+                "provided_type": audio.content_type,
+                "allowed_types": list(allowed_types)
+            }
+        )
+    
+    # Validate file extension
+    if audio.filename:
+        allowed_extensions = {'.wav', '.mp3', '.ogg', '.webm', '.mp4', '.flac', '.m4a'}
+        file_ext = '.' + audio.filename.split('.')[-1].lower() if '.' in audio.filename else ''
+        
+        if file_ext not in allowed_extensions:
+            raise AudioFormatError(
+                f"Unsupported file extension: {file_ext}",
+                correlation_id=correlation_id,
+                format_details={
+                    "provided_extension": file_ext,
+                    "allowed_extensions": list(allowed_extensions)
+                }
+            )
 
 
 @router.post("/upload", response_model=Dict[str, Any])
@@ -120,6 +345,8 @@ async def upload_audio_file(
     config_manager=Depends(get_config_manager),
     audio_client=Depends(get_audio_service_client),
     translation_client=Depends(get_translation_service_client),
+    audio_coordinator=Depends(get_audio_coordinator),
+    config_sync_manager=Depends(get_config_sync_manager),
     # Rate limiting will be handled by middleware
 ) -> Dict[str, Any]:
     """
@@ -142,38 +369,84 @@ async def upload_audio_file(
     """
     request_id = f"upload_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
 
-    try:
-        logger.info(f"[{request_id}] Processing file upload: {audio.filename}")
+    async with error_boundary(
+        correlation_id=request_id,
+        context={
+            "service": "orchestration",
+            "endpoint": "/upload",
+            "filename": audio.filename,
+            "content_type": audio.content_type,
+            "session_id": session_id,
+            "chunk_id": chunk_id
+        },
+        recovery_strategies=[format_recovery, service_recovery]
+    ) as correlation_id:
+        try:
+            logger.info(f"[{correlation_id}] Processing file upload: {audio.filename}")
 
-        # Validate file
-        if not audio.filename:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="No filename provided"
-            )
+            # Enhanced file validation
+            await _validate_upload_file(audio, correlation_id)
 
-        # Check file size (100MB limit)
-        file_size = 0
-        content = await audio.read()
-        file_size = len(content)
-
-        if file_size > 100 * 1024 * 1024:  # 100MB
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="File too large (max 100MB)",
-            )
-
-        # Validate audio file
-        audio_processor = AudioProcessor()
-        audio_metadata = audio_processor.validate_audio_file(content, audio.filename)
-
-        # Parse configuration
-        audio_config = AudioConfiguration()
-        if config:
+            # Read and validate file content
             try:
-                config_dict = json.loads(config)
-                audio_config = AudioConfiguration(**config_dict)
-            except (json.JSONDecodeError, ValidationError) as e:
-                logger.warning(f"[{request_id}] Invalid config, using defaults: {e}")
+                content = await audio.read()
+                file_size = len(content)
+            except Exception as e:
+                raise AudioCorruptionError(
+                    f"Failed to read uploaded file: {str(e)}",
+                    correlation_id=correlation_id,
+                    corruption_details={"read_error": str(e)}
+                )
+
+            # Check file size (100MB limit)
+            if file_size == 0:
+                raise AudioCorruptionError(
+                    "Uploaded file is empty",
+                    correlation_id=correlation_id,
+                    corruption_details={"file_size": 0}
+                )
+            
+            if file_size > 100 * 1024 * 1024:  # 100MB
+                raise ValidationError(
+                    "File too large (max 100MB)",
+                    correlation_id=correlation_id,
+                    validation_details={"file_size": file_size, "max_size": 100 * 1024 * 1024}
+                )
+
+            # Validate audio file with circuit breaker
+            try:
+                audio_processor = AudioProcessor()
+                audio_metadata = audio_processor.validate_audio_file(content, audio.filename)
+            except Exception as e:
+                raise AudioFormatError(
+                    f"Audio file validation failed: {str(e)}",
+                    correlation_id=correlation_id,
+                    format_details={
+                        "filename": audio.filename,
+                        "content_type": audio.content_type,
+                        "file_size": file_size,
+                        "validation_error": str(e)
+                    }
+                )
+
+            # Parse configuration with validation
+            audio_config = AudioConfiguration()
+            if config:
+                try:
+                    config_dict = json.loads(config)
+                    audio_config = AudioConfiguration(**config_dict)
+                except json.JSONDecodeError as e:
+                    raise ValidationError(
+                        f"Invalid JSON configuration: {str(e)}",
+                        correlation_id=correlation_id,
+                        validation_details={"config_error": str(e), "raw_config": config}
+                    )
+                except Exception as e:
+                    raise ConfigurationError(
+                        f"Invalid audio configuration: {str(e)}",
+                        correlation_id=correlation_id,
+                        config_details={"config_error": str(e)}
+                    )
 
         # Create processing request
         processing_request = AudioProcessingRequest(
@@ -191,41 +464,61 @@ async def upload_audio_file(
             },
         )
 
-        # Store file temporarily
-        temp_file_path = await _store_temp_file(content, audio.filename, request_id)
+            # Store file temporarily with error handling
+            try:
+                temp_file_path = await _store_temp_file(content, audio.filename, correlation_id)
+            except Exception as e:
+                raise AudioProcessingError(
+                    f"Failed to store temporary file: {str(e)}",
+                    correlation_id=correlation_id,
+                    processing_stage="file_storage",
+                    details={"storage_error": str(e)}
+                )
 
-        # Process audio
-        try:
-            # Create request data with parameters from the form
-            request_data = {
-                "speaker_diarization": speaker_diarization,
-                "enable_vad": enable_vad,
-                "whisper_model": whisper_model or "whisper-base",
-                "session_id": session_id,
-                "chunk_id": chunk_id,
-                "audio_processing": audio_processing,
-                "noise_reduction": noise_reduction,
-                "speech_enhancement": speech_enhancement,
-            }
-            result = await _process_uploaded_file(
-                processing_request,
-                request_id,
-                temp_file_path,
-                audio_client,
-                request_data,
-                get_audio_coordinator(),
-                get_config_sync_manager(),
-            )
-        except Exception as e:
-            logger.warning(f"[{request_id}] Audio client unavailable, creating mock result: {e}")
-            # Create a basic response when audio service is unavailable
-            result = {
-                "text": "Audio processing service unavailable - please check whisper service",
-                "language": "en",
-                "confidence": 0.0,
-                "processing_time": 0.0,
-                "error": str(e),
-            }
+            # Process audio with circuit breaker and retry
+            try:
+                request_data = {
+                    "speaker_diarization": speaker_diarization,
+                    "enable_vad": enable_vad,
+                    "whisper_model": whisper_model or "whisper-base",
+                    "session_id": session_id,
+                    "chunk_id": chunk_id,
+                    "audio_processing": audio_processing,
+                    "noise_reduction": noise_reduction,
+                    "speech_enhancement": speech_enhancement,
+                }
+                
+                result = await audio_service_circuit_breaker.call(
+                    retry_manager.execute_with_retry,
+                    _process_uploaded_file_safe,
+                    processing_request,
+                    correlation_id,
+                    temp_file_path,
+                    audio_client,
+                    request_data,
+                    audio_coordinator,
+                    config_sync_manager,
+                    correlation_id=correlation_id,
+                    retryable_exceptions=(NetworkError, TimeoutError, ServiceUnavailableError)
+                )
+                
+            except ServiceUnavailableError as e:
+                logger.warning(f"[{correlation_id}] Audio service unavailable, using fallback: {e}")
+                result = {
+                    "text": "Audio processing service unavailable - please check whisper service",
+                    "language": "en",
+                    "confidence": 0.0,
+                    "processing_time": 0.0,
+                    "error": str(e),
+                    "fallback_used": True
+                }
+            except Exception as e:
+                raise AudioProcessingError(
+                    f"Audio processing failed: {str(e)}",
+                    correlation_id=correlation_id,
+                    processing_stage="audio_processing",
+                    details={"processing_error": str(e)}
+                )
 
         # Initialize response
         response = {
@@ -241,6 +534,7 @@ async def upload_audio_file(
         logger.info(
             f"[{request_id}] Translation check - target_languages: {target_languages}, enable_translation: {enable_translation}, result: {type(result) if result else None}"
         )
+        logger.info(f"[{request_id}] Raw target_languages parameter: {repr(target_languages)}")
         if target_languages and enable_translation and result:
             try:
                 # Parse target languages
@@ -252,6 +546,7 @@ async def upload_audio_file(
                 if not isinstance(target_langs, list):
                     target_langs = [target_langs]
 
+                logger.info(f"[{request_id}] Parsed target_langs: {target_langs} (type: {type(target_langs)})")
                 logger.info(f"[{request_id}] Starting translation to languages: {target_langs}")
 
                 # Extract transcription text from result

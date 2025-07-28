@@ -119,6 +119,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
   const [speakers, setSpeakers] = useState<SpeakerActivity[]>([]);
   const [selectedSession, setSelectedSession] = useState<BotSession | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   // Pagination
   const [page, setPage] = useState(0);
@@ -143,10 +144,16 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
     setLoading(true);
     try {
       const response = await fetch('/api/bot/sessions');
-      if (!response.ok) throw new Error('Failed to load sessions');
+      if (!response.ok) {
+        console.warn(`Sessions API failed with status ${response.status}, using empty array`);
+        setSessions([]);
+        return;
+      }
       const data = await response.json();
       setSessions(data);
     } catch (error) {
+      console.error('Error loading sessions:', error);
+      setSessions([]);
       onError('Failed to load session data');
     } finally {
       setLoading(false);
@@ -156,10 +163,16 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
   const loadTranslations = async () => {
     try {
       const response = await fetch('/api/bot/translations');
-      if (!response.ok) throw new Error('Failed to load translations');
+      if (!response.ok) {
+        console.warn(`Translations API failed with status ${response.status}, using empty array`);
+        setTranslations([]);
+        return;
+      }
       const data = await response.json();
       setTranslations(data);
     } catch (error) {
+      console.error('Error loading translations:', error);
+      setTranslations([]);
       onError('Failed to load translations');
     }
   };
@@ -167,10 +180,16 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
   const loadSpeakerActivity = async () => {
     try {
       const response = await fetch('/api/bot/speaker-activity');
-      if (!response.ok) throw new Error('Failed to load speaker activity');
+      if (!response.ok) {
+        console.warn(`Speaker activity API failed with status ${response.status}, using empty array`);
+        setSpeakers([]);
+        return;
+      }
       const data = await response.json();
       setSpeakers(data);
     } catch (error) {
+      console.error('Error loading speaker activity:', error);
+      setSpeakers([]);
       onError('Failed to load speaker activity');
     }
   };

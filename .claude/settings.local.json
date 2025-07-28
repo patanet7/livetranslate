@@ -13,7 +13,8 @@
       "Bash(cp:*)",
       "Bash(chmod:*)",
       "Bash(git clone:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

@@ -32,6 +32,9 @@ import {
   Translate,
   Timeline,
   Videocam,
+  Hub,
+  Monitor,
+  Waves,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { 
@@ -70,9 +73,9 @@ export const Sidebar: React.FC = () => {
     isConnected 
   } = useAppSelector(state => state.websocket.connection);
 
-  const [expandedSections, setExpandedSections] = React.useState<string[]>(['audio', 'transcription', 'translation', 'analytics']);
+  const [expandedSections, setExpandedSections] = React.useState<string[]>([]);
 
-  // Navigation structure
+  // Navigation structure - Consolidated from 13 pages to 6 main pages
   const navigationItems: NavigationItem[] = [
     {
       id: 'dashboard',
@@ -81,36 +84,12 @@ export const Sidebar: React.FC = () => {
       icon: <Dashboard />,
     },
     {
-      id: 'audio',
-      label: 'Audio Testing',
-      path: '/audio-testing',
-      icon: <AudioFile />,
-    },
-    {
-      id: 'pipeline-studio',
-      label: 'Pipeline Studio',
-      path: '/pipeline-studio',
-      icon: <Equalizer />,
-      badge: 'NEW',
+      id: 'audio-hub',
+      label: 'Audio Processing Hub',
+      path: '/audio-hub',
+      icon: <Hub />,
+      badge: 'ALL-IN-ONE',
       badgeColor: 'primary',
-    },
-    {
-      id: 'transcription',
-      label: 'Transcription Testing',
-      path: '/transcription-testing',
-      icon: <Mic />,
-    },
-    {
-      id: 'translation',
-      label: 'Translation Testing',
-      path: '/translation-testing',
-      icon: <Translate />,
-    },
-    {
-      id: 'meeting-test',
-      label: 'Meeting Test',
-      path: '/meeting-test',
-      icon: <Videocam />,
     },
     {
       id: 'bots',
@@ -127,12 +106,12 @@ export const Sidebar: React.FC = () => {
       icon: <Analytics />,
     },
     {
-      id: 'websocket',
-      label: 'WebSocket Test',
-      path: '/websocket-test',
-      icon: <Cable />,
-      badge: isConnected ? 'Connected' : 'Disconnected',
-      badgeColor: isConnected ? 'success' : 'error',
+      id: 'system-analytics',
+      label: 'System Analytics',
+      path: '/system-analytics',
+      icon: <Monitor />,
+      badge: 'PRO',
+      badgeColor: 'secondary',
     },
     {
       id: 'settings',

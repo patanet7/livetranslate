@@ -20,6 +20,15 @@ mypy>=1.7.0
 black>=23.11.0
 isort>=5.12.0
 
+# Audio processing dependencies
+librosa>=0.10.0
+soundfile>=0.12.0
+scipy>=1.11.0
+numpy>=1.24.0
+
+# Optional visualization for audio analysis
+matplotlib>=3.7.0
+
 # Optional: For additional backends (install as needed)
 # openai>=1.3.0  # For OpenAI API fallback
 # anthropic>=0.7.0  # For Claude API fallback

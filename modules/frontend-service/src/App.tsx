@@ -25,14 +25,10 @@ import { initializeUI, setBreakpoint } from '@/store/slices/uiSlice';
 
 // Lazy-loaded pages for code splitting
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
-const AudioTesting = React.lazy(() => import('@/pages/AudioTesting'));
-const PipelineStudio = React.lazy(() => import('@/pages/PipelineStudio'));
-const TranscriptionTesting = React.lazy(() => import('@/pages/TranscriptionTesting'));
-const TranslationTesting = React.lazy(() => import('@/pages/TranslationTesting'));
-const MeetingTest = React.lazy(() => import('@/pages/MeetingTest'));
+const AudioProcessingHub = React.lazy(() => import('@/pages/AudioProcessingHub'));
 const BotManagement = React.lazy(() => import('@/pages/BotManagement'));
 const Analytics = React.lazy(() => import('@/pages/Analytics'));
-const WebSocketTest = React.lazy(() => import('@/pages/WebSocketTest'));
+const SystemAnalytics = React.lazy(() => import('@/pages/SystemAnalytics'));
 const Settings = React.lazy(() => import('@/pages/Settings'));
 
 // App initialization component
@@ -86,27 +82,27 @@ const App: React.FC = () => {
                   {/* Main Dashboard */}
                   <Route path="/" element={<Dashboard />} />
                   
-                  {/* Audio Testing */}
-                  <Route path="/audio-test" element={<AudioTesting />} />
-                  <Route path="/audio-testing" element={<AudioTesting />} />
+                  {/* Audio Processing Hub - Unified Audio Processing Interface */}
+                  <Route path="/audio-hub" element={<AudioProcessingHub />} />
+                  <Route path="/audio-processing" element={<AudioProcessingHub />} />
+                  <Route path="/audio-hub/:tab" element={<AudioProcessingHub />} />
                   
-                  {/* Pipeline Studio */}
-                  <Route path="/pipeline-studio" element={<PipelineStudio />} />
-                  <Route path="/pipeline" element={<PipelineStudio />} />
-                  
-                  {/* Transcription Testing */}
-                  <Route path="/transcription-testing" element={<TranscriptionTesting />} />
-                  <Route path="/transcription-test" element={<TranscriptionTesting />} />
-                  <Route path="/transcription" element={<TranscriptionTesting />} />
-                  
-                  {/* Translation Testing */}
-                  <Route path="/translation-testing" element={<TranslationTesting />} />
-                  <Route path="/translation-test" element={<TranslationTesting />} />
-                  <Route path="/translation" element={<TranslationTesting />} />
-                  
-                  {/* Meeting Test Dashboard */}
-                  <Route path="/meeting-test" element={<MeetingTest />} />
-                  <Route path="/meeting" element={<MeetingTest />} />
+                  {/* Legacy Audio Routes - Redirect to AudioProcessingHub */}
+                  <Route path="/audio-test" element={<AudioProcessingHub />} />
+                  <Route path="/audio-testing" element={<AudioProcessingHub />} />
+                  <Route path="/pipeline-studio" element={<AudioProcessingHub />} />
+                  <Route path="/pipeline" element={<AudioProcessingHub />} />
+                  <Route path="/transcription-testing" element={<AudioProcessingHub />} />
+                  <Route path="/transcription-test" element={<AudioProcessingHub />} />
+                  <Route path="/transcription" element={<AudioProcessingHub />} />
+                  <Route path="/translation-testing" element={<AudioProcessingHub />} />
+                  <Route path="/translation-test" element={<AudioProcessingHub />} />
+                  <Route path="/translation" element={<AudioProcessingHub />} />
+                  <Route path="/meeting-test" element={<AudioProcessingHub />} />
+                  <Route path="/meeting" element={<AudioProcessingHub />} />
+                  <Route path="/streaming-processor" element={<AudioProcessingHub />} />
+                  <Route path="/streaming" element={<AudioProcessingHub />} />
+                  <Route path="/stream" element={<AudioProcessingHub />} />
                   
                   {/* Bot Management */}
                   <Route path="/bot-management" element={<BotManagement />} />
@@ -116,9 +112,10 @@ const App: React.FC = () => {
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/metrics" element={<Analytics />} />
                   
-                  {/* WebSocket Testing */}
-                  <Route path="/websocket-test" element={<WebSocketTest />} />
-                  <Route path="/websocket" element={<WebSocketTest />} />
+                  {/* System Analytics Dashboard */}
+                  <Route path="/system-analytics" element={<SystemAnalytics />} />
+                  <Route path="/system-metrics" element={<SystemAnalytics />} />
+                  <Route path="/monitoring" element={<SystemAnalytics />} />
                   
                   {/* Settings */}
                   <Route path="/settings" element={<Settings />} />

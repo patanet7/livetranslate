@@ -22,7 +22,7 @@ import threading
 import uuid
 from typing import Dict, List, Optional, Callable, Any, Tuple
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+# Removed datetime import - now using time.time() for float timestamps
 from enum import Enum
 import json
 import httpx
@@ -67,7 +67,7 @@ class MeetingRequest:
     meeting_id: str
     meeting_title: Optional[str] = None
     organizer_email: Optional[str] = None
-    scheduled_start: Optional[datetime] = None
+    scheduled_start: Optional[float] = None  # Changed from datetime to float timestamp
     target_languages: List[str] = None
     recording_enabled: bool = False
     auto_translation: bool = True
@@ -89,14 +89,14 @@ class BotInstance:
     bot_id: str
     meeting_request: MeetingRequest
     status: BotStatus
-    created_at: datetime
+    created_at: float  # Changed from datetime to float timestamp
     google_meet_space_id: Optional[str] = None
     conference_record_id: Optional[str] = None
     session_id: Optional[str] = None
     participant_count: int = 0
     health_score: float = 1.0
     error_count: int = 0
-    last_activity: Optional[datetime] = None
+    last_activity: Optional[float] = None  # Changed from datetime to float timestamp
     performance_stats: Dict[str, Any] = None
 
     def __post_init__(self):
@@ -171,7 +171,7 @@ class BotHealthMonitor:
 
         # Check activity
         if bot.last_activity:
-            inactivity = (datetime.now() - bot.last_activity).total_seconds()
+            inactivity = time.time() - bot.last_activity  # Both are now float timestamps
             if inactivity > self.health_thresholds["min_activity_interval"]:
                 issues.append(f"Inactive for {inactivity:.0f}s")
                 health_factors.append(0.6)
@@ -483,7 +483,7 @@ class GoogleMeetBotManager:
                 bot_id=bot_id,
                 meeting_request=meeting_request,
                 status=BotStatus.SPAWNING,
-                created_at=datetime.now(),
+                created_at=time.time(),  # Use float timestamp instead of datetime object
             )
 
             # Add to active bots
@@ -580,7 +580,7 @@ class GoogleMeetBotManager:
                                     bot_id,
                                     {
                                         "status": "ended",
-                                        "end_time": datetime.now(),
+                                        "end_time": time.time(),  # Use float timestamp
                                         "performance_stats": bot.performance_stats,
                                     },
                                 )
@@ -627,7 +627,7 @@ class GoogleMeetBotManager:
             # Update status
             with self.lock:
                 bot.status = BotStatus.ACTIVE
-                bot.last_activity = datetime.now()
+                bot.last_activity = time.time()  # Use float timestamp instead of datetime object
 
             # Update database session
             if self.database_manager:
@@ -1031,10 +1031,8 @@ class GoogleMeetBotManager:
 
     def _check_bot_timeouts(self):
         """Check for bot timeouts and cleanup."""
-        current_time = datetime.now()
-        timeout_duration = timedelta(
-            seconds=self.config.get("meeting_timeout", 14400.0)
-        )
+        current_time = time.time()  # Use float timestamp
+        timeout_duration = self.config.get("meeting_timeout", 14400.0)  # Duration in seconds
 
         bots_to_terminate = []
 
@@ -1081,7 +1079,7 @@ class GoogleMeetBotManager:
             if event_type == "participant_update":
                 participants = event_data.get("participants", [])
                 bot.participant_count = len(participants)
-                bot.last_activity = datetime.now()
+                bot.last_activity = time.time()  # Use float timestamp
 
                 logger.debug(
                     f"Bot {bot_id} participant update: {len(participants)} participants"

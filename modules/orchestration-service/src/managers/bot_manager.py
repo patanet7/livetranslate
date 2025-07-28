@@ -583,7 +583,7 @@ class BotManager:
             ]
         )
 
-        return {
+        stats_result = {
             **self.stats,
             "active_bots": active_bots,
             "queued_requests": len(self.bot_queue),
@@ -601,6 +601,10 @@ class BotManager:
             )
             * 100,
         }
+        
+        logger.debug(f"Bot manager stats: {stats_result}")
+        logger.debug(f"Bot manager stats types: {[(k, type(v)) for k, v in stats_result.items()]}")
+        return stats_result
 
     def set_service_clients(
         self, audio_client=None, translation_client=None, database_client=None
@@ -609,3 +613,209 @@ class BotManager:
         self.audio_client = audio_client
         self.translation_client = translation_client
         self.database_client = database_client
+
+    # ============================================================================
+    # Analytics and Session Tracking Methods
+    # ============================================================================
+
+    async def get_bot_analytics(self, bot_id: str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive analytics for a specific bot."""
+        try:
+            if not self.database_client:
+                logger.warning("Database client not available for analytics")
+                return None
+
+            # Get bot sessions
+            sessions = await self.database_client.get_bot_sessions(bot_id)
+            if not sessions:
+                return None
+
+            # Calculate analytics from database data
+            total_sessions = len(sessions)
+            active_sessions = len([s for s in sessions if s.get("status") in ["spawning", "active", "paused"]])
+            completed_sessions = len([s for s in sessions if s.get("status") == "ended"])
+            error_sessions = len([s for s in sessions if s.get("status") == "error"])
+
+            # Calculate averages
+            total_duration = sum(
+                (s.get("end_time", time.time()) - s.get("start_time", 0)) 
+                for s in sessions if s.get("start_time")
+            )
+            avg_session_duration = total_duration / max(1, total_sessions)
+
+            # Get detailed data for quality metrics
+            audio_files_count = 0
+            transcripts_count = 0
+            translations_count = 0
+            correlations_count = 0
+            total_confidence = 0.0
+            confidence_count = 0
+
+            for session in sessions:
+                session_id = session.get("session_id")
+                if session_id:
+                    # Get session analytics from database
+                    session_data = await self.database_client.get_comprehensive_session_data(session_id)
+                    if session_data:
+                        audio_files_count += len(session_data.get("audio_files", []))
+                        transcripts_count += len(session_data.get("transcripts", {}).get("inhouse", []))
+                        translations_count += session_data.get("translations", {}).get("total_count", 0)
+                        correlations_count += len(session_data.get("correlations", []))
+
+                        # Calculate confidence scores
+                        for transcript in session_data.get("transcripts", {}).get("inhouse", []):
+                            if transcript.get("confidence_score"):
+                                total_confidence += transcript["confidence_score"]
+                                confidence_count += 1
+
+            avg_confidence = total_confidence / max(1, confidence_count)
+
+            return {
+                "bot_id": bot_id,
+                "total_sessions": total_sessions,
+                "active_sessions": active_sessions,
+                "completed_sessions": completed_sessions,
+                "error_sessions": error_sessions,
+                "total_audio_files": audio_files_count,
+                "total_transcripts": transcripts_count,
+                "total_translations": translations_count,
+                "total_correlations": correlations_count,
+                "average_confidence": avg_confidence,
+                "quality_metrics": {
+                    "transcription_accuracy": avg_confidence,
+                    "translation_quality": avg_confidence * 0.9,  # Approximate
+                    "correlation_success_rate": correlations_count / max(1, transcripts_count) * 100,
+                    "average_processing_time": avg_session_duration / max(1, audio_files_count)
+                },
+                "performance_stats": {
+                    "uptime_percentage": (completed_sessions / max(1, total_sessions)) * 100,
+                    "error_rate": (error_sessions / max(1, total_sessions)) * 100,
+                    "success_rate": (completed_sessions / max(1, total_sessions)) * 100
+                },
+                "usage_patterns": {
+                    "most_active_hours": [],  # TODO: Calculate from session timestamps
+                    "average_session_duration": avg_session_duration,
+                    "popular_languages": []  # TODO: Calculate from session language data
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting bot analytics: {e}")
+            return None
+
+    async def get_comprehensive_session_data(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Get comprehensive session data including all related records."""
+        try:
+            if not self.database_client:
+                return None
+
+            return await self.database_client.get_comprehensive_session_data(session_id)
+
+        except Exception as e:
+            logger.error(f"Error getting comprehensive session data: {e}")
+            return None
+
+    async def get_current_bot_session(self, bot_id: str) -> Optional[Dict[str, Any]]:
+        """Get current active session for a bot."""
+        try:
+            if bot_id in self.bots:
+                bot_instance = self.bots[bot_id]
+                if bot_instance.session_id and self.database_client:
+                    return await self.database_client.get_comprehensive_session_data(bot_instance.session_id)
+            return None
+
+        except Exception as e:
+            logger.error(f"Error getting current bot session: {e}")
+            return None
+
+    async def list_bot_sessions(
+        self, 
+        bot_id: str, 
+        limit: int = 50, 
+        offset: int = 0, 
+        status_filter: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """List sessions for a specific bot with pagination."""
+        try:
+            if not self.database_client:
+                return []
+
+            return await self.database_client.list_bot_sessions(
+                bot_id, limit, offset, status_filter
+            )
+
+        except Exception as e:
+            logger.error(f"Error listing bot sessions: {e}")
+            return []
+
+    async def get_bot_performance_metrics(
+        self, 
+        bot_id: str, 
+        timeframe: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get performance metrics for a bot over specified timeframe."""
+        try:
+            if not self.database_client:
+                return None
+
+            return await self.database_client.get_bot_performance_metrics(bot_id, timeframe)
+
+        except Exception as e:
+            logger.error(f"Error getting bot performance metrics: {e}")
+            return None
+
+    async def get_bot_quality_report(
+        self, 
+        bot_id: str, 
+        session_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Get quality report for bot operations."""
+        try:
+            if not self.database_client:
+                return None
+
+            return await self.database_client.get_bot_quality_report(bot_id, session_id)
+
+        except Exception as e:
+            logger.error(f"Error getting bot quality report: {e}")
+            return None
+
+    async def get_database_analytics(self) -> Optional[Dict[str, Any]]:
+        """Get comprehensive database analytics."""
+        try:
+            if not self.database_client:
+                return None
+
+            return await self.database_client.get_database_statistics()
+
+        except Exception as e:
+            logger.error(f"Error getting database analytics: {e}")
+            return None
+
+    async def get_session_analytics(
+        self, 
+        timeframe: str, 
+        group_by: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get session analytics with time-based grouping."""
+        try:
+            if not self.database_client:
+                return None
+
+            return await self.database_client.get_session_analytics(timeframe, group_by)
+
+        except Exception as e:
+            logger.error(f"Error getting session analytics: {e}")
+            return None
+
+    async def get_quality_analytics(self, timeframe: str) -> Optional[Dict[str, Any]]:
+        """Get quality analytics across all bots and sessions."""
+        try:
+            if not self.database_client:
+                return None
+
+            return await self.database_client.get_quality_analytics(timeframe)
+
+        except Exception as e:
+            logger.error(f"Error getting quality analytics: {e}")
+            return None
