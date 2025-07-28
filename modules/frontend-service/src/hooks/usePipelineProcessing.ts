@@ -6,11 +6,15 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSnackbar } from 'notistack';
-import pipelineApiClient, { 
-  PipelineProcessingRequest, 
-  PipelineProcessingResponse,
-  RealTimeProcessingSession 
-} from '@/services/pipelineApiClient';
+import {
+  useProcessPipelineMutation,
+  useProcessSingleStageMutation,
+  useGetFFTAnalysisMutation,
+  useGetLUFSAnalysisMutation,
+  useStartRealtimeSessionMutation,
+  useGetPresetsQuery,
+  useSaveProcessingPresetMutation,
+} from '@/store/slices/apiSlice';
 
 interface ProcessingMetrics {
   totalLatency: number;
@@ -42,8 +46,43 @@ interface AudioAnalysis {
   };
 }
 
+interface RealTimeProcessingSession {
+  sessionId: string;
+  pipelineId: string;
+  status: 'initializing' | 'running' | 'paused' | 'stopped' | 'error';
+  metrics: {
+    chunksProcessed: number;
+    averageLatency: number;
+    qualityScore: number;
+  };
+}
+
+interface PipelineProcessingRequest {
+  pipelineConfig: {
+    id: string;
+    name: string;
+    stages: any[];
+    connections: any[];
+  };
+  audioData?: Blob | string;
+  processingMode: 'realtime' | 'batch' | 'preview';
+  outputFormat?: 'wav' | 'mp3' | 'base64';
+  metadata?: any;
+}
+
 export const usePipelineProcessing = () => {
   const { enqueueSnackbar } = useSnackbar();
+  
+  // RTK Query mutations
+  const [processPipelineAPI] = useProcessPipelineMutation();
+  const [processSingleStageAPI] = useProcessSingleStageMutation();
+  const [getFFTAnalysisAPI] = useGetFFTAnalysisMutation();
+  const [getLUFSAnalysisAPI] = useGetLUFSAnalysisMutation();
+  const [startRealtimeSessionAPI] = useStartRealtimeSessionMutation();
+  const [savePresetAPI] = useSaveProcessingPresetMutation();
+  
+  // RTK Query queries
+  const { data: presetsData } = useGetPresetsQuery();
   
   // Processing state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -67,33 +106,34 @@ export const usePipelineProcessing = () => {
    */
   const processPipeline = useCallback(async (
     request: PipelineProcessingRequest
-  ): Promise<PipelineProcessingResponse | null> => {
+  ): Promise<any | null> => {
     try {
       setIsProcessing(true);
       setError(null);
       setProcessingProgress(0);
 
-      const response = await pipelineApiClient.processPipeline(request);
+      const response = await processPipelineAPI(request).unwrap();
       
-      if (response.success) {
-        setProcessedAudio(response.processedAudio || null);
+      if (response.data?.success !== false) {
+        const responseData = response.data || response;
+        setProcessedAudio(responseData.processedAudio || null);
         setMetrics({
-          totalLatency: response.metrics.totalLatency,
-          stageLatencies: response.metrics.stageLatencies,
-          qualityMetrics: response.metrics.qualityMetrics,
-          cpuUsage: response.metrics.cpuUsage,
+          totalLatency: responseData.metrics?.totalLatency || 0,
+          stageLatencies: responseData.metrics?.stageLatencies || {},
+          qualityMetrics: responseData.metrics?.qualityMetrics || {},
+          cpuUsage: responseData.metrics?.cpuUsage || 0,
           chunksProcessed: 0,
-          averageLatency: response.metrics.totalLatency,
-          qualityScore: calculateQualityScore(response.metrics.qualityMetrics),
+          averageLatency: responseData.metrics?.totalLatency || 0,
+          qualityScore: calculateQualityScore(responseData.metrics?.qualityMetrics || {}),
         });
         
         enqueueSnackbar('Pipeline processing completed successfully', { variant: 'success' });
         return response;
       } else {
-        throw new Error(response.errors?.join(', ') || 'Processing failed');
+        throw new Error(response.data?.errors?.join(', ') || 'Processing failed');
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    } catch (err: any) {
+      const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
       setError(errorMessage);
       enqueueSnackbar(`Processing failed: ${errorMessage}`, { variant: 'error' });
       return null;
@@ -101,7 +141,7 @@ export const usePipelineProcessing = () => {
       setIsProcessing(false);
       setProcessingProgress(100);
     }
-  }, [enqueueSnackbar]);
+  }, [processPipelineAPI, enqueueSnackbar]);
 
   /**
    * Process audio through a single stage for testing
@@ -115,55 +155,58 @@ export const usePipelineProcessing = () => {
       setIsProcessing(true);
       setError(null);
 
-      const response = await pipelineApiClient.processSingleStage(
+      const response = await processSingleStageAPI({
         stageType,
         audioData,
         stageConfig
-      );
+      }).unwrap();
 
-      setProcessedAudio(response.processedAudio);
+      const responseData = response.data || response;
+      setProcessedAudio(responseData.processedAudio);
       
       enqueueSnackbar(`${stageType} processing completed`, { variant: 'success' });
       return response;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    } catch (err: any) {
+      const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
       setError(errorMessage);
       enqueueSnackbar(`Stage processing failed: ${errorMessage}`, { variant: 'error' });
       return null;
     } finally {
       setIsProcessing(false);
     }
-  }, [enqueueSnackbar]);
+  }, [processSingleStageAPI, enqueueSnackbar]);
 
   /**
    * Analyze audio with FFT
    */
   const analyzeFFT = useCallback(async (audioData: Blob | string) => {
     try {
-      const analysis = await pipelineApiClient.getFFTAnalysis(audioData);
+      const response = await getFFTAnalysisAPI(audioData).unwrap();
+      const analysis = response.data || response;
       setAudioAnalysis(prev => ({ ...prev, fft: analysis }));
       return analysis;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    } catch (err: any) {
+      const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
       enqueueSnackbar(`FFT analysis failed: ${errorMessage}`, { variant: 'error' });
       return null;
     }
-  }, [enqueueSnackbar]);
+  }, [getFFTAnalysisAPI, enqueueSnackbar]);
 
   /**
    * Analyze audio with LUFS metering
    */
   const analyzeLUFS = useCallback(async (audioData: Blob | string) => {
     try {
-      const analysis = await pipelineApiClient.getLUFSAnalysis(audioData);
+      const response = await getLUFSAnalysisAPI(audioData).unwrap();
+      const analysis = response.data || response;
       setAudioAnalysis(prev => ({ ...prev, lufs: analysis }));
       return analysis;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    } catch (err: any) {
+      const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
       enqueueSnackbar(`LUFS analysis failed: ${errorMessage}`, { variant: 'error' });
       return null;
     }
-  }, [enqueueSnackbar]);
+  }, [getLUFSAnalysisAPI, enqueueSnackbar]);
 
   /**
    * Start real-time processing session
@@ -175,39 +218,23 @@ export const usePipelineProcessing = () => {
       setError(null);
       
       // Start backend session
-      const session = await pipelineApiClient.startRealtimeSession(pipelineConfig);
+      const response = await startRealtimeSessionAPI({ pipelineConfig }).unwrap();
+      const session = response.data || response;
       setRealtimeSession(session);
 
-      // Connect WebSocket
-      const ws = pipelineApiClient.connectRealtimeWebSocket(session.sessionId, {
-        onMetrics: (metricsData) => {
-          setMetrics(prev => ({
-            ...prev,
-            ...metricsData,
-            qualityScore: calculateQualityScore(metricsData.qualityMetrics || {}),
-          }));
-        },
-        onProcessedAudio: (audio) => {
-          setProcessedAudio(audio);
-        },
-        onError: (errorMessage) => {
-          setError(errorMessage);
-          enqueueSnackbar(`Real-time processing error: ${errorMessage}`, { variant: 'error' });
-        },
-      });
-
-      websocketRef.current = ws;
+      // Note: WebSocket functionality would need to be implemented separately
+      // as RTK Query doesn't handle WebSocket connections
       setIsRealtimeActive(true);
       
       enqueueSnackbar('Real-time processing session started', { variant: 'success' });
       return session;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+    } catch (err: any) {
+      const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
       setError(errorMessage);
       enqueueSnackbar(`Failed to start real-time processing: ${errorMessage}`, { variant: 'error' });
       return null;
     }
-  }, [enqueueSnackbar]);
+  }, [startRealtimeSessionAPI, enqueueSnackbar]);
 
   /**
    * Start microphone capture for real-time processing
@@ -236,7 +263,9 @@ export const usePipelineProcessing = () => {
 
       mediaRecorderRef.current.ondataavailable = (event) => {
         if (event.data.size > 0 && websocketRef.current) {
-          pipelineApiClient.sendAudioChunk(event.data);
+          // Note: Audio chunk sending would need to be implemented separately
+          // as RTK Query doesn't handle WebSocket connections
+          console.log('Audio chunk ready for processing:', event.data.size, 'bytes');
         }
       };
 
@@ -268,7 +297,7 @@ export const usePipelineProcessing = () => {
 
     // Close WebSocket
     if (websocketRef.current) {
-      pipelineApiClient.disconnect();
+      websocketRef.current.close();
       websocketRef.current = null;
     }
 
@@ -282,9 +311,13 @@ export const usePipelineProcessing = () => {
    * Update pipeline configuration in real-time
    */
   const updateRealtimeConfig = useCallback((stageId: string, parameters: Record<string, any>) => {
-    if (websocketRef.current && isRealtimeActive) {
+    if (websocketRef.current && isRealtimeActive && websocketRef.current.readyState === WebSocket.OPEN) {
       try {
-        pipelineApiClient.updatePipelineConfig(stageId, parameters);
+        websocketRef.current.send(JSON.stringify({
+          type: 'update_stage',
+          stage_id: stageId,
+          parameters: parameters,
+        }));
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
         enqueueSnackbar(`Failed to update configuration: ${errorMessage}`, { variant: 'error' });
@@ -312,6 +345,40 @@ export const usePipelineProcessing = () => {
       return null;
     }
   }, [processedAudio]);
+
+  /**
+   * Get available presets
+   */
+  const getPresets = useCallback(() => {
+    return presetsData || [];
+  }, [presetsData]);
+
+  /**
+   * Save custom preset
+   */
+  const savePreset = useCallback(async (
+    name: string,
+    pipelineConfig: PipelineProcessingRequest['pipelineConfig'],
+    metadata: {
+      description: string;
+      category: string;
+      tags: string[];
+    }
+  ) => {
+    try {
+      await savePresetAPI({
+        name,
+        pipelineConfig,
+        metadata
+      }).unwrap();
+      
+      enqueueSnackbar(`Preset '${name}' saved successfully`, { variant: 'success' });
+    } catch (err: any) {
+      const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
+      enqueueSnackbar(`Failed to save preset: ${errorMessage}`, { variant: 'error' });
+      throw err;
+    }
+  }, [savePresetAPI, enqueueSnackbar]);
 
   /**
    * Calculate overall quality score from metrics
@@ -361,6 +428,10 @@ export const usePipelineProcessing = () => {
     
     // Utility functions
     getProcessedAudioBlob,
+    
+    // Preset management
+    getPresets,
+    savePreset,
     
     // Actions
     clearError: () => setError(null),

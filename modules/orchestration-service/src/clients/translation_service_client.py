@@ -340,7 +340,8 @@ class TranslationServiceClient:
         try:
             session = await self._get_session()
 
-            async with session.get(f"{self.base_url}/api/stats") as response:
+            # Try the health endpoint first as it might have some stats
+            async with session.get(f"{self.base_url}/api/health") as response:
                 if response.status == 200:
                     return await response.json()
                 else:
@@ -464,3 +465,68 @@ class TranslationServiceClient:
                     model_used="error"
                 )
             return result_dict
+
+    async def get_analytics(self) -> Dict[str, Any]:
+        """Get translation analytics for analytics API"""
+        try:
+            session = await self._get_session()
+            
+            # Try the health endpoint as translation service might not have dedicated analytics
+            async with session.get(f"{self.base_url}/api/health") as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result
+                else:
+                    # Try to get basic stats instead
+                    stats = await self.get_statistics()
+                    if "error" not in stats:
+                        # Convert basic stats to analytics format
+                        return {
+                            "total_translations": stats.get("total_translations", 0),
+                            "successful_translations": stats.get("successful_translations", 0),
+                            "failed_translations": stats.get("failed_translations", 0),
+                            "average_processing_time_ms": stats.get("average_processing_time", 0) * 1000,
+                            "translation_quality_score": stats.get("translation_quality_score", 0.0),
+                            "language_pairs_processed": stats.get("language_pairs_processed", {}),
+                            "model_performance": stats.get("model_performance", {}),
+                            "error_rate": stats.get("failed_translations", 0) / max(1, stats.get("total_translations", 1)),
+                            "throughput_per_minute": stats.get("throughput_per_minute", 0),
+                            "active_sessions": stats.get("active_sessions", 0),
+                            "supported_languages": len(await self.get_supported_languages()),
+                            "timestamp": stats.get("timestamp", 0)
+                        }
+                    else:
+                        # Return default analytics
+                        return {
+                            "total_translations": 0,
+                            "successful_translations": 0,
+                            "failed_translations": 0,
+                            "average_processing_time_ms": 0,
+                            "translation_quality_score": 0.0,
+                            "language_pairs_processed": {},
+                            "model_performance": {},
+                            "error_rate": 0.0,
+                            "throughput_per_minute": 0,
+                            "active_sessions": 0,
+                            "supported_languages": 0,
+                            "timestamp": 0,
+                            "error": f"HTTP {response.status}"
+                        }
+                    
+        except Exception as e:
+            logger.error(f"Failed to get translation analytics: {e}")
+            return {
+                "total_translations": 0,
+                "successful_translations": 0,
+                "failed_translations": 0,
+                "average_processing_time_ms": 0,
+                "translation_quality_score": 0.0,
+                "language_pairs_processed": {},
+                "model_performance": {},
+                "error_rate": 0.0,
+                "throughput_per_minute": 0,
+                "active_sessions": 0,
+                "supported_languages": 0,
+                "timestamp": 0,
+                "error": str(e)
+            }

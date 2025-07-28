@@ -9,6 +9,7 @@ and improved performance over the legacy Flask implementation.
 import os
 import logging
 import asyncio
+import json
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBearer
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
+from fastapi.encoders import jsonable_encoder
 
 import sys
 from pathlib import Path
@@ -39,15 +41,21 @@ logging.basicConfig(
 # Create specialized loggers
 logger = logging.getLogger(__name__)
 router_logger = logging.getLogger('router_registration')
+# Reduce router registration logging noise
+router_logger.setLevel(logging.WARNING)
 import_logger = logging.getLogger('import_analysis')
+import_logger.setLevel(logging.WARNING)
 route_logger = logging.getLogger('route_conflicts')
+route_logger.setLevel(logging.WARNING)
 startup_logger = logging.getLogger('startup_process')
+startup_logger.setLevel(logging.WARNING)
 
-# Set specific log levels for detailed debugging
-router_logger.setLevel(logging.DEBUG)
-import_logger.setLevel(logging.DEBUG)
-route_logger.setLevel(logging.DEBUG)
-startup_logger.setLevel(logging.DEBUG)
+# Keep loggers at WARNING level to reduce console noise
+# Uncomment the lines below for detailed debugging only:
+# router_logger.setLevel(logging.DEBUG)
+# import_logger.setLevel(logging.DEBUG)
+# route_logger.setLevel(logging.DEBUG)
+# startup_logger.setLevel(logging.DEBUG)
 
 startup_logger.info("[START] Starting enhanced debugging session for orchestration service")
 startup_logger.info(f"Debug session started at: {datetime.utcnow().isoformat()}")
@@ -167,6 +175,30 @@ else:
 
 # Continue with enhanced logging already configured at top
 
+# Custom JSON encoder to handle datetime objects
+class CustomJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects"""
+    
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            # Convert datetime to ISO format string for JSON serialization
+            return obj.isoformat()
+        return super().default(obj)
+
+# Custom JSONResponse class that uses our datetime-aware encoder
+class DateTimeJSONResponse(JSONResponse):
+    """Custom JSONResponse that properly handles datetime objects"""
+    
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            cls=CustomJSONEncoder,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
 # Security
 security = HTTPBearer(auto_error=False)
 
@@ -213,7 +245,7 @@ async def lifespan(app: FastAPI):
         logger.info("[OK] Shutdown completed")
 
 
-# Create FastAPI application
+# Create FastAPI application with custom JSON encoder
 app = FastAPI(
     title="LiveTranslate Orchestration Service",
     description="Modern FastAPI backend for orchestrating audio processing, translation, and bot management services",
@@ -222,6 +254,7 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json",
     lifespan=lifespan,
+    default_response_class=DateTimeJSONResponse,  # Use our custom JSON response class
 )
 
 # Middleware setup
@@ -337,9 +370,9 @@ try:
     conflicts = check_route_conflicts("/api/pipeline", "pipeline_router", registered_routes)
     app.include_router(pipeline_router, prefix="/api/pipeline", tags=["Pipeline Processing"])
     registered_routes.append(("/api/pipeline", "pipeline_router"))
-    router_logger.info("✓ pipeline_router registered successfully")
+    router_logger.info("pipeline_router registered successfully")
 except Exception as e:
-    router_logger.error(f"✗ Failed to register pipeline_router: {str(e)}")
+    router_logger.error(f"Failed to register pipeline_router: {str(e)}")
 
 router_logger.info("[8] Registering translation_router...")
 log_router_details("translation_router", translation_router, "/api/translation")

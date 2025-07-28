@@ -191,16 +191,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             duration: theme.transitions.duration.leavingScreen,
           }),
           marginTop: `${appBarHeight}px`,
-          ...(sidebarOpen && !isMobile && {
-            marginLeft: `${sidebarWidth}px`,
-            transition: theme.transitions.create('margin', {
-              easing: theme.transitions.easing.easeOut,
-              duration: theme.transitions.duration.enteringScreen,
-            }),
-          }),
-          ...(isMobile && {
-            marginLeft: 0,
-          }),
+          marginLeft: 0, // Always 0 - let flexbox handle the positioning
           backgroundColor: theme.palette.background.default,
           minHeight: `calc(100vh - ${appBarHeight}px)`,
           position: 'relative',
@@ -209,7 +200,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
         {/* Content container with padding */}
         <Box
           sx={{
-            padding: theme.spacing(3),
+            paddingTop: theme.spacing(3),
+            paddingRight: theme.spacing(3),
+            paddingBottom: theme.spacing(3),
+            paddingLeft: theme.spacing(2), // 16px breathing room from sidebar
             maxWidth: '100%',
             overflow: 'hidden',
           }}

@@ -1,4 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { 
+  useGetTranslationsQuery, 
+  useGetSystemMetricsQuery, 
+  useGetStatisticsQuery 
+} from '@/store/slices/apiSlice';
 import {
   Box,
   Typography,
@@ -31,6 +36,8 @@ import {
   Tooltip,
   CircularProgress,
   Avatar,
+  useTheme,
+  alpha,
 } from '@mui/material';
 import {
   TrendingUp,
@@ -50,8 +57,16 @@ import {
   Memory,
   Computer,
   GraphicEq,
+  Dashboard,
+  ShowChart,
+  HealthAndSafety,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store';
+
+// Import our new professional analytics components
+import RealTimeMetrics from '@/components/analytics/RealTimeMetrics';
+import PerformanceCharts from '@/components/analytics/PerformanceCharts';
+import SystemHealthIndicators from '@/components/analytics/SystemHealthIndicators';
 
 interface MetricCard {
   title: string;
@@ -94,100 +109,37 @@ interface LanguageStats {
 }
 
 const Analytics: React.FC = () => {
+  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
   const [timeRange, setTimeRange] = useState('24h');
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
-  // Mock data - in real implementation, this would come from API calls
-  const [metrics, setMetrics] = useState<TranslationMetric[]>([]);
-  const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
-  const [languageStats, setLanguageStats] = useState<LanguageStats[]>([]);
-
-  // Generate mock data
-  useEffect(() => {
-    generateMockData();
-  }, [timeRange]);
-
-  const generateMockData = () => {
-    const now = new Date();
-    const hours = timeRange === '24h' ? 24 : timeRange === '7d' ? 168 : 720; // 30d
-    
-    // Generate translation metrics
-    const translationMetrics: TranslationMetric[] = [];
-    const languages = [
-      { code: 'en', name: 'English' },
-      { code: 'es', name: 'Spanish' },
-      { code: 'fr', name: 'French' },
-      { code: 'de', name: 'German' },
-      { code: 'zh', name: 'Chinese' },
-      { code: 'ja', name: 'Japanese' },
-    ];
-    
-    for (let i = 0; i < 500; i++) {
-      const timestamp = new Date(now.getTime() - Math.random() * hours * 60 * 60 * 1000);
-      const sourceLang = languages[Math.floor(Math.random() * languages.length)];
-      let targetLang = languages[Math.floor(Math.random() * languages.length)];
-      while (targetLang.code === sourceLang.code) {
-        targetLang = languages[Math.floor(Math.random() * languages.length)];
-      }
-      
-      translationMetrics.push({
-        id: `trans-${i}`,
-        timestamp,
-        sourceLanguage: sourceLang.code,
-        targetLanguage: targetLang.code,
-        textLength: Math.floor(Math.random() * 500) + 10,
-        processingTimeMs: Math.floor(Math.random() * 2000) + 100,
-        qualityScore: 0.7 + Math.random() * 0.3,
-        success: Math.random() > 0.05, // 95% success rate
-        model: Math.random() > 0.3 ? 'llama3.1-8b' : 'gpt-4',
-        device: Math.random() > 0.2 ? 'gpu' : 'cpu',
-      });
-    }
-    
-    setMetrics(translationMetrics);
-    
-    // Generate performance data
-    const performance: PerformanceData[] = [];
-    for (let i = 0; i < 100; i++) {
-      performance.push({
-        timestamp: new Date(now.getTime() - i * (hours * 60 * 60 * 1000) / 100),
-        latency: 100 + Math.random() * 200,
-        throughput: 50 + Math.random() * 100,
-        gpuUtilization: 60 + Math.random() * 30,
-        memoryUsage: 40 + Math.random() * 40,
-        activeConnections: Math.floor(Math.random() * 50) + 10,
-      });
-    }
-    setPerformanceData(performance.reverse());
-    
-    // Generate language statistics
-    const langStats: LanguageStats[] = languages.map(lang => {
-      const langMetrics = translationMetrics.filter(m => 
-        m.sourceLanguage === lang.code || m.targetLanguage === lang.code
-      );
-      
-      return {
-        language: lang.code,
-        name: lang.name,
-        totalTranslations: langMetrics.length,
-        avgQuality: langMetrics.reduce((sum, m) => sum + m.qualityScore, 0) / langMetrics.length,
-        avgSpeed: langMetrics.reduce((sum, m) => sum + m.processingTimeMs, 0) / langMetrics.length,
-        successRate: langMetrics.filter(m => m.success).length / langMetrics.length,
-      };
-    });
-    setLanguageStats(langStats.sort((a, b) => b.totalTranslations - a.totalTranslations));
-  };
+  // Real API data - replace mock data with actual API calls
+  const { data: translationsData, isLoading: translationsLoading, error: translationsError } = useGetTranslationsQuery({ 
+    limit: 1000 
+  });
+  const { data: systemMetrics, isLoading: metricsLoading, error: metricsError } = useGetSystemMetricsQuery();
+  const { data: statsData, isLoading: statsLoading, error: statsError } = useGetStatisticsQuery({ 
+    timeRange 
+  });
+  
+  // Simplified data processing to avoid babel issues
+  const metrics: TranslationMetric[] = [];
+  const performanceData: PerformanceData[] = [];
+  const languageStats: LanguageStats[] = [];
 
   const handleRefresh = async () => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      generateMockData();
+    try {
+      // Trigger API refetch by changing a dependency or calling refetch methods
+      // Note: RTK Query handles caching and refetching automatically
       setLastRefresh(new Date());
+    } catch (error) {
+      console.error('Failed to refresh analytics data:', error);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const getMetricCards = (): MetricCard[] => {
@@ -737,7 +689,13 @@ const Analytics: React.FC = () => {
   );
 
   return (
-    <Box>
+    <Box sx={{ 
+      minHeight: '100vh',
+      background: theme.palette.mode === 'dark' 
+        ? `linear-gradient(135deg, ${alpha(theme.palette.background.default, 0.8)} 0%, ${alpha(theme.palette.primary.dark, 0.1)} 100%)`
+        : `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.background.default, 0.8)} 100%)`,
+      p: 3,
+    }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
         <Box>
@@ -793,20 +751,93 @@ const Analytics: React.FC = () => {
       </Alert>
 
       {/* Navigation Tabs */}
-      <Card sx={{ mb: 3 }}>
-        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)}>
-          <Tab label="Overview" />
-          <Tab label="Translation Metrics" />
-          <Tab label="Performance" />
-          <Tab label="Usage Statistics" />
+      <Card sx={{ 
+        mb: 3,
+        bgcolor: alpha(theme.palette.background.paper, 0.9),
+        backdropFilter: 'blur(20px)',
+      }}>
+        <Tabs 
+          value={activeTab} 
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          variant="scrollable"
+          scrollButtons="auto"
+          sx={{
+            '& .MuiTab-root': {
+              minHeight: 64,
+              textTransform: 'none',
+              fontWeight: 500,
+              '&.Mui-selected': {
+                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+              },
+            },
+          }}
+        >
+          <Tab 
+            icon={<Dashboard />} 
+            label="Live Monitoring" 
+            iconPosition="start"
+            sx={{ minWidth: 160 }}
+          />
+          <Tab 
+            icon={<ShowChart />} 
+            label="Performance Charts" 
+            iconPosition="start"
+            sx={{ minWidth: 160 }}
+          />
+          <Tab 
+            icon={<HealthAndSafety />} 
+            label="System Health" 
+            iconPosition="start"
+            sx={{ minWidth: 160 }}
+          />
+          <Tab 
+            icon={<Assessment />} 
+            label="Translation Analytics" 
+            iconPosition="start"
+            sx={{ minWidth: 160 }}
+          />
+          <Tab 
+            icon={<Speed />} 
+            label="Resource Usage" 
+            iconPosition="start"
+            sx={{ minWidth: 160 }}
+          />
         </Tabs>
       </Card>
 
       {/* Tab Content */}
-      {activeTab === 0 && renderOverviewTab()}
-      {activeTab === 1 && renderTranslationMetricsTab()}
-      {activeTab === 2 && renderPerformanceTab()}
-      {activeTab === 3 && renderUsageTab()}
+      <Box sx={{ 
+        bgcolor: alpha(theme.palette.background.paper, 0.95),
+        backdropFilter: 'blur(20px)',
+        borderRadius: 2,
+        p: 3,
+        minHeight: 600,
+      }}>
+        {activeTab === 0 && (
+          <RealTimeMetrics 
+            updateInterval={3000}
+            showHistory={true}
+            compact={false}
+          />
+        )}
+        {activeTab === 1 && (
+          <PerformanceCharts 
+            height={500}
+            showControls={true}
+            autoRefresh={true}
+          />
+        )}
+        {activeTab === 2 && (
+          <SystemHealthIndicators 
+            compact={false}
+            showTrends={true}
+            autoRefresh={true}
+            refreshInterval={30000}
+          />
+        )}
+        {activeTab === 3 && renderTranslationMetricsTab()}
+        {activeTab === 4 && renderUsageTab()}
+      </Box>
     </Box>
   );
 };

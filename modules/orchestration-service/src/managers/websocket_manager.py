@@ -607,3 +607,43 @@ class WebSocketManager:
     def get_all_sessions(self) -> List[Dict[str, Any]]:
         """Get all session information"""
         return [session.to_dict() for session in self.sessions.values()]
+
+    async def get_connection_stats(self) -> Dict[str, Any]:
+        """Get WebSocket connection statistics for analytics API"""
+        current_time = time.time()
+        
+        # Calculate connection metrics
+        total_connections = len(self.connections)
+        active_connections = sum(1 for conn in self.connections.values() if conn.state == ConnectionState.CONNECTED)
+        
+        # Calculate session metrics
+        total_sessions = len(self.sessions)
+        active_sessions = sum(1 for session in self.sessions.values() if session.connection_ids)
+        
+        # Calculate uptime metrics
+        connection_uptimes = [current_time - conn.connected_at for conn in self.connections.values()]
+        avg_connection_uptime = sum(connection_uptimes) / len(connection_uptimes) if connection_uptimes else 0
+        
+        # Calculate message rates (approximate based on total messages)
+        message_rate = self.stats.get("total_messages", 0) / max(1, current_time - (min(conn.connected_at for conn in self.connections.values()) if self.connections else current_time))
+        
+        return {
+            "total_connections": total_connections,
+            "active_connections": active_connections,
+            "total_sessions": total_sessions,
+            "active_sessions": active_sessions,
+            "max_connections": self.max_connections,
+            "connection_utilization": active_connections / self.max_connections if self.max_connections > 0 else 0,
+            "avg_connection_uptime": avg_connection_uptime,
+            "message_rate_per_second": message_rate,
+            "total_messages_processed": self.stats.get("total_messages", 0),
+            "total_errors": self.stats.get("total_errors", 0),
+            "error_rate": self.stats.get("total_errors", 0) / max(1, self.stats.get("total_messages", 1)),
+            "heartbeat_interval": self.heartbeat_interval,
+            "session_timeout": self.session_timeout,
+            "connections_by_state": {
+                state.value: sum(1 for conn in self.connections.values() if conn.state == state)
+                for state in ConnectionState
+            },
+            "timestamp": current_time
+        }

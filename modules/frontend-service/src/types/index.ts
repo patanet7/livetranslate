@@ -92,7 +92,7 @@ export interface VisualizationState {
 }
 
 // Bot Management Types
-export type BotStatus = 'spawning' | 'active' | 'error' | 'terminated';
+export type BotStatus = 'spawning' | 'joining' | 'active' | 'recording' | 'processing' | 'error' | 'terminating' | 'terminated';
 
 export interface MeetingRequest {
   meetingId: string;
@@ -111,42 +111,25 @@ export interface MeetingInfo {
 }
 
 export interface BotInstance {
+  id: string;
   botId: string;
   status: BotStatus;
-  meetingInfo: MeetingInfo;
-  audioCapture: {
-    isCapturing: boolean;
-    totalChunksCaptured: number;
-    averageQualityScore: number;
-    lastCaptureTimestamp: number;
-    deviceInfo: string;
-  };
-  captionProcessor: {
-    totalCaptionsProcessed: number;
-    totalSpeakers: number;
-    speakerTimeline: SpeakerTimelineEvent[];
-    lastCaptionTimestamp: number;
-  };
-  virtualWebcam: {
-    isStreaming: boolean;
-    framesGenerated: number;
-    currentTranslations: Translation[];
-    webcamConfig: WebcamConfig;
-  };
-  timeCorrelation: {
-    totalCorrelations: number;
-    successRate: number;
-    averageTimingOffset: number;
-    lastCorrelationTimestamp: number;
-  };
-  performance: {
-    sessionDuration: number;
-    totalProcessingTime: number;
-    averageLatency: number;
-    errorCount: number;
-  };
-  createdAt: number;
-  lastActiveAt: number;
+  config: import('./bot').BotConfiguration;
+  
+  // Statistics matching backend structure
+  audioCapture: import('./bot').AudioCaptureStats;
+  captionProcessor: import('./bot').CaptionProcessorStats;
+  virtualWebcam: import('./bot').VirtualWebcamStats;
+  timeCorrelation: import('./bot').TimeCorrelationStats;
+  performance: import('./bot').BotPerformanceStats;
+  
+  // Runtime information
+  lastActiveAt: string; // ISO string
+  errorMessages: string[];
+  
+  // Timestamps
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
 }
 
 export interface SpeakerTimelineEvent {
@@ -285,6 +268,23 @@ export interface FormFieldProps {
 // Export specific types to avoid conflicts
 export * from './audio';
 export * from './bot';
+
+// Export additional bot-related types
+export type {
+  BotPriority,
+  MeetingPlatform,
+  WebcamDisplayMode,
+  WebcamTheme,
+  BotConfiguration,
+  BotSpawnRequest,
+  AudioCaptureConfig,
+  TranslationConfig,
+  AudioCaptureStats,
+  CaptionProcessorStats,
+  VirtualWebcamStats,
+  TimeCorrelationStats,
+  BotPerformanceStats
+} from './bot';
 
 // Export WebSocket types selectively to avoid conflicts
 export type { 

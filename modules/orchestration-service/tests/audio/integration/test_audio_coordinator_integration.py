@@ -17,10 +17,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, List, Any
 from datetime import datetime, timedelta
 
+# Note: AudioCoordinator implementation to be added - tests temporarily disabled for specific classes
 # from src.audio.audio_coordinator import AudioCoordinator, create_audio_coordinator
-
-# Skip tests until AudioCoordinator is implemented
-pytestmark = pytest.mark.skip(reason="AudioCoordinator not yet implemented")
 from src.audio.models import (
     AudioChunkMetadata,
     AudioChunkingConfig,

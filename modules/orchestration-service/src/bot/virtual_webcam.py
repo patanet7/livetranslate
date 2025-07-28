@@ -307,25 +307,46 @@ class VirtualWebcamManager:
     def add_translation(self, translation_data: Dict[str, Any]):
         """Add a new translation to display."""
         try:
+            # Determine display text and type
+            is_original = translation_data.get("is_original_transcription", False)
+            display_text = translation_data["translated_text"]
+            
+            # Format speaker name with diarization info if available
+            speaker_name = translation_data.get("speaker_name")
+            speaker_id = translation_data.get("speaker_id")
+            
+            # Enhanced speaker name formatting
+            if speaker_name and speaker_id:
+                # Check if speaker_id contains diarization info (e.g., "SPEAKER_00", "diarized_speaker_1")
+                if "SPEAKER_" in speaker_id or "diarized" in speaker_id.lower():
+                    formatted_speaker = f"{speaker_name} ({speaker_id})"
+                else:
+                    formatted_speaker = speaker_name
+            elif speaker_id:
+                formatted_speaker = speaker_id
+            elif speaker_name:
+                formatted_speaker = speaker_name
+            else:
+                formatted_speaker = "Unknown Speaker"
+
             # Create translation display item
             translation = TranslationDisplay(
                 translation_id=translation_data.get(
                     "translation_id", str(uuid.uuid4())
                 ),
-                text=translation_data["translated_text"],
+                text=display_text,
                 source_language=translation_data.get("source_language", "auto"),
                 target_language=translation_data.get("target_language", "en"),
-                speaker_name=translation_data.get("speaker_name"),
-                confidence=translation_data.get("translation_confidence", 1.0),
+                speaker_name=formatted_speaker,
+                confidence=translation_data.get("translation_confidence", 0.0),  # Default to 0.0 instead of 1.0
                 timestamp=datetime.now(),
                 expires_at=datetime.now()
                 + timedelta(seconds=self.config.translation_duration_seconds),
             )
 
             # Add speaker if new
-            speaker_id = translation_data.get("speaker_id")
             if speaker_id and speaker_id not in self.speakers:
-                self._add_speaker(speaker_id, translation_data.get("speaker_name"))
+                self._add_speaker(speaker_id, formatted_speaker)
 
             # Update speaker activity
             if speaker_id in self.speakers:
@@ -336,7 +357,10 @@ class VirtualWebcamManager:
                 self.current_translations.append(translation)
                 self.last_translation_time = time.time()
 
-            logger.debug(f"Added translation: {translation.text[:50]}...")
+            # Log with appropriate prefix
+            prefix = "TRANSCRIPTION" if is_original else "TRANSLATION"
+            lang_info = f"[{translation_data.get('source_language', 'auto')} → {translation_data.get('target_language', 'en')}]"
+            logger.info(f"{prefix} {lang_info} {formatted_speaker}: {display_text[:100]}...")
 
         except Exception as e:
             logger.error(f"Error adding translation: {e}")
@@ -471,14 +495,26 @@ class VirtualWebcamManager:
         img = Image.fromarray(self.current_frame, "RGBA")
         draw = ImageDraw.Draw(img)
 
-        # Render each translation
-        y_offset = 50
-        for i, translation in enumerate(self.current_translations):
-            if translation.expires_at and datetime.now() > translation.expires_at:
-                continue
+        # Group translations by speaker and sort by timestamp
+        active_translations = []
+        for translation in self.current_translations:
+            if not (translation.expires_at and datetime.now() > translation.expires_at):
+                active_translations.append(translation)
+        
+        # Sort by timestamp (newest first)
+        active_translations.sort(key=lambda t: t.timestamp, reverse=True)
 
+        # Render each translation with improved spacing
+        y_offset = 30
+        max_display = min(len(active_translations), self.config.max_translations_displayed)
+        
+        for i, translation in enumerate(active_translations[:max_display]):
             self._draw_translation_box(draw, translation, y_offset, colors)
-            y_offset += 80  # Space between translations
+            y_offset += 100  # Increased space for enhanced boxes
+
+        # Add session info header if there are translations
+        if active_translations:
+            self._draw_session_header(draw, colors)
 
         # Convert back to numpy
         self.current_frame = np.array(img)
@@ -580,9 +616,16 @@ class VirtualWebcamManager:
         """Draw a translation box with text and metadata."""
         # Box dimensions
         box_width = min(self.config.width - 100, 800)
-        box_height = 70
+        box_height = 90  # Increased height for more info
         x = 50
         y = y_offset
+
+        # Determine if this is original transcription or translation
+        is_original = translation.source_language == translation.target_language
+        
+        # Choose border color based on type
+        border_color = colors["accent"] if is_original else colors["border"]
+        border_width = 2 if is_original else 1
 
         # Background with opacity
         overlay_color = colors["overlay_bg"] + (
@@ -591,55 +634,103 @@ class VirtualWebcamManager:
         draw.rectangle(
             [(x, y), (x + box_width, y + box_height)],
             fill=overlay_color,
-            outline=colors["border"],
-            width=1,
+            outline=border_color,
+            width=border_width,
         )
 
-        # Speaker info
+        # Type indicator (left side)
+        type_text = "🎤 TRANSCRIPTION" if is_original else "🌐 TRANSLATION"
+        draw.text(
+            (x + 10, y + 5),
+            type_text,
+            fill=colors["accent"] if is_original else colors["text_secondary"],
+            font=self.fonts.get("small", ImageFont.load_default()),
+        )
+
+        # Speaker info with enhanced formatting
         if self.config.show_speaker_names and translation.speaker_name:
-            speaker_text = f"{translation.speaker_name}:"
+            speaker_text = f"👤 {translation.speaker_name}"
+            # Use speaker color if available
+            speaker_color = colors["text_primary"]
+            
             draw.text(
-                (x + 10, y + 5),
+                (x + 10, y + 25),
                 speaker_text,
-                fill=colors["accent"],
-                font=self.fonts.get("small", ImageFont.load_default()),
+                fill=speaker_color,
+                font=self.fonts.get("bold", ImageFont.load_default()),
             )
 
-        # Translation text
+        # Main text with word wrapping
         main_text = translation.text
-        if len(main_text) > 80:
-            main_text = main_text[:77] + "..."
+        if len(main_text) > 60:  # Wrap longer text
+            words = main_text.split()
+            lines = []
+            current_line = ""
+            
+            for word in words:
+                test_line = current_line + " " + word if current_line else word
+                if len(test_line) > 60:
+                    if current_line:
+                        lines.append(current_line)
+                        current_line = word
+                    else:
+                        lines.append(word)
+                else:
+                    current_line = test_line
+            
+            if current_line:
+                lines.append(current_line)
+            
+            # Display up to 2 lines
+            for i, line in enumerate(lines[:2]):
+                draw.text(
+                    (x + 10, y + 45 + (i * 18)),
+                    line + ("..." if i == 1 and len(lines) > 2 else ""),
+                    fill=colors["text_primary"],
+                    font=self.fonts.get("regular", ImageFont.load_default()),
+                )
+        else:
+            draw.text(
+                (x + 10, y + 45),
+                main_text,
+                fill=colors["text_primary"],
+                font=self.fonts.get("regular", ImageFont.load_default()),
+            )
 
-        draw.text(
-            (x + 10, y + 25),
-            main_text,
-            fill=colors["text_primary"],
-            font=self.fonts.get("regular", ImageFont.load_default()),
-        )
-
-        # Confidence indicator
+        # Confidence indicator (top right)
         if self.config.show_confidence:
-            confidence_text = f"{translation.confidence:.1%}"
+            confidence_text = f"📊 {translation.confidence:.1%}"
             confidence_color = (
                 colors["accent"]
                 if translation.confidence > 0.8
                 else colors["text_secondary"]
             )
             draw.text(
-                (x + box_width - 60, y + 5),
+                (x + box_width - 80, y + 5),
                 confidence_text,
                 fill=confidence_color,
                 font=self.fonts.get("small", ImageFont.load_default()),
             )
 
-        # Language indicator
-        lang_text = f"{translation.source_language} → {translation.target_language}"
-        draw.text(
-            (x + box_width - 100, y + box_height - 20),
-            lang_text,
-            fill=colors["text_secondary"],
-            font=self.fonts.get("small", ImageFont.load_default()),
-        )
+        # Language indicator (bottom right)
+        if not is_original:
+            lang_text = f"🔄 {translation.source_language} → {translation.target_language}"
+            draw.text(
+                (x + box_width - 120, y + box_height - 20),
+                lang_text,
+                fill=colors["text_secondary"],
+                font=self.fonts.get("small", ImageFont.load_default()),
+            )
+
+        # Timestamp (bottom right corner)
+        if self.config.show_timestamps:
+            timestamp_text = translation.timestamp.strftime("%H:%M:%S")
+            draw.text(
+                (x + box_width - 60, y + box_height - 20),
+                timestamp_text,
+                fill=colors["text_secondary"],
+                font=self.fonts.get("small", ImageFont.load_default()),
+            )
 
     def _draw_sidebar_translation(
         self,
@@ -742,6 +833,34 @@ class VirtualWebcamManager:
         text_width = bbox[2] - bbox[0]
         x = (self.config.width - text_width) // 2
         draw.text((x, y), translation.text, fill=colors["text_primary"], font=font)
+
+    def _draw_session_header(self, draw: ImageDraw.Draw, colors: Dict[str, Tuple[int, int, int]]):
+        """Draw session information header."""
+        try:
+            session_id = getattr(self, "session_id", "Unknown")
+            active_speakers = len(self.speakers)
+            
+            header_text = f"📹 LiveTranslate Virtual Webcam | Session: {session_id[:8]}... | 👥 {active_speakers} speakers"
+            
+            # Header background
+            header_height = 25
+            draw.rectangle(
+                [(0, 0), (self.config.width, header_height)],
+                fill=colors["overlay_bg"] + (int(255 * 0.9),),
+                outline=colors["border"],
+                width=1,
+            )
+            
+            # Header text
+            draw.text(
+                (10, 5),
+                header_text,
+                fill=colors["text_primary"],
+                font=self.fonts.get("small", ImageFont.load_default()),
+            )
+            
+        except Exception as e:
+            logger.error(f"Error drawing session header: {e}")
 
     def _cleanup_expired_translations(self):
         """Remove expired translations from display."""

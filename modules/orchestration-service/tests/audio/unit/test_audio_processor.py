@@ -10,31 +10,29 @@ import pytest
 import numpy as np
 from unittest.mock import patch, MagicMock
 
-# Skip tests until audio processor dependencies are available
-pytestmark = pytest.mark.skip(reason="Audio processor requires scipy and other dependencies not installed")
-
-# from src.audio.audio_processor import (
-#     VoiceActivityDetector,
-#     VoiceFrequencyFilter,
-#     NoiseReducer,
-#     VoiceEnhancer,
-#     DynamicCompressor,
-#     AudioLimiter,
-#     AudioPipelineProcessor,
-#     create_audio_pipeline_processor,
-# )
-# from src.audio.config import (
-#     AudioProcessingConfig,
-#     VADConfig,
-#     VoiceFilterConfig,
-#     NoiseReductionConfig,
-#     VoiceEnhancementConfig,
-#     CompressionConfig,
-#     LimiterConfig,
-#     VADMode,
-#     NoiseReductionMode,
-#     CompressionMode,
-# )
+# Audio processor tests - dependencies now available
+from src.audio.audio_processor import (
+    VoiceActivityDetector,
+    VoiceFrequencyFilter,
+    NoiseReducer,
+    VoiceEnhancer,
+    DynamicCompressor,
+    AudioLimiter,
+    AudioPipelineProcessor,
+    create_audio_pipeline_processor,
+)
+from src.audio.config import (
+    AudioProcessingConfig,
+    VADConfig,
+    VoiceFilterConfig,
+    NoiseReductionConfig,
+    VoiceEnhancementConfig,
+    CompressionConfig,
+    LimiterConfig,
+    VADMode,
+    NoiseReductionMode,
+    CompressionMode,
+)
 
 
 class TestVoiceActivityDetector:

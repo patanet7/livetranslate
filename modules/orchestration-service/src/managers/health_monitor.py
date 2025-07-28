@@ -16,6 +16,8 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+# Set health monitor to only show warnings and errors to reduce console noise
+logger.setLevel(logging.WARNING)
 
 
 class HealthStatus(Enum):
@@ -78,7 +80,7 @@ class HealthMonitor:
             },
             "orchestration": {
                 "url": orchestration_url,
-                "health_endpoint": "/api/system/status"
+                "health_endpoint": "/api/system/health"
             }
         }
         
@@ -97,7 +99,7 @@ class HealthMonitor:
                 response_time=0
             )
         
-        logger.info(f"Health monitor initialized with service URLs: {[config['url'] for config in self.service_configs.values()]}")
+        logger.debug(f"Health monitor initialized with service URLs: {[config['url'] for config in self.service_configs.values()]}")
     
     async def get_system_health(self) -> Dict[str, Any]:
         """Get overall system health"""
@@ -118,7 +120,7 @@ class HealthMonitor:
                 overall_status = "unknown"
             
             services_dict = {name: asdict(service) for name, service in self.services.items()}
-            logger.info(f"Health check returning services: {list(services_dict.keys())}")
+            logger.debug(f"Health check returning services: {list(services_dict.keys())}")
             
             return {
                 "status": overall_status,
@@ -204,12 +206,23 @@ class HealthMonitor:
         config = self.service_configs.get(service_name)
         if not config:
             return
+
+        # Special handling for orchestration service (self-check)
+        if service_name == "orchestration":
+            # If we're able to execute this method, orchestration is healthy
+            service.status = "healthy"
+            service.error_count = 0
+            service.last_error = None
+            service.response_time = 1  # Minimal response time for self-check
+            service.last_check = time.time()
+            logger.debug(f"Orchestration service self-check: healthy")
+            return
             
         health_url = f"{config['url']}{config['health_endpoint']}"
         
         try:
             start_time = time.time()
-            logger.info(f"Checking health for {service_name} at: {health_url}")
+            logger.debug(f"Checking health for {service_name} at: {health_url}")
             
             # For HTTP URLs, don't use any SSL configuration
             if health_url.startswith("http://"):
@@ -271,16 +284,25 @@ class HealthMonitor:
             
         except aiohttp.ClientConnectorError as e:
             # More specific error handling for connection issues
-            service.status = "unhealthy"
-            service.error_count += 1
             error_msg = str(e)
             
+            # Check if this is actually just a service being down (not an SSL issue)
+            if "connect call failed" in error_msg.lower() or "connection refused" in error_msg.lower():
+                service.status = "unhealthy"
+                service.error_count += 1
+                service.last_error = f"Service unavailable: {service_name} not running"
+                logger.warning(f"Service {service_name} appears to be down: {health_url}")
+                logger.debug(f"  Connection error: {error_msg}")
             # Check if this is an SSL error on an HTTP endpoint
-            if "ssl" in error_msg.lower() and health_url.startswith("http://"):
+            elif "ssl" in error_msg.lower() and health_url.startswith("http://"):
+                service.status = "unhealthy"
+                service.error_count += 1
                 service.last_error = "SSL error on HTTP endpoint - check configuration"
                 logger.error(f"SSL error for {service_name} at {health_url} - this usually means HTTPS is being forced on an HTTP endpoint")
                 logger.error(f"  Full error: {error_msg}")
             else:
+                service.status = "unhealthy"
+                service.error_count += 1
                 service.last_error = f"Connection error: {error_msg}"
                 logger.error(f"Connection error for {service_name} at {health_url}: {error_msg}")
             
@@ -372,3 +394,59 @@ class HealthMonitor:
             "maintenance_mode": False,
             "timestamp": time.time()
         }
+    
+    async def get_service_metrics(self) -> Dict[str, Any]:
+        """Get service-specific metrics for analytics API"""
+        try:
+            # Get current service statuses
+            await self._check_all_services()
+            
+            # Calculate service metrics
+            total_services = len(self.services)
+            healthy_services = sum(1 for s in self.services.values() if s.status == "healthy")
+            unhealthy_services = sum(1 for s in self.services.values() if s.status == "unhealthy")
+            degraded_services = sum(1 for s in self.services.values() if s.status == "degraded")
+            
+            # Calculate average response time
+            response_times = [s.response_time for s in self.services.values() if s.response_time > 0]
+            avg_response_time = sum(response_times) / len(response_times) if response_times else 0
+            
+            # Calculate total error count
+            total_errors = sum(s.error_count for s in self.services.values())
+            
+            return {
+                "total_services": total_services,
+                "healthy_services": healthy_services,
+                "unhealthy_services": unhealthy_services,
+                "degraded_services": degraded_services,
+                "health_percentage": (healthy_services / total_services * 100) if total_services > 0 else 0,
+                "avg_response_time_ms": avg_response_time,
+                "total_errors": total_errors,
+                "services_detail": {
+                    name: {
+                        "status": service.status,
+                        "response_time_ms": service.response_time,
+                        "error_count": service.error_count,
+                        "last_error": service.last_error,
+                        "last_check": service.last_check,
+                        "uptime_seconds": time.time() - service.last_check if service.last_check > 0 else 0
+                    }
+                    for name, service in self.services.items()
+                },
+                "timestamp": time.time()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get service metrics: {e}")
+            return {
+                "total_services": 0,
+                "healthy_services": 0,
+                "unhealthy_services": 0,
+                "degraded_services": 0,
+                "health_percentage": 0,
+                "avg_response_time_ms": 0,
+                "total_errors": 0,
+                "services_detail": {},
+                "timestamp": time.time(),
+                "error": str(e)
+            }

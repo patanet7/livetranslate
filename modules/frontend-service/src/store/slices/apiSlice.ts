@@ -12,9 +12,10 @@ import {
   Translation
 } from '@/types';
 
-// Base query with automatic error handling
+// Enhanced base query with retry logic and error handling
 const baseQuery = fetchBaseQuery({
   baseUrl: '/api',
+  timeout: 30000, // 30 second timeout
   prepareHeaders: (headers, { getState }) => {
     // Add any authentication headers here if needed
     headers.set('Content-Type', 'application/json');
@@ -22,10 +23,44 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
+// Retry mechanism with exponential backoff
+const baseQueryWithRetry = async (args: any, api: any, extraOptions: any) => {
+  const maxRetries = 3;
+  const baseDelay = 1000; // 1 second
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const result = await baseQuery(args, api, extraOptions);
+    
+    // If successful or it's the last attempt, return the result
+    if (!result.error || attempt === maxRetries) {
+      return result;
+    }
+
+    // Only retry on network errors or 5xx server errors
+    const shouldRetry = 
+      result.error.status === 'FETCH_ERROR' ||
+      result.error.status === 'TIMEOUT_ERROR' ||
+      (typeof result.error.status === 'number' && result.error.status >= 500);
+
+    if (!shouldRetry) {
+      return result;
+    }
+
+    // Exponential backoff delay
+    const delay = baseDelay * Math.pow(2, attempt);
+    console.warn(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
+    
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  // This should never be reached, but TypeScript requires it
+  return await baseQuery(args, api, extraOptions);
+};
+
 // API slice with all service endpoints
 export const apiSlice = createApi({
   reducerPath: 'api',
-  baseQuery,
+  baseQuery: baseQueryWithRetry,
   tagTypes: [
     'AudioDevice',
     'Bot',
@@ -292,6 +327,156 @@ export const apiSlice = createApi({
         body: { enabled },
       }),
     }),
+
+    // Pipeline Processing endpoints - standardized from pipelineApiClient.ts
+    processPipeline: builder.mutation<any, {
+      pipelineConfig: any;
+      audioData?: Blob | string;
+      processingMode: 'realtime' | 'batch' | 'preview';
+      outputFormat?: 'wav' | 'mp3' | 'base64';
+      metadata?: any;
+    }>({
+      query: ({ pipelineConfig, audioData, processingMode, outputFormat, metadata }) => {
+        const formData = new FormData();
+        formData.append('pipeline_config', JSON.stringify(pipelineConfig));
+        
+        if (audioData instanceof Blob) {
+          formData.append('audio_file', audioData, 'audio.wav');
+        } else if (audioData) {
+          formData.append('audio_data', audioData);
+        }
+        
+        formData.append('processing_mode', processingMode);
+        formData.append('output_format', outputFormat || 'wav');
+        
+        if (metadata) {
+          formData.append('metadata', JSON.stringify(metadata));
+        }
+
+        return {
+          url: 'audio/pipeline/process',
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+
+    processSingleStage: builder.mutation<any, {
+      stageType: string;
+      audioData: Blob | string;
+      stageConfig: Record<string, any>;
+    }>({
+      query: ({ stageType, audioData, stageConfig }) => {
+        const formData = new FormData();
+        
+        if (audioData instanceof Blob) {
+          formData.append('audio_file', audioData, 'audio.wav');
+        } else {
+          formData.append('audio_data', audioData);
+        }
+        
+        formData.append('stage_config', JSON.stringify(stageConfig));
+
+        return {
+          url: `audio/process/stage/${stageType}`,
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+
+    getFFTAnalysis: builder.mutation<any, Blob | string>({
+      query: (audioData) => {
+        const formData = new FormData();
+        
+        if (audioData instanceof Blob) {
+          formData.append('audio_file', audioData, 'audio.wav');
+        } else {
+          formData.append('audio_data', audioData);
+        }
+
+        return {
+          url: 'audio/analyze/fft',
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+
+    getLUFSAnalysis: builder.mutation<any, Blob | string>({
+      query: (audioData) => {
+        const formData = new FormData();
+        
+        if (audioData instanceof Blob) {
+          formData.append('audio_file', audioData, 'audio.wav');
+        } else {
+          formData.append('audio_data', audioData);
+        }
+
+        return {
+          url: 'audio/analyze/lufs',
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+
+    startRealtimeSession: builder.mutation<any, {
+      pipelineConfig: any;
+      sessionConfig?: any;
+    }>({
+      query: ({ pipelineConfig, sessionConfig }) => ({
+        url: 'audio/pipeline/realtime/start',
+        method: 'POST',
+        body: {
+          pipeline_config: pipelineConfig,
+          session_config: sessionConfig || {
+            chunkSize: 1024,
+            sampleRate: 16000,
+            channels: 1,
+          },
+        },
+      }),
+    }),
+
+    // Processing Presets endpoints
+    getProcessingPresets: builder.query<ApiResponse<any[]>, void>({
+      query: () => 'audio/presets',
+      providesTags: ['ProcessingPreset'],
+    }),
+
+    saveProcessingPreset: builder.mutation<ApiResponse<void>, {
+      name: string;
+      pipelineConfig: any;
+      metadata: {
+        description: string;
+        category: string;
+        tags: string[];
+      };
+    }>({
+      query: ({ name, pipelineConfig, metadata }) => ({
+        url: 'audio/presets/save',
+        method: 'POST',
+        body: {
+          name,
+          pipeline_config: pipelineConfig,
+          metadata,
+        },
+      }),
+      invalidatesTags: ['ProcessingPreset'],
+    }),
+
+    // Additional preset endpoints for pipeline processing
+    getPresets: builder.query<any[], void>({
+      query: () => 'audio/presets',
+      providesTags: ['ProcessingPreset'],
+    }),
+
+    // Analytics endpoints to replace unifiedAnalyticsService.ts
+    getAnalyticsOverview: builder.query<ApiResponse<any>, void>({
+      query: () => 'analytics/overview',
+      providesTags: ['SystemMetrics'],
+    }),
   }),
 });
 
@@ -339,4 +524,15 @@ export const {
   // Feature flag hooks
   useGetFeatureFlagsQuery,
   useUpdateFeatureFlagMutation,
+
+  // Pipeline Processing hooks - standardized API patterns
+  useProcessPipelineMutation,
+  useProcessSingleStageMutation,
+  useGetFFTAnalysisMutation,
+  useGetLUFSAnalysisMutation,
+  useStartRealtimeSessionMutation,
+  useGetProcessingPresetsQuery,
+  useSaveProcessingPresetMutation,
+  useGetPresetsQuery,
+  useGetAnalyticsOverviewQuery,
 } = apiSlice;

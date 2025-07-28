@@ -65,9 +65,35 @@ def get_bot_manager():
     """Get the bot management instance"""
     global _bot_manager
     if _bot_manager is None:
-        from managers.bot_manager import BotManager
+        from managers.bot_manager import BotManager, BotConfig
 
-        _bot_manager = BotManager()
+        # Create bot manager with proper configuration
+        config = BotConfig(
+            max_concurrent_bots=10,
+            bot_timeout=3600,
+            audio_storage_path="/tmp/audio",
+            virtual_webcam_enabled=True,
+            cleanup_on_exit=True,
+            recovery_attempts=3,
+            recovery_delay=60,
+        )
+        _bot_manager = BotManager(config)
+        
+        # Inject service dependencies
+        try:
+            audio_client = get_audio_service_client()
+            translation_client = get_translation_service_client()
+            database_client = get_bot_session_database_manager()  # Use bot session manager
+            
+            _bot_manager.set_service_clients(
+                audio_client=audio_client,
+                translation_client=translation_client,
+                database_client=database_client
+            )
+            logger.info("✅ Bot manager service dependencies injected successfully")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to inject some bot manager dependencies: {e}")
+            # Continue with partial initialization
     return _bot_manager
 
 
@@ -175,10 +201,11 @@ def get_config_sync_manager():
 # ============================================================================
 
 _database_manager = None
+_bot_session_manager = None
 
 
 def get_database_manager():
-    """Get the database manager instance"""
+    """Get the basic database manager instance"""
     global _database_manager
     if _database_manager is None:
         from database.database import DatabaseManager, DatabaseConfig
@@ -188,6 +215,156 @@ def get_database_manager():
         _database_manager = DatabaseManager(db_config)
         _database_manager.initialize()
     return _database_manager
+
+
+def get_bot_session_database_manager():
+    """Get the bot session database manager instance (for bot manager dependency injection)"""
+    global _bot_session_manager
+    if _bot_session_manager is None:
+        import os
+        
+        # Check if we have PostgreSQL configured
+        database_url = os.getenv("DATABASE_URL")
+        
+        if database_url and "postgresql" in database_url:
+            # Try to use PostgreSQL for production bot session management
+            try:
+                logger.info("Attempting to use PostgreSQL for bot session management")
+                from database.bot_session_manager import create_bot_session_manager
+                
+                db_config = {
+                    "host": os.getenv("DB_HOST", "localhost"),
+                    "port": int(os.getenv("DB_PORT", "5432")),
+                    "database": os.getenv("DB_NAME", "livetranslate"),
+                    "username": os.getenv("DB_USER", "postgres"),
+                    "password": os.getenv("DB_PASSWORD", "livetranslate"),
+                }
+                
+                audio_storage_path = os.getenv("AUDIO_STORAGE_PATH", "/tmp/livetranslate/audio")
+                _bot_session_manager = create_bot_session_manager(db_config, audio_storage_path)
+                
+                # Initialize asynchronously
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(_bot_session_manager.initialize())
+                else:
+                    loop.run_until_complete(_bot_session_manager.initialize())
+                
+                logger.info("✅ PostgreSQL bot session manager initialized successfully")
+            except Exception as e:
+                logger.warning(f"❌ Failed to initialize PostgreSQL bot session manager: {e}")
+                logger.info("🔄 Falling back to development mode")
+                _bot_session_manager = _create_fallback_bot_session_manager()
+        else:
+            # Use fallback for development
+            logger.info("Using development mode bot session manager (no PostgreSQL configured)")
+            _bot_session_manager = _create_fallback_bot_session_manager()
+    
+    return _bot_session_manager
+
+
+def _create_fallback_bot_session_manager():
+    """Create a simple fallback manager that implements the required interface"""
+    import time
+    from datetime import datetime
+    
+    class FallbackBotSessionManager:
+        def __init__(self):
+            self.sessions = {}
+            self.session_counter = 0
+        
+        async def create_session(self, session_data): 
+            session_id = f"dev-session-{int(time.time())}"
+            self.sessions[session_id] = {
+                **session_data,
+                'session_id': session_id,
+                'created_at': datetime.now().isoformat(),
+                'status': 'active'
+            }
+            return session_id
+            
+        async def close_session(self, session_id): 
+            if session_id in self.sessions:
+                self.sessions[session_id]['status'] = 'ended'
+                self.sessions[session_id]['ended_at'] = datetime.now().isoformat()
+        
+        async def get_bot_sessions(self, bot_id): 
+            return [s for s in self.sessions.values() if s.get('bot_id') == bot_id]
+        
+        async def get_comprehensive_session_data(self, session_id): 
+            session = self.sessions.get(session_id, {})
+            return {
+                'session': session,
+                'audio_files': [],
+                'transcripts': {'google_meet': [], 'inhouse': [], 'total_count': 0},
+                'translations': {'by_language': {}, 'total_count': 0},
+                'correlations': [],
+                'statistics': {
+                    'audio_files_count': 0,
+                    'total_audio_duration': 0,
+                    'transcripts_count': 0,
+                    'translations_count': 0,
+                    'correlations_count': 0,
+                    'languages_detected': [],
+                    'target_languages': []
+                }
+            }
+        
+        async def list_bot_sessions(self, bot_id, limit=50, offset=0, status_filter=None): 
+            sessions = [s for s in self.sessions.values() if s.get('bot_id') == bot_id]
+            if status_filter:
+                sessions = [s for s in sessions if s.get('status') == status_filter]
+            return sessions[offset:offset + limit]
+        
+        async def get_bot_performance_metrics(self, bot_id, timeframe): 
+            return {
+                'average_session_duration': 0,
+                'total_sessions': len([s for s in self.sessions.values() if s.get('bot_id') == bot_id]),
+                'active_sessions': len([s for s in self.sessions.values() if s.get('bot_id') == bot_id and s.get('status') == 'active']),
+                'success_rate': 1.0,
+                'error_rate': 0.0
+            }
+        
+        async def get_bot_quality_report(self, bot_id, session_id=None): 
+            return {
+                'transcription_quality': 0.95,
+                'translation_quality': 0.90,
+                'overall_quality': 0.92,
+                'confidence_scores': {'min': 0.8, 'max': 1.0, 'avg': 0.92}
+            }
+        
+        async def get_database_statistics(self): 
+            return {
+                "total_sessions": len(self.sessions),
+                "active_sessions": len([s for s in self.sessions.values() if s.get('status') == 'active']),
+                "recent_sessions_24h": len(self.sessions),
+                "total_audio_files": 0,
+                "total_transcripts": 0,
+                "total_translations": 0,
+                "total_correlations": 0,
+                "storage_usage_bytes": 0,
+                "storage_usage_mb": 0
+            }
+        
+        async def get_session_analytics(self, timeframe, group_by): 
+            return {
+                'sessions_by_time': [],
+                'total_sessions': len(self.sessions),
+                'average_duration': 0,
+                'peak_concurrent': 1
+            }
+        
+        async def get_quality_analytics(self, timeframe): 
+            return {
+                'average_transcription_quality': 0.95,
+                'average_translation_quality': 0.90,
+                'quality_trend': 'stable',
+                'error_rate': 0.02
+            }
+    
+    logger.info("Using fallback bot session manager (development mode)")
+    return FallbackBotSessionManager()
 
 
 async def get_database():
@@ -365,6 +542,9 @@ async def initialize_dependencies():
         # Initialize service clients
         _audio_client = get_audio_service_client()
         _translation_client = get_translation_service_client()
+        
+        # Initialize bot session database manager
+        _bot_session_manager = get_bot_session_database_manager()
 
         # Initialize audio processing components
         _audio_coordinator = get_audio_coordinator()

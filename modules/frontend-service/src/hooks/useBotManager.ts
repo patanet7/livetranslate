@@ -28,25 +28,94 @@ export const useBotManager = () => {
     setLocalError(null);
     
     try {
+      // Convert MeetingRequest to nested BotSpawnRequest format expected by backend
+      const botSpawnRequest = {
+        config: {
+          meeting_info: {
+            meeting_id: request.meetingId,
+            meeting_title: request.meetingTitle || `Meeting ${request.meetingId}`,
+            meeting_url: `https://meet.google.com/${request.meetingId}`,
+            platform: 'google_meet',
+            organizer_email: request.organizerEmail || null,
+            participant_count: 0
+          },
+          audio_capture: {
+            sample_rate: 16000,
+            channels: 1,
+            buffer_duration: 4.0,
+            enable_noise_reduction: true,
+            enable_echo_cancellation: false,
+            enable_auto_gain_control: false,
+            quality_threshold: 0.7
+          },
+          translation: {
+            target_languages: request.targetLanguages || ['en'],
+            enable_auto_translation: request.autoTranslation ?? true,
+            translation_quality: 'balanced',
+            real_time_translation: true,
+            confidence_threshold: 0.6
+          },
+          webcam: {
+            display_mode: 'overlay',
+            theme: 'dark',
+            max_translations_displayed: 5,
+            translation_duration_seconds: 10.0,
+            show_speaker_names: true,
+            show_confidence: true,
+            show_timestamps: false
+          },
+          priority: request.priority || 'medium',
+          auto_terminate_minutes: 180,
+          enable_recording: true,
+          enable_transcription: true,
+          enable_speaker_diarization: true,
+          enable_virtual_webcam: true
+        },
+        user_id: null,
+        session_id: null,
+        metadata: {
+          organizer_email: request.organizerEmail,
+          frontend_version: '2.0',
+          spawn_source: 'bot_management_ui',
+          audio_storage_enabled: true,
+          cleanup_on_exit: true
+        }
+      };
+
       const response = await fetch('/api/bot/spawn', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify(botSpawnRequest),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to spawn bot');
+        throw new Error(errorData.detail || errorData.message || 'Failed to spawn bot');
       }
 
       const data = await response.json();
       
-      // Add the new bot to the store
-      dispatch(addBot(data.bot));
+      // Create bot instance for the store
+      const botInstance = {
+        botId: data.bot_id,
+        meetingId: data.meeting_id || request.meetingId,
+        status: data.status || 'spawning',
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        errorMessages: [],
+        config: {
+          targetLanguages: request.targetLanguages,
+          autoTranslation: request.autoTranslation,
+          priority: request.priority
+        }
+      };
       
-      return data.botId;
+      // Add the new bot to the store
+      dispatch(addBot(botInstance));
+      
+      return data.bot_id;
     } catch (error) {
       handleError(error);
       throw error;
@@ -87,14 +156,29 @@ export const useBotManager = () => {
 
   const getBotStatus = useCallback(async (botId: string): Promise<BotInstance> => {
     try {
-      const response = await fetch(`/api/bot/${botId}/status`);
+      const response = await fetch(`/api/bot/${botId}`);
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to get bot status');
+        throw new Error(errorData.detail || errorData.message || 'Failed to get bot status');
       }
 
-      const bot = await response.json();
+      const rawBot = await response.json();
+      
+      // Convert backend format to frontend format
+      const bot = {
+        botId: rawBot.bot_id || rawBot.botId || botId,
+        meetingId: rawBot.meeting_id || rawBot.meetingId,
+        status: rawBot.status || 'unknown',
+        createdAt: rawBot.created_at || rawBot.createdAt || new Date().toISOString(),
+        lastActiveAt: rawBot.last_activity || rawBot.lastActiveAt || new Date().toISOString(),
+        errorMessages: rawBot.error_message ? [rawBot.error_message] : [],
+        config: {
+          targetLanguages: rawBot.target_languages || ['en'],
+          autoTranslation: true,
+          priority: 'medium'
+        }
+      };
       
       // Update the bot in the store
       dispatch(updateBot({
@@ -115,21 +199,37 @@ export const useBotManager = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to get active bots');
+        throw new Error(errorData.detail || errorData.message || 'Failed to get active bots');
       }
 
-      const data = await response.json();
+      const activeBots = await response.json();
       
-      // Update the store with active bots
-      const botsObject = data.bots.reduce((acc: Record<string, BotInstance>, bot: BotInstance) => {
-        acc[bot.botId] = bot;
+      // Convert backend format to frontend format
+      const processedBots = Array.isArray(activeBots) ? activeBots : [];
+      const botsObject = processedBots.reduce((acc: Record<string, BotInstance>, bot: any) => {
+        const processedBot = {
+          botId: bot.bot_id || bot.botId,
+          meetingId: bot.meeting_id || bot.meetingId,
+          status: bot.status || 'active',
+          createdAt: bot.created_at || bot.createdAt || new Date().toISOString(),
+          lastActiveAt: bot.last_activity || bot.lastActiveAt || new Date().toISOString(),
+          errorMessages: bot.error_message ? [bot.error_message] : [],
+          config: {
+            targetLanguages: bot.target_languages || ['en'],
+            autoTranslation: true,
+            priority: 'medium'
+          }
+        };
+        acc[processedBot.botId] = processedBot;
         return acc;
       }, {});
       
+      const activeBotIds = processedBots.map((bot: any) => bot.bot_id || bot.botId);
+      
       dispatch(setBots(botsObject));
-      dispatch(setActiveBotIds(data.activeBotIds));
+      dispatch(setActiveBotIds(activeBotIds));
 
-      return data.bots;
+      return processedBots;
     } catch (error) {
       handleError(error);
       throw error;
@@ -141,19 +241,45 @@ export const useBotManager = () => {
       const response = await fetch('/api/bot/stats');
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to get system stats');
+        // Return default stats instead of throwing error to prevent crashes
+        console.warn(`Bot stats API failed with status ${response.status}, using default values`);
+        return {
+          totalBotsSpawned: 0,
+          activeBots: 0,
+          errorRate: 0,
+          avgSessionLength: 0,
+          peakConcurrentBots: 0,
+          totalErrors: 0,
+        };
       }
 
-      const stats = await response.json();
+      const rawStats = await response.json();
+      
+      // Convert backend format to frontend format
+      const stats = {
+        totalBotsSpawned: rawStats.total_bots_created || rawStats.totalBotsSpawned || 0,
+        activeBots: rawStats.active_bots || rawStats.activeBots || 0,
+        completedSessions: rawStats.total_bots_completed || rawStats.completedSessions || 0,
+        errorRate: rawStats.recovery_rate ? (100 - rawStats.recovery_rate) / 100 : rawStats.errorRate || 0,
+        averageSessionDuration: rawStats.capacity_utilization || rawStats.averageSessionDuration || 0
+      };
       
       // Update the store with system stats
       dispatch(setSystemStats(stats));
 
       return stats;
     } catch (error) {
+      console.error('Error getting system stats:', error);
       handleError(error);
-      throw error;
+      // Return default stats instead of throwing to prevent crashes
+      return {
+        totalBotsSpawned: 0,
+        activeBots: 0,
+        errorRate: 0,
+        avgSessionLength: 0,
+        peakConcurrentBots: 0,
+        totalErrors: 0,
+      };
     }
   }, [dispatch, handleError]);
 

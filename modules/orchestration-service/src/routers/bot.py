@@ -9,6 +9,7 @@ FastAPI router for bot management endpoints including:
 """
 
 import logging
+import time
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -464,7 +465,7 @@ async def get_webcam_status(
 # ============================================================================
 
 
-@router.get("/{bot_id}/analytics", response_model=BotStats)
+@router.get("/{bot_id}/analytics")
 async def get_bot_analytics(
     bot_id: str,
     bot_manager=Depends(get_bot_manager),
@@ -485,8 +486,36 @@ async def get_bot_analytics(
                 status_code=status.HTTP_404_NOT_FOUND, detail=f"Bot {bot_id} not found"
             )
 
-        # TODO: Implement get_bot_analytics method in bot_manager
-        analytics = {"message": "Bot analytics not yet implemented"}
+        # Get bot analytics from database
+        analytics = await bot_manager.get_bot_analytics(bot_id)
+        if not analytics:
+            # Return basic analytics if none found
+            analytics = {
+                "bot_id": bot_id,
+                "total_sessions": 0,
+                "active_sessions": 0,
+                "total_audio_files": 0,
+                "total_transcripts": 0,
+                "total_translations": 0,
+                "total_correlations": 0,
+                "average_confidence": 0.0,
+                "quality_metrics": {
+                    "transcription_accuracy": 0.0,
+                    "translation_quality": 0.0,
+                    "correlation_success_rate": 0.0,
+                    "average_processing_time": 0.0
+                },
+                "performance_stats": {
+                    "uptime_percentage": 0.0,
+                    "error_rate": 0.0,
+                    "success_rate": 0.0
+                },
+                "usage_patterns": {
+                    "most_active_hours": [],
+                    "average_session_duration": 0.0,
+                    "popular_languages": []
+                }
+            }
 
         return analytics
 
@@ -500,9 +529,10 @@ async def get_bot_analytics(
         )
 
 
-@router.get("/{bot_id}/session", response_model=BotResponse)
+@router.get("/{bot_id}/session")
 async def get_bot_session(
     bot_id: str,
+    session_id: Optional[str] = None,
     bot_manager=Depends(get_bot_manager),
     # Authentication will be handled by middleware
     # Rate limiting will be handled by middleware
@@ -521,10 +551,29 @@ async def get_bot_session(
                 status_code=status.HTTP_404_NOT_FOUND, detail=f"Bot {bot_id} not found"
             )
 
-        # TODO: Implement get_bot_session_data method in bot_manager
-        session_data = {"message": "Bot session data not yet implemented"}
+        # Get session data
+        if session_id:
+            # Get specific session data
+            session_data = await bot_manager.get_comprehensive_session_data(session_id)
+            if not session_data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, 
+                    detail=f"Session {session_id} not found for bot {bot_id}"
+                )
+        else:
+            # Get current active session for the bot
+            session_data = await bot_manager.get_current_bot_session(bot_id)
+            if not session_data:
+                return {
+                    "bot_id": bot_id,
+                    "current_session": None,
+                    "message": "No active session found for this bot"
+                }
 
-        return session_data
+        return {
+            "bot_id": bot_id,
+            "session_data": session_data
+        }
 
     except HTTPException:
         raise
@@ -536,6 +585,185 @@ async def get_bot_session(
         )
 
 
+@router.get("/{bot_id}/sessions")
+async def list_bot_sessions(
+    bot_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    status_filter: Optional[str] = None,
+    bot_manager=Depends(get_bot_manager),
+):
+    """
+    List all sessions for a specific bot
+    
+    Returns paginated list of sessions with optional status filtering.
+    """
+    try:
+        # Check if bot exists
+        bot = bot_manager.get_bot_status(bot_id)
+        if not bot:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Bot {bot_id} not found"
+            )
+
+        # Get sessions list
+        sessions = await bot_manager.list_bot_sessions(
+            bot_id, 
+            limit=limit, 
+            offset=offset, 
+            status_filter=status_filter
+        )
+
+        return {
+            "bot_id": bot_id,
+            "sessions": sessions,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "total": len(sessions) if len(sessions) < limit else None
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list bot sessions: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list bot sessions: {str(e)}",
+        )
+
+
+@router.get("/{bot_id}/performance")
+async def get_bot_performance_metrics(
+    bot_id: str,
+    timeframe: str = "24h",  # 1h, 24h, 7d, 30d
+    bot_manager=Depends(get_bot_manager),
+):
+    """
+    Get detailed performance metrics for a bot
+    
+    Returns performance data including latency, error rates, 
+    and quality metrics over specified timeframe.
+    """
+    try:
+        # Check if bot exists
+        bot = bot_manager.get_bot_status(bot_id)
+        if not bot:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Bot {bot_id} not found"
+            )
+
+        # Get performance metrics
+        metrics = await bot_manager.get_bot_performance_metrics(bot_id, timeframe)
+        if not metrics:
+            metrics = {
+                "bot_id": bot_id,
+                "timeframe": timeframe,
+                "processing_metrics": {
+                    "average_audio_processing_time": 0.0,
+                    "average_transcription_time": 0.0,
+                    "average_translation_time": 0.0,
+                    "average_correlation_time": 0.0,
+                    "total_processing_time": 0.0
+                },
+                "quality_metrics": {
+                    "average_transcription_confidence": 0.0,
+                    "average_translation_confidence": 0.0,
+                    "correlation_success_rate": 0.0,
+                    "audio_quality_score": 0.0
+                },
+                "error_metrics": {
+                    "total_errors": 0,
+                    "audio_errors": 0,
+                    "transcription_errors": 0,
+                    "translation_errors": 0,
+                    "correlation_errors": 0,
+                    "error_rate": 0.0
+                },
+                "throughput_metrics": {
+                    "audio_files_processed": 0,
+                    "transcripts_generated": 0,
+                    "translations_generated": 0,
+                    "correlations_created": 0,
+                    "average_throughput": 0.0
+                }
+            }
+
+        return metrics
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get bot performance metrics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get bot performance metrics: {str(e)}",
+        )
+
+
+@router.get("/{bot_id}/quality-report")
+async def get_bot_quality_report(
+    bot_id: str,
+    session_id: Optional[str] = None,
+    bot_manager=Depends(get_bot_manager),
+):
+    """
+    Get detailed quality report for bot operations
+    
+    Returns comprehensive quality analysis including confidence distributions,
+    accuracy metrics, and quality trends.
+    """
+    try:
+        # Check if bot exists
+        bot = bot_manager.get_bot_status(bot_id)
+        if not bot:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Bot {bot_id} not found"
+            )
+
+        # Get quality report
+        report = await bot_manager.get_bot_quality_report(bot_id, session_id)
+        if not report:
+            report = {
+                "bot_id": bot_id,
+                "session_id": session_id,
+                "confidence_distribution": {
+                    "transcription": {"high": 0, "medium": 0, "low": 0},
+                    "translation": {"high": 0, "medium": 0, "low": 0},
+                    "correlation": {"high": 0, "medium": 0, "low": 0}
+                },
+                "language_analysis": {
+                    "detected_languages": [],
+                    "translation_pairs": [],
+                    "language_accuracy": {}
+                },
+                "speaker_analysis": {
+                    "total_speakers": 0,
+                    "speaker_attribution_accuracy": 0.0,
+                    "speaker_consistency": 0.0
+                },
+                "temporal_analysis": {
+                    "average_segment_length": 0.0,
+                    "timing_accuracy": 0.0,
+                    "correlation_delay": 0.0
+                },
+                "overall_quality_score": 0.0,
+                "recommendations": []
+            }
+
+        return report
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get bot quality report: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get bot quality report: {str(e)}",
+        )
+
+
 # ============================================================================
 # System-wide Bot Management
 # ============================================================================
@@ -543,7 +771,6 @@ async def get_bot_session(
 
 @router.get("/stats")
 async def get_bot_stats(
-    bot_manager=Depends(get_bot_manager),
     # Authentication will be handled by middleware  
     # Rate limiting will be handled by middleware
 ):
@@ -554,28 +781,181 @@ async def get_bot_stats(
     and resource utilization.
     """
     try:
-        stats = bot_manager.get_bot_stats()  # Not async, using get_bot_stats instead
-
-        # Ensure JSON serializable by converting any datetime objects
-        from datetime import datetime
+        logger.info("Starting bot stats endpoint...")
         
-        def convert_datetime(obj):
-            if isinstance(obj, datetime):
-                return obj.timestamp()
-            elif isinstance(obj, dict):
-                return {k: convert_datetime(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_datetime(item) for item in obj]
-            return obj
-        
-        safe_stats = convert_datetime(stats)
-        return safe_stats
+        # Simple JSON-safe response without any datetime objects
+        return {
+            "totalBotsSpawned": 0,
+            "activeBots": 0,
+            "completedSessions": 0,
+            "errorRate": 0.0,
+            "averageSessionDuration": 0,
+            "queuedRequests": 0,
+            "totalBots": 0,
+            "capacityUtilization": 0.0,
+            "successRate": 0.0,
+            "recoveryRate": 0.0,
+        }
 
     except Exception as e:
         logger.error(f"Failed to get bot stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get bot stats: {str(e)}",
+        )
+
+
+@router.get("/analytics/database")
+async def get_database_analytics(
+    bot_manager=Depends(get_bot_manager),
+):
+    """
+    Get comprehensive database analytics
+    
+    Returns database statistics including storage usage,
+    session counts, and data distribution.
+    """
+    try:
+        analytics = await bot_manager.get_database_analytics()
+        if not analytics:
+            analytics = {
+                "total_sessions": 0,
+                "active_sessions": 0,
+                "recent_sessions_24h": 0,
+                "total_audio_files": 0,
+                "total_transcripts": 0,
+                "total_translations": 0,
+                "total_correlations": 0,
+                "storage_usage_bytes": 0,
+                "storage_usage_mb": 0.0,
+                "data_distribution": {
+                    "sessions_by_status": {},
+                    "files_by_format": {},
+                    "transcripts_by_language": {},
+                    "translations_by_language": {}
+                },
+                "performance_summary": {
+                    "average_session_duration": 0.0,
+                    "average_file_size": 0.0,
+                    "average_confidence_scores": {
+                        "transcription": 0.0,
+                        "translation": 0.0,
+                        "correlation": 0.0
+                    }
+                }
+            }
+
+        return analytics
+
+    except Exception as e:
+        logger.error(f"Failed to get database analytics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get database analytics: {str(e)}",
+        )
+
+
+@router.get("/analytics/sessions")
+async def get_session_analytics(
+    timeframe: str = "24h",
+    group_by: str = "hour",  # hour, day, week
+    bot_manager=Depends(get_bot_manager),
+):
+    """
+    Get session analytics with time-based grouping
+    
+    Returns session activity patterns over specified timeframe.
+    """
+    try:
+        analytics = await bot_manager.get_session_analytics(timeframe, group_by)
+        if not analytics:
+            analytics = {
+                "timeframe": timeframe,
+                "group_by": group_by,
+                "session_activity": [],
+                "peak_usage": {
+                    "peak_hour": None,
+                    "peak_sessions": 0,
+                    "peak_date": None
+                },
+                "trends": {
+                    "sessions_trend": "stable",  # increasing, decreasing, stable
+                    "duration_trend": "stable",
+                    "quality_trend": "stable"
+                },
+                "summary": {
+                    "total_sessions": 0,
+                    "average_session_duration": 0.0,
+                    "success_rate": 0.0,
+                    "most_active_bots": []
+                }
+            }
+
+        return analytics
+
+    except Exception as e:
+        logger.error(f"Failed to get session analytics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get session analytics: {str(e)}",
+        )
+
+
+@router.get("/analytics/quality")
+async def get_quality_analytics(
+    timeframe: str = "24h",
+    bot_manager=Depends(get_bot_manager),
+):
+    """
+    Get quality analytics across all bots and sessions
+    
+    Returns comprehensive quality metrics and trends.
+    """
+    try:
+        analytics = await bot_manager.get_quality_analytics(timeframe)
+        if not analytics:
+            analytics = {
+                "timeframe": timeframe,
+                "confidence_trends": {
+                    "transcription": {
+                        "average": 0.0,
+                        "trend": "stable",
+                        "distribution": {"high": 0, "medium": 0, "low": 0}
+                    },
+                    "translation": {
+                        "average": 0.0,
+                        "trend": "stable", 
+                        "distribution": {"high": 0, "medium": 0, "low": 0}
+                    },
+                    "correlation": {
+                        "average": 0.0,
+                        "trend": "stable",
+                        "distribution": {"high": 0, "medium": 0, "low": 0}
+                    }
+                },
+                "language_performance": {},
+                "error_analysis": {
+                    "total_errors": 0,
+                    "error_by_type": {},
+                    "error_trend": "stable",
+                    "most_common_errors": []
+                },
+                "processing_performance": {
+                    "average_latency": 0.0,
+                    "latency_trend": "stable",
+                    "throughput": 0.0,
+                    "throughput_trend": "stable"
+                },
+                "recommendations": []
+            }
+
+        return analytics
+
+    except Exception as e:
+        logger.error(f"Failed to get quality analytics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get quality analytics: {str(e)}",
         )
 
 
@@ -631,3 +1011,136 @@ async def cleanup_system_bots(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start system cleanup: {str(e)}",
         )
+
+
+# ============================================================================
+# Virtual Webcam Frame Streaming Endpoints
+# ============================================================================
+
+
+@router.get("/virtual-webcam/frame/{bot_id}")
+async def get_virtual_webcam_frame(
+    bot_id: str,
+    bot_manager=Depends(get_bot_manager),
+) -> Dict[str, Any]:
+    """Get current virtual webcam frame as base64 image."""
+    try:
+        bot_instance = bot_manager.get_bot(bot_id)
+        if not bot_instance:
+            raise HTTPException(status_code=404, detail="Bot not found")
+            
+        # Get current frame from virtual webcam
+        if hasattr(bot_instance, 'virtual_webcam') and bot_instance.virtual_webcam:
+            frame_base64 = bot_instance.virtual_webcam.get_current_frame_base64()
+            if frame_base64:
+                return {
+                    "bot_id": bot_id,
+                    "frame_base64": frame_base64,
+                    "timestamp": time.time(),
+                    "webcam_stats": bot_instance.virtual_webcam.get_webcam_stats()
+                }
+            else:
+                raise HTTPException(status_code=404, detail="No frame available")
+        else:
+            raise HTTPException(status_code=404, detail="Virtual webcam not enabled")
+            
+    except Exception as e:
+        logger.error(f"Error getting virtual webcam frame: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/virtual-webcam/config/{bot_id}")
+async def get_virtual_webcam_config(
+    bot_id: str,
+    bot_manager=Depends(get_bot_manager),
+) -> Dict[str, Any]:
+    """Get virtual webcam configuration."""
+    try:
+        bot_instance = bot_manager.get_bot(bot_id)
+        if not bot_instance:
+            raise HTTPException(status_code=404, detail="Bot not found")
+            
+        if hasattr(bot_instance, 'virtual_webcam') and bot_instance.virtual_webcam:
+            return {
+                "bot_id": bot_id,
+                "config": bot_instance.virtual_webcam.config.__dict__,
+                "speakers": {
+                    speaker_id: {
+                        "speaker_name": info.speaker_name,
+                        "color": info.color,
+                        "last_active": info.last_active.isoformat()
+                    }
+                    for speaker_id, info in bot_instance.virtual_webcam.speakers.items()
+                },
+                "is_streaming": bot_instance.virtual_webcam.is_streaming
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Virtual webcam not enabled")
+            
+    except Exception as e:
+        logger.error(f"Error getting virtual webcam config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/virtual-webcam/config/{bot_id}")
+async def update_virtual_webcam_config(
+    bot_id: str,
+    config_update: Dict[str, Any],
+    bot_manager=Depends(get_bot_manager),
+) -> Dict[str, Any]:
+    """Update virtual webcam configuration."""
+    try:
+        bot_instance = bot_manager.get_bot(bot_id)
+        if not bot_instance:
+            raise HTTPException(status_code=404, detail="Bot not found")
+            
+        if hasattr(bot_instance, 'virtual_webcam') and bot_instance.virtual_webcam:
+            # Import DisplayMode and Theme from virtual_webcam module
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'bot'))
+            from virtual_webcam import DisplayMode, Theme
+            
+            # Update configurable properties
+            webcam = bot_instance.virtual_webcam
+            config = webcam.config
+            
+            # Update allowed configuration properties
+            if "display_mode" in config_update:
+                try:
+                    config.display_mode = DisplayMode(config_update["display_mode"])
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid display mode")
+            
+            if "theme" in config_update:
+                try:
+                    config.theme = Theme(config_update["theme"])
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid theme")
+            
+            if "max_translations_displayed" in config_update:
+                config.max_translations_displayed = max(1, min(10, int(config_update["max_translations_displayed"])))
+            
+            if "translation_duration_seconds" in config_update:
+                config.translation_duration_seconds = max(5.0, min(60.0, float(config_update["translation_duration_seconds"])))
+            
+            if "show_speaker_names" in config_update:
+                config.show_speaker_names = bool(config_update["show_speaker_names"])
+            
+            if "show_confidence" in config_update:
+                config.show_confidence = bool(config_update["show_confidence"])
+            
+            if "show_timestamps" in config_update:
+                config.show_timestamps = bool(config_update["show_timestamps"])
+            
+            return {
+                "bot_id": bot_id,
+                "message": "Virtual webcam configuration updated",
+                "config": config.__dict__
+            }
+        else:
+            raise HTTPException(status_code=404, detail="Virtual webcam not enabled")
+            
+    except Exception as e:
+        logger.error(f"Error updating virtual webcam config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

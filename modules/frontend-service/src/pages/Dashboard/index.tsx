@@ -29,7 +29,12 @@ import {
   Assessment,
 } from '@mui/icons-material';
 import { useAppSelector } from '@/store';
-import { useGetSystemHealthQuery, useGetBotsQuery } from '@/store/slices/apiSlice';
+import { 
+  useGetSystemHealthQuery, 
+  useGetBotsQuery, 
+  useGetTranslationsQuery, 
+  useGetStatisticsQuery 
+} from '@/store/slices/apiSlice';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 
 // Dashboard widgets
@@ -364,18 +369,11 @@ const QuickActionsWidget: React.FC = () => {
 
   const quickActions = [
     {
-      title: 'Translation Testing',
-      description: 'Test translation capabilities and prompt performance',
-      icon: <Translate />,
-      path: '/translation-testing',
+      title: 'Audio Processing Hub',
+      description: 'Unified audio processing, transcription, and translation',
+      icon: <AudioFile />,
+      path: '/audio-hub',
       color: 'primary' as const,
-    },
-    {
-      title: 'Analytics Dashboard',
-      description: 'View comprehensive performance metrics',
-      icon: <Analytics />,
-      path: '/analytics',
-      color: 'secondary' as const,
     },
     {
       title: 'Bot Management',
@@ -385,11 +383,18 @@ const QuickActionsWidget: React.FC = () => {
       color: 'success' as const,
     },
     {
-      title: 'Audio Testing',
-      description: 'Test audio capture and processing',
-      icon: <AudioFile />,
-      path: '/audio-testing',
-      color: 'warning' as const,
+      title: 'Analytics Dashboard',
+      description: 'View comprehensive performance metrics',
+      icon: <Analytics />,
+      path: '/analytics',
+      color: 'secondary' as const,
+    },
+    {
+      title: 'Settings',
+      description: 'Configure system settings and preferences',
+      icon: <Settings />,
+      path: '/settings',
+      color: 'info' as const,
     },
   ];
 
@@ -450,14 +455,58 @@ const QuickActionsWidget: React.FC = () => {
 };
 
 const TranslationStatsWidget: React.FC = () => {
-  // Mock data - in real implementation, this would come from the analytics API
-  const translationStats = {
-    totalTranslations: 12847,
-    successRate: 98.2,
-    avgQualityScore: 0.89,
-    avgLatency: 240,
-    dailyGrowth: 12.5,
-  };
+  const { data: translationsData, isLoading: translationsLoading } = useGetTranslationsQuery({ limit: 1000 });
+  const { data: statsData, isLoading: statsLoading } = useGetStatisticsQuery({ timeRange: '24h' });
+  
+  const isLoading = translationsLoading || statsLoading;
+  
+  // Calculate real translation statistics from API data
+  const translationStats = React.useMemo(() => {
+    if (!translationsData?.data || !statsData?.data) {
+      return {
+        totalTranslations: 0,
+        successRate: 0,
+        avgQualityScore: 0,
+        avgLatency: 0,
+        dailyGrowth: 0,
+      };
+    }
+    
+    const translations = translationsData.data;
+    const stats = statsData.data;
+    
+    // Calculate metrics from real data
+    const totalTranslations = translations.length;
+    const successfulTranslations = translations.filter(t => t.translationConfidence > 0.5).length;
+    const successRate = totalTranslations > 0 ? (successfulTranslations / totalTranslations) * 100 : 0;
+    const avgQualityScore = totalTranslations > 0 
+      ? translations.reduce((sum, t) => sum + (t.translationConfidence || 0), 0) / totalTranslations 
+      : 0;
+    const avgLatency = stats.avgLatency || 250; // Fallback to reasonable default
+    const dailyGrowth = stats.growthRate || 0; // Fallback to 0
+    
+    return {
+      totalTranslations,
+      successRate: Math.round(successRate * 10) / 10, // Round to 1 decimal
+      avgQualityScore,
+      avgLatency,
+      dailyGrowth,
+    };
+  }, [translationsData, statsData]);
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+            <Typography variant="h6" component="h2">Translation Performance</Typography>
+            <Assessment color="primary" />
+          </Box>
+          <LoadingScreen variant="minimal" size="small" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
