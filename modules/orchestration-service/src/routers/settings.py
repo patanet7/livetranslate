@@ -46,9 +46,12 @@ except ImportError as e:
     CONFIG_SYNC_AVAILABLE = False
     logger.warning(f" Configuration sync manager not available: {e}")
 try:
-    from dependencies import get_config_manager
+    from dependencies import get_config_manager, get_event_publisher
 except ImportError:
     def get_config_manager():
+        return None
+
+    async def get_event_publisher():  # type: ignore[redefinition]
         return None
 
 try:
@@ -201,6 +204,7 @@ async def get_user_settings(
 async def update_user_settings(
     request: UserSettingsRequest,
     config_manager=Depends(get_config_manager),
+    event_publisher=Depends(get_event_publisher),
     # Authentication will be handled by middleware
     # Rate limiting will be handled by middleware
 ):
@@ -235,6 +239,17 @@ async def update_user_settings(
         updated_settings = await config_manager.update_user_settings(
             user_id, update_data
         )
+
+        if event_publisher:
+            await event_publisher.publish(
+                alias="config_sync",
+                event_type="UserSettingsUpdated",
+                payload={
+                    "user_id": user_id,
+                    "updated_keys": list(update_data.keys()),
+                },
+                metadata={"endpoint": "/settings/user"},
+            )
 
         return UserConfigResponse(
             user_id=user_id,
@@ -292,6 +307,7 @@ async def get_system_settings(
 async def update_system_settings(
     request: SystemSettingsRequest,
     config_manager=Depends(get_config_manager),
+    event_publisher=Depends(get_event_publisher),
     # Authentication will be handled by middleware
     # Rate limiting will be handled by middleware
 ):
@@ -323,6 +339,17 @@ async def update_system_settings(
 
         # Update settings
         result = await config_manager.update_system_settings(update_data)
+
+        if event_publisher and update_data:
+            await event_publisher.publish(
+                alias="config_sync",
+                event_type="SystemSettingsUpdated",
+                payload={
+                    "updated_keys": list(update_data.keys()),
+                    "settings": update_data,
+                },
+                metadata={"endpoint": "/settings/system"},
+            )
 
         return {
             "message": "System settings updated",
@@ -373,6 +400,7 @@ async def update_service_settings(
     service_name: str,
     request: ServiceSettingsRequest,
     config_manager=Depends(get_config_manager),
+    event_publisher=Depends(get_event_publisher),
     # Authentication will be handled by middleware
     # Rate limiting will be handled by middleware
 ):
@@ -402,6 +430,18 @@ async def update_service_settings(
 
         # Update service settings
         result = await config_manager.update_service_settings(service_name, update_data)
+
+        if event_publisher and update_data:
+            await event_publisher.publish(
+                alias="config_sync",
+                event_type="ServiceSettingsUpdated",
+                payload={
+                    "service_name": service_name,
+                    "updated_keys": list(update_data.keys()),
+                    "settings": update_data,
+                },
+                metadata={"endpoint": f"/settings/services/{service_name}"},
+            )
 
         return {
             "message": f"Service {service_name} settings updated",

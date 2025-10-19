@@ -21,6 +21,7 @@ async def process_audio(
     request: AudioProcessingRequest,
     config_manager=Depends(get_config_manager),
     audio_client=Depends(get_audio_service_client),
+    event_publisher=Depends(get_event_publisher),
 ) -> AudioProcessingResponse:
     """
     Process audio with configured pipeline stages with comprehensive error handling
@@ -50,6 +51,22 @@ async def process_audio(
 
             # Enhanced input validation
             await _validate_audio_request(request, correlation_id)
+
+            # Emit queue event (non-blocking best-effort)
+            await event_publisher.publish(
+                alias="audio_ingest",
+                event_type="AudioProcessRequested",
+                payload={
+                    "request_id": correlation_id,
+                    "streaming": request.streaming,
+                    "session_id": request.session_id,
+                    "has_audio_data": bool(request.audio_data),
+                    "has_audio_url": bool(request.audio_url),
+                    "has_file_upload": bool(request.file_upload),
+                    "config_provided": bool(request.config),
+                },
+                metadata={"endpoint": "/process"},
+            )
 
             # Get audio service configuration with error handling
             try:
@@ -211,7 +228,8 @@ async def upload_audio_file(
     session_id: Optional[str] = Form(None),
     audio_coordinator=Depends(get_audio_coordinator),
     config_sync_manager=Depends(get_config_sync_manager),
-    audio_client=Depends(get_audio_service_client)
+    audio_client=Depends(get_audio_service_client),
+    event_publisher=Depends(get_event_publisher),
 ) -> Dict[str, Any]:
     """
     Upload audio file for processing with enhanced error handling and validation
@@ -255,6 +273,21 @@ async def upload_audio_file(
                 content = await audio.read()
                 temp_file.write(content)
                 temp_file_path = temp_file.name
+
+            # Publish event for background workers
+            await event_publisher.publish(
+                alias="audio_ingest",
+                event_type="AudioUploadReceived",
+                payload={
+                    "upload_id": upload_correlation_id,
+                    "session_id": session_id,
+                    "filename": audio.filename,
+                    "content_type": audio.content_type,
+                    "file_size": len(content),
+                    "config_provided": bool(config),
+                },
+                metadata={"endpoint": "/upload"},
+            )
             
             try:
                 # Process uploaded file safely

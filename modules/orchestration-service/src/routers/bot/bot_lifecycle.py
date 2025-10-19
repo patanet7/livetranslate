@@ -18,7 +18,8 @@ router = create_bot_router()
 @router.post("/spawn", response_model=BotResponse)
 async def spawn_bot(
     request: BotSpawnRequest,
-    bot_manager=Depends(get_bot_manager)
+    bot_manager=Depends(get_bot_manager),
+    event_publisher=Depends(get_event_publisher),
 ) -> BotResponse:
     """
     Spawn a new bot instance for a meeting
@@ -65,8 +66,21 @@ async def spawn_bot(
             bot_type=request.bot_type or "google_meet",
             config=request.config or {}
         )
-        
+
         logger.info(f"Bot spawned successfully: {bot_instance.bot_id}")
+
+        await event_publisher.publish(
+            alias="bot_control",
+            event_type="BotRequested",
+            payload={
+                "bot_id": bot_instance.bot_id,
+                "meeting_id": request.meeting_id,
+                "meeting_url": request.meeting_url,
+                "bot_type": bot_instance.bot_type,
+                "config": request.config or {},
+            },
+            metadata={"endpoint": "/bots/spawn"},
+        )
         
         return BotResponse(
             bot_id=bot_instance.bot_id,
@@ -242,7 +256,8 @@ async def get_bot_details(
 async def terminate_bot(
     bot_id: str,
     reason: Optional[str] = None,
-    bot_manager=Depends(get_bot_manager)
+    bot_manager=Depends(get_bot_manager),
+    event_publisher=Depends(get_event_publisher),
 ) -> Dict[str, Any]:
     """
     Terminate a bot instance
@@ -260,8 +275,19 @@ async def terminate_bot(
             bot_id=bot_id,
             reason=reason or "Manual termination"
         )
-        
+
         logger.info(f"Bot {bot_id} terminated successfully")
+
+        await event_publisher.publish(
+            alias="bot_control",
+            event_type="BotStopRequested",
+            payload={
+                "bot_id": bot_id,
+                "reason": reason or "Manual termination",
+                "termination_result": termination_result,
+            },
+            metadata={"endpoint": f"/bots/{bot_id}/terminate"},
+        )
         
         return {
             "bot_id": bot_id,
