@@ -11,7 +11,7 @@
 - ✅ Align `AudioServiceClient`/`TranslationServiceClient` constructors with `dependencies.py` factories; add regression tests.
 - ✅ Remove or archive duplicate/backup routers (`audio_core_temp.py`, `audio_original_backup.py`, etc.) to shrink boot surface.
 - ✅ Normalize logging: drop forced DEBUG setup in `main_fastapi.py`, avoid hard-coded `/tmp` log paths.
-- Audit environment variables: ensure orchestration reads `AUDIO_SERVICE_URL` / `TRANSLATION_SERVICE_URL`, update `env.template`.
+- ✅ Audit environment variables: ensure orchestration reads `AUDIO_SERVICE_URL` / `TRANSLATION_SERVICE_URL`, update `env.template`.
 
 ## Architectural Adjustments
 - Carve the orchestration service into a lean API layer plus background workers (config sync, Google Meet bots, audio coordination) using a shared queue.
@@ -23,18 +23,18 @@
 - Standardize on Poetry for backend installs (`poetry install --with dev,audio`) and pnpm for frontend.
 - 🔄 Add canonical orchestration upstream variables (`AUDIO_SERVICE_URL`, `TRANSLATION_SERVICE_URL`) to `.env` templates.
 - ✅ Provide production-ready frontend Docker image (Vite → nginx) for Compose/K8s workflows.
-- Introduce a `justfile` (or Makefile) with tasks: `up-dev`, `down`, `fmt`, `lint`, `test-backend`, `test-frontend`, `compose` profiles.
-- Generate `.env.local` from `env.template` via `just bootstrap-env`, scoped per service (`modules/*/.env`).
+- ✅ Introduce a `justfile` (or Makefile) with tasks: `up-dev`, `down`, `fmt`, `lint`, `test-backend`, `test-frontend`, `compose` profiles.
+- ✅ Generate `.env.local` from `env.template` via `just bootstrap-env`, scoped per service (`modules/*/.env`).
 - ✅ Provide lightweight mock services (FastAPI stubs) for Whisper/Translation so local CPUs can run the full workflow.
 - Enforce pre-commit hooks that run Black, isort, mypy, ESLint, Prettier before push.
 
 ## Docker & Compose Restructure
 - ✅ Author new `compose.local.yml` with profiles for core services and lightweight mock inference endpoints.
 - ✅ Default compose profile runs real Whisper/Translation containers with optional mock profile toggled via `.env.local` overrides.
-- Remove dependency on pre-created external networks/volumes; create them on demand with sensible defaults.
+- ✅ Remove dependency on pre-created external networks/volumes; create them on demand with sensible defaults.
 - Split dev vs prod images: dev mounts source, prod images copy built artefacts (frontend served via nginx, backend via gunicorn/uvicorn workers).
 - ✅ Update orchestration Dockerfile to build FastAPI service with Poetry-managed dependencies.
-- Document workflow in `README.md` (start with `just compose-up`, how to toggle GPU/NPU profiles, running tests).
+- ✅ Document workflow in `README.md` (start with `just compose-up`, how to toggle GPU/NPU profiles, running tests).
 
 ## CI/CD & Testing
 - Update CI pipeline to run backend unit + integration tests, frontend lint/test/build, and Docker image builds per SHA.
