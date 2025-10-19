@@ -737,6 +737,105 @@ async def transcribe_with_enhancement(model_name: str):
         logger.error(f"Enhanced transcription failed: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/analyze', methods=['POST'])
+async def analyze_audio_endpoint():
+    """Analyze audio and return basic quality metrics."""
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+
+    try:
+        audio_bytes = None
+        if 'audio' in request.files:
+            audio_bytes = request.files['audio'].read()
+        elif request.files:
+            # Allow alternate key used by orchestration
+            file_storage = next(iter(request.files.values()))
+            audio_bytes = file_storage.read()
+        elif request.data:
+            audio_bytes = request.data
+
+        if not audio_bytes:
+            return jsonify({"error": "No audio data provided"}), 400
+
+        audio_array = _process_audio_data(audio_bytes)
+        if audio_array.size == 0:
+            return jsonify({"error": "Audio data could not be processed"}), 400
+
+        duration = float(len(audio_array) / 16000.0)
+        rms = float(np.sqrt(np.mean(np.square(audio_array)))) if audio_array.size else 0.0
+        peak = float(np.max(np.abs(audio_array))) if audio_array.size else 0.0
+
+        return jsonify({
+            "status": "success",
+            "metrics": {
+                "duration_seconds": duration,
+                "rms_level": rms,
+                "peak_level": peak,
+                "sample_count": int(audio_array.size),
+            },
+            "timestamp": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        logger.error(f"Audio analysis failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/process-pipeline', methods=['POST'])
+async def process_pipeline_endpoint():
+    """Process audio through the enhanced pipeline endpoint used by orchestration."""
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+
+    try:
+        if 'audio' in request.files:
+            audio_bytes = request.files['audio'].read()
+        elif 'audio_file' in request.files:
+            audio_bytes = request.files['audio_file'].read()
+        else:
+            return jsonify({"error": "No audio file provided"}), 400
+
+        model_name = request.form.get('model', whisper_service.config.get("default_model", "whisper-base"))
+        session_id = request.form.get('session_id')
+        config_json = request.form.get('config')
+        pipeline_config = json.loads(config_json) if config_json else {}
+
+        audio_array = _process_audio_data(audio_bytes)
+
+        transcription_request = TranscriptionRequest(
+            audio_data=audio_array,
+            model_name=model_name,
+            session_id=session_id,
+            streaming=False,
+            enhanced=pipeline_config.get('enhanced', False),
+            sample_rate=pipeline_config.get('sample_rate', 16000),
+            enable_vad=pipeline_config.get('enable_vad', False),
+        )
+
+        start_time = time.time()
+        result = await whisper_service.transcribe(transcription_request)
+        processing_time = time.time() - start_time
+
+        return jsonify({
+            "status": "success",
+            "transcription": {
+                "text": result.text,
+                "language": result.language,
+                "segments": result.segments,
+                "confidence": result.confidence_score,
+            },
+            "processing_info": {
+                "model_used": result.model_used,
+                "device_used": result.device_used,
+                "processing_time": processing_time,
+            },
+            "request_id": request.form.get('request_id'),
+            "metadata": pipeline_config,
+        })
+    except Exception as e:
+        logger.error(f"Pipeline processing failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # Streaming endpoints
 @app.route('/stream/configure', methods=['POST'])
 def configure_streaming():
@@ -767,10 +866,67 @@ def configure_streaming():
             "session_id": session_id,
             "config": streaming_config
         })
-        
+
     except Exception as e:
         logger.error(f"Failed to configure streaming: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+def _ensure_streaming_session(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Create or update a streaming session dictionary entry."""
+    session_id = data.get('session_id') or str(uuid.uuid4())
+
+    if session_id not in streaming_sessions:
+        streaming_config = {
+            "session_id": session_id,
+            "model_name": data.get('model_name', 'whisper-base'),
+            "language": data.get('language'),
+            "buffer_duration": data.get('buffer_duration', 6.0),
+            "inference_interval": data.get('inference_interval', 3.0),
+            "enable_vad": data.get('enable_vad', True),
+            "created_at": datetime.now().isoformat(),
+        }
+
+        if whisper_service:
+            whisper_service.create_session(session_id, streaming_config)
+
+        streaming_sessions[session_id] = streaming_config
+    else:
+        streaming_sessions[session_id].update({
+            "model_name": data.get('model_name', streaming_sessions[session_id].get('model_name', 'whisper-base')),
+            "language": data.get('language', streaming_sessions[session_id].get('language')),
+            "buffer_duration": data.get('buffer_duration', streaming_sessions[session_id].get('buffer_duration', 6.0)),
+            "inference_interval": data.get('inference_interval', streaming_sessions[session_id].get('inference_interval', 3.0)),
+            "enable_vad": data.get('enable_vad', streaming_sessions[session_id].get('enable_vad', True)),
+        })
+
+    return streaming_sessions[session_id]
+
+
+@app.route('/api/realtime/start', methods=['POST'])
+def api_realtime_start():
+    """API-compatible endpoint to create and start a streaming session."""
+    try:
+        data = request.get_json() or {}
+        config = _ensure_streaming_session(data)
+
+        config["streaming_active"] = True
+        config["started_at"] = datetime.now().isoformat()
+
+        return jsonify({
+            "status": "streaming_started",
+            "session_id": config["session_id"],
+            "config": config,
+        })
+    except Exception as e:
+        logger.error(f"Failed to start realtime session: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/start-streaming', methods=['POST'])
+def api_start_streaming():
+    """Alias for orchestration clients expecting /api/start-streaming."""
+    return api_realtime_start()
 
 @app.route('/stream/start', methods=['POST'])
 def start_streaming():
@@ -825,6 +981,11 @@ def stop_streaming():
         logger.error(f"Failed to stop streaming: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/realtime/stop', methods=['POST'])
+def api_realtime_stop():
+    return stop_streaming()
+
 @app.route('/stream/audio', methods=['POST'])
 async def stream_audio_chunk():
     """Stream audio chunk for real-time transcription"""
@@ -863,6 +1024,25 @@ async def stream_audio_chunk():
         logger.error(f"Failed to process audio chunk: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/realtime/audio', methods=['POST'])
+async def api_realtime_audio():
+    return await stream_audio_chunk()
+
+
+@app.route('/api/realtime/status/<session_id>', methods=['GET'])
+def api_realtime_status(session_id: str):
+    config = streaming_sessions.get(session_id)
+    if not config:
+        return jsonify({"error": "Session not found"}), 404
+
+    return jsonify({
+        "session_id": session_id,
+        "streaming_active": config.get("streaming_active", False),
+        "config": config,
+        "timestamp": datetime.now().isoformat()
+    })
+
 @app.route('/stream/transcriptions', methods=['GET'])
 def get_rolling_transcriptions():
     """Get recent transcriptions from rolling buffer"""
@@ -894,6 +1074,25 @@ def get_rolling_transcriptions():
     except Exception as e:
         logger.error(f"Failed to get transcriptions: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/stream-results/<session_id>', methods=['GET'])
+def api_stream_results(session_id: str):
+    limit = int(request.args.get('limit', 10))
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+
+    session = whisper_service.get_session(session_id)
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+
+    transcriptions = session.get("transcriptions", [])[-limit:]
+    return jsonify({
+        "session_id": session_id,
+        "results": transcriptions,
+        "count": len(transcriptions),
+        "timestamp": datetime.now().isoformat()
+    })
 
 # Session management endpoints
 @app.route('/sessions', methods=['POST'])
@@ -961,6 +1160,25 @@ def close_session(session_id: str):
         logger.error(f"Failed to close session: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/api/download/<request_id>', methods=['GET'])
+def api_download_result(request_id: str):
+    """Provide placeholder download endpoint for orchestration."""
+    if transcript_manager:
+        transcript = transcript_manager.get_session_transcript(request_id, format=request.args.get('format', 'text'))
+        if transcript:
+            return jsonify({
+                "request_id": request_id,
+                "status": "available",
+                "content": transcript,
+                "timestamp": datetime.now().isoformat()
+            })
+    return jsonify({
+        "request_id": request_id,
+        "status": "not_found",
+        "message": "No transcript stored for this request"
+    }), 404
+
 # Service management endpoints
 @app.route('/status', methods=['GET'])
 def get_service_status():
@@ -999,6 +1217,24 @@ def get_service_status():
     except Exception as e:
         logger.error(f"Failed to get status: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/processing-stats', methods=['GET'])
+def api_processing_stats():
+    if whisper_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+
+    try:
+        status = whisper_service.get_service_status()
+        return jsonify({
+            "active_sessions": len(streaming_sessions),
+            "recent_transcriptions": len(whisper_service.get_transcription_history(20)),
+            "service_info": status,
+            "timestamp": datetime.now().isoformat(),
+        })
+    except Exception as e:
+        logger.error(f"Failed to get processing stats: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/connections', methods=['GET'])
 def get_connections():

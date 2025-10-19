@@ -321,6 +321,24 @@ async def get_status():
         logger.error(f"Failed to get status: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
+@app.route('/api/performance', methods=['GET'])
+async def get_performance_metrics():
+    """Return basic performance counters for the translation service."""
+    if translation_service is None:
+        return jsonify({"error": "Service not initialized"}), 503
+
+    try:
+        metrics = {
+            "active_sessions": len(active_sessions),
+            "cached_prompts": len(prompt_manager.prompts) if prompt_manager else 0,
+            "timestamp": datetime.now().isoformat(),
+        }
+        return jsonify(metrics)
+    except Exception as e:
+        logger.error(f"Failed to gather performance metrics: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # Device information endpoint
 @app.route('/api/device-info', methods=['GET'])
 async def get_device_info():
@@ -866,33 +884,40 @@ async def clear_session_context(session_id: str):
         return jsonify({"error": str(e)}), 500
 
 # Language detection endpoint
-@app.route('/detect_language', methods=['POST'])
-async def detect_language():
-    """Detect the language of input text"""
+async def _detect_language_impl():
     if translation_service is None:
         return jsonify({"error": "Service not initialized"}), 503
-    
     try:
         data = request.get_json()
         if not data or 'text' not in data:
             return jsonify({"error": "Missing 'text' field"}), 400
-        
+
         language, confidence = asyncio.run(translation_service.detect_language(data['text']))
-        
+
         return jsonify({
             "language": language,
             "confidence": confidence,
             "timestamp": datetime.now().isoformat()
         })
-        
+
     except Exception as e:
         logger.error(f"Language detection failed: {e}")
         return jsonify({"error": str(e)}), 500
 
+
+@app.route('/detect_language', methods=['POST'])
+async def detect_language():
+    """Detect the language of input text"""
+    return await _detect_language_impl()
+
+
+@app.route('/api/detect', methods=['POST'])
+async def api_detect_language():
+    """API namespaced language detection."""
+    return await _detect_language_impl()
+
 # Supported languages endpoint
-@app.route('/languages', methods=['GET'])
-async def get_supported_languages():
-    """Get list of supported languages"""
+async def _get_supported_languages_impl():
     if translation_service is None:
         return jsonify({"error": "Service not initialized"}), 503
     
@@ -903,10 +928,21 @@ async def get_supported_languages():
             "count": len(languages),
             "timestamp": datetime.now().isoformat()
         })
-        
     except Exception as e:
         logger.error(f"Failed to get supported languages: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/languages', methods=['GET'])
+async def get_supported_languages():
+    """Get list of supported languages"""
+    return await _get_supported_languages_impl()
+
+
+@app.route('/api/languages', methods=['GET'])
+async def api_get_supported_languages():
+    """API namespaced supported languages endpoint."""
+    return await _get_supported_languages_impl()
 
 # Session management endpoints
 @app.route('/sessions', methods=['POST'])
