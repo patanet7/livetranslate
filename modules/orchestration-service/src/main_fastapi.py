@@ -26,37 +26,16 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# Enhanced logging configuration for debugging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/tmp/orchestration_debug.log', mode='w')
-    ]
-)
-
-# Create specialized loggers
 logger = logging.getLogger(__name__)
-router_logger = logging.getLogger('router_registration')
-# Reduce router registration logging noise
+router_logger = logging.getLogger("router_registration")
+import_logger = logging.getLogger("import_analysis")
+route_logger = logging.getLogger("route_conflicts")
+startup_logger = logging.getLogger("startup_process")
+
 router_logger.setLevel(logging.WARNING)
-import_logger = logging.getLogger('import_analysis')
 import_logger.setLevel(logging.WARNING)
-route_logger = logging.getLogger('route_conflicts')
 route_logger.setLevel(logging.WARNING)
-startup_logger = logging.getLogger('startup_process')
-startup_logger.setLevel(logging.WARNING)
-
-# Keep loggers at WARNING level to reduce console noise
-# Uncomment the lines below for detailed debugging only:
-# router_logger.setLevel(logging.DEBUG)
-# import_logger.setLevel(logging.DEBUG)
-# route_logger.setLevel(logging.DEBUG)
-# startup_logger.setLevel(logging.DEBUG)
-
-startup_logger.info("[START] Starting enhanced debugging session for orchestration service")
-startup_logger.info(f"Debug session started at: {datetime.utcnow().isoformat()}")
+startup_logger.setLevel(logging.INFO)
 
 # Add the src directory to the Python path
 src_path = Path(__file__).parent

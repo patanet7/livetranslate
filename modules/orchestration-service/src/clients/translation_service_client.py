@@ -52,11 +52,17 @@ class LanguageDetectionResponse(BaseModel):
 class TranslationServiceClient:
     """Client for the Translation service"""
 
-    def __init__(self, config_manager=None):
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        timeout: Optional[float] = None,
+        config_manager=None,
+    ):
         self.config_manager = config_manager
-        self.base_url = self._get_base_url()
+        self.base_url = base_url or self._get_base_url()
+        timeout_seconds = timeout or self._get_timeout()
         self.session: Optional[aiohttp.ClientSession] = None
-        self.timeout = aiohttp.ClientTimeout(total=60)  # 1 minute timeout
+        self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
 
     def _get_base_url(self) -> str:
         """Get the translation service base URL from configuration"""
@@ -65,6 +71,12 @@ class TranslationServiceClient:
                 "translation", "http://localhost:5003"
             )
         return "http://localhost:5003"
+
+    def _get_timeout(self) -> int:
+        """Resolve translation timeout"""
+        if self.config_manager:
+            return self.config_manager.get("services.translation.timeout", 60)
+        return 60
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
