@@ -14,10 +14,17 @@
 - ✅ Audit environment variables: ensure orchestration reads `AUDIO_SERVICE_URL` / `TRANSLATION_SERVICE_URL`, update `env.template`.
 
 ## Architectural Adjustments
-- Carve the orchestration service into a lean API layer plus background workers (config sync, Google Meet bots, audio coordination) using a shared queue.
+- ✅ Map orchestration responsibilities (`modules/orchestration-service/WORKER_SPLIT.md`) to carve API vs. background workers (config sync, audio pipeline, bot control, monitoring).
 - Document diarization strategy: when Whisper’s built-in diarization meets requirements keep it co-located; otherwise surface a discrete speaker service behind the same contract and prune dangling references.
-- Introduce an event pipeline for audio/transcription messages so translation and analytics consumers can scale independently.
+- ✅ Introduce an event pipeline blueprint (`modules/orchestration-service/EVENT_PIPELINE.md`) covering Redis Streams queue design, event envelopes, and worker flows.
 - Add contract/integration tests that exercise orchestration ↔ whisper/translation APIs to protect independent release cycles.
+
+### Worker Migration Milestones
+1. **Phase 0** – Introduce queue abstraction in API, publish audio/bot/config events alongside existing synchronous paths (feature flag).  
+2. **Phase 1** – Deploy Config Sync & Monitoring workers consuming new queues; remove polling threads from API.  
+3. **Phase 2** – Migrate audio pipeline to worker; API becomes producer/consumer for WebSocket updates via `stream:audio-results`.  
+4. **Phase 3** – Move bot lifecycle automation to dedicated worker pool and retire in-process bot manager.  
+5. **Phase 4** – Evaluate scaling requirements (Kafka/NATS) and update queue adapter if needed.
 
 ## Dev Environment & Dependencies
 - ✅ Standardize on Poetry for backend installs (`poetry install --with dev,audio`) and pnpm for frontend.
