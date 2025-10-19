@@ -17,6 +17,7 @@
 - ✅ Map orchestration responsibilities (`modules/orchestration-service/WORKER_SPLIT.md`) to carve API vs. background workers (config sync, audio pipeline, bot control, monitoring).
 - Document diarization strategy: when Whisper’s built-in diarization meets requirements keep it co-located; otherwise surface a discrete speaker service behind the same contract and prune dangling references.
 - ✅ Introduce an event pipeline blueprint (`modules/orchestration-service/EVENT_PIPELINE.md`) covering Redis Streams queue design, event envelopes, and worker flows.
+- ✅ Publish audio/config/bot events from the API through the new Redis-backed `EventPublisher` while keeping synchronous processing paths.
 - Add contract/integration tests that exercise orchestration ↔ whisper/translation APIs to protect independent release cycles.
 
 ### Worker Migration Milestones
