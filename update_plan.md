@@ -22,8 +22,8 @@
 - Add contract/integration tests that exercise orchestration ↔ whisper/translation APIs to protect independent release cycles.
 
 ### Worker Migration Milestones
-1. **Phase 0** – Introduce queue abstraction in API, publish audio/bot/config events alongside existing synchronous paths (feature flag).  
-2. **Phase 1** – Deploy Config Sync & Monitoring workers consuming new queues; remove polling threads from API.  
+1. **Phase 0** – ✅ Introduce queue abstraction in API, publish audio/bot/config events alongside existing synchronous paths (feature flag).  
+2. **Phase 1** – 🔄 Config sync worker consumes `config-sync` stream, API defers updates when `CONFIG_SYNC_MODE=worker`; monitoring worker pending.  
 3. **Phase 2** – Migrate audio pipeline to worker; API becomes producer/consumer for WebSocket updates via `stream:audio-results`.  
 4. **Phase 3** – Move bot lifecycle automation to dedicated worker pool and retire in-process bot manager.  
 5. **Phase 4** – Evaluate scaling requirements (Kafka/NATS) and update queue adapter if needed.
