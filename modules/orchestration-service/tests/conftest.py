@@ -33,19 +33,23 @@ if src_path.exists():
     sys.path.insert(0, str(src_path))
 
 # Import application components
-try:
-    from main_fastapi import app
-    from dependencies import (
-        get_config_manager,
-        get_audio_service_client,
-        get_translation_service_client,
-        get_audio_coordinator,
-        get_config_sync_manager,
-        get_health_monitor,
-    )
-except ImportError as e:
-    logging.warning(f"Could not import application components: {e}")
+if os.getenv("SKIP_MAIN_FASTAPI_IMPORT") == "1":
+    logging.info("Skipping main_fastapi import due to SKIP_MAIN_FASTAPI_IMPORT=1")
     app = None
+else:
+    try:
+        from main_fastapi import app
+        from dependencies import (
+            get_config_manager,
+            get_audio_service_client,
+            get_translation_service_client,
+            get_audio_coordinator,
+            get_config_sync_manager,
+            get_health_monitor,
+        )
+    except ImportError as e:
+        logging.warning(f"Could not import application components: {e}")
+        app = None
 
 # Import test data management
 try:
