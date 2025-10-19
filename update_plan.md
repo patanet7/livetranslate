@@ -30,6 +30,7 @@
 
 ## Docker & Compose Restructure
 - ✅ Author new `compose.local.yml` with profiles for core services and lightweight mock inference endpoints.
+- ✅ Default compose profile runs real Whisper/Translation containers with optional mock profile toggled via `.env.local` overrides.
 - Remove dependency on pre-created external networks/volumes; create them on demand with sensible defaults.
 - Split dev vs prod images: dev mounts source, prod images copy built artefacts (frontend served via nginx, backend via gunicorn/uvicorn workers).
 - ✅ Update orchestration Dockerfile to build FastAPI service with Poetry-managed dependencies.

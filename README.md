@@ -80,12 +80,12 @@ cp env.template .env
 
 ### 2. Choose Your Deployment Method
 
-#### Option A: Docker Compose (Mocks + Hot Reload)
+#### Option A: Docker Compose (Hot Reload + Local Inference)
 ```bash
 # Bootstrap environment variables (creates .env.local if missing)
 just bootstrap-env
 
-# Start orchestration, frontend, redis, and mock inference services
+# Start orchestration, frontend, redis, whisper, and translation services
 just compose-up
 
 # Tail logs or stop services
@@ -93,10 +93,19 @@ just compose-logs
 just compose-down
 ```
 
-This profile uses lightweight FastAPI mocks for Whisper/Translation so you can develop the frontend and orchestration service without large model downloads. To include Postgres or other profiles:
+By default this launches the real Whisper and Translation containers on CPU (no GPU required) alongside orchestration and the frontend dev server. To include Postgres or other profiles:
 
 ```bash
-just compose-up profiles="core infra"
+just compose-up profiles="core,inference,infra"
+
+Need quick mocks instead of the full inference stack? Start the mock profile and point orchestration at it by updating `.env.local`:
+
+```bash
+COMPOSE_PROFILES="core,mock" just compose-up
+# .env.local
+AUDIO_SERVICE_URL=http://whisper-mock:5001
+TRANSLATION_SERVICE_URL=http://translation-mock:5003
+```
 ```
 
 #### Option B: Development Environment (Recommended)
