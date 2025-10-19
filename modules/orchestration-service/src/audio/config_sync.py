@@ -16,19 +16,21 @@ Ensures all components have consistent configuration and provides:
 """
 
 import asyncio
+import copy
+import hashlib
 import json
 import logging
-import time
-import hashlib
-import copy
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Callable, Union, Tuple
-from dataclasses import asdict
-from enum import Enum
-import aiohttp
-from pathlib import Path
+import os
 import threading
+import time
 from collections import defaultdict, deque
+from dataclasses import asdict
+from datetime import datetime, timedelta
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+import aiohttp
 
 from .models import AudioChunkingConfig
 from .whisper_compatibility import (
@@ -39,6 +41,25 @@ from .whisper_compatibility import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Modes
+# ---------------------------------------------------------------------------
+
+
+class ConfigSyncModes(str, Enum):
+    API_ONLY = "api"
+    WORKER = "worker"
+
+
+def get_config_sync_mode() -> ConfigSyncModes:
+    mode = os.getenv("CONFIG_SYNC_MODE", ConfigSyncModes.API_ONLY.value).lower()
+    try:
+        return ConfigSyncModes(mode)
+    except ValueError:
+        logger.warning("Unknown CONFIG_SYNC_MODE=%s, defaulting to 'api'", mode)
+        return ConfigSyncModes.API_ONLY
 
 
 class ConfigurationValidationError(Exception):

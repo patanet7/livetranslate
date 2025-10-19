@@ -99,6 +99,8 @@ By default this launches the real Whisper and Translation containers on CPU (no 
 
 ```bash
 just compose-up profiles="core,inference,infra"
+# include workers for config sync processing
+# just compose-up profiles="core,inference,infra,workers"
 
 ```
 
@@ -109,7 +111,6 @@ COMPOSE_PROFILES="core,mock" just compose-up
 # .env.local
 AUDIO_SERVICE_URL=http://whisper-mock:5001
 TRANSLATION_SERVICE_URL=http://translation-mock:5003
-```
 ```
 
 #### Option B: Development Environment (Recommended)
@@ -172,6 +173,10 @@ curl http://localhost:5003/api/health
   ```bash
   EVENT_BUS_ENABLED=false
   EVENT_BUS_REDIS_URL=redis://localhost:6379/0
+  ```
+- Switch configuration sync to worker mode (default `api`):
+  ```bash
+  CONFIG_SYNC_MODE=worker
   ```
 
 

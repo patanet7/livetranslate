@@ -22,6 +22,7 @@ import aiohttp
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from enum import Enum
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -38,13 +39,21 @@ try:
         get_unified_configuration,
         update_configuration,
         apply_configuration_preset,
-        sync_all_configurations
+        sync_all_configurations,
+        ConfigSyncModes,
+        get_config_sync_mode,
     )
     CONFIG_SYNC_AVAILABLE = True
     logger.info(" Configuration sync manager available")
 except ImportError as e:
     CONFIG_SYNC_AVAILABLE = False
     logger.warning(f" Configuration sync manager not available: {e}")
+    class ConfigSyncModes(str, Enum):
+        API_ONLY = "api"
+        WORKER = "worker"
+
+    def get_config_sync_mode() -> "ConfigSyncModes":
+        return ConfigSyncModes.API_ONLY
 try:
     from dependencies import get_config_manager, get_event_publisher
 except ImportError:
@@ -235,7 +244,28 @@ async def update_user_settings(
         if request.custom_settings is not None:
             update_data["custom_settings"] = request.custom_settings
 
-        # Update settings
+        mode = get_config_sync_mode()
+
+        if mode == ConfigSyncModes.WORKER and event_publisher:
+            await event_publisher.publish(
+                alias="config_sync",
+                event_type="UserSettingsUpdateRequested",
+                payload={
+                    "user_id": user_id,
+                    "updated_fields": update_data,
+                },
+                metadata={"endpoint": "/settings/user"},
+            )
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content={
+                    "message": "User settings update queued",
+                    "user_id": user_id,
+                    "updated_keys": list(update_data.keys()),
+                },
+            )
+
+        # Update settings immediately (API mode)
         updated_settings = await config_manager.update_user_settings(
             user_id, update_data
         )
@@ -337,7 +367,27 @@ async def update_system_settings(
         if request.maintenance_mode is not None:
             update_data["maintenance_mode"] = request.maintenance_mode
 
-        # Update settings
+        mode = get_config_sync_mode()
+
+        if mode == ConfigSyncModes.WORKER and event_publisher and update_data:
+            await event_publisher.publish(
+                alias="config_sync",
+                event_type="SystemSettingsUpdateRequested",
+                payload={
+                    "updated_keys": list(update_data.keys()),
+                    "settings": update_data,
+                },
+                metadata={"endpoint": "/settings/system"},
+            )
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content={
+                    "message": "System settings update queued",
+                    "updated_keys": list(update_data.keys()),
+                },
+            )
+
+        # Update settings immediately (API mode)
         result = await config_manager.update_system_settings(update_data)
 
         if event_publisher and update_data:
@@ -428,7 +478,29 @@ async def update_service_settings(
         if request.custom_config is not None:
             update_data["custom_config"] = request.custom_config
 
-        # Update service settings
+        mode = get_config_sync_mode()
+
+        if mode == ConfigSyncModes.WORKER and event_publisher and update_data:
+            await event_publisher.publish(
+                alias="config_sync",
+                event_type="ServiceSettingsUpdateRequested",
+                payload={
+                    "service_name": service_name,
+                    "updated_keys": list(update_data.keys()),
+                    "settings": update_data,
+                },
+                metadata={"endpoint": f"/settings/services/{service_name}"},
+            )
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content={
+                    "message": f"Service {service_name} settings update queued",
+                    "service_name": service_name,
+                    "updated_keys": list(update_data.keys()),
+                },
+            )
+
+        # Update service settings immediately (API mode)
         result = await config_manager.update_service_settings(service_name, update_data)
 
         if event_publisher and update_data:
