@@ -118,20 +118,15 @@ class TranslationServiceClient:
                 "error": str(e),
             }
 
-    async def get_supported_languages(self) -> List[Dict[str, str]]:
-        """Get supported languages"""
-        try:
-            session = await self._get_session()
-            async with session.get(f"{self.base_url}/api/languages") as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data.get("languages", [])
-                else:
-                    logger.error(f"Failed to get languages: HTTP {response.status}")
-                    return self._get_default_languages()
-        except Exception as e:
-            logger.error(f"Failed to get languages: {e}")
-            return self._get_default_languages()
+    def get_supported_languages(self) -> list[dict[str, str]]:
+        """Return fallback languages (service endpoint not available)."""
+        logger.warning("Translation /api/languages endpoint not available; using defaults")
+        return [
+            {"code": "en", "name": "English"},
+            {"code": "es", "name": "Spanish"},
+            {"code": "fr", "name": "French"},
+            {"code": "de", "name": "German"},
+        ]
 
     def _get_default_languages(self) -> List[Dict[str, str]]:
         """Get default supported languages"""
@@ -164,9 +159,12 @@ class TranslationServiceClient:
             return {"device": "unknown", "status": "error", "error": str(e)}
 
     async def detect_language(self, text: str) -> LanguageDetectionResponse:
-        """Detect language of text"""
-        try:
-            session = await self._get_session()
+        logger.warning("Translation /api/detect endpoint not available; returning default")
+        return LanguageDetectionResponse(
+            language="en",
+            confidence=0.5,
+            alternatives=[{"en": 0.5}]
+        )
 
             request_data = {"text": text}
 
