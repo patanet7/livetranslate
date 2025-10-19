@@ -15,6 +15,7 @@
 
 ## Dev Environment & Dependencies
 - Standardize on Poetry for backend installs (`poetry install --with dev,audio`) and pnpm for frontend.
+- 🔄 Add canonical orchestration upstream variables (`AUDIO_SERVICE_URL`, `TRANSLATION_SERVICE_URL`) to `.env` templates.
 - Introduce a `justfile` (or Makefile) with tasks: `up-dev`, `down`, `fmt`, `lint`, `test-backend`, `test-frontend`, `compose` profiles.
 - Generate `.env.local` from `env.template` via `just bootstrap-env`, scoped per service (`modules/*/.env`).
 - Provide lightweight mock services (FastAPI stubs) for Whisper/Translation so local CPUs can run the full workflow.
