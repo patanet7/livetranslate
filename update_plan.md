@@ -25,15 +25,15 @@
 - ✅ Provide production-ready frontend Docker image (Vite → nginx) for Compose/K8s workflows.
 - Introduce a `justfile` (or Makefile) with tasks: `up-dev`, `down`, `fmt`, `lint`, `test-backend`, `test-frontend`, `compose` profiles.
 - Generate `.env.local` from `env.template` via `just bootstrap-env`, scoped per service (`modules/*/.env`).
-- Provide lightweight mock services (FastAPI stubs) for Whisper/Translation so local CPUs can run the full workflow.
+- ✅ Provide lightweight mock services (FastAPI stubs) for Whisper/Translation so local CPUs can run the full workflow.
 - Enforce pre-commit hooks that run Black, isort, mypy, ESLint, Prettier before push.
 
 ## Docker & Compose Restructure
-- Author new `compose.local.yml` using profiles (`orchestration`, `frontend`, `whisper`, `translation`, `redis`, `postgres`, `monitoring`).
+- ✅ Author new `compose.local.yml` with profiles for core services and lightweight mock inference endpoints.
 - Remove dependency on pre-created external networks/volumes; create them on demand with sensible defaults.
 - Split dev vs prod images: dev mounts source, prod images copy built artefacts (frontend served via nginx, backend via gunicorn/uvicorn workers).
 - ✅ Update orchestration Dockerfile to build FastAPI service with Poetry-managed dependencies.
-- Document workflow in `README.md` (start with `just up-dev`, how to toggle GPU/NPU profiles, running tests).
+- Document workflow in `README.md` (start with `just compose-up`, how to toggle GPU/NPU profiles, running tests).
 
 ## CI/CD & Testing
 - Update CI pipeline to run backend unit + integration tests, frontend lint/test/build, and Docker image builds per SHA.

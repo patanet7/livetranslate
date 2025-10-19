@@ -1,0 +1,110 @@
+version: "3.9"
+
+services:
+  orchestration:
+    build:
+      context: modules/orchestration-service
+      args:
+        POETRY_INSTALL_ARGS: "--with dev,audio"
+    profiles: ["core"]
+    environment:
+      AUDIO_SERVICE_URL: http://whisper-mock:5001
+      TRANSLATION_SERVICE_URL: http://translation-mock:5003
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/livetranslate
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      whisper-mock:
+        condition: service_started
+      translation-mock:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./modules/orchestration-service/src:/app/src
+      - ./modules/orchestration-service/config:/app/config
+    command:
+      [
+        "sh",
+        "-c",
+        "uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload --reload-dir /app/src",
+      ]
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    profiles: ["ui"]
+    environment:
+      NODE_ENV: development
+      VITE_ORCHESTRATION_URL: http://localhost:3000
+    command: >
+      sh -c "corepack enable && pnpm install && pnpm dev --host 0.0.0.0 --port 5173"
+    volumes:
+      - ./modules/frontend-service:/app
+      - frontend-node-modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      orchestration:
+        condition: service_started
+
+  whisper-mock:
+    build:
+      context: .
+      dockerfile: scripts/mocks/Dockerfile
+    profiles: ["core"]
+    environment:
+      MOCK_SERVICE: whisper
+      MOCK_PORT: 5001
+    ports:
+      - "5001:5001"
+
+  translation-mock:
+    build:
+      context: .
+      dockerfile: scripts/mocks/Dockerfile
+    profiles: ["core"]
+    environment:
+      MOCK_SERVICE: translation
+      MOCK_PORT: 5003
+    ports:
+      - "5003:5003"
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["infra", "core"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  postgres:
+    image: postgres:15-alpine
+    profiles: ["infra"]
+    environment:
+      POSTGRES_DB: livetranslate
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  frontend-node-modules:
+  redis-data:
+  postgres-data:

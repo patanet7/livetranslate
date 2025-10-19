@@ -1,38 +1,38 @@
-# Dockerfile for Current Flask-based Orchestration Service
-# NOTE: This will be replaced by Dockerfile.react during the React migration
-# See REACT_MIGRATION_PLAN.md for details on the upcoming React + FastAPI architecture
+# syntax=docker/dockerfile:1.4
 
-FROM python:3.11-slim
+FROM python:3.11-slim as base
 
-# Set working directory
+ENV PYTHONUNBUFFERED=1 \
+    POETRY_VERSION=1.8.3
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+COPY pyproject.toml poetry.lock* ./
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+ARG POETRY_INSTALL_ARGS="--without dev,test"
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi ${POETRY_INSTALL_ARGS}
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+FROM base as runtime
 
-# Copy source code
-COPY src/ src/
-COPY static/ static/
-COPY templates/ templates/
-COPY config/ config/
+WORKDIR /app
 
-# Set Python path
-ENV PYTHONPATH=/app/src
+COPY src ./src
+COPY config ./config
+COPY static ./static
+COPY templates ./templates
 
-# Expose port
+ENV UVICORN_HOST=0.0.0.0 \
+    UVICORN_PORT=3000
+
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -fsS http://localhost:${UVICORN_PORT}/api/health || exit 1
 
-# Start command
-CMD ["python", "src/orchestration_service.py", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3000"]
