@@ -8,7 +8,6 @@ import asyncio
 import json
 import logging
 import time
-import weakref
 from datetime import datetime
 from typing import Dict, Set, Optional, Any, Callable, List
 from dataclasses import dataclass, field

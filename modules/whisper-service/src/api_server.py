@@ -405,8 +405,19 @@ def clear_cache():
 # Basic transcription endpoint
 @app.route('/transcribe', methods=['POST'])
 async def transcribe():
-    """Transcribe audio using default model"""
-    return await transcribe_with_model(whisper_service.config.get("default_model", "whisper-base"))
+    """Transcribe audio using specified model or default model"""
+    # Check if model is specified in form data
+    model_name = None
+    if request.form and 'model' in request.form:
+        model_name = request.form.get('model')
+        logger.info(f"[WHISPER] Model specified in form data: {model_name}")
+    
+    # Use specified model or fall back to default
+    if not model_name:
+        model_name = whisper_service.config.get("default_model", "whisper-base")
+        logger.info(f"[WHISPER] Using default model: {model_name}")
+    
+    return await transcribe_with_model(model_name)
 
 # Orchestration-managed chunk processing endpoint
 @app.route('/api/process-chunk', methods=['POST'])

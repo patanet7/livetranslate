@@ -20,9 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBearer
-from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
-from fastapi.encoders import jsonable_encoder
 
 import sys
 from pathlib import Path

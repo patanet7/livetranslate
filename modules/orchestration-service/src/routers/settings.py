@@ -1664,7 +1664,7 @@ async def get_available_configuration_presets():
     """Get available configuration presets"""
     try:
         # Import presets from the compatibility layer
-        from ..audio.whisper_compatibility import CONFIGURATION_PRESETS
+        from audio.whisper_compatibility import CONFIGURATION_PRESETS
         
         return {
             "available_presets": list(CONFIGURATION_PRESETS.keys()),
@@ -1760,7 +1760,7 @@ async def apply_configuration_preset_by_name(preset_data: Dict[str, Any]):
         )
     
     try:
-        from ..audio.config_sync import apply_configuration_preset
+        from audio.config_sync import apply_configuration_preset
         result = await apply_configuration_preset(preset_name)
         
         return {
