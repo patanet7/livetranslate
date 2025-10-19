@@ -17,17 +17,17 @@ This document captures the current state of request/response contracts between t
 | `POST /transcribe` (multipart) | `/transcribe` | ✅ | Accepts audio file. Need to confirm expected form field names (`audio`, `language`, etc.). |
 | `POST /transcribe/<model>` | `/transcribe/<model_name>` | ⚠️ | Endpoint exists; verify required payload fields. |
 | `POST /api/process-chunk` | ❌ | No matching endpoint. |
-| `POST /api/realtime/start` | ❌ | Realtime REST endpoints absent; service uses different streaming model. |
-| `POST /api/realtime/audio` | ❌ | — |
-| `POST /api/realtime/stop` | ❌ | — |
-| `GET /api/realtime/status/{session_id}` | ❌ | — |
-| `POST /api/analyze` | ❌ | Analysis endpoints are named differently; client call will 404. |
+| `POST /api/realtime/start` | ✅ | Wrapper around streaming session configuration/start. |
+| `POST /api/realtime/audio` | ✅ | Proxies to `/stream/audio`. |
+| `POST /api/realtime/stop` | ✅ | Proxies to `/stream/stop`. |
+| `GET /api/realtime/status/{session_id}` | ✅ | Returns session config and state. |
+| `POST /api/analyze` | ✅ | Provides basic audio metrics (duration/RMS/peak). |
 | `GET /performance` | `/performance` | ✅ | Returns metrics JSON. |
-| `POST /api/process-pipeline` | ❌ | Not implemented in Whisper service. |
-| `POST /api/start-streaming` | ❌ | — |
-| `GET /api/stream-results/{session_id}` | ❌ | — |
-| `GET /api/processing-stats` | ❌ | — |
-| `GET /api/download/{request_id}` | ❌ | — |
+| `POST /api/process-pipeline` | ✅ | Executes transcription pipeline and returns metadata. |
+| `POST /api/start-streaming` | ✅ | Alias for realtime start. |
+| `GET /api/stream-results/{session_id}` | ✅ | Returns recent session transcriptions. |
+| `GET /api/processing-stats` | ✅ | Returns service status/metrics. |
+| `GET /api/download/{request_id}` | ⚠️ | Returns transcript if stored; otherwise 404. |
 
 **Takeaway:** Core health/model/device endpoints align, but most advanced pipeline/realtime calls in the client are unsupported. We should either implement them in Whisper or remove/gate the client paths before writing contract tests.
 
@@ -37,11 +37,11 @@ This document captures the current state of request/response contracts between t
 | --- | --- | --- | --- |
 | `GET /api/health` | `/api/health` | ✅ | Returns status JSON. |
 | `GET /api/device-info` | `/api/device-info` | ✅ | Provides backend/device data. |
-| `GET /api/languages` | ❌ | No current endpoint; client must handle fallback. |
-| `POST /api/detect` | ❌ | Language detection endpoint missing. |
+| `GET /api/languages` | ✅ | Wrapper for supported languages list. |
+| `POST /api/detect` | ✅ | Wrapper for `/detect_language`. |
 | `POST /api/translate` | `/api/translate` | ✅ | JSON contract matches client usage. |
-| `GET /api/status` | `/status` | ⚠️ | Path mismatch (`/api/status` vs `/status`). |
-| `GET /api/performance` | `/performance` | ⚠️ | Service returns metrics but under `/performance`. |
+| `GET /api/status` | `/api/status` | ✅ | Already exposed. |
+| `GET /api/performance` | ✅ | Returns basic counters (active sessions, cached prompts). |
 
 **Takeaway:** Translation flows (health/device/translate) work, but language/detect/status contracts need adjustment. Consider adding endpoints or updating the client to align.
 
