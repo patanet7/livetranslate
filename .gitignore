@@ -150,7 +150,7 @@ python/models/
 *.model
 
 # Docker
-.dockerignore
+!.dockerignore
 docker-compose.override.yml
 
 # Logs and databases

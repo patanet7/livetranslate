@@ -80,7 +80,26 @@ cp env.template .env
 
 ### 2. Choose Your Deployment Method
 
-#### Option A: Development Environment (Recommended)
+#### Option A: Docker Compose (Mocks + Hot Reload)
+```bash
+# Bootstrap environment variables (creates .env.local if missing)
+just bootstrap-env
+
+# Start orchestration, frontend, redis, and mock inference services
+just compose-up
+
+# Tail logs or stop services
+just compose-logs
+just compose-down
+```
+
+This profile uses lightweight FastAPI mocks for Whisper/Translation so you can develop the frontend and orchestration service without large model downloads. To include Postgres or other profiles:
+
+```bash
+just compose-up profiles="core infra"
+```
+
+#### Option B: Development Environment (Recommended)
 ```bash
 # Start complete development environment
 ./start-development.ps1
@@ -91,7 +110,7 @@ cp env.template .env
 # API Docs: http://localhost:3000/docs
 ```
 
-#### Option B: Individual Service Development
+#### Option C: Individual Service Development
 ```bash
 # Frontend Service (React + TypeScript)
 cd modules/frontend-service && ./start-frontend.ps1
@@ -104,7 +123,7 @@ cd modules/whisper-service && docker-compose up -d      # NPU/GPU optimized
 cd modules/translation-service && ./start-local.sh      # Llama 3.1 with transformers  
 ```
 
-#### Option C: Full System (All Services)
+#### Option D: Full System (All Services)
 ```bash
 # Start all services with comprehensive setup
 docker-compose -f docker-compose.comprehensive.yml up -d
@@ -113,7 +132,7 @@ docker-compose -f docker-compose.comprehensive.yml up -d
 docker-compose -f docker-compose.comprehensive.yml ps
 ```
 
-#### Option D: Core Services Only (Lightweight)
+#### Option E: Core Services Only (Lightweight)
 ```bash
 # Start essential services only
 docker-compose -f docker-compose.comprehensive.yml up -d frontend whisper translation whisper-redis translation-redis
