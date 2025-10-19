@@ -64,12 +64,13 @@ try {
     exit 1
 }
 
-# Check Python
+# Check Poetry (which manages Python envs)
 try {
-    $pythonVersion = python --version 2>$null
-    Write-Host "✅ Python: $pythonVersion" -ForegroundColor Green
+    $poetryVersion = poetry --version 2>$null
+    Write-Host "✅ Poetry: $poetryVersion" -ForegroundColor Green
 } catch {
-    Write-Host "❌ Python not found. Please install Python 3.9+ first." -ForegroundColor Red
+    Write-Host "❌ Poetry not found. Please install Poetry 1.8+ first." -ForegroundColor Red
+    Write-Host "   See https://python-poetry.org/docs/#installation" -ForegroundColor Gray
     exit 1
 }
 
@@ -92,32 +93,11 @@ $backendJob = Start-Job -ScriptBlock {
     Set-Location $using:PWD
     Set-Location "modules/orchestration-service"
     
-    # Create virtual environment if needed
-    if (!(Test-Path "venv")) {
-        python -m venv venv
-    }
-    
-    # Activate virtual environment
-    if ($IsWindows -or $env:OS -eq "Windows_NT") {
-        & .\venv\Scripts\Activate.ps1
-    }
-    
-    # Install dependencies
-    pip install -r requirements.txt -q
-    if (Test-Path "requirements-database.txt") {
-        pip install -r requirements-database.txt -q
-    }
-    if (Test-Path "requirements-google-meet.txt") {
-        pip install -r requirements-google-meet.txt -q
-    }
-    
-    # Start backend
-    if (Test-Path "backend/main.py") {
-        Set-Location backend
-        python main.py
-    } elseif (Test-Path "src/orchestration_service.py") {
-        python src/orchestration_service.py
-    }
+    # Install dependencies via Poetry (includes dev/audio extras)
+    poetry install --with dev,audio --no-root --no-interaction
+
+    # Start backend with auto-reload
+    poetry run uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload
 }
 
 # Give backend time to start

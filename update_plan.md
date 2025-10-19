@@ -20,8 +20,8 @@
 - Add contract/integration tests that exercise orchestration ↔ whisper/translation APIs to protect independent release cycles.
 
 ## Dev Environment & Dependencies
-- Standardize on Poetry for backend installs (`poetry install --with dev,audio`) and pnpm for frontend.
-- 🔄 Add canonical orchestration upstream variables (`AUDIO_SERVICE_URL`, `TRANSLATION_SERVICE_URL`) to `.env` templates.
+- ✅ Standardize on Poetry for backend installs (`poetry install --with dev,audio`) and pnpm for frontend.
+- ✅ Add canonical orchestration upstream variables (`AUDIO_SERVICE_URL`, `TRANSLATION_SERVICE_URL`) to `.env` templates.
 - ✅ Provide production-ready frontend Docker image (Vite → nginx) for Compose/K8s workflows.
 - ✅ Introduce a `justfile` (or Makefile) with tasks: `up-dev`, `down`, `fmt`, `lint`, `test-backend`, `test-frontend`, `compose` profiles.
 - ✅ Generate `.env.local` from `env.template` via `just bootstrap-env`, scoped per service (`modules/*/.env`).

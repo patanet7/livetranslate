@@ -62,6 +62,8 @@ The system is organized into **4 core services** optimized for specific hardware
 
 ### Prerequisites
 - **Docker Desktop** (Windows/Mac/Linux) - Version 20.10+ recommended
+- **Poetry 1.8+** (backend dependency management)
+- **Node.js 18+ with pnpm 8+** (frontend tooling; run `corepack enable` once)
 - **8GB RAM minimum** (16GB+ recommended for GPU acceleration)
 - **10GB storage** for models and data
 - **Optional**: NVIDIA GPU (CUDA 11.8+) or Intel NPU for acceleration
@@ -98,6 +100,8 @@ By default this launches the real Whisper and Translation containers on CPU (no 
 ```bash
 just compose-up profiles="core,inference,infra"
 
+```
+
 Need quick mocks instead of the full inference stack? Start the mock profile and point orchestration at it by updating `.env.local`:
 
 ```bash
@@ -109,6 +113,7 @@ TRANSLATION_SERVICE_URL=http://translation-mock:5003
 ```
 
 #### Option B: Development Environment (Recommended)
+> Requires Poetry and Node.js 18+. The script installs backend deps via `poetry install --with dev,audio` and ensures pnpm is available.
 ```bash
 # Start complete development environment
 ./start-development.ps1
@@ -121,15 +126,19 @@ TRANSLATION_SERVICE_URL=http://translation-mock:5003
 
 #### Option C: Individual Service Development
 ```bash
-# Frontend Service (React + TypeScript)
-cd modules/frontend-service && ./start-frontend.ps1
+# Backend Service (FastAPI + Poetry)
+cd modules/orchestration-service
+poetry install --with dev,audio
+poetry run uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload
 
-# Backend Service (FastAPI + Python)
-cd modules/orchestration-service && ./start-backend.ps1
+# Frontend Service (React + pnpm)
+cd modules/frontend-service
+pnpm install
+pnpm dev --host 0.0.0.0 --port 5173
 
-# Other Services
-cd modules/whisper-service && docker-compose up -d      # NPU/GPU optimized
-cd modules/translation-service && ./start-local.sh      # Llama 3.1 with transformers  
+# Optional: spin up inference services individually
+cd modules/whisper-service && docker compose up --build
+cd modules/translation-service && docker compose -f docker-compose-simple.yml up --build
 ```
 
 #### Option D: Full System (All Services)
