@@ -135,7 +135,7 @@ session_data/
 *.bin
 *.npy
 *.npz
-models/
+.models/
 checkpoints/
 weights/
 external/

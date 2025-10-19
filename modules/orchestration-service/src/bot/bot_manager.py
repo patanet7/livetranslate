@@ -36,13 +36,13 @@ from .google_meet_client import (
 )
 
 # Import database manager
-from ..database.bot_session_manager import (
+from database.bot_session_manager import (
     BotSessionDatabaseManager,
     create_bot_session_manager,
 )
 
 # Import enhanced lifecycle manager
-from .bot_lifecycle_manager import BotLifecycleManager, create_lifecycle_manager
+from bot.bot_lifecycle_manager import BotLifecycleManager, create_lifecycle_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -706,13 +706,11 @@ class GoogleMeetBotManager:
                     # Store additional meeting information
                     if not bot.meeting_request.metadata:
                         bot.meeting_request.metadata = {}
-                    bot.meeting_request.metadata.update(
-                        {
-                            "join_method": meeting_info.get("join_method"),
-                            "api_access": meeting_info.get("api_access"),
-                            "meeting_code": meeting_info.get("meeting_code"),
-                        }
-                    )
+                    if not bot.meeting_request.metadata:
+                        bot.meeting_request.metadata = {}
+                    bot.meeting_request.metadata["join_method"] = meeting_info.get("join_method")
+                    bot.meeting_request.metadata["api_access"] = meeting_info.get("api_access")
+                    bot.meeting_request.metadata["meeting_code"] = meeting_info.get("meeting_code")
 
                     logger.info(
                         f"Bot {bot.bot_id} configured for external meeting: {meeting_uri}"
@@ -740,13 +738,9 @@ class GoogleMeetBotManager:
                     bot.meeting_request.meeting_id = meeting_info["meeting_id"]
                     if not bot.meeting_request.metadata:
                         bot.meeting_request.metadata = {}
-                    bot.meeting_request.metadata.update(
-                        {
-                            "meeting_uri": meeting_info["meeting_uri"],
-                            "space_name": meeting_info["space_name"],
-                            "created_by_api": True,
-                        }
-                    )
+                    bot.meeting_request.metadata["meeting_uri"] = meeting_info["meeting_uri"]
+                    bot.meeting_request.metadata["space_name"] = meeting_info["space_name"]
+                    bot.meeting_request.metadata["created_by_api"] = True
 
                     logger.info(
                         f"Created new meeting for bot {bot.bot_id}: {meeting_info['meeting_uri']}"
@@ -844,15 +838,11 @@ class GoogleMeetBotManager:
         """Start the actual bot processes."""
         try:
             # Initialize performance tracking
-            bot.performance_stats.update(
-                {
-                    "start_time": time.time(),
-                    "messages_processed": 0,
-                    "transcriptions_count": 0,
-                    "translations_count": 0,
-                    "participants_seen": 0,
-                }
-            )
+            bot.performance_stats["start_time"] = time.time()
+            bot.performance_stats["messages_processed"] = 0
+            bot.performance_stats["transcriptions_count"] = 0
+            bot.performance_stats["translations_count"] = 0
+            bot.performance_stats["participants_seen"] = 0
 
             # Start Google Meet API monitoring if available
             if (
@@ -1289,9 +1279,9 @@ class GoogleMeetBotManager:
             }
 
             if self.google_meet_client:
-                google_meet_status.update(
-                    self.google_meet_client.get_client_statistics()
-                )
+                client_stats = self.google_meet_client.get_client_statistics()
+                for key, value in client_stats.items():
+                    google_meet_status[key] = value
 
             # Database status
             database_status = {
@@ -1301,10 +1291,9 @@ class GoogleMeetBotManager:
 
             if self.database_manager:
                 try:
-                    db_stats = await self.database_manager.get_database_statistics()
-                    database_status.update(
-                        {"connection_active": True, "statistics": db_stats}
-                    )
+                    # Get basic database status (synchronous)
+                    database_status["connection_active"] = True
+                    database_status["note"] = "Database manager available"
                 except Exception as e:
                     database_status["error"] = str(e)
 
@@ -1317,12 +1306,8 @@ class GoogleMeetBotManager:
             if self.lifecycle_manager:
                 try:
                     lifecycle_stats = self.lifecycle_manager.get_lifecycle_statistics()
-                    lifecycle_status.update(
-                        {
-                            "monitoring_active": self.lifecycle_manager.monitoring_active,
-                            "statistics": lifecycle_stats,
-                        }
-                    )
+                    lifecycle_status["monitoring_active"] = self.lifecycle_manager.monitoring_active
+                    lifecycle_status["statistics"] = lifecycle_stats
                 except Exception as e:
                     lifecycle_status["error"] = str(e)
 

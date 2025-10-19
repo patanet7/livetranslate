@@ -16,17 +16,8 @@ from .models import Base
 logger = logging.getLogger(__name__)
 
 
-class DatabaseConfig:
-    """Database configuration"""
-
-    def __init__(self, url: str = None, **kwargs):
-        self.url = url
-        self.echo = kwargs.get("echo", False)
-        self.pool_size = kwargs.get("pool_size", 10)
-        self.max_overflow = kwargs.get("max_overflow", 20)
-        self.pool_timeout = kwargs.get("pool_timeout", 30)
-        self.pool_recycle = kwargs.get("pool_recycle", 3600)
-        self.pool_pre_ping = kwargs.get("pool_pre_ping", True)
+# DatabaseConfig now imported from config.py
+from config import DatabaseSettings as DatabaseConfig
 
 
 class DatabaseManager:
@@ -256,7 +247,7 @@ class DatabaseUtils:
             session_id=test_session.session_id,
             transcript_id=test_transcript.transcript_id,
             original_text="This is a test transcript",
-            translated_text="Esta es una transcripción de prueba",
+            translated_text="Esta es una transcripcion de prueba",
             source_language="en",
             target_language="es",
             confidence=0.92,
