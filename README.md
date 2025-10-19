@@ -168,6 +168,11 @@ curl http://localhost:5003/api/health
   pre-commit install
   ```
   Run linting/formatting on demand with `just pre-commit-run`.
+- Queue publishing is enabled by default; override via `.env.local`:
+  ```bash
+  EVENT_BUS_ENABLED=false
+  EVENT_BUS_REDIS_URL=redis://localhost:6379/0
+  ```
 
 
 ### 3. Access the System
