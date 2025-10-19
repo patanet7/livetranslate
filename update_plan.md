@@ -9,7 +9,7 @@
 
 ## Immediate Fixes
 - ✅ Align `AudioServiceClient`/`TranslationServiceClient` constructors with `dependencies.py` factories; add regression tests.
-- Remove or archive duplicate/backup routers (`audio_core_temp.py`, `audio_original_backup.py`, etc.) to shrink boot surface.
+- ✅ Remove or archive duplicate/backup routers (`audio_core_temp.py`, `audio_original_backup.py`, etc.) to shrink boot surface.
 - ✅ Normalize logging: drop forced DEBUG setup in `main_fastapi.py`, avoid hard-coded `/tmp` log paths.
 - Audit environment variables: ensure orchestration reads `AUDIO_SERVICE_URL` / `TRANSLATION_SERVICE_URL`, update `env.template`.
 
