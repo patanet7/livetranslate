@@ -26,7 +26,7 @@
 - ✅ Introduce a `justfile` (or Makefile) with tasks: `up-dev`, `down`, `fmt`, `lint`, `test-backend`, `test-frontend`, `compose` profiles.
 - ✅ Generate `.env.local` from `env.template` via `just bootstrap-env`, scoped per service (`modules/*/.env`).
 - ✅ Provide lightweight mock services (FastAPI stubs) for Whisper/Translation so local CPUs can run the full workflow.
-- Enforce pre-commit hooks that run Black, isort, mypy, ESLint, Prettier before push.
+- ✅ Enforce pre-commit hooks that run Black, isort, mypy, ESLint, Prettier before push.
 
 ## Docker & Compose Restructure
 - ✅ Author new `compose.local.yml` with profiles for core services and lightweight mock inference endpoints.
