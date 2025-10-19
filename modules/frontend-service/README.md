@@ -229,6 +229,7 @@ pnpm e2e                   # End-to-end tests
 pnpm lint                  # ESLint checking
 pnpm type-check           # TypeScript checking
 pnpm format               # Prettier formatting
+pnpm exec pre-commit run --all-files  # On-demand hooks
 ```
 
 ### Environment Configuration

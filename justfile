@@ -44,6 +44,12 @@ lint-frontend:
 test-frontend:
     @cd modules/frontend-service && pnpm test
 
+pre-commit-install:
+    @pre-commit install
+
+pre-commit-run:
+    @pre-commit run --all-files
+
 ci-check:
     @just fmt-backend
     @just lint-backend
