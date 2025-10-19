@@ -8,20 +8,22 @@ services:
         POETRY_INSTALL_ARGS: "--with dev,audio"
     profiles: ["core"]
     environment:
-      AUDIO_SERVICE_URL: http://whisper-mock:5001
-      TRANSLATION_SERVICE_URL: http://translation-mock:5003
-      REDIS_URL: redis://redis:6379/0
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/livetranslate
-      LOG_LEVEL: INFO
+      AUDIO_SERVICE_URL: ${AUDIO_SERVICE_URL:-http://whisper:5001}
+      TRANSLATION_SERVICE_URL: ${TRANSLATION_SERVICE_URL:-http://translation:5003}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/livetranslate}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    env_file:
+      - .env.local
     depends_on:
       redis:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      whisper-mock:
-        condition: service_started
-      translation-mock:
-        condition: service_started
+      whisper:
+        condition: service_healthy
+      translation:
+        condition: service_healthy
     ports:
       - "3000:3000"
     volumes:
@@ -52,11 +54,64 @@ services:
       orchestration:
         condition: service_started
 
+  whisper:
+    build:
+      context: modules/whisper-service
+    profiles: ["inference"]
+    environment:
+      REDIS_URL: redis://redis:6379/1
+      MODEL_CACHE_DIR: /app/models
+      ENABLE_NPU: "false"
+      ENABLE_VAD: "true"
+    env_file:
+      - .env.local
+    volumes:
+      - whisper-models:/app/models
+      - whisper-uploads:/app/uploads
+      - ./modules/whisper-service/src:/app/src
+    ports:
+      - "5001:5001"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  translation:
+    build:
+      context: modules/translation-service
+    profiles: ["inference"]
+    environment:
+      FLASK_ENV: development
+      FLASK_DEBUG: "0"
+      USE_MOCK_TRANSLATION: "false"
+      USE_LOCAL_INFERENCE: "true"
+      USE_LEGACY_APIS: "false"
+      LOG_LEVEL: INFO
+    env_file:
+      - .env.local
+    volumes:
+      - ./modules/translation-service/src:/app/src
+      - translation-logs:/app/logs
+      - translation-config:/app/config
+    ports:
+      - "5003:5003"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   whisper-mock:
     build:
       context: .
       dockerfile: scripts/mocks/Dockerfile
-    profiles: ["core"]
+    profiles: ["mock"]
     environment:
       MOCK_SERVICE: whisper
       MOCK_PORT: 5001
@@ -67,7 +122,7 @@ services:
     build:
       context: .
       dockerfile: scripts/mocks/Dockerfile
-    profiles: ["core"]
+    profiles: ["mock"]
     environment:
       MOCK_SERVICE: translation
       MOCK_PORT: 5003
@@ -76,7 +131,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    profiles: ["infra", "core"]
+    profiles: ["infra", "core", "inference"]
     ports:
       - "6379:6379"
     healthcheck:
@@ -108,3 +163,7 @@ volumes:
   frontend-node-modules:
   redis-data:
   postgres-data:
+  whisper-models:
+  whisper-uploads:
+  translation-logs:
+  translation-config:

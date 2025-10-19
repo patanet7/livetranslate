@@ -10,7 +10,7 @@ bootstrap-env:
     @cp -n env.template .env.local || true
     @echo ".env.local ready (edit as needed)."
 
-compose-up profiles='core':
+compose-up profiles='core,inference':
     @echo "Starting compose profiles: ${profiles}"
     @COMPOSE_PROFILES=${profiles} docker compose -f compose.local.yml up --build
 
