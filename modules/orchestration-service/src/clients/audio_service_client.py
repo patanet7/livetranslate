@@ -467,123 +467,24 @@ class AudioServiceClient:
             raise
 
     async def start_realtime_session(self, session_config: Dict[str, Any]) -> str:
-        """Start a real-time transcription session"""
-        try:
-            session = await self._get_session()
+        logger.warning("Realtime whisper APIs are not available; remove usage")
+        raise NotImplementedError("Realtime whisper APIs removed")
 
-            async with session.post(
-                f"{self.base_url}/api/realtime/start", json=session_config
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return result["session_id"]
-                else:
-                    error_text = await response.text()
-                    raise Exception(
-                        f"Failed to start realtime session: HTTP {response.status} - {error_text}"
-                    )
-
-        except Exception as e:
-            logger.error(f"Failed to start realtime session: {e}")
-            raise
-
-    async def send_realtime_audio(
-        self, session_id: str, audio_chunk: bytes
-    ) -> Optional[Dict[str, Any]]:
-        """Send audio chunk to real-time session"""
-        try:
-            session = await self._get_session()
-
-            data = aiohttp.FormData()
-            data.add_field("session_id", session_id)
-            # Detect audio format and set appropriate content-type and filename
-            mime_type, _ = detect_audio_format(audio_chunk)
-            filename = generate_filename("chunk", audio_chunk)
-            data.add_field("audio_chunk", audio_chunk, filename=filename, content_type=mime_type)
-
-            async with session.post(
-                f"{self.base_url}/api/realtime/audio", data=data
-            ) as response:
-                if response.status == 200:
-                    return await response.json()
-                elif response.status == 202:
-                    # Processing, no result yet
-                    return None
-                else:
-                    error_text = await response.text()
-                    logger.error(
-                        f"Realtime audio failed: HTTP {response.status} - {error_text}"
-                    )
-                    return None
-
-        except Exception as e:
-            logger.error(f"Failed to send realtime audio: {e}")
-            return None
+    async def send_realtime_audio(self, session_id: str, audio_chunk: bytes) -> Optional[Dict[str, Any]]:
+        logger.warning("Realtime whisper APIs are not available; remove usage")
+        raise NotImplementedError("Realtime whisper APIs removed")
 
     async def stop_realtime_session(self, session_id: str) -> Dict[str, Any]:
-        """Stop a real-time transcription session"""
-        try:
-            session = await self._get_session()
-
-            async with session.post(
-                f"{self.base_url}/api/realtime/stop", json={"session_id": session_id}
-            ) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    error_text = await response.text()
-                    logger.error(
-                        f"Failed to stop realtime session: HTTP {response.status} - {error_text}"
-                    )
-                    return {"status": "error", "message": error_text}
-
-        except Exception as e:
-            logger.error(f"Failed to stop realtime session: {e}")
-            return {"status": "error", "message": str(e)}
+        logger.warning("Realtime whisper APIs are not available; remove usage")
+        raise NotImplementedError("Realtime whisper APIs removed")
 
     async def get_session_status(self, session_id: str) -> Dict[str, Any]:
-        """Get status of a real-time session"""
-        try:
-            session = await self._get_session()
-
-            async with session.get(
-                f"{self.base_url}/api/realtime/status/{session_id}"
-            ) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    return {"status": "not_found"}
-
-        except Exception as e:
-            logger.error(f"Failed to get session status: {e}")
-            return {"status": "error", "message": str(e)}
+        logger.warning("Realtime whisper APIs are not available; remove usage")
+        raise NotImplementedError("Realtime whisper APIs removed")
 
     async def analyze_audio(self, audio_data: bytes) -> Dict[str, Any]:
-        """Analyze audio for quality metrics"""
-        try:
-            session = await self._get_session()
-
-            data = aiohttp.FormData()
-            # Detect audio format and set appropriate content-type and filename
-            mime_type, _ = detect_audio_format(audio_data)
-            filename = generate_filename("analyze", audio_data)
-            data.add_field("audio", audio_data, filename=filename, content_type=mime_type)
-
-            async with session.post(
-                f"{self.base_url}/api/analyze", data=data
-            ) as response:
-                if response.status == 200:
-                    return await response.json()
-                else:
-                    error_text = await response.text()
-                    raise Exception(
-                        f"Audio analysis failed: HTTP {response.status} - {error_text}"
-                    )
-
-        except Exception as e:
-            logger.error(f"Audio analysis failed: {e}")
-            raise
-
+        logger.warning("Audio analysis API not implemented on whisper service")
+        raise NotImplementedError("Audio analysis API removed")
     async def get_statistics(self) -> Dict[str, Any]:
         """Get service statistics"""
         try:
