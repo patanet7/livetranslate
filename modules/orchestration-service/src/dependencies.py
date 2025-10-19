@@ -7,6 +7,7 @@ Manages lifecycle of managers, clients, and shared resources across the applicat
 """
 
 import logging
+import os
 from typing import Optional, Dict, Any
 from functools import lru_cache
 
@@ -15,6 +16,9 @@ from managers.config_manager import ConfigManager
 from managers.websocket_manager import WebSocketManager
 from managers.health_monitor import HealthMonitor
 from managers.bot_manager import BotManager
+
+# Infrastructure
+from infrastructure.queue import EventPublisher, DEFAULT_STREAMS
 
 # Database imports
 from database.database import DatabaseManager
@@ -52,6 +56,7 @@ _config_sync_manager: Optional[ConfigurationSyncManager] = None
 _audio_config_manager: Optional[AudioConfigurationManager] = None
 _rate_limiter: Optional[RateLimiter] = None
 _security_utils: Optional[SecurityUtils] = None
+_event_publisher: Optional[EventPublisher] = None
 
 
 # ============================================================================
@@ -89,6 +94,27 @@ def get_audio_config_manager() -> AudioConfigurationManager:
         _audio_config_manager = AudioConfigurationManager()
         logger.info("AudioConfigurationManager initialized successfully")
     return _audio_config_manager
+
+
+# ============================================================================
+# Event Publisher
+# ============================================================================
+
+
+@lru_cache()
+def get_event_publisher() -> EventPublisher:
+    """Get singleton EventPublisher instance."""
+    global _event_publisher
+    if _event_publisher is None:
+        redis_url = os.getenv("EVENT_BUS_REDIS_URL", os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+        enabled = os.getenv("EVENT_BUS_ENABLED", "true").lower() not in {"0", "false", "off"}
+        _event_publisher = EventPublisher(
+            redis_url=redis_url,
+            streams={**DEFAULT_STREAMS},
+            enabled=enabled,
+        )
+        logger.info("EventPublisher initialized (enabled=%s, redis_url=%s)", enabled, redis_url)
+    return _event_publisher
 
 
 # ============================================================================

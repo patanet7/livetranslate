@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 # Dependencies
-from dependencies import get_bot_manager
+from dependencies import get_bot_manager, get_event_publisher
 
 # Models
 from models.bot import (

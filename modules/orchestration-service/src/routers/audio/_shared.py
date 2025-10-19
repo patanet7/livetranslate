@@ -33,6 +33,7 @@ from dependencies import (
     get_translation_service_client,
     get_audio_coordinator,
     get_config_sync_manager,
+    get_event_publisher,
 )
 
 # Utility imports
