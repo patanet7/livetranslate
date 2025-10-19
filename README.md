@@ -161,6 +161,15 @@ curl http://localhost:5001/health
 curl http://localhost:5003/api/health
 ```
 
+## 🛠️ Developer Workflow
+
+- Install Git hooks once:
+  ```bash
+  pre-commit install
+  ```
+  Run linting/formatting on demand with `just pre-commit-run`.
+
+
 ### 3. Access the System
 - **Web Interface**: http://localhost:5173 (Development) or http://localhost:3000 (Production)
 - **Backend API**: http://localhost:3000
