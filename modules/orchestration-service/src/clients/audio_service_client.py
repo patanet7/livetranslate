@@ -136,12 +136,19 @@ class TranscriptionResponse(BaseModel):
 class AudioServiceClient:
     """Client for the Audio/Whisper service with comprehensive error handling"""
 
-    def __init__(self, config_manager=None, settings=None):
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        timeout: Optional[float] = None,
+        config_manager=None,
+        settings=None,
+    ):
         self.config_manager = config_manager
         self.settings = settings
-        self.base_url = self._get_base_url()
+        self.base_url = base_url or self._get_base_url()
+        timeout_seconds = timeout or self._get_timeout()
         self.session: Optional[aiohttp.ClientSession] = None
-        self.timeout = aiohttp.ClientTimeout(total=300)  # 5 minute timeout
+        self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
         
         # Create SSL context that doesn't verify certificates for localhost
         self.ssl_context = ssl.create_default_context()
@@ -169,11 +176,23 @@ class AudioServiceClient:
     def _get_base_url(self) -> str:
         """Get the audio service base URL from configuration"""
         # Try settings first, then config_manager, then fallback
-        if self.settings:
-            return self.settings.services.audio_service_url
-        elif self.config_manager:
+        if self.settings and getattr(self.settings, "services", None):
+            return getattr(
+                self.settings.services,
+                "audio_service_url",
+                "http://localhost:5001",
+            )
+        if self.config_manager:
             return self.config_manager.get_service_url("audio", "http://localhost:5001")
         return "http://localhost:5001"  # Use localhost as default
+
+    def _get_timeout(self) -> int:
+        """Resolve timeout configuration"""
+        if self.settings and getattr(self.settings, "services", None):
+            return getattr(self.settings.services, "audio_service_timeout", 300)
+        if self.config_manager:
+            return self.config_manager.get("services.whisper.timeout", 300)
+        return 300
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
