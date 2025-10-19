@@ -15,7 +15,7 @@
 
 ## Architectural Adjustments
 - Carve the orchestration service into a lean API layer plus background workers (config sync, Google Meet bots, audio coordination) using a shared queue.
-- Decide and document the diarization boundary (remain in Whisper, move to a dedicated speaker service, or fold into orchestration) and delete stale references.
+- Document diarization strategy: when Whisper’s built-in diarization meets requirements keep it co-located; otherwise surface a discrete speaker service behind the same contract and prune dangling references.
 - Introduce an event pipeline for audio/transcription messages so translation and analytics consumers can scale independently.
 - Add contract/integration tests that exercise orchestration ↔ whisper/translation APIs to protect independent release cycles.
 
