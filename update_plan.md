@@ -48,7 +48,7 @@
 ## CI/CD & Testing
 - Update CI pipeline to run backend unit + integration tests, frontend lint/test/build, and Docker image builds per SHA.
 - Refine integration tests to use real encoders or stub responses rather than header-based fixtures.
-- Add smoke tests that validate service contracts (orchestration ↔ whisper/translation) using mocks.
+- ✅ Add smoke tests that validate service contracts (orchestration ↔ whisper/translation) using mocks.
 
 ## Kubernetes Rollout
 - Publish container images to a registry; version with `main` SHA.
