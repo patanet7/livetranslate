@@ -16,6 +16,8 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Index,
+    event,
+    select,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -332,3 +334,57 @@ class ConversationStatistics(Base):
         Index('ix_conv_stats_session_id', 'session_id'),
         Index('ix_conv_stats_calculated_at', 'calculated_at'),
     )
+
+
+# ============================================
+# Event Listeners for Auto-populating Fields
+# ============================================
+
+# Track sequence numbers during session flush to handle batch inserts
+_session_sequence_counters = {}
+
+@event.listens_for(ChatMessage, 'before_insert')
+def set_message_sequence_number(mapper, connection, target):
+    """
+    Auto-increment sequence_number for new messages within a session.
+    This mimics the PostgreSQL trigger behavior for compatibility.
+    Handles batch inserts correctly by tracking in-memory counters.
+    """
+    if target.sequence_number is None:
+        session_id = str(target.session_id)
+
+        # Get current counter for this session
+        if session_id not in _session_sequence_counters:
+            # Query for max sequence_number in this session from database
+            result = connection.execute(
+                select(func.coalesce(func.max(ChatMessage.sequence_number), 0))
+                .where(ChatMessage.session_id == target.session_id)
+            )
+            max_seq = result.scalar() or 0
+            _session_sequence_counters[session_id] = max_seq
+
+        # Increment and assign
+        _session_sequence_counters[session_id] += 1
+        target.sequence_number = _session_sequence_counters[session_id]
+
+
+@event.listens_for(ChatMessage, 'after_insert')
+def cleanup_sequence_counter(mapper, connection, target):
+    """Clean up sequence counter after successful insert"""
+    # We keep the counter during the transaction, but this could be optimized
+    pass
+
+
+# Listen to session events to clear counters after commit/rollback
+from sqlalchemy.orm import Session as SQLAlchemySession
+
+@event.listens_for(SQLAlchemySession, 'after_commit')
+def clear_sequence_counters_on_commit(session):
+    """Clear sequence counters after successful commit"""
+    _session_sequence_counters.clear()
+
+
+@event.listens_for(SQLAlchemySession, 'after_rollback')
+def clear_sequence_counters_on_rollback(session):
+    """Clear sequence counters after rollback"""
+    _session_sequence_counters.clear()

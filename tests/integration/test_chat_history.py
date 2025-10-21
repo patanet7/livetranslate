@@ -17,9 +17,16 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_conversation_storage(self, db_session):
         """Test that conversations are stored in database"""
-        # EXPECTED TO FAIL - not implemented yet
+        from database.chat_models import User, ConversationSession, ChatMessage
 
-        from database.chat_models import ConversationSession, ChatMessage
+        # Create user first
+        user = User(
+            user_id="test_user_123",
+            email="test@example.com",
+            name="Test User"
+        )
+        db_session.add(user)
+        db_session.commit()
 
         # Create session
         session = ConversationSession(
@@ -67,9 +74,15 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_retrieval_by_session(self, db_session):
         """Test retrieving messages by session ID"""
-        # EXPECTED TO FAIL - not implemented yet
+        from database.chat_models import User, ConversationSession, ChatMessage
 
-        from database.chat_models import ConversationSession, ChatMessage
+        # Create user first
+        user = User(
+            user_id="user123",
+            email="user123@example.com"
+        )
+        db_session.add(user)
+        db_session.commit()
 
         # Create test session
         session = ConversationSession(user_id="user123", session_type="user_chat")
@@ -102,11 +115,17 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_retrieval_by_date_range(self, db_session):
         """Test retrieving sessions by date range"""
-        # EXPECTED TO FAIL - not implemented yet
-
-        from database.chat_models import ConversationSession
+        from database.chat_models import User, ConversationSession
 
         user_id = "user123"
+
+        # Create user first
+        user = User(
+            user_id=user_id,
+            email=f"{user_id}@example.com"
+        )
+        db_session.add(user)
+        db_session.commit()
 
         # Create sessions over time range
         now = datetime.utcnow()
@@ -145,9 +164,13 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_customer_access_isolation(self, db_session):
         """Test that customers can only access their own conversations"""
-        # EXPECTED TO FAIL - not implemented yet
+        from database.chat_models import User, ConversationSession
 
-        from database.chat_models import ConversationSession
+        # Create users first
+        user1 = User(user_id="user1", email="user1@example.com")
+        user2 = User(user_id="user2", email="user2@example.com")
+        db_session.add_all([user1, user2])
+        db_session.commit()
 
         # Create sessions for different users
         user1_session = ConversationSession(user_id="user1", session_type="user_chat")
@@ -177,9 +200,12 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_full_text_search(self, db_session):
         """Test searching messages by content"""
-        # EXPECTED TO FAIL - not implemented yet
+        from database.chat_models import User, ConversationSession, ChatMessage
 
-        from database.chat_models import ConversationSession, ChatMessage
+        # Create user first
+        user = User(user_id="user123", email="user123@example.com")
+        db_session.add(user)
+        db_session.commit()
 
         # Create session
         session = ConversationSession(user_id="user123")
@@ -221,9 +247,12 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_translated_content_storage(self, db_session):
         """Test that translated content is stored correctly"""
-        # EXPECTED TO FAIL - not implemented yet
+        from database.chat_models import User, ConversationSession, ChatMessage
 
-        from database.chat_models import ConversationSession, ChatMessage
+        # Create user first
+        user = User(user_id="user123", email="user123@example.com")
+        db_session.add(user)
+        db_session.commit()
 
         session = ConversationSession(user_id="user123")
         db_session.add(session)
