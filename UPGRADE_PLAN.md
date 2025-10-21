@@ -2918,6 +2918,32 @@ manager = ModelManager(
 - Documentation: ✅ Comprehensive usage examples, SimulStreaming reference
 - Commit: f672d94 "Implement warmup system to eliminate 20s cold start (Phase 2.2)"
 
+**Phase 2.2: Computationally Aware Chunking** (2025-10-20):
+- Tests: ✅ 18/18 integration tests passing (100% success rate, 3m16s runtime)
+- Implementation: ✅ Complete adaptive chunking orchestrator with VACOnlineASRProcessor
+  - Small VAD chunks (0.04s) for fast speech detection
+  - Large Whisper chunks (1.2s) for quality transcription
+  - Adaptive processing: buffer full OR speech ends
+  - Silence optimization: buffer only, NO Whisper calls (saves 90%+ compute)
+  - Statistics tracking: VAD checks, Whisper calls, efficiency metrics
+  - State management with reset capabilities
+- Files Created:
+  - src/vac_online_processor.py (424 lines): Complete VAC orchestrator
+  - tests/test_adaptive_chunking_integration.py (867 lines, 18 tests)
+- Test Coverage:
+  - TestAdaptiveChunkingIntegration (6 tests): Core chunking behavior
+  - TestAdaptiveChunkingSavings (3 tests): Compute efficiency verification
+  - TestChunkingQuality (2 tests): Quality maintenance with 1.2s chunks
+  - TestVACOnlineASRProcessor (7 tests): End-to-end orchestrator
+- Key Results:
+  - ✅ Adaptive chunk sizes verified (0.04s VAD, 1.2s Whisper)
+  - ✅ Silence detection saves 90%+ compute (VAD checks, NO Whisper calls)
+  - ✅ Buffer threshold processing operational
+  - ✅ Speech end triggers immediate processing
+  - ✅ Rolling context integration verified
+- Documentation: ✅ SimulStreaming VACOnlineASRProcessor reference implementation
+- Commit: 76c90ac "Implement Computationally Aware Chunking with VACOnlineASRProcessor"
+
 **Phase 2 Whisper Upgrades** (2025-10-20):
 - Tests: ✅ 86/86 tests passing (100% success rate)
 - Implementation: ✅ Complete PyTorch refactor with SimulStreaming innovations
