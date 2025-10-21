@@ -573,6 +573,88 @@ export const apiSlice = createApi({
       query: () => 'analytics/translation/performance',
       providesTags: ['SystemMetrics'],
     }),
+
+    // ============================================
+    // Chat History endpoints
+    // ============================================
+
+    // User management
+    createUser: builder.mutation<any, { user_id: string; email: string; name?: string }>({
+      query: (userData) => ({
+        url: 'chat/users',
+        method: 'POST',
+        body: userData,
+      }),
+    }),
+
+    getUser: builder.query<any, string>({
+      query: (userId) => `chat/users/${userId}`,
+    }),
+
+    // Session management
+    createSession: builder.mutation<any, { user_id: string; session_type?: string; session_title?: string; enable_translation?: boolean; target_languages?: string[] }>({
+      query: (sessionData) => ({
+        url: 'chat/sessions',
+        method: 'POST',
+        body: sessionData,
+      }),
+    }),
+
+    getSession: builder.query<any, string>({
+      query: (sessionId) => `chat/sessions/${sessionId}`,
+    }),
+
+    listSessions: builder.query<any, { user_id: string; start_date?: string; end_date?: string; session_type?: string; limit?: number; offset?: number }>({
+      query: ({ user_id, start_date, end_date, session_type, limit = 50, offset = 0 }) => {
+        const params = new URLSearchParams({
+          user_id,
+          limit: String(limit),
+          offset: String(offset),
+        });
+        if (start_date) params.append('start_date', start_date);
+        if (end_date) params.append('end_date', end_date);
+        if (session_type) params.append('session_type', session_type);
+        return `chat/sessions?${params.toString()}`;
+      },
+    }),
+
+    deleteSession: builder.mutation<void, string>({
+      query: (sessionId) => ({
+        url: `chat/sessions/${sessionId}`,
+        method: 'DELETE',
+      }),
+    }),
+
+    // Message management
+    createMessage: builder.mutation<any, { session_id: string; role: string; content: string; original_language?: string; translated_content?: Record<string, string> }>({
+      query: (messageData) => ({
+        url: 'chat/messages',
+        method: 'POST',
+        body: messageData,
+      }),
+    }),
+
+    getMessages: builder.query<any, { session_id: string; limit?: number; offset?: number }>({
+      query: ({ session_id, limit = 100, offset = 0 }) =>
+        `chat/messages/${session_id}?limit=${limit}&offset=${offset}`,
+    }),
+
+    // Search
+    searchMessages: builder.query<any, { user_id: string; query: string; limit?: number }>({
+      query: ({ user_id, query, limit = 50 }) =>
+        `chat/search?user_id=${user_id}&query=${encodeURIComponent(query)}&limit=${limit}`,
+    }),
+
+    // Export
+    exportSession: builder.query<any, { session_id: string; format?: 'json' | 'txt' }>({
+      query: ({ session_id, format = 'json' }) =>
+        `chat/export/${session_id}?format=${format}`,
+    }),
+
+    // Statistics
+    getSessionStatistics: builder.query<any, string>({
+      query: (sessionId) => `chat/statistics/${sessionId}`,
+    }),
   }),
 });
 
@@ -653,4 +735,17 @@ export const {
   useGetAudioProcessingAnalyticsQuery,
   useGetWebSocketAnalyticsQuery,
   useGetTranslationAnalyticsQuery,
+
+  // Chat History hooks
+  useCreateUserMutation,
+  useGetUserQuery,
+  useCreateSessionMutation,
+  useGetSessionQuery,
+  useListSessionsQuery,
+  useDeleteSessionMutation,
+  useCreateMessageMutation,
+  useGetMessagesQuery,
+  useSearchMessagesQuery,
+  useExportSessionQuery,
+  useGetSessionStatisticsQuery,
 } = apiSlice;
