@@ -19,7 +19,7 @@ import uuid
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from dataclasses import dataclass, field
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
 from enum import Enum
 
 
@@ -103,18 +103,20 @@ class AudioChunkMetadata(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
-    @validator("chunk_end_time")
-    def validate_time_order(cls, v, values):
+    @field_validator("chunk_end_time")
+    @classmethod
+    def validate_time_order(cls, v, info: ValidationInfo):
         """Ensure chunk_end_time > chunk_start_time."""
-        if "chunk_start_time" in values and v <= values["chunk_start_time"]:
+        if "chunk_start_time" in info.data and v <= info.data["chunk_start_time"]:
             raise ValueError("chunk_end_time must be greater than chunk_start_time")
         return v
-    
-    @validator("duration_seconds")
-    def validate_duration_consistency(cls, v, values):
+
+    @field_validator("duration_seconds")
+    @classmethod
+    def validate_duration_consistency(cls, v, info: ValidationInfo):
         """Ensure duration matches chunk timing."""
-        if "chunk_start_time" in values and "chunk_end_time" in values:
-            expected_duration = values["chunk_end_time"] - values["chunk_start_time"]
+        if "chunk_start_time" in info.data and "chunk_end_time" in info.data:
+            expected_duration = info.data["chunk_end_time"] - info.data["chunk_start_time"]
             if abs(v - expected_duration) > 0.1:  # 100ms tolerance
                 raise ValueError(f"Duration {v}s doesn't match chunk timing {expected_duration}s")
         return v
@@ -156,10 +158,11 @@ class SpeakerCorrelation(BaseModel):
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
-    @validator("end_timestamp")
-    def validate_timestamp_order(cls, v, values):
+    @field_validator("end_timestamp")
+    @classmethod
+    def validate_timestamp_order(cls, v, info: ValidationInfo):
         """Ensure end_timestamp > start_timestamp."""
-        if "start_timestamp" in values and v <= values["start_timestamp"]:
+        if "start_timestamp" in info.data and v <= info.data["start_timestamp"]:
             raise ValueError("end_timestamp must be greater than start_timestamp")
         return v
 
@@ -195,10 +198,11 @@ class ProcessingResult(BaseModel):
     started_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = Field(None)
     
-    @validator("completed_at")
-    def validate_completion_time(cls, v, values):
+    @field_validator("completed_at")
+    @classmethod
+    def validate_completion_time(cls, v, info: ValidationInfo):
         """Ensure completed_at >= started_at."""
-        if v and "started_at" in values and v < values["started_at"]:
+        if v and "started_at" in info.data and v < info.data["started_at"]:
             raise ValueError("completed_at must be greater than or equal to started_at")
         return v
 
@@ -243,20 +247,20 @@ class AudioChunkingConfig(BaseModel):
     cleanup_old_files: bool = Field(default=True, description="Automatically cleanup old files")
     file_retention_days: int = Field(default=30, ge=1, le=365, description="File retention period in days")
     
-    @root_validator(skip_on_failure=True)
-    def validate_timing_consistency(cls, values):
+    @model_validator(mode='after')
+    def validate_timing_consistency(self):
         """Ensure timing parameters are consistent."""
-        chunk_duration = values.get("chunk_duration", 3.0)
-        overlap_duration = values.get("overlap_duration", 0.5)
-        processing_interval = values.get("processing_interval", 2.5)
-        
+        chunk_duration = self.chunk_duration
+        overlap_duration = self.overlap_duration
+        processing_interval = self.processing_interval
+
         if overlap_duration >= chunk_duration:
             raise ValueError("overlap_duration must be less than chunk_duration")
-            
+
         if processing_interval >= chunk_duration + overlap_duration:
             raise ValueError("processing_interval should be less than chunk_duration + overlap_duration")
-            
-        return values
+
+        return self
 
 
 class ChunkLineage(BaseModel):
