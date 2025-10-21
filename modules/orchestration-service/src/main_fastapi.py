@@ -105,6 +105,12 @@ try:
     import_logger.info("[OK] chat_history_router imported successfully")
     routers_status['chat_history_router'] = {'status': 'success', 'routes': len(chat_history_router.routes) if hasattr(chat_history_router, 'routes') else 0}
 
+    # Import websocket_audio_router
+    import_logger.debug("Importing websocket_audio_router...")
+    from routers.websocket_audio import router as websocket_audio_router
+    import_logger.info("[OK] websocket_audio_router imported successfully")
+    routers_status['websocket_audio_router'] = {'status': 'success', 'routes': len(websocket_audio_router.routes) if hasattr(websocket_audio_router, 'routes') else 0}
+
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
@@ -413,6 +419,14 @@ conflicts = check_route_conflicts("/api/chat", "chat_history_router", registered
 app.include_router(chat_history_router, prefix="/api/chat", tags=["Chat History"])
 registered_routes.append(("/api/chat", "chat_history_router"))
 router_logger.info(" chat_history_router registered successfully")
+
+# Register websocket_audio_router (Real-time audio streaming)
+router_logger.info("[12] Registering websocket_audio_router...")
+log_router_details("websocket_audio_router", websocket_audio_router, "/api/audio")
+conflicts = check_route_conflicts("/api/audio", "websocket_audio_router", registered_routes)
+app.include_router(websocket_audio_router, prefix="/api/audio", tags=["WebSocket Audio"])
+registered_routes.append(("/api/audio", "websocket_audio_router"))
+router_logger.info(" websocket_audio_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
