@@ -22,6 +22,8 @@ FROM base as runtime
 
 WORKDIR /app
 
+ENV PYTHONPATH=/app:/app/src
+
 COPY src ./src
 COPY config ./config
 COPY static ./static

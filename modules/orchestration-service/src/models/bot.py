@@ -63,13 +63,19 @@ class MeetingInfo(BaseModel):
     """Meeting information"""
 
     meeting_id: str = Field(
-        description="Meeting ID (e.g., Google Meet code)", example="abc-defg-hij"
+        alias="meetingId",
+        description="Meeting ID (e.g., Google Meet code)",
+        example="abc-defg-hij"
     )
     meeting_title: Optional[str] = Field(
-        default=None, description="Meeting title", example="Weekly Team Standup"
+        default=None,
+        alias="meetingTitle",
+        description="Meeting title",
+        example="Weekly Team Standup"
     )
     meeting_url: Optional[str] = Field(
         default=None,
+        alias="meetingUrl",
         description="Full meeting URL",
         example="https://meet.google.com/abc-defg-hij",
     )
@@ -78,17 +84,26 @@ class MeetingInfo(BaseModel):
     )
     organizer_email: Optional[str] = Field(
         default=None,
+        alias="organizerEmail",
         description="Organizer email address",
         example="organizer@example.com",
     )
     scheduled_start: Optional[datetime] = Field(
-        default=None, description="Scheduled meeting start time"
+        default=None,
+        alias="scheduledStart",
+        description="Scheduled meeting start time"
     )
     scheduled_duration_minutes: Optional[int] = Field(
-        default=None, description="Scheduled duration in minutes", example=60
+        default=None,
+        alias="scheduledDurationMinutes",
+        description="Scheduled duration in minutes",
+        example=60
     )
     participant_count: int = Field(
-        default=0, description="Current participant count", example=5
+        default=0,
+        alias="participantCount",
+        description="Current participant count",
+        example=5
     )
 
     @field_validator("meeting_id")
@@ -126,23 +141,44 @@ class AudioCaptureConfig(BaseModel):
     """Audio capture configuration"""
 
     device_id: Optional[str] = Field(
-        default=None, description="Audio device identifier"
+        default=None,
+        alias="deviceId",
+        description="Audio device identifier"
     )
     sample_rate: int = Field(
-        default=16000, description="Audio sample rate in Hz", ge=8000, le=48000
+        default=16000,
+        alias="sampleRate",
+        description="Audio sample rate in Hz",
+        ge=8000,
+        le=48000
     )
-    channels: int = Field(default=1, description="Number of audio channels", ge=1, le=2)
+    channels: int = Field(
+        default=1,
+        description="Number of audio channels",
+        ge=1,
+        le=2
+    )
     chunk_size: int = Field(
-        default=1024, description="Audio chunk size", ge=256, le=4096
+        default=1024,
+        alias="chunkSize",
+        description="Audio chunk size",
+        ge=256,
+        le=4096
     )
     enable_noise_suppression: bool = Field(
-        default=True, description="Enable noise suppression"
+        default=True,
+        alias="enableNoiseSuppression",
+        description="Enable noise suppression"
     )
     enable_echo_cancellation: bool = Field(
-        default=True, description="Enable echo cancellation"
+        default=True,
+        alias="enableEchoCancellation",
+        description="Enable echo cancellation"
     )
     enable_auto_gain: bool = Field(
-        default=True, description="Enable automatic gain control"
+        default=True,
+        alias="enableAutoGain",
+        description="Enable automatic gain control"
     )
 
 
@@ -151,24 +187,31 @@ class TranslationConfig(BaseModel):
 
     target_languages: List[str] = Field(
         default_factory=lambda: ["en", "es"],
+        alias="targetLanguages",
         description="Target language codes",
         example=["en", "es", "fr"],
     )
     source_language: Optional[str] = Field(
         default=None,
+        alias="sourceLanguage",
         description="Source language code (auto-detect if None)",
         example="en",
     )
     enable_auto_translation: bool = Field(
-        default=True, description="Enable automatic translation"
+        default=True,
+        alias="enableAutoTranslation",
+        description="Enable automatic translation"
     )
     translation_quality: str = Field(
         default="balanced",
+        alias="translationQuality",
         description="Translation quality setting",
         example="balanced",
     )
     real_time_translation: bool = Field(
-        default=True, description="Enable real-time translation"
+        default=True,
+        alias="realTimeTranslation",
+        description="Enable real-time translation"
     )
 
     @field_validator("target_languages")
@@ -279,10 +322,19 @@ class BotSpawnRequest(BaseModel):
     """Bot spawn request"""
 
     config: BotConfiguration = Field(description="Bot configuration")
-    user_id: Optional[str] = Field(default=None, description="User identifier")
-    session_id: Optional[str] = Field(default=None, description="Session identifier")
+    user_id: Optional[str] = Field(
+        default=None,
+        alias="userId",
+        description="User identifier"
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        alias="sessionId",
+        description="Session identifier"
+    )
     metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Additional metadata"
+        default_factory=dict,
+        description="Additional metadata"
     )
 
     class Config:

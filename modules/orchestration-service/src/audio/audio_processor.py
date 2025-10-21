@@ -56,6 +56,14 @@ from .stages import (
     CompressionStage,
     LimiterStage
 )
+
+# Import enhanced stages (with availability checking)
+try:
+    from . import stages_enhanced
+    ENHANCED_STAGES_AVAILABLE = stages_enhanced.PHASE_1_COMPLETE
+except ImportError:
+    ENHANCED_STAGES_AVAILABLE = False
+    logger.warning("Enhanced audio stages not available (libraries not installed)")
 # Import with try/catch to handle missing database module gracefully
 try:
     from database.processing_metrics import get_metrics_manager
@@ -100,6 +108,12 @@ class AudioPipelineProcessor:
     
     def _initialize_stages(self):
         """Initialize all processing stages."""
+        # Check if enhanced stages should be used
+        use_enhanced = self.config.use_enhanced_stages and ENHANCED_STAGES_AVAILABLE
+
+        if use_enhanced:
+            logger.info("Using enhanced audio stages (pyloudnorm, pedalboard)")
+
         # Create stage instances
         vad_stage = VADStage(self.config.vad, self.sample_rate)
         voice_filter_stage = VoiceFilterStage(self.config.voice_filter, self.sample_rate)
@@ -108,10 +122,18 @@ class AudioPipelineProcessor:
         equalizer_stage = EqualizerStage(self.config.equalizer, self.sample_rate)
         spectral_denoising_stage = SpectralDenoisingStage(self.config.spectral_denoising, self.sample_rate)
         conventional_denoising_stage = ConventionalDenoisingStage(self.config.conventional_denoising, self.sample_rate)
-        lufs_normalization_stage = LUFSNormalizationStage(self.config.lufs_normalization, self.sample_rate)
+
+        # Use enhanced or original stages based on config
+        if use_enhanced:
+            lufs_normalization_stage = stages_enhanced.LUFSNormalizationStageEnhanced(self.config.lufs_normalization, self.sample_rate)
+            compression_stage = stages_enhanced.CompressionStageEnhanced(self.config.compression, self.sample_rate)
+            limiter_stage = stages_enhanced.LimiterStageEnhanced(self.config.limiter, self.sample_rate)
+        else:
+            lufs_normalization_stage = LUFSNormalizationStage(self.config.lufs_normalization, self.sample_rate)
+            compression_stage = CompressionStage(self.config.compression, self.sample_rate)
+            limiter_stage = LimiterStage(self.config.limiter, self.sample_rate)
+
         agc_stage = AGCStage(self.config.agc, self.sample_rate)
-        compression_stage = CompressionStage(self.config.compression, self.sample_rate)
-        limiter_stage = LimiterStage(self.config.limiter, self.sample_rate)
         
         # Add stages to pipeline in order
         self.pipeline.add_stage(vad_stage)

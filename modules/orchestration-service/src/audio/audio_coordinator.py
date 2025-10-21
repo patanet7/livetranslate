@@ -19,6 +19,7 @@ Features:
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from collections import defaultdict, deque
@@ -28,6 +29,15 @@ from typing import Dict, List, Optional, Any, Callable, Set, AsyncGenerator
 import httpx
 import numpy as np
 from dataclasses import asdict
+
+from clients.audio_service_client import (
+    AudioServiceClient,
+    TranscriptionRequest as ClientTranscriptionRequest,
+)
+from clients.translation_service_client import (
+    TranslationServiceClient,
+    TranslationRequest as ClientTranslationRequest,
+)
 
 from .models import (
     AudioChunkMetadata,
@@ -52,6 +62,13 @@ from .config import (
     get_default_audio_processing_config,
 )
 from .audio_processor import AudioPipelineProcessor, create_audio_pipeline_processor
+from .translation_cache import TranslationResultCache
+
+# Optional import for database optimization tracking
+try:
+    from database.translation_optimization_adapter import TranslationOptimizationAdapter
+except ImportError:
+    TranslationOptimizationAdapter = None
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +77,20 @@ class ServiceClientPool:
     """
     HTTP client pool for communicating with whisper and translation services.
     Provides connection pooling, retry logic, and circuit breaker patterns.
+    Falls back to embedded service clients when available.
     """
     
-    def __init__(self, service_urls: Dict[str, str], pool_config: Optional[Dict] = None):
+    def __init__(
+        self,
+        service_urls: Dict[str, str],
+        pool_config: Optional[Dict] = None,
+        audio_client: Optional[AudioServiceClient] = None,
+        translation_client: Optional[TranslationServiceClient] = None,
+    ):
         self.service_urls = service_urls
         pool_config = pool_config or {}
+        self.audio_client = audio_client
+        self.translation_client = translation_client
         
         # HTTP client configuration
         self.timeout = httpx.Timeout(
@@ -81,7 +107,10 @@ class ServiceClientPool:
         )
         
         # Circuit breaker state
-        self.service_health = {url: {"healthy": True, "failures": 0, "last_failure": 0} for url in service_urls.values()}
+        self.service_health = {
+            url: {"healthy": True, "failures": 0, "last_failure": 0}
+            for url in service_urls.values()
+        }
         self.max_failures = pool_config.get("max_failures", 5)
         self.failure_timeout = pool_config.get("failure_timeout", 60.0)
         
@@ -140,7 +169,10 @@ class ServiceClientPool:
         if self.client:
             await self.client.aclose()
             logger.info("Service client pool closed")
-    
+
+    def _is_remote_service(self, service_url: Optional[str]) -> bool:
+        return bool(service_url and service_url.startswith("http"))
+
     @asynccontextmanager
     async def get_client(self) -> AsyncGenerator[httpx.AsyncClient, None]:
         """Get HTTP client with circuit breaker protection."""
@@ -152,17 +184,21 @@ class ServiceClientPool:
         self,
         session_id: str,
         chunk_metadata: AudioChunkMetadata,
-        audio_data: np.ndarray
+        audio_data: np.ndarray,
+        model: str = "whisper-tiny"
     ) -> Optional[Dict[str, Any]]:
         """Send audio chunk to whisper service for transcription."""
+        if self.audio_client:
+            return await self._transcribe_with_audio_client(session_id, chunk_metadata, audio_data, model)
+
         service_url = self.service_urls.get("whisper_service")
-        if not service_url or not self._is_service_healthy(service_url):
+        if not self._is_remote_service(service_url) or not self._is_service_healthy(service_url):
             return None
-        
+
         try:
             # Convert audio to bytes
             audio_bytes = self._audio_to_bytes(audio_data, chunk_metadata.sample_rate)
-            
+
             # Prepare request data
             files = {"audio": ("chunk.wav", audio_bytes, "audio/wav")}
             data = {
@@ -206,10 +242,13 @@ class ServiceClientPool:
         target_language: str
     ) -> Optional[Dict[str, Any]]:
         """Send transcript to translation service."""
+        if self.translation_client:
+            return await self._translate_with_client(transcript_data, target_language)
+
         service_url = self.service_urls.get("translation_service")
-        if not service_url or not self._is_service_healthy(service_url):
+        if not self._is_remote_service(service_url) or not self._is_service_healthy(service_url):
             return None
-        
+
         try:
             translation_request = {
                 "session_id": session_id,
@@ -246,7 +285,85 @@ class ServiceClientPool:
             logger.error(f"Failed to send to translation service: {e}")
             self._mark_service_failure(service_url)
             return None
-    
+
+    async def _translate_with_client(
+        self,
+        transcript_data: Dict[str, Any],
+        target_language: str,
+    ) -> Optional[Dict[str, Any]]:
+        if not self.translation_client:
+            return None
+
+        try:
+            request = ClientTranslationRequest(
+                text=transcript_data["text"],
+                source_language=transcript_data.get("language", "auto"),
+                target_language=target_language,
+            )
+            response = await self.translation_client.translate(request)
+            metadata = response.model_dump(exclude={"translated_text", "target_language", "confidence", "processing_time"})
+            metadata.update({
+                "processing_time": response.processing_time,
+                "backend": getattr(response, "backend_used", None),
+                "model": getattr(response, "model_used", None),
+            })
+            return {
+                "translated_text": response.translated_text,
+                "confidence": response.confidence,
+                "processing_time": response.processing_time,
+                "service": getattr(response, "backend_used", "embedded"),
+                "metadata": metadata,
+            }
+        except Exception as exc:
+            logger.error(f"Embedded translation failed: {exc}")
+            return None
+
+    async def _transcribe_with_audio_client(
+        self,
+        session_id: str,
+        chunk_metadata: AudioChunkMetadata,
+        audio_data: np.ndarray,
+        model: str = "whisper-tiny"
+    ) -> Optional[Dict[str, Any]]:
+        if not self.audio_client:
+            return None
+
+        try:
+            audio_bytes = self._audio_to_bytes(audio_data, chunk_metadata.sample_rate)
+            request = ClientTranscriptionRequest(
+                language=None,
+                task="transcribe",
+                enable_diarization=True,
+                enable_vad=True,
+                model=model,
+            )
+            response = await self.audio_client.transcribe_stream(audio_bytes, request)
+            if response is None:
+                return None
+
+            metadata = {
+                "processing_time": response.processing_time,
+                "session_id": session_id,
+                "chunk_id": chunk_metadata.chunk_id,
+            }
+            metadata.update(response.model_dump(exclude={"text", "language", "segments", "speakers", "confidence"}))
+
+            speaker_info: Dict[str, Any] = {}
+            if response.speakers:
+                speaker_info["speakers"] = response.speakers
+
+            return {
+                "text": response.text,
+                "language": response.language,
+                "confidence": response.confidence,
+                "segments": response.segments,
+                "speaker_info": speaker_info,
+                "metadata": metadata,
+            }
+        except Exception as exc:
+            logger.error(f"Embedded audio transcription failed: {exc}")
+            return None
+
     def _audio_to_bytes(self, audio_data: np.ndarray, sample_rate: int) -> bytes:
         """Convert audio data to WAV bytes."""
         import io
@@ -265,8 +382,10 @@ class ServiceClientPool:
         buffer.seek(0)
         return buffer.read()
     
-    def _is_service_healthy(self, service_url: str) -> bool:
+    def _is_service_healthy(self, service_url: Optional[str]) -> bool:
         """Check if service is healthy based on circuit breaker state."""
+        if not self._is_remote_service(service_url):
+            return True
         health = self.service_health.get(service_url, {"healthy": True, "failures": 0, "last_failure": 0})
         
         if health["healthy"]:
@@ -280,14 +399,18 @@ class ServiceClientPool:
         
         return False
     
-    def _mark_service_healthy(self, service_url: str):
+    def _mark_service_healthy(self, service_url: Optional[str]):
         """Mark service as healthy."""
+        if not self._is_remote_service(service_url):
+            return
         if service_url in self.service_health:
             self.service_health[service_url]["healthy"] = True
             self.service_health[service_url]["failures"] = 0
-    
-    def _mark_service_failure(self, service_url: str):
+
+    def _mark_service_failure(self, service_url: Optional[str]):
         """Mark service failure and update circuit breaker state."""
+        if not self._is_remote_service(service_url):
+            return
         if service_url not in self.service_health:
             return
         
@@ -472,15 +595,23 @@ class AudioCoordinator:
         database_url: Optional[str],
         service_urls: Dict[str, str],
         max_concurrent_sessions: int = 10,
-        audio_config_file: Optional[str] = None
+        audio_config_file: Optional[str] = None,
+        audio_client: Optional[AudioServiceClient] = None,
+        translation_client: Optional[TranslationServiceClient] = None,
     ):
         self.config = config
         self.database_url = database_url
         self.service_urls = service_urls
+        self.audio_client = audio_client
+        self.translation_client = translation_client
         
         # Core components
         self.database_adapter = AudioDatabaseAdapter(database_url) if database_url else None
-        self.service_client = ServiceClientPool(service_urls)
+        self.service_client = ServiceClientPool(
+            service_urls,
+            audio_client=audio_client,
+            translation_client=translation_client,
+        )
         self.session_manager = SessionManager(max_concurrent_sessions)
         
         # Audio processing configuration and pipeline
@@ -490,7 +621,41 @@ class AudioCoordinator:
             auto_reload=True
         )
         self.audio_processors: Dict[str, AudioPipelineProcessor] = {}  # Per-session processors
-        
+
+        # Translation optimization components
+        self.translation_opt_adapter = None
+        self.translation_cache = None
+
+        # Initialize translation optimization if database available
+        if self.database_adapter and TranslationOptimizationAdapter:
+            try:
+                self.translation_opt_adapter = TranslationOptimizationAdapter(
+                    self.database_adapter.db_manager
+                )
+                logger.info("Translation optimization adapter initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize translation optimization adapter: {e}")
+
+        # Initialize translation cache
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/1")
+        cache_enabled = os.getenv("TRANSLATION_CACHE_ENABLED", "true").lower() == "true"
+        cache_ttl = int(os.getenv("TRANSLATION_CACHE_TTL", "3600"))  # 1 hour default
+
+        if cache_enabled:
+            try:
+                self.translation_cache = TranslationResultCache(
+                    redis_url=redis_url,
+                    ttl=cache_ttl,
+                    db_adapter=self.translation_opt_adapter,
+                    session_id=None  # Will be set per-session
+                )
+                logger.info(f"Translation cache enabled: TTL={cache_ttl}s, Redis={redis_url}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize translation cache: {e}")
+                self.translation_cache = None
+        else:
+            logger.info("Translation cache disabled by configuration")
+
         # Processing state
         self.is_running = False
         self.start_time: Optional[float] = None
@@ -560,10 +725,20 @@ class AudioCoordinator:
             
             # Close components
             await self.service_client.close()
+
+            # Close translation cache
+            if self.translation_cache:
+                try:
+                    cache_stats = self.translation_cache.get_stats()
+                    logger.info(f"Translation cache final stats: {cache_stats}")
+                    await self.translation_cache.close()
+                except Exception as e:
+                    logger.error(f"Error closing translation cache: {e}")
+
             if self.database_adapter:
                 await self.database_adapter.close()
             await self.audio_config_manager.shutdown()
-            
+
             # Clear audio processors
             self.audio_processors.clear()
             
@@ -588,7 +763,11 @@ class AudioCoordinator:
         except Exception as e:
             logger.error(f"Error during AudioCoordinator shutdown: {e}")
             return {}
-    
+
+    async def cleanup(self):
+        """Cleanup method (alias for shutdown for test compatibility)."""
+        return await self.shutdown()
+
     # Event callback setters
     def set_transcript_ready_callback(self, callback: Callable[[Dict[str, Any]], None]):
         """Set callback for when transcripts are ready."""
@@ -605,7 +784,48 @@ class AudioCoordinator:
     def set_error_callback(self, callback: Callable[[str], None]):
         """Set callback for error notifications."""
         self.on_error = callback
-    
+
+    async def process_audio_chunk(
+        self,
+        audio_chunk: bytes,
+        pipeline_config: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Process a single audio chunk through the pipeline.
+
+        Args:
+            audio_chunk: Raw audio bytes
+            pipeline_config: Optional pipeline configuration
+            session_id: Optional session ID for tracking
+
+        Returns:
+            Dictionary with processed_audio and metrics
+        """
+        try:
+            # For now, return the audio as-is with basic metrics
+            # TODO: Implement actual pipeline processing when stages are defined
+            import numpy as np
+
+            # Convert bytes to numpy array for basic analysis
+            audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
+
+            # Calculate basic metrics
+            rms = np.sqrt(np.mean(np.square(audio_array.astype(float))))
+            rms_db = 20 * np.log10(rms / 32768.0) if rms > 0 else -96.0
+
+            return {
+                "processed_audio": audio_chunk,  # Pass through for now
+                "rms": rms_db,
+                "snr": 0.0,  # Placeholder
+                "cpu_usage": 0.0,  # Placeholder
+                "stage_latencies": {},
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to process audio chunk: {e}")
+            raise
+
     # Audio processing configuration management
     
     async def _on_audio_config_change(self, change_type: str, config: AudioProcessingConfig, session_id: Optional[str] = None):
@@ -907,23 +1127,173 @@ class AudioCoordinator:
         transcript_result: Dict[str, Any],
         target_languages: List[str]
     ):
-        """Request translations for a transcript."""
+        """
+        OPTIMIZED: Request translations with caching and multi-language batching.
+
+        Flow:
+        1. Check cache for all target languages
+        2. Translate only uncached languages using multi-language endpoint
+        3. Store new translations in cache
+        4. Record batch metadata in database
+        5. Store translations and emit events
+        """
         source_language = transcript_result.get("language", "auto")
-        
-        # Create translation tasks
-        translation_tasks = []
-        for target_lang in target_languages:
-            if target_lang != source_language:  # Skip same language
-                task = asyncio.create_task(
-                    self._process_single_translation(
-                        session_id, transcript_id, transcript_result, target_lang
-                    )
+        text = transcript_result["text"]
+
+        # Filter out source language
+        target_langs = [lang for lang in target_languages if lang != source_language]
+
+        if not target_langs:
+            logger.debug(f"No target languages to translate to (source={source_language})")
+            return
+
+        logger.info(
+            f"Requesting translations: {len(target_langs)} languages "
+            f"for '{text[:50]}...' ({source_language}→{target_langs})"
+        )
+
+        # Start timing for performance tracking
+        start_time = time.time()
+
+        # STEP 1: Check cache for all target languages (if cache enabled)
+        cached_results = {}
+        needs_translation = []
+
+        if self.translation_cache:
+            try:
+                # Set session ID for database tracking
+                self.translation_cache.session_id = session_id
+
+                # Multi-get from cache
+                cache_results = await self.translation_cache.get_multi(
+                    text=text,
+                    source_lang=source_language,
+                    target_langs=target_langs
                 )
-                translation_tasks.append(task)
-        
-        # Process translations concurrently
-        if translation_tasks:
-            await asyncio.gather(*translation_tasks, return_exceptions=True)
+
+                # Separate cached vs needs translation
+                for lang in target_langs:
+                    if cache_results.get(lang):
+                        cached_results[lang] = cache_results[lang]
+                        logger.debug(f"Cache HIT: {source_language}→{lang}")
+                    else:
+                        needs_translation.append(lang)
+                        logger.debug(f"Cache MISS: {source_language}→{lang}")
+
+            except Exception as cache_error:
+                logger.error(f"Cache lookup failed: {cache_error}, proceeding without cache")
+                needs_translation = target_langs
+        else:
+            # No cache, translate all
+            needs_translation = target_langs
+
+        # STEP 2: Translate only what's not cached (using multi-language endpoint)
+        new_translations = {}
+
+        if needs_translation:
+            logger.info(
+                f"Translating {len(needs_translation)} uncached languages: {needs_translation}"
+            )
+
+            try:
+                # Use optimized multi-language endpoint via translation client
+                if self.translation_client:
+                    translation_results = await self.translation_client.translate_to_multiple_languages(
+                        text=text,
+                        source_language=source_language,
+                        target_languages=needs_translation,
+                        session_id=session_id
+                    )
+
+                    # Convert TranslationResponse objects to dict format
+                    for lang, response in translation_results.items():
+                        if response and hasattr(response, 'translated_text'):
+                            new_translations[lang] = {
+                                "translated_text": response.translated_text,
+                                "confidence": response.confidence,
+                                "metadata": {
+                                    "backend_used": response.backend_used,
+                                    "model_used": response.model_used,
+                                    "processing_time": response.processing_time
+                                }
+                            }
+                else:
+                    # Fallback to service client pool (sequential)
+                    logger.warning("Translation client not available, using service pool")
+                    for lang in needs_translation:
+                        translation_result = await self.service_client.send_to_translation_service(
+                            session_id, transcript_result, lang
+                        )
+                        if translation_result:
+                            new_translations[lang] = translation_result
+
+                # STEP 3: Store new translations in cache
+                if self.translation_cache and new_translations:
+                    try:
+                        await self.translation_cache.set_multi(
+                            text=text,
+                            source_lang=source_language,
+                            translations=new_translations
+                        )
+                        logger.debug(f"Cached {len(new_translations)} new translations")
+                    except Exception as cache_error:
+                        logger.error(f"Failed to cache translations: {cache_error}")
+
+            except Exception as translation_error:
+                logger.error(f"Translation failed: {translation_error}")
+                self.processing_errors += 1
+                return
+
+        # STEP 4: Combine cached + new translations
+        all_translations = {**cached_results, **new_translations}
+
+        # Calculate performance metrics
+        total_time_ms = (time.time() - start_time) * 1000
+        cache_hits = len(cached_results)
+        cache_misses = len(new_translations)
+        cache_hit_rate = cache_hits / len(target_langs) if target_langs else 0
+
+        logger.info(
+            f"Translation complete: {len(all_translations)} languages in {total_time_ms:.2f}ms "
+            f"(cache: {cache_hits} hits, {cache_misses} misses, {cache_hit_rate:.1%} hit rate)"
+        )
+
+        # STEP 5: Record batch metadata in database
+        if self.translation_opt_adapter:
+            try:
+                # Generate batch ID
+                batch_id = f"batch_{session_id}_{transcript_id}"
+
+                # Record batch performance
+                await self.translation_opt_adapter.record_translation_batch(
+                    session_id=session_id,
+                    source_text=text,
+                    source_language=source_language,
+                    target_languages=target_langs,
+                    total_time_ms=total_time_ms,
+                    cache_hits=cache_hits,
+                    cache_misses=cache_misses,
+                    success_count=len(all_translations),
+                    error_count=len(target_langs) - len(all_translations),
+                    results=all_translations,
+                    batch_id=batch_id
+                )
+            except Exception as db_error:
+                logger.error(f"Failed to record batch in database: {db_error}")
+
+        # STEP 6: Store each translation in database and emit events
+        for target_lang, translation_data in all_translations.items():
+            try:
+                await self._store_and_emit_translation(
+                    session_id=session_id,
+                    transcript_id=transcript_id,
+                    transcript_result=transcript_result,
+                    target_language=target_lang,
+                    translation_data=translation_data,
+                    was_cached=(target_lang in cached_results)
+                )
+            except Exception as store_error:
+                logger.error(f"Failed to store translation {target_lang}: {store_error}")
     
     async def _process_single_translation(
         self,
@@ -986,7 +1356,89 @@ class AudioCoordinator:
         except Exception as e:
             logger.error(f"Failed to process translation {target_language} for transcript {transcript_id}: {e}")
             self.processing_errors += 1
-    
+
+    async def _store_and_emit_translation(
+        self,
+        session_id: str,
+        transcript_id: str,
+        transcript_result: Dict[str, Any],
+        target_language: str,
+        translation_data: Dict[str, Any],
+        was_cached: bool
+    ):
+        """
+        Store translation in database and emit event.
+
+        Args:
+            session_id: Bot session ID
+            transcript_id: Transcript ID
+            transcript_result: Original transcript data
+            target_language: Target language code
+            translation_data: Translation result
+            was_cached: Whether result came from cache
+        """
+        # Store translation in database (if available)
+        translation_id = None
+
+        if self.database_adapter:
+            translation_id = await self.database_adapter.store_translation(
+                session_id,
+                transcript_id,
+                {
+                    "translated_text": translation_data.get("translated_text", ""),
+                    "source_language": transcript_result.get("language", "auto"),
+                    "target_language": target_language,
+                    "confidence": translation_data.get("confidence", 0.0),
+                    "translation_service": translation_data.get("metadata", {}).get("backend_used", "unknown"),
+                    "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                    "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
+                    "start_timestamp": transcript_result.get("start_timestamp", 0.0),
+                    "end_timestamp": transcript_result.get("end_timestamp", 0.0),
+                    "metadata": translation_data.get("metadata", {}),
+                }
+            )
+
+            # Update translation with optimization metadata
+            if translation_id and self.translation_opt_adapter:
+                try:
+                    await self.translation_opt_adapter.update_translation_optimization_metadata(
+                        translation_id=translation_id,
+                        model_name=translation_data.get("metadata", {}).get("model_used"),
+                        model_backend=translation_data.get("metadata", {}).get("backend_used"),
+                        was_cached=was_cached,
+                        optimization_metadata={
+                            "was_cached": was_cached,
+                            "processing_time_ms": translation_data.get("metadata", {}).get("processing_time"),
+                        }
+                    )
+                except Exception as opt_error:
+                    logger.error(f"Failed to update optimization metadata: {opt_error}")
+        else:
+            # Generate fake ID for non-persistent mode
+            translation_id = f"translation_{transcript_id}_{target_language}"
+
+        if translation_id:
+            self.total_translations_generated += 1
+
+            # Emit translation ready event
+            if self.on_translation_ready:
+                self.on_translation_ready({
+                    "session_id": session_id,
+                    "translation_id": translation_id,
+                    "transcript_id": transcript_id,
+                    "original_text": transcript_result["text"],
+                    "translated_text": translation_data.get("translated_text", ""),
+                    "source_language": transcript_result.get("language", "auto"),
+                    "target_language": target_language,
+                    "speaker_info": transcript_result.get("speaker_info", {}),
+                    "confidence": translation_data.get("confidence", 0.0),
+                    "start_timestamp": transcript_result.get("start_timestamp", 0.0),
+                    "end_timestamp": transcript_result.get("end_timestamp", 0.0),
+                    "was_cached": was_cached,
+                })
+        else:
+            logger.warning(f"Failed to store translation for transcript {transcript_id}")
+
     def _handle_quality_alert(self, session_id: str, alert: Dict[str, Any]):
         """Handle quality alerts from chunk processing."""
         logger.info(f"Quality alert for session {session_id}: {alert}")
@@ -1078,50 +1530,387 @@ class AudioCoordinator:
         audio_file_path: str,
         config: Dict[str, Any],
         request_id: str
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
         Process an audio file through the orchestration pipeline.
-        
+
         Args:
             session_id: Audio session identifier
             audio_file_path: Path to the input audio file
-            config: Audio processing configuration
+            config: Audio processing configuration (supports enable_transcription, enable_translation,
+                    enable_diarization, target_languages, whisper_model, translation_quality)
             request_id: Request tracking ID
-            
+
         Returns:
-            str: Path to the processed audio file
+            Dict[str, Any]: Processing results with transcription, translations, and metadata
         """
         try:
             logger.info(f"[{request_id}] Processing audio file through orchestration pipeline")
-            
-            # For now, we'll implement a simple pass-through since the full pipeline
-            # integration requires more complex setup. This allows the system to work
-            # while we can enhance the processing later.
-            
-            # Check if we have an audio processor for this session
-            if session_id in self.audio_processors:
-                audio_processor = self.audio_processors[session_id]
-                logger.info(f"[{request_id}] Using existing audio processor for session {session_id}")
+
+            # Load audio file - handle WebM and other formats that soundfile doesn't support
+            import soundfile as sf
+            import os
+
+            # Check if file is WebM or other unsupported format
+            file_ext = os.path.splitext(audio_file_path)[1].lower()
+
+            if file_ext in ['.webm', '.mp4', '.m4a', '.mp3']:
+                # Convert to WAV using ffmpeg directly
+                logger.info(f"[{request_id}] Converting {file_ext} to WAV for processing")
+                import subprocess
+                import tempfile
+
+                # Get target sample rate from config (default to 16kHz for Whisper)
+                target_sample_rate = config.get('sample_rate', 16000)
+
+                # Create temporary WAV file
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+                    temp_wav_path = temp_wav.name
+
+                try:
+                    # Use ffmpeg to convert to WAV (mono, target sample rate)
+                    ffmpeg_cmd = [
+                        'ffmpeg',
+                        '-i', audio_file_path,     # Input file
+                        '-ac', '1',                # Convert to mono (1 channel)
+                        '-ar', str(target_sample_rate),  # Set sample rate
+                        '-y',                      # Overwrite output file
+                        temp_wav_path              # Output file
+                    ]
+
+                    # Run ffmpeg
+                    result = subprocess.run(
+                        ffmpeg_cmd,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+
+                    logger.info(f"[{request_id}] Converted to mono @ {target_sample_rate}Hz using ffmpeg")
+
+                    # Read the WAV file
+                    audio_data, sample_rate = sf.read(temp_wav_path)
+
+                except subprocess.CalledProcessError as e:
+                    logger.error(f"[{request_id}] ffmpeg conversion failed: {e.stderr}")
+                    raise RuntimeError(f"Failed to convert {file_ext} to WAV: {e.stderr}")
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(temp_wav_path):
+                        os.unlink(temp_wav_path)
             else:
-                # Create a new audio processor with the provided config
-                audio_processor = self._get_or_create_audio_processor(session_id)
-                logger.info(f"[{request_id}] Created new audio processor for session {session_id}")
-            
-            # For file-based processing, we'll return the original file path
-            # The audio processing will be handled by the audio service
-            # This maintains compatibility while allowing future enhancement
-            
-            logger.info(
-                f"[{request_id}] Audio file processed through orchestration pipeline "
-                f"(pass-through mode for compatibility)"
+                # soundfile can handle this format directly
+                audio_data, sample_rate = sf.read(audio_file_path)
+
+            # Convert to numpy array if needed
+            if not isinstance(audio_data, np.ndarray):
+                audio_data = np.array(audio_data)
+
+            # Ensure mono audio (take first channel if stereo)
+            if len(audio_data.shape) > 1:
+                audio_data = audio_data[:, 0]
+
+            # Convert to float32 if not already
+            if audio_data.dtype != np.float32:
+                audio_data = audio_data.astype(np.float32)
+
+            logger.info(f"[{request_id}] Loaded audio file: {len(audio_data)} samples at {sample_rate}Hz")
+
+            # Check if audio processing should be applied
+            enable_audio_processing = config.get("audio_processing", True)
+
+            if enable_audio_processing:
+                # Build modular enabled stages based on frontend flags
+                enable_noise_reduction = config.get("noise_reduction", False)
+                enable_speech_enhancement = config.get("speech_enhancement", False)
+
+                enabled_stages = []
+
+                # Always enable VAD for voice activity detection
+                enabled_stages.append("vad")
+
+                # Noise reduction stages
+                if enable_noise_reduction:
+                    enabled_stages.extend(["noise_reduction", "spectral_denoising", "conventional_denoising"])
+                    logger.info(f"[{request_id}] Noise reduction enabled")
+
+                # Speech enhancement stages
+                if enable_speech_enhancement:
+                    enabled_stages.extend([
+                        "voice_filter",
+                        "voice_enhancement",
+                        "equalizer",
+                        "lufs_normalization",
+                        "agc",
+                        "compression",
+                        "limiter"
+                    ])
+                    logger.info(f"[{request_id}] Speech enhancement enabled")
+
+                if len(enabled_stages) > 1:  # More than just VAD
+                    # Get base session config and customize enabled stages
+                    from .audio_processor import create_audio_pipeline_processor
+                    from .config import AudioProcessingConfig
+
+                    # Get or create base config
+                    base_config = self.audio_config_manager.get_session_config(session_id)
+
+                    # Create custom config with selected stages
+                    custom_config = AudioProcessingConfig(
+                        enabled_stages=enabled_stages,
+                        vad=base_config.vad,
+                        voice_filter=base_config.voice_filter,
+                        noise_reduction=base_config.noise_reduction,
+                        voice_enhancement=base_config.voice_enhancement,
+                        equalizer=base_config.equalizer,
+                        spectral_denoising=base_config.spectral_denoising,
+                        conventional_denoising=base_config.conventional_denoising,
+                        lufs_normalization=base_config.lufs_normalization,
+                        agc=base_config.agc,
+                        compression=base_config.compression,
+                        limiter=base_config.limiter,
+                        quality=base_config.quality,
+                        sample_rate=sample_rate,
+                        preset_name=f"modular_{session_id}"
+                    )
+
+                    # Create processor with custom config
+                    audio_processor = create_audio_pipeline_processor(custom_config, sample_rate)
+                    logger.info(f"[{request_id}] Created modular audio processor with stages: {enabled_stages}")
+
+                    # Process audio through pipeline
+                    processed_audio, processing_metadata = audio_processor.process_audio_chunk(audio_data)
+
+                    if processing_metadata.get("bypassed", False):
+                        logger.info(f"[{request_id}] Audio processing bypassed: {processing_metadata.get('bypass_reason', 'unknown')}")
+                    elif processing_metadata.get("stages_applied"):
+                        logger.info(f"[{request_id}] Applied audio processing stages: {processing_metadata['stages_applied']}")
+                else:
+                    # Only VAD enabled - use raw audio
+                    logger.info(f"[{request_id}] Only VAD enabled - using raw audio")
+                    processed_audio = audio_data
+                    processing_metadata = {"bypassed": True, "bypass_reason": "only_vad_enabled"}
+            else:
+                # Skip audio processing - use raw audio
+                logger.info(f"[{request_id}] Audio processing DISABLED - using raw audio")
+                processed_audio = audio_data
+                processing_metadata = {"bypassed": True, "bypass_reason": "disabled_by_config"}
+
+            # Create chunk metadata for tracking
+            audio_duration = len(audio_data) / sample_rate
+
+            # Get file size
+            import os
+            file_size = os.path.getsize(audio_file_path) if os.path.exists(audio_file_path) else 0
+
+            chunk_metadata = create_audio_chunk_metadata(
+                session_id=session_id,
+                file_path=audio_file_path,
+                file_size=file_size,
+                duration_seconds=audio_duration,
+                chunk_sequence=0,
+                chunk_start_time=0.0,
+                source_type=SourceType.MANUAL_UPLOAD,
+                sample_rate=sample_rate,
+                audio_quality_score=processing_metadata.get("quality_score", 0.9)
             )
-            
-            return audio_file_path
-            
+
+            # Initialize result
+            result = {
+                "status": "processed",
+                "file_path": audio_file_path,
+                "duration": audio_duration,
+                "processing_time": 0.0
+            }
+
+            start_time = time.time()
+
+            # Send to whisper service if transcription enabled
+            if config.get("enable_transcription", True):
+                logger.info(f"[{request_id}] Sending to whisper service for transcription")
+
+                # DEBUG: Log audio quality before sending to Whisper
+                audio_rms = np.sqrt(np.mean(processed_audio**2))
+                audio_max = np.max(np.abs(processed_audio))
+                logger.info(f"[{request_id}] Audio quality before Whisper: RMS={audio_rms:.4f}, Max={audio_max:.4f}, Samples={len(processed_audio)}")
+
+                # Optionally dump audio for debugging
+                if config.get("debug_audio", False):
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix='_pre_whisper.wav', delete=False) as f:
+                        sf.write(f.name, processed_audio, sample_rate)
+                        logger.info(f"[{request_id}] DEBUG: Saved pre-whisper audio to {f.name}")
+
+                whisper_model = config.get("whisper_model", "whisper-tiny")
+                transcript_result = await self.service_client.send_to_whisper_service(
+                    session_id, chunk_metadata, processed_audio, whisper_model
+                )
+
+                if transcript_result and transcript_result.get("text"):
+                    result["transcription"] = transcript_result.get("text", "")
+                    result["language"] = transcript_result.get("language", "en")
+                    result["confidence"] = transcript_result.get("confidence", 0.0)
+                    result["segments"] = transcript_result.get("segments", [])
+
+                    # Add speaker information if available
+                    speaker_info = transcript_result.get("speaker_info", {})
+                    if speaker_info.get("speakers"):
+                        result["speakers"] = speaker_info["speakers"]
+
+                    logger.info(
+                        f"[{request_id}] Transcription complete: {len(result['transcription'])} chars, "
+                        f"language={result['language']}, confidence={result['confidence']:.2f}"
+                    )
+
+                    # Store transcript in database if available
+                    if self.database_adapter and config.get("session_id"):
+                        try:
+                            transcript_id = await self.database_adapter.store_transcript(
+                                config.get("session_id"),
+                                {
+                                    "text": result["transcription"],
+                                    "start_timestamp": 0.0,
+                                    "end_timestamp": audio_duration,
+                                    "language": result["language"],
+                                    "confidence": result["confidence"],
+                                    "speaker_info": speaker_info,
+                                    "chunk_id": chunk_metadata.chunk_id,
+                                    "source_type": "file_upload",
+                                    "metadata": transcript_result.get("metadata", {}),
+                                },
+                                audio_file_id=chunk_metadata.chunk_id
+                            )
+                            result["transcript_id"] = transcript_id
+                            logger.info(f"[{request_id}] Stored transcript in database: {transcript_id}")
+                        except Exception as db_error:
+                            logger.warning(f"[{request_id}] Failed to store transcript in database: {db_error}")
+
+                    # Request translations if enabled
+                    if config.get("enable_translation", False) and config.get("target_languages"):
+                        target_languages = config["target_languages"]
+
+                        # Handle string or list format
+                        if isinstance(target_languages, str):
+                            import json
+                            try:
+                                target_languages = json.loads(target_languages)
+                            except json.JSONDecodeError:
+                                target_languages = [lang.strip() for lang in target_languages.split(",")]
+
+                        logger.info(f"[{request_id}] Requesting translations for languages: {target_languages}")
+
+                        translations = {}
+                        source_language = result["language"]
+
+                        # Process translations concurrently
+                        translation_tasks = []
+                        for target_lang in target_languages:
+                            if target_lang != source_language:  # Skip same language
+                                task = asyncio.create_task(
+                                    self._translate_single_file(
+                                        session_id,
+                                        transcript_result,
+                                        target_lang,
+                                        request_id,
+                                        config
+                                    )
+                                )
+                                translation_tasks.append((target_lang, task))
+
+                        # Wait for all translations
+                        for target_lang, task in translation_tasks:
+                            try:
+                                translation_result = await task
+                                if translation_result and translation_result.get("translated_text"):
+                                    translations[target_lang] = {
+                                        "text": translation_result["translated_text"],
+                                        "confidence": translation_result.get("confidence", 0.0),
+                                        "service": translation_result.get("service", "unknown")
+                                    }
+                                    logger.info(
+                                        f"[{request_id}] Translation complete ({target_lang}): "
+                                        f"{len(translation_result['translated_text'])} chars"
+                                    )
+                            except Exception as trans_error:
+                                logger.error(f"[{request_id}] Translation failed for {target_lang}: {trans_error}")
+                                translations[target_lang] = {
+                                    "error": str(trans_error)
+                                }
+
+                        result["translations"] = translations
+                        logger.info(f"[{request_id}] Completed {len(translations)} translations")
+                else:
+                    logger.warning(f"[{request_id}] Whisper service returned no transcription")
+                    result["status"] = "error"
+                    result["error"] = "Transcription service returned empty result"
+            else:
+                logger.info(f"[{request_id}] Transcription disabled by configuration")
+
+            # Calculate total processing time
+            result["processing_time"] = time.time() - start_time
+
+            logger.info(
+                f"[{request_id}] Audio file processing complete in {result['processing_time']:.2f}s: "
+                f"status={result['status']}"
+            )
+
+            return result
+
         except Exception as e:
-            logger.error(f"[{request_id}] Failed to process audio file through orchestration: {e}")
-            # Return original file path as fallback
-            return audio_file_path
+            logger.error(f"[{request_id}] Failed to process audio file through orchestration: {e}", exc_info=True)
+            return {
+                "status": "error",
+                "error": str(e),
+                "file_path": audio_file_path,
+                "processing_time": 0.0
+            }
+
+    async def _translate_single_file(
+        self,
+        session_id: str,
+        transcript_result: Dict[str, Any],
+        target_language: str,
+        request_id: str,
+        config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Translate a single file's transcription to target language."""
+        try:
+            translation_result = await self.service_client.send_to_translation_service(
+                session_id, transcript_result, target_language
+            )
+
+            if translation_result and translation_result.get("translated_text"):
+                # Store translation in database if available
+                if self.database_adapter and config.get("session_id") and transcript_result.get("transcript_id"):
+                    try:
+                        translation_id = await self.database_adapter.store_translation(
+                            config.get("session_id"),
+                            transcript_result.get("transcript_id"),
+                            {
+                                "translated_text": translation_result["translated_text"],
+                                "source_language": transcript_result.get("language", "auto"),
+                                "target_language": target_language,
+                                "confidence": translation_result.get("confidence", 0.0),
+                                "translation_service": translation_result.get("service", "unknown"),
+                                "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                                "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
+                                "start_timestamp": 0.0,
+                                "end_timestamp": config.get("duration", 0.0),
+                                "metadata": translation_result.get("metadata", {}),
+                            }
+                        )
+                        translation_result["translation_id"] = translation_id
+                        logger.info(f"[{request_id}] Stored translation in database: {translation_id}")
+                    except Exception as db_error:
+                        logger.warning(f"[{request_id}] Failed to store translation in database: {db_error}")
+
+                return translation_result
+
+            return None
+
+        except Exception as e:
+            logger.error(f"[{request_id}] Translation failed for {target_language}: {e}")
+            return None
 
 
 # Factory function for creating audio coordinator
@@ -1130,13 +1919,23 @@ def create_audio_coordinator(
     service_urls: Dict[str, str],
     config: Optional[AudioChunkingConfig] = None,
     max_concurrent_sessions: int = 10,
-    audio_config_file: Optional[str] = None
+    audio_config_file: Optional[str] = None,
+    audio_client: Optional[AudioServiceClient] = None,
+    translation_client: Optional[TranslationServiceClient] = None,
 ) -> AudioCoordinator:
     """Create and return an AudioCoordinator instance."""
     if not config:
         config = get_default_chunking_config()
     
-    return AudioCoordinator(config, database_url, service_urls, max_concurrent_sessions, audio_config_file)
+    return AudioCoordinator(
+        config,
+        database_url,
+        service_urls,
+        max_concurrent_sessions,
+        audio_config_file,
+        audio_client=audio_client,
+        translation_client=translation_client,
+    )
 
 
 # Example usage and testing

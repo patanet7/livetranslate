@@ -10,6 +10,7 @@ import os
 import logging
 import asyncio
 import json
+import time
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -18,7 +19,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
 from fastapi.security import HTTPBearer
 from fastapi.openapi.utils import get_openapi
 
@@ -198,9 +199,9 @@ async def lifespan(app: FastAPI):
         settings = get_settings()
 
         # Initialize dependencies
-        from dependencies import initialize_dependencies
+        from dependencies import startup_dependencies
 
-        await initialize_dependencies()
+        await startup_dependencies()
 
         logger.info("[OK] All managers started successfully")
 
@@ -215,9 +216,9 @@ async def lifespan(app: FastAPI):
         logger.info("[STOP] Shutting down FastAPI Orchestration Service...")
 
         # Cleanup dependencies
-        from dependencies import cleanup_dependencies
+        from dependencies import shutdown_dependencies
 
-        await cleanup_dependencies()
+        await shutdown_dependencies()
 
         logger.info("[OK] Shutdown completed")
 
@@ -862,29 +863,90 @@ async def health_check(
     """Comprehensive health check endpoint"""
     try:
         # Get overall health status
-        overall_health = health_monitor.get_overall_health()
+        system_health = await health_monitor.get_system_health()
 
         # Check database health
         db_health = await database_manager.health_check()
 
         return {
-            "status": overall_health["status"],
+            "status": system_health["status"],
             "version": "2.0.0",
             "services": {
                 "orchestration": "healthy",
                 "database": "healthy" if db_health else "unhealthy",
                 "websocket": "healthy",
-                **overall_health["services"],
+                **system_health.get("services", {}),
             },
-            "uptime": overall_health.get("uptime_percentage", 0.0),
-            "healthy_services": overall_health["healthy_services"],
-            "total_services": overall_health["total_services"],
+            "uptime": system_health.get("uptime", 0.0),
+            "timestamp": system_health.get("timestamp"),
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Health check failed",
+        )
+
+
+@app.get("/api/health/{service_name}")
+async def get_service_health(
+    service_name: str,
+    health_monitor=Depends(get_health_monitor),
+) -> Dict[str, Any]:
+    """Get health status for a specific service
+
+    Args:
+        service_name: Name of the service (whisper, translation, orchestration)
+
+    Returns:
+        Service health information including status, response time, and errors
+
+    Raises:
+        HTTPException: 404 if service not found
+    """
+    try:
+        # Map frontend service names to backend service names
+        service_map = {
+            "whisper": "whisper",
+            "audio": "whisper",
+            "audio-service": "whisper",
+            "translation": "translation",
+            "translation-service": "translation",
+            "orchestration": "orchestration",
+            "orchestration-service": "orchestration",
+        }
+
+        # Normalize service name (lowercase)
+        normalized_name = service_name.lower()
+        mapped_service = service_map.get(normalized_name, normalized_name)
+
+        # Get service health
+        service_health = await health_monitor.get_service_status(mapped_service)
+
+        if not service_health:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Service '{service_name}' not found. Available services: {', '.join(service_map.keys())}"
+            )
+
+        return {
+            "service": service_name,
+            "status": service_health["status"],
+            "url": service_health["url"],
+            "last_check": service_health["last_check"],
+            "response_time": service_health["response_time"],
+            "error_count": service_health["error_count"],
+            "last_error": service_health.get("last_error"),
+            "timestamp": time.time(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Service health check failed for '{service_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check health for service '{service_name}': {str(e)}"
         )
 
 

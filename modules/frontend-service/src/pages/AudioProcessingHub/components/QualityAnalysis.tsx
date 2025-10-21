@@ -55,6 +55,11 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsToolti
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 import { useAppDispatch } from '@/store';
 import { addNotification } from '@/store/slices/uiSlice';
+import {
+  useGetFFTAnalysisMutation,
+  useGetLUFSAnalysisMutation,
+  useGetAudioQualityAnalysisMutation,
+} from '@/store/slices/apiSlice';
 
 interface AudioQualityMetrics {
   snr: number;
@@ -95,6 +100,11 @@ const QualityAnalysis: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  // Backend API hooks
+  const [getFFTAnalysis] = useGetFFTAnalysisMutation();
+  const [getLUFSAnalysis] = useGetLUFSAnalysisMutation();
+  const [getQualityAnalysis] = useGetAudioQualityAnalysisMutation();
+
   // State
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -119,52 +129,60 @@ const QualityAnalysis: React.FC = () => {
     timeRange: [0, 100],
   });
 
-  // Generate mock analysis data
-  const generateMockAnalysis = useCallback(() => {
-    // Mock frequency response data
-    const frequencies: FrequencyData[] = [];
-    for (let i = 0; i < 512; i++) {
-      const freq = (i / 512) * (settings.frequencyRange[1] - settings.frequencyRange[0]) + settings.frequencyRange[0];
-      const magnitude = -60 + Math.random() * 60 - (Math.log10(freq / 1000) * 20); // Rough frequency response curve
-      frequencies.push({
-        frequency: freq,
-        magnitude: Math.max(-80, magnitude),
-        phase: Math.random() * 360 - 180,
-      });
+  // Perform real audio analysis using backend APIs
+  const performRealAnalysis = useCallback(async (audioBlob: Blob) => {
+    try {
+      // Run all analyses in parallel
+      const [fftResult, lufsResult, qualityResult] = await Promise.all([
+        getFFTAnalysis(audioBlob).unwrap(),
+        getLUFSAnalysis(audioBlob).unwrap(),
+        getQualityAnalysis(audioBlob).unwrap(),
+      ]);
+
+      // Process FFT data for frequency visualization
+      if (fftResult?.frequencies) {
+        const frequencies: FrequencyData[] = fftResult.frequencies.map((freq: any) => ({
+          frequency: freq.frequency || 0,
+          magnitude: freq.magnitude || -80,
+          phase: freq.phase || 0,
+        }));
+        setFrequencyData(frequencies);
+      }
+
+      // Process LUFS data
+      if (lufsResult?.lufs_data) {
+        const metrics: AudioQualityMetrics = {
+          snr: qualityResult?.quality_metrics?.snr || 0,
+          thd: qualityResult?.quality_metrics?.thd || 0,
+          dynamicRange: qualityResult?.quality_metrics?.dynamic_range || 0,
+          peakLevel: lufsResult?.lufs_data?.peak_level || -3,
+          rmsLevel: qualityResult?.quality_metrics?.rms_level || -18,
+          lufsIntegrated: lufsResult?.lufs_data?.integrated || -23,
+          lufsShortTerm: lufsResult?.lufs_data?.short_term || -20,
+          lufsRange: lufsResult?.lufs_data?.range || 10,
+          qualityScore: qualityResult?.quality_score || 75,
+          recommendations: qualityResult?.recommendations || [
+            'Audio quality analysis complete',
+          ],
+        };
+
+        setQualityMetrics(metrics);
+      }
+
+      // Generate waveform from audio data if available
+      if (qualityResult?.waveform_data) {
+        const waveform: WaveformData[] = qualityResult.waveform_data.map((point: any) => ({
+          time: point.time || 0,
+          amplitude: point.amplitude || 0,
+        }));
+        setWaveformData(waveform);
+      }
+
+    } catch (error) {
+      console.error('Real analysis failed:', error);
+      throw error;
     }
-
-    // Mock waveform data
-    const waveform: WaveformData[] = [];
-    const samples = 1000;
-    for (let i = 0; i < samples; i++) {
-      const time = (i / samples) * duration;
-      const amplitude = Math.sin(2 * Math.PI * 440 * time / duration) * Math.exp(-time / (duration * 0.3)) + 
-                       Math.random() * 0.1 - 0.05; // Decay + noise
-      waveform.push({ time, amplitude });
-    }
-
-    // Mock quality metrics
-    const metrics: AudioQualityMetrics = {
-      snr: 45 + Math.random() * 20,
-      thd: Math.random() * 2,
-      dynamicRange: 15 + Math.random() * 20,
-      peakLevel: -3 - Math.random() * 6,
-      rmsLevel: -18 - Math.random() * 12,
-      lufsIntegrated: -23 + Math.random() * 6,
-      lufsShortTerm: -20 + Math.random() * 8,
-      lufsRange: 8 + Math.random() * 15,
-      qualityScore: 70 + Math.random() * 25,
-      recommendations: [
-        'Consider reducing background noise',
-        'Audio levels are well balanced',
-        'Good dynamic range preservation',
-      ],
-    };
-
-    setFrequencyData(frequencies);
-    setWaveformData(waveform);
-    setQualityMetrics(metrics);
-  }, [duration, settings.frequencyRange]);
+  }, [getFFTAnalysis, getLUFSAnalysis, getQualityAnalysis]);
 
   // File handling
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,21 +246,24 @@ const QualityAnalysis: React.FC = () => {
 
     setIsAnalyzing(true);
     try {
-      // Simulate analysis delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      generateMockAnalysis();
-      
+      // Convert audio file to Blob
+      const audioBlob = audioFile instanceof Blob ? audioFile : await fetch(audioUrl!).then(r => r.blob());
+
+      // Perform real backend analysis
+      await performRealAnalysis(audioBlob);
+
       dispatch(addNotification({
         type: 'success',
         title: 'Analysis Complete',
         message: 'Audio quality analysis finished successfully',
         autoHide: true,
       }));
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Analysis failed:', error);
       dispatch(addNotification({
         type: 'error',
         title: 'Analysis Failed',
-        message: 'Failed to analyze audio quality',
+        message: error?.message || 'Failed to analyze audio quality',
         autoHide: true,
       }));
     } finally {

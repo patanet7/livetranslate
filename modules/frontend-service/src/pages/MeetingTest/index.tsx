@@ -115,7 +115,7 @@ const MeetingTest: React.FC = () => {
   
   // Audio streaming
   const [chunkDuration, setChunkDuration] = useState(3); // 3 seconds default
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', 'zh']); // Default to English and Chinese
   const [selectedDevice, setSelectedDevice] = useState<string>('');
   
   // Processing configuration
@@ -124,11 +124,11 @@ const MeetingTest: React.FC = () => {
     enableTranslation: true,
     enableDiarization: true,
     enableVAD: true,
-    whisperModel: 'whisper-base',
+    whisperModel: 'whisper-tiny', // Default to whisper-tiny, will be updated when models load
     translationQuality: 'balanced',
-    audioProcessing: true,
+    audioProcessing: false, // Disable to test raw audio first
     noiseReduction: false,
-    speechEnhancement: true,
+    speechEnhancement: false,
   });
   
   // Results
@@ -181,6 +181,22 @@ const MeetingTest: React.FC = () => {
 
     initializeDevices();
   }, [dispatch, selectedDevice]);
+
+  // Update whisper model when available models are loaded
+  useEffect(() => {
+    if (!modelsLoading && availableModels.length > 0) {
+      const firstAvailableModel = availableModels[0].name;
+      // Only update if current model is not in available models
+      const isCurrentModelAvailable = availableModels.some(m => m.name === processingConfig.whisperModel);
+      if (!isCurrentModelAvailable) {
+        setProcessingConfig(prev => ({
+          ...prev,
+          whisperModel: firstAvailableModel
+        }));
+        console.log(`Auto-selected whisper model: ${firstAvailableModel}`);
+      }
+    }
+  }, [modelsLoading, availableModels, processingConfig.whisperModel]);
 
   // Initialize audio visualization
   useEffect(() => {
@@ -693,9 +709,9 @@ const MeetingTest: React.FC = () => {
                             disabled={modelsLoading}
                           >
                             {modelsLoading ? (
-                              <MenuItem value="whisper-base">Loading models...</MenuItem>
+                              <MenuItem value="whisper-tiny">Loading models...</MenuItem>
                             ) : modelsError ? (
-                              <MenuItem value="whisper-base">Error loading models</MenuItem>
+                              <MenuItem value="whisper-tiny">Error loading models</MenuItem>
                             ) : availableModels.length > 0 ? (
                               availableModels.map((model) => (
                                 <MenuItem key={model.name} value={model.name}>
@@ -703,7 +719,7 @@ const MeetingTest: React.FC = () => {
                                 </MenuItem>
                               ))
                             ) : (
-                              <MenuItem value="whisper-base">No models available</MenuItem>
+                              <MenuItem value="whisper-tiny">No models available</MenuItem>
                             )}
                           </Select>
                         </FormControl>
@@ -958,6 +974,7 @@ const MeetingTest: React.FC = () => {
                           <ListItem key={result.id} sx={{ px: 0 }}>
                             <ListItemText
                               primary={result.text}
+                              secondaryTypographyProps={{ component: 'div' }}
                               secondary={
                                 <Box>
                                   <Typography variant="caption">
@@ -1009,6 +1026,8 @@ const MeetingTest: React.FC = () => {
                         {translationResults.slice(-15).reverse().map((result) => (
                           <ListItem key={result.id} sx={{ px: 0 }}>
                             <ListItemText
+                              primaryTypographyProps={{ component: 'div' }}
+                              secondaryTypographyProps={{ component: 'div' }}
                               primary={
                                 <Box>
                                   <Chip 

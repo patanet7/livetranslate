@@ -10,7 +10,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirements.txt .
+ARG REQUIREMENTS_FILE=requirements-cpu.txt
+COPY ${REQUIREMENTS_FILE} requirements.txt
 
 # Install Python dependencies
 RUN pip install -r requirements.txt

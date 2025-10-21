@@ -1,0 +1,21 @@
+name: livetranslate-seamless
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  # Core runtime
+  - fastapi=0.104.*
+  - uvicorn=0.24.*
+  - numpy=1.24.*
+  # ML stack
+  - pytorch>=2.1
+  - sentencepiece>=0.1.99
+  - protobuf>=3.20.3
+  # Prefer conda packages where available; fall back to pip for latest
+  - pip:
+      - transformers>=4.39.0
+      - accelerate>=0.25.0
+

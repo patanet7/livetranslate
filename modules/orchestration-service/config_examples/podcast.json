@@ -1,0 +1,101 @@
+{
+  "description": "Podcast/Voice clarity - Professional voice processing with LUFS normalization",
+  "enabled_stages": [
+    "vad",
+    "voice_filter",
+    "noise_reduction",
+    "voice_enhancement",
+    "equalizer",
+    "lufs_normalization",
+    "compression",
+    "limiter"
+  ],
+  "sample_rate": 16000,
+  "quality": "high",
+  "vad": {
+    "enabled": true,
+    "mode": "webrtc",
+    "aggressiveness": 2,
+    "energy_threshold": 0.01
+  },
+  "voice_filter": {
+    "enabled": true,
+    "fundamental_min": 85,
+    "fundamental_max": 300,
+    "voice_band_gain": 1.15,
+    "high_freq_rolloff": 8000
+  },
+  "noise_reduction": {
+    "enabled": true,
+    "mode": "moderate",
+    "strength": 0.6,
+    "voice_protection": true,
+    "stationary_noise_reduction": 0.7,
+    "non_stationary_noise_reduction": 0.4
+  },
+  "voice_enhancement": {
+    "enabled": true,
+    "clarity_enhancement": 0.4,
+    "presence_boost": 0.3,
+    "warmth_adjustment": 0.1,
+    "brightness_adjustment": 0.05,
+    "sibilance_control": 0.2
+  },
+  "equalizer": {
+    "enabled": true,
+    "bands": [
+      {
+        "enabled": true,
+        "frequency": 80,
+        "gain": -6.0,
+        "bandwidth": 1.0,
+        "filter_type": "high_pass"
+      },
+      {
+        "enabled": true,
+        "frequency": 250,
+        "gain": 2.0,
+        "bandwidth": 1.0,
+        "filter_type": "peaking"
+      },
+      {
+        "enabled": true,
+        "frequency": 3500,
+        "gain": 4.0,
+        "bandwidth": 1.5,
+        "filter_type": "peaking"
+      },
+      {
+        "enabled": true,
+        "frequency": 8000,
+        "gain": 2.0,
+        "bandwidth": 1.0,
+        "filter_type": "high_shelf"
+      }
+    ]
+  },
+  "lufs_normalization": {
+    "enabled": true,
+    "mode": "podcast",
+    "target_lufs": -18.0,
+    "max_peak_db": -1.0,
+    "true_peak_limiting": true,
+    "adjustment_speed": 0.5
+  },
+  "compression": {
+    "enabled": true,
+    "mode": "soft_knee",
+    "threshold": -18,
+    "ratio": 3.0,
+    "knee": 3.0,
+    "attack_time": 10.0,
+    "release_time": 150.0,
+    "makeup_gain": 2.0
+  },
+  "limiter": {
+    "enabled": true,
+    "threshold": -1.0,
+    "release_time": 50.0,
+    "soft_clip": true
+  }
+}

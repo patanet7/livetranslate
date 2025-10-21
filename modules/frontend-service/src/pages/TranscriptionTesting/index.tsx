@@ -119,7 +119,7 @@ const TranscriptionTesting: React.FC = () => {
   });
   
   const [transcriptionSettings, setTranscriptionSettings] = useState<TranscriptionSettings>({
-    whisperModel: 'whisper-base',
+    whisperModel: 'whisper-tiny', // Default to whisper-tiny
     enableDiarization: true,
     enableVAD: true,
     language: 'auto',
@@ -140,6 +140,8 @@ const TranscriptionTesting: React.FC = () => {
   
   // Available Models (this would come from API in real implementation)
   const availableModels = [
+    'whisper-tiny',
+    'whisper-tiny.en',
     'whisper-base',
     'whisper-base.en',
     'whisper-small',
@@ -147,8 +149,6 @@ const TranscriptionTesting: React.FC = () => {
     'whisper-medium',
     'whisper-medium.en',
     'whisper-large-v3',
-    'whisper-tiny',
-    'whisper-tiny.en',
   ];
   
   const supportedLanguages = [

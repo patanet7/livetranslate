@@ -36,6 +36,10 @@ import {
   FileUpload,
   AutoFixHigh,
   Speaker,
+  Mic,
+  VolumeOff,
+  VolumeDown,
+  Equalizer,
 } from '@mui/icons-material';
 import { ReactFlowProvider } from 'reactflow';
 
@@ -62,16 +66,20 @@ interface PipelineStudioState {
 
 const PipelineStudio: React.FC = () => {
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
-  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(true); // Open by default to show processor
   const [activeLeftTab, setActiveLeftTab] = useState<'components' | 'presets'>('components');
-  const [activeRightTab, setActiveRightTab] = useState<'validation' | 'processor' | 'settings'>('validation');
-  
+  const [activeRightTab, setActiveRightTab] = useState<'validation' | 'processor' | 'settings'>('processor'); // Show processor by default
+
   const [pipelineState, setPipelineState] = useState<PipelineStudioState>({
     currentPipeline: null,
     isProcessing: false,
     validationResult: null,
     selectedPreset: null,
   });
+
+  // WebSocket state from RealTimeProcessor
+  const [pipelineWebSocket, setPipelineWebSocket] = useState<WebSocket | null>(null);
+  const [isRealtimeActive, setIsRealtimeActive] = useState(false);
 
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -126,22 +134,40 @@ const PipelineStudio: React.FC = () => {
 
   // Preset handlers
   const handleLoadPreset = useCallback((preset: PipelinePreset) => {
-    // Create some sample nodes for the preset
+    // Get actual component configurations from library
+    const getComponentConfig = (componentName: string) => {
+      return AUDIO_COMPONENT_LIBRARY.find(c =>
+        c.label.toLowerCase() === componentName.toLowerCase() ||
+        c.name === componentName
+      );
+    };
+
+    // Create nodes with actual configurations for "Voice Clarity Pro" preset
     const sampleNodes = [
       {
         id: 'input_1',
         type: 'audioStage',
-        position: { x: 100, y: 100 },
+        position: { x: 100, y: 150 },
         data: {
-          label: 'File Input',
-          description: 'Upload and process audio files',
+          label: 'Microphone Input',
+          description: 'Real-time audio recording from microphone',
           stageType: 'input',
-          icon: FileUpload,
+          icon: Mic,
           enabled: true,
           gainIn: 0,
           gainOut: 0,
-          stageConfig: {},
-          parameters: [],
+          stageConfig: {
+            sampleRate: 16000,
+            channels: 1,
+            bitDepth: 16,
+            echoCancellation: true,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+          parameters: [
+            { name: 'sampleRate', value: 16000, min: 8000, max: 48000, step: 8000, unit: 'Hz', description: 'Audio sampling frequency' },
+            { name: 'echoCancellation', value: true, min: 0, max: 1, step: 1, unit: '', description: 'Enable browser echo cancellation' },
+          ],
           isProcessing: false,
           status: 'idle',
         },
@@ -149,7 +175,60 @@ const PipelineStudio: React.FC = () => {
       {
         id: 'process_1',
         type: 'audioStage',
-        position: { x: 400, y: 100 },
+        position: { x: 350, y: 80 },
+        data: {
+          label: 'Voice Activity Detection',
+          description: 'Detect voice vs silence with configurable sensitivity',
+          stageType: 'processing',
+          icon: VolumeOff,
+          enabled: true,
+          gainIn: 0,
+          gainOut: 0,
+          stageConfig: {
+            aggressiveness: 2,
+            energyThreshold: 0.01,
+            voiceFreqMin: 85,
+            voiceFreqMax: 300,
+          },
+          parameters: [
+            { name: 'aggressiveness', value: 2, min: 0, max: 3, step: 1, unit: '', description: 'VAD sensitivity level' },
+            { name: 'energyThreshold', value: 0.01, min: 0.001, max: 0.1, step: 0.001, unit: '', description: 'Minimum energy level' },
+          ],
+          isProcessing: false,
+          status: 'idle',
+        },
+      },
+      {
+        id: 'process_2',
+        type: 'audioStage',
+        position: { x: 600, y: 80 },
+        data: {
+          label: 'Noise Reduction',
+          description: 'Advanced noise suppression with voice preservation',
+          stageType: 'processing',
+          icon: VolumeDown,
+          enabled: true,
+          gainIn: 0,
+          gainOut: 0,
+          stageConfig: {
+            strength: 0.7,
+            voiceProtection: true,
+            adaptationRate: 0.1,
+            noiseFloorDb: -45,
+          },
+          parameters: [
+            { name: 'strength', value: 0.7, min: 0.0, max: 1.0, step: 0.1, unit: '', description: 'Intensity of noise reduction' },
+            { name: 'voiceProtection', value: true, min: 0, max: 1, step: 1, unit: '', description: 'Preserve voice quality' },
+            { name: 'adaptationRate', value: 0.1, min: 0.01, max: 1.0, step: 0.01, unit: '', description: 'Speed of adaptation' },
+          ],
+          isProcessing: false,
+          status: 'idle',
+        },
+      },
+      {
+        id: 'process_3',
+        type: 'audioStage',
+        position: { x: 350, y: 220 },
         data: {
           label: 'Voice Enhancement',
           description: 'Professional voice clarity enhancement',
@@ -158,8 +237,43 @@ const PipelineStudio: React.FC = () => {
           enabled: true,
           gainIn: 0,
           gainOut: 0,
-          stageConfig: {},
-          parameters: [],
+          stageConfig: {
+            clarityEnhancement: 0.6,
+            presenceBoost: 0.5,
+            warmth: 0.3,
+            deEsserIntensity: 0.4,
+          },
+          parameters: [
+            { name: 'clarityEnhancement', value: 0.6, min: 0.0, max: 1.0, step: 0.1, unit: '', description: 'Voice clarity boost' },
+            { name: 'presenceBoost', value: 0.5, min: 0.0, max: 1.0, step: 0.1, unit: '', description: 'Presence enhancement' },
+            { name: 'warmth', value: 0.3, min: 0.0, max: 1.0, step: 0.1, unit: '', description: 'Low-mid warmth' },
+          ],
+          isProcessing: false,
+          status: 'idle',
+        },
+      },
+      {
+        id: 'process_4',
+        type: 'audioStage',
+        position: { x: 600, y: 220 },
+        data: {
+          label: 'LUFS Normalization',
+          description: 'Broadcast-standard loudness normalization',
+          stageType: 'processing',
+          icon: Equalizer,
+          enabled: true,
+          gainIn: 0,
+          gainOut: 0,
+          stageConfig: {
+            targetLUFS: -23.0,
+            tolerance: 1.0,
+            truePeakLimit: -1.0,
+            measurementWindow: 400,
+          },
+          parameters: [
+            { name: 'targetLUFS', value: -23.0, min: -30.0, max: -10.0, step: 0.5, unit: 'LUFS', description: 'Target loudness level' },
+            { name: 'tolerance', value: 1.0, min: 0.1, max: 3.0, step: 0.1, unit: 'LU', description: 'Loudness tolerance' },
+          ],
           isProcessing: false,
           status: 'idle',
         },
@@ -167,7 +281,7 @@ const PipelineStudio: React.FC = () => {
       {
         id: 'output_1',
         type: 'audioStage',
-        position: { x: 700, y: 100 },
+        position: { x: 850, y: 150 },
         data: {
           label: 'Speaker Output',
           description: 'Real-time audio playback',
@@ -176,8 +290,14 @@ const PipelineStudio: React.FC = () => {
           enabled: true,
           gainIn: 0,
           gainOut: 0,
-          stageConfig: {},
-          parameters: [],
+          stageConfig: {
+            deviceId: 'default',
+            volume: 0.8,
+            latencyHint: 'interactive',
+          },
+          parameters: [
+            { name: 'volume', value: 0.8, min: 0.0, max: 1.0, step: 0.05, unit: '', description: 'Output volume level' },
+          ],
           isProcessing: false,
           status: 'idle',
         },
@@ -558,6 +678,8 @@ const PipelineStudio: React.FC = () => {
               showMinimap={true}
               showGrid={true}
               height="100%"
+              websocket={pipelineWebSocket}
+              isRealtimeActive={isRealtimeActive}
             />
           </ReactFlowProvider>
         )}
@@ -630,6 +752,10 @@ const PipelineStudio: React.FC = () => {
                 onProcessedAudio={(audio) => {
                   // Handle processed audio output
                   console.log('Processed audio received');
+                }}
+                onWebSocketChange={(websocket, isActive) => {
+                  setPipelineWebSocket(websocket);
+                  setIsRealtimeActive(isActive);
                 }}
               />
             )}

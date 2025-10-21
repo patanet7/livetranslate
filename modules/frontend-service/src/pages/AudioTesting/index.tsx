@@ -19,12 +19,13 @@ import {
   Stack,
 } from '@mui/material';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { 
-  setAudioDevices, 
+import {
+  setAudioDevices,
   setVisualizationData,
   addProcessingLog,
   setAudioQualityMetrics
 } from '@/store/slices/audioSlice';
+import { DEFAULT_TARGET_LANGUAGES } from '@/config/translation';
 import { 
   calculateMeetingAudioLevel, 
   getMeetingAudioQuality, 
@@ -70,7 +71,7 @@ const AudioTesting: React.FC = () => {
   const dispatch = useAppDispatch();
   const { recording, visualization, stages, config } = useAppSelector(state => state.audio);
   const [tabValue, setTabValue] = useState(0);
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
   const [translationResults, setTranslationResults] = useState<any>(null);
   const [transcriptionResult, setTranscriptionResult] = useState<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);

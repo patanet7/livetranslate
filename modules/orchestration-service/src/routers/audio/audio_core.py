@@ -226,6 +226,16 @@ async def upload_audio_file(
     audio: UploadFile = File(..., alias="audio"),
     config: Optional[str] = Form(None),
     session_id: Optional[str] = Form(None),
+    chunk_id: Optional[str] = Form(None),
+    target_languages: Optional[str] = Form(None),
+    enable_transcription: Optional[str] = Form("true"),
+    enable_translation: Optional[str] = Form("false"),
+    enable_diarization: Optional[str] = Form("true"),
+    whisper_model: Optional[str] = Form("whisper-tiny"),
+    translation_quality: Optional[str] = Form("balanced"),
+    audio_processing: Optional[str] = Form("true"),
+    noise_reduction: Optional[str] = Form("false"),
+    speech_enhancement: Optional[str] = Form("true"),
     audio_coordinator=Depends(get_audio_coordinator),
     config_sync_manager=Depends(get_config_sync_manager),
     audio_client=Depends(get_audio_service_client),
@@ -233,13 +243,20 @@ async def upload_audio_file(
 ) -> Dict[str, Any]:
     """
     Upload audio file for processing with enhanced error handling and validation
-    
+
     - **audio**: Audio file to upload (WAV, MP3, OGG, WebM, MP4, FLAC)
-    - **config**: Optional JSON configuration for processing
-    - **session_id**: Optional session identifier for tracking
+    - **config**: Optional JSON configuration for processing (legacy support)
+    - **session_id**: Session identifier for tracking
+    - **chunk_id**: Chunk identifier for streaming uploads
+    - **target_languages**: JSON array of target languages for translation (e.g., ["es", "fr"])
+    - **enable_transcription**: Enable transcription (default: true)
+    - **enable_translation**: Enable translation (default: false)
+    - **enable_diarization**: Enable speaker diarization (default: true)
+    - **whisper_model**: Whisper model to use (default: whisper-tiny)
+    - **translation_quality**: Translation quality setting (default: balanced)
     """
     correlation_id = f"upload_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
-    
+
     async with error_boundary(
         correlation_id=correlation_id,
         context={
@@ -252,22 +269,60 @@ async def upload_audio_file(
     ) as upload_correlation_id:
         try:
             logger.info(f"[{upload_correlation_id}] Processing file upload: {audio.filename}")
-            
+
             # Enhanced file validation
             await _validate_upload_file(audio, upload_correlation_id)
-            
-            # Create processing request from uploaded file
-            processing_request = AudioProcessingRequest(
-                file_upload=audio.filename,
-                config=config,
-                session_id=session_id,
-                streaming=False  # File uploads are batch processed
+
+            # Build configuration from form parameters
+            # Convert string booleans to actual booleans
+            enable_trans = enable_transcription.lower() in ("true", "1", "yes") if enable_transcription else True
+            enable_transl = enable_translation.lower() in ("true", "1", "yes") if enable_translation else False
+            enable_diar = enable_diarization.lower() in ("true", "1", "yes") if enable_diarization else True
+            enable_audio_proc = audio_processing.lower() in ("true", "1", "yes") if audio_processing else True
+            enable_noise_red = noise_reduction.lower() in ("true", "1", "yes") if noise_reduction else False
+            enable_speech_enh = speech_enhancement.lower() in ("true", "1", "yes") if speech_enhancement else True
+
+            request_config = {
+                "session_id": session_id,
+                "chunk_id": chunk_id,
+                "enable_transcription": enable_trans,
+                "enable_translation": enable_transl,
+                "enable_diarization": enable_diar,
+                "whisper_model": whisper_model,
+                "translation_quality": translation_quality,
+                "audio_processing": enable_audio_proc,
+                "noise_reduction": enable_noise_red,
+                "speech_enhancement": enable_speech_enh,
+            }
+
+            # Add target languages if provided
+            if target_languages:
+                request_config["target_languages"] = target_languages
+
+            # Legacy config parameter takes precedence if provided
+            if config:
+                try:
+                    import json
+                    legacy_config = json.loads(config)
+                    request_config.update(legacy_config)
+                except json.JSONDecodeError as e:
+                    logger.warning(f"[{upload_correlation_id}] Failed to parse legacy config JSON: {e}")
+
+            logger.info(
+                f"[{upload_correlation_id}] Processing configuration: "
+                f"transcription={enable_trans}, translation={enable_transl}, "
+                f"diarization={enable_diar}, model={whisper_model}, "
+                f"audio_processing={enable_audio_proc}"
             )
-            
+
+            # Create processing request from uploaded file
+            # Don't create AudioProcessingRequest - it's not needed
+            # Just process directly with the coordinator
+
             # Process the uploaded file
             import tempfile
             import os
-            
+
             with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{audio.filename}") as temp_file:
                 # Read and save uploaded file
                 content = await audio.read()
@@ -281,42 +336,44 @@ async def upload_audio_file(
                 payload={
                     "upload_id": upload_correlation_id,
                     "session_id": session_id,
+                    "chunk_id": chunk_id,
                     "filename": audio.filename,
                     "content_type": audio.content_type,
                     "file_size": len(content),
-                    "config_provided": bool(config),
+                    "config": request_config,
                 },
                 metadata={"endpoint": "/upload"},
             )
-            
+
             try:
-                # Process uploaded file safely
+                # Process uploaded file safely with complete configuration
                 result = await _process_uploaded_file_safe(
-                    processing_request,
+                    None,  # processing_request no longer needed
                     upload_correlation_id,
                     temp_file_path,
                     audio_client,
-                    {"config": config, "session_id": session_id},
+                    request_config,
                     audio_coordinator,
                     config_sync_manager
                 )
-                
+
                 return {
                     "upload_id": upload_correlation_id,
+                    "chunk_id": chunk_id,
                     "filename": audio.filename,
                     "status": "uploaded_and_processed",
                     "file_size": len(content),
                     "processing_result": result,
                     "timestamp": datetime.utcnow().isoformat()
                 }
-                
+
             finally:
                 # Clean up temporary file
                 try:
                     os.unlink(temp_file_path)
                 except Exception as e:
                     logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
-                    
+
         except AudioProcessingBaseError:
             # Re-raise our custom errors
             raise
@@ -431,16 +488,35 @@ async def _process_uploaded_file(
     audio_coordinator,
     config_sync_manager
 ) -> Dict[str, Any]:
-    """Core uploaded file processing logic"""
-    # Placeholder for file processing implementation
-    # This would contain the actual file processing logic
-    return {
-        "status": "processed",
-        "transcription": "File processing placeholder",
-        "processing_time": 0.3,
-        "confidence": 0.94,
-        "file_path": temp_file_path
-    }
+    """
+    Core uploaded file processing logic - processes audio through the full orchestration pipeline.
+
+    This now uses the complete AudioCoordinator streaming infrastructure for real transcription
+    and translation, replacing the previous placeholder implementation.
+    """
+    try:
+        logger.info(f"[{correlation_id}] Processing uploaded file through AudioCoordinator")
+
+        # Use audio coordinator for complete processing
+        result = await audio_coordinator.process_audio_file(
+            session_id=request_data.get("session_id", "unknown"),
+            audio_file_path=temp_file_path,
+            config=request_data,
+            request_id=correlation_id
+        )
+
+        logger.info(f"[{correlation_id}] Audio coordinator processing complete: status={result.get('status')}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"[{correlation_id}] Failed to process uploaded file: {e}", exc_info=True)
+        return {
+            "status": "error",
+            "error": str(e),
+            "file_path": temp_file_path,
+            "processing_time": 0.0
+        }
 
 
 @router.get("/health")
@@ -477,28 +553,105 @@ async def health_check(
         }
 
 
-@router.get("/models")
-async def get_available_models(
+@router.get("/models/transcription")
+async def get_transcription_models(
     audio_client=Depends(get_audio_service_client)
 ) -> Dict[str, Any]:
     """
-    Get available audio processing models
+    Get available Whisper transcription models
     """
     try:
-        # Get models from audio service
-        models = await audio_client.get_available_models()
-        
+        # Get Whisper models from audio service
+        models = await audio_client.get_models()
+
+        # Get device info from audio service
+        audio_device_info = await audio_client.get_device_info()
+
         return {
-            "models": models,
-            "default_model": "whisper-base",
-            "timestamp": datetime.utcnow().isoformat()
+            "available_models": models,
+            "models": models,  # For backwards compatibility
+            "status": "success",
+            "service": "whisper",
+            "total_models": len(models),
+            "device_info": audio_device_info
         }
-        
+
+    except Exception as e:
+        logger.error(f"Failed to get transcription models: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Whisper service unavailable: {str(e)}"
+        )
+
+
+@router.get("/models/translation")
+async def get_translation_models(
+    translation_client=Depends(get_translation_service_client)
+) -> Dict[str, Any]:
+    """
+    Get available translation models
+    """
+    try:
+        # Get translation models
+        models = await translation_client.get_models()
+
+        # Get device info from translation service
+        translation_device_info = await translation_client.get_device_info()
+
+        return {
+            "available_models": models,
+            "models": models,
+            "status": "success",
+            "service": "translation",
+            "total_models": len(models),
+            "device_info": translation_device_info
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get translation models: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Translation service unavailable: {str(e)}"
+        )
+
+
+@router.get("/models")
+async def get_all_models(
+    audio_client=Depends(get_audio_service_client),
+    translation_client=Depends(get_translation_service_client)
+) -> Dict[str, Any]:
+    """
+    Get all available models (transcription + translation) with device information
+    """
+    try:
+        # Get models from both services
+        transcription_models = await audio_client.get_models()
+        audio_device_info = await audio_client.get_device_info()
+
+        # Get translation models with fallback
+        try:
+            translation_models = await translation_client.get_models()
+            translation_device_info = await translation_client.get_device_info()
+        except:
+            translation_models = []
+            translation_device_info = {"device": "unknown", "status": "unavailable"}
+
+        return {
+            "transcription_models": transcription_models,
+            "translation_models": translation_models,
+            "status": "success",
+            "service": "orchestration",
+            "device_info": {
+                "audio_service": audio_device_info,
+                "translation_service": translation_device_info
+            }
+        }
+
     except Exception as e:
         logger.error(f"Failed to get models: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Audio service unavailable: {str(e)}"
+            detail=f"Service unavailable: {str(e)}"
         )
 
 

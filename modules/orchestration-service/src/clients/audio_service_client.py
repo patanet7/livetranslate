@@ -10,6 +10,7 @@ import asyncio
 import json
 import ssl
 import mimetypes
+import os
 from typing import Dict, Any, Optional, List, AsyncGenerator, Tuple
 from pathlib import Path
 import aiohttp
@@ -20,6 +21,11 @@ from utils.audio_errors import (
     AudioProcessingError, ServiceUnavailableError, ValidationError,
     NetworkError, TimeoutError, CircuitBreaker, RetryManager, RetryConfig,
     ErrorLogger, error_boundary
+)
+
+from internal_services.audio import (
+    get_unified_audio_service,
+    UnifiedAudioError,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,7 +125,7 @@ class TranscriptionRequest(BaseModel):
     task: str = "transcribe"  # transcribe or translate
     enable_diarization: bool = True
     enable_vad: bool = True
-    model: str = "whisper-base"
+    model: str = "whisper-tiny"
 
 
 class TranscriptionResponse(BaseModel):
@@ -145,10 +151,17 @@ class AudioServiceClient:
     ):
         self.config_manager = config_manager
         self.settings = settings
-        self.base_url = base_url or self._get_base_url()
+        resolved_base_url = base_url or self._get_base_url()
+        if resolved_base_url and resolved_base_url.lower() in {"embedded", "internal", "local"}:
+            resolved_base_url = None
+        self.base_url = resolved_base_url
         timeout_seconds = timeout or self._get_timeout()
         self.session: Optional[aiohttp.ClientSession] = None
         self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+        self._embedded_service = get_unified_audio_service()
+        prefer_local = os.getenv("AUDIO_PREFER_EMBEDDED", "true")
+        self._prefer_embedded = prefer_local.lower() not in {"0", "false", "off"}
+        self._embedded_failure_logged = False
         
         # Create SSL context that doesn't verify certificates for localhost
         self.ssl_context = ssl.create_default_context()
@@ -194,8 +207,20 @@ class AudioServiceClient:
             return self.config_manager.get("services.whisper.timeout", 300)
         return 300
 
+    def _embedded_enabled(self) -> bool:
+        return (
+            self._prefer_embedded
+            and self._embedded_service is not None
+            and self._embedded_service.is_available()
+        )
+
+    def _remote_enabled(self) -> bool:
+        return bool(self.base_url and self.base_url.startswith("http"))
+
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
+        if not self._remote_enabled():
+            raise RuntimeError("Remote audio service not configured")
         if self.session is None or self.session.closed:
             logger.debug(f"Creating new session for base_url: {self.base_url}")
             
@@ -225,7 +250,17 @@ class AudioServiceClient:
     async def health_check(self, correlation_id: str = None) -> Dict[str, Any]:
         """Check audio service health with comprehensive error handling"""
         correlation_id = correlation_id or f"health_{asyncio.get_event_loop().time()}"
-        
+
+        if self._embedded_enabled() and not self._remote_enabled():
+            details = await self._embedded_service.health()
+            return {
+                "status": details.get("status", "healthy"),
+                "service": "audio",
+                "mode": "embedded",
+                "details": details,
+                "correlation_id": correlation_id,
+            }
+
         async with error_boundary(
             correlation_id=correlation_id,
             context={"operation": "health_check", "service": "audio", "url": self.base_url}
@@ -254,9 +289,11 @@ class AudioServiceClient:
     async def _health_check_internal(self, correlation_id: str) -> Dict[str, Any]:
         """Internal health check implementation"""
         try:
+            if not self._remote_enabled():
+                raise UnifiedAudioError("Remote audio service not configured")
             url = f"{self.base_url}/health"
             logger.info(f"[{correlation_id}] Checking audio service health at: {url}")
-            
+
             session = await self._get_session()
             
             try:
@@ -318,21 +355,37 @@ class AudioServiceClient:
 
     async def get_models(self) -> List[str]:
         """Get available Whisper models"""
+        if self._embedded_enabled():
+            try:
+                return await self._embedded_service.get_models()
+            except Exception as exc:
+                logger.debug("Embedded audio model lookup failed: %s", exc)
+
+        if not self._remote_enabled():
+            return ["whisper-tiny"]
         try:
             session = await self._get_session()
             async with session.get(f"{self.base_url}/api/models") as response:
                 if response.status == 200:
                     data = await response.json()
-                    return data.get("models", ["whisper-base"])
+                    return data.get("models", ["whisper-tiny"])
                 else:
                     logger.error(f"Failed to get models: HTTP {response.status}")
-                    return ["whisper-base"]  # fallback
+                    return ["whisper-tiny"]  # fallback
         except Exception as e:
             logger.error(f"Failed to get models: {e}")
-            return ["whisper-base"]  # fallback
+            return ["whisper-tiny"]  # fallback
 
     async def get_device_info(self) -> Dict[str, Any]:
         """Get current device information (CPU/GPU/NPU) from audio service"""
+        if self._embedded_enabled():
+            try:
+                return await self._embedded_service.get_device_info()
+            except Exception as exc:
+                logger.debug("Embedded audio device info lookup failed: %s", exc)
+
+        if not self._remote_enabled():
+            return {"device": "cpu", "mode": "embedded", "status": "fallback"}
         try:
             session = await self._get_session()
             async with session.get(f"{self.base_url}/api/device-info") as response:
@@ -389,6 +442,22 @@ class AudioServiceClient:
     ) -> TranscriptionResponse:
         """Internal file transcription implementation"""
         try:
+            async with aiofiles.open(audio_file, "rb") as f:
+                file_content = await f.read()
+
+            embedded_result = None
+            if self._embedded_enabled():
+                embedded_result = await self._transcribe_with_embedded(
+                    file_content,
+                    request_params,
+                    correlation_id=correlation_id,
+                )
+            if embedded_result is not None:
+                return embedded_result
+
+            if not self._remote_enabled():
+                raise UnifiedAudioError("Remote audio service not configured")
+
             session = await self._get_session()
 
             # Prepare form data
@@ -401,17 +470,18 @@ class AudioServiceClient:
             data.add_field("enable_vad", str(request_params.enable_vad).lower())
             data.add_field("model", request_params.model)
 
-            # Add file with proper content-type detection
-            async with aiofiles.open(audio_file, "rb") as f:
-                file_content = await f.read()
-                # Use original filename but also detect MIME type for content-type header
-                mime_type, _ = detect_audio_format(file_content)
-                # Use mimetypes as fallback if our detection fails
-                if mime_type == 'audio/wav' and not file_content.startswith(b'RIFF'):
-                    detected_mime, _ = mimetypes.guess_type(str(audio_file))
-                    if detected_mime and detected_mime.startswith('audio/'):
-                        mime_type = detected_mime
-                data.add_field("audio", file_content, filename=audio_file.name, content_type=mime_type)
+            # Use original filename but also detect MIME type for content-type header
+            mime_type, _ = detect_audio_format(file_content)
+            if mime_type == 'audio/wav' and not file_content.startswith(b'RIFF'):
+                detected_mime, _ = mimetypes.guess_type(str(audio_file))
+                if detected_mime and detected_mime.startswith('audio/'):
+                    mime_type = detected_mime
+            data.add_field(
+                "audio",
+                file_content,
+                filename=audio_file.name,
+                content_type=mime_type,
+            )
 
             async with session.post(
                 f"{self.base_url}/transcribe", data=data
@@ -429,11 +499,79 @@ class AudioServiceClient:
             logger.error(f"File transcription failed: {e}")
             raise
 
+    async def _transcribe_with_embedded(
+        self,
+        audio_bytes: bytes,
+        request_params: TranscriptionRequest,
+        correlation_id: Optional[str] = None,
+    ) -> Optional[TranscriptionResponse]:
+        """Attempt to handle transcription using the embedded service."""
+        if not self._embedded_enabled():
+            return None
+
+        try:
+            result = await self._embedded_service.transcribe_bytes(
+                audio_bytes=audio_bytes,
+                language=request_params.language,
+                model=request_params.model,
+                enable_vad=request_params.enable_vad,
+            )
+        except UnifiedAudioError as exc:
+            if not self._embedded_failure_logged:
+                logger.warning("Embedded audio service unavailable: %s", exc)
+                self._embedded_failure_logged = True
+            return None
+        except Exception as exc:
+            logger.exception(
+                "Embedded audio transcription failed (%s): %s", correlation_id, exc
+            )
+            return None
+
+        segments_raw = result.get("segments") or []
+        segments: List[Dict[str, Any]] = []
+        for item in segments_raw:
+            if isinstance(item, dict):
+                segments.append(item)
+            else:
+                segments.append({"raw": str(item)})
+
+        speakers_raw = result.get("speakers") or []
+        speakers: Optional[List[Dict[str, Any]]] = None
+        if isinstance(speakers_raw, list) and speakers_raw:
+            speakers = []
+            for speaker in speakers_raw:
+                if isinstance(speaker, dict):
+                    speakers.append(speaker)
+                else:
+                    speakers.append({"raw": str(speaker)})
+
+        return TranscriptionResponse(
+            text=result.get("text", ""),
+            language=result.get("language", request_params.language or "auto"),
+            segments=segments,
+            speakers=speakers,
+            processing_time=float(result.get("processing_time", 0.0)),
+            confidence=float(result.get("confidence", 0.0)),
+        )
+
     async def transcribe_stream(
         self, audio_data: bytes, request_params: TranscriptionRequest
     ) -> TranscriptionResponse:
         """Transcribe audio data from memory"""
         try:
+            embedded_result = None
+            if self._embedded_enabled():
+                embedded_result = await self._transcribe_with_embedded(
+                    audio_data,
+                    request_params,
+                    correlation_id="stream_transcription",
+                )
+            if embedded_result is not None:
+                return embedded_result
+
+            if not self._remote_enabled():
+                raise UnifiedAudioError("Remote audio service not configured")
+
             session = await self._get_session()
 
             # Prepare form data
@@ -469,6 +607,8 @@ class AudioServiceClient:
     async def start_realtime_session(self, session_config: Dict[str, Any]) -> str:
         """Start a real-time transcription session"""
         try:
+            if not self._remote_enabled():
+                raise UnifiedAudioError("Remote audio service not configured")
             session = await self._get_session()
 
             async with session.post(
@@ -492,6 +632,8 @@ class AudioServiceClient:
     ) -> Optional[Dict[str, Any]]:
         """Send audio chunk to real-time session"""
         try:
+            if not self._remote_enabled():
+                raise UnifiedAudioError("Remote audio service not configured")
             session = await self._get_session()
 
             data = aiohttp.FormData()
@@ -523,6 +665,8 @@ class AudioServiceClient:
     async def stop_realtime_session(self, session_id: str) -> Dict[str, Any]:
         """Stop a real-time transcription session"""
         try:
+            if not self._remote_enabled():
+                raise UnifiedAudioError("Remote audio service not configured")
             session = await self._get_session()
 
             async with session.post(
@@ -586,6 +730,14 @@ class AudioServiceClient:
 
     async def get_statistics(self) -> Dict[str, Any]:
         """Get service statistics"""
+        if self._embedded_enabled():
+            try:
+                return await self._embedded_service.get_statistics()
+            except Exception as exc:
+                logger.debug("Embedded audio statistics retrieval failed: %s", exc)
+
+        if not self._remote_enabled():
+            return {"error": "No audio backend available"}
         try:
             session = await self._get_session()
 
@@ -715,7 +867,7 @@ class AudioServiceClient:
             data.add_field("task", "transcribe")
             data.add_field("enable_diarization", str(request_data.get('speaker_diarization', True)).lower())
             data.add_field("enable_vad", str(request_data.get('enable_vad', True)).lower())
-            data.add_field("model", request_data.get('whisper_model', 'whisper-base'))
+            data.add_field("model", request_data.get('whisper_model', 'whisper-tiny'))
                 
             # Use the standard whisper service transcribe endpoint
             async with session.post(f"{self.base_url}/transcribe", data=data) as response:

@@ -57,6 +57,7 @@ interface RealTimeProcessorProps {
   currentPipeline: PipelineData | null;
   onMetricsUpdate?: (metrics: any) => void;
   onProcessedAudio?: (audio: string) => void;
+  onWebSocketChange?: (websocket: WebSocket | null, isActive: boolean) => void;
 }
 
 interface AudioVisualizerProps {
@@ -140,6 +141,7 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
   currentPipeline,
   onMetricsUpdate,
   onProcessedAudio,
+  onWebSocketChange,
 }) => {
   const {
     isProcessing,
@@ -148,6 +150,7 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
     error,
     realtimeSession,
     isRealtimeActive,
+    websocket,
     startRealtimeProcessing,
     startMicrophoneCapture,
     stopRealtimeProcessing,
@@ -214,34 +217,71 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
     }
   }, [metrics, onMetricsUpdate]);
 
+  // Notify parent of WebSocket changes
+  useEffect(() => {
+    if (onWebSocketChange) {
+      onWebSocketChange(websocket, isRealtimeActive);
+    }
+  }, [websocket, isRealtimeActive, onWebSocketChange]);
+
   const handleStartRealtime = async () => {
     if (!currentPipeline) {
       alert('Please create a pipeline first');
       return;
     }
 
-    // Convert pipeline to processing format
-    const pipelineConfig = {
-      id: currentPipeline.id,
-      name: currentPipeline.name,
-      stages: currentPipeline.nodes.map(node => ({
-        id: node.id,
-        type: node.data.label.toLowerCase().replace(/\s+/g, '_'),
-        enabled: node.data.enabled,
-        gainIn: node.data.gainIn || 0,
-        gainOut: node.data.gainOut || 0,
+    // Find microphone input node to get capture settings
+    const micNode = currentPipeline.nodes.find(
+      node => node.data.stageType === 'input' &&
+              (node.data.label.toLowerCase().includes('microphone') ||
+               node.id.includes('microphone_input'))
+    );
+
+    // Extract mic settings from the node parameters
+    const micSettings = {
+      sampleRate: 16000, // default
+      channels: 1, // default
+    };
+
+    if (micNode?.data?.parameters) {
+      const sampleRateParam = micNode.data.parameters.find((p: any) => p.name === 'sampleRate');
+      const channelsParam = micNode.data.parameters.find((p: any) => p.name === 'channels');
+
+      if (sampleRateParam) micSettings.sampleRate = sampleRateParam.value;
+      if (channelsParam) micSettings.channels = channelsParam.value;
+    }
+
+    // Convert pipeline to processing format (backend expects dict for stages, not list)
+    // Use componentId (like "microphone_input", "vad_stage") as key, not the React Flow node ID
+
+    // Build mapping from React Flow node ID to component ID
+    const nodeIdToComponentId = new Map();
+    const stagesDict = currentPipeline.nodes.reduce((dict: any, node: any) => {
+      const stageKey = node.data.componentId || node.id; // Fallback to node.id if componentId not set
+      nodeIdToComponentId.set(node.id, stageKey); // Store mapping for connections
+
+      dict[stageKey] = {
+        enabled: node.data.enabled !== undefined ? node.data.enabled : true,
+        gain_in: node.data.gainIn || 0,
+        gain_out: node.data.gainOut || 0,
         parameters: node.data.stageConfig || {},
-        position: node.position,
-      })),
-      connections: currentPipeline.edges.map(edge => ({
+      };
+      return dict;
+    }, {});
+
+    const pipelineConfig = {
+      pipeline_id: currentPipeline.id,
+      name: currentPipeline.name,
+      stages: stagesDict,
+      connections: currentPipeline.edges.map((edge: any) => ({
         id: edge.id,
-        sourceStageId: edge.source,
-        targetStageId: edge.target,
+        source_stage_id: nodeIdToComponentId.get(edge.source) || edge.source,
+        target_stage_id: nodeIdToComponentId.get(edge.target) || edge.target,
       })),
     };
 
     await startRealtimeProcessing(pipelineConfig);
-    await startMicrophoneCapture();
+    await startMicrophoneCapture(micSettings);
   };
 
   const handleStopRealtime = () => {
@@ -378,7 +418,7 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
                   }
                   size="small"
                 />
-                {realtimeSession && (
+                {realtimeSession?.sessionId && (
                   <Chip
                     label={`Session: ${realtimeSession.sessionId.slice(0, 8)}`}
                     size="small"

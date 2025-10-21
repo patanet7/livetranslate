@@ -122,10 +122,10 @@ const AUDIO_COMPONENT_LIBRARY: AudioComponent[] = [
   },
   {
     id: 'microphone_input',
-    type: 'input', 
+    type: 'input',
     name: 'microphone_input',
     label: 'Microphone Input',
-    description: 'Real-time audio recording from microphone',
+    description: 'Raw microphone capture (browser preprocessing disabled - use pipeline stages for effects)',
     icon: Mic,
     category: 'Input Sources',
     complexity: 'basic',
@@ -134,9 +134,6 @@ const AUDIO_COMPONENT_LIBRARY: AudioComponent[] = [
       sampleRate: 16000,
       channels: 1,
       bitDepth: 16,
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: false,
     },
     parameters: [
       {
@@ -151,28 +148,19 @@ const AUDIO_COMPONENT_LIBRARY: AudioComponent[] = [
           { value: 48000, label: '48 kHz' },
         ],
         unit: 'Hz',
-        description: 'Audio sampling frequency'
+        description: 'Audio sampling frequency for capture'
       },
       {
-        name: 'echoCancellation',
-        displayName: 'Echo Cancellation',
-        type: 'toggle',
-        defaultValue: true,
-        description: 'Enable browser echo cancellation'
-      },
-      {
-        name: 'noiseSuppression',
-        displayName: 'Noise Suppression',
-        type: 'toggle',
-        defaultValue: true,
-        description: 'Enable browser noise suppression'
-      },
-      {
-        name: 'autoGainControl',
-        displayName: 'Auto Gain Control',
-        type: 'toggle',
-        defaultValue: false,
-        description: 'Enable browser automatic gain control'
+        name: 'channels',
+        displayName: 'Channels',
+        type: 'select',
+        defaultValue: 1,
+        options: [
+          { value: 1, label: 'Mono' },
+          { value: 2, label: 'Stereo' },
+        ],
+        unit: '',
+        description: 'Number of audio channels'
       }
     ],
     tags: ['microphone', 'recording', 'realtime', 'live', 'basic']

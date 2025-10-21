@@ -74,4 +74,4 @@ uvicorn[standard]>=0.24.0
 
 # Translation APIs (optional external providers)
 googletrans>=4.0.0
-deep-translator>=1.11.0 `
+deep-translator>=1.11.0

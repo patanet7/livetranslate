@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -20,6 +20,7 @@ import ReactFlow, {
   useOnSelectionChange,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { PipelineCallbacksProvider } from './PipelineCallbacksContext';
 import {
   Box,
   Card,
@@ -84,6 +85,8 @@ interface PipelineCanvasProps {
   showMinimap?: boolean;
   showGrid?: boolean;
   height?: number;
+  websocket?: WebSocket | null;
+  isRealtimeActive?: boolean;
 }
 
 interface PipelineData {
@@ -115,24 +118,52 @@ const nodeTypes: NodeTypes = {
   audioStage: AudioStageNode,
 };
 
-// Custom edge styles
-const edgeTypes: EdgeTypes = {
-  audioConnection: ({ sourceX, sourceY, targetX, targetY, style = {} }) => {
+// Custom edge styles with animation support
+const createAnimatedEdge = (isRealtimeActive: boolean) => {
+  return ({ sourceX, sourceY, targetX, targetY, style = {}, data }: any) => {
     const path = `M ${sourceX} ${sourceY} C ${sourceX + 100} ${sourceY}, ${targetX - 100} ${targetY}, ${targetX} ${targetY}`;
-    
+    const strokeColor = isRealtimeActive ? '#4caf50' : (style.stroke || '#2196f3');
+    const strokeWidth = isRealtimeActive ? 3 : (style.strokeWidth || 2);
+
     return (
       <g>
+        {/* Base path */}
         <path
           d={path}
           fill="none"
-          stroke={style.stroke || '#4caf50'}
-          strokeWidth={style.strokeWidth || 2}
-          className="animated"
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          opacity={0.3}
         />
-        <circle cx={targetX} cy={targetY} r={3} fill={style.stroke || '#4caf50'} />
+        {/* Animated path overlay when active */}
+        {isRealtimeActive && (
+          <path
+            d={path}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeDasharray="10 5"
+            strokeLinecap="round"
+            style={{
+              animation: 'dash 1s linear infinite',
+            }}
+          />
+        )}
+        <circle cx={targetX} cy={targetY} r={4} fill={strokeColor} />
+        <style>{`
+          @keyframes dash {
+            to {
+              stroke-dashoffset: -15;
+            }
+          }
+        `}</style>
       </g>
     );
-  },
+  };
+};
+
+const edgeTypes: EdgeTypes = {
+  audioConnection: createAnimatedEdge(false),
 };
 
 const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
@@ -144,13 +175,17 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
   showMinimap = true,
   showGrid = true,
   height = 600,
+  websocket,
+  isRealtimeActive = false,
 }) => {
   const theme = useTheme();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
-  
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialPipeline?.nodes || []);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialPipeline?.edges || []);
+
+  // Create dynamic edge types based on realtime status - memoized to prevent re-creation
+  const dynamicEdgeTypes: EdgeTypes = useMemo(() => ({
+    audioConnection: createAnimatedEdge(isRealtimeActive),
+  }), [isRealtimeActive]);
   
   const [selectedNodes, setSelectedNodes] = useState<Node[]>([]);
   const [copiedNodes, setCopiedNodes] = useState<Node[]>([]);
@@ -175,6 +210,139 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
   const ctrlC = useKeyPress(['Control+c', 'Meta+c']);
   const ctrlV = useKeyPress(['Control+v', 'Meta+v']);
   const ctrlS = useKeyPress(['Control+s', 'Meta+s']);
+
+  // Define callback handlers early (before state initialization)
+  const handleNodeSettingsOpen = useCallback((nodeId: string) => {
+    setSelectedNodeForSettings(nodeId);
+    setSettingsOpen(true);
+  }, []);
+
+  const handleGainChange = useCallback((nodeId: string, type: 'in' | 'out', value: number) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              [type === 'in' ? 'gainIn' : 'gainOut']: value,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, []);
+
+  const handleParameterChange = useCallback((nodeId: string, paramName: string, value: number) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          const updatedParameters = node.data.parameters.map((param: any) => {
+            if (param.name === paramName) {
+              return { ...param, value };
+            }
+            return param;
+          });
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              parameters: updatedParameters,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, []);
+
+  const handleToggleEnabled = useCallback((nodeId: string, enabled: boolean) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              enabled,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, []);
+
+  // Initialize state with nodes from initial pipeline
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialPipeline?.nodes || []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialPipeline?.edges || []);
+
+  // Keyboard shortcut handlers - MUST be defined before useEffects that call them
+  const handleDeleteSelected = useCallback(() => {
+    const selectedIds = selectedNodes.map(n => n.id);
+    console.log('Deleting nodes:', selectedIds, 'Selected nodes count:', selectedNodes.length);
+    if (selectedIds.length === 0) {
+      setSnackbar({ open: true, message: 'No components selected for deletion', severity: 'warning' });
+      return;
+    }
+    setNodes((nds) => nds.filter((node) => !selectedIds.includes(node.id)));
+    setEdges((eds) => eds.filter((edge) => !selectedIds.includes(edge.source) && !selectedIds.includes(edge.target)));
+    setSnackbar({ open: true, message: `Deleted ${selectedIds.length} component(s)`, severity: 'info' });
+  }, [selectedNodes, setNodes, setEdges]);
+
+  const handleCopy = useCallback(() => {
+    setCopiedNodes([...selectedNodes]);
+    setSnackbar({ open: true, message: `Copied ${selectedNodes.length} component(s)`, severity: 'info' });
+  }, [selectedNodes]);
+
+  const handlePaste = useCallback(() => {
+    const pastedNodes: Node[] = copiedNodes.map((node) => ({
+      ...node,
+      id: `${node.id}_copy_${Date.now()}`,
+      position: {
+        x: node.position.x + 50,
+        y: node.position.y + 50,
+      },
+      data: {
+        ...node.data,
+      },
+    }));
+    setNodes((nds) => nds.concat(pastedNodes));
+    setSnackbar({ open: true, message: `Pasted ${pastedNodes.length} component(s)`, severity: 'success' });
+  }, [copiedNodes, setNodes]);
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex > 0) {
+      const previousState = history[historyIndex - 1];
+      setNodes(previousState.nodes);
+      setEdges(previousState.edges);
+      setHistoryIndex(historyIndex - 1);
+    }
+  }, [history, historyIndex, setNodes, setEdges]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const nextState = history[historyIndex + 1];
+      setNodes(nextState.nodes);
+      setEdges(nextState.edges);
+      setHistoryIndex(historyIndex + 1);
+    }
+  }, [history, historyIndex, setNodes, setEdges]);
+
+  const handleSave = useCallback(() => {
+    const pipelineData: PipelineData = {
+      id: initialPipeline?.id || `pipeline_${Date.now()}`,
+      name: initialPipeline?.name || 'Untitled Pipeline',
+      description: initialPipeline?.description || '',
+      nodes,
+      edges,
+      created: initialPipeline?.created || new Date(),
+      modified: new Date(),
+    };
+    onPipelineChange?.(pipelineData);
+    setSnackbar({ open: true, message: 'Pipeline saved successfully', severity: 'success' });
+  }, [initialPipeline, nodes, edges, onPipelineChange]);
 
   // Track node selection
   useOnSelectionChange({
@@ -204,37 +372,47 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     if (deletePressed && selectedNodes.length > 0) {
       handleDeleteSelected();
     }
-  }, [deletePressed]);
+  }, [deletePressed, handleDeleteSelected, selectedNodes.length]);
 
   useEffect(() => {
     if (ctrlZ) {
       handleUndo();
     }
-  }, [ctrlZ]);
+  }, [ctrlZ, handleUndo]);
 
   useEffect(() => {
     if (ctrlY) {
       handleRedo();
     }
-  }, [ctrlY]);
+  }, [ctrlY, handleRedo]);
 
   useEffect(() => {
     if (ctrlC && selectedNodes.length > 0) {
       handleCopy();
     }
-  }, [ctrlC]);
+  }, [ctrlC, selectedNodes.length, handleCopy]);
 
   useEffect(() => {
     if (ctrlV && copiedNodes.length > 0) {
       handlePaste();
     }
-  }, [ctrlV]);
+  }, [ctrlV, copiedNodes.length, handlePaste]);
 
   useEffect(() => {
     if (ctrlS) {
       handleSave();
     }
-  }, [ctrlS]);
+  }, [ctrlS, handleSave]);
+
+  // When initialPipeline changes, update the nodes and edges state
+  useEffect(() => {
+    if (initialPipeline?.nodes && initialPipeline.nodes.length > 0) {
+      setNodes(initialPipeline.nodes);
+    }
+    if (initialPipeline?.edges) {
+      setEdges(initialPipeline.edges);
+    }
+  }, [initialPipeline, setNodes, setEdges]);
 
   const validatePipeline = useCallback(() => {
     const errors: string[] = [];
@@ -394,6 +572,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       type: 'audioStage',
       position,
       data: {
+        componentId: component.id, // Store the component type ID for backend API
         label: component.label,
         description: component.description,
         stageType: component.type,
@@ -421,10 +600,6 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
           unit: param.unit || '',
           description: param.description,
         })),
-        onSettingsOpen: handleNodeSettingsOpen,
-        onGainChange: handleGainChange,
-        onParameterChange: handleParameterChange,
-        onToggleEnabled: handleToggleEnabled,
       },
     };
 
@@ -437,68 +612,6 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     event.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const handleNodeSettingsOpen = (nodeId: string) => {
-    setSelectedNodeForSettings(nodeId);
-    setSettingsOpen(true);
-  };
-
-  const handleGainChange = (nodeId: string, type: 'in' | 'out', value: number) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              [type === 'in' ? 'gainIn' : 'gainOut']: value,
-            },
-          };
-        }
-        return node;
-      })
-    );
-  };
-
-  const handleParameterChange = (nodeId: string, paramName: string, value: number) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          const updatedParameters = node.data.parameters.map((param: any) => {
-            if (param.name === paramName) {
-              return { ...param, value };
-            }
-            return param;
-          });
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              parameters: updatedParameters,
-            },
-          };
-        }
-        return node;
-      })
-    );
-  };
-
-  const handleToggleEnabled = (nodeId: string, enabled: boolean) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === nodeId) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              enabled,
-            },
-          };
-        }
-        return node;
-      })
-    );
-  };
-
   const handleContextMenu = (event: React.MouseEvent, nodeId?: string) => {
     event.preventDefault();
     setContextMenu({
@@ -506,76 +619,6 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       y: event.clientY,
       nodeId,
     });
-  };
-
-  const handleDeleteSelected = () => {
-    const selectedIds = selectedNodes.map(n => n.id);
-    console.log('Deleting nodes:', selectedIds, 'Selected nodes count:', selectedNodes.length);
-    if (selectedIds.length === 0) {
-      setSnackbar({ open: true, message: 'No components selected for deletion', severity: 'warning' });
-      return;
-    }
-    setNodes((nds) => nds.filter((node) => !selectedIds.includes(node.id)));
-    setEdges((eds) => eds.filter((edge) => !selectedIds.includes(edge.source) && !selectedIds.includes(edge.target)));
-    setSnackbar({ open: true, message: `Deleted ${selectedIds.length} component(s)`, severity: 'info' });
-  };
-
-  const handleCopy = () => {
-    setCopiedNodes([...selectedNodes]);
-    setSnackbar({ open: true, message: `Copied ${selectedNodes.length} component(s)`, severity: 'info' });
-  };
-
-  const handlePaste = () => {
-    const pastedNodes: Node[] = copiedNodes.map((node) => ({
-      ...node,
-      id: `${node.id}_copy_${Date.now()}`,
-      position: {
-        x: node.position.x + 50,
-        y: node.position.y + 50,
-      },
-    }));
-    setNodes((nds) => nds.concat(pastedNodes));
-    setSnackbar({ open: true, message: `Pasted ${pastedNodes.length} component(s)`, severity: 'success' });
-  };
-
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      const previousState = history[historyIndex - 1];
-      setNodes(previousState.nodes);
-      setEdges(previousState.edges);
-      setHistoryIndex(historyIndex - 1);
-    }
-  };
-
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      const nextState = history[historyIndex + 1];
-      setNodes(nextState.nodes);
-      setEdges(nextState.edges);
-      setHistoryIndex(historyIndex + 1);
-    }
-  };
-
-  const handleSave = () => {
-    const pipelineData: PipelineData = {
-      id: initialPipeline?.id || `pipeline_${Date.now()}`,
-      name: initialPipeline?.name || 'Untitled Pipeline',
-      description: initialPipeline?.description || '',
-      nodes,
-      edges,
-      created: initialPipeline?.created || new Date(),
-      modified: new Date(),
-      metadata: {
-        totalLatency: nodes.reduce((sum, node) => sum + (node.data.metrics?.processingTimeMs || 0), 0),
-        complexity: nodes.length > 10 ? 'complex' : nodes.length > 5 ? 'moderate' : 'simple',
-        validated: validationResult?.valid || false,
-        errors: validationResult?.errors || [],
-        warnings: validationResult?.warnings || [],
-      },
-    };
-    
-    onPipelineChange?.(pipelineData);
-    setSnackbar({ open: true, message: 'Pipeline saved successfully', severity: 'success' });
   };
 
   const handleClear = () => {
@@ -596,13 +639,23 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
     }
   };
 
+  // Create callbacks object for context - memoized to prevent unnecessary re-renders
+  const pipelineCallbacks = useMemo(() => ({
+    onNodeSettingsOpen: handleNodeSettingsOpen,
+    onGainChange: handleGainChange,
+    onParameterChange: handleParameterChange,
+    onToggleEnabled: handleToggleEnabled,
+    websocket,
+    isRealtimeActive,
+  }), [handleNodeSettingsOpen, handleGainChange, handleParameterChange, handleToggleEnabled, websocket, isRealtimeActive]);
+
   return (
-    <Box 
+    <Box
       className="pipeline-studio"
-      sx={{ 
-        height, 
+      sx={{
+        height,
         width: '100%',
-        position: 'absolute', 
+        position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
@@ -613,21 +666,22 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
       }}
     >
       <ReactFlowProvider>
-        <div 
-          ref={reactFlowWrapper} 
-          style={{ 
-            width: '100%', 
-            height: '100%', 
-            margin: 0, 
-            padding: 0,
-            position: 'absolute',
-            top: 0,
-            left: 0
-          }}
-        >
-          <ReactFlow
-            style={{ 
-              margin: 0, 
+        <PipelineCallbacksProvider value={pipelineCallbacks}>
+          <div
+            ref={reactFlowWrapper}
+            style={{
+              width: '100%',
+              height: '100%',
+              margin: 0,
+              padding: 0,
+              position: 'absolute',
+              top: 0,
+              left: 0
+            }}
+          >
+            <ReactFlow
+            style={{
+              margin: 0,
               padding: 0,
               position: 'absolute',
               top: 0,
@@ -646,13 +700,13 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
             onNodeContextMenu={(event, node) => handleContextMenu(event, node.id)}
             onPaneContextMenu={handleContextMenu}
             nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
+            edgeTypes={dynamicEdgeTypes}
             fitView
             attributionPosition={false}
             nodesConnectable={true}
             nodesDraggable={true}
             elementsSelectable={true}
-            selectNodesOnDrag={false}
+            selectNodesOnDrag={true}
             multiSelectionKeyCode={['Control', 'Meta']}
             deleteKeyCode={['Delete', 'Backspace']}
           >
@@ -661,13 +715,15 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
               <Card sx={{ p: 1 }}>
                 <Box display="flex" alignItems="center" gap={1}>
                   <Tooltip title="Process Audio">
-                    <IconButton
-                      onClick={handleProcessingToggle}
-                      color={isProcessing ? 'error' : 'success'}
-                      disabled={!validationResult?.valid && !isProcessing}
-                    >
-                      {isProcessing ? <Stop /> : <PlayArrow />}
-                    </IconButton>
+                    <span>
+                      <IconButton
+                        onClick={handleProcessingToggle}
+                        color={isProcessing ? 'error' : 'success'}
+                        disabled={!validationResult?.valid && !isProcessing}
+                      >
+                        {isProcessing ? <Stop /> : <PlayArrow />}
+                      </IconButton>
+                    </span>
                   </Tooltip>
 
                   <Divider orientation="vertical" flexItem />
@@ -881,6 +937,7 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
             {showGrid && <Background variant={BackgroundVariant.Dots} gap={16} size={1} style={{ margin: 0, padding: 0 }} />}
           </ReactFlow>
         </div>
+      </PipelineCallbacksProvider>
 
         {/* Context Menu */}
         <Menu

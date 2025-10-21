@@ -55,12 +55,15 @@ const initialState: WebSocketState = {
   },
   
   config: {
-    url: `ws://localhost:3000/ws`,
+    // IMPORTANT: Use environment variable for WebSocket URL
+    // Development: ws://localhost:5173/api/websocket/connect (uses Vite proxy to avoid CORS)
+    // Production: ws://localhost:3000/api/websocket/connect (direct connection)
+    url: `${import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:5173'}/api/websocket/connect`,
     protocols: [],
-    autoReconnect: true,
-    reconnectInterval: 10000, // 10 seconds (was 5s - too aggressive)
-    maxReconnectAttempts: 3,  // Only 3 attempts before API fallback (was 10)
-    heartbeatInterval: 45000, // 45 seconds (was 30s - more conservative)
+    autoReconnect: import.meta.env.VITE_WS_AUTO_RECONNECT !== 'false',
+    reconnectInterval: Number(import.meta.env.VITE_WS_RECONNECT_INTERVAL) || 10000, // 10 seconds (was 5s - too aggressive)
+    maxReconnectAttempts: Number(import.meta.env.VITE_WS_MAX_RECONNECT_ATTEMPTS) || 3,  // Only 3 attempts before API fallback (was 10)
+    heartbeatInterval: Number(import.meta.env.VITE_WS_HEARTBEAT_INTERVAL) || 45000, // 45 seconds (was 30s - more conservative)
     connectionTimeout: 15000, // 15 seconds (was 10s)
   },
   

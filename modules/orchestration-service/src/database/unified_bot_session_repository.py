@@ -25,9 +25,13 @@ import uuid
 
 from .database import DatabaseManager
 from .models import (
-    BotSession, AudioFile, Transcript, Translation, 
-    SpeakerCorrelation, ProcessingMetrics
+    BotSession,
+    AudioFile,
+    Transcript,
+    Translation,
 )
+from audio.models import SpeakerCorrelation  # Pydantic model
+from .processing_metrics import ProcessingMetrics
 
 logger = logging.getLogger(__name__)
 

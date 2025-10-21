@@ -126,7 +126,7 @@ const TranslationTesting: React.FC = () => {
   
   // Test Configuration
   const [sourceLanguage, setSourceLanguage] = useState('auto');
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
   const [testText, setTestText] = useState('Hello world! How are you today?');
   const [batchTestTexts, setBatchTestTexts] = useState<string[]>([]);
   const [selectedPrompt, setSelectedPrompt] = useState<string>('default');

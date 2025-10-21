@@ -137,10 +137,10 @@ const defaultTranslationConfig: TranslationConfig = {
   },
   languages: {
     auto_detect: true,
-    default_source_language: 'en',
-    target_languages: ['es', 'fr', 'de'],
+    default_source_language: DEFAULT_SOURCE_LANGUAGE,
+    target_languages: [...DEFAULT_TARGET_LANGUAGES],
     supported_languages: availableLanguages.map(l => l.code),
-    confidence_threshold: 0.8,
+    confidence_threshold: DEFAULT_CONFIDENCE_THRESHOLD,
   },
   quality: {
     quality_threshold: 0.7,

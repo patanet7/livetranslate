@@ -138,7 +138,8 @@ const AudioProcessingHub: React.FC<AudioProcessingHubProps> = ({
   const audioManager = useUnifiedAudio();
 
   // Get system state
-  const { isConnected } = useAppSelector(state => state.websocket);
+  const { connection } = useAppSelector(state => state.websocket);
+  const isConnected = connection.isConnected;
   const { notifications } = useAppSelector(state => state.ui);
 
   // Load system health on mount

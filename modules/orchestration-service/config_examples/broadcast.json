@@ -1,0 +1,111 @@
+{
+  "description": "Broadcast quality - Professional audio processing for broadcasting",
+  "enabled_stages": [
+    "vad",
+    "voice_filter",
+    "noise_reduction",
+    "voice_enhancement",
+    "equalizer",
+    "lufs_normalization",
+    "compression",
+    "limiter"
+  ],
+  "sample_rate": 16000,
+  "quality": "high",
+  "vad": {
+    "enabled": true,
+    "mode": "silero",
+    "aggressiveness": 2,
+    "energy_threshold": 0.005
+  },
+  "voice_filter": {
+    "enabled": true,
+    "fundamental_min": 85,
+    "fundamental_max": 300,
+    "voice_band_gain": 1.0,
+    "high_freq_rolloff": 10000
+  },
+  "noise_reduction": {
+    "enabled": true,
+    "mode": "adaptive",
+    "strength": 0.5,
+    "voice_protection": true,
+    "stationary_noise_reduction": 0.6,
+    "non_stationary_noise_reduction": 0.3,
+    "adaptation_rate": 0.08
+  },
+  "voice_enhancement": {
+    "enabled": true,
+    "clarity_enhancement": 0.3,
+    "presence_boost": 0.25,
+    "warmth_adjustment": 0.05,
+    "sibilance_control": 0.15
+  },
+  "equalizer": {
+    "enabled": true,
+    "bands": [
+      {
+        "enabled": true,
+        "frequency": 60,
+        "gain": -12.0,
+        "bandwidth": 1.0,
+        "filter_type": "high_pass"
+      },
+      {
+        "enabled": true,
+        "frequency": 200,
+        "gain": 1.5,
+        "bandwidth": 1.0,
+        "filter_type": "peaking"
+      },
+      {
+        "enabled": true,
+        "frequency": 1000,
+        "gain": 0.0,
+        "bandwidth": 1.0,
+        "filter_type": "peaking"
+      },
+      {
+        "enabled": true,
+        "frequency": 5000,
+        "gain": 2.5,
+        "bandwidth": 1.5,
+        "filter_type": "peaking"
+      },
+      {
+        "enabled": true,
+        "frequency": 10000,
+        "gain": 1.0,
+        "bandwidth": 1.0,
+        "filter_type": "high_shelf"
+      }
+    ]
+  },
+  "lufs_normalization": {
+    "enabled": true,
+    "mode": "broadcast_tv",
+    "target_lufs": -23.0,
+    "max_peak_db": -1.0,
+    "true_peak_limiting": true,
+    "measurement_window": 3.0,
+    "adjustment_speed": 0.3
+  },
+  "compression": {
+    "enabled": true,
+    "mode": "voice_optimized",
+    "threshold": -18,
+    "ratio": 4.0,
+    "knee": 3.0,
+    "attack_time": 5.0,
+    "release_time": 120.0,
+    "makeup_gain": 3.0,
+    "lookahead": 10.0
+  },
+  "limiter": {
+    "enabled": true,
+    "threshold": -0.5,
+    "release_time": 30.0,
+    "lookahead": 10.0,
+    "soft_clip": true
+  }
+}

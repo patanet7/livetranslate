@@ -25,6 +25,9 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
   const dispatch = useAppDispatch();
   
   const defaultConfig: ApiClientConfig = {
+    // Use relative path '/api' which works with both dev proxy and production
+    // Vite dev server will proxy /api -> http://localhost:3000/api
+    // Production build served from orchestration service uses same /api path
     baseUrl: '/api',
     timeout: 10000,
     retries: 2,

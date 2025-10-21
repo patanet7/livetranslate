@@ -216,17 +216,108 @@ export const usePipelineProcessing = () => {
   ) => {
     try {
       setError(null);
-      
+
       // Start backend session
       const response = await startRealtimeSessionAPI({ pipelineConfig }).unwrap();
       const session = response.data || response;
+
+      console.log('📡 Session response:', session);
+
+      // Validate session was created successfully
+      const sessionId = session.sessionId || session.session_id;
+      if (!sessionId) {
+        throw new Error('Failed to create session: no session ID returned');
+      }
+
       setRealtimeSession(session);
 
-      // Note: WebSocket functionality would need to be implemented separately
-      // as RTK Query doesn't handle WebSocket connections
-      setIsRealtimeActive(true);
-      
-      enqueueSnackbar('Real-time processing session started', { variant: 'success' });
+      // Connect WebSocket for real-time streaming
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // Connect to orchestration service (port 3000), NOT frontend dev server (port 5173)
+      const wsHost = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:3000';
+      const wsUrl = `${wsHost}/api/pipeline/realtime/${sessionId}`;
+
+      console.log('🔌 Connecting to Pipeline WebSocket:', wsUrl);
+
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('✅ Pipeline WebSocket connected');
+        setIsRealtimeActive(true);
+        enqueueSnackbar('Real-time processing active', { variant: 'success' });
+
+        // Start heartbeat
+        const heartbeatInterval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000); // 30 seconds
+
+        (ws as any).heartbeatInterval = heartbeatInterval;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+
+          switch (message.type) {
+            case 'processed_audio':
+              // Received processed audio chunk
+              setProcessedAudio(message.audio);
+              break;
+
+            case 'metrics':
+              // Update real-time metrics
+              setMetrics(prev => ({
+                totalLatency: message.metrics.total_latency || 0,
+                stageLatencies: message.metrics.stage_latencies || {},
+                qualityMetrics: message.metrics.quality_metrics || {},
+                cpuUsage: message.metrics.cpu_usage || 0,
+                chunksProcessed: message.metrics.chunks_processed || 0,
+                averageLatency: message.metrics.average_latency || 0,
+                qualityScore: calculateQualityScore(message.metrics.quality_metrics || {}),
+              }));
+              break;
+
+            case 'config_updated':
+              console.log('✅ Stage config updated:', message.stage_id);
+              break;
+
+            case 'error':
+              console.error('❌ WebSocket error:', message.error);
+              enqueueSnackbar(`Processing error: ${message.error}`, { variant: 'error' });
+              break;
+
+            case 'pong':
+              // Heartbeat response
+              break;
+
+            default:
+              console.log('Unknown message type:', message.type);
+          }
+        } catch (err) {
+          console.error('Failed to parse WebSocket message:', err);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('❌ WebSocket error:', error);
+        setError('WebSocket connection error');
+        enqueueSnackbar('Real-time connection error', { variant: 'error' });
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket closed');
+        setIsRealtimeActive(false);
+
+        // Clear heartbeat
+        if ((ws as any).heartbeatInterval) {
+          clearInterval((ws as any).heartbeatInterval);
+        }
+      };
+
+      websocketRef.current = ws;
+
       return session;
     } catch (err: any) {
       const errorMessage = err?.data?.message || err?.message || 'Unknown error occurred';
@@ -239,21 +330,33 @@ export const usePipelineProcessing = () => {
   /**
    * Start microphone capture for real-time processing
    */
-  const startMicrophoneCapture = useCallback(async () => {
+  const startMicrophoneCapture = useCallback(async (micSettings?: { sampleRate: number; channels: number }) => {
     try {
+      // Check WebSocket connection
+      if (!websocketRef.current || websocketRef.current.readyState !== WebSocket.OPEN) {
+        throw new Error('WebSocket not connected. Start real-time session first.');
+      }
+
+      // Use settings from mic node or defaults
+      const sampleRate = micSettings?.sampleRate || 16000;
+      const channelCount = micSettings?.channels || 1;
+
+      console.log(`🎤 Starting microphone capture: ${sampleRate}Hz, ${channelCount} channel(s)`);
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: false, // Let our pipeline handle it
-          autoGainControl: false,  // Let our pipeline handle it
+          sampleRate,
+          channelCount,
+          // Disable ALL browser preprocessing - let the pipeline handle everything
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
         },
       });
 
-      // Initialize Web Audio API
+      // Initialize Web Audio API with the same sample rate
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 16000,
+        sampleRate,
       });
 
       // Create MediaRecorder for chunk-based processing
@@ -261,18 +364,40 @@ export const usePipelineProcessing = () => {
         mimeType: 'audio/webm;codecs=opus',
       });
 
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0 && websocketRef.current) {
-          // Note: Audio chunk sending would need to be implemented separately
-          // as RTK Query doesn't handle WebSocket connections
-          console.log('Audio chunk ready for processing:', event.data.size, 'bytes');
+      mediaRecorderRef.current.ondataavailable = async (event) => {
+        if (event.data.size > 0 && websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
+          try {
+            // Convert audio blob to base64
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64Audio = (reader.result as string).split(',')[1]; // Remove data:audio/webm;base64, prefix
+
+              // Send audio chunk via WebSocket
+              if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
+                websocketRef.current.send(JSON.stringify({
+                  type: 'audio_chunk',
+                  data: base64Audio,
+                  timestamp: Date.now(),
+                }));
+
+                // Update progress indicator
+                setProcessingProgress(prev => (prev + 1) % 100);
+              }
+            };
+            reader.readAsDataURL(event.data);
+          } catch (err) {
+            console.error('Failed to send audio chunk:', err);
+          }
         }
       };
 
       // Record in 100ms chunks for real-time processing
       mediaRecorderRef.current.start(100);
-      
-      enqueueSnackbar('Microphone capture started', { variant: 'success' });
+
+      enqueueSnackbar(
+        `🎤 Microphone streaming: ${sampleRate / 1000}kHz, ${channelCount === 1 ? 'Mono' : 'Stereo'}`,
+        { variant: 'success' }
+      );
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
@@ -409,26 +534,27 @@ export const usePipelineProcessing = () => {
     metrics,
     audioAnalysis,
     error,
-    
+
     // Real-time state
     realtimeSession,
     isRealtimeActive,
-    
+    websocket: websocketRef.current,
+
     // Processing functions
     processPipeline,
     processSingleStage,
     analyzeFFT,
     analyzeLUFS,
-    
+
     // Real-time functions
     startRealtimeProcessing,
     startMicrophoneCapture,
     stopRealtimeProcessing,
     updateRealtimeConfig,
-    
+
     // Utility functions
     getProcessedAudioBlob,
-    
+
     // Preset management
     getPresets,
     savePreset,

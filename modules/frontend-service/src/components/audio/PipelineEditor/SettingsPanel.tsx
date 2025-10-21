@@ -24,6 +24,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  ListItemIcon,
   ListItemSecondaryAction,
   Tooltip,
   Paper,

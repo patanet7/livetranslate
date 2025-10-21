@@ -23,13 +23,23 @@ export interface ModelsResponse {
   total_models: number;
   error?: string;
   message?: string;
-  device_info?: {
+  device_info?: DeviceInfo; // For /models/transcription endpoint (single service)
+  // For backwards compatibility with /models endpoint (all models)
+  _legacy_device_info?: {
     audio_service: DeviceInfo;
     translation_service: DeviceInfo;
   };
 }
 
 const MODEL_DESCRIPTIONS: Record<string, { displayName: string; description: string }> = {
+  'whisper-tiny': { displayName: 'Tiny (fastest)', description: 'Fastest model, good for real-time processing' },
+  'whisper-base': { displayName: 'Base (recommended)', description: 'Balanced speed and accuracy' },
+  'whisper-small': { displayName: 'Small', description: 'Better accuracy than base' },
+  'whisper-medium': { displayName: 'Medium', description: 'Good accuracy, slower processing' },
+  'whisper-large': { displayName: 'Large (highest quality)', description: 'Best accuracy, slowest processing' },
+  'whisper-large-v2': { displayName: 'Large v2', description: 'Enhanced large model' },
+  'whisper-large-v3': { displayName: 'Large v3', description: 'Latest large model' },
+  // Legacy format support (without "whisper-" prefix)
   tiny: { displayName: 'Tiny (fastest)', description: 'Fastest model, good for real-time processing' },
   base: { displayName: 'Base (recommended)', description: 'Balanced speed and accuracy' },
   small: { displayName: 'Small', description: 'Better accuracy than base' },
@@ -56,8 +66,9 @@ export const useAvailableModels = () => {
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/audio/models');
-        
+        // Use specific transcription models endpoint
+        const response = await fetch('/api/audio/models/transcription');
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -76,21 +87,28 @@ export const useAvailableModels = () => {
 
         setModels(modelInfos);
         setStatus(data.status);
-        setDeviceInfo(data.device_info || null);
-        
+
+        // Handle device info - transcription endpoint returns single DeviceInfo
+        if (data.device_info) {
+          // Normalize to expected structure for consistency
+          setDeviceInfo({
+            audio_service: data.device_info as DeviceInfo,
+            translation_service: { device: 'unknown', status: 'not_requested' }
+          });
+        } else {
+          setDeviceInfo(null);
+        }
+
         if (data.status === 'fallback') {
           setServiceMessage(data.message || 'Using fallback models - audio service may be offline');
         } else {
           setServiceMessage(null);
         }
 
-        console.log(`Loaded ${modelInfos.length} models from orchestration service (status: ${data.status})`);
-        
+        console.log(`Loaded ${modelInfos.length} transcription models from Whisper service (status: ${data.status})`);
+
         if (data.device_info) {
-          console.log('Device info:', {
-            audio: data.device_info.audio_service.device,
-            translation: data.device_info.translation_service.device
-          });
+          console.log('Whisper device info:', data.device_info);
         }
         
       } catch (err) {

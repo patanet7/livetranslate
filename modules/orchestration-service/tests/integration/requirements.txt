@@ -1,0 +1,10 @@
+# Integration Test Requirements
+
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.1
+websockets>=11.0.3
+numpy>=1.24.0
+sqlalchemy>=2.0.0
+aiosqlite>=0.19.0
+timecode>=1.4.1  # SMPTE timecode for precise audio overlap handling
