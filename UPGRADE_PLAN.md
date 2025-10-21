@@ -2857,7 +2857,7 @@ manager = ModelManager(
 | **In-Domain Prompts** | ✅ | ✅ | ✅ | ✅ |
 | **Warmup System** | ✅ | ✅ | ✅ | ✅ |
 | **Context Carryover (Rolling Context)** | ✅ | ✅ | ✅ | ✅ |
-| Silero VAD | ⚪ | ⚪ | ⚪ | ⚪ |
+| **Silero VAD (Silence Filtering)** | ✅ | ✅ | ✅ | ✅ |
 | Computationally Aware Chunking | ⚪ | ⚪ | ⚪ | ⚪ |
 | CIF Word Boundaries | ⚪ | ⚪ | ⚪ | ⚪ |
 | Sub-Second WebSocket | ⚪ | ⚪ | ⚪ | ⚪ |
@@ -2868,6 +2868,25 @@ manager = ModelManager(
 **Legend**: ⚪ Not Started | 🟡 In Progress | ✅ Complete | 🔴 Failing (TDD red)
 
 **Recent Completions**:
+
+**Phase 2.2: Silero VAD - Silence Filtering** (2025-10-20):
+- Tests: ✅ 12/12 comprehensive integration tests passing (100% success rate)
+- Implementation: ✅ Complete Silero VAD integration for intelligent silence filtering
+  - VADIterator class with speech detection (threshold-based)
+  - FixedVADIterator for variable-length audio (buffers to 512 samples)
+  - Real-time speech/silence classification
+  - Configurable threshold (0.5 default), sampling rate (8kHz/16kHz)
+  - Filters silence BEFORE Whisper transcription (eliminates wasted compute)
+- Test Coverage: ✅ ZERO MOCKS - All real Silero VAD + Whisper inference
+  - 8 tests: Real Silero VAD model from torch.hub (snakers4/silero-vad)
+  - 4 tests: VAD filtering with real Whisper large-v3 integration
+  - All tests use real model.load() and real audio processing
+- Benefits:
+  - Eliminates wasted compute on silence
+  - Reduces Whisper processing by filtering silent chunks
+  - Foundation for computationally aware chunking (next feature)
+- Documentation: ✅ SimulStreaming reference compliance, MIT license
+- Commit: 6905f67 "Implement Phase 2.2: Silero VAD Integration - Silence Filtering"
 
 **Phase 2.2: Rolling Context System (Context Carryover)** (2025-10-20):
 - Tests: ✅ 58/58 comprehensive integration tests passing (100% success rate)
