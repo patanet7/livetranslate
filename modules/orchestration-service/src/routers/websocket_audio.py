@@ -21,7 +21,7 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from websockets.asyncio.client import connect as websockets_connect
 from websocket_frontend_handler import WebSocketFrontendHandler
-from websocket_whisper_client import WhisperWebSocketClient
+from websocket_whisper_client import WebSocketWhisperClient
 from datetime import datetime
 import asyncio
 
@@ -37,8 +37,10 @@ frontend_handler = WebSocketFrontendHandler(
 )
 
 # Create singleton Whisper WebSocket client
-whisper_client = WhisperWebSocketClient(
-    whisper_ws_url="ws://whisper:5001/stream"  # Update based on your config
+whisper_client = WebSocketWhisperClient(
+    whisper_host="whisper",  # Docker service name or localhost for dev
+    whisper_port=5001,
+    auto_reconnect=True
 )
 
 
