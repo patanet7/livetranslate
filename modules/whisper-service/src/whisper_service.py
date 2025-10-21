@@ -110,7 +110,15 @@ class ModelManager:
     Phase 2: SimulStreaming Implementation
     """
 
-    def __init__(self, models_dir: Optional[str] = None, warmup_file: Optional[str] = None, auto_warmup: bool = False):
+    def __init__(
+        self,
+        models_dir: Optional[str] = None,
+        warmup_file: Optional[str] = None,
+        auto_warmup: bool = False,
+        static_prompt: Optional[str] = None,
+        init_prompt: Optional[str] = None,
+        max_context_tokens: int = 223
+    ):
         """
         Initialize model manager with PyTorch device detection
 
@@ -118,6 +126,9 @@ class ModelManager:
             models_dir: Directory containing Whisper models
             warmup_file: Path to warmup audio file (WAV, 1 second recommended)
             auto_warmup: If True, automatically warmup on initialization
+            static_prompt: Static domain terminology (never trimmed)
+            init_prompt: Initial dynamic prompt (added to rolling context)
+            max_context_tokens: Maximum context tokens (default: 223 per SimulStreaming)
         """
         # Use local models directory or default to openai-whisper cache
         if models_dir is None:
@@ -155,6 +166,15 @@ class ModelManager:
         # Phase 2.2: Warmup system (eliminate 20s cold start)
         self.warmup_file = warmup_file
         self.is_warmed_up = False
+
+        # Phase 2.2: Rolling Context System (SimulStreaming context carryover)
+        # Following SimulStreaming reference: simul_whisper/simul_whisper.py lines 151-195
+        # Two-tier context: static prompt (never trimmed) + rolling context (FIFO)
+        # Target: +25-40% quality improvement on long-form content
+        self.static_prompt = static_prompt or ""  # Domain terminology
+        self.max_context_tokens = max_context_tokens  # Default: 223 (SimulStreaming Table 1)
+        self.rolling_context = None  # TokenBuffer, initialized by init_context()
+        self._init_prompt = init_prompt  # Store for init_context()
 
         logger.info(f"ModelManager initialized - Device: {self.device}, Models: {self.models_dir}")
         logger.info("Using PyTorch Whisper (openai-whisper) with SimulStreaming enhancements")
@@ -269,6 +289,139 @@ class ModelManager:
             logger.error(f"[WARMUP] ❌ Warmup failed: {e}")
             logger.warning("[WARMUP] First request may experience cold start delay (~20s)")
             raise
+
+    def init_context(self):
+        """
+        Initialize rolling context system
+
+        Following SimulStreaming reference (simul_whisper/simul_whisper.py:151-195):
+        - Creates TokenBuffer with Whisper tokenizer
+        - Initializes with static prompt + optional initial prompt
+        - Static prompt is never trimmed (domain terminology)
+        - Rolling context is trimmed FIFO when over max_context_tokens
+
+        Example:
+            manager = ModelManager(static_prompt="Medical terms: hypertension")
+            manager.init_context()
+        """
+        from token_buffer import TokenBuffer
+
+        # Get Whisper tokenizer from default model
+        if self.default_model not in self.models:
+            self.load_model(self.default_model)
+
+        model = self.models[self.default_model]
+        tokenizer = whisper.tokenizer.get_tokenizer(
+            multilingual=model.is_multilingual
+        )
+
+        # Initialize rolling context with static prompt
+        initial_text = self.static_prompt
+        if self._init_prompt:
+            # Add initial prompt after static prompt
+            if initial_text:
+                initial_text += " " + self._init_prompt
+            else:
+                initial_text = self._init_prompt
+
+        self.rolling_context = TokenBuffer.from_text(
+            text=initial_text,
+            tokenizer=tokenizer
+        )
+
+        logger.info(f"[CONTEXT] ✓ Rolling context initialized")
+        logger.info(f"[CONTEXT] Static prompt: '{self.static_prompt}'")
+        logger.info(f"[CONTEXT] Max context tokens: {self.max_context_tokens}")
+
+    def trim_context(self):
+        """
+        Trim rolling context when over token limit
+
+        Following SimulStreaming FIFO word-level trimming:
+        - Removes oldest words first (FIFO)
+        - Preserves static prompt (never trimmed)
+        - Operates at word boundaries
+        - Stops when under max_context_tokens
+
+        Returns:
+            Number of words trimmed
+        """
+        if self.rolling_context is None:
+            return 0
+
+        total_trimmed = 0
+        static_prefix_len = len(self.static_prompt)
+
+        # Trim words until under limit
+        while True:
+            try:
+                current_tokens = len(self.rolling_context.as_token_ids())
+            except Exception:
+                # If tokenizer fails, stop trimming
+                break
+
+            if current_tokens <= self.max_context_tokens:
+                break
+
+            # Trim one word at a time (FIFO)
+            words_removed = self.rolling_context.trim_words(
+                num=1,
+                after=static_prefix_len
+            )
+
+            if words_removed == 0:
+                # No more words to trim
+                break
+
+            total_trimmed += 1
+
+        if total_trimmed > 0:
+            logger.debug(f"[CONTEXT] Trimmed {total_trimmed} words to stay under {self.max_context_tokens} tokens")
+
+        return total_trimmed
+
+    def append_to_context(self, text: str):
+        """
+        Append completed transcription segment to rolling context
+
+        Following SimulStreaming context carryover:
+        - Appends new segment to rolling context
+        - Automatically trims if over max_context_tokens
+        - Preserves static prompt
+
+        Args:
+            text: Completed transcription text to append
+
+        Example:
+            manager.append_to_context("Patient presents with chest pain.")
+        """
+        if self.rolling_context is None:
+            # Auto-initialize if not initialized
+            self.init_context()
+
+        # Append text
+        if self.rolling_context.text and not self.rolling_context.text.endswith(" "):
+            self.rolling_context.text += " "
+        self.rolling_context.text += text
+
+        # Trim if necessary
+        self.trim_context()
+
+    def get_inference_context(self) -> str:
+        """
+        Get rolling context text for next inference
+
+        Returns:
+            Context text to pass to Whisper (via prompt parameter)
+
+        Example:
+            context = manager.get_inference_context()
+            result = model.transcribe(audio, prompt=context)
+        """
+        if self.rolling_context is None:
+            return ""
+
+        return self.rolling_context.text
 
     def load_model(self, model_name: str):
         """
