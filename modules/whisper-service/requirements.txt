@@ -25,25 +25,23 @@ python-dotenv>=0.19.0
 redis>=4.0.0
 hiredis>=2.0.0
 
-# Whisper and speech processing (proven working)
-faster-whisper>=0.9.0
-onnxruntime>=1.12.0
+# Whisper and speech processing - Phase 2: PyTorch-based
+openai-whisper>=20231117  # PyTorch Whisper implementation
+torch>=2.9.0  # PyTorch for GPU acceleration (latest)
+torchaudio>=2.9.0  # Audio processing with PyTorch
+tiktoken>=0.5.0  # Token estimation for domain prompting
+faster-whisper>=0.9.0  # Keep for compatibility
+onnxruntime>=1.12.0  # Keep for compatibility
 
 # Audio analysis and visualization (proven working)
 matplotlib>=3.5.0
 
-# NPU and OpenVINO support
-openvino>=2024.4.0
-openvino-genai>=2024.4.0
-
-# Enhanced audio processing for NPU
+# Enhanced audio processing
 webrtcvad>=2.0.10
 silero-vad>=4.0.0
 
-# Speaker Diarization and Audio Enhancement Dependencies (optional for NPU)
-# pyannote.audio>=3.1.0
-# torch>=1.13.0
-# torchaudio>=0.13.0
+# Speaker Diarization and Audio Enhancement Dependencies
+pyannote.audio>=3.1.0  # Enabled for Phase 2
 scikit-learn>=1.0.0
 
 # Speech Enhancement
