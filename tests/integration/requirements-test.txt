@@ -1,0 +1,44 @@
+# Testing Dependencies for LiveTranslate Upgrade
+# Phase 0: TDD Test Infrastructure
+
+# Core testing framework
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-timeout==2.2.0
+pytest-xdist==3.5.0          # Parallel test execution
+
+# Property-based and data generation
+hypothesis==6.92.0            # Property-based testing
+faker==20.1.0                 # Test data generation
+factory-boy==3.3.0            # Test object factories
+
+# Time and HTTP mocking
+freezegun==1.4.0              # Time mocking
+responses==0.24.1             # HTTP mocking
+aioresponses==0.7.6           # Async HTTP mocking
+
+# Database testing
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9        # PostgreSQL adapter
+alembic==1.13.0               # Database migrations
+
+# Redis testing
+redis==5.0.1
+fakeredis==2.20.1             # In-memory Redis for tests
+
+# Audio processing for tests
+numpy==1.26.2
+scipy==1.11.4
+librosa==0.10.1
+soundfile==0.12.1
+
+# API testing
+httpx==0.25.2                 # Async HTTP client
+websockets==12.0              # WebSocket testing
+msgpack==1.0.7                # Binary serialization testing
+
+# Additional utilities
+pydantic==2.5.2
+python-dotenv==1.0.0
