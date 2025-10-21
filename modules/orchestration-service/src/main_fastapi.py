@@ -64,7 +64,17 @@ try:
     from routers.bot import router as bot_router
     import_logger.info("[OK] bot_router imported successfully")
     routers_status['bot_router'] = {'status': 'success', 'routes': len(bot_router.routes) if hasattr(bot_router, 'routes') else 0}
-    
+
+    import_logger.debug("Importing bot_management_router...")
+    from routers.bot_management import router as bot_management_router
+    import_logger.info("[OK] bot_management_router imported successfully")
+    routers_status['bot_management_router'] = {'status': 'success', 'routes': len(bot_management_router.routes) if hasattr(bot_management_router, 'routes') else 0}
+
+    import_logger.debug("Importing bot_callbacks_router...")
+    from routers.bot_callbacks import router as bot_callbacks_router
+    import_logger.info("[OK] bot_callbacks_router imported successfully")
+    routers_status['bot_callbacks_router'] = {'status': 'success', 'routes': len(bot_callbacks_router.routes) if hasattr(bot_callbacks_router, 'routes') else 0}
+
     import_logger.debug("Importing websocket_router...")
     from routers.websocket import router as websocket_router
     import_logger.info("[OK] websocket_router imported successfully")
@@ -319,6 +329,22 @@ conflicts = check_route_conflicts("/api/bot", "bot_router", registered_routes)
 app.include_router(bot_router, prefix="/api/bot", tags=["Bot Management"])
 registered_routes.append(("/api/bot", "bot_router"))
 router_logger.info("[OK] bot_router registered successfully")
+
+# Register bot_management_router (new Docker-based management)
+router_logger.info("[3a] Registering bot_management_router...")
+log_router_details("bot_management_router", bot_management_router, "")  # Uses own prefix /bots
+conflicts = check_route_conflicts("", "bot_management_router", registered_routes)
+app.include_router(bot_management_router)  # Router defines its own prefix /bots
+registered_routes.append(("", "bot_management_router"))
+router_logger.info("[OK] bot_management_router registered successfully")
+
+# Register bot_callbacks_router (internal callbacks from bot containers)
+router_logger.info("[3b] Registering bot_callbacks_router...")
+log_router_details("bot_callbacks_router", bot_callbacks_router, "")  # Uses own prefix /bots/internal/callback
+conflicts = check_route_conflicts("", "bot_callbacks_router", registered_routes)
+app.include_router(bot_callbacks_router)  # Router defines its own prefix
+registered_routes.append(("", "bot_callbacks_router"))
+router_logger.info("[OK] bot_callbacks_router registered successfully")
 
 # Register websocket_router
 router_logger.info("[4] Registering websocket_router...")
