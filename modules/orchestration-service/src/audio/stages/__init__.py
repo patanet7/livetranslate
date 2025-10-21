@@ -3,6 +3,9 @@
 Audio Processing Stages
 
 Individual stage implementations for the modular audio pipeline.
+
+Note: LUFS Normalization, Compression, and Limiter stages are now imported
+from stages_enhanced (using pyloudnorm and pedalboard libraries).
 """
 
 from .vad_stage import VADStage
@@ -12,21 +15,18 @@ from .voice_enhancement_stage import VoiceEnhancementStage
 from .equalizer_stage import EqualizerStage
 from .spectral_denoising_stage import SpectralDenoisingStage
 from .conventional_denoising_stage import ConventionalDenoisingStage
-from .lufs_normalization_stage import LUFSNormalizationStage
 from .agc_stage import AGCStage
-from .compression_stage import CompressionStage
-from .limiter_stage import LimiterStage
+
+# Note: LUFSNormalizationStage, CompressionStage, and LimiterStage are now
+# imported from stages_enhanced in audio_processor.py
 
 __all__ = [
     'VADStage',
-    'VoiceFilterStage', 
+    'VoiceFilterStage',
     'NoiseReductionStage',
     'VoiceEnhancementStage',
     'EqualizerStage',
     'SpectralDenoisingStage',
     'ConventionalDenoisingStage',
-    'LUFSNormalizationStage',
     'AGCStage',
-    'CompressionStage',
-    'LimiterStage'
 ]
