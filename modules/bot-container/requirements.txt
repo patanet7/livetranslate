@@ -1,0 +1,30 @@
+# Bot Container Dependencies
+# Phase 3.3a: Simplified Bot Architecture
+
+# WebSocket client (same version as orchestration)
+websockets==15.0.1
+
+# HTTP client for callbacks to bot manager
+httpx==0.28.1
+
+# Redis for command listening
+redis==5.2.1
+
+# Async support
+asyncio-mqtt==0.16.2
+
+# Audio processing
+numpy==2.2.3
+scipy==1.15.1
+
+# Browser automation (to be implemented in Phase 3.3b)
+# selenium==4.27.1
+# playwright==1.49.1
+
+# Testing
+pytest==8.4.2
+pytest-asyncio==1.2.0
+pytest-mock==3.15.1
+
+# Logging
+loguru==0.7.3
