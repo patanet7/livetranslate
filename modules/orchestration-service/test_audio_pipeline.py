@@ -5,10 +5,29 @@ Audio Pipeline Testing CLI
 Tests the complete audio processing pipeline with configurable stages.
 Saves intermediate outputs after each stage for inspection.
 
+✨ Now using enhanced stages (pyloudnorm, pedalboard) for LUFS, Compression, and Limiter!
+   63-99% faster than previous custom implementations.
+
+📚 For complete effects documentation, see: AUDIO_EFFECTS.md
+
 Usage:
-    python test_audio_pipeline.py --config test_config.json
-    python test_audio_pipeline.py --config test_config.json --input ./input/test.wav
-    python test_audio_pipeline.py --list-presets
+    poetry run python test_audio_pipeline.py --config test_config.json
+    poetry run python test_audio_pipeline.py --config config_examples/broadcast.json --input ./input/test.wav
+    poetry run python test_audio_pipeline.py --list-presets
+    poetry run python test_audio_pipeline.py --create-example
+
+Available Presets:
+    - default: Balanced processing for general use
+    - voice: Voice-optimized (meetings, calls)
+    - noisy: Aggressive noise reduction
+    - broadcast: Broadcast quality (ITU-R compliant)
+    - conference: Conference call optimization
+    - minimal: Light processing (low latency)
+
+Output:
+    - Saves audio after each stage to ./output/run_TIMESTAMP/
+    - Saves processing metadata to JSON files
+    - Saves complete test configuration
 """
 
 import os

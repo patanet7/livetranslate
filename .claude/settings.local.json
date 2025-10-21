@@ -14,7 +14,8 @@
       "Bash(chmod:*)",
       "Bash(git clone:*)",
       "Bash(touch:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(poetry run pytest:*)"
     ],
     "deny": []
   }

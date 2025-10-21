@@ -5,6 +5,8 @@ Provides common fixtures for database, Redis, and service mocking
 import pytest
 import asyncio
 import os
+import sys
+from pathlib import Path
 from typing import AsyncGenerator, Generator
 from unittest.mock import Mock, AsyncMock
 from sqlalchemy import create_engine
@@ -12,6 +14,12 @@ from sqlalchemy.orm import sessionmaker, Session
 from redis import Redis
 import fakeredis
 import numpy as np
+
+# Add project root and orchestration-service/src to Python path
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+ORCHESTRATION_SRC = PROJECT_ROOT / "modules" / "orchestration-service" / "src"
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(ORCHESTRATION_SRC))
 
 # Test configuration
 TEST_DATABASE_URL = os.getenv(
@@ -59,10 +67,15 @@ async def postgres_fixture(test_db_engine) -> AsyncGenerator[Session, None]:
     Creates all tables before test, drops after
     """
     # Import models to ensure they're registered
-    from modules.orchestration_service.src.database.models import Base
+    from database.models import Base
+    # Also import chat_models to register those tables
+    import database.chat_models
+
+    # Clean up any existing tables first (from failed tests)
+    Base.metadata.drop_all(test_db_engine, checkfirst=True)
 
     # Create all tables
-    Base.metadata.create_all(test_db_engine)
+    Base.metadata.create_all(test_db_engine, checkfirst=True)
 
     # Create session
     SessionLocal = sessionmaker(bind=test_db_engine, expire_on_commit=False)
@@ -72,7 +85,7 @@ async def postgres_fixture(test_db_engine) -> AsyncGenerator[Session, None]:
 
     # Cleanup
     session.close()
-    Base.metadata.drop_all(test_db_engine)
+    Base.metadata.drop_all(test_db_engine, checkfirst=True)
 
 
 @pytest.fixture
