@@ -31,6 +31,7 @@ try:
     DOCKER_AVAILABLE = True
 except ImportError:
     DOCKER_AVAILABLE = False
+    Container = None  # Type hint placeholder
     logger = logging.getLogger(__name__)
     logger.warning("Docker SDK not available - install with: pip install docker")
 
@@ -372,7 +373,7 @@ class DockerBotManager:
 
         return connection_id
 
-    async def _start_container(self, config: BotConfig) -> Container:
+    async def _start_container(self, config: BotConfig) -> Any:
         """Start Docker container"""
         if not self.docker_client:
             raise RuntimeError("Docker client not available")
