@@ -3258,12 +3258,74 @@ Bot Container (receives processed segments)
 - `{"action": "leave"}` - Exit meeting
 - `{"action": "reconfigure", "language": "es"}` - Update config
 
-#### Phase 3.3b: Simplify Bot Manager (Next)
+#### Phase 3.3b: Bot Container Components ✅ Complete
+
+**Status**: ✅ Complete (Stub implementations ready for Phase 3.3c)
+**Tests**: ✅ 18/31 passing (58%), 13 skipped for Phase 3.3c integration
+
+**Files Created** (`modules/bot-container/src/`):
+
+1. ✅ `browser_automation.py` (180 lines - stub)
+   - Google Meet browser automation wrapper
+   - Simplified from orchestration-service version
+   - Methods: initialize(), join_meeting(), leave_meeting(), cleanup()
+   - Full Selenium implementation in Phase 3.3c
+
+2. ✅ `audio_capture.py` (350 lines - stub)
+   - Audio extraction from browser/system
+   - Processing into 16kHz mono float32 chunks
+   - Streaming to orchestration_client
+   - Quality validation (RMS threshold)
+   - Full sounddevice implementation in Phase 3.3c
+
+3. ✅ `redis_subscriber.py` (300 lines - stub)
+   - Redis pub/sub listener for commands
+   - Command parsing (JSON)
+   - Callback-based command handling
+   - Actions: leave, reconfigure, status
+   - Full Redis integration in Phase 3.3c
+
+**Tests Un-skipped and Implemented**:
+
+✅ **Lifecycle Tests** (2 tests):
+- `test_bot_startup_sequence` - Verifies startup flow (connect → notify → join → active)
+- `test_bot_shutdown_sequence` - Verifies cleanup flow (stop audio → leave → disconnect)
+
+✅ **Callback Tests** (5 tests):
+- `test_bot_sends_startup_callback` - POST /bots/internal/callback/started
+- `test_bot_sends_joining_callback` - POST /bots/internal/callback/joining
+- `test_bot_sends_active_callback` - POST /bots/internal/callback/active
+- `test_bot_sends_completed_callback` - POST /bots/internal/callback/completed
+- `test_bot_sends_failed_callback` - POST /bots/internal/callback/failed (with error payload)
+
+✅ **Redis Command Tests** (3 tests):
+- `test_bot_subscribes_to_command_channel` - Verifies subscription to bot_commands:{connection_id}
+- `test_bot_handles_leave_command` - Tests leave command handling
+- `test_bot_handles_reconfigure_command` - Tests reconfigure command (language, task)
+
+**Test Coverage**:
+- Unit tests: ✅ 18 passing (lifecycle, callbacks, commands, initialization)
+- Integration tests: ⚠️ 13 skipped (require running orchestration service - Phase 3.3c)
+- Error handling: ⚠️ 3 skipped (implement in Phase 3.3c)
+
+**Commit**: `8d7de8c` "Implement Phase 3.3b: Bot container components and comprehensive tests"
+
+#### Phase 3.3c: Full Integration & Manager Simplification (Next)
 
 **Status**: ⚪ Not Started
-**Target**: Reduce bot manager from 8,701 lines to ~800 lines
+**Target**: Complete full implementations + simplify bot manager (8,701 → ~800 lines)
 
-**Changes**:
+**Tasks**:
+
+**Part 1: Complete Bot Container Components**
+1. Implement full browser automation (Selenium)
+2. Implement full audio capture (sounddevice)
+3. Implement full Redis subscriber (redis.asyncio)
+4. Un-skip integration tests
+5. Implement error handling tests
+6. Implement virtual webcam (optional)
+
+**Part 2: Simplify Bot Manager**
 1. Replace Python process management with Docker client
 2. Implement callback endpoints (started, joining, active, etc.)
 3. Implement Redis pub/sub for commands
@@ -3302,16 +3364,12 @@ class SimplifiedBotManager:
         # Update database, send webhook, etc.
 ```
 
-#### Phase 3.3c: Integration & Full Implementation (After 3.3b)
-
-**Status**: ⚪ Not Started
-
-**Tasks**:
-1. Implement browser automation in bot container
-2. Implement audio capture in bot container
-3. Implement Redis subscriber in bot container
-4. Implement virtual webcam (optional)
-5. End-to-end testing
+**Part 3: End-to-End Testing**
+1. Build Docker image: `docker build -t livetranslate-bot:latest`
+2. Test bot startup with running orchestration
+3. Test audio streaming
+4. Test segment reception
+5. Test virtual webcam (optional)
 6. Performance validation
 
 #### Benefits
@@ -3326,21 +3384,22 @@ class SimplifiedBotManager:
 
 #### Test Coverage
 
-**Phase 3.3a Tests**:
-- ✅ `test_orchestration_client.py`: 8 tests (8 passing, 0 failing)
+**Phase 3.3a + 3.3b Tests**:
+- ✅ `test_orchestration_client.py`: 8 tests (8 passing)
   - Client initialization ✅
   - Connection handling ✅
   - Audio streaming ✅
   - Segment reception ✅
   - Error handling ✅
-- ✅ `test_bot_main.py`: 2 tests passing, 16 skipped for future phases
+- ✅ `test_bot_main.py`: 12 tests (10 passing, 2 lifecycle + 5 callbacks + 3 Redis commands)
   - Bot initialization ✅
   - Environment configuration ✅
-  - Lifecycle (Phase 3.3c)
-  - Callbacks (Phase 3.3c)
-  - Commands (Phase 3.3c)
+  - Lifecycle tests ✅ (startup sequence, shutdown sequence)
+  - Callback tests ✅ (started, joining, active, completed, failed)
+  - Redis command tests ✅ (subscribe, leave, reconfigure)
+  - Integration tests: ⚠️ 6 skipped (require running orchestration - Phase 3.3c)
 
-**Total Tests**: 8 passing, 23 skipped for Phase 3.3b/c
+**Total Tests**: 18 passing, 13 skipped for Phase 3.3c integration
 
 ---
 
@@ -3378,6 +3437,20 @@ class SimplifiedBotManager:
 
 **Recent Completions**:
 
+**Phase 3.3b: Bot Container Components** (2025-10-21):
+- Tests: ✅ 18/31 passing (58%), 13 skipped for Phase 3.3c
+- Implementation: ✅ Complete stub implementations for all components
+  - `browser_automation.py` (180 lines): Google Meet browser automation wrapper
+  - `audio_capture.py` (350 lines): Audio extraction and streaming
+  - `redis_subscriber.py` (300 lines): Command listener (leave, reconfigure)
+  - Un-skipped lifecycle tests (2): startup/shutdown sequences
+  - Un-skipped callback tests (5): HTTP notifications to manager
+  - Un-skipped Redis tests (3): command handling and subscription
+- Test improvements: +10 tests passing (8 → 18)
+- All stub components ready for full implementation in Phase 3.3c
+- Next: Phase 3.3c - Full Selenium/sounddevice/Redis implementations + Manager simplification
+- Commit: `8d7de8c` "Implement Phase 3.3b: Bot container components and comprehensive tests"
+
 **Phase 3.3a: Simplified Bot Architecture - Bot Container** (2025-10-21):
 - Tests: ✅ 8/8 passing (23 skipped for Phase 3.3b/c)
 - Implementation: ✅ Complete bot container "headless frontend" design
@@ -3400,9 +3473,8 @@ class SimplifiedBotManager:
   - Isolation: Bot failures don't affect manager
   - Scalability: Run bots on separate machines
   - Consistency: Same deduplication, speaker grouping as frontend
-- Next: Phase 3.3b - Simplify bot manager to Docker orchestration (~800 lines)
 - Documentation: ✅ Complete implementation docs, usage examples, API specs
-- Commit: (pending) "Implement Phase 3.3a: Bot Container Creation"
+- Commit: `97e961a` "Implement Phase 3.3a: Bot Container Creation"
 
 **Phase 3.1: Sub-Second WebSocket Streaming** (2025-10-21):
 - Tests: ✅ 18/18 integration tests passing (100% success rate)
