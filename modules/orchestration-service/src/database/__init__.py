@@ -31,6 +31,17 @@ from .chat_models import (
     ChatMessage,
     ConversationStatistics,
 )
+from .domain_models import (
+    DomainCategory,
+    DomainTerminology,
+    DomainPrompt,
+    UserDomainPreference,
+    DomainUsageLog,
+    PREDEFINED_DOMAINS,
+    MEDICAL_TERMINOLOGY,
+    TECHNICAL_TERMINOLOGY,
+    LEGAL_TERMINOLOGY,
+)
 
 __all__ = [
     # Database management
@@ -57,4 +68,14 @@ __all__ = [
     "ConversationSession",
     "ChatMessage",
     "ConversationStatistics",
+    # Domain Prompting Models (Phase 2)
+    "DomainCategory",
+    "DomainTerminology",
+    "DomainPrompt",
+    "UserDomainPreference",
+    "DomainUsageLog",
+    "PREDEFINED_DOMAINS",
+    "MEDICAL_TERMINOLOGY",
+    "TECHNICAL_TERMINOLOGY",
+    "LEGAL_TERMINOLOGY",
 ]
