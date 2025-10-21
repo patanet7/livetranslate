@@ -165,15 +165,20 @@ class AudioDatabaseAdapter:
     async def store_audio_chunk(self, chunk_metadata: AudioChunkMetadata) -> str:
         """
         Store audio chunk metadata in bot_sessions.audio_files.
-        
+
         Args:
             chunk_metadata: AudioChunkMetadata object with complete chunk information
-            
+
         Returns:
             str: The chunk_id if successful, None if failed
         """
+        # Skip if database is not initialized (e.g., in tests or minimal deployments)
+        if not self.connection_pool or not self.connection_pool.pool:
+            logger.debug("Database pool not initialized - skipping audio chunk storage")
+            return None
+
         start_time = time.time()
-        
+
         try:
             async with self.connection_pool.get_connection() as conn:
                 # Generate hash if not provided
@@ -261,9 +266,14 @@ class AudioDatabaseAdapter:
         Returns:
             str: The transcript_id if successful, None if failed
         """
+        # Skip if database is not initialized (e.g., in tests or minimal deployments)
+        if not self.connection_pool or not self.connection_pool.pool:
+            logger.debug("Database pool not initialized - skipping transcript storage")
+            return None
+
         start_time = time.time()
         transcript_id = str(uuid.uuid4())
-        
+
         try:
             async with self.connection_pool.get_connection() as conn:
                 # Extract speaker information
@@ -340,18 +350,23 @@ class AudioDatabaseAdapter:
     ) -> Optional[str]:
         """
         Store translation in bot_sessions.translations with full lineage tracking.
-        
+
         Args:
             session_id: Bot session identifier
             source_transcript_id: Source transcript that was translated
             translation_data: Translation information from translation service
-            
+
         Returns:
             str: The translation_id if successful, None if failed
         """
+        # Skip if database is not initialized (e.g., in tests or minimal deployments)
+        if not self.connection_pool or not self.connection_pool.pool:
+            logger.debug("Database pool not initialized - skipping translation storage")
+            return None
+
         start_time = time.time()
         translation_id = str(uuid.uuid4())
-        
+
         try:
             async with self.connection_pool.get_connection() as conn:
                 # Prepare processing metadata with lineage

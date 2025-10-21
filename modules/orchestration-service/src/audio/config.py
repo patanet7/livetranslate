@@ -682,6 +682,7 @@ class AudioProcessingConfig:
     ])
     pause_after_stage: Dict[str, bool] = field(default_factory=dict)  # For debugging
     bypass_on_low_quality: bool = True  # Bypass processing if input quality is too low
+    use_enhanced_stages: bool = False  # Use enhanced library-based stages (pyloudnorm, pedalboard) instead of custom implementations
     
     # Global settings
     sample_rate: int = 16000

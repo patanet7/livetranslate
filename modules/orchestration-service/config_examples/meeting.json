@@ -1,0 +1,68 @@
+{
+  "description": "Meeting/Conference call - Optimized for online meetings with multiple speakers",
+  "enabled_stages": [
+    "vad",
+    "voice_filter",
+    "noise_reduction",
+    "voice_enhancement",
+    "agc",
+    "compression",
+    "limiter"
+  ],
+  "sample_rate": 16000,
+  "quality": "high",
+  "vad": {
+    "enabled": true,
+    "mode": "webrtc",
+    "aggressiveness": 2,
+    "energy_threshold": 0.01,
+    "sensitivity": 0.5
+  },
+  "voice_filter": {
+    "enabled": true,
+    "fundamental_min": 85,
+    "fundamental_max": 300,
+    "voice_band_gain": 1.1,
+    "high_freq_rolloff": 8000
+  },
+  "noise_reduction": {
+    "enabled": true,
+    "mode": "moderate",
+    "strength": 0.7,
+    "voice_protection": true,
+    "stationary_noise_reduction": 0.8,
+    "non_stationary_noise_reduction": 0.5,
+    "noise_floor_db": -40
+  },
+  "voice_enhancement": {
+    "enabled": true,
+    "clarity_enhancement": 0.2,
+    "presence_boost": 0.1,
+    "sibilance_control": 0.1
+  },
+  "agc": {
+    "enabled": true,
+    "mode": "medium",
+    "target_level": -18.0,
+    "max_gain": 12.0,
+    "min_gain": -6.0,
+    "attack_time": 10.0,
+    "release_time": 100.0,
+    "noise_gate_threshold": -60.0
+  },
+  "compression": {
+    "enabled": true,
+    "mode": "soft_knee",
+    "threshold": -20,
+    "ratio": 3.0,
+    "knee": 2.0,
+    "attack_time": 5.0,
+    "release_time": 100.0
+  },
+  "limiter": {
+    "enabled": true,
+    "threshold": -1.0,
+    "release_time": 50.0,
+    "soft_clip": true
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "description": "Debug noise reduction - Isolated noise reduction testing",
+  "enabled_stages": ["noise_reduction"],
+  "sample_rate": 16000,
+  "quality": "high",
+  "noise_reduction": {
+    "enabled": true,
+    "mode": "moderate",
+    "strength": 0.7,
+    "voice_protection": true,
+    "stationary_noise_reduction": 0.8,
+    "non_stationary_noise_reduction": 0.5,
+    "noise_floor_db": -40,
+    "adaptation_rate": 0.1
+  }
+}

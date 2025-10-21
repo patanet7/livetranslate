@@ -23,7 +23,6 @@ from .models import (
     Participant,
     SessionEvent,
     SessionStatistics,
-    DatabaseManager as ModelDatabaseManager,
 )
 
 __all__ = [
@@ -45,5 +44,4 @@ __all__ = [
     "Participant",
     "SessionEvent",
     "SessionStatistics",
-    "ModelDatabaseManager",
 ]

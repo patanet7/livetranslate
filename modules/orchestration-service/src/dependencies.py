@@ -6,6 +6,7 @@ Provides singleton instances and dependency injection for all orchestration serv
 Manages lifecycle of managers, clients, and shared resources across the application.
 """
 
+import asyncio
 import logging
 import os
 from typing import Optional, Dict, Any
@@ -23,19 +24,21 @@ from infrastructure.queue import EventPublisher, DEFAULT_STREAMS
 # Database imports
 from database.database import DatabaseManager
 from database.unified_bot_session_repository import UnifiedBotSessionRepository
+from config import DatabaseSettings
 
 # Client imports
 from clients.audio_service_client import AudioServiceClient
 from clients.translation_service_client import TranslationServiceClient
 
 # Audio system imports
-from audio.audio_coordinator import AudioCoordinator
+from audio.audio_coordinator import AudioCoordinator, create_audio_coordinator
 from audio.config_sync import ConfigurationSyncManager
 from audio.config import AudioConfigurationManager
 
 # Utility imports
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
+from fastapi import Depends, Request, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +130,23 @@ def get_database_manager() -> DatabaseManager:
     global _database_manager
     if _database_manager is None:
         logger.info("Initializing DatabaseManager singleton")
-        config = get_config_manager()
-        _database_manager = DatabaseManager(config.database)
+        config_manager = get_config_manager()
+        settings = getattr(config_manager, "config", None)
+
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url and settings and getattr(settings, "database", None):
+            db_cfg = settings.database
+            if hasattr(db_cfg, "url"):
+                database_url = db_cfg.url
+            else:
+                    host = getattr(db_cfg, "host", "localhost")
+                    port = getattr(db_cfg, "port", 5432)
+                    name = getattr(db_cfg, "database", "livetranslate")
+                    user = getattr(db_cfg, "username", "postgres")
+                    password = getattr(db_cfg, "password", "")
+                    database_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
+        db_settings = DatabaseSettings(url=database_url) if database_url else DatabaseSettings()
+        _database_manager = DatabaseManager(db_settings)
         logger.info("DatabaseManager initialized successfully")
     return _database_manager
 
@@ -155,10 +173,17 @@ def get_audio_service_client() -> AudioServiceClient:
     global _audio_service_client
     if _audio_service_client is None:
         logger.info("Initializing AudioServiceClient singleton")
-        config = get_config_manager()
+        config_manager = get_config_manager()
+        service_config = config_manager.get_service_config("audio-service") if hasattr(config_manager, 'get_service_config') else None
+        base_url = os.getenv("AUDIO_SERVICE_URL")
+        if not base_url and service_config:
+            base_url = service_config.url
+        if not base_url:
+            base_url = "http://localhost:5001"
+        timeout = int(os.getenv("AUDIO_SERVICE_TIMEOUT", 30))
         _audio_service_client = AudioServiceClient(
-            base_url=config.get_service_url("whisper"),
-            timeout=config.get("services.whisper.timeout", 30)
+            base_url=base_url,
+            timeout=timeout
         )
         logger.info("AudioServiceClient initialized successfully")
     return _audio_service_client
@@ -170,10 +195,17 @@ def get_translation_service_client() -> TranslationServiceClient:
     global _translation_service_client
     if _translation_service_client is None:
         logger.info("Initializing TranslationServiceClient singleton")
-        config = get_config_manager()
+        config_manager = get_config_manager()
+        service_config = config_manager.get_service_config("translation-service") if hasattr(config_manager, 'get_service_config') else None
+        base_url = os.getenv("TRANSLATION_SERVICE_URL")
+        if not base_url and service_config:
+            base_url = service_config.url
+        if not base_url:
+            base_url = "http://localhost:5003"
+        timeout = int(os.getenv("TRANSLATION_SERVICE_TIMEOUT", 30))
         _translation_service_client = TranslationServiceClient(
-            base_url=config.get_service_url("translation"),
-            timeout=config.get("services.translation.timeout", 30)
+            base_url=base_url,
+            timeout=timeout
         )
         logger.info("TranslationServiceClient initialized successfully")
     return _translation_service_client
@@ -189,11 +221,7 @@ def get_websocket_manager() -> WebSocketManager:
     global _websocket_manager
     if _websocket_manager is None:
         logger.info("Initializing WebSocketManager singleton")
-        config = get_config_manager()
-        _websocket_manager = WebSocketManager(
-            max_connections=config.get("websocket.max_connections", 1000),
-            connection_timeout=config.get("websocket.connection_timeout", 1800)
-        )
+        _websocket_manager = WebSocketManager()
         logger.info("WebSocketManager initialized successfully")
     return _websocket_manager
 
@@ -204,11 +232,19 @@ def get_health_monitor() -> HealthMonitor:
     global _health_monitor
     if _health_monitor is None:
         logger.info("Initializing HealthMonitor singleton")
-        config = get_config_manager()
-        _health_monitor = HealthMonitor(
-            check_interval=config.get("monitoring.check_interval", 30),
-            services=config.get("services", {})
-        )
+        # Always start with default settings; we'll override URLs below.
+        _health_monitor = HealthMonitor(settings=None)
+
+        # Override service URLs from environment or defaults
+        audio_url = os.getenv("AUDIO_SERVICE_URL") or _health_monitor.service_configs.get("whisper", {}).get("url", "http://localhost:5001")
+        translation_url = os.getenv("TRANSLATION_SERVICE_URL") or _health_monitor.service_configs.get("translation", {}).get("url", "http://localhost:5003")
+        orchestration_url = os.getenv("ORCHESTRATION_URL") or _health_monitor.service_configs.get("orchestration", {}).get("url", "http://localhost:3000")
+
+        _health_monitor.service_configs = {
+            "whisper": {"url": audio_url, "health_endpoint": "/health"},
+            "translation": {"url": translation_url, "health_endpoint": "/api/health"},
+            "orchestration": {"url": orchestration_url, "health_endpoint": "/api/health"},
+        }
         logger.info("HealthMonitor initialized successfully")
     return _health_monitor
 
@@ -219,13 +255,35 @@ def get_bot_manager() -> BotManager:
     global _bot_manager
     if _bot_manager is None:
         logger.info("Initializing BotManager singleton")
-        config = get_config_manager()
         database = get_unified_repository()
-        _bot_manager = BotManager(
-            config=config,
-            database=database,
-            max_concurrent_bots=config.get("bot.max_concurrent", 10)
-        )
+        settings = getattr(get_config_manager(), "config", None)
+        if isinstance(settings, dict):
+            bot_cfg = settings.get("bot")
+        else:
+            bot_cfg = getattr(settings, "bot", None) if settings else None
+
+        if bot_cfg is not None:
+            from managers.config_manager import BotConfig as ConfigBotSettings
+
+            bot_settings = ConfigBotSettings(
+                max_concurrent_bots=getattr(bot_cfg, "max_concurrent_bots", 10),
+                bot_timeout=getattr(bot_cfg, "bot_timeout", 3600),
+                audio_storage_path=getattr(bot_cfg, "audio_storage_path", "/tmp/audio"),
+                virtual_webcam_enabled=getattr(
+                    bot_cfg, "virtual_webcam_enabled", True
+                ),
+                virtual_webcam_device=getattr(bot_cfg, "virtual_webcam_device", "/dev/video0"),
+                google_meet_credentials_path=getattr(
+                    bot_cfg, "google_meet_credentials_path", ""
+                ),
+                cleanup_on_exit=getattr(bot_cfg, "cleanup_on_exit", True),
+            )
+        else:
+            bot_settings = None
+
+        _bot_manager = BotManager(config=bot_settings)
+        if database:
+            _bot_manager.database_client = database
         logger.info("BotManager initialized successfully")
     return _bot_manager
 
@@ -240,15 +298,70 @@ def get_audio_coordinator() -> AudioCoordinator:
     global _audio_coordinator
     if _audio_coordinator is None:
         logger.info("Initializing AudioCoordinator singleton")
-        config = get_config_manager()
+
+        config_manager = get_config_manager()
+        settings = getattr(config_manager, "config", None)
+
+        # Resolve database URL if available
+        database_url = None
+        if settings:
+            if isinstance(settings, dict):
+                database_cfg = settings.get("database")
+                if isinstance(database_cfg, dict):
+                    database_url = database_cfg.get("url")
+                    if not database_url:
+                        host = database_cfg.get("host", "localhost")
+                        port = database_cfg.get("port", 5432)
+                        name = database_cfg.get("database", "livetranslate")
+                        user = database_cfg.get("username", "postgres")
+                        password = database_cfg.get("password", "")
+                        database_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
+                elif database_cfg and hasattr(database_cfg, "url"):
+                    database_url = database_cfg.url
+            else:
+                database_cfg = getattr(settings, "database", None)
+                if database_cfg and hasattr(database_cfg, "url"):
+                    database_url = database_cfg.url
+        if not database_url:
+            database_url = os.getenv("DATABASE_URL")
+
+        # Resolve downstream service URLs (fallback to environment/defaults)
+        whisper_service_cfg = config_manager.get_service_config("audio-service") if hasattr(config_manager, "get_service_config") else None
+        translation_service_cfg = config_manager.get_service_config("translation-service") if hasattr(config_manager, "get_service_config") else None
+
+        whisper_url = os.getenv("AUDIO_SERVICE_URL")
+        if not whisper_url and whisper_service_cfg:
+            whisper_url = whisper_service_cfg.url
+        if not whisper_url:
+            whisper_url = "http://localhost:5001"
+
+        translation_url = os.getenv("TRANSLATION_SERVICE_URL")
+        if not translation_url and translation_service_cfg:
+            translation_url = translation_service_cfg.url
+        if not translation_url:
+            translation_url = "http://localhost:5003"
+
+        service_urls = {
+            "whisper_service": whisper_url,
+            "translation_service": translation_url,
+        }
+
         audio_client = get_audio_service_client()
         translation_client = get_translation_service_client()
-        _audio_coordinator = AudioCoordinator(
-            config=config,
+
+        max_sessions = int(os.getenv("AUDIO_MAX_CONCURRENT_SESSIONS", "10"))
+        audio_config_file = os.getenv("AUDIO_CONFIG_FILE")
+
+        _audio_coordinator = create_audio_coordinator(
+            database_url=database_url,
+            service_urls=service_urls,
+            config=None,
+            max_concurrent_sessions=max_sessions,
+            audio_config_file=audio_config_file,
             audio_client=audio_client,
-            translation_client=translation_client
+            translation_client=translation_client,
         )
-        logger.info("AudioCoordinator initialized successfully")
+        logger.info("AudioCoordinator instance created")
     return _audio_coordinator
 
 
@@ -262,11 +375,7 @@ def get_rate_limiter() -> RateLimiter:
     global _rate_limiter
     if _rate_limiter is None:
         logger.info("Initializing RateLimiter singleton")
-        config = get_config_manager()
-        _rate_limiter = RateLimiter(
-            max_requests=config.get("rate_limiting.max_requests", 100),
-            time_window=config.get("rate_limiting.time_window", 60)
-        )
+        _rate_limiter = RateLimiter()
         logger.info("RateLimiter initialized successfully")
     return _rate_limiter
 
@@ -277,13 +386,54 @@ def get_security_utils() -> SecurityUtils:
     global _security_utils
     if _security_utils is None:
         logger.info("Initializing SecurityUtils singleton")
-        config = get_config_manager()
-        _security_utils = SecurityUtils(
-            secret_key=config.get("security.secret_key"),
-            token_expiry=config.get("security.token_expiry", 3600)
-        )
+        settings = getattr(get_config_manager(), "config", None)
+        if settings and not isinstance(settings, dict):
+            security_cfg = getattr(settings, "security", None)
+            secret = getattr(security_cfg, "secret_key", None)
+            expiry_minutes = getattr(security_cfg, "access_token_expire_minutes", 60)
+        else:
+            security_cfg = settings.get("security") if isinstance(settings, dict) else {}
+            secret = None
+            expiry_minutes = 60
+            if isinstance(security_cfg, dict):
+                secret = security_cfg.get("secret_key")
+                expiry_minutes = security_cfg.get("access_token_expire_minutes", 60)
+
+        secret = os.getenv("SECRET_KEY", secret or "change-me")
+        expiry_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", expiry_minutes))
+
+        _security_utils = SecurityUtils(secret_key=secret)
         logger.info("SecurityUtils initialized successfully")
     return _security_utils
+
+
+async def rate_limit_api(
+    request: Request,
+    rate_limiter: RateLimiter = Depends(get_rate_limiter),
+) -> None:
+    """Simple sliding-window rate limiter dependency for API endpoints."""
+    client_id = request.client.host if request.client else "unknown"
+    endpoint = request.url.path
+    limit = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
+    window = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+
+    if not await rate_limiter.is_allowed(client_id, endpoint, limit, window):
+        remaining = await rate_limiter.get_remaining(client_id, endpoint, limit, window)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"message": "Too many requests", "retry_after": window, "remaining": remaining},
+        )
+
+
+
+async def get_current_user() -> Optional[Dict[str, Any]]:
+    """
+    Placeholder authentication dependency.
+
+    Returns:
+        Optional user payload. Currently unauthenticated, expands later.
+    """
+    return None
 
 
 # ============================================================================
@@ -339,16 +489,16 @@ async def shutdown_dependencies():
     
     try:
         # Shutdown in reverse order
-        if _bot_manager:
-            await _bot_manager.shutdown()
+        if _bot_manager and hasattr(_bot_manager, "stop"):
+            await _bot_manager.stop()
             logger.info(" BotManager shutdown")
             
-        if _websocket_manager:
-            await _websocket_manager.shutdown()
+        if _websocket_manager and hasattr(_websocket_manager, "stop"):
+            await _websocket_manager.stop()
             logger.info(" WebSocketManager shutdown")
             
-        if _health_monitor:
-            await _health_monitor.shutdown()
+        if _health_monitor and hasattr(_health_monitor, "stop"):
+            await _health_monitor.stop()
             logger.info(" HealthMonitor shutdown")
             
         if _audio_coordinator:
@@ -356,7 +506,11 @@ async def shutdown_dependencies():
             logger.info(" AudioCoordinator shutdown")
             
         if _database_manager:
-            await _database_manager.shutdown()
+            close_fn = getattr(_database_manager, "close", None)
+            if close_fn:
+                maybe_coro = close_fn()
+                if asyncio.iscoroutine(maybe_coro):
+                    await maybe_coro
             logger.info(" DatabaseManager shutdown")
             
         logger.info("All dependencies shutdown successfully")

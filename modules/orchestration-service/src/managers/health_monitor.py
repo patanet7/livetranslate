@@ -217,7 +217,17 @@ class HealthMonitor:
             service.last_check = time.time()
             logger.debug(f"Orchestration service self-check: healthy")
             return
-            
+
+        # Skip health checks for embedded/internal services
+        if config['url'] in ('embedded', 'internal', 'local', None) or not config['url'].startswith('http'):
+            service.status = "embedded"
+            service.error_count = 0
+            service.last_error = None
+            service.response_time = 0
+            service.last_check = time.time()
+            logger.debug(f"Service {service_name} is using embedded mode - skipping health check")
+            return
+
         health_url = f"{config['url']}{config['health_endpoint']}"
         
         try:

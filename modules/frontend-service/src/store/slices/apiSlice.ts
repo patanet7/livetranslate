@@ -426,7 +426,7 @@ export const apiSlice = createApi({
       sessionConfig?: any;
     }>({
       query: ({ pipelineConfig, sessionConfig }) => ({
-        url: 'audio/pipeline/realtime/start',
+        url: 'pipeline/realtime/start',
         method: 'POST',
         body: {
           pipeline_config: pipelineConfig,
@@ -475,6 +475,102 @@ export const apiSlice = createApi({
     // Analytics endpoints to replace unifiedAnalyticsService.ts
     getAnalyticsOverview: builder.query<ApiResponse<any>, void>({
       query: () => 'analytics/overview',
+      providesTags: ['SystemMetrics'],
+    }),
+
+    // Audio Analysis endpoints - connecting backend audio analysis APIs
+    getAudioQualityAnalysis: builder.mutation<any, Blob | string>({
+      query: (audioData) => {
+        const formData = new FormData();
+
+        if (audioData instanceof Blob) {
+          formData.append('audio_file', audioData, 'audio.wav');
+        } else {
+          formData.append('audio_data', audioData);
+        }
+
+        return {
+          url: 'audio/analyze/quality',
+          method: 'POST',
+          body: formData,
+        };
+      },
+    }),
+
+    getSpectrumAnalysis: builder.query<any, string>({
+      query: (sessionId) => `audio/analyze/spectrum/${sessionId}`,
+    }),
+
+    // Audio Statistics
+    getAudioStats: builder.query<any, void>({
+      query: () => 'audio/stats',
+      providesTags: ['SystemMetrics'],
+    }),
+
+    // Audio Models endpoint
+    getAudioModels: builder.query<any, void>({
+      query: () => 'audio/models',
+    }),
+
+    // Audio Processing Stages Info
+    getAudioStagesInfo: builder.query<any, void>({
+      query: () => 'audio/stages/info',
+    }),
+
+    getStageConfig: builder.query<any, string>({
+      query: (stageName) => `audio/stages/${stageName}/config`,
+    }),
+
+    // Bot Analytics endpoints - connecting backend bot analytics APIs
+    getBotAnalytics: builder.query<any, string>({
+      query: (botId) => `bot/${botId}/analytics`,
+      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+    }),
+
+    getBotPerformance: builder.query<any, string>({
+      query: (botId) => `bot/${botId}/performance`,
+      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+    }),
+
+    getBotQualityReport: builder.query<any, string>({
+      query: (botId) => `bot/${botId}/quality-report`,
+      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+    }),
+
+    getSessionAnalytics: builder.query<any, void>({
+      query: () => 'bot/analytics/sessions',
+      providesTags: ['BotSession'],
+    }),
+
+    getQualityAnalytics: builder.query<any, void>({
+      query: () => 'bot/analytics/quality',
+      providesTags: ['SystemMetrics'],
+    }),
+
+    // System Analytics endpoints
+    getTrendAnalysis: builder.query<any, void>({
+      query: () => 'analytics/trends',
+      providesTags: ['SystemMetrics'],
+    }),
+
+    getActiveAlerts: builder.query<any, void>({
+      query: () => 'analytics/alerts',
+      providesTags: ['SystemMetrics'],
+    }),
+
+    getAudioProcessingAnalytics: builder.query<any, void>({
+      query: () => 'analytics/audio/processing',
+      providesTags: ['SystemMetrics'],
+    }),
+
+    getWebSocketAnalytics: builder.query<any, void>({
+      query: () => 'analytics/websocket/connections',
+      providesTags: ['SystemMetrics'],
+    }),
+
+    // Translation Analytics
+    getTranslationAnalytics: builder.query<any, void>({
+      query: () => 'analytics/translation/performance',
       providesTags: ['SystemMetrics'],
     }),
   }),
@@ -535,4 +631,26 @@ export const {
   useSaveProcessingPresetMutation,
   useGetPresetsQuery,
   useGetAnalyticsOverviewQuery,
+
+  // Audio Analysis hooks
+  useGetAudioQualityAnalysisMutation,
+  useGetSpectrumAnalysisQuery,
+  useGetAudioStatsQuery,
+  useGetAudioModelsQuery,
+  useGetAudioStagesInfoQuery,
+  useGetStageConfigQuery,
+
+  // Bot Analytics hooks
+  useGetBotAnalyticsQuery,
+  useGetBotPerformanceQuery,
+  useGetBotQualityReportQuery,
+  useGetSessionAnalyticsQuery,
+  useGetQualityAnalyticsQuery,
+
+  // System Analytics hooks
+  useGetTrendAnalysisQuery,
+  useGetActiveAlertsQuery,
+  useGetAudioProcessingAnalyticsQuery,
+  useGetWebSocketAnalyticsQuery,
+  useGetTranslationAnalyticsQuery,
 } = apiSlice;

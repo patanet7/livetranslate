@@ -1,11 +1,12 @@
 import { useCallback, useState, useRef } from 'react';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { 
-  setRecordingState, 
+import {
+  setRecordingState,
   setRecordedBlobUrl,
   addProcessingLog,
   updateProcessingStage
 } from '@/store/slices/audioSlice';
+import { DEFAULT_TARGET_LANGUAGES } from '@/config/translation';
 
 export const useAudioProcessing = () => {
   const dispatch = useAppDispatch();
@@ -704,7 +705,7 @@ export const useAudioProcessing = () => {
   const processTranscriptionForTranslation = useCallback(async (
     transcriptionText: string,
     sourceLanguage: string = 'auto',
-    targetLanguages: string[] = ['es', 'fr', 'de']
+    targetLanguages: string[] = [...DEFAULT_TARGET_LANGUAGES]
   ) => {
     if (!transcriptionText || transcriptionText.trim().length === 0) {
       throw new Error('No transcription text to translate.');
@@ -793,8 +794,8 @@ export const useAudioProcessing = () => {
   }, [recording.sessionId, dispatch]);
 
   const processAudioWithTranslation = useCallback(async (
-    audioBlob?: Blob, 
-    targetLanguages: string[] = ['es', 'fr', 'de']
+    audioBlob?: Blob,
+    targetLanguages: string[] = [...DEFAULT_TARGET_LANGUAGES]
   ) => {
     dispatch(addProcessingLog({
       level: 'INFO',

@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.10,<3.15"
 # Core web framework
 fastapi = "^0.104.1"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
@@ -53,7 +53,17 @@ watchdog = "^3.0.0"
 
 # Audio processing (Windows-compatible versions)
 numpy = "^1.24.3"
-# Note: Audio processing libraries moved to optional audio group for Windows compatibility
+scipy = "^1.11.3"
+librosa = "^0.10.1"
+soundfile = "^0.12.1"
+pydub = "^0.25.1"
+ffmpeg-python = "^0.2.0"
+
+# Enhanced audio processing libraries
+pedalboard = "^0.9.0"
+pyloudnorm = "^0.1.1"
+webrtcvad-wheels = "^2.0.11"
+pywavelets = "^1.4.1"
 
 # Redis for session management
 redis = "^5.0.0"
@@ -66,6 +76,10 @@ structlog = "^23.1.0"
 werkzeug = "^2.3.7"
 aiofiles = "^24.1.0"
 asyncpg = "^0.30.0"
+openvino = "^2025.3.0"
+openvino-genai = "^2025.3.0.0"
+transformers = "^4.57.1"
+torch = "^2.9.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
@@ -81,17 +95,7 @@ pre-commit = "^3.4.0"
 httpx = "^0.25.0"
 pytest-mock = "^3.11.1"
 faker = "^19.6.2"
-
-[tool.poetry.group.audio.dependencies]
-# Optional audio processing dependencies for advanced features
-# Install with: poetry install --with audio
-scipy = "^1.11.3"
-librosa = "^0.10.1"
-soundfile = "^0.12.1"
-pydub = "^0.25.1"
-ffmpeg-python = "^0.2.0"
-# Note: webrtcvad may require C++ build tools on Windows
-# Use alternative VAD implementations or install manually if needed
+timecode = "^1.4.1"  # SMPTE timecode for precise audio overlap handling in tests
 
 [tool.poetry.group.monitoring.dependencies]
 # Optional monitoring dependencies

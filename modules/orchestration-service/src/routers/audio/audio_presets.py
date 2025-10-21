@@ -10,7 +10,9 @@ Preset management endpoints including:
 - Preset comparison (/presets/compare/{preset1}/{preset2})
 """
 
-from ._shared import *
+from typing import Any, Dict, List, Optional
+
+from ._shared import *  # noqa: F403,F401
 
 # Create router for audio presets
 router = create_audio_router()

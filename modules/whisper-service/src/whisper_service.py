@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 class TranscriptionRequest:
     """Transcription request data structure"""
     audio_data: Union[np.ndarray, bytes]
-    model_name: str = "whisper-base"
+    model_name: str = "whisper-tiny"
     language: Optional[str] = None
     session_id: Optional[str] = None
     streaming: bool = False
@@ -76,8 +76,8 @@ class ModelManager:
     """
     Manages Whisper model loading with NPU optimization and fallback support
     """
-    
-    def __init__(self, models_dir: Optional[str] = None, use_hf_pipeline: bool = False):
+
+    def __init__(self, models_dir: Optional[str] = None, use_hf_pipeline: bool = None):
         """Initialize model manager with NPU detection and model loading"""
         # Use local models directory relative to whisper-service
         if models_dir is None:
@@ -86,8 +86,8 @@ class ModelManager:
             if env_models and os.path.exists(env_models):
                 self.models_dir = env_models
             else:
-                # Try local models directory in whisper-service
-                local_models = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
+                # Try local .models directory in whisper-service (hidden directory)
+                local_models = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models")
                 if os.path.exists(local_models):
                     self.models_dir = local_models
                 else:
@@ -95,11 +95,20 @@ class ModelManager:
         else:
             self.models_dir = models_dir
         self.pipelines = {}
-        self.default_model = "whisper-base"
+        self.default_model = "whisper-tiny"  # Changed from whisper-base to whisper-tiny
         self.device = self._detect_best_device()
-        self.use_hf_pipeline = use_hf_pipeline  # Option to use Hugging Face pipeline
-        
-        if use_hf_pipeline:
+
+        # Auto-detect if we should use HuggingFace pipeline (on Mac) or OpenVINO (on Intel hardware)
+        if use_hf_pipeline is None:
+            import platform
+            is_mac = platform.system() == "Darwin"
+            self.use_hf_pipeline = is_mac
+            if is_mac:
+                logger.info("🍎 Mac detected - using Hugging Face transformers pipeline")
+        else:
+            self.use_hf_pipeline = use_hf_pipeline
+
+        if self.use_hf_pipeline:
             logger.info("🔄 Using Hugging Face transformers pipeline with language detection")
         else:
             logger.info("🔄 Using OpenVINO pipeline with NPU optimization")
@@ -159,48 +168,98 @@ class ModelManager:
                     raise FileNotFoundError(f"Model {model_name} not found. Available: {available_models}")
                 else:
                     raise FileNotFoundError(f"No models found in {self.models_dir}. Please mount models directory.")
-            
+
             logger.info(f"[MODEL] 🔄 Loading model: {model_name} on device: {self.device}")
             try:
-                # Use OpenVINO GenAI WhisperPipeline for proper model loading
-                logger.info(f"[MODEL] 🧠 Creating WhisperPipeline for {model_name}")
-                logger.info(f"[MODEL] 📁 Model path: {model_path}")
-                
-                # Suppress deprecation warnings for older Whisper models
-                import warnings
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=DeprecationWarning)
-                    warnings.filterwarnings("ignore", message=".*Whisper decoder models with past is deprecated.*")
+                if self.use_hf_pipeline:
+                    # Use Hugging Face transformers pipeline (for Mac and standard Whisper models)
+                    from transformers import pipeline as hf_pipeline
+                    import torch
+
+                    logger.info(f"[MODEL] 🧠 Creating Hugging Face pipeline for {model_name}")
+                    logger.info(f"[MODEL] 📁 Model path: {model_path}")
+
                     start_load_time = time.time()
-                    pipeline = openvino_genai.WhisperPipeline(str(model_path), device=self.device)
+                    # Detect if MPS (Metal Performance Shaders) is available on Mac
+                    if torch.backends.mps.is_available():
+                        device = "mps"
+                        logger.info("[MODEL] 🍎 Using Mac GPU (MPS) acceleration")
+                    else:
+                        device = "cpu"
+                        logger.info("[MODEL] 💻 Using CPU")
+
+                    pipe = hf_pipeline(
+                        "automatic-speech-recognition",
+                        model=model_path,
+                        device=device,
+                        chunk_length_s=30,
+                        return_timestamps=True
+                    )
                     load_time = time.time() - start_load_time
-                    
-                self.pipelines[model_name] = pipeline
-                logger.info(f"[MODEL] ✅ Model {model_name} loaded successfully on {self.device} in {load_time:.2f}s")
+
+                    self.pipelines[model_name] = pipe
+                    logger.info(f"[MODEL] ✅ Model {model_name} loaded successfully on {device} in {load_time:.2f}s")
+                else:
+                    # Use OpenVINO GenAI WhisperPipeline for Intel NPU/GPU optimization
+                    logger.info(f"[MODEL] 🧠 Creating OpenVINO WhisperPipeline for {model_name}")
+                    logger.info(f"[MODEL] 📁 Model path: {model_path}")
+
+                    # Suppress deprecation warnings for older Whisper models
+                    import warnings
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", category=DeprecationWarning)
+                        warnings.filterwarnings("ignore", message=".*Whisper decoder models with past is deprecated.*")
+                        start_load_time = time.time()
+                        pipeline = openvino_genai.WhisperPipeline(str(model_path), device=self.device)
+                        load_time = time.time() - start_load_time
+
+                    self.pipelines[model_name] = pipeline
+                    logger.info(f"[MODEL] ✅ Model {model_name} loaded successfully on {self.device} in {load_time:.2f}s")
+
                 logger.info(f"[MODEL] 📊 Total loaded models: {len(self.pipelines)} ({list(self.pipelines.keys())})")
-                        
+
             except Exception as e:
-                if self.device != "CPU":
+                if self.use_hf_pipeline:
+                    # For HF pipeline, try CPU fallback
+                    logger.warning(f"[MODEL] ⚠️ Failed to load with GPU, trying CPU: {e}")
+                    try:
+                        from transformers import pipeline as hf_pipeline
+                        start_fallback_time = time.time()
+                        pipe = hf_pipeline(
+                            "automatic-speech-recognition",
+                            model=model_path,
+                            device="cpu",
+                            chunk_length_s=30,
+                            return_timestamps=True
+                        )
+                        fallback_time = time.time() - start_fallback_time
+                        self.pipelines[model_name] = pipe
+                        logger.info(f"[MODEL] ✅ Model {model_name} loaded on CPU in {fallback_time:.2f}s")
+                    except Exception as cpu_e:
+                        logger.error(f"[MODEL] ❌ Failed to load on CPU: {cpu_e}")
+                        raise cpu_e
+                elif self.device != "CPU":
+                    # For OpenVINO pipeline, try CPU fallback
                     logger.warning(f"[MODEL] ⚠️ Failed to load on {self.device}, trying CPU fallback: {e}")
                     try:
+                        import warnings
                         with warnings.catch_warnings():
                             warnings.filterwarnings("ignore", category=DeprecationWarning)
                             warnings.filterwarnings("ignore", message=".*Whisper decoder models with past is deprecated.*")
                             start_fallback_time = time.time()
                             pipeline = openvino_genai.WhisperPipeline(str(model_path), device="CPU")
                             fallback_time = time.time() - start_fallback_time
-                            
+
                         self.pipelines[model_name] = pipeline
                         self.device = "CPU"  # Update device for this session
                         logger.info(f"[MODEL] ✅ Model {model_name} loaded on CPU fallback in {fallback_time:.2f}s")
-                        logger.info(f"[MODEL] 📊 Total loaded models: {len(self.pipelines)} ({list(self.pipelines.keys())})")
                     except Exception as cpu_e:
                         logger.error(f"[MODEL] ❌ Failed to load on CPU fallback: {cpu_e}")
                         raise cpu_e
                 else:
                     logger.error(f"[MODEL] ❌ Failed to load {model_name} on {self.device}: {e}")
                     raise e
-        
+
         return self.pipelines[model_name]
     
     def list_models(self) -> List[str]:
@@ -256,19 +315,34 @@ class ModelManager:
                     sleep_time = self.min_inference_interval - time_since_last
                     logger.debug(f"NPU cooldown: sleeping {sleep_time:.3f}s")
                     time.sleep(sleep_time)
-                
+
                 # Load model if not already loaded
                 pipeline = self.load_model(model_name)
-                
+
                 # Perform inference with device error handling
                 logger.debug(f"Starting inference for {len(audio_data)} samples")
                 start_time = time.time()
-                
+
                 try:
-                    result = pipeline.generate(audio_data)
+                    if self.use_hf_pipeline:
+                        # Hugging Face pipeline - call directly with audio array
+                        # Convert numpy array to dict format expected by HF pipeline
+                        import torch
+                        result = pipeline({"array": audio_data, "sampling_rate": 16000})
+                        # Convert HF result to OpenVINO-like format for compatibility
+                        result_text = result.get("text", "")
+                        # Create a simple object with text attribute for compatibility
+                        class HFResult:
+                            def __init__(self, text):
+                                self.texts = [text]
+                        result = HFResult(result_text)
+                    else:
+                        # OpenVINO pipeline - use generate method
+                        result = pipeline.generate(audio_data)
+
                     inference_time = time.time() - start_time
                     self.last_inference_time = time.time()
-                    
+
                     logger.debug(f"Inference completed in {inference_time:.3f}s")
                     return result
                     
@@ -640,13 +714,18 @@ class WhisperService:
         try:
             # Process audio data
             if isinstance(request.audio_data, bytes):
-                # Load audio from bytes
+                # Load audio from bytes using soundfile (Python 3.13 compatible)
                 with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
                     tmp_file.write(request.audio_data)
                     tmp_file.flush()
-                    
-                    audio_data, sr = librosa.load(tmp_file.name, sr=request.sample_rate)
+
+                    # Use soundfile instead of librosa.load to avoid aifc dependency (Python 3.13)
+                    audio_data, sr = sf.read(tmp_file.name, dtype='float32')
                     os.unlink(tmp_file.name)
+
+                    # soundfile returns stereo as (samples, channels), librosa expects (samples,)
+                    if len(audio_data.shape) > 1:
+                        audio_data = audio_data[:, 0]  # Take first channel
             else:
                 audio_data = request.audio_data
                 sr = request.sample_rate
@@ -950,7 +1029,7 @@ class WhisperService:
             # Create transcription request for the chunk
             transcription_request = TranscriptionRequest(
                 audio_data=audio_data,
-                model_name=model_name or self.config.get("default_model", "whisper-base"),
+                model_name=model_name or self.config.get("default_model", "whisper-tiny"),
                 session_id=session_id,
                 streaming=False,  # Single chunk processing
                 enhanced=chunk_metadata.get('enable_enhancement', False),
@@ -1054,12 +1133,12 @@ class WhisperService:
     def _load_config(self) -> Dict:
         """Load configuration from environment and config files"""
         config = {
-            # Model settings - use local models directory first
-            "models_dir": os.getenv("WHISPER_MODELS_DIR", 
-                os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "models") 
-                if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "models"))
+            # Model settings - use local .models directory first
+            "models_dir": os.getenv("WHISPER_MODELS_DIR",
+                os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models")
+                if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models"))
                 else os.path.expanduser("~/.whisper/models")),
-            "default_model": os.getenv("WHISPER_DEFAULT_MODEL", "whisper-base.en"),
+            "default_model": os.getenv("WHISPER_DEFAULT_MODEL", "whisper-tiny"),
             
             # Audio settings - optimized for reduced duplicates
             "sample_rate": int(os.getenv("SAMPLE_RATE", "16000")),
@@ -1133,7 +1212,7 @@ if __name__ == "__main__":
     async def main():
         parser = argparse.ArgumentParser(description="Whisper Service")
         parser.add_argument("--audio", required=True, help="Audio file to transcribe")
-        parser.add_argument("--model", default="whisper-base", help="Model to use")
+        parser.add_argument("--model", default="whisper-tiny", help="Model to use")
         parser.add_argument("--language", help="Language hint")
         parser.add_argument("--streaming", action="store_true", help="Use streaming")
         

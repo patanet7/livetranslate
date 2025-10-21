@@ -24,11 +24,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-      },
-      '/ws': {
-        target: 'ws://localhost:3000',
-        ws: true,
-        changeOrigin: true,
+        ws: true, // Enable WebSocket support for /api endpoints (including pipeline)
       },
     },
   },

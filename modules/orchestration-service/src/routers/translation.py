@@ -6,12 +6,14 @@ Provides comprehensive translation endpoints with proper error handling and vali
 """
 
 import logging
+import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies import (
     get_translation_service_client,
@@ -24,11 +26,74 @@ from clients.translation_service_client import (
     TranslationResponse,
     LanguageDetectionResponse,
 )
+from database import get_db_session, Translation, BotSession
 
 logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter()
+
+# ============================================================================
+# Database Persistence Helper
+# ============================================================================
+
+async def persist_translation_to_db(
+    db: AsyncSession,
+    session_id: str,
+    original_text: str,
+    translated_text: str,
+    source_language: str,
+    target_language: str,
+    confidence: float,
+    model_used: str,
+    backend_used: str,
+) -> Optional[uuid.UUID]:
+    """
+    Persist translation to database if session_id is provided.
+
+    Returns the translation_id if successful, None otherwise.
+    """
+    try:
+        # Verify session exists
+        session_uuid = uuid.UUID(session_id)
+        bot_session = await db.get(BotSession, session_uuid)
+
+        if not bot_session:
+            logger.warning(f"Session {session_id} not found, skipping database persistence")
+            return None
+
+        # Create translation record
+        translation = Translation(
+            session_id=session_uuid,
+            original_text=original_text,
+            translated_text=translated_text,
+            source_language=source_language,
+            target_language=target_language,
+            confidence=confidence,
+            start_time=datetime.utcnow(),
+            end_time=datetime.utcnow(),
+            word_count=len(original_text.split()),
+            character_count=len(original_text),
+            session_metadata={
+                "model_used": model_used,
+                "backend_used": backend_used,
+            }
+        )
+
+        db.add(translation)
+        await db.commit()
+        await db.refresh(translation)
+
+        logger.info(f"Translation persisted to database: {translation.translation_id}")
+        return translation.translation_id
+
+    except ValueError as e:
+        logger.error(f"Invalid session_id format: {session_id} - {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to persist translation to database: {e}")
+        await db.rollback()
+        return None
 
 # ============================================================================
 # Request/Response Models
@@ -39,11 +104,23 @@ class TranslateTextRequest(BaseModel):
     text: str = Field(..., description="Text to translate")
     target_language: str = Field(..., description="Target language code")
     source_language: Optional[str] = Field(None, description="Source language code (auto-detect if None)")
-    model: str = Field("default", description="Translation model to use")
+    service: str = Field("ollama", description="Translation service backend (ollama, groq, etc.)")
     quality: str = Field("balanced", description="Translation quality (fast, balanced, quality)")
     prompt_id: Optional[str] = Field(None, description="Custom prompt template ID")
     session_id: Optional[str] = Field(None, description="Session ID for context")
-    
+
+    # Legacy field support - accept 'model' but map it to 'service'
+    model: Optional[str] = Field(None, description="[DEPRECATED] Use 'service' instead")
+
+    @property
+    def backend_service(self) -> str:
+        """Get the backend service to use, with legacy 'model' field support"""
+        # If model field is provided and not default, use it (backward compatibility)
+        if self.model and self.model != "default":
+            return self.model
+        # Otherwise use service field
+        return self.service
+
     class Config:
         extra = "ignore"  # Ignore extra fields from frontend
 
@@ -87,33 +164,35 @@ class TranslationApiResponse(BaseModel):
 async def translate_text_root(
     request: TranslateTextRequest,
     translation_client: TranslationServiceClient = Depends(get_translation_service_client),
+    db: AsyncSession = Depends(get_db_session),
     _: None = Depends(rate_limit_api),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
 ) -> TranslationApiResponse:
     """
     Translate text using the translation service (root endpoint)
-    
+
     **Features:**
     - Auto language detection
     - Multiple translation models
     - Quality settings (fast, balanced, quality)
     - Custom prompt templates
     - Session context support
+    - Database persistence (when session_id provided)
     """
     try:
         logger.info(f"ROOT Translation request received: {request.model_dump()}")
         logger.info(f"Translation request: {request.source_language or 'auto'} -> {request.target_language}")
-        
+
         # Create translation request for the service
         translation_request = TranslationRequest(
             text=request.text,
             source_language=request.source_language,
             target_language=request.target_language,
-            model=request.model,
+            model=request.backend_service,  # Use backend_service property for proper mapping
             quality=request.quality,
         )
         logger.info(f"Created translation service request: {translation_request.model_dump()}")
-        
+
         # Call translation service
         try:
             result = await translation_client.translate(translation_request)
@@ -126,10 +205,24 @@ async def translate_text_root(
                 target_language=request.target_language,
                 confidence=0.0,
                 processing_time=0.0,
-                model_used=request.model,
+                model_used=request.backend_service,
                 backend_used="fallback"
             )
-        
+
+        # Persist to database if session_id is provided
+        if request.session_id:
+            await persist_translation_to_db(
+                db=db,
+                session_id=request.session_id,
+                original_text=request.text,
+                translated_text=result.translated_text,
+                source_language=result.source_language or "auto",
+                target_language=result.target_language,
+                confidence=result.confidence,
+                model_used=result.model_used,
+                backend_used=getattr(result, 'backend_used', 'unknown'),
+            )
+
         # Convert to API response format
         return TranslationApiResponse(
             translated_text=result.translated_text,
@@ -142,7 +235,7 @@ async def translate_text_root(
             session_id=request.session_id,
             timestamp=datetime.utcnow().isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Translation failed: {e}")
         raise HTTPException(
@@ -155,31 +248,33 @@ async def translate_text_root(
 async def translate_text(
     request: TranslateTextRequest,
     translation_client: TranslationServiceClient = Depends(get_translation_service_client),
+    db: AsyncSession = Depends(get_db_session),
     _: None = Depends(rate_limit_api),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
 ) -> TranslationApiResponse:
     """
     Translate text using the translation service
-    
+
     **Features:**
     - Auto language detection
     - Multiple translation models
     - Quality settings (fast, balanced, quality)
     - Custom prompt templates
     - Session context support
+    - Database persistence (when session_id provided)
     """
     try:
         logger.info(f"Translation request: {request.source_language or 'auto'} -> {request.target_language}")
-        
+
         # Create translation request for the service
         translation_request = TranslationRequest(
             text=request.text,
             source_language=request.source_language,
             target_language=request.target_language,
-            model=request.model,
+            model=request.backend_service,  # Use backend_service property for proper mapping
             quality=request.quality,
         )
-        
+
         # Call translation service
         try:
             result = await translation_client.translate(translation_request)
@@ -192,10 +287,24 @@ async def translate_text(
                 target_language=request.target_language,
                 confidence=0.0,
                 processing_time=0.0,
-                model_used=request.model,
+                model_used=request.backend_service,
                 backend_used="fallback"
             )
-        
+
+        # Persist to database if session_id is provided
+        if request.session_id:
+            await persist_translation_to_db(
+                db=db,
+                session_id=request.session_id,
+                original_text=request.text,
+                translated_text=result.translated_text,
+                source_language=result.source_language or "auto",
+                target_language=result.target_language,
+                confidence=result.confidence,
+                model_used=result.model_used,
+                backend_used=getattr(result, 'backend_used', 'unknown'),
+            )
+
         # Convert to API response format
         return TranslationApiResponse(
             translated_text=result.translated_text,
@@ -208,7 +317,7 @@ async def translate_text(
             session_id=request.session_id,
             timestamp=datetime.utcnow().isoformat(),
         )
-        
+
     except Exception as e:
         logger.error(f"Translation failed: {e}")
         raise HTTPException(

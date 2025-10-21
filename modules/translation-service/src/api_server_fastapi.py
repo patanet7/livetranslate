@@ -1,0 +1,464 @@
+#!/usr/bin/env python3
+"""
+LiveTranslate Translation Service - FastAPI Version
+OpenAI-Compatible Translation with Ollama, Groq, vLLM, etc.
+"""
+
+import os
+import time
+import asyncio
+import logging
+from typing import Dict, Any, List, Optional
+from datetime import datetime
+from pathlib import Path
+
+# Load .env file FIRST
+from dotenv import load_dotenv
+load_dotenv()
+
+from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+import structlog
+
+# Initialize structured logging
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# Import translation backends
+from openai_compatible_translator import OpenAICompatibleTranslator, OpenAICompatibleConfig
+
+# ============================================================================
+# Pydantic Models
+# ============================================================================
+
+class TranslateRequest(BaseModel):
+    """Single translation request"""
+    text: str = Field(..., description="Text to translate")
+    source_language: Optional[str] = Field(None, description="Source language (auto-detect if None)")
+    target_language: str = Field(..., description="Target language code")
+    model: str = Field("ollama", description="Translation model/backend to use")
+    quality: str = Field("balanced", description="Translation quality: fast, balanced, quality")
+
+class MultiLanguageRequest(BaseModel):
+    """Multi-language translation request"""
+    text: str = Field(..., description="Text to translate")
+    source_language: Optional[str] = Field(None, description="Source language (auto-detect if None)")
+    target_languages: List[str] = Field(..., description="List of target language codes")
+    model: str = Field("ollama", description="Translation model/backend to use")
+    quality: str = Field("balanced", description="Translation quality: fast, balanced, quality")
+
+class LanguageDetectionRequest(BaseModel):
+    """Language detection request"""
+    text: str = Field(..., min_length=1, max_length=10000)
+
+class TranslationResponse(BaseModel):
+    """Translation response"""
+    translated_text: str
+    source_language: str
+    target_language: str
+    confidence: float
+    processing_time: float
+    model_used: str
+    backend_used: str
+
+class MultiLanguageResponse(BaseModel):
+    """Multi-language translation response"""
+    source_text: str
+    source_language: str
+    model_requested: str
+    quality: str
+    total_processing_time: float
+    timestamp: str
+    translations: Dict[str, Dict[str, Any]]
+
+class LanguageDetectionResponse(BaseModel):
+    """Language detection response"""
+    language: str
+    confidence: float
+    alternatives: List[Dict[str, float]]
+
+class HealthResponse(BaseModel):
+    """Health check response"""
+    status: str
+    service: str
+    backend: str
+    version: str
+    timestamp: str
+
+# ============================================================================
+# Global state
+# ============================================================================
+
+ollama_translator: Optional[OpenAICompatibleTranslator] = None
+translator_backends: Dict[str, OpenAICompatibleTranslator] = {}
+
+# ============================================================================
+# Initialize FastAPI App
+# ============================================================================
+
+app = FastAPI(
+    title="LiveTranslate Translation Service",
+    description="Multi-language translation with OpenAI-compatible backends (Ollama, Groq, vLLM)",
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ============================================================================
+# Startup Event
+# ============================================================================
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize translation backends on startup"""
+    global ollama_translator, translator_backends
+
+    logger.info("🚀 Starting LiveTranslate Translation Service (FastAPI)")
+
+    # Initialize Ollama backend
+    ollama_enabled = os.getenv("OLLAMA_ENABLE", "true").lower() == "true"
+
+    if ollama_enabled:
+        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.239:11434/v1")
+        ollama_model = os.getenv("OLLAMA_MODEL", "mistral:latest")
+
+        logger.info(f"🔌 Initializing Ollama backend: {ollama_base_url}")
+        logger.info(f"📦 Ollama model: {ollama_model}")
+
+        ollama_config = OpenAICompatibleConfig(
+            name="ollama-local",
+            base_url=ollama_base_url,
+            model=ollama_model,
+            api_key="",  # Ollama doesn't require API key
+            timeout=60.0,
+        )
+
+        ollama_translator = OpenAICompatibleTranslator(ollama_config)
+
+        # Initialize and test connection
+        if await ollama_translator.initialize():
+            translator_backends["ollama"] = ollama_translator
+            logger.info("✅ Ollama translator ready")
+
+            # Get available models
+            models = await ollama_translator.get_available_models()
+            logger.info(f"📋 Available Ollama models: {models}")
+        else:
+            logger.error("❌ Ollama initialization failed")
+
+    # Initialize Groq backend (optional)
+    groq_enabled = os.getenv("GROQ_ENABLE", "false").lower() == "true"
+    if groq_enabled:
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        if groq_api_key:
+            groq_config = OpenAICompatibleConfig(
+                name="groq",
+                base_url="https://api.groq.com/openai/v1",
+                model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+                api_key=groq_api_key,
+                timeout=30.0,
+            )
+            groq_translator = OpenAICompatibleTranslator(groq_config)
+            if await groq_translator.initialize():
+                translator_backends["groq"] = groq_translator
+                logger.info("✅ Groq translator ready")
+
+    logger.info(f"🎉 Initialized {len(translator_backends)} translator backend(s): {list(translator_backends.keys())}")
+
+# ============================================================================
+# Health & Info Endpoints
+# ============================================================================
+
+@app.get("/health", response_model=HealthResponse, tags=["Health"])
+@app.get("/api/health", response_model=HealthResponse, tags=["Health"])
+async def health_check():
+    """
+    Health check endpoint
+
+    Returns service status and available backends
+    """
+    return HealthResponse(
+        status="healthy" if translator_backends else "degraded",
+        service="translation",
+        backend=",".join(translator_backends.keys()) if translator_backends else "none",
+        version="2.0.0",
+        timestamp=datetime.utcnow().isoformat()
+    )
+
+@app.get("/api/device-info", tags=["Info"])
+async def get_device_info():
+    """Get device information (CPU/GPU status)"""
+    return {
+        "device": "remote",  # Using remote Ollama
+        "backends": list(translator_backends.keys()),
+        "available_models": {
+            backend: await translator.get_available_models()
+            for backend, translator in translator_backends.items()
+        }
+    }
+
+@app.get("/api/models/available", tags=["Info"])
+async def get_available_models():
+    """
+    Get list of available models from all backends
+
+    Returns a dict mapping backend names to their available models
+    """
+    models = {}
+    for backend_name, translator in translator_backends.items():
+        try:
+            backend_models = await translator.get_available_models()
+            models[backend_name] = backend_models
+        except Exception as e:
+            logger.error(f"Failed to get models from {backend_name}: {e}")
+            models[backend_name] = []
+
+    return {
+        "backends": models,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/api/languages", tags=["Info"])
+async def get_supported_languages():
+    """Get list of supported languages"""
+    # Common language codes
+    languages = [
+        {"code": "en", "name": "English"},
+        {"code": "es", "name": "Spanish"},
+        {"code": "fr", "name": "French"},
+        {"code": "de", "name": "German"},
+        {"code": "it", "name": "Italian"},
+        {"code": "pt", "name": "Portuguese"},
+        {"code": "ru", "name": "Russian"},
+        {"code": "ja", "name": "Japanese"},
+        {"code": "ko", "name": "Korean"},
+        {"code": "zh", "name": "Chinese"},
+        {"code": "ar", "name": "Arabic"},
+        {"code": "hi", "name": "Hindi"},
+    ]
+
+    return {
+        "languages": languages,
+        "total": len(languages)
+    }
+
+# ============================================================================
+# Translation Endpoints
+# ============================================================================
+
+@app.post("/api/translate", response_model=TranslationResponse, tags=["Translation"])
+async def translate_text(request: TranslateRequest):
+    """
+    Translate text to a single target language
+
+    **Features:**
+    - Auto language detection if source_language not provided
+    - Multiple backend support (Ollama, Groq, etc.)
+    - Quality settings (fast, balanced, quality)
+    """
+    backend_name = request.model.lower()
+
+    if backend_name not in translator_backends:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+        )
+
+    translator = translator_backends[backend_name]
+
+    start_time = time.time()
+
+    try:
+        result = await translator.translate(
+            text=request.text,
+            source_language=request.source_language,
+            target_language=request.target_language,
+        )
+
+        processing_time = time.time() - start_time
+
+        # Extract translated text from result dict
+        if isinstance(result, dict):
+            translated_text = result.get("translated_text", str(result))
+            confidence = result.get("confidence", 0.9)
+            actual_processing_time = result.get("metadata", {}).get("processing_time", processing_time)
+        else:
+            translated_text = str(result)
+            confidence = 0.9
+            actual_processing_time = processing_time
+
+        return TranslationResponse(
+            translated_text=translated_text,
+            source_language=request.source_language or "auto",
+            target_language=request.target_language,
+            confidence=confidence,
+            processing_time=actual_processing_time,
+            model_used=translator.config.model,
+            backend_used=backend_name
+        )
+
+    except Exception as e:
+        logger.error(f"Translation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Translation failed: {str(e)}"
+        )
+
+@app.post("/api/translate/multi", response_model=MultiLanguageResponse, tags=["Translation"])
+async def translate_multi_language(request: MultiLanguageRequest):
+    """
+    Translate text to multiple target languages in a single request
+
+    **Features:**
+    - Translate to multiple languages simultaneously
+    - Optimized for batch processing
+    - Returns individual results for each language
+
+    **Example:**
+    ```json
+    {
+        "text": "Hello, how are you?",
+        "target_languages": ["es", "fr", "de"],
+        "model": "ollama"
+    }
+    ```
+    """
+    backend_name = request.model.lower()
+
+    if backend_name not in translator_backends:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+        )
+
+    translator = translator_backends[backend_name]
+
+    logger.info(f"Multi-language translation: {len(request.target_languages)} languages for '{request.text[:50]}...'")
+
+    start_time = time.time()
+    translations = {}
+
+    # Translate to each target language
+    for target_lang in request.target_languages:
+        try:
+            lang_start = time.time()
+            result = await translator.translate(
+                text=request.text,
+                source_language=request.source_language,
+                target_language=target_lang,
+            )
+            lang_time = time.time() - lang_start
+
+            translations[target_lang] = {
+                "translated_text": result,
+                "confidence": 0.9,
+                "processing_time": lang_time,
+                "model_used": translator.config.model,
+                "backend_used": backend_name,
+            }
+        except Exception as e:
+            logger.error(f"Translation to {target_lang} failed: {e}")
+            translations[target_lang] = {
+                "error": str(e),
+                "processing_time": 0.0,
+            }
+
+    total_time = time.time() - start_time
+
+    logger.info(f"Multi-language translation completed: {len(translations)}/{len(request.target_languages)} successful in {total_time:.3f}s")
+
+    return MultiLanguageResponse(
+        source_text=request.text,
+        source_language=request.source_language or "auto",
+        model_requested=request.model,
+        quality=request.quality,
+        total_processing_time=total_time,
+        timestamp=datetime.utcnow().isoformat(),
+        translations=translations
+    )
+
+@app.post("/api/detect", response_model=LanguageDetectionResponse, tags=["Language Detection"])
+async def detect_language(request: LanguageDetectionRequest):
+    """
+    Detect the language of input text
+
+    Uses langdetect library for language detection
+    """
+    from langdetect import detect, detect_langs
+
+    try:
+        # Detect language
+        detected_lang = detect(request.text)
+
+        # Get confidence scores for alternatives
+        lang_probs = detect_langs(request.text)
+        alternatives = [{"lang": str(lp.lang), "confidence": lp.prob} for lp in lang_probs]
+
+        return LanguageDetectionResponse(
+            language=detected_lang,
+            confidence=alternatives[0]["confidence"] if alternatives else 0.5,
+            alternatives=alternatives[:5]  # Top 5 alternatives
+        )
+
+    except Exception as e:
+        logger.error(f"Language detection failed: {e}")
+        # Return default
+        return LanguageDetectionResponse(
+            language="en",
+            confidence=0.5,
+            alternatives=[{"en": 0.5}]
+        )
+
+# ============================================================================
+# Test Endpoint
+# ============================================================================
+
+@app.get("/api/test", tags=["Testing"])
+async def api_test():
+    """Simple test endpoint to verify service is running"""
+    return {
+        "status": "ok",
+        "service": "translation",
+        "backends": list(translator_backends.keys()),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+# ============================================================================
+# Main entry point
+# ============================================================================
+
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.getenv("PORT", "5003"))
+    host = os.getenv("HOST", "0.0.0.0")
+
+    logger.info(f"🚀 Starting FastAPI Translation Service on {host}:{port}")
+    logger.info(f"📖 API docs available at http://localhost:{port}/docs")
+    logger.info(f"📖 ReDoc available at http://localhost:{port}/redoc")
+
+    uvicorn.run(
+        "api_server_fastapi:app",
+        host=host,
+        port=port,
+        reload=True,  # Enable auto-reload during development
+        log_level="info"
+    )

@@ -1,0 +1,18 @@
+{
+  "description": "Minimal processing - Low latency, basic cleanup",
+  "enabled_stages": ["vad", "limiter"],
+  "sample_rate": 16000,
+  "quality": "low",
+  "vad": {
+    "enabled": true,
+    "mode": "basic",
+    "aggressiveness": 1,
+    "energy_threshold": 0.01
+  },
+  "limiter": {
+    "enabled": true,
+    "threshold": -1.0,
+    "release_time": 50.0,
+    "soft_clip": true
+  }
+}

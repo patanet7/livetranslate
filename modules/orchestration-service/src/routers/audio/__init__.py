@@ -13,5 +13,14 @@ Modules:
 
 # Export individual modules for importing
 from . import audio_core, audio_analysis, audio_stages, audio_presets
+from fastapi import APIRouter
 
-__all__ = ["audio_core", "audio_analysis", "audio_stages", "audio_presets"]
+# Aggregate router so main app can mount /audio with all sub-routes
+# Note: No prefix here since main_fastapi.py already adds /api/audio
+router = APIRouter(tags=["audio"])
+router.include_router(audio_core.router)
+router.include_router(audio_analysis.router)
+router.include_router(audio_stages.router)
+router.include_router(audio_presets.router)
+
+__all__ = ["audio_core", "audio_analysis", "audio_stages", "audio_presets", "router"]

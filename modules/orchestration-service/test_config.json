@@ -1,0 +1,16 @@
+{
+  "preset_name": "meeting_optimized",
+  "enabled_stages": [
+    "vad",
+    "voice_filter",
+    "noise_reduction",
+    "voice_enhancement",
+    "equalizer",
+    "lufs_normalization",
+    "agc",
+    "compression",
+    "limiter"
+  ],
+  "sample_rate": 16000,
+  "quality": "high"
+}

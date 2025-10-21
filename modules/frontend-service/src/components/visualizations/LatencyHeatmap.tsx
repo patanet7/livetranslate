@@ -450,7 +450,7 @@ const LatencyHeatmap: React.FC<LatencyHeatmapProps> = ({
       {anomalies.length > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           <Typography variant="subtitle2">
-            {anomalies.length} high-latency requests detected (>{alertThreshold}ms)
+            {anomalies.length} high-latency requests detected (&gt;{alertThreshold}ms)
           </Typography>
         </Alert>
       )}

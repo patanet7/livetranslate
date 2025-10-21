@@ -1,0 +1,76 @@
+{
+  "description": "Noisy environment - Aggressive noise reduction for poor audio conditions",
+  "enabled_stages": [
+    "vad",
+    "voice_filter",
+    "noise_reduction",
+    "spectral_denoising",
+    "voice_enhancement",
+    "agc",
+    "compression",
+    "limiter"
+  ],
+  "sample_rate": 16000,
+  "quality": "high",
+  "vad": {
+    "enabled": true,
+    "mode": "aggressive",
+    "aggressiveness": 3,
+    "energy_threshold": 0.02
+  },
+  "voice_filter": {
+    "enabled": true,
+    "fundamental_min": 85,
+    "fundamental_max": 300,
+    "voice_band_gain": 1.2,
+    "high_freq_rolloff": 8000
+  },
+  "noise_reduction": {
+    "enabled": true,
+    "mode": "aggressive",
+    "strength": 0.9,
+    "voice_protection": true,
+    "stationary_noise_reduction": 0.95,
+    "non_stationary_noise_reduction": 0.8,
+    "noise_floor_db": -40,
+    "adaptation_rate": 0.15
+  },
+  "spectral_denoising": {
+    "enabled": true,
+    "mode": "wiener_filter",
+    "reduction_strength": 0.85,
+    "spectral_floor": 0.05,
+    "fft_size": 2048,
+    "smoothing_factor": 0.85,
+    "noise_update_rate": 0.12
+  },
+  "voice_enhancement": {
+    "enabled": true,
+    "clarity_enhancement": 0.3,
+    "presence_boost": 0.2,
+    "sibilance_control": 0.15
+  },
+  "agc": {
+    "enabled": true,
+    "mode": "medium",
+    "target_level": -18.0,
+    "max_gain": 15.0,
+    "attack_time": 10.0,
+    "release_time": 100.0
+  },
+  "compression": {
+    "enabled": true,
+    "mode": "voice_optimized",
+    "threshold": -20,
+    "ratio": 4.0,
+    "knee": 3.0,
+    "attack_time": 5.0,
+    "release_time": 100.0
+  },
+  "limiter": {
+    "enabled": true,
+    "threshold": -1.0,
+    "release_time": 50.0,
+    "soft_clip": true
+  }
+}

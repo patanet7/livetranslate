@@ -48,7 +48,13 @@ class RedisStreamConsumer:
 
         self.config = config
         self.handler = handler
-        self.redis_url = redis_url or os.getenv("EVENT_BUS_REDIS_URL", "redis://localhost:6379/0")
+        resolved_url = redis_url or os.getenv("EVENT_BUS_REDIS_URL", "redis://localhost:6379/0")
+        if not resolved_url:
+            resolved_url = "redis://localhost:6379/0"
+        elif "://" not in resolved_url:
+            resolved_url = f"redis://{resolved_url}"
+
+        self.redis_url = resolved_url
         self.client: Optional[redis.Redis] = None  # type: ignore
         self._shutdown = asyncio.Event()
 

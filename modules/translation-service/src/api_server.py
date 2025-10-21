@@ -14,6 +14,11 @@ from typing import Dict, Any, Optional
 import json
 from datetime import datetime
 from pathlib import Path
+
+# CRITICAL: Load .env file FIRST before importing anything else
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
+
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -21,9 +26,35 @@ import uuid
 
 from translation_service import TranslationService, TranslationRequest, create_translation_service
 from prompt_manager import PromptManager, PromptTemplate, PromptPerformanceMetric
-from vllm_server_simple import SimpleVLLMTranslationServer
-from nllb_translator import get_nllb_translator
-from llama_translator import get_llama_translator
+try:
+    from vllm_server_simple import SimpleVLLMTranslationServer
+except ImportError:
+    SimpleVLLMTranslationServer = None
+
+try:
+    from nllb_translator import get_nllb_translator
+except ImportError:
+    get_nllb_translator = None
+
+try:
+    from llama_translator import get_llama_translator
+except ImportError:
+    get_llama_translator = None
+
+try:
+    from openai_compatible_translator import (
+        OpenAICompatibleTranslator,
+        OpenAICompatibleConfig,
+        create_ollama_translator,
+        create_groq_translator,
+        create_together_translator,
+        create_vllm_server_translator,
+        create_openai_translator
+    )
+except ImportError:
+    logger.warning("OpenAI-compatible translator not available")
+    OpenAICompatibleTranslator = None
+    OpenAICompatibleConfig = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -54,6 +85,9 @@ nllb_translator = None
 
 # Global Llama translator instance
 llama_translator = None
+
+# Global OpenAI-compatible translators (Ollama, Groq, Together, etc.)
+openai_compatible_translators: Dict[str, Any] = {}
 
 def validate_local_model(model_path: str) -> tuple:
     """
@@ -114,6 +148,10 @@ async def initialize_internal_vllm() -> Optional[SimpleVLLMTranslationServer]:
     """Initialize and start the internal vLLM server"""
     global internal_vllm_server, current_config
     
+    if SimpleVLLMTranslationServer is None:
+        logger.warning("vLLM not available; skipping internal server initialization")
+        return None
+
     try:
         # Use configuration from global config (with environment variable fallbacks)
         # Default to local Llama model path
@@ -166,6 +204,137 @@ async def initialize_internal_vllm() -> Optional[SimpleVLLMTranslationServer]:
         logger.error(f"   Will fallback to external services...")
         return None
 
+async def initialize_openai_compatible_translators():
+    """
+    Initialize OpenAI-compatible translators based on environment variables.
+
+    Supports:
+    - Ollama (local): OLLAMA_ENABLE=true
+    - Groq (cloud): GROQ_ENABLE=true, GROQ_API_KEY=xxx
+    - Together AI (cloud): TOGETHER_ENABLE=true, TOGETHER_API_KEY=xxx
+    - OpenAI (cloud): OPENAI_ENABLE=true, OPENAI_API_KEY=xxx
+    - Custom endpoint: CUSTOM_OPENAI_ENABLE=true, CUSTOM_OPENAI_BASE_URL=xxx
+    """
+    global openai_compatible_translators
+
+    if not OpenAICompatibleTranslator:
+        logger.warning("OpenAI-compatible translator module not available")
+        return
+
+    logger.info("🔌 Initializing OpenAI-compatible translation backends...")
+
+    # Ollama (local)
+    if os.getenv("OLLAMA_ENABLE", "false").lower() == "true":
+        try:
+            configured_model = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+            ollama = create_ollama_translator(
+                model=configured_model,
+                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+            )
+            if await ollama.initialize():
+                # Query available models
+                available_models = await ollama.get_available_models()
+                logger.info(f"📋 Ollama available models: {available_models}")
+
+                # Validate configured model
+                if available_models:
+                    model_valid = await ollama.validate_model(configured_model)
+                    if not model_valid:
+                        logger.warning(f"⚠️ Configured model '{configured_model}' not found in Ollama")
+                        logger.warning(f"💡 Available models: {', '.join(available_models)}")
+                        logger.warning(f"💡 To pull model: ollama pull {configured_model}")
+
+                openai_compatible_translators["ollama"] = ollama
+                logger.info(f"✅ Ollama translator ready (model: {configured_model})")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize Ollama: {e}")
+
+    # Groq (cloud)
+    if os.getenv("GROQ_ENABLE", "false").lower() == "true":
+        try:
+            groq = create_groq_translator(
+                model=os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+                api_key=os.getenv("GROQ_API_KEY")
+            )
+            if await groq.initialize():
+                openai_compatible_translators["groq"] = groq
+                logger.info("✅ Groq translator ready")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize Groq: {e}")
+
+    # Together AI (cloud)
+    if os.getenv("TOGETHER_ENABLE", "false").lower() == "true":
+        try:
+            together = create_together_translator(
+                model=os.getenv("TOGETHER_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"),
+                api_key=os.getenv("TOGETHER_API_KEY")
+            )
+            if await together.initialize():
+                openai_compatible_translators["together"] = together
+                logger.info("✅ Together AI translator ready")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize Together AI: {e}")
+
+    # OpenAI (cloud)
+    if os.getenv("OPENAI_ENABLE", "false").lower() == "true":
+        try:
+            openai = create_openai_translator(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                api_key=os.getenv("OPENAI_API_KEY")
+            )
+            if await openai.initialize():
+                openai_compatible_translators["openai"] = openai
+                logger.info("✅ OpenAI translator ready")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize OpenAI: {e}")
+
+    # vLLM Server (local/remote)
+    if os.getenv("VLLM_SERVER_ENABLE", "false").lower() == "true":
+        try:
+            configured_model = os.getenv("VLLM_SERVER_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
+            vllm_server = create_vllm_server_translator(
+                model=configured_model,
+                base_url=os.getenv("VLLM_SERVER_BASE_URL", "http://localhost:8000/v1")
+            )
+            if await vllm_server.initialize():
+                # Query available models
+                available_models = await vllm_server.get_available_models()
+                logger.info(f"📋 vLLM Server available models: {available_models}")
+
+                # Validate configured model
+                if available_models:
+                    model_valid = await vllm_server.validate_model(configured_model)
+                    if not model_valid:
+                        logger.warning(f"⚠️ Configured model '{configured_model}' not found in vLLM server")
+                        logger.warning(f"💡 Available models: {', '.join(available_models)}")
+
+                openai_compatible_translators["vllm_server"] = vllm_server
+                logger.info(f"✅ vLLM Server translator ready (model: {configured_model})")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize vLLM Server: {e}")
+
+    # Custom OpenAI-compatible endpoint
+    if os.getenv("CUSTOM_OPENAI_ENABLE", "false").lower() == "true" and OpenAICompatibleConfig:
+        try:
+            custom_config = OpenAICompatibleConfig(
+                name=os.getenv("CUSTOM_OPENAI_NAME", "custom"),
+                base_url=os.getenv("CUSTOM_OPENAI_BASE_URL", "http://localhost:8000/v1"),
+                model=os.getenv("CUSTOM_OPENAI_MODEL", "llama-3.1-8b"),
+                api_key=os.getenv("CUSTOM_OPENAI_API_KEY")
+            )
+            custom = OpenAICompatibleTranslator(custom_config)
+            if await custom.initialize():
+                openai_compatible_translators["custom"] = custom
+                logger.info(f"✅ Custom OpenAI-compatible translator ready: {custom_config.name}")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize custom OpenAI-compatible translator: {e}")
+
+    if openai_compatible_translators:
+        logger.info(f"🎉 Initialized {len(openai_compatible_translators)} OpenAI-compatible translator(s): {list(openai_compatible_translators.keys())}")
+    else:
+        logger.info("ℹ️ No OpenAI-compatible translators enabled (set environment variables to enable)")
+
+
 async def initialize_service():
     """Initialize the translation service with internal vLLM server"""
     global translation_service, prompt_manager
@@ -178,7 +347,7 @@ async def initialize_service():
         
         # Try direct transformers approach first (more reliable)
         global llama_translator
-        if "llama" in default_model.lower() or "meta-llama" in default_model.lower():
+        if get_llama_translator and ("llama" in default_model.lower() or "meta-llama" in default_model.lower()):
             logger.info("🔄 Llama model detected - using direct transformers implementation")
             logger.info("💡 Using transformers.pipeline for better compatibility")
             
@@ -198,8 +367,8 @@ async def initialize_service():
                 llama_translator = None
         
         # If Llama transformer failed, try NLLB as fallback (skip vLLM for now)
-        if llama_translator is None or not llama_translator.is_ready:
-            logger.info("🔄 Llama transformers failed, trying NLLB as fallback...")
+        if (not llama_translator or not getattr(llama_translator, "is_ready", False)) and get_nllb_translator:
+            logger.info("🔄 Llama transformers failed or unavailable, trying NLLB as fallback...")
             logger.info("💡 Skipping vLLM due to compatibility issues")
             
             # Try NLLB model as fallback
@@ -241,7 +410,10 @@ async def initialize_service():
                     raise RuntimeError("Translation service initialization failed: No working backends available")
             
         logger.info("Translation service initialized successfully")
-        
+
+        # Initialize OpenAI-compatible translators
+        await initialize_openai_compatible_translators()
+
         # Initialize prompt manager
         prompt_storage_path = os.getenv("PROMPT_STORAGE_PATH", "./prompts")
         prompt_manager = PromptManager(storage_path=prompt_storage_path, enable_analytics=True)
@@ -592,6 +764,318 @@ def api_test():
         "translation_service_initialized": translation_service is not None,
         "fallback_mode": getattr(translation_service, 'fallback_mode', False) if translation_service else None
     })
+
+
+# Available models endpoint
+@app.route('/api/models/available', methods=['GET'])
+def api_available_models():
+    """
+    Get list of available translation models and their status.
+
+    Response:
+    {
+        "models": [
+            {
+                "name": "llama",
+                "display_name": "Llama Transformers",
+                "available": true,
+                "description": "Llama-based translation model",
+                "languages": ["en", "es", "fr", ...]
+            },
+            {
+                "name": "nllb",
+                "display_name": "NLLB (No Language Left Behind)",
+                "available": true,
+                "description": "Meta's NLLB translation model",
+                "languages": ["en", "es", "fr", ...]
+            }
+        ],
+        "default": "auto",
+        "recommended": "llama"
+    }
+    """
+    models = []
+
+    # Check Llama translator
+    if llama_translator:
+        models.append({
+            "name": "llama",
+            "display_name": "Llama Transformers",
+            "available": llama_translator.is_ready,
+            "description": "Llama-based translation model with good quality",
+            "backend": "transformers",
+            "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh"]  # Common languages
+        })
+
+    # Check NLLB translator
+    if nllb_translator:
+        models.append({
+            "name": "nllb",
+            "display_name": "NLLB (No Language Left Behind)",
+            "available": nllb_translator.is_ready,
+            "description": "Meta's NLLB translation model supporting 200+ languages",
+            "backend": "transformers",
+            "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "ar", "hi", "id"]  # Subset
+        })
+
+    # Check OpenAI-compatible translators
+    for backend_name, translator in openai_compatible_translators.items():
+        backend_display_names = {
+            "ollama": "Ollama (Local)",
+            "groq": "Groq (Cloud - Fast)",
+            "together": "Together AI (Cloud)",
+            "vllm_server": "vLLM Server",
+            "openai": "OpenAI",
+            "custom": "Custom OpenAI-Compatible"
+        }
+
+        backend_descriptions = {
+            "ollama": "Local Ollama server - private and free",
+            "groq": "Groq cloud inference - ultra-fast with free tier",
+            "together": "Together AI cloud - wide model selection",
+            "vllm_server": "Self-hosted vLLM server",
+            "openai": "OpenAI API - high quality",
+            "custom": "Custom OpenAI-compatible endpoint"
+        }
+
+        models.append({
+            "name": backend_name,
+            "display_name": backend_display_names.get(backend_name, backend_name.title()),
+            "available": translator.is_ready,
+            "description": backend_descriptions.get(backend_name, f"OpenAI-compatible: {backend_name}"),
+            "backend": "openai_compatible",
+            "endpoint": translator.config.base_url,
+            "model": translator.config.model,
+            "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "ar", "hi", "id", "nl", "pl", "tr", "vi", "th"]
+        })
+
+    # Check if translation service has other backends
+    if translation_service and hasattr(translation_service, 'backend_priority'):
+        for backend in getattr(translation_service, 'backend_priority', []):
+            if backend not in ['llama', 'nllb']:
+                models.append({
+                    "name": backend,
+                    "display_name": backend.title(),
+                    "available": True,
+                    "description": f"Translation service backend: {backend}",
+                    "backend": backend
+                })
+
+    # Determine default and recommended
+    available_models = [m for m in models if m.get("available", False)]
+    recommended = "llama" if any(m["name"] == "llama" and m["available"] for m in models) else (
+        "nllb" if any(m["name"] == "nllb" and m["available"] for m in models) else "auto"
+    )
+
+    return jsonify({
+        "models": models,
+        "default": "auto",
+        "recommended": recommended,
+        "auto_selection_priority": ["llama", "nllb"]  # Order of preference when "auto" is selected
+    })
+
+# Multi-language translation endpoint (OPTIMIZED)
+@app.route('/api/translate/multi', methods=['POST'])
+async def api_translate_multi():
+    """
+    Translate text to multiple target languages in a single request.
+
+    OPTIMIZATION: Reduces HTTP overhead by batching multiple language translations.
+    Instead of N separate HTTP requests, client makes 1 request for N languages.
+
+    Request:
+    {
+        "text": "Hello world",
+        "source_language": "en",  // optional, defaults to "auto"
+        "target_languages": ["es", "fr", "de"],
+        "session_id": "optional-session-id",
+        "model": "nllb",  // optional: "llama", "nllb", "auto"
+        "quality": "balanced"  // optional: "fast", "balanced", "quality"
+    }
+
+    Response:
+    {
+        "source_text": "Hello world",
+        "source_language": "en",
+        "translations": {
+            "es": {
+                "translated_text": "Hola mundo",
+                "confidence": 0.95,
+                "processing_time": 0.12
+            },
+            "fr": {...},
+            "de": {...}
+        },
+        "total_processing_time": 0.15,
+        "timestamp": "2025-01-20T..."
+    }
+    """
+    global translation_service
+
+    try:
+        # Check if service is initialized
+        if translation_service is None:
+            logger.error("Translation service not initialized")
+            return jsonify({"error": "Translation service not initialized"}), 503
+
+        data = request.get_json()
+        if not data or 'text' not in data or 'target_languages' not in data:
+            return jsonify({"error": "Missing required fields: 'text' and 'target_languages'"}), 400
+
+        text = data['text']
+        source_language = data.get('source_language', 'auto')
+        target_languages = data['target_languages']
+        session_id = data.get('session_id')
+        model = data.get('model', 'auto')  # auto, llama, nllb, or specific model name
+        quality = data.get('quality', 'balanced')
+
+        if not isinstance(target_languages, list) or len(target_languages) == 0:
+            return jsonify({"error": "'target_languages' must be a non-empty list"}), 400
+
+        logger.info(
+            f"Multi-language translation request: {len(target_languages)} languages for text: '{text[:50]}...', "
+            f"model: {model}, quality: {quality}"
+        )
+
+        start_time = time.time()
+        translations = {}
+
+        # Create translation tasks for all target languages
+        async def translate_to_language(target_lang: str):
+            """Helper to translate to a single language"""
+            try:
+                translation_request = TranslationRequest(
+                    text=text,
+                    source_language=source_language,
+                    target_language=target_lang,
+                    session_id=session_id,
+                    confidence_threshold=0.8,
+                    preserve_formatting=True
+                )
+
+                lang_start = time.time()
+
+                # Model selection logic (priority: OpenAI-compatible → Llama → NLLB → Standard)
+
+                # Check for OpenAI-compatible backends (Ollama, Groq, etc.)
+                openai_backend = None
+                if model in openai_compatible_translators:
+                    # User specified exact backend name
+                    openai_backend = openai_compatible_translators[model]
+                elif model == 'auto' and openai_compatible_translators:
+                    # Auto-select first available OpenAI-compatible backend
+                    # Priority: ollama → groq → together → vllm_server → openai → custom
+                    for backend_name in ['ollama', 'groq', 'together', 'vllm_server', 'openai', 'custom']:
+                        if backend_name in openai_compatible_translators:
+                            openai_backend = openai_compatible_translators[backend_name]
+                            logger.info(f"Auto-selected OpenAI-compatible backend: {backend_name}")
+                            break
+
+                if openai_backend and openai_backend.is_ready:
+                    # Use OpenAI-compatible translator
+                    result = await openai_backend.translate(
+                        text=text,
+                        source_language=source_language if source_language != 'auto' else 'en',
+                        target_language=target_lang
+                    )
+
+                    if result and 'translated_text' in result:
+                        return target_lang, {
+                            "translated_text": result['translated_text'],
+                            "confidence": result.get('confidence', 0.9),
+                            "processing_time": time.time() - lang_start,
+                            "backend_used": result.get('metadata', {}).get('backend_used', 'openai_compatible'),
+                            "model_used": result.get('metadata', {}).get('model_used', model)
+                        }
+
+                # Fallback to existing backends
+                use_llama = (model == 'llama' or (model == 'auto' and not openai_backend)) and llama_translator and llama_translator.is_ready
+                use_nllb = (model == 'nllb' or (model == 'auto' and not use_llama and not openai_backend)) and nllb_translator and nllb_translator.is_ready
+
+                # Use specified or available translators
+                if use_llama:
+                    llama_result = llama_translator.translate(
+                        text=text,
+                        source_lang=source_language if source_language != 'auto' else 'en',
+                        target_lang=target_lang
+                    )
+
+                    if "error" not in llama_result:
+                        return target_lang, {
+                            "translated_text": llama_result['translated_text'],
+                            "confidence": llama_result.get('confidence_score', 0.9),
+                            "processing_time": time.time() - lang_start,
+                            "backend_used": "llama_transformers"
+                        }
+
+                elif use_nllb:
+                    nllb_result = nllb_translator.translate(
+                        text=text,
+                        source_lang=source_language if source_language != 'auto' else 'en',
+                        target_lang=target_lang
+                    )
+
+                    if "error" not in nllb_result:
+                        return target_lang, {
+                            "translated_text": nllb_result['translated_text'],
+                            "confidence": nllb_result.get('confidence_score', 0.9),
+                            "processing_time": time.time() - lang_start,
+                            "backend_used": "nllb_transformers"
+                        }
+
+                # Fallback to standard translation service
+                result = await translation_service.translate(translation_request)
+
+                return target_lang, {
+                    "translated_text": result.translated_text,
+                    "confidence": result.confidence_score,
+                    "processing_time": time.time() - lang_start,
+                    "backend_used": result.backend_used
+                }
+
+            except Exception as e:
+                logger.error(f"Translation to {target_lang} failed: {e}")
+                return target_lang, {
+                    "error": str(e),
+                    "confidence": 0.0,
+                    "processing_time": time.time() - lang_start if 'lang_start' in locals() else 0.0
+                }
+
+        # Execute all translations in parallel
+        translation_tasks = [translate_to_language(lang) for lang in target_languages]
+        results = await asyncio.gather(*translation_tasks, return_exceptions=True)
+
+        # Collect results
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error(f"Translation task failed with exception: {result}")
+                continue
+
+            target_lang, translation_data = result
+            translations[target_lang] = translation_data
+
+        total_processing_time = time.time() - start_time
+
+        logger.info(
+            f"Multi-language translation completed: {len(translations)}/{len(target_languages)} successful in {total_processing_time:.3f}s"
+        )
+
+        return jsonify({
+            "source_text": text,
+            "source_language": source_language,
+            "translations": translations,
+            "total_processing_time": total_processing_time,
+            "model_requested": model,
+            "quality": quality,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Multi-language translation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 
 # API endpoint for compatibility with orchestration service
 @app.route('/api/translate', methods=['POST'])

@@ -36,6 +36,21 @@ class DatabaseSettings(BaseSettings):
         env="DATABASE_MAX_OVERFLOW",
         description="Database connection pool overflow",
     )
+    pool_timeout: int = Field(
+        default=30,
+        env="DATABASE_POOL_TIMEOUT",
+        description="Database connection pool timeout in seconds",
+    )
+    pool_recycle: int = Field(
+        default=3600,
+        env="DATABASE_POOL_RECYCLE",
+        description="Database connection pool recycle time in seconds",
+    )
+    pool_pre_ping: bool = Field(
+        default=True,
+        env="DATABASE_POOL_PRE_PING",
+        description="Enable connection health checks",
+    )
     echo: bool = Field(
         default=False, env="DATABASE_ECHO", description="Enable SQL query logging"
     )
@@ -352,6 +367,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "allow"  # Allow extra environment variables
 
 
 @lru_cache()
