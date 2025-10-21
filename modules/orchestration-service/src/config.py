@@ -13,9 +13,9 @@ from functools import lru_cache
 
 try:
     from pydantic_settings import BaseSettings
-    from pydantic import Field, validator
+    from pydantic import Field, field_validator, ValidationInfo, ConfigDict
 except ImportError:
-    from pydantic import BaseSettings, Field, validator
+    from pydantic import BaseSettings, Field, field_validator, ValidationInfo, ConfigDict
 
 
 class DatabaseSettings(BaseSettings):
@@ -55,8 +55,7 @@ class DatabaseSettings(BaseSettings):
         default=False, env="DATABASE_ECHO", description="Enable SQL query logging"
     )
 
-    class Config:
-        env_prefix = "DATABASE_"
+    model_config = ConfigDict(env_prefix="DATABASE_")
 
 
 class RedisSettings(BaseSettings):
@@ -76,8 +75,7 @@ class RedisSettings(BaseSettings):
         description="Redis socket timeout in seconds",
     )
 
-    class Config:
-        env_prefix = "REDIS_"
+    model_config = ConfigDict(env_prefix="REDIS_")
 
 
 class WebSocketSettings(BaseSettings):
@@ -104,8 +102,7 @@ class WebSocketSettings(BaseSettings):
         description="Enable WebSocket compression",
     )
 
-    class Config:
-        env_prefix = "WEBSOCKET_"
+    model_config = ConfigDict(env_prefix="WEBSOCKET_")
 
 
 class ServiceSettings(BaseSettings):
@@ -147,8 +144,7 @@ class ServiceSettings(BaseSettings):
         description="Health check timeout in seconds",
     )
 
-    class Config:
-        env_prefix = "SERVICE_"
+    model_config = ConfigDict(env_prefix="SERVICE_")
 
 
 class SecuritySettings(BaseSettings):
@@ -173,14 +169,14 @@ class SecuritySettings(BaseSettings):
         description="Allowed CORS origins",
     )
 
-    @validator("cors_origins", pre=True)
+    @field_validator("cors_origins", mode='before')
+    @classmethod
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
             return [origin.strip() for origin in v.split(",")]
         return v
 
-    class Config:
-        env_prefix = "SECURITY_"
+    model_config = ConfigDict(env_prefix="SECURITY_")
 
 
 class LoggingSettings(BaseSettings):
@@ -204,15 +200,15 @@ class LoggingSettings(BaseSettings):
         default=5, env="LOG_BACKUP_COUNT", description="Number of log file backups"
     )
 
-    @validator("level")
+    @field_validator("level")
+    @classmethod
     def validate_log_level(cls, v):
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in valid_levels:
             raise ValueError(f"Log level must be one of: {valid_levels}")
         return v.upper()
 
-    class Config:
-        env_prefix = "LOG_"
+    model_config = ConfigDict(env_prefix="LOG_")
 
 
 class MonitoringSettings(BaseSettings):
@@ -230,8 +226,7 @@ class MonitoringSettings(BaseSettings):
         description="Health check endpoint path",
     )
 
-    class Config:
-        env_prefix = "MONITORING_"
+    model_config = ConfigDict(env_prefix="MONITORING_")
 
 
 class Settings(BaseSettings):
@@ -318,20 +313,23 @@ class Settings(BaseSettings):
         description="Rate limit WebSocket connections per IP",
     )
 
-    @validator("environment")
+    @field_validator("environment")
+    @classmethod
     def validate_environment(cls, v):
         valid_envs = ["development", "staging", "production"]
         if v not in valid_envs:
             raise ValueError(f"Environment must be one of: {valid_envs}")
         return v
 
-    @validator("port")
+    @field_validator("port")
+    @classmethod
     def validate_port(cls, v):
         if not 1 <= v <= 65535:
             raise ValueError("Port must be between 1 and 65535")
         return v
 
-    @validator("workers")
+    @field_validator("workers")
+    @classmethod
     def validate_workers(cls, v):
         if v < 1:
             raise ValueError("Workers must be at least 1")
@@ -364,10 +362,7 @@ class Settings(BaseSettings):
             "translation": self.services.translation_service_url,
         }
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "allow"  # Allow extra environment variables
+    model_config = ConfigDict(env_file=".env", case_sensitive=True, extra="allow")
 
 
 @lru_cache()

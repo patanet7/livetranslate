@@ -18,8 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, Session
+from sqlalchemy.orm import declarative_base, relationship, Session
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 

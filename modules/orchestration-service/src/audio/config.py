@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Union, Callable
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
 from enum import Enum
 import yaml
 import numpy as np
