@@ -19,10 +19,7 @@ class TestChatHistory:
         """Test that conversations are stored in database"""
         # EXPECTED TO FAIL - not implemented yet
 
-        try:
-            from modules.orchestration_service.src.database.chat_models import ConversationSession, ChatMessage
-        except ImportError:
-            pytest.skip("Chat models not implemented yet")
+        from database.chat_models import ConversationSession, ChatMessage
 
         # Create session
         session = ConversationSession(
@@ -72,10 +69,7 @@ class TestChatHistory:
         """Test retrieving messages by session ID"""
         # EXPECTED TO FAIL - not implemented yet
 
-        try:
-            from modules.orchestration_service.src.database.chat_models import ConversationSession, ChatMessage
-        except ImportError:
-            pytest.skip("Chat models not implemented yet")
+        from database.chat_models import ConversationSession, ChatMessage
 
         # Create test session
         session = ConversationSession(user_id="user123", session_type="user_chat")
@@ -110,10 +104,7 @@ class TestChatHistory:
         """Test retrieving sessions by date range"""
         # EXPECTED TO FAIL - not implemented yet
 
-        try:
-            from modules.orchestration_service.src.database.chat_models import ConversationSession
-        except ImportError:
-            pytest.skip("Chat models not implemented yet")
+        from database.chat_models import ConversationSession
 
         user_id = "user123"
 
@@ -156,10 +147,7 @@ class TestChatHistory:
         """Test that customers can only access their own conversations"""
         # EXPECTED TO FAIL - not implemented yet
 
-        try:
-            from modules.orchestration_service.src.database.chat_models import ConversationSession
-        except ImportError:
-            pytest.skip("Chat models not implemented yet")
+        from database.chat_models import ConversationSession
 
         # Create sessions for different users
         user1_session = ConversationSession(user_id="user1", session_type="user_chat")
@@ -191,10 +179,7 @@ class TestChatHistory:
         """Test searching messages by content"""
         # EXPECTED TO FAIL - not implemented yet
 
-        try:
-            from modules.orchestration_service.src.database.chat_models import ConversationSession, ChatMessage
-        except ImportError:
-            pytest.skip("Chat models not implemented yet")
+        from database.chat_models import ConversationSession, ChatMessage
 
         # Create session
         session = ConversationSession(user_id="user123")
@@ -238,10 +223,7 @@ class TestChatHistory:
         """Test that translated content is stored correctly"""
         # EXPECTED TO FAIL - not implemented yet
 
-        try:
-            from modules.orchestration_service.src.database.chat_models import ConversationSession, ChatMessage
-        except ImportError:
-            pytest.skip("Chat models not implemented yet")
+        from database.chat_models import ConversationSession, ChatMessage
 
         session = ConversationSession(user_id="user123")
         db_session.add(session)

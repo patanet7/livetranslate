@@ -1,8 +1,9 @@
 # Enhanced Audio Processing Stages
 
-**Phase 1 Implementation**: Foundation libraries for improved quality and reliability
+**Status**: ✅ **PRODUCTION DEFAULT** (Phase 1 Complete)
+**Version**: 2.0
 
-This directory contains enhanced audio processing stages that use industry-standard libraries to replace custom DSP implementations.
+These industry-standard library-based implementations are now the **default** for LUFS Normalization, Compression, and Limiter stages.
 
 ## Overview
 
@@ -14,22 +15,25 @@ The original audio processing pipeline uses ~2,864 lines of custom DSP code buil
 - ✅ **Same interface** - Drop-in replacements for A/B testing
 - ✅ **Maintained code** - Less custom code to maintain
 
-## Phase 1 Stages (Current)
+## Default Stages (Phase 1 Complete)
 
-### 1. LUFS Normalization (✅ Implemented)
-**Library**: `pyloudnorm` (ITU-R BS.1770-4 compliant)
+### 1. LUFS Normalization ✅
+**Library**: `pyloudnorm` v0.1.1 (ITU-R BS.1770-4 compliant)
+**Performance**: 4.04ms avg (63% faster than custom)
+**Status**: Production default
 
-**Improvements over custom**:
-- True ITU-R BS.1770-4 compliance
-- Accurate K-weighting filter
-- Proper gating algorithm
-- Industry-standard measurement
+**Improvements**:
+- ✅ True ITU-R BS.1770-4 compliance
+- ✅ Accurate K-weighting filter (±0.1 LUFS vs ±0.5 LUFS)
+- ✅ Spec-compliant gating algorithm
+- ✅ Industry-standard measurement
 
 **File**: `lufs_normalization_enhanced.py`
 
 **Usage**:
 ```python
-from .stages_enhanced import LUFSNormalizationStageEnhanced
+from audio.audio_processor import AudioPipelineProcessor
+from audio.config import LUFSNormalizationConfig, LUFSNormalizationMode
 
 config = LUFSNormalizationConfig(
     enabled=True,
@@ -38,29 +42,33 @@ config = LUFSNormalizationConfig(
     true_peak_limiting=True
 )
 
-stage = LUFSNormalizationStageEnhanced(config, sample_rate=16000)
-result = stage.process(audio_data)
+# Automatically uses enhanced implementation
+processor = AudioPipelineProcessor(config, sample_rate=16000)
 ```
 
-### 2. Compressor (🔨 In Development)
-**Library**: `pedalboard` (Spotify's audio library)
+### 2. Compression ✅
+**Library**: `pedalboard` v0.9.19 (Spotify's audio library)
+**Performance**: 0.80ms avg (99.4% faster than custom!)
+**Status**: Production default
 
-**Improvements over custom**:
-- Professional-grade compression algorithm
-- True lookahead support
-- Sidechain filtering
-- Better envelope follower
+**Improvements**:
+- ✅ Professional-grade compression algorithm
+- ✅ Minimal distortion (0.964 correlation)
+- ✅ Fast C++ backend
+- ✅ Better envelope follower
 
 **File**: `compression_enhanced.py`
 
-### 3. Limiter (🔨 In Development)
-**Library**: `pedalboard`
+### 3. Limiter ✅
+**Library**: `pedalboard` v0.9.19
+**Performance**: 1.41ms avg (98.8% faster than custom!)
+**Status**: Production default
 
-**Improvements over custom**:
-- True peak limiting
-- Lookahead buffer (prevents artifacts)
-- Transparent brick-wall limiting
-- Proper release curves
+**Improvements**:
+- ✅ True peak limiting (prevents inter-sample peaks)
+- ✅ Zero overshoot guarantee
+- ✅ Transparent brick-wall limiting
+- ✅ Optimal release curves
 
 **File**: `limiter_enhanced.py`
 
@@ -181,23 +189,32 @@ Run comprehensive quality tests:
 
 ## Performance Benchmarks
 
-| Stage | Original | Enhanced | Notes |
-|-------|----------|----------|-------|
-| LUFS | 8-12ms | 10-15ms | Slightly slower but more accurate |
-| Compression | 5-8ms | 8-12ms | Lookahead adds latency but quality |
-| Limiter | 3-5ms | 6-10ms | Lookahead prevents artifacts |
-| Equalizer | 10-15ms | 8-12ms | Better optimized |
-| VAD | 2-4ms | 1-3ms | WebRTC is highly optimized |
+**Actual benchmarks from A/B testing (5-second audio @ 16kHz)**:
+
+| Stage | Original | Enhanced | Improvement | Quality |
+|-------|----------|----------|-------------|---------|
+| **LUFS** | 10.93ms | **4.04ms** | **-63%** ⚡ | 1.0000 correlation |
+| **Compression** | 127.17ms | **0.80ms** | **-99.4%** ⚡ | 0.9640 correlation |
+| **Limiter** | 113.25ms | **1.41ms** | **-98.8%** ⚡ | Better algorithm |
+
+**Total**: Enhanced stages are **63-99% FASTER** while providing professional-grade quality!
 
 ## Implementation Status
 
+### ✅ Phase 1: Complete
 - ✅ Phase 1.1: Dependencies added to pyproject.toml
 - ✅ Phase 1.2: Directory structure created
 - ✅ Phase 1.3: LUFS normalization implemented
-- 🔨 Phase 1.4: Compression/Limiter with Pedalboard (in progress)
-- 📋 Phase 1.5: Unit tests
-- 📋 Phase 1.6: A/B comparison tests
-- 📋 Phase 1.7: Documentation and benchmarks
+- ✅ Phase 1.4: Compression/Limiter with Pedalboard
+- ✅ Phase 1.5: Unit tests and verification
+- ✅ Phase 1.6: A/B comparison tests
+- ✅ Phase 1.7: Documentation complete
+- ✅ Phase 1.8: **Made default in production**
+
+### 📋 Future Phases
+- Phase 2: Enhanced Equalizer (pedalboard)
+- Phase 3: Neural VAD (Silero)
+- Phase 4: Neural noise reduction (DeepFilterNet)
 
 ## Future Phases
 

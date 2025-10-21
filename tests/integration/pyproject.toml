@@ -41,6 +41,8 @@ httpx = "^0.28.1"
 websockets = "^15.0.1"
 msgpack = "^1.1.2"
 pydantic = "^2.12.3"
+pydantic-settings = "^2.7.1"
 python-dotenv = "^1.1.1"
 torch = "2.5.1"
+fastapi = "^0.115.12"
 
