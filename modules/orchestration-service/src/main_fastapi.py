@@ -89,7 +89,12 @@ try:
     from routers.analytics import router as analytics_router
     import_logger.info("[OK] analytics_router imported successfully")
     routers_status['analytics_router'] = {'status': 'success', 'routes': len(analytics_router.routes) if hasattr(analytics_router, 'routes') else 0}
-    
+
+    import_logger.debug("Importing chat_history_router...")
+    from routers.chat_history import router as chat_history_router
+    import_logger.info("[OK] chat_history_router imported successfully")
+    routers_status['chat_history_router'] = {'status': 'success', 'routes': len(chat_history_router.routes) if hasattr(chat_history_router, 'routes') else 0}
+
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
@@ -374,6 +379,14 @@ conflicts = check_route_conflicts("/api/analytics", "analytics_router", register
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
 registered_routes.append(("/api/analytics", "analytics_router"))
 router_logger.info(" analytics_router registered successfully")
+
+# Register chat_history_router
+router_logger.info("[10] Registering chat_history_router...")
+log_router_details("chat_history_router", chat_history_router, "/api/chat")
+conflicts = check_route_conflicts("/api/chat", "chat_history_router", registered_routes)
+app.include_router(chat_history_router, prefix="/api/chat", tags=["Chat History"])
+registered_routes.append(("/api/chat", "chat_history_router"))
+router_logger.info(" chat_history_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")

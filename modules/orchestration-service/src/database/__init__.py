@@ -24,6 +24,13 @@ from .models import (
     SessionEvent,
     SessionStatistics,
 )
+from .chat_models import (
+    User,
+    APIToken,
+    ConversationSession,
+    ChatMessage,
+    ConversationStatistics,
+)
 
 __all__ = [
     # Database management
@@ -34,7 +41,7 @@ __all__ = [
     "get_db_session",
     "DatabaseUtils",
     "MigrationManager",
-    # Models
+    # Bot Session Models
     "Base",
     "BotSession",
     "AudioFile",
@@ -44,4 +51,10 @@ __all__ = [
     "Participant",
     "SessionEvent",
     "SessionStatistics",
+    # Chat History Models
+    "User",
+    "APIToken",
+    "ConversationSession",
+    "ChatMessage",
+    "ConversationStatistics",
 ]
