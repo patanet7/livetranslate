@@ -1,0 +1,150 @@
+version: '3.8'
+
+# Integration Test Environment
+# Spins up real services for comprehensive end-to-end testing
+# NO MOCKS - All services are real
+
+services:
+  # PostgreSQL Database
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: livetranslate-postgres-test
+    environment:
+      POSTGRES_USER: livetranslate_test
+      POSTGRES_PASSWORD: test_password_123
+      POSTGRES_DB: livetranslate_test
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ../../modules/orchestration-service/scripts/bot-sessions-schema.sql:/docker-entrypoint-initdb.d/01-bot-sessions.sql
+      - ../../modules/orchestration-service/scripts/chat-history-schema.sql:/docker-entrypoint-initdb.d/02-chat-history.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U livetranslate_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Redis
+  redis-test:
+    image: redis:7-alpine
+    container_name: livetranslate-redis-test
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - test-network
+
+  # Whisper Service (Real NPU/GPU/CPU processing)
+  whisper-test:
+    build:
+      context: ../../modules/whisper-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-whisper-test
+    environment:
+      - DEVICE=cpu  # Use CPU for testing (faster startup)
+      - MODEL_SIZE=base  # Smaller model for faster testing
+      - ENABLE_VAD=true
+      - ENABLE_ALIGNATT=true
+      - ENABLE_CIF=true
+      - ENABLE_ROLLING_CONTEXT=true
+      - LOG_LEVEL=INFO
+    ports:
+      - "5002:5001"  # Different port to avoid conflicts
+    volumes:
+      - whisper_models_test:/app/models
+      - whisper_cache_test:/app/cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s  # Give time for model loading
+    networks:
+      - test-network
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
+  # Orchestration Service (Real WebSocket, API, Bot Management)
+  orchestration-test:
+    build:
+      context: ../../modules/orchestration-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-orchestration-test
+    environment:
+      - DATABASE_URL=postgresql://livetranslate_test:test_password_123@postgres-test:5432/livetranslate_test
+      - REDIS_URL=redis://redis-test:6379
+      - WHISPER_SERVICE_URL=http://whisper-test:5001
+      - TRANSLATION_SERVICE_URL=http://translation-test:5003
+      - WHISPER_WS_URL=ws://whisper-test:5001/stream
+      - LOG_LEVEL=INFO
+      - ENABLE_BOT_MANAGEMENT=true
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    ports:
+      - "3001:3000"  # Different port to avoid conflicts
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # For bot container management
+      - orchestration_uploads_test:/app/uploads
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      redis-test:
+        condition: service_healthy
+      whisper-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+
+  # Translation Service (Real GPU/CPU translation)
+  translation-test:
+    build:
+      context: ../../modules/translation-service
+      dockerfile: Dockerfile
+    container_name: livetranslate-translation-test
+    environment:
+      - DEVICE=cpu  # Use CPU for testing
+      - MODEL=ollama  # Use Ollama for fast testing
+      - LOG_LEVEL=INFO
+    ports:
+      - "5004:5003"  # Different port to avoid conflicts
+    volumes:
+      - translation_models_test:/app/models
+      - translation_cache_test:/app/cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - test-network
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+volumes:
+  postgres_test_data:
+  whisper_models_test:
+  whisper_cache_test:
+  translation_models_test:
+  translation_cache_test:
+  orchestration_uploads_test:
+
+networks:
+  test-network:
+    driver: bridge
