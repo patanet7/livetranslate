@@ -49,6 +49,15 @@ from domain_prompt_manager import DomainPromptManager, create_domain_prompt
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# CRITICAL: Disable SDPA to get attention weights for AlignAtt streaming
+# PyTorch's scaled_dot_product_attention doesn't return attention weights (qk=None)
+# We need the attention weights for AlignAtt frame-level decisions
+try:
+    whisper.model.MultiHeadAttention.use_sdpa = False
+    logger.info("[STREAMING] ✓ Disabled SDPA to enable attention weight capture for AlignAtt")
+except Exception as e:
+    logger.warning(f"[STREAMING] Could not disable SDPA: {e}")
+
 @dataclass
 class TranscriptionRequest:
     """Transcription request data structure - Phase 2 Enhanced"""
