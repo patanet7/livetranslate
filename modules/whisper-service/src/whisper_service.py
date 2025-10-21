@@ -110,8 +110,15 @@ class ModelManager:
     Phase 2: SimulStreaming Implementation
     """
 
-    def __init__(self, models_dir: Optional[str] = None):
-        """Initialize model manager with PyTorch device detection"""
+    def __init__(self, models_dir: Optional[str] = None, warmup_file: Optional[str] = None, auto_warmup: bool = False):
+        """
+        Initialize model manager with PyTorch device detection
+
+        Args:
+            models_dir: Directory containing Whisper models
+            warmup_file: Path to warmup audio file (WAV, 1 second recommended)
+            auto_warmup: If True, automatically warmup on initialization
+        """
         # Use local models directory or default to openai-whisper cache
         if models_dir is None:
             env_models = os.getenv("WHISPER_MODELS_DIR")
@@ -145,11 +152,32 @@ class ModelManager:
         self.last_inference_time = 0
         self.min_inference_interval = 0.1  # 100ms minimum interval
 
+        # Phase 2.2: Warmup system (eliminate 20s cold start)
+        self.warmup_file = warmup_file
+        self.is_warmed_up = False
+
         logger.info(f"ModelManager initialized - Device: {self.device}, Models: {self.models_dir}")
         logger.info("Using PyTorch Whisper (openai-whisper) with SimulStreaming enhancements")
 
         # Ensure models directory exists
         os.makedirs(self.models_dir, exist_ok=True)
+
+        # Auto-warmup if requested
+        if auto_warmup:
+            logger.info("[WARMUP] Auto-warmup enabled, warming up model...")
+            if warmup_file and os.path.exists(warmup_file):
+                # Load warmup audio from file
+                try:
+                    warmup_audio, sr = sf.read(warmup_file)
+                    if sr != 16000:
+                        warmup_audio = librosa.resample(warmup_audio, orig_sr=sr, target_sr=16000)
+                    self.warmup(warmup_audio)
+                except Exception as e:
+                    logger.warning(f"[WARMUP] Failed to load warmup file: {e}, using silent audio")
+                    self.warmup(np.zeros(16000, dtype=np.float32))
+            else:
+                # Use 1 second of silence
+                self.warmup(np.zeros(16000, dtype=np.float32))
 
         # Try to preload the default model
         self._preload_default_model()
@@ -183,7 +211,65 @@ class ModelManager:
         except Exception as e:
             logger.error(f"[DEVICE] Error detecting devices: {e}")
             return "cpu"
-    
+
+    def warmup(self, audio_data: np.ndarray, model_name: Optional[str] = None):
+        """
+        Warm up the model to eliminate cold start delay
+
+        Following SimulStreaming reference (whisper_streaming/whisper_server.py:149-161):
+        - Runs one inference cycle to trigger JIT compilation
+        - Pre-loads model weights into GPU/NPU memory
+        - Initializes attention hooks and KV cache
+        - Eliminates ~20 second cold start on first real request
+
+        Args:
+            audio_data: Audio array (16kHz, mono, float32), typically 1 second
+            model_name: Model to warm up (default: self.default_model)
+
+        Example:
+            # Warmup with 1 second of silence
+            warmup_audio = np.zeros(16000, dtype=np.float32)
+            manager.warmup(warmup_audio)
+        """
+        if self.is_warmed_up:
+            logger.debug("[WARMUP] Already warmed up, skipping")
+            return
+
+        logger.info("[WARMUP] Starting warmup to eliminate cold start delay...")
+        start_time = time.time()
+
+        try:
+            # Use default model if not specified
+            if model_name is None:
+                model_name = self.default_model
+
+            # Load model (triggers download if needed)
+            model = self.load_model(model_name)
+
+            # Run one transcription cycle (greedy decoding for speed)
+            # This triggers:
+            # - JIT compilation of PyTorch ops
+            # - Memory allocation for tensors
+            # - Attention hook initialization
+            # - KV cache setup
+            result = model.transcribe(
+                audio=audio_data,
+                beam_size=1,  # Greedy for warmup speed
+                temperature=0.0,  # Deterministic
+                fp16=torch.cuda.is_available()  # FP16 on GPU
+            )
+
+            warmup_time = time.time() - start_time
+            self.is_warmed_up = True
+
+            logger.info(f"[WARMUP] ✅ Warmup complete in {warmup_time:.2f}s")
+            logger.info(f"[WARMUP] Model '{model_name}' is ready - first request will be fast")
+
+        except Exception as e:
+            logger.error(f"[WARMUP] ❌ Warmup failed: {e}")
+            logger.warning("[WARMUP] First request may experience cold start delay (~20s)")
+            raise
+
     def load_model(self, model_name: str):
         """
         Load Whisper model using openai-whisper (PyTorch)
