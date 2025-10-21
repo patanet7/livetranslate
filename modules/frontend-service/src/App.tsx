@@ -31,6 +31,7 @@ const BotManagement = React.lazy(() => import('@/pages/BotManagement'));
 const Analytics = React.lazy(() => import('@/pages/Analytics'));
 const SystemAnalytics = React.lazy(() => import('@/pages/SystemAnalytics'));
 const Settings = React.lazy(() => import('@/pages/Settings'));
+const ChatHistory = React.lazy(() => import('@/pages/ChatHistory'));
 
 // App initialization component
 const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -120,7 +121,12 @@ const App: React.FC = () => {
                   
                   {/* Settings */}
                   <Route path="/settings" element={<Settings />} />
-                  
+
+                  {/* Chat History */}
+                  <Route path="/chat-history" element={<ChatHistory />} />
+                  <Route path="/chat" element={<ChatHistory />} />
+                  <Route path="/conversations" element={<ChatHistory />} />
+
                   {/* Redirect any unknown routes to dashboard */}
                   <Route path="*" element={<Dashboard />} />
                 </Routes>

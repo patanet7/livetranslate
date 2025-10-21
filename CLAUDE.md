@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 LiveTranslate is a real-time speech-to-text transcription and translation system with AI acceleration. It's built as a microservices architecture with enterprise-grade WebSocket infrastructure for real-time communication.
 
 ## Service Architecture
-
+# NEVER USE MOCK DATA!!!! ALWAYS COMPREHENSIVE AND INTEGRATED!!! 
 ### 4 Core Services
 
 1. **Whisper Service** (`modules/whisper-service/`) - **[NPU OPTIMIZED]** ✅
