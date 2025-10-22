@@ -44,7 +44,7 @@ import torch.nn.functional as F
 from beam_decoder import BeamSearchDecoder, BeamSearchConfig
 from alignatt_decoder import AlignAttDecoder, AlignAttConfig, AlignAttState
 from domain_prompt_manager import DomainPromptManager, create_domain_prompt
-from silero_vad import SileroVAD, get_vad
+from vad_detector import SileroVAD, get_vad
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
