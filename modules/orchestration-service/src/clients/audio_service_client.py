@@ -129,7 +129,7 @@ class TranscriptionRequest(BaseModel):
 
 
 class TranscriptionResponse(BaseModel):
-    """Response model for transcription"""
+    """Response model for transcription with Phase 3C stability tracking"""
 
     text: str
     language: str
@@ -137,6 +137,15 @@ class TranscriptionResponse(BaseModel):
     speakers: Optional[List[Dict[str, Any]]] = None
     processing_time: float
     confidence: float
+
+    # Phase 3C: Stability Tracking Fields
+    stable_text: Optional[str] = None  # Confirmed stable text
+    unstable_text: Optional[str] = None  # Still-forming unstable text
+    is_draft: bool = False  # True = incremental update, False = complete segment
+    is_final: bool = False  # True = segment complete, no more changes
+    should_translate: bool = False  # True if stable text should be translated
+    stability_score: float = 0.0  # Stability confidence (0.0-1.0)
+    translation_mode: Optional[str] = None  # "whisper_translate" or "external_service"
 
 
 class AudioServiceClient:
