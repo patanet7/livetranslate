@@ -1851,6 +1851,12 @@ def handle_connect():
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle WebSocket disconnection"""
+    # Clean up any active streaming thread for this connection
+    with active_streams_lock:
+        if request.sid in active_streams:
+            del active_streams[request.sid]
+            logger.info(f"[STREAM] Removed streaming session for disconnected client {request.sid}")
+
     # Handle session disconnection for reconnection support
     session_info = reconnection_manager.handle_disconnection(request.sid)
     
@@ -1931,6 +1937,10 @@ def handle_leave_session(data):
             })
         else:
             emit('error', {'message': 'Failed to leave session'})
+
+# Track active streaming sessions to prevent creating multiple threads per connection
+active_streams = {}  # client_id -> thread
+active_streams_lock = threading.Lock()
 
 @socketio.on('transcribe_stream')
 def handle_transcribe_stream(data):
@@ -2021,7 +2031,19 @@ def handle_transcribe_stream(data):
         # Capture client_id outside thread context to avoid Flask request context issues
         client_id = request.sid
 
-        # Run streaming transcription in background
+        # Add audio to whisper service buffer
+        whisper_service.add_audio_chunk(audio_array)
+
+        # Check if streaming thread already exists for this connection
+        with active_streams_lock:
+            if client_id in active_streams and active_streams[client_id].is_alive():
+                # Stream already active - audio chunk added to buffer, nothing more to do
+                logger.debug(f"[STREAM] Audio chunk added to existing stream for {client_id}")
+                return
+
+        logger.info(f"[STREAM] Starting new streaming session for {client_id}")
+
+        # Run streaming transcription in background (ONCE per connection)
         def run_streaming():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -2084,11 +2106,22 @@ def handle_transcribe_stream(data):
             finally:
                 # CRITICAL: Close event loop to prevent file descriptor leaks
                 loop.close()
+                # Unregister this stream
+                with active_streams_lock:
+                    if client_id in active_streams:
+                        del active_streams[client_id]
+                        logger.info(f"[STREAM] Cleaned up streaming session for {client_id}")
 
-        # Start streaming in background thread
-        streaming_thread = threading.Thread(target=run_streaming)
+        # Start streaming in background thread (ONCE per connection)
+        streaming_thread = threading.Thread(target=run_streaming, name=f"Stream-{client_id}")
         streaming_thread.daemon = True
+
+        # Register the thread
+        with active_streams_lock:
+            active_streams[client_id] = streaming_thread
+
         streaming_thread.start()
+        logger.info(f"[STREAM] Started streaming thread for {client_id}")
         
     except Exception as e:
         error_info = create_system_error(
