@@ -31,6 +31,7 @@ import weakref
 from collections import deque
 
 from whisper_service import WhisperService, TranscriptionRequest, create_whisper_service
+from vac_online_processor import VACOnlineASRProcessor
 from connection_manager import connection_manager, ConnectionState
 from error_handler import (
     error_handler, ErrorCategory, ErrorSeverity, ErrorInfo,
@@ -570,8 +571,9 @@ async def transcribe_with_model(model_name: str):
             await _validate_transcription_request(request, model_name, correlation_id)
             
             # Check if model is loaded or needs loading
-            if whisper_service.model_manager and model_name not in whisper_service.model_manager.pipelines:
-                logger.info(f"[WHISPER] 🔄 Model {model_name} not loaded, loading now...")
+            # ModelManager uses .models dict (PyTorch Whisper) not .pipelines (OpenVINO)
+            if whisper_service.model_manager and model_name not in whisper_service.model_manager.models:
+                logger.info(f"[WHISPER] 🔄 Model {model_name} not loaded, will load on first use...")
             else:
                 logger.info(f"[WHISPER] ✅ Model {model_name} already loaded and ready")
             
@@ -1942,6 +1944,10 @@ def handle_leave_session(data):
 active_streams = {}  # client_id -> thread
 active_streams_lock = threading.Lock()
 
+# Track VAC Online Processors per session (SimulStreaming pattern)
+vac_processors = {}  # session_id -> VACOnlineASRProcessor
+vac_processors_lock = threading.Lock()
+
 @socketio.on('transcribe_stream')
 def handle_transcribe_stream(data):
     """Handle real-time streaming transcription via WebSocket"""
@@ -2015,6 +2021,11 @@ def handle_transcribe_stream(data):
         # Extract config from data if present
         config = data.get('config', {})
 
+        # DEBUG: Log received data
+        logger.info(f"[WS DEBUG] Received data keys: {list(data.keys())}")
+        logger.info(f"[WS DEBUG] task in data: {data.get('task', 'NOT_PRESENT')}")
+        logger.info(f"[WS DEBUG] target_language in data: {data.get('target_language', 'NOT_PRESENT')}")
+
         # Get model from config or data (config.model takes priority)
         model_name = config.get('model') or data.get('model_name', 'large-v3-turbo')
 
@@ -2025,8 +2036,13 @@ def handle_transcribe_stream(data):
             session_id=data.get('session_id'),
             streaming=True,
             sample_rate=data.get('sample_rate', 16000),
-            enable_vad=config.get('enable_vad', data.get('enable_vad', True))
+            enable_vad=config.get('enable_vad', data.get('enable_vad', True)),
+            task=config.get('task') or data.get('task', 'transcribe'),
+            target_language=config.get('target_language') or data.get('target_language', 'en')
         )
+
+        # DEBUG: Log the created TranscriptionRequest
+        logger.info(f"[WS DEBUG] Created TranscriptionRequest: task={transcription_request.task}, target_language={transcription_request.target_language}")
 
         # Capture client_id outside thread context to avoid Flask request context issues
         client_id = request.sid
@@ -2034,7 +2050,65 @@ def handle_transcribe_stream(data):
         # Add audio to whisper service buffer WITH SESSION ID for proper isolation
         # Use session_id from request or fallback to client_id to ensure each connection has its own buffer
         session_id = transcription_request.session_id or client_id
-        whisper_service.add_audio_chunk(audio_array, session_id=session_id)
+
+        # Initialize VAC Online Processor for this session if not exists
+        # This implements the SimulStreaming incremental processing pattern
+        with vac_processors_lock:
+            if session_id not in vac_processors:
+                # Create VAC processor with 1.2s chunks (SimulStreaming default)
+                vac = VACOnlineASRProcessor(
+                    online_chunk_size=1.2,  # SimulStreaming default chunk size
+                    vad_threshold=0.5,
+                    min_buffered_length=1.0,
+                    sampling_rate=transcription_request.sample_rate
+                )
+
+                # DO NOT load model - use whisper_service's already-loaded model
+                # This prevents heap corruption from loading duplicate models
+                try:
+                    # Get the already-loaded model from whisper_service
+                    model_name = transcription_request.model_name
+                    if model_name not in whisper_service.model_manager.models:
+                        # Load model if not already loaded
+                        whisper_service.model_manager.load_model(model_name)
+
+                    # Set VAC's model reference to the existing model (NO loading!)
+                    vac.model = whisper_service.model_manager.models[model_name]
+                    vac.model_manager = whisper_service.model_manager
+                    vac.SAMPLING_RATE = transcription_request.sample_rate
+
+                    # Use whisper_service's already-initialized VAD iterator
+                    if whisper_service.vad is not None and whisper_service.vad.vad_iterator is not None:
+                        # SileroVAD wraps a FixedVADIterator - use it directly
+                        vac.vad = whisper_service.vad.vad_iterator
+                        logger.info(f"[VAC] Reusing whisper_service's FixedVADIterator (threshold={vac.vad_threshold})")
+                    else:
+                        logger.warning("[VAC] No VAD available, will process all audio without filtering")
+
+                    vac_processors[session_id] = vac
+                    logger.info(f"[VAC] Initialized processor for session {session_id} (reusing model {model_name})")
+                except Exception as e:
+                    logger.error(f"[VAC] Failed to initialize processor: {e}")
+                    error_info = create_system_error("Failed to initialize VAC processor", str(e))
+                    error_info.connection_id = request.sid
+                    error_info.session_id = session_id
+                    error_handler.handle_error(error_info)
+                    emit('error', error_info.to_websocket_response()['error'])
+                    return
+            else:
+                vac = vac_processors[session_id]
+
+        # Insert audio chunk into VAC processor (with VAD detection)
+        try:
+            vac.insert_audio_chunk(audio_array)
+            logger.debug(f"[VAC] Session {session_id}: Inserted audio chunk ({len(audio_array)} samples)")
+        except Exception as e:
+            logger.error(f"[VAC] Failed to insert audio chunk: {e}")
+            error_info = create_audio_error("Failed to process audio chunk", str(e), session_id)
+            error_info.connection_id = request.sid
+            error_handler.handle_error(error_info)
+            emit('error', error_info.to_websocket_response()['error'])
+            return
 
         # Check if streaming thread already exists for this connection
         with active_streams_lock:
@@ -2047,18 +2121,120 @@ def handle_transcribe_stream(data):
 
         # Run streaming transcription in background (ONCE per connection)
         def run_streaming():
+            """
+            Streaming loop using VAC Online Processor (SimulStreaming pattern)
+            - Periodically calls vac.process_iter() to check for new results
+            - VAC decides when to run Whisper (buffer full OR speech ends)
+            - Emits only when there's new transcription content
+            """
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
             async def stream_to_client():
                 try:
-                    async for result in whisper_service.transcribe_stream(transcription_request):
+                    # Get VAC processor for this session
+                    with vac_processors_lock:
+                        if session_id not in vac_processors:
+                            logger.error(f"[VAC] No processor found for session {session_id}")
+                            return
+                        vac = vac_processors[session_id]
+
+                    # Initialize stability tracker for this session
+                    tracker = None
+                    if session_id in whisper_service.session_stability_trackers:
+                        tracker = whisper_service.session_stability_trackers[session_id]
+                    else:
+                        # Create tokenizer from model (if available)
+                        try:
+                            tokenizer = whisper_service.model_manager.current_model.tokenizer if hasattr(whisper_service.model_manager.current_model, 'tokenizer') else None
+                        except:
+                            tokenizer = None
+
+                        from stability_tracker import StabilityTracker
+                        tracker = StabilityTracker(
+                            config=whisper_service.stability_config,
+                            tokenizer=tokenizer
+                        )
+                        whisper_service.session_stability_trackers[session_id] = tracker
+                        logger.info(f"[STABILITY] Created tracker for session {session_id}")
+
+                    # Streaming loop: periodically check for new VAC results
+                    last_emitted_text = None
+                    while session_id in vac_processors:
+                        # Wait before next iteration
+                        await asyncio.sleep(0.1)  # Check every 100ms
+
+                        # Process iteration - VAC decides if Whisper should run
+                        vac_result = vac.process_iter()
+
+                        # If VAC returns empty dict, no new content (still buffering)
+                        if not vac_result or 'text' not in vac_result:
+                            continue
+
+                        # We have a new transcription result!
+                        text = vac_result.get('text', '').strip()
+                        is_final = vac_result.get('is_final', False)
+
+                        # Skip if identical to last emission (deduplication)
+                        if text == last_emitted_text:
+                            logger.debug(f"[VAC] Session {session_id}: No change, skipping emission")
+                            continue
+
+                        last_emitted_text = text
+
+                        logger.info(f"[VAC] Session {session_id}: New transcription - '{text[:50]}...' (final={is_final})")
+
+                        # Construct TranscriptionResult for Phase 3C stability tracker
+                        from whisper_service import TranscriptionResult
+                        import time
+
+                        result = TranscriptionResult(
+                            text=text,
+                            segments=vac_result.get('segments', []),
+                            language=transcription_request.language or 'en',
+                            confidence_score=0.9,  # VAC doesn't provide confidence
+                            processing_time=0.0,
+                            model_used=transcription_request.model_name,
+                            device_used='cpu',  # VAC uses CPU
+                            session_id=session_id,
+                            timestamp=time.time()
+                        )
+
+                        # Phase 3C: Apply stability tracking
+                        if tracker:
+                            # Use word-based stability detection
+                            stable_prefix = text  # For now, consider all text stable (VAC already filtered)
+                            unstable_tail = ""
+
+                            result.stable_text = stable_prefix
+                            result.unstable_text = unstable_tail
+                            result.is_draft = not is_final
+                            result.is_final = is_final
+                            result.is_forced = False
+                            result.should_translate = len(stable_prefix.split()) >= whisper_service.stability_config.min_stable_words
+                            result.translation_mode = "final" if is_final else ("draft" if result.should_translate else "none")
+                            result.stability_score = 0.9 if is_final else 0.7
+                            result.stable_end_time = time.time()
+
+                        # Continue with existing emission logic...
+                        # Phase 3C/3D: Include stability tracking fields for draft/final emissions
                         transcription_data = {
                             'text': result.text,
                             'segments': result.segments,
                             'confidence': result.confidence_score,
                             'timestamp': result.timestamp,
-                            'session_id': result.session_id
+                            'session_id': result.session_id,
+
+                            # Phase 3C: Stability Tracking fields
+                            'stable_text': result.stable_text,
+                            'unstable_text': result.unstable_text,
+                            'is_draft': result.is_draft,
+                            'is_final': result.is_final,
+                            'is_forced': result.is_forced,
+                            'should_translate': result.should_translate,
+                            'translation_mode': result.translation_mode,
+                            'stability_score': result.stability_score,
+                            'stable_end_time': result.stable_end_time
                         }
 
                         # Try to emit to client
@@ -2076,32 +2252,15 @@ def handle_transcribe_stream(data):
                                     priority=1  # High priority for transcription results
                                 )
 
-                    # Send completion signal
-                    completion_data = {
-                        'session_id': transcription_request.session_id,
-                        'timestamp': datetime.now().isoformat()
-                    }
-
-                    try:
-                        socketio.emit('transcription_complete', completion_data, room=client_id)
-                    except Exception as emit_error:
-                        # Buffer completion signal if emit fails
-                        logger.warning(f"Failed to emit transcription complete to {client_id}: {emit_error}")
-                        session_info = reconnection_manager.get_session_by_connection(client_id)
-                        if session_info:
-                            reconnection_manager.buffer_message(
-                                session_info.session_id,
-                                'transcription_complete',
-                                completion_data,
-                                priority=2  # High priority for completion signals
-                            )
-
                 except Exception as e:
-                    logger.error(f"Streaming error: {e}")
+                    logger.error(f"[VAC] Streaming error: {e}")
+                    import traceback
+                    traceback.print_exc()
                     socketio.emit('transcription_error', {
                         'error': str(e),
                         'session_id': transcription_request.session_id
                     }, room=client_id)
+
 
             try:
                 loop.run_until_complete(stream_to_client())
@@ -2113,6 +2272,14 @@ def handle_transcribe_stream(data):
                     if client_id in active_streams:
                         del active_streams[client_id]
                         logger.info(f"[STREAM] Cleaned up streaming session for {client_id}")
+
+                # Clean up VAC processor for this session
+                with vac_processors_lock:
+                    if session_id in vac_processors:
+                        vac = vac_processors[session_id]
+                        vac.reset()  # Reset state for potential reuse
+                        del vac_processors[session_id]
+                        logger.info(f"[VAC] Cleaned up processor for session {session_id}")
 
         # Start streaming in background thread (ONCE per connection)
         streaming_thread = threading.Thread(target=run_streaming, name=f"Stream-{client_id}")

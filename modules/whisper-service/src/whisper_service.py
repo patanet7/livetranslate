@@ -45,6 +45,7 @@ from beam_decoder import BeamSearchDecoder, BeamSearchConfig
 from alignatt_decoder import AlignAttDecoder, AlignAttConfig, AlignAttState
 from domain_prompt_manager import DomainPromptManager, create_domain_prompt
 from vad_detector import SileroVAD, get_vad
+from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,7 +62,7 @@ except Exception as e:
 
 @dataclass
 class TranscriptionRequest:
-    """Transcription request data structure - Phase 2 Enhanced"""
+    """Transcription request data structure - Phase 2/3/4 Enhanced"""
     audio_data: Union[np.ndarray, bytes]
     model_name: str = "whisper-large-v3"  # Phase 2: Default to Large-v3
     language: Optional[str] = None
@@ -85,12 +86,24 @@ class TranscriptionRequest:
     previous_context: Optional[str] = None  # Previous output for continuity (max 223 tokens)
 
     # Phase 2: AlignAtt Streaming Policy
-    streaming_policy: str = "fixed"  # "fixed" or "alignatt"
+    streaming_policy: str = "alignatt"  # "alignatt" (SimulStreaming) or "fixed" (traditional)
     frame_threshold_offset: int = 10  # AlignAtt: frames to reserve for streaming
+
+    # Phase 4: Translation Configuration
+    task: str = "transcribe"  # "transcribe" (same lang) or "translate" (to English ONLY)
+    target_language: str = "en"  # Target language for translation (used by external service if not English)
 
 @dataclass
 class TranscriptionResult:
-    """Transcription result data structure"""
+    """
+    Transcription result data structure.
+
+    Phase 3 Enhancement: Stability Tracking for Draft/Final Emission
+    - Separates stable (confirmed, black in UI) vs unstable (uncertain, grey in UI)
+    - Enables incremental MT updates (only translate stable tokens)
+    - Supports draft/final emission protocol
+    """
+    # Original fields (backward compatible)
     text: str
     segments: List[Dict]
     language: str
@@ -100,10 +113,41 @@ class TranscriptionResult:
     device_used: str
     session_id: Optional[str] = None
     timestamp: str = None
-    
+
+    # Phase 3: Stability Tracking - Text representations
+    stable_text: str = ""                    # Only stable prefix (black in UI)
+    unstable_text: str = ""                  # Only unstable tail (grey in UI)
+
+    # Phase 3: Stability Tracking - Token-level data
+    stable_tokens: List[Any] = None          # TokenState list - confirmed tokens → send to MT
+    unstable_tokens: List[Any] = None        # TokenState list - uncertain tokens → hold back
+
+    # Phase 3: Emission metadata
+    is_final: bool = False                   # True = segment boundary reached
+    is_draft: bool = False                   # True = incremental update
+    is_forced: bool = False                  # True = forced by max_latency
+
+    # Phase 3: Translation integration
+    should_translate: bool = False           # True if enough stable text for MT
+    translation_mode: str = "none"           # "draft", "final", or "none"
+
+    # Phase 3: Timestamps
+    stable_end_time: float = 0.0             # Time of last stable token
+    segment_start_time: float = 0.0
+    segment_end_time: float = 0.0
+
+    # Phase 3: Confidence metrics
+    stability_score: float = 0.0             # Avg confidence of stable tokens
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now().isoformat()
+
+        # Initialize lists if None
+        if self.stable_tokens is None:
+            self.stable_tokens = []
+        if self.unstable_tokens is None:
+            self.unstable_tokens = []
 
 class ModelManager:
     """
@@ -586,7 +630,9 @@ class ModelManager:
         initial_prompt: Optional[str] = None,
         language: Optional[str] = None,
         temperature: float = 0.0,
-        streaming_policy: str = "fixed"
+        streaming_policy: str = "alignatt",
+        task: str = "transcribe",
+        target_language: str = "en"
     ):
         """
         Thread-safe inference with PyTorch Whisper and Phase 2 SimulStreaming enhancements
@@ -636,6 +682,30 @@ class ModelManager:
                     if language:
                         decode_options["language"] = language
                         logger.info(f"[INFERENCE] Language: {language}")
+
+                    # Phase 4: Translation task
+                    # IMPORTANT: task parameter does NOT affect beam search, stability, or AlignAtt
+                    # It ONLY controls output language: "transcribe"=source lang, "translate"=English
+
+                    # DEBUG: Log task parameters
+                    logger.info(f"[TASK DEBUG] task='{task}', target_language='{target_language}'")
+
+                    # CRITICAL: Whisper translate ONLY works for English target
+                    # For other target languages, we must use external translation service
+                    if task == 'translate':
+                        if target_language.lower() in ['en', 'eng', 'english']:
+                            # Use Whisper's built-in translate (any source → English)
+                            decode_options["task"] = "translate"
+                            logger.info(f"[TASK] Using Whisper translate: {language or 'auto'} → English (beam_size={beam_size})")
+                        else:
+                            # Cannot translate to non-English in Whisper - transcribe instead
+                            # External translation service will handle source → target_lang
+                            decode_options["task"] = "transcribe"
+                            logger.info(f"[TASK] Transcribing to {language or 'source'} (target={target_language} requires external translation)")
+                    else:
+                        # Standard transcription (source lang → source lang)
+                        decode_options["task"] = "transcribe"
+                        logger.info(f"[TASK] Transcribing to {language or 'source language'} (beam_size={beam_size})")
 
                     # Phase 2: AlignAtt streaming policy
                     if streaming_policy == "alignatt":
@@ -947,16 +1017,33 @@ class WhisperService:
         self.session_audio_buffers = {}  # session_id -> List[torch.Tensor]
         self.session_buffers_lock = threading.Lock()
 
+        # Per-session VAD state tracking (VACOnlineProcessor pattern)
+        # Tracks which sessions are currently in speech vs silence
+        self.session_vad_states = {}  # session_id -> 'voice' | 'nonvoice' | None
+
         # Initialize Silero VAD for speech detection (prevents hallucinations on silence)
+        # Following SimulStreaming: VAD is used as PRE-FILTER before adding to buffer
         try:
             self.vad = get_vad(threshold=0.5)
-            logger.info("🎤 Silero VAD initialized (prevents hallucinations on silence)")
+            logger.info("🎤 Silero VAD initialized (VACOnlineProcessor pattern - pre-filters silence)")
         except Exception as e:
             logger.warning(f"⚠️ VAD initialization failed: {e}, continuing without VAD")
             self.vad = None
 
+        # Phase 3: Initialize Stability Trackers for draft/final emission
+        # Per-session trackers for token stability detection
+        self.session_stability_trackers = {}  # session_id -> StabilityTracker
+        self.stability_config = StabilityConfig(
+            stability_threshold=self.config.get("stability_threshold", 0.85),
+            min_stable_words=self.config.get("min_stable_words", 2),
+            min_hold_time=self.config.get("min_hold_time", 0.3),
+            max_latency=self.config.get("max_latency", 2.0)
+        )
+
         if not self.orchestration_mode:
             logger.info("🎤 Per-session audio buffering enabled (SimulStreaming-style)")
+            logger.info(f"📊 Stability tracking enabled (threshold={self.stability_config.stability_threshold}, "
+                       f"max_latency={self.stability_config.max_latency}s)")
         else:
             logger.info("🎯 Orchestration mode enabled - internal chunking disabled")
 
@@ -1042,7 +1129,100 @@ class WhisperService:
                 return False  # Definitely not hallucination
         
         return False
-    
+
+    def _find_stable_word_prefix(self, text_history: List[Tuple[str, float]], current_text: str) -> str:
+        """
+        Find the stable word prefix from text history.
+
+        A word is considered stable if it appears in the same position
+        across multiple consecutive transcriptions.
+
+        Args:
+            text_history: List of (text, timestamp) tuples
+            current_text: Current transcription text
+
+        Returns:
+            Stable prefix string
+        """
+        if not text_history or len(text_history) < 2:
+            return ""
+
+        # Get all texts from history
+        texts = [txt for txt, _ in text_history]
+
+        # Split into words
+        current_words = current_text.split()
+        if not current_words:
+            return ""
+
+        # Find longest common prefix across recent texts
+        stable_word_count = 0
+
+        for i, word in enumerate(current_words):
+            # Check if this word appears in same position in at least 2 recent texts
+            appearances = 0
+            for text in texts[-3:]:  # Check last 3 texts
+                words = text.split()
+                if i < len(words) and words[i] == word:
+                    appearances += 1
+
+            # If word appears in at least 2 texts, consider it stable
+            if appearances >= min(2, len(texts)):
+                stable_word_count = i + 1
+            else:
+                break  # Stop at first unstable word
+
+        # Return stable prefix
+        if stable_word_count > 0:
+            return " ".join(current_words[:stable_word_count])
+        return ""
+
+    def _calculate_text_stability_score(self, text_history: List[Tuple[str, float]], stable_prefix: str) -> float:
+        """
+        Calculate stability score based on text consistency.
+
+        Args:
+            text_history: List of (text, timestamp) tuples
+            stable_prefix: Current stable prefix
+
+        Returns:
+            Stability score (0.0-1.0)
+        """
+        if not text_history:
+            return 0.0
+
+        if not stable_prefix:
+            return 0.1  # Low score if nothing is stable
+
+        # Calculate based on:
+        # 1. Length of stable prefix relative to total text
+        # 2. Consistency across history
+        # 3. Age of stable prefix (older = more stable)
+
+        current_text = text_history[-1][0] if text_history else ""
+        if not current_text:
+            return 0.0
+
+        # Factor 1: Proportion of text that's stable
+        stable_ratio = len(stable_prefix) / max(1, len(current_text))
+
+        # Factor 2: Consistency (how many recent texts contain this prefix)
+        consistency = 0
+        for text, _ in text_history[-5:]:
+            if text.startswith(stable_prefix):
+                consistency += 1
+        consistency_score = consistency / min(5, len(text_history))
+
+        # Factor 3: Age bonus (longer stable = higher score)
+        if len(text_history) >= 3:
+            age_bonus = min(0.2, len(text_history) * 0.05)
+        else:
+            age_bonus = 0.0
+
+        # Combine factors
+        score = (stable_ratio * 0.5 + consistency_score * 0.4 + age_bonus)
+        return min(1.0, max(0.0, score))
+
     async def transcribe(self, request: TranscriptionRequest) -> TranscriptionResult:
         """
         Transcribe audio using the specified model
@@ -1117,7 +1297,9 @@ class WhisperService:
                 initial_prompt,
                 request.language,
                 request.temperature,
-                request.streaming_policy
+                request.streaming_policy,
+                request.task,
+                request.target_language
             )
 
             logger.info(f"[INFERENCE] Complete: model={request.model_name}, beam_size={request.beam_size}, "
@@ -1128,12 +1310,28 @@ class WhisperService:
             # Parse OpenVINO WhisperDecodedResults properly
             logger.info(f"[WHISPER] 🔍 Result type: {type(result)}")
             logger.info(f"[WHISPER] 🔍 Result attributes: {[attr for attr in dir(result) if not attr.startswith('_')]}")
-            
+
             # Initialize confidence score - will be extracted from model output
             confidence_score = 0.8  # Default for successful transcription
-            
+
+            # CRITICAL FIX: Check for dict FIRST before checking hasattr
+            if isinstance(result, dict):
+                # PyTorch Whisper returns dict with 'text' and 'segments' keys
+                text = result.get('text', '')
+                segments = result.get('segments', [])
+                language = result.get('language', 'unknown')
+                logger.info(f"[WHISPER] 📝 Dict result - text: '{text[:60]}', segments: {len(segments)}, lang: {language}")
+
+                # Extract confidence from segments
+                if segments:
+                    avg_logprobs = [seg.get('avg_logprob', -1.0) for seg in segments if 'avg_logprob' in seg]
+                    if avg_logprobs:
+                        avg_logprob = sum(avg_logprobs) / len(avg_logprobs)
+                        confidence_score = min(1.0, max(0.0, (avg_logprob + 1.0)))
+                        logger.info(f"[WHISPER] 🎯 Calculated confidence from {len(avg_logprobs)} segments: {confidence_score:.3f}")
+
             # Handle OpenVINO WhisperDecodedResults structure
-            if hasattr(result, 'texts') and result.texts:
+            elif hasattr(result, 'texts') and result.texts:
                 # OpenVINO returns 'texts' (plural) - get the first text
                 text = result.texts[0] if result.texts else ""
                 logger.info(f"[WHISPER] 📝 Text extracted from 'texts': '{text}'")
@@ -1216,10 +1414,12 @@ class WhisperService:
                 logger.info(f"[WHISPER] ⚠️ Using string conversion: '{text}'")
             
             # Enhanced language detection for OpenVINO
-            language = 'unknown'
-            
-            # Method 1: Check result attributes
-            if hasattr(result, 'language'):
+            # Only detect if not already set from dict
+            if 'language' not in locals() or language == 'unknown':
+                language = 'unknown'
+
+            # Method 1: Check result attributes (for non-dict results)
+            if language == 'unknown' and hasattr(result, 'language'):
                 language = result.language
                 logger.info(f"[WHISPER] 🌍 Found language attribute: {language}")
             elif hasattr(result, 'lang'):
@@ -1335,6 +1535,31 @@ class WhisperService:
             if not self.streaming_active:
                 await self.start_streaming(request)
 
+            # Track last emission for deduplication (SimulStreaming pattern)
+            # SimulStreaming only emits when there's NEW content, not on every cycle
+            last_emitted_text = None
+            last_emitted_segments = None
+
+            # Phase 3: Initialize stability tracker for this session
+            if session_id not in self.session_stability_trackers:
+                # Create tokenizer from model (if available)
+                try:
+                    tokenizer = self.model_manager.current_model.tokenizer if hasattr(self.model_manager.current_model, 'tokenizer') else None
+                except:
+                    tokenizer = None
+
+                self.session_stability_trackers[session_id] = StabilityTracker(
+                    config=self.stability_config,
+                    tokenizer=tokenizer
+                )
+                logger.info(f"[STABILITY] Created tracker for session {session_id}")
+
+            tracker = self.session_stability_trackers[session_id]
+
+            # Track text history for word-based stability detection
+            text_history = []  # List of (text, timestamp) tuples
+            last_stable_prefix = ""
+
             # Yield results as they become available
             while self.streaming_active:
                 await asyncio.sleep(self.inference_interval)
@@ -1359,15 +1584,9 @@ class WhisperService:
                             with self.session_buffers_lock:
                                 full_audio = torch.cat(self.session_audio_buffers[session_id], dim=0).numpy()
 
-                            # VAD CHECK: Skip transcription if no speech detected
-                            if self.vad is not None:
-                                has_speech = self.vad.is_speech(full_audio)
-                                if not has_speech:
-                                    logger.info(f"[STREAM] Session {session_id}: 🔇 No speech detected, skipping transcription")
-                                    continue  # Skip to next iteration
-
-                                speech_ratio = self.vad.get_speech_ratio(full_audio)
-                                logger.info(f"[STREAM] Session {session_id}: 🎤 Speech detected (ratio: {speech_ratio:.2%})")
+                            # NOTE: VAD filtering is now done at ingestion time (add_audio_chunk)
+                            # using VACOnlineProcessor pattern - only speech chunks reach this buffer
+                            logger.debug(f"[STREAM] Session {session_id}: Processing {len(full_audio)} audio samples (all pre-filtered by VAD)")
 
                             # Create request with full buffer
                             # AlignAtt will track internally what's already been decoded
@@ -1381,16 +1600,87 @@ class WhisperService:
                                 beam_size=request.beam_size,
                                 temperature=request.temperature,
                                 streaming_policy=request.streaming_policy,
-                                frame_threshold_offset=request.frame_threshold_offset
+                                frame_threshold_offset=request.frame_threshold_offset,
+                                task=request.task,
+                                target_language=request.target_language
                             )
 
                             # Transcribe full buffer
                             result = await self.transcribe(stream_request)
 
-                            # Yield result
-                            yield result
+                            # Phase 3: Word-based stability detection
+                            # Since OpenVINO doesn't expose token-level data, use word-level analysis
+                            current_time = time.time()
+                            current_text = result.text.strip()
 
-                            logger.info(f"[STREAM] Session {session_id}: ✅ Transcribed buffer: '{result.text[:50]}...' (Lang: {result.language})")
+                            # Add to text history
+                            text_history.append((current_text, current_time))
+
+                            # Keep only recent history (last max_latency window)
+                            cutoff_time = current_time - self.stability_config.max_latency
+                            text_history = [(txt, ts) for txt, ts in text_history if ts >= cutoff_time]
+
+                            # Find stable word prefix (words that appear consistently across recent history)
+                            stable_prefix = self._find_stable_word_prefix(text_history, current_text)
+                            unstable_tail = current_text[len(stable_prefix):].strip()
+
+                            # Determine emission type
+                            is_draft = len(stable_prefix) > len(last_stable_prefix)
+                            is_final = False  # Will be set to True on segment boundaries
+                            is_forced = (current_time - text_history[0][1]) >= self.stability_config.max_latency if text_history else False
+                            should_translate = len(stable_prefix.split()) >= self.stability_config.min_stable_words
+
+                            # Update result with stability information
+                            result.stable_text = stable_prefix
+                            result.unstable_text = unstable_tail
+                            result.is_draft = is_draft
+                            result.is_final = is_final
+                            result.is_forced = is_forced
+                            result.should_translate = should_translate
+                            result.translation_mode = "draft" if (is_draft and should_translate) else ("final" if is_final else "none")
+                            result.stable_end_time = current_time
+
+                            # Calculate stability score (based on text consistency)
+                            result.stability_score = self._calculate_text_stability_score(text_history, stable_prefix)
+
+                            last_stable_prefix = stable_prefix
+
+                            logger.info(f"[STABILITY] Session {session_id}: stable='{stable_prefix[:30]}...' unstable='{unstable_tail[:20]}...' "
+                                       f"(draft={is_draft}, should_translate={should_translate}, score={result.stability_score:.2f})")
+
+                            # DEDUPLICATION: Only emit if content changed (SimulStreaming pattern)
+                            # SimulStreaming returns {} when no update - we check text/segments instead
+                            content_changed = False
+
+                            # Check if text changed
+                            if result.text != last_emitted_text:
+                                content_changed = True
+                                logger.info(f"[STREAM] Session {session_id}: 📝 Text changed: '{last_emitted_text}' → '{result.text[:50]}...'")
+
+                            # Check if segments changed (important for preserving semantic boundaries)
+                            # Convert segments to comparable format (list of dicts with timing)
+                            current_segments_comparable = [
+                                {'start': seg.get('start'), 'end': seg.get('end'), 'text': seg.get('text')}
+                                for seg in result.segments
+                            ] if result.segments else []
+
+                            if current_segments_comparable != last_emitted_segments:
+                                content_changed = True
+                                logger.info(f"[STREAM] Session {session_id}: 🎯 Segments changed: {len(last_emitted_segments or [])} → {len(current_segments_comparable)} segments")
+
+                            # Only emit if content changed
+                            if content_changed:
+                                # Update tracking
+                                last_emitted_text = result.text
+                                last_emitted_segments = current_segments_comparable
+
+                                # Yield result with segment boundary information preserved
+                                yield result
+
+                                logger.info(f"[STREAM] Session {session_id}: ✅ Emitted update: '{result.text[:50]}...' (Lang: {result.language}, Segments: {len(result.segments)})")
+                            else:
+                                # No change - skip emission (like SimulStreaming returning {})
+                                logger.info(f"[STREAM] Session {session_id}: ⏸️  No change detected, skipping emission")
 
                         except Exception as e:
                             logger.warning(f"Streaming transcription error for session {session_id}: {e}")
@@ -1405,6 +1695,12 @@ class WhisperService:
                 if session_id in self.session_audio_buffers:
                     del self.session_audio_buffers[session_id]
                     logger.info(f"[STREAM] Cleaned up buffer for session {session_id}")
+
+            # Cleanup stability tracker
+            if session_id in self.session_stability_trackers:
+                del self.session_stability_trackers[session_id]
+                logger.info(f"[STABILITY] Cleaned up tracker for session {session_id}")
+
             await self.stop_streaming()
     
     async def start_streaming(self, request: TranscriptionRequest):
@@ -1423,13 +1719,23 @@ class WhisperService:
         self.streaming_active = False
         logger.info("Stopped streaming transcription")
     
-    def add_audio_chunk(self, audio_chunk: np.ndarray, session_id: str = "default") -> int:
+    def add_audio_chunk(self, audio_chunk: np.ndarray, session_id: str = "default", enable_vad_prefilter: bool = False) -> int:
         """
-        Add audio chunk to the session-specific streaming buffer
+        Add audio chunk to the session-specific streaming buffer.
+
+        CRITICAL: VAD pre-filtering is OPTIONAL and controlled by enable_vad_prefilter flag.
+
+        Use Cases:
+        - enable_vad_prefilter=False: For file playback, testing, or when you want ALL audio
+        - enable_vad_prefilter=True: For live microphone input to filter background noise/silence
+
+        NOTE: SimulStreaming alignment still works without VAD pre-filtering.
+        AlignAtt handles silence internally - VAD pre-filtering is an optimization, not a requirement.
 
         Args:
             audio_chunk: Audio data as numpy array
             session_id: Session identifier for buffer isolation
+            enable_vad_prefilter: If True, use VAD to filter silence chunks before adding to buffer
 
         Returns:
             Number of chunks in the session buffer
@@ -1438,6 +1744,63 @@ class WhisperService:
             logger.warning("add_audio_chunk called in orchestration mode - use process_orchestration_chunk instead")
             return 0
 
+        # VAD PRE-FILTER (OPTIONAL - controlled by enable_vad_prefilter flag)
+        # When enabled, filters silence chunks before adding to buffer
+        # When disabled, ALL audio chunks are added (better for file playback/testing)
+        if enable_vad_prefilter and self.vad is not None:
+            vad_result = self.vad.check_speech(audio_chunk)
+
+            # Initialize session VAD state if needed
+            if session_id not in self.session_vad_states:
+                self.session_vad_states[session_id] = None
+                logger.info(f"[VAD] Session {session_id}: Initialized VAD state tracking")
+
+                # CRITICAL FIX: Preload VAD with silence to build analysis window
+                # This "primes" the VAD so it's ready to detect speech immediately
+                # SimulStreaming does this implicitly - we need to do it explicitly
+                silence_frames = 3  # Preload 3 frames of silence (3 * 512 samples = 1536 samples = ~96ms)
+                silence_chunk = np.zeros(512, dtype=np.float32)
+                for _ in range(silence_frames):
+                    self.vad.check_speech(silence_chunk)
+                logger.info(f"[VAD] Session {session_id}: 🔧 Preloaded VAD with {silence_frames} silence frames for immediate readiness")
+
+            # Update VAD state based on result
+            if vad_result is not None:
+                if 'start' in vad_result:
+                    self.session_vad_states[session_id] = 'voice'
+                    logger.info(f"[VAD] Session {session_id}: 🎤 Speech started at {vad_result['start']:.2f}s")
+                elif 'end' in vad_result:
+                    self.session_vad_states[session_id] = 'nonvoice'
+                    logger.info(f"[VAD] Session {session_id}: 🔇 Speech ended at {vad_result['end']:.2f}s")
+            else:
+                # VAD returned None - this could mean:
+                # 1. ONGOING speech (between start and end events)
+                # 2. VAD is still accumulating data (first few chunks)
+                # 3. Silence after speech has ended
+                current_state = self.session_vad_states.get(session_id)
+                if current_state == 'voice':
+                    # Still in speech - vad_result is None but we're between start and end
+                    logger.debug(f"[VAD] Session {session_id}: ✅ Ongoing speech (vad_result=None, state=voice)")
+                elif current_state is None:
+                    # CRITICAL FIX: First chunks - VAD needs data to accumulate
+                    # ACCEPT these chunks so VAD can build up its analysis window
+                    logger.debug(f"[VAD] Session {session_id}: ✅ Accepting initial chunk for VAD analysis (state=None)")
+                elif current_state == 'nonvoice':
+                    # Confirmed non-voice state and still no speech detected - discard
+                    logger.info(f"[VAD] Session {session_id}: ❌ Discarding chunk (state: nonvoice, vad_result: None)")
+                    with self.session_buffers_lock:
+                        return len(self.session_audio_buffers.get(session_id, []))
+
+            # If we got here with an explicit start/end event, handle it
+            if vad_result is not None:
+                current_state = self.session_vad_states.get(session_id)
+                if current_state != 'voice':
+                    logger.info(f"[VAD] Session {session_id}: ❌ Discarding chunk (state: {current_state}, vad_result: {vad_result})")
+                    # Return current buffer size without adding chunk
+                    with self.session_buffers_lock:
+                        return len(self.session_audio_buffers.get(session_id, []))
+
+        # Only reached if VAD detected speech or VAD is disabled
         audio_tensor = torch.from_numpy(audio_chunk).float()
 
         with self.session_buffers_lock:
@@ -1448,7 +1811,7 @@ class WhisperService:
             self.session_audio_buffers[session_id].append(audio_tensor)
             buffer_size = len(self.session_audio_buffers[session_id])
 
-        logger.debug(f"[BUFFER] Session {session_id}: Added chunk, total {buffer_size} chunks")
+        logger.debug(f"[BUFFER] Session {session_id}: Added speech chunk, total {buffer_size} chunks")
         return buffer_size
     
     async def process_orchestration_chunk(self, 
