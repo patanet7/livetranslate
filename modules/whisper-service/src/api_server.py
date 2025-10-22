@@ -2031,8 +2031,10 @@ def handle_transcribe_stream(data):
         # Capture client_id outside thread context to avoid Flask request context issues
         client_id = request.sid
 
-        # Add audio to whisper service buffer
-        whisper_service.add_audio_chunk(audio_array)
+        # Add audio to whisper service buffer WITH SESSION ID for proper isolation
+        # Use session_id from request or fallback to client_id to ensure each connection has its own buffer
+        session_id = transcription_request.session_id or client_id
+        whisper_service.add_audio_chunk(audio_array, session_id=session_id)
 
         # Check if streaming thread already exists for this connection
         with active_streams_lock:

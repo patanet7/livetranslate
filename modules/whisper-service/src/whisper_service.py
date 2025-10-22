@@ -940,16 +940,17 @@ class WhisperService:
         
         # Initialize components
         self.model_manager = ModelManager(self.config.get("models_dir"))
-        
-        # Initialize simple audio buffer for streaming (SimulStreaming-style)
-        # Don't use complex buffer managers - keep it simple like the reference implementation
+
+        # Initialize per-session audio buffers (SimulStreaming pattern: one buffer per stream)
+        # Each session gets its own buffer to avoid cross-contamination
+        self.session_audio_buffers = {}  # session_id -> List[torch.Tensor]
+        self.session_buffers_lock = threading.Lock()
+
         if not self.orchestration_mode:
-            self.audio_chunks = []  # Simple list-based audio buffer like SimulStreaming
-            logger.info("🎤 Internal audio buffering enabled (SimulStreaming-style)")
+            logger.info("🎤 Per-session audio buffering enabled (SimulStreaming-style)")
         else:
-            self.audio_chunks = None
             logger.info("🎯 Orchestration mode enabled - internal chunking disabled")
-        
+
         self.session_manager = SessionManager(self.config.get("session_dir"))
         
         # Streaming settings
@@ -969,16 +970,21 @@ class WhisperService:
         
         logger.info(f"WhisperService initialized successfully (orchestration_mode: {self.orchestration_mode})")
 
-    def _segments_len(self) -> float:
+    def _segments_len(self, session_id: str) -> float:
         """
-        Calculate total duration of audio segments in buffer (in seconds)
+        Calculate total duration of audio segments in session buffer (in seconds)
         Following SimulStreaming reference pattern
         """
-        if not self.audio_chunks or len(self.audio_chunks) == 0:
-            return 0.0
+        with self.session_buffers_lock:
+            if session_id not in self.session_audio_buffers:
+                return 0.0
 
-        total_samples = sum(len(seg) for seg in self.audio_chunks)
-        return total_samples / 16000.0  # Assuming 16kHz sample rate
+            segments = self.session_audio_buffers[session_id]
+            if not segments or len(segments) == 0:
+                return 0.0
+
+            total_samples = sum(len(seg) for seg in segments)
+            return total_samples / 16000.0  # Assuming 16kHz sample rate
 
     def _detect_hallucination(self, text: str, confidence: float) -> bool:
         """
@@ -1278,6 +1284,7 @@ class WhisperService:
         - Feed ENTIRE buffer to model each time
         - AlignAtt decoder tracks what's already been decoded internally
         - Simple list-based buffer with rolling window
+        - Per-session buffers to prevent cross-contamination
 
         Args:
             request: Transcription request with streaming enabled
@@ -1291,18 +1298,29 @@ class WhisperService:
             yield result
             return
 
+        # Get or create session ID
+        session_id = request.session_id or f"stream-{time.time()}"
+
+        # Initialize session buffer if needed
+        with self.session_buffers_lock:
+            if session_id not in self.session_audio_buffers:
+                self.session_audio_buffers[session_id] = []
+                logger.info(f"[STREAM] Created new buffer for session {session_id}")
+
         # Audio buffer configuration (SimulStreaming-style)
         audio_max_len = 30.0  # Maximum buffer duration in seconds
         audio_min_len = 1.0   # Minimum audio before processing
 
         # Start streaming transcription
         try:
-            # Convert audio to tensor and add to buffer
+            # Convert audio to tensor and add to SESSION-SPECIFIC buffer
             if isinstance(request.audio_data, np.ndarray):
                 audio_tensor = torch.from_numpy(request.audio_data).float()
-                if not self.orchestration_mode and self.audio_chunks is not None:
-                    self.audio_chunks.append(audio_tensor)
-                    logger.debug(f"[STREAM] Added audio chunk, buffer has {len(self.audio_chunks)} segments")
+                if not self.orchestration_mode:
+                    with self.session_buffers_lock:
+                        self.session_audio_buffers[session_id].append(audio_tensor)
+                        buffer_count = len(self.session_audio_buffers[session_id])
+                    logger.debug(f"[STREAM] Session {session_id}: Added audio chunk, buffer has {buffer_count} segments")
 
             # Start periodic inference
             if not self.streaming_active:
@@ -1312,23 +1330,25 @@ class WhisperService:
             while self.streaming_active:
                 await asyncio.sleep(self.inference_interval)
 
-                if not self.orchestration_mode and self.audio_chunks is not None:
-                    # Calculate current buffer length
-                    segments_len = self._segments_len()
+                if not self.orchestration_mode:
+                    # Calculate current buffer length for THIS SESSION
+                    segments_len = self._segments_len(session_id)
 
                     # Maintain rolling window (remove old segments when buffer full)
-                    while segments_len > audio_max_len and len(self.audio_chunks) > 1:
-                        removed_segment = self.audio_chunks.pop(0)
-                        segments_len = self._segments_len()
-                        logger.debug(f"[STREAM] Removed old segment, buffer now {segments_len:.2f}s")
+                    with self.session_buffers_lock:
+                        while segments_len > audio_max_len and len(self.session_audio_buffers[session_id]) > 1:
+                            self.session_audio_buffers[session_id].pop(0)
+                            segments_len = self._segments_len(session_id)
+                            logger.debug(f"[STREAM] Session {session_id}: Removed old segment, buffer now {segments_len:.2f}s")
 
                     # Process if we have enough audio
                     if segments_len >= audio_min_len:
                         try:
-                            logger.info(f"[STREAM] Processing buffer with {segments_len:.2f}s audio")
+                            logger.info(f"[STREAM] Session {session_id}: Processing buffer with {segments_len:.2f}s audio")
 
-                            # Concatenate ENTIRE buffer (SimulStreaming pattern)
-                            full_audio = torch.cat(self.audio_chunks, dim=0).numpy()
+                            # Concatenate ENTIRE buffer for THIS SESSION (SimulStreaming pattern)
+                            with self.session_buffers_lock:
+                                full_audio = torch.cat(self.session_audio_buffers[session_id], dim=0).numpy()
 
                             # Create request with full buffer
                             # AlignAtt will track internally what's already been decoded
@@ -1336,7 +1356,7 @@ class WhisperService:
                                 audio_data=full_audio,
                                 model_name=request.model_name,
                                 language=request.language,
-                                session_id=request.session_id,
+                                session_id=session_id,
                                 sample_rate=request.sample_rate,
                                 enable_vad=False,  # VAD handled by AlignAtt
                                 beam_size=request.beam_size,
@@ -1351,16 +1371,21 @@ class WhisperService:
                             # Yield result
                             yield result
 
-                            logger.info(f"[STREAM] ✅ Transcribed buffer: '{result.text[:50]}...' (Lang: {result.language})")
+                            logger.info(f"[STREAM] Session {session_id}: ✅ Transcribed buffer: '{result.text[:50]}...' (Lang: {result.language})")
 
                         except Exception as e:
-                            logger.warning(f"Streaming transcription error: {e}")
+                            logger.warning(f"Streaming transcription error for session {session_id}: {e}")
                             continue
 
         except Exception as e:
-            logger.error(f"Streaming transcription failed: {e}")
+            logger.error(f"Streaming transcription failed for session {session_id}: {e}")
             raise
         finally:
+            # Cleanup session buffer on stream end
+            with self.session_buffers_lock:
+                if session_id in self.session_audio_buffers:
+                    del self.session_audio_buffers[session_id]
+                    logger.info(f"[STREAM] Cleaned up buffer for session {session_id}")
             await self.stop_streaming()
     
     async def start_streaming(self, request: TranscriptionRequest):
@@ -1379,17 +1404,33 @@ class WhisperService:
         self.streaming_active = False
         logger.info("Stopped streaming transcription")
     
-    def add_audio_chunk(self, audio_chunk: np.ndarray) -> int:
-        """Add audio chunk to the streaming buffer (legacy mode only)"""
+    def add_audio_chunk(self, audio_chunk: np.ndarray, session_id: str = "default") -> int:
+        """
+        Add audio chunk to the session-specific streaming buffer
+
+        Args:
+            audio_chunk: Audio data as numpy array
+            session_id: Session identifier for buffer isolation
+
+        Returns:
+            Number of chunks in the session buffer
+        """
         if self.orchestration_mode:
             logger.warning("add_audio_chunk called in orchestration mode - use process_orchestration_chunk instead")
             return 0
 
-        if self.audio_chunks is not None:
-            audio_tensor = torch.from_numpy(audio_chunk).float()
-            self.audio_chunks.append(audio_tensor)
-            return len(self.audio_chunks)
-        return 0
+        audio_tensor = torch.from_numpy(audio_chunk).float()
+
+        with self.session_buffers_lock:
+            if session_id not in self.session_audio_buffers:
+                self.session_audio_buffers[session_id] = []
+                logger.info(f"[BUFFER] Created new buffer for session {session_id}")
+
+            self.session_audio_buffers[session_id].append(audio_tensor)
+            buffer_size = len(self.session_audio_buffers[session_id])
+
+        logger.debug(f"[BUFFER] Session {session_id}: Added chunk, total {buffer_size} chunks")
+        return buffer_size
     
     async def process_orchestration_chunk(self, 
                                         chunk_id: str,
@@ -1484,14 +1525,18 @@ class WhisperService:
     
     def get_service_status(self) -> Dict:
         """Get service status information"""
-        buffer_size = len(self.audio_chunks) if self.audio_chunks is not None else 0
+        # Calculate total buffer info across all sessions
+        with self.session_buffers_lock:
+            total_buffers = len(self.session_audio_buffers)
+            total_segments = sum(len(buffer) for buffer in self.session_audio_buffers.values())
+
         return {
             "device": self.model_manager.device,
             "loaded_models": list(self.model_manager.models.keys()),
             "available_models": self.get_available_models(),
             "streaming_active": self.streaming_active,
-            "buffer_segments": buffer_size,
-            "buffer_duration_s": self._segments_len(),
+            "active_stream_sessions": total_buffers,
+            "total_buffer_segments": total_segments,
             "orchestration_mode": self.orchestration_mode,
             "sessions": len(self.session_manager.sessions)
         }
@@ -1566,9 +1611,11 @@ class WhisperService:
             # Stop streaming
             await self.stop_streaming()
 
-            # Clear audio buffer
-            if self.audio_chunks is not None:
-                self.audio_chunks.clear()
+            # Clear all session buffers
+            with self.session_buffers_lock:
+                session_count = len(self.session_audio_buffers)
+                self.session_audio_buffers.clear()
+                logger.info(f"[SHUTDOWN] Cleared {session_count} session buffers")
 
             # Clear model cache
             self.model_manager.clear_cache()
