@@ -2079,8 +2079,12 @@ def handle_transcribe_stream(data):
                         'session_id': transcription_request.session_id
                     }, room=client_id)
 
-            loop.run_until_complete(stream_to_client())
-        
+            try:
+                loop.run_until_complete(stream_to_client())
+            finally:
+                # CRITICAL: Close event loop to prevent file descriptor leaks
+                loop.close()
+
         # Start streaming in background thread
         streaming_thread = threading.Thread(target=run_streaming)
         streaming_thread.daemon = True
