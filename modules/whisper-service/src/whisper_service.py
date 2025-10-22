@@ -136,13 +136,18 @@ class ModelManager:
             if env_models and os.path.exists(env_models):
                 self.models_dir = env_models
             else:
-                # Use openai-whisper default cache directory
-                self.models_dir = os.path.expanduser("~/.cache/whisper")
+                # Try to use local .models directory first
+                local_models = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models")
+                if os.path.exists(local_models):
+                    self.models_dir = local_models
+                else:
+                    # Fall back to openai-whisper default cache directory
+                    self.models_dir = os.path.expanduser("~/.cache/whisper")
         else:
             self.models_dir = models_dir
 
         self.models = {}  # Store loaded models
-        self.default_model = os.getenv("WHISPER_DEFAULT_MODEL", "large-v3")  # Phase 2: Large-v3
+        self.default_model = os.getenv("WHISPER_DEFAULT_MODEL", "large-v3-turbo")  # Use turbo model from local .models
         self.device = self._detect_best_device()
 
         # Phase 2: Beam search configuration
@@ -692,22 +697,25 @@ class ModelManager:
                 self.last_inference_time = time.time()  # Still update to prevent hammering
                 raise e
 
-class AudioBufferManager:
+# NOTE: This simple AudioBufferManager class is deprecated - use RollingBufferManager from buffer_manager.py instead
+# Kept for backward compatibility only, not used in current implementation
+class SimpleAudioBufferManager:
     """
-    Manages rolling audio buffers with voice activity detection for streaming
+    DEPRECATED: Simple audio buffer manager (legacy)
+    Use RollingBufferManager from buffer_manager.py for full functionality
     """
-    
+
     def __init__(self, buffer_duration: float = 6.0, sample_rate: int = 16000, enable_vad: bool = True):
         """Initialize audio buffer manager"""
         self.buffer_duration = buffer_duration
         self.sample_rate = sample_rate
         self.max_samples = int(buffer_duration * sample_rate)
         self.enable_vad = enable_vad
-        
+
         # Rolling buffer for audio samples
         self.audio_buffer = deque(maxlen=self.max_samples)
         self.buffer_lock = threading.Lock()
-        
+
         # VAD setup
         if enable_vad:
             try:
@@ -721,7 +729,7 @@ class AudioBufferManager:
         else:
             self.vad = None
             self.vad_enabled = False
-        
+
         # Audio processing
         self.last_processed_time = 0
         
@@ -933,16 +941,13 @@ class WhisperService:
         # Initialize components
         self.model_manager = ModelManager(self.config.get("models_dir"))
         
-        # Initialize buffer manager only if not in orchestration mode
+        # Initialize simple audio buffer for streaming (SimulStreaming-style)
+        # Don't use complex buffer managers - keep it simple like the reference implementation
         if not self.orchestration_mode:
-            self.buffer_manager = AudioBufferManager(
-                buffer_duration=self.config.get("buffer_duration", 6.0),
-                sample_rate=self.config.get("sample_rate", 16000),
-                enable_vad=self.config.get("enable_vad", True)
-            )
-            logger.info("🎤 Internal audio buffering enabled")
+            self.audio_chunks = []  # Simple list-based audio buffer like SimulStreaming
+            logger.info("🎤 Internal audio buffering enabled (SimulStreaming-style)")
         else:
-            self.buffer_manager = None
+            self.audio_chunks = None
             logger.info("🎯 Orchestration mode enabled - internal chunking disabled")
         
         self.session_manager = SessionManager(self.config.get("session_dir"))
@@ -1485,7 +1490,7 @@ class WhisperService:
                 os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models")
                 if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models"))
                 else os.path.expanduser("~/.whisper/models")),
-            "default_model": os.getenv("WHISPER_DEFAULT_MODEL", "whisper-tiny"),
+            "default_model": os.getenv("WHISPER_DEFAULT_MODEL", "large-v3-turbo"),
             
             # Audio settings - optimized for reduced duplicates
             "sample_rate": int(os.getenv("SAMPLE_RATE", "16000")),
