@@ -44,6 +44,7 @@ import torch.nn.functional as F
 from beam_decoder import BeamSearchDecoder, BeamSearchConfig
 from alignatt_decoder import AlignAttDecoder, AlignAttConfig, AlignAttState
 from domain_prompt_manager import DomainPromptManager, create_domain_prompt
+from silero_vad import SileroVAD, get_vad
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -946,6 +947,14 @@ class WhisperService:
         self.session_audio_buffers = {}  # session_id -> List[torch.Tensor]
         self.session_buffers_lock = threading.Lock()
 
+        # Initialize Silero VAD for speech detection (prevents hallucinations on silence)
+        try:
+            self.vad = get_vad(threshold=0.5)
+            logger.info("🎤 Silero VAD initialized (prevents hallucinations on silence)")
+        except Exception as e:
+            logger.warning(f"⚠️ VAD initialization failed: {e}, continuing without VAD")
+            self.vad = None
+
         if not self.orchestration_mode:
             logger.info("🎤 Per-session audio buffering enabled (SimulStreaming-style)")
         else:
@@ -1349,6 +1358,16 @@ class WhisperService:
                             # Concatenate ENTIRE buffer for THIS SESSION (SimulStreaming pattern)
                             with self.session_buffers_lock:
                                 full_audio = torch.cat(self.session_audio_buffers[session_id], dim=0).numpy()
+
+                            # VAD CHECK: Skip transcription if no speech detected
+                            if self.vad is not None:
+                                has_speech = self.vad.is_speech(full_audio)
+                                if not has_speech:
+                                    logger.info(f"[STREAM] Session {session_id}: 🔇 No speech detected, skipping transcription")
+                                    continue  # Skip to next iteration
+
+                                speech_ratio = self.vad.get_speech_ratio(full_audio)
+                                logger.info(f"[STREAM] Session {session_id}: 🎤 Speech detected (ratio: {speech_ratio:.2%})")
 
                             # Create request with full buffer
                             # AlignAtt will track internally what's already been decoded
