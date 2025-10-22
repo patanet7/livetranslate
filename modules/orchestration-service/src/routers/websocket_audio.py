@@ -19,9 +19,7 @@ This matches the bot pattern:
 
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from websockets.asyncio.client import connect as websockets_connect
-from websocket_frontend_handler import WebSocketFrontendHandler
-from websocket_whisper_client import WebSocketWhisperClient
+from socketio_whisper_client import SocketIOWhisperClient
 from datetime import datetime
 import asyncio
 
@@ -30,15 +28,9 @@ logger = logging.getLogger(__name__)
 # Create router
 router = APIRouter()
 
-# Create singleton WebSocket frontend handler
-frontend_handler = WebSocketFrontendHandler(
-    require_authentication=False,  # For testing, can enable later
-    heartbeat_interval=30.0
-)
-
-# Create singleton Whisper WebSocket client
-whisper_client = WebSocketWhisperClient(
-    whisper_host="whisper",  # Docker service name or localhost for dev
+# Create singleton Socket.IO Whisper client
+whisper_client = SocketIOWhisperClient(
+    whisper_host="localhost",  # Use localhost for dev (or "whisper" for Docker)
     whisper_port=5001,
     auto_reconnect=True
 )
@@ -91,7 +83,7 @@ async def websocket_audio_stream(websocket: WebSocket):
             message = await websocket.receive_json()
 
             msg_type = message.get("type")
-            logger.debug(f"📨 Received message type: {msg_type}")
+            logger.info(f"📨 Received message type: {msg_type}")
 
             # Handle authenticate
             if msg_type == "authenticate":
@@ -116,7 +108,22 @@ async def websocket_audio_stream(websocket: WebSocket):
 
                 # Start Whisper WebSocket session
                 try:
-                    whisper_session = await whisper_client.create_session(
+                    # Ensure whisper client is connected
+                    if not whisper_client.connected:
+                        logger.info("🔌 Connecting to Whisper service...")
+                        await whisper_client.connect()
+
+                    # Set up callback to forward segments to frontend
+                    def segment_callback(segment: dict):
+                        """Forward segments from Whisper to frontend"""
+                        asyncio.create_task(websocket.send_json({
+                            "type": "segment",
+                            **segment
+                        }))
+
+                    whisper_client.on_segment(segment_callback)
+
+                    await whisper_client.start_stream(
                         session_id=session_id,
                         config=config
                     )
@@ -162,24 +169,15 @@ async def websocket_audio_stream(websocket: WebSocket):
                 import base64
                 try:
                     audio_data = base64.b64decode(audio_base64)
-                    logger.debug(f"🎵 Received audio chunk: {len(audio_data)} bytes")
+                    logger.info(f"🎵 Received audio chunk: {len(audio_data)} bytes, forwarding to Whisper")
 
                     # Forward to Whisper service
+                    # Segments will come back via the callback registered in start_session
                     await whisper_client.send_audio_chunk(
                         session_id=session_id,
                         audio_data=audio_data,
                         timestamp=timestamp_str
                     )
-
-                    # Get segments from Whisper (non-blocking)
-                    segments = whisper_client.get_segments(session_id)
-
-                    # Send segments to frontend
-                    for segment in segments:
-                        await websocket.send_json({
-                            "type": "segment",
-                            **segment
-                        })
 
                 except Exception as e:
                     logger.error(f"❌ Error processing audio chunk: {e}")
@@ -197,7 +195,7 @@ async def websocket_audio_stream(websocket: WebSocket):
 
                 # End Whisper session
                 if end_session_id:
-                    await whisper_client.end_session(end_session_id)
+                    await whisper_client.close_stream(end_session_id)
 
                 session_id = None
 

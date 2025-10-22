@@ -27,6 +27,7 @@ import { initializeUI, setBreakpoint } from '@/store/slices/uiSlice';
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
 const AudioProcessingHub = React.lazy(() => import('@/pages/AudioProcessingHub'));
 const StreamingProcessor = React.lazy(() => import('@/pages/StreamingProcessor'));
+const WebSocketStreamingDemo = React.lazy(() => import('@/pages/WebSocketStreamingDemo'));
 const BotManagement = React.lazy(() => import('@/pages/BotManagement'));
 const Analytics = React.lazy(() => import('@/pages/Analytics'));
 const SystemAnalytics = React.lazy(() => import('@/pages/SystemAnalytics'));
@@ -105,7 +106,12 @@ const App: React.FC = () => {
                   <Route path="/streaming-processor" element={<StreamingProcessor />} />
                   <Route path="/streaming" element={<StreamingProcessor />} />
                   <Route path="/stream" element={<StreamingProcessor />} />
-                  
+
+                  {/* WebSocket Audio Streaming Demo */}
+                  <Route path="/websocket-demo" element={<WebSocketStreamingDemo />} />
+                  <Route path="/websocket-streaming" element={<WebSocketStreamingDemo />} />
+                  <Route path="/ws-demo" element={<WebSocketStreamingDemo />} />
+
                   {/* Bot Management */}
                   <Route path="/bot-management" element={<BotManagement />} />
                   <Route path="/bots" element={<BotManagement />} />
