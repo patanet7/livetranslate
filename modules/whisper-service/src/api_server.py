@@ -847,7 +847,7 @@ def configure_streaming():
         # Configure streaming session
         streaming_config = {
             "session_id": session_id,
-            "model_name": data.get('model_name', 'whisper-base'),
+            "model_name": data.get('model_name', 'large-v3-turbo'),
             "language": data.get('language'),
             "buffer_duration": data.get('buffer_duration', 6.0),
             "inference_interval": data.get('inference_interval', 3.0),
@@ -879,7 +879,7 @@ def _ensure_streaming_session(data: Dict[str, Any]) -> Dict[str, Any]:
     if session_id not in streaming_sessions:
         streaming_config = {
             "session_id": session_id,
-            "model_name": data.get('model_name', 'whisper-base'),
+            "model_name": data.get('model_name', 'large-v3-turbo'),
             "language": data.get('language'),
             "buffer_duration": data.get('buffer_duration', 6.0),
             "inference_interval": data.get('inference_interval', 3.0),
@@ -893,7 +893,7 @@ def _ensure_streaming_session(data: Dict[str, Any]) -> Dict[str, Any]:
         streaming_sessions[session_id] = streaming_config
     else:
         streaming_sessions[session_id].update({
-            "model_name": data.get('model_name', streaming_sessions[session_id].get('model_name', 'whisper-base')),
+            "model_name": data.get('model_name', streaming_sessions[session_id].get('model_name', 'large-v3-turbo')),
             "language": data.get('language', streaming_sessions[session_id].get('language')),
             "buffer_duration": data.get('buffer_duration', streaming_sessions[session_id].get('buffer_duration', 6.0)),
             "inference_interval": data.get('inference_interval', streaming_sessions[session_id].get('inference_interval', 3.0)),
@@ -1880,17 +1880,32 @@ def handle_join_session(data):
     """Join a transcription session room"""
     session_id = data.get('session_id')
     if session_id:
+        # Extract and store session config
+        config = data.get('config', {})
+        streaming_config = {
+            "session_id": session_id,
+            "model_name": config.get('model', 'large-v3-turbo'),
+            "language": config.get('language'),
+            "enable_vad": config.get('enable_vad', True),
+            "enable_diarization": config.get('enable_diarization', True),
+            "enable_cif": config.get('enable_cif', True),
+            "enable_rolling_context": config.get('enable_rolling_context', True),
+            "created_at": datetime.now().isoformat()
+        }
+        streaming_sessions[session_id] = streaming_config
+
         # Update connection manager
         if connection_manager.join_session(request.sid, session_id):
             connection_manager.update_connection_activity(request.sid, messages_received=1)
-            
+
             # Join Flask-SocketIO room
             join_room(session_id)
-            
-            logger.info(f"Client {request.sid} joined session {session_id}")
+
+            logger.info(f"Client {request.sid} joined session {session_id} with model {streaming_config['model_name']}")
             emit('joined_session', {
-                'session_id': session_id, 
+                'session_id': session_id,
                 'status': 'joined',
+                'config': streaming_config,
                 'timestamp': datetime.now().isoformat()
             })
         else:
@@ -1987,21 +2002,30 @@ def handle_transcribe_stream(data):
             emit('error', error_info.to_websocket_response()['error'])
             return
         
+        # Extract config from data if present
+        config = data.get('config', {})
+
+        # Get model from config or data (config.model takes priority)
+        model_name = config.get('model') or data.get('model_name', 'large-v3-turbo')
+
         transcription_request = TranscriptionRequest(
             audio_data=audio_array,
-            model_name=data.get('model_name', 'whisper-base'),
-            language=data.get('language'),
+            model_name=model_name,
+            language=config.get('language') or data.get('language'),
             session_id=data.get('session_id'),
             streaming=True,
             sample_rate=data.get('sample_rate', 16000),
-            enable_vad=data.get('enable_vad', True)
+            enable_vad=config.get('enable_vad', data.get('enable_vad', True))
         )
-        
+
+        # Capture client_id outside thread context to avoid Flask request context issues
+        client_id = request.sid
+
         # Run streaming transcription in background
         def run_streaming():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            
+
             async def stream_to_client():
                 try:
                     async for result in whisper_service.transcribe_stream(transcription_request):
@@ -2012,14 +2036,14 @@ def handle_transcribe_stream(data):
                             'timestamp': result.timestamp,
                             'session_id': result.session_id
                         }
-                        
+
                         # Try to emit to client
                         try:
-                            socketio.emit('transcription_result', transcription_data, room=request.sid)
+                            socketio.emit('transcription_result', transcription_data, room=client_id)
                         except Exception as emit_error:
                             # If emit fails, try to buffer the message for reconnection
-                            logger.warning(f"Failed to emit transcription result to {request.sid}: {emit_error}")
-                            session_info = reconnection_manager.get_session_by_connection(request.sid)
+                            logger.warning(f"Failed to emit transcription result to {client_id}: {emit_error}")
+                            session_info = reconnection_manager.get_session_by_connection(client_id)
                             if session_info:
                                 reconnection_manager.buffer_message(
                                     session_info.session_id,
@@ -2027,19 +2051,19 @@ def handle_transcribe_stream(data):
                                     transcription_data,
                                     priority=1  # High priority for transcription results
                                 )
-                    
+
                     # Send completion signal
                     completion_data = {
                         'session_id': transcription_request.session_id,
                         'timestamp': datetime.now().isoformat()
                     }
-                    
+
                     try:
-                        socketio.emit('transcription_complete', completion_data, room=request.sid)
+                        socketio.emit('transcription_complete', completion_data, room=client_id)
                     except Exception as emit_error:
                         # Buffer completion signal if emit fails
-                        logger.warning(f"Failed to emit transcription complete to {request.sid}: {emit_error}")
-                        session_info = reconnection_manager.get_session_by_connection(request.sid)
+                        logger.warning(f"Failed to emit transcription complete to {client_id}: {emit_error}")
+                        session_info = reconnection_manager.get_session_by_connection(client_id)
                         if session_info:
                             reconnection_manager.buffer_message(
                                 session_info.session_id,
@@ -2047,14 +2071,14 @@ def handle_transcribe_stream(data):
                                 completion_data,
                                 priority=2  # High priority for completion signals
                             )
-                    
+
                 except Exception as e:
                     logger.error(f"Streaming error: {e}")
                     socketio.emit('transcription_error', {
                         'error': str(e),
                         'session_id': transcription_request.session_id
-                    }, room=request.sid)
-            
+                    }, room=client_id)
+
             loop.run_until_complete(stream_to_client())
         
         # Start streaming in background thread
@@ -2499,12 +2523,45 @@ def _calculate_audio_quality_metrics(audio: np.ndarray, sr: int) -> dict:
 def _process_audio_data(audio_data: bytes, enhance: bool = False, target_sr: int = None, quality: str = None) -> np.ndarray:
     """Optimized audio processing with smart format detection and minimal memory usage"""
     start_time = time.time()
-    
+
     # Use configuration defaults
     target_sr = target_sr or AUDIO_CONFIG['default_sample_rate']
     quality = quality or AUDIO_CONFIG['resampling_quality']
-    
+
     try:
+        # FAST PATH: Check if this is raw PCM data (streaming chunks)
+        # Raw PCM detection: data length is a multiple of 2 (16-bit samples) and doesn't have audio file headers
+        if len(audio_data) % 2 == 0 and len(audio_data) < 100000:  # Likely a streaming chunk
+            # Check if it's NOT a known audio file format by checking headers
+            has_wav_header = audio_data[:4] == b'RIFF'
+            has_mp3_header = audio_data[:2] == b'\xff\xfb' or audio_data[:3] == b'ID3'
+            has_ogg_header = audio_data[:4] == b'OggS'
+            has_flac_header = audio_data[:4] == b'fLaC'
+
+            if not (has_wav_header or has_mp3_header or has_ogg_header or has_flac_header):
+                # This is likely raw PCM data - process directly!
+                logger.info(f"[AUDIO] Detected raw PCM data: {len(audio_data)} bytes")
+                try:
+                    # Convert bytes to int16 array
+                    audio_array = np.frombuffer(audio_data, dtype=np.int16)
+                    # Normalize to float32 [-1.0, 1.0]
+                    audio_array = audio_array.astype(np.float32) / 32768.0
+                    # Assume already at target sample rate (16kHz for streaming)
+                    current_sr = target_sr
+                    logger.info(f"[AUDIO] Raw PCM processed: {len(audio_array)} samples at {current_sr}Hz")
+
+                    # Skip format detection and go directly to enhancement
+                    if enhance and len(audio_array) > 0:
+                        audio_array = _enhance_audio(audio_array, current_sr)
+
+                    processing_time = time.time() - start_time
+                    performance_monitor.record_metric('audio_processing_times', processing_time)
+                    return audio_array
+
+                except Exception as pcm_error:
+                    logger.debug(f"[AUDIO] Raw PCM processing failed: {pcm_error}, trying file decode")
+                    # Fall through to normal processing
+
         # Enhanced format detection
         format_hint = _detect_audio_format_optimized(audio_data)
         logger.info(f"[AUDIO] Processing {len(audio_data)} bytes, detected format: {format_hint}")
