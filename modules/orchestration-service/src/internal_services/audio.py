@@ -25,37 +25,14 @@ logger = logging.getLogger(__name__)
 # orchestration service can boot even when the audio stack is unavailable.
 # ---------------------------------------------------------------------------
 
+# EMBEDDED MODE DISABLED - Using remote whisper-service only
 AUDIO_MODULE_AVAILABLE = False
 AUDIO_IMPORT_ERROR: Optional[BaseException] = None
 _AUDIO_SOURCE_PATH: Optional[Path] = None
 
-try:
-    repo_root = Path(__file__).resolve()
-    for _ in range(5):
-        repo_root = repo_root.parent
-    audio_src = (repo_root / "modules" / "whisper-service" / "src").resolve()
-    if audio_src.exists():
-        if str(audio_src) not in sys.path:
-            sys.path.append(str(audio_src))
-        _AUDIO_SOURCE_PATH = audio_src
-
-        from whisper_service import (  # type: ignore
-            WhisperService as _WhisperService,
-            TranscriptionRequest as _TranscriptionRequest,
-            TranscriptionResult as _TranscriptionResult,
-        )
-
-        AUDIO_MODULE_AVAILABLE = True
-        logger.info("Embedded audio module available at %s", audio_src.as_posix())
-    else:
-        AUDIO_IMPORT_ERROR = FileNotFoundError(
-            f"whisper-service source directory missing at {audio_src}"
-        )
-        logger.warning("%s", AUDIO_IMPORT_ERROR)
-except Exception as exc:  # pragma: no cover - environment dependent
-    AUDIO_IMPORT_ERROR = exc
-    AUDIO_MODULE_AVAILABLE = False
-    logger.warning("Failed to import embedded whisper-service module: %s", exc, exc_info=True)
+# Embedded mode disabled to avoid import warnings
+# The orchestration service will connect to whisper-service via Socket.IO on port 5001
+logger.info("Embedded audio mode disabled - using remote whisper-service")
 
 
 class UnifiedAudioError(RuntimeError):

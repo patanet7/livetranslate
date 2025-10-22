@@ -968,7 +968,18 @@ class WhisperService:
         }
         
         logger.info(f"WhisperService initialized successfully (orchestration_mode: {self.orchestration_mode})")
-    
+
+    def _segments_len(self) -> float:
+        """
+        Calculate total duration of audio segments in buffer (in seconds)
+        Following SimulStreaming reference pattern
+        """
+        if not self.audio_chunks or len(self.audio_chunks) == 0:
+            return 0.0
+
+        total_samples = sum(len(seg) for seg in self.audio_chunks)
+        return total_samples / 16000.0  # Assuming 16kHz sample rate
+
     def _detect_hallucination(self, text: str, confidence: float) -> bool:
         """
         Improved hallucination detection that only flags obvious cases
@@ -1051,12 +1062,9 @@ class WhisperService:
             # Ensure correct sample rate
             if sr != request.sample_rate:
                 audio_data = librosa.resample(audio_data, orig_sr=sr, target_sr=request.sample_rate)
-            
-            # Apply VAD if enabled
-            if request.enable_vad and self.buffer_manager:
-                speech_start, speech_end = self.buffer_manager.find_speech_boundaries(audio_data)
-                if speech_start is not None and speech_end is not None:
-                    audio_data = audio_data[speech_start:speech_end]
+
+            # Note: VAD is handled internally by AlignAtt/BeamSearch decoders
+            # No need for separate VAD processing in SimulStreaming mode
 
             # Prepare domain-specific prompt and context carryover
             initial_prompt = None
@@ -1264,11 +1272,16 @@ class WhisperService:
     
     async def transcribe_stream(self, request: TranscriptionRequest) -> AsyncGenerator[TranscriptionResult, None]:
         """
-        Stream transcription results in real-time
-        
+        Stream transcription results in real-time using SimulStreaming pattern
+
+        Following SimulStreaming reference (simulstreaming_whisper.py):
+        - Feed ENTIRE buffer to model each time
+        - AlignAtt decoder tracks what's already been decoded internally
+        - Simple list-based buffer with rolling window
+
         Args:
             request: Transcription request with streaming enabled
-            
+
         Yields:
             Partial transcription results as they become available
         """
@@ -1277,56 +1290,73 @@ class WhisperService:
             result = await self.transcribe(request)
             yield result
             return
-        
+
+        # Audio buffer configuration (SimulStreaming-style)
+        audio_max_len = 30.0  # Maximum buffer duration in seconds
+        audio_min_len = 1.0   # Minimum audio before processing
+
         # Start streaming transcription
         try:
-            # Add initial audio to buffer
+            # Convert audio to tensor and add to buffer
             if isinstance(request.audio_data, np.ndarray):
-                self.buffer_manager.add_audio_chunk(request.audio_data)
-            
+                audio_tensor = torch.from_numpy(request.audio_data).float()
+                if not self.orchestration_mode and self.audio_chunks is not None:
+                    self.audio_chunks.append(audio_tensor)
+                    logger.debug(f"[STREAM] Added audio chunk, buffer has {len(self.audio_chunks)} segments")
+
             # Start periodic inference
             if not self.streaming_active:
                 await self.start_streaming(request)
-            
+
             # Yield results as they become available
-            last_result_time = time.time()
-            
             while self.streaming_active:
                 await asyncio.sleep(self.inference_interval)
-                
-                # Get only NEW audio that hasn't been processed yet
-                new_audio, samples_to_mark = self.buffer_manager.get_new_audio_only()
-                
-                if len(new_audio) > 0:  # Process if we have new audio
-                    try:
-                        logger.info(f"[STREAM] Processing {len(new_audio)} new samples ({len(new_audio)/request.sample_rate:.2f}s)")
-                        
-                        # Create streaming request with new audio only
-                        stream_request = TranscriptionRequest(
-                            audio_data=new_audio,
-                            model_name=request.model_name,
-                            language=request.language,
-                            session_id=request.session_id,
-                            sample_rate=request.sample_rate,
-                            enable_vad=request.enable_vad
-                        )
-                        
-                        # Transcribe only the new audio
-                        result = await self.transcribe(stream_request)
-                        
-                        # Mark this audio as processed to prevent re-transcription
-                        self.buffer_manager.mark_audio_as_processed(samples_to_mark)
-                        
-                        # Yield result
-                        yield result
-                        last_result_time = time.time()
-                        
-                        logger.info(f"[STREAM] ✅ Transcribed new audio: '{result.text[:50]}...' (Lang: {result.language})")
-                        
-                    except Exception as e:
-                        logger.warning(f"Streaming transcription error: {e}")
-                        continue
-                        
+
+                if not self.orchestration_mode and self.audio_chunks is not None:
+                    # Calculate current buffer length
+                    segments_len = self._segments_len()
+
+                    # Maintain rolling window (remove old segments when buffer full)
+                    while segments_len > audio_max_len and len(self.audio_chunks) > 1:
+                        removed_segment = self.audio_chunks.pop(0)
+                        segments_len = self._segments_len()
+                        logger.debug(f"[STREAM] Removed old segment, buffer now {segments_len:.2f}s")
+
+                    # Process if we have enough audio
+                    if segments_len >= audio_min_len:
+                        try:
+                            logger.info(f"[STREAM] Processing buffer with {segments_len:.2f}s audio")
+
+                            # Concatenate ENTIRE buffer (SimulStreaming pattern)
+                            full_audio = torch.cat(self.audio_chunks, dim=0).numpy()
+
+                            # Create request with full buffer
+                            # AlignAtt will track internally what's already been decoded
+                            stream_request = TranscriptionRequest(
+                                audio_data=full_audio,
+                                model_name=request.model_name,
+                                language=request.language,
+                                session_id=request.session_id,
+                                sample_rate=request.sample_rate,
+                                enable_vad=False,  # VAD handled by AlignAtt
+                                beam_size=request.beam_size,
+                                temperature=request.temperature,
+                                streaming_policy=request.streaming_policy,
+                                frame_threshold_offset=request.frame_threshold_offset
+                            )
+
+                            # Transcribe full buffer
+                            result = await self.transcribe(stream_request)
+
+                            # Yield result
+                            yield result
+
+                            logger.info(f"[STREAM] ✅ Transcribed buffer: '{result.text[:50]}...' (Lang: {result.language})")
+
+                        except Exception as e:
+                            logger.warning(f"Streaming transcription error: {e}")
+                            continue
+
         except Exception as e:
             logger.error(f"Streaming transcription failed: {e}")
             raise
@@ -1354,9 +1384,11 @@ class WhisperService:
         if self.orchestration_mode:
             logger.warning("add_audio_chunk called in orchestration mode - use process_orchestration_chunk instead")
             return 0
-        
-        if self.buffer_manager:
-            return self.buffer_manager.add_audio_chunk(audio_chunk)
+
+        if self.audio_chunks is not None:
+            audio_tensor = torch.from_numpy(audio_chunk).float()
+            self.audio_chunks.append(audio_tensor)
+            return len(self.audio_chunks)
         return 0
     
     async def process_orchestration_chunk(self, 
@@ -1452,13 +1484,15 @@ class WhisperService:
     
     def get_service_status(self) -> Dict:
         """Get service status information"""
+        buffer_size = len(self.audio_chunks) if self.audio_chunks is not None else 0
         return {
             "device": self.model_manager.device,
-            "loaded_models": list(self.model_manager.pipelines.keys()),
+            "loaded_models": list(self.model_manager.models.keys()),
             "available_models": self.get_available_models(),
             "streaming_active": self.streaming_active,
-            "buffer_size": len(self.buffer_manager.audio_buffer),
-            "vad_enabled": self.buffer_manager.vad_enabled,
+            "buffer_segments": buffer_size,
+            "buffer_duration_s": self._segments_len(),
+            "orchestration_mode": self.orchestration_mode,
             "sessions": len(self.session_manager.sessions)
         }
     
@@ -1531,15 +1565,16 @@ class WhisperService:
         try:
             # Stop streaming
             await self.stop_streaming()
-            
-            # Clear buffers
-            self.buffer_manager.clear_buffer()
-            
+
+            # Clear audio buffer
+            if self.audio_chunks is not None:
+                self.audio_chunks.clear()
+
             # Clear model cache
             self.model_manager.clear_cache()
-            
+
             logger.info("WhisperService shutdown complete")
-            
+
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
 
