@@ -162,7 +162,7 @@ class PaddedAlignAttWhisper:
             task=self.decode_options.task
         )
 
-    def set_task(self, task: str, language: str = None):
+    def set_task(self, task: str, language: str = None, enable_code_switching: bool = False):
         """
         Dynamically update task and regenerate initial tokens for new session
 
@@ -173,6 +173,7 @@ class PaddedAlignAttWhisper:
         Args:
             task: Either 'transcribe' or 'translate'
             language: Language code or 'auto' for auto-detection (defaults to current tokenizer language)
+            enable_code_switching: If True, detect language on every chunk (for intra-sentence language mixing)
 
         Reference: SimulStreaming regenerates initial_tokens during language detection
         (simul_whisper.py lines 388-392)
@@ -180,6 +181,11 @@ class PaddedAlignAttWhisper:
         logger.info(f"[SET_TASK] Updating task from '{self.decode_options.task}' to '{task}'")
         if language:
             logger.info(f"[SET_TASK] Language: {language}")
+        if enable_code_switching:
+            logger.info(f"[SET_TASK] Code-switching enabled - will detect language on every chunk")
+
+        # Store code-switching flag
+        self.enable_code_switching = enable_code_switching
 
         # Recreate decode_options (it's a frozen dataclass, can't modify in place)
         self.decode_options = DecodingOptions(
@@ -430,17 +436,44 @@ class PaddedAlignAttWhisper:
 #        logger.debug(f"Encoder feature shape: {encoder_feature.shape}")
 #        if mel.shape[-2:] != (self.model.dims.n_audio_ctx, self.model.dims.n_audio_state):
 #            logger.debug("mel ")
-        if self.cfg.language == "auto" and self.detected_language is None:
-            language_tokens, language_probs = self.lang_id(encoder_feature) 
+        # Phase 5: Dynamic language detection for code-switching
+        # For code-switching: detect language on EVERY chunk (not just first)
+        # For standard mode: detect once and pin (original behavior)
+        should_detect_language = (
+            self.cfg.language == "auto" and
+            (self.detected_language is None or getattr(self, 'enable_code_switching', False))
+        )
+
+        if should_detect_language:
+            language_tokens, language_probs = self.lang_id(encoder_feature)
             logger.debug(f"Language tokens: {language_tokens}, probs: {language_probs}")
             top_lan, p = max(language_probs[0].items(), key=lambda x: x[1])
-            logger.info(f"Detected language: {top_lan} with p={p:.4f}")
-            #self.tokenizer.language = top_lan
-            #self.tokenizer.__post_init__()
-            self.create_tokenizer(top_lan)
-            self.detected_language = top_lan
-            self.init_tokens()
-            logger.info(f"Tokenizer language: {self.tokenizer.language}, {self.tokenizer.sot_sequence_including_notimestamps}")
+
+            # Check if language switched
+            language_switched = (self.detected_language is not None and
+                                self.detected_language != top_lan)
+
+            if language_switched:
+                logger.info(f"🔄 Language switch detected: {self.detected_language} → {top_lan} (p={p:.4f})")
+            else:
+                logger.info(f"Detected language: {top_lan} with p={p:.4f}")
+
+            # For code-switching: DON'T recreate tokenizer or reset tokens on language switch
+            # Keep rolling decoder active! Just track detected language for UI/formatting
+            if self.detected_language is None:
+                # First detection: must initialize tokenizer
+                self.create_tokenizer(top_lan)
+                self.detected_language = top_lan
+                self.init_tokens()
+                logger.info(f"Tokenizer language: {self.tokenizer.language}, {self.tokenizer.sot_sequence_including_notimestamps}")
+            elif getattr(self, 'enable_code_switching', False):
+                # Code-switching mode: update detected language but DON'T reset decoder
+                # This allows Whisper to emit mixed-language tokens under one decoder
+                self.detected_language = top_lan
+                logger.info(f"[CODE-SWITCHING] Language tracked as {top_lan} but decoder unchanged (no cache flush)")
+            else:
+                # Standard mode: language shouldn't change once set
+                logger.warning(f"Language changed from {self.detected_language} to {top_lan} but not in code-switching mode")
 
         self.trim_context()
         current_tokens = self._current_tokens()
