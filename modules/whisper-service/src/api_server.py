@@ -2168,6 +2168,9 @@ def handle_transcribe_stream(data):
             task=config.get('task') or data.get('task', 'transcribe'),
             target_language=config.get('target_language') or data.get('target_language', 'en'),
 
+            # Code-switching support (Phase 5)
+            enable_code_switching=config.get('enable_code_switching', data.get('enable_code_switching', False)),
+
             # Domain prompting support (orchestration service can pass these)
             initial_prompt=data.get('initial_prompt'),  # Custom prompt text
             domain=data.get('domain'),  # Domain name: "medical", "legal", etc.
