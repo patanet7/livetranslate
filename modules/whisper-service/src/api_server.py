@@ -2206,12 +2206,13 @@ def handle_transcribe_stream(data):
         with vac_processors_lock:
             if session_id not in vac_processors:
                 # Create VAC processor with config from transcription_request
-                # Phase 2: Pass VAD configuration parameters
+                # Phase 2 & 3: Pass VAD and LID configuration parameters
                 vac = VACOnlineASRProcessor(
                     online_chunk_size=1.2,  # SimulStreaming default chunk size
                     vad_threshold=transcription_request.vad_threshold or 0.5,
                     vad_min_speech_ms=transcription_request.vad_min_speech_ms or 120,  # Phase 2
                     vad_min_silence_ms=transcription_request.vad_min_silence_ms or 250,  # Phase 2
+                    sliding_lid_window=transcription_request.sliding_lid_window or 0.9,  # Phase 3
                     min_buffered_length=1.0,
                     sampling_rate=transcription_request.sample_rate
                 )
@@ -2220,9 +2221,9 @@ def handle_transcribe_stream(data):
                 logger.info(f"[VAC]   vad_threshold={vac.vad_threshold}")
                 logger.info(f"[VAC]   vad_min_speech_ms={vac.vad_min_speech_ms}")  # Phase 2
                 logger.info(f"[VAC]   vad_min_silence_ms={vac.vad_min_silence_ms}")  # Phase 2
+                logger.info(f"[VAC]   sliding_lid_window={vac.sliding_lid_window}")  # Phase 3
                 logger.info(f"[VAC]   enable_code_switching={transcription_request.enable_code_switching}")
                 if transcription_request.enable_code_switching:
-                    logger.info(f"[VAC]   sliding_lid_window={transcription_request.sliding_lid_window or 0.9}")
                     logger.info(f"[VAC]   sustained_lang_duration={transcription_request.sustained_lang_duration or 3.0}")
 
                 # Use PaddedAlignAttWhisper stateful wrapper
@@ -2478,6 +2479,9 @@ def handle_transcribe_stream(data):
                             'confidence': result.confidence_score,
                             'timestamp': result.timestamp,
                             'session_id': result.session_id,
+
+                            # Phase 3: Sliding LID - detected language
+                            'detected_language': vac_result.get('detected_language'),
 
                             # Phase 3C: Stability Tracking fields
                             'stable_text': result.stable_text,

@@ -187,6 +187,12 @@ class PaddedAlignAttWhisper:
         # Store code-switching flag
         self.enable_code_switching = enable_code_switching
 
+        # Phase 3 FIX: Update cfg.language so language detection triggers
+        # The condition at line 442 checks self.cfg.language == "auto"
+        if language is not None:
+            self.cfg.language = language
+            logger.info(f"[SET_TASK] Updated cfg.language to '{language}'")
+
         # Recreate decode_options (it's a frozen dataclass, can't modify in place)
         self.decode_options = DecodingOptions(
             language=self.decode_options.language,
