@@ -2171,6 +2171,19 @@ def handle_transcribe_stream(data):
             # Code-switching support (Phase 5)
             enable_code_switching=config.get('enable_code_switching', data.get('enable_code_switching', False)),
 
+            # Phase 5 Enhancement: Advanced Code-Switching Configuration
+            sliding_lid_window=config.get('sliding_lid_window', data.get('sliding_lid_window')),
+            sustained_lang_duration=config.get('sustained_lang_duration', data.get('sustained_lang_duration')),
+            sustained_lang_min_silence=config.get('sustained_lang_min_silence', data.get('sustained_lang_min_silence')),
+            soft_bias_enabled=config.get('soft_bias_enabled', data.get('soft_bias_enabled')),
+            token_dedup_enabled=config.get('token_dedup_enabled', data.get('token_dedup_enabled')),
+            confidence_threshold=config.get('confidence_threshold', data.get('confidence_threshold')),
+
+            # VAD Configuration
+            vad_threshold=config.get('vad_threshold', data.get('vad_threshold')),
+            vad_min_speech_ms=config.get('vad_min_speech_ms', data.get('vad_min_speech_ms')),
+            vad_min_silence_ms=config.get('vad_min_silence_ms', data.get('vad_min_silence_ms')),
+
             # Domain prompting support (orchestration service can pass these)
             initial_prompt=data.get('initial_prompt'),  # Custom prompt text
             domain=data.get('domain'),  # Domain name: "medical", "legal", etc.
@@ -2192,13 +2205,21 @@ def handle_transcribe_stream(data):
         # This implements the SimulStreaming incremental processing pattern
         with vac_processors_lock:
             if session_id not in vac_processors:
-                # Create VAC processor with 1.2s chunks (SimulStreaming default)
+                # Create VAC processor with config from transcription_request
+                # Phase 1: Extract basic VAD threshold (vad_min_speech/silence_ms added in Phase 2)
                 vac = VACOnlineASRProcessor(
                     online_chunk_size=1.2,  # SimulStreaming default chunk size
-                    vad_threshold=0.5,
+                    vad_threshold=transcription_request.vad_threshold or 0.5,
                     min_buffered_length=1.0,
                     sampling_rate=transcription_request.sample_rate
                 )
+
+                logger.info(f"[VAC] Created processor for session {session_id}:")
+                logger.info(f"[VAC]   vad_threshold={vac.vad_threshold}")
+                logger.info(f"[VAC]   enable_code_switching={transcription_request.enable_code_switching}")
+                if transcription_request.enable_code_switching:
+                    logger.info(f"[VAC]   sliding_lid_window={transcription_request.sliding_lid_window or 0.9}")
+                    logger.info(f"[VAC]   sustained_lang_duration={transcription_request.sustained_lang_duration or 3.0}")
 
                 # Use PaddedAlignAttWhisper stateful wrapper
                 try:
@@ -2215,24 +2236,30 @@ def handle_transcribe_stream(data):
                     vac.model = stateful_whisper
                     vac.SAMPLING_RATE = transcription_request.sample_rate
 
-                    # CRITICAL: Determine task based on target_language
+                    # CRITICAL: Determine task based on target_language and code-switching
                     # Architecture:
-                    # - If target_language == 'en': Use Whisper task='translate' (Whisper outputs English directly)
-                    # - If target_language != 'en': Use Whisper task='transcribe' (output source lang, Translation Service handles rest)
+                    # - If enable_code_switching=True: MUST use task='transcribe' (per research: translate forces English)
+                    # - If target_language == 'en' AND not code-switching: Use Whisper task='translate'
+                    # - If target_language != 'en': Use Whisper task='transcribe' (Translation Service handles)
                     target_lang = transcription_request.target_language or 'en'
-                    if target_lang == 'en':
+
+                    if transcription_request.enable_code_switching:
+                        whisper_task = 'transcribe'  # Code-switching REQUIRES transcribe mode
+                        logger.info(f"[VAC] Code-switching enabled → Using task='transcribe' (allows mixed-language output)")
+                    elif target_lang == 'en':
                         whisper_task = 'translate'  # Whisper translates to English
                         logger.info(f"[VAC] Target language is English → Using Whisper task='translate' (Whisper outputs English)")
                     else:
                         whisper_task = 'transcribe'  # Whisper transcribes, Translation Service translates
                         logger.info(f"[VAC] Target language is {target_lang} → Using Whisper task='transcribe' (will send to Translation Service)")
 
-                    # Set task for this session
+                    # Set task for this session with code-switching flag
                     stateful_whisper.set_task(
                         task=whisper_task,
-                        language='auto'  # Always auto-detect input language
+                        language='auto',  # Always auto-detect input language
+                        enable_code_switching=transcription_request.enable_code_switching
                     )
-                    logger.info(f"[VAC] Configured session {session_id}: task={whisper_task}, input_lang=auto, target_lang={target_lang}")
+                    logger.info(f"[VAC] Configured session {session_id}: task={whisper_task}, input_lang=auto, code_switching={transcription_request.enable_code_switching}")
 
                     # CRITICAL: Refresh segment state for new session
                     # This resets tokens, context, and segments for clean processing
