@@ -124,6 +124,10 @@ class VACOnlineASRProcessor:
         from token_deduplicator import TokenDeduplicator
         self.token_deduplicator = TokenDeduplicator(lookback_tokens=10)
 
+        # Phase 5: UTF-8 boundary fixer for multi-byte character cleanup
+        from utf8_boundary_fixer import UTF8BoundaryFixer
+        self.utf8_fixer = UTF8BoundaryFixer()
+
         # Phase 4: Sustained language detection for SOT reset
         self.current_sustained_language: Optional[str] = None  # Track sustained language
         self.language_start_time: float = 0.0  # When current language was first detected
@@ -445,6 +449,9 @@ class VACOnlineASRProcessor:
             logger.info(f"[INFER] Generation progress: {generation_progress}")
             text = self.model.tokenizer.decode(tokens)
 
+            # Phase 5: Fix incomplete UTF-8 characters at chunk boundaries
+            text = self.utf8_fixer.fix_boundaries(text)
+
             self.whisper_calls += 1
 
             # Check for sentence boundary (complete sentence = is_final)
@@ -530,6 +537,9 @@ class VACOnlineASRProcessor:
             # Decode tokens to text
             text = self.model.tokenizer.decode(tokens)
 
+            # Phase 5: Fix incomplete UTF-8 characters at chunk boundaries
+            text = self.utf8_fixer.fix_boundaries(text)
+
             self.whisper_calls += 1
 
             # VAD silence = always final (speech ended)
@@ -564,19 +574,28 @@ class VACOnlineASRProcessor:
                 logger.info(f"[SUSTAINED_LID] 🔄 Resetting SOT for language '{detected_language}'")
 
                 # Reset the model's decoder state (KV cache, accumulated tokens, etc.)
-                if hasattr(self.model, 'reset'):
+                # CRITICAL: Must call _clean_cache() to clear KV cache and avoid dimension mismatches
+                if hasattr(self.model, '_clean_cache'):
+                    self.model._clean_cache()
+                    logger.info(f"[SUSTAINED_LID] ✅ KV cache cleared")
+                elif hasattr(self.model, 'reset'):
                     self.model.reset()
                     logger.info(f"[SUSTAINED_LID] ✅ Model state reset complete")
                 else:
-                    logger.warning(f"[SUSTAINED_LID] ⚠️  Model has no reset() method, creating new instance")
-                    # Alternative: reinitialize the model (more expensive)
-                    if self.model_manager:
-                        model_name = getattr(self.model, 'model_name', 'base')
-                        self.model = self.model_manager.load_model(model_name)
+                    logger.warning(f"[SUSTAINED_LID] ⚠️  Model has no _clean_cache() or reset() method")
+
+                # Also reset initial tokens to force new SOT
+                if hasattr(self.model, 'init_tokens'):
+                    self.model.init_tokens()
+                    logger.info(f"[SUSTAINED_LID] ✅ Initial tokens reset")
 
                 # Phase 5: Reset token deduplicator on SOT reset (new decoder state = new token context)
                 self.token_deduplicator.reset()
                 logger.info(f"[SUSTAINED_LID] Token deduplicator reset")
+
+                # Phase 5: Reset UTF-8 fixer on SOT reset (new segment = new boundary context)
+                self.utf8_fixer.reset()
+                logger.info(f"[SUSTAINED_LID] UTF-8 boundary fixer reset")
 
                 # Update cooldown timer
                 self.last_sot_reset_time = time.time()
@@ -622,6 +641,9 @@ class VACOnlineASRProcessor:
 
         # Phase 5: Reset token deduplicator (new session = no token context to deduplicate)
         self.token_deduplicator.reset()
+
+        # Phase 5: Reset UTF-8 boundary fixer (new session = no boundary context)
+        self.utf8_fixer.reset()
 
         if self.vad:
             self.vad.reset_states()

@@ -56,12 +56,15 @@ def test_english_audio():
 
     @sio.on('transcription_result')
     def on_result(data):
-        results_received.append(data)
-        detected_lang = data.get('detected_language')
-        text = data.get('text', '')
-        is_final = data.get('is_final', False)
-        print(f"  Result: detected_language={detected_lang}, is_final={is_final}")
-        print(f"          text='{text}'")
+        try:
+            results_received.append(data)
+            detected_lang = data.get('detected_language')
+            text = data.get('text', '')
+            is_final = data.get('is_final', False)
+            print(f"  Result: detected_language={detected_lang}, is_final={is_final}")
+            print(f"          text='{text}'")
+        except Exception as e:
+            print(f"  ⚠️  Error in on_result callback: {e}")
 
     @sio.on('error')
     def on_error(data):
@@ -112,9 +115,11 @@ def test_english_audio():
             time.sleep(0.2)  # Small delay between chunks
 
         print("  Waiting for final processing...")
-        time.sleep(3.0)  # Wait for final results
+        time.sleep(10.0)  # Wait even longer for all final results
 
         print(f"\n  Received {len(results_received)} results")
+        for i, result in enumerate(results_received):
+            print(f"    Result {i+1}: is_final={result.get('is_final')}, text='{result.get('text', '')[:80]}...'")
 
         # Check for detected_language
         has_detected_language = any('detected_language' in r for r in results_received)
@@ -156,12 +161,15 @@ def test_chinese_audio():
 
     @sio.on('transcription_result')
     def on_result(data):
-        results_received.append(data)
-        detected_lang = data.get('detected_language')
-        text = data.get('text', '')
-        is_final = data.get('is_final', False)
-        print(f"  Result: detected_language={detected_lang}, is_final={is_final}")
-        print(f"          text='{text}'")
+        try:
+            results_received.append(data)
+            detected_lang = data.get('detected_language')
+            text = data.get('text', '')
+            is_final = data.get('is_final', False)
+            print(f"  Result: detected_language={detected_lang}, is_final={is_final}")
+            print(f"          text='{text}'")
+        except Exception as e:
+            print(f"  ⚠️  Error in on_result callback: {e}")
 
     @sio.on('error')
     def on_error(data):
@@ -212,9 +220,11 @@ def test_chinese_audio():
             time.sleep(0.2)  # Small delay between chunks
 
         print("  Waiting for final processing...")
-        time.sleep(3.0)  # Wait for final results
+        time.sleep(10.0)  # Wait even longer for all final results
 
         print(f"\n  Received {len(results_received)} results")
+        for i, result in enumerate(results_received):
+            print(f"    Result {i+1}: is_final={result.get('is_final')}, text='{result.get('text', '')[:80]}...'")
 
         # Check for detected_language
         has_detected_language = any('detected_language' in r for r in results_received)
