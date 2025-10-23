@@ -2315,17 +2315,27 @@ def handle_transcribe_stream(data):
                             stateful_whisper.init_context()
                             logger.info(f"[DOMAIN] Applied previous context: '{transcription_request.previous_context[:50]}...'")
 
-                    # Use whisper_service's already-initialized VAD iterator
+                    # Phase 2: Create per-session VAD iterator with custom config
+                    # Instead of reusing global VAD, create new FixedVADIterator with session-specific params
                     if whisper_service.vad is not None and whisper_service.vad.vad_iterator is not None:
-                        # SileroVAD wraps a FixedVADIterator - use it directly
-                        vac.vad = whisper_service.vad.vad_iterator
+                        from silero_vad_iterator import FixedVADIterator
 
-                        # CRITICAL: Reset VAD state for new session!
-                        # Without this, VAD sample counters accumulate across sessions
-                        vac.vad.reset_states()
-                        logger.info(f"[VAC] Reusing whisper_service's FixedVADIterator (threshold={vac.vad_threshold}), state reset")
+                        # Create per-session VAD with custom thresholds
+                        vad_model = whisper_service.vad.vad_iterator.model
+                        vac.vad = FixedVADIterator(
+                            model=vad_model,
+                            threshold=vac.vad_threshold,
+                            sampling_rate=vac.SAMPLING_RATE,
+                            min_speech_duration_ms=vac.vad_min_speech_ms,  # Phase 2
+                            min_silence_duration_ms=vac.vad_min_silence_ms  # Phase 2
+                        )
+
+                        logger.info(f"[VAC] Created per-session FixedVADIterator:")
+                        logger.info(f"[VAC]   threshold={vac.vad_threshold}")
+                        logger.info(f"[VAC]   min_speech_duration_ms={vac.vad_min_speech_ms}")
+                        logger.info(f"[VAC]   min_silence_duration_ms={vac.vad_min_silence_ms}")
                     else:
-                        logger.warning("[VAC] No VAD available, will process all audio without filtering")
+                        logger.warning("[VAC] No VAD model available, will process all audio without filtering")
 
                     vac_processors[session_id] = vac
                     logger.info(f"[VAC] Initialized processor for session {session_id} (using PaddedAlignAttWhisper)")
