@@ -95,6 +95,7 @@ class VACOnlineASRProcessor:
         vad_threshold: float = 0.5,
         vad_min_speech_ms: int = 120,  # Phase 2: Configurable min speech duration
         vad_min_silence_ms: int = 250,  # Phase 2: Configurable min silence duration
+        sliding_lid_window: float = 0.9,  # Phase 3: Sliding LID window size
         min_buffered_length: float = 1.0,
         sampling_rate: int = 16000
     ):
@@ -102,6 +103,7 @@ class VACOnlineASRProcessor:
         self.vad_threshold = vad_threshold
         self.vad_min_speech_ms = vad_min_speech_ms  # Phase 2
         self.vad_min_silence_ms = vad_min_silence_ms  # Phase 2
+        self.sliding_lid_window = sliding_lid_window  # Phase 3
         self.min_buffered_length = min_buffered_length
         self.SAMPLING_RATE = sampling_rate
 
@@ -112,6 +114,10 @@ class VACOnlineASRProcessor:
 
         # Sentence segmentation for better draft/final detection
         self.sentence_segmenter = SentenceSegmenter()
+
+        # Phase 3: Sliding LID detector for language tracking
+        from sliding_lid_detector import SlidingLIDDetector
+        self.lid_detector = SlidingLIDDetector(window_size=sliding_lid_window)
 
         # Audio buffers (using torch tensors throughout for SimulStreaming compatibility)
         self.audio_buffer = torch.tensor([], dtype=torch.float32)
@@ -366,11 +372,29 @@ class VACOnlineASRProcessor:
             else:
                 logger.info(f"📝 Incomplete sentence: '{text}' ({len(tokens)} tokens) [is_final=False]")
 
+            # Phase 3: Track language detection in sliding window
+            detected_language = None
+            if hasattr(self.model, 'detected_language') and self.model.detected_language:
+                detected_language = self.model.detected_language
+                # Add detection to sliding window
+                # Audio position: total samples processed / sample rate
+                audio_position = self.total_audio_processed / self.SAMPLING_RATE
+                self.lid_detector.add_detection(
+                    language=detected_language,
+                    confidence=1.0,  # Whisper doesn't provide confidence, use 1.0
+                    audio_position=audio_position
+                )
+                logger.info(f"[LID] Detected language: {detected_language} at {audio_position:.2f}s")
+
+            # Get current language from sliding window
+            current_language = self.lid_detector.get_current_language()
+
             return {
                 'text': text,
                 'tokens': tokens,
                 'generation_progress': generation_progress,
-                'is_final': is_final  # True if sentence ends with terminal punctuation
+                'is_final': is_final,  # True if sentence ends with terminal punctuation
+                'detected_language': current_language  # Phase 3: From sliding window
             }
 
         except Exception as e:
@@ -429,6 +453,22 @@ class VACOnlineASRProcessor:
             else:
                 logger.info(f"   ⚠️  No sentence terminal (forced final by VAD)")
 
+            # Phase 3: Track language detection in sliding window
+            detected_language = None
+            if hasattr(self.model, 'detected_language') and self.model.detected_language:
+                detected_language = self.model.detected_language
+                # Add detection to sliding window
+                audio_position = self.total_audio_processed / self.SAMPLING_RATE
+                self.lid_detector.add_detection(
+                    language=detected_language,
+                    confidence=1.0,
+                    audio_position=audio_position
+                )
+                logger.info(f"[LID] Detected language: {detected_language} at {audio_position:.2f}s")
+
+            # Get current language from sliding window
+            current_language = self.lid_detector.get_current_language()
+
             # Reset VAC state
             self.is_currently_final = False
 
@@ -436,7 +476,8 @@ class VACOnlineASRProcessor:
                 'text': text,
                 'tokens': tokens,
                 'generation_progress': generation_progress,
-                'is_final': True  # Always final when VAD detects speech end
+                'is_final': True,  # Always final when VAD detects speech end
+                'detected_language': current_language  # Phase 3: From sliding window
             }
 
         except Exception as e:
