@@ -26,6 +26,20 @@ class WhisperSessionState:
     segments_received: int = 0
     last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
+    # Whisper configuration (extracted from config for easy access)
+    model_name: str = "large-v3-turbo"
+    language: str = "en"
+    beam_size: int = 5
+    sample_rate: int = 16000
+    task: str = "transcribe"
+    target_language: str = "en"
+    enable_vad: bool = True
+
+    # Domain prompt fields (optional)
+    domain: Optional[str] = None
+    custom_terms: Optional[list] = None
+    initial_prompt: Optional[str] = None
+
     def update_activity(self):
         """Update last activity timestamp"""
         self.last_activity = datetime.now(timezone.utc)
@@ -171,7 +185,17 @@ class SocketIOWhisperClient:
 
         Args:
             session_id: Unique session identifier
-            config: Whisper configuration (model, language, etc.)
+            config: Whisper configuration with fields:
+                - model_name: Whisper model (default: "large-v3-turbo")
+                - language: Source language (default: "en")
+                - beam_size: Beam size for decoding (default: 5)
+                - sample_rate: Audio sample rate (default: 16000)
+                - task: "transcribe" or "translate" (default: "transcribe")
+                - target_language: Target language (default: "en")
+                - enable_vad: Enable VAD (default: True)
+                - domain: Optional domain name for prompts
+                - custom_terms: Optional list of custom terms
+                - initial_prompt: Optional initial prompt text
 
         Returns:
             str: Session ID
@@ -182,10 +206,22 @@ class SocketIOWhisperClient:
         if not self.connected:
             raise RuntimeError("Not connected to Whisper service")
 
-        # Create session state
+        # Create session state with extracted config
         session_state = WhisperSessionState(
             session_id=session_id,
-            config=config
+            config=config,
+            # Extract Whisper parameters from config
+            model_name=config.get('model_name', 'large-v3-turbo'),
+            language=config.get('language', 'en'),
+            beam_size=config.get('beam_size', 5),
+            sample_rate=config.get('sample_rate', 16000),
+            task=config.get('task', 'transcribe'),
+            target_language=config.get('target_language', 'en'),
+            enable_vad=config.get('enable_vad', True),
+            # Domain prompt fields (optional)
+            domain=config.get('domain'),
+            custom_terms=config.get('custom_terms'),
+            initial_prompt=config.get('initial_prompt')
         )
         self.sessions[session_id] = session_state
 
@@ -196,6 +232,13 @@ class SocketIOWhisperClient:
         })
 
         logger.info(f"🎬 Started stream for session: {session_id}")
+        logger.info(f"   Model: {session_state.model_name}, Language: {session_state.language}")
+        logger.info(f"   Task: {session_state.task}, Target: {session_state.target_language}")
+        if session_state.domain or session_state.custom_terms or session_state.initial_prompt:
+            logger.info(f"   Domain prompts: domain={session_state.domain}, "
+                       f"terms={len(session_state.custom_terms) if session_state.custom_terms else 0}, "
+                       f"prompt={'yes' if session_state.initial_prompt else 'no'}")
+
         return session_id
 
     async def send_audio_chunk(
@@ -205,12 +248,12 @@ class SocketIOWhisperClient:
         timestamp: Optional[str] = None
     ):
         """
-        Send audio chunk to Whisper for processing
+        Send audio chunk to Whisper for processing with full configuration
 
         Args:
             session_id: Session identifier
-            audio_data: Raw audio data (bytes)
-            timestamp: Chunk timestamp (optional)
+            audio_data: Raw audio data (int16 bytes)
+            timestamp: Chunk timestamp (optional, not used by Whisper)
 
         Raises:
             RuntimeError: If not connected or session not found
@@ -221,26 +264,44 @@ class SocketIOWhisperClient:
         if session_id not in self.sessions:
             raise RuntimeError(f"Session not found: {session_id}")
 
+        # Get session state with configuration
+        session = self.sessions[session_id]
+
         # Encode audio to base64
         audio_base64 = base64.b64encode(audio_data).decode('utf-8')
 
-        # Use current timestamp if not provided
-        if timestamp is None:
-            timestamp = datetime.now(timezone.utc).isoformat()
-
-        # Send transcribe_stream event
-        await self.sio.emit('transcribe_stream', {
+        # Build complete transcribe_stream request matching whisper service expectations
+        request_data = {
             'session_id': session_id,
             'audio_data': audio_base64,
-            'timestamp': timestamp
-        })
+            # REQUIRED Whisper parameters (missing these causes empty results!)
+            'model_name': session.model_name,
+            'language': session.language,
+            'beam_size': session.beam_size,
+            'sample_rate': session.sample_rate,
+            'task': session.task,
+            'target_language': session.target_language,
+            'enable_vad': session.enable_vad,
+        }
+
+        # Add domain prompt fields if present (only on first chunk or when explicitly set)
+        if session.chunks_sent == 0:  # First chunk - include domain prompts
+            if session.domain:
+                request_data['domain'] = session.domain
+            if session.custom_terms:
+                request_data['custom_terms'] = session.custom_terms
+            if session.initial_prompt:
+                request_data['initial_prompt'] = session.initial_prompt
+
+        # Send transcribe_stream event with complete configuration
+        await self.sio.emit('transcribe_stream', request_data)
 
         # Update session stats
-        session = self.sessions[session_id]
         session.chunks_sent += 1
         session.update_activity()
 
-        logger.debug(f"🎵 Sent audio chunk for session {session_id} ({len(audio_data)} bytes)")
+        logger.debug(f"🎵 Sent audio chunk {session.chunks_sent} for session {session_id} "
+                    f"({len(audio_data)} bytes, model={session.model_name})")
 
     async def close_stream(self, session_id: str):
         """
