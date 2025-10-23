@@ -50,6 +50,7 @@ class VADIterator:
         threshold: float = 0.5,
         sampling_rate: int = 16000,
         min_silence_duration_ms: int = 500,
+        min_speech_duration_ms: int = 120,  # Phase 2: Configurable min speech duration
         speech_pad_ms: int = 100
     ):
         self.model = model
@@ -64,6 +65,7 @@ class VADIterator:
 
         # Calculate sample counts
         self.min_silence_samples = sampling_rate * min_silence_duration_ms / 1000
+        self.min_speech_samples = sampling_rate * min_speech_duration_ms / 1000  # Phase 2
         self.speech_pad_samples = sampling_rate * speech_pad_ms / 1000
 
         self.reset_states()
@@ -73,6 +75,7 @@ class VADIterator:
         self.model.reset_states()
         self.triggered = False
         self.temp_end = 0
+        self.temp_start = 0  # Phase 2: Track speech start for duration check
         self.current_sample = 0
 
     @torch.no_grad()
@@ -115,6 +118,7 @@ class VADIterator:
                 0,
                 self.current_sample - self.speech_pad_samples - window_size_samples
             )
+            self.temp_start = speech_start  # Phase 2: Track start for duration check
 
             return {
                 'start': int(speech_start) if not return_seconds
@@ -132,7 +136,18 @@ class VADIterator:
             else:
                 # Confirmed speech end
                 speech_end = self.temp_end + self.speech_pad_samples - window_size_samples
+
+                # Phase 2: Check if speech duration is long enough
+                speech_duration_samples = speech_end - self.temp_start
+                if speech_duration_samples < self.min_speech_samples:
+                    # Speech too short - discard it
+                    self.temp_end = 0
+                    self.temp_start = 0
+                    self.triggered = False
+                    return None  # Filtered as too short
+
                 self.temp_end = 0
+                self.temp_start = 0
                 self.triggered = False
 
                 return {

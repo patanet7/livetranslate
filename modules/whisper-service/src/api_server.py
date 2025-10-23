@@ -2206,16 +2206,20 @@ def handle_transcribe_stream(data):
         with vac_processors_lock:
             if session_id not in vac_processors:
                 # Create VAC processor with config from transcription_request
-                # Phase 1: Extract basic VAD threshold (vad_min_speech/silence_ms added in Phase 2)
+                # Phase 2: Pass VAD configuration parameters
                 vac = VACOnlineASRProcessor(
                     online_chunk_size=1.2,  # SimulStreaming default chunk size
                     vad_threshold=transcription_request.vad_threshold or 0.5,
+                    vad_min_speech_ms=transcription_request.vad_min_speech_ms or 120,  # Phase 2
+                    vad_min_silence_ms=transcription_request.vad_min_silence_ms or 250,  # Phase 2
                     min_buffered_length=1.0,
                     sampling_rate=transcription_request.sample_rate
                 )
 
                 logger.info(f"[VAC] Created processor for session {session_id}:")
                 logger.info(f"[VAC]   vad_threshold={vac.vad_threshold}")
+                logger.info(f"[VAC]   vad_min_speech_ms={vac.vad_min_speech_ms}")  # Phase 2
+                logger.info(f"[VAC]   vad_min_silence_ms={vac.vad_min_silence_ms}")  # Phase 2
                 logger.info(f"[VAC]   enable_code_switching={transcription_request.enable_code_switching}")
                 if transcription_request.enable_code_switching:
                     logger.info(f"[VAC]   sliding_lid_window={transcription_request.sliding_lid_window or 0.9}")

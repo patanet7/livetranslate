@@ -93,11 +93,15 @@ class VACOnlineASRProcessor:
         self,
         online_chunk_size: float = 1.2,
         vad_threshold: float = 0.5,
+        vad_min_speech_ms: int = 120,  # Phase 2: Configurable min speech duration
+        vad_min_silence_ms: int = 250,  # Phase 2: Configurable min silence duration
         min_buffered_length: float = 1.0,
         sampling_rate: int = 16000
     ):
         self.online_chunk_size = online_chunk_size
         self.vad_threshold = vad_threshold
+        self.vad_min_speech_ms = vad_min_speech_ms  # Phase 2
+        self.vad_min_silence_ms = vad_min_silence_ms  # Phase 2
         self.min_buffered_length = min_buffered_length
         self.SAMPLING_RATE = sampling_rate
 
@@ -154,9 +158,12 @@ class VACOnlineASRProcessor:
             self.vad = FixedVADIterator(
                 model=vad_model,
                 threshold=self.vad_threshold,
-                sampling_rate=self.SAMPLING_RATE
+                sampling_rate=self.SAMPLING_RATE,
+                min_speech_duration_ms=self.vad_min_speech_ms,  # Phase 2
+                min_silence_duration_ms=self.vad_min_silence_ms  # Phase 2
             )
-            logger.info("✅ Silero VAD initialized")
+            logger.info(f"✅ Silero VAD initialized (threshold={self.vad_threshold}, "
+                       f"min_speech={self.vad_min_speech_ms}ms, min_silence={self.vad_min_silence_ms}ms)")
         except Exception as e:
             logger.error(f"Failed to initialize VAD: {e}")
             raise
