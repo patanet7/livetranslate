@@ -120,6 +120,10 @@ class VACOnlineASRProcessor:
         from sliding_lid_detector import SlidingLIDDetector
         self.lid_detector = SlidingLIDDetector(window_size=sliding_lid_window)
 
+        # Phase 5: Token deduplicator for chunk boundary handling
+        from token_deduplicator import TokenDeduplicator
+        self.token_deduplicator = TokenDeduplicator(lookback_tokens=10)
+
         # Phase 4: Sustained language detection for SOT reset
         self.current_sustained_language: Optional[str] = None  # Track sustained language
         self.language_start_time: float = 0.0  # When current language was first detected
@@ -432,8 +436,12 @@ class VACOnlineASRProcessor:
             logger.info(f"[INFER] Calling model.infer(is_last=False)")
             tokens, generation_progress = self.model.infer(is_last=False)
 
+            # Phase 5: Deduplicate tokens at chunk boundaries
+            logger.info(f"[INFER] Generated {len(tokens)} tokens (before dedup): {tokens[:20] if len(tokens) > 20 else tokens}")
+            tokens = self.token_deduplicator.deduplicate(tokens)
+            logger.info(f"[DEDUP] After deduplication: {len(tokens)} tokens")
+
             # Decode tokens to text
-            logger.info(f"[INFER] Generated {len(tokens)} tokens: {tokens[:20] if len(tokens) > 20 else tokens}")
             logger.info(f"[INFER] Generation progress: {generation_progress}")
             text = self.model.tokenizer.decode(tokens)
 
@@ -514,6 +522,11 @@ class VACOnlineASRProcessor:
             logger.info(f"[INFER] Calling model.infer(is_last=True) for final chunk")
             tokens, generation_progress = self.model.infer(is_last=True)
 
+            # Phase 5: Deduplicate tokens at chunk boundaries
+            logger.info(f"[INFER] Generated {len(tokens)} tokens (before dedup)")
+            tokens = self.token_deduplicator.deduplicate(tokens)
+            logger.info(f"[DEDUP] After deduplication: {len(tokens)} tokens")
+
             # Decode tokens to text
             text = self.model.tokenizer.decode(tokens)
 
@@ -561,6 +574,10 @@ class VACOnlineASRProcessor:
                         model_name = getattr(self.model, 'model_name', 'base')
                         self.model = self.model_manager.load_model(model_name)
 
+                # Phase 5: Reset token deduplicator on SOT reset (new decoder state = new token context)
+                self.token_deduplicator.reset()
+                logger.info(f"[SUSTAINED_LID] Token deduplicator reset")
+
                 # Update cooldown timer
                 self.last_sot_reset_time = time.time()
                 logger.info(f"[SUSTAINED_LID] Cooldown timer updated: {self.last_sot_reset_time}")
@@ -602,6 +619,9 @@ class VACOnlineASRProcessor:
         self.language_start_time = 0.0
         self.silence_start_time = None
         # Note: We don't reset last_sot_reset_time to maintain cooldown across sessions
+
+        # Phase 5: Reset token deduplicator (new session = no token context to deduplicate)
+        self.token_deduplicator.reset()
 
         if self.vad:
             self.vad.reset_states()
