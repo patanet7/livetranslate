@@ -20,8 +20,40 @@ import torch
 import logging
 from typing import Optional, Dict, Any
 from silero_vad_iterator import FixedVADIterator
+from sentence_segmenter import SentenceSegmenter
 
 logger = logging.getLogger(__name__)
+
+# Helper functions for numpy/torch conversion
+def to_torch_tensor(audio):
+    """Convert numpy array or torch tensor to torch tensor (on CPU initially)
+
+    Following SimulStreaming pattern - audio MUST be 1D flattened tensor!
+    SimulStreaming concatenates segments with torch.cat(self.segments, dim=0)
+    which requires all segments to be 1D tensors.
+    """
+    if isinstance(audio, np.ndarray):
+        tensor = torch.from_numpy(audio)
+    elif isinstance(audio, torch.Tensor):
+        tensor = audio.cpu()  # Ensure on CPU for VAD operations
+    else:
+        raise TypeError(f"Expected numpy array or torch tensor, got {type(audio)}")
+
+    # CRITICAL: Ensure 1D tensor (SimulStreaming requirement)
+    # Reference: simul_whisper.py line 347: torch.cat(self.segments, dim=0)
+    if tensor.ndim > 1:
+        tensor = tensor.flatten()
+
+    return tensor
+
+def to_numpy(audio):
+    """Convert torch tensor or numpy array to numpy (handling device placement)"""
+    if isinstance(audio, torch.Tensor):
+        return audio.cpu().numpy()  # Move to CPU first if on GPU
+    elif isinstance(audio, np.ndarray):
+        return audio
+    else:
+        raise TypeError(f"Expected torch tensor or numpy array, got {type(audio)}")
 
 
 class VACOnlineASRProcessor:
@@ -74,14 +106,21 @@ class VACOnlineASRProcessor:
         self.model = None
         self.model_manager = None
 
-        # Audio buffers
-        self.audio_buffer = np.array([], dtype=np.float32)
-        self.online_chunk_buffer = np.array([], dtype=np.float32)
+        # Sentence segmentation for better draft/final detection
+        self.sentence_segmenter = SentenceSegmenter()
+
+        # Audio buffers (using torch tensors throughout for SimulStreaming compatibility)
+        self.audio_buffer = torch.tensor([], dtype=torch.float32)
+
+        # CRITICAL FIX: Match SimulStreaming's chunk accumulation pattern!
+        # SimulStreaming accumulates chunks in a LIST, then concatenates before insert_audio()
+        # Reference: simulstreaming_whisper.py lines 151-152, 207-217
+        self.audio_chunks = []  # List of torch tensors (like SimulStreaming's audio_chunks)
+        self.current_online_chunk_buffer_size = 0  # Track total samples in audio_chunks
 
         # State tracking
         self.status = 'nonvoice'  # 'voice' or 'nonvoice'
         self.is_currently_final = False
-        self.current_online_chunk_buffer_size = 0
 
         # Statistics
         self.vad_checks = 0
@@ -137,33 +176,39 @@ class VACOnlineASRProcessor:
         """
         Insert audio chunk and run VAD detection
 
-        This is called for EVERY incoming audio chunk (e.g., 0.04s chunks).
-        VAD runs on every chunk to detect speech start/end.
-        Whisper only runs when buffer full OR speech ends.
+        CRITICAL FIX: Match SimulStreaming's insert_audio_chunk() pattern!
+        Reference: simulstreaming_whisper.py lines 151-152
+
+        This method should ONLY:
+        1. Buffer audio in self.audio_buffer
+        2. Run VAD detection
+        3. Update status flags
+
+        NO PROCESSING happens here! All processing occurs in process_iter().
 
         Args:
             audio_chunk: Audio data (numpy array, float32)
         """
+        # Convert to torch tensor immediately at entry point
+        audio_tensor = to_torch_tensor(audio_chunk)
+
         self.total_audio_processed += len(audio_chunk)
 
-        # Run VAD detection
+        # Run VAD detection (VAD needs numpy)
+        if isinstance(audio_chunk, torch.Tensor):
+            audio_chunk = audio_chunk.numpy()
         vad_result = self.vad(audio_chunk, return_seconds=False)
         self.vad_checks += 1
 
-        # Append to audio buffer
-        self.audio_buffer = np.append(self.audio_buffer, audio_chunk)
+        # Append to audio buffer (torch operations)
+        self.audio_buffer = torch.cat([self.audio_buffer, audio_tensor])
 
-        # Handle VAD events
+        # Handle VAD events - ONLY update status, NO processing!
         if vad_result is not None:
             if 'start' in vad_result:
                 # Speech start detected
                 self.status = 'voice'
                 logger.debug(f"VAD: Speech START detected (sample {vad_result['start']})")
-
-                # Send buffered audio to Whisper
-                if len(self.audio_buffer) > 0:
-                    self._send_audio_to_online_processor(self.audio_buffer)
-                    self.audio_buffer = np.array([], dtype=np.float32)
 
             elif 'end' in vad_result:
                 # Speech end detected
@@ -171,20 +216,9 @@ class VACOnlineASRProcessor:
                 self.is_currently_final = True
                 logger.debug(f"VAD: Speech END detected (sample {vad_result['end']})")
 
-                # Send final audio to Whisper
-                if len(self.audio_buffer) > 0:
-                    self._send_audio_to_online_processor(self.audio_buffer)
-                    self.audio_buffer = np.array([], dtype=np.float32)
-
         else:
-            # No VAD event - handle based on current status
-            if self.status == 'voice':
-                # During speech: send buffered audio to Whisper
-                if len(self.audio_buffer) > 0:
-                    self._send_audio_to_online_processor(self.audio_buffer)
-                    self.audio_buffer = np.array([], dtype=np.float32)
-
-            else:
+            # No VAD event - maintain current status
+            if self.status != 'voice':
                 # During silence: just buffer (NO processing!)
                 # Limit buffer to prevent OOM (keep only 1 second)
                 max_silence_buffer = self.SAMPLING_RATE * 1.0
@@ -196,27 +230,40 @@ class VACOnlineASRProcessor:
                     f"VAD: Silence buffering (buffer size: {len(self.audio_buffer)} samples)"
                 )
 
-    def _send_audio_to_online_processor(self, audio: np.ndarray):
+    def _send_audio_to_online_processor(self, audio: torch.Tensor):
         """
-        Send audio to Whisper online processor
+        Accumulate audio chunks for later processing (SimulStreaming pattern)
 
-        Appends to online chunk buffer for processing
+        CRITICAL FIX: Match SimulStreaming's accumulate→concatenate→insert pattern!
+        Reference: simulstreaming_whisper.py line 151-152
+
+        SimulStreaming pattern:
+        1. insert_audio_chunk(): Just append to audio_chunks[] list (NO processing)
+        2. process_iter(): Concatenate audio_chunks → insert_audio() ONCE → infer()
+
+        We were incorrectly calling insert_audio() immediately for each chunk!
         """
-        self.online_chunk_buffer = np.append(self.online_chunk_buffer, audio)
-        self.current_online_chunk_buffer_size = len(self.online_chunk_buffer)
+        logger.info(f"[ACCUMULATE] Adding {len(audio)} samples ({len(audio)/16000:.2f}s) to audio_chunks list")
 
-        logger.debug(
-            f"Online buffer: {self.current_online_chunk_buffer_size} samples "
-            f"({self.current_online_chunk_buffer_size / self.SAMPLING_RATE:.2f}s)"
-        )
+        # CORRECT SimulStreaming pattern: Accumulate chunks in a list
+        # Reference: simulstreaming_whisper.py line 152: self.audio_chunks.append(torch.from_numpy(audio))
+        self.audio_chunks.append(audio)
+
+        # Track total samples accumulated since last infer() call
+        self.current_online_chunk_buffer_size += len(audio)
+
+        logger.info(f"[ACCUMULATED] Total chunks: {len(self.audio_chunks)}, Total samples: {self.current_online_chunk_buffer_size} ({self.current_online_chunk_buffer_size/16000:.2f}s)")
 
     def process_iter(self) -> Dict[str, Any]:
         """
         Process iteration - decides when to run Whisper
 
+        CRITICAL FIX: Match SimulStreaming's process_iter() pattern!
+        Reference: simulstreaming_whisper.py lines 207-217
+
         This is the CORE ADAPTIVE LOGIC:
-        - If speech ended (is_currently_final): process immediately
-        - If buffer >= online_chunk_size (1.2s): process
+        - If speech ended (is_currently_final): Move buffer to audio_chunks, then process
+        - If buffer >= online_chunk_size (1.2s): Move buffer to audio_chunks, then process
         - Otherwise: NO processing (saves compute!)
 
         Returns:
@@ -225,107 +272,170 @@ class VACOnlineASRProcessor:
         """
         # Check if we should process
         if self.is_currently_final:
-            # Speech ended - process final chunk
+            # Speech ended - move buffer to audio_chunks, then process final chunk
             logger.info("Processing FINAL chunk (speech ended)")
+            if len(self.audio_buffer) > 0:
+                self._send_audio_to_online_processor(self.audio_buffer)
+                self.audio_buffer = torch.tensor([], dtype=torch.float32)
             return self._finish()
 
-        elif self.current_online_chunk_buffer_size > self.SAMPLING_RATE * self.online_chunk_size:
-            # Buffer full - process chunk
+        elif len(self.audio_buffer) > self.SAMPLING_RATE * self.online_chunk_size:
+            # Buffer full - move buffer to audio_chunks, then process chunk
             logger.info(
                 f"Processing chunk (buffer full: "
-                f"{self.current_online_chunk_buffer_size / self.SAMPLING_RATE:.2f}s >= "
+                f"{len(self.audio_buffer) / self.SAMPLING_RATE:.2f}s >= "
                 f"{self.online_chunk_size}s)"
             )
+            self._send_audio_to_online_processor(self.audio_buffer)
+            self.audio_buffer = torch.tensor([], dtype=torch.float32)
             return self._process_online_chunk()
 
         else:
             # Still buffering - NO processing yet!
             logger.debug(
-                f"Buffering... {self.current_online_chunk_buffer_size} samples "
-                f"(status: {self.status})"
+                f"Buffering... {len(self.audio_buffer)} samples "
+                f"({len(self.audio_buffer) / self.SAMPLING_RATE:.2f}s, status: {self.status})"
             )
             return {}
 
     def _process_online_chunk(self) -> Dict[str, Any]:
         """
-        Process online chunk with Whisper
+        Process online chunk with SimulStreaming's concatenate→insert→infer pattern
 
-        Extract chunk of online_chunk_size and transcribe
+        CRITICAL FIX: Match SimulStreaming's process_iter() pattern!
+        Reference: simulstreaming_whisper.py lines 207-217
+
+        SimulStreaming pattern:
+        1. Concatenate ALL accumulated chunks: audio = torch.cat(self.audio_chunks, dim=0)
+        2. Clear chunk list: self.audio_chunks = []
+        3. Insert concatenated audio ONCE: self.model.insert_audio(audio)
+        4. Run inference: self.model.infer(is_last=False)
         """
         if self.model is None:
             logger.error("Model not initialized")
             return {}
 
         try:
-            # Extract chunk to process
-            chunk_samples = int(self.SAMPLING_RATE * self.online_chunk_size)
-            audio_to_process = self.online_chunk_buffer[:chunk_samples]
+            # Step 1: Concatenate ALL accumulated chunks
+            # Reference: simulstreaming_whisper.py line 211
+            if len(self.audio_chunks) == 0:
+                logger.warning("[PROCESS] No audio chunks to process!")
+                return {}
 
-            # Transcribe with Whisper
-            result = self.model.transcribe(
-                audio=audio_to_process,
-                beam_size=5,
-                temperature=0.0
-            )
+            logger.info(f"[CONCATENATE] Concatenating {len(self.audio_chunks)} chunks into single tensor")
+            audio = torch.cat(self.audio_chunks, dim=0)  # CONCATENATE FIRST
+            logger.info(f"[CONCATENATE] Result: {len(audio)} samples ({len(audio)/16000:.2f}s)")
+
+            # Step 2: Clear chunk list
+            # Reference: simulstreaming_whisper.py line 213
+            self.audio_chunks = []
+            self.current_online_chunk_buffer_size = 0
+
+            # Step 3: Insert concatenated audio ONCE
+            # Reference: simulstreaming_whisper.py line 215
+            logger.info(f"[INSERT_AUDIO] Sending concatenated audio to model: shape={audio.shape}, dtype={audio.dtype}")
+            logger.info(f"[INSERT_AUDIO] Audio range: [{audio.min():.4f}, {audio.max():.4f}], mean={audio.mean():.4f}, std={audio.std():.4f}")
+            self.model.insert_audio(audio)
+
+            # Step 4: Run inference
+            # Reference: simulstreaming_whisper.py line 217
+            logger.info(f"[INFER] Calling model.infer(is_last=False)")
+            tokens, generation_progress = self.model.infer(is_last=False)
+
+            # Decode tokens to text
+            logger.info(f"[INFER] Generated {len(tokens)} tokens: {tokens[:20] if len(tokens) > 20 else tokens}")
+            logger.info(f"[INFER] Generation progress: {generation_progress}")
+            text = self.model.tokenizer.decode(tokens)
 
             self.whisper_calls += 1
 
-            # Remove processed audio from buffer
-            self.online_chunk_buffer = self.online_chunk_buffer[chunk_samples:]
-            self.current_online_chunk_buffer_size = len(self.online_chunk_buffer)
+            # Check for sentence boundary (complete sentence = is_final)
+            # This provides much better draft/final distinction than VAD-only
+            is_sentence_end = self.sentence_segmenter.is_sentence_end(text)
+            is_final = is_sentence_end
 
-            logger.info(f"✅ Whisper transcribed: '{result['text']}'")
+            if is_sentence_end:
+                logger.info(f"✅ Complete sentence detected: '{text}' ({len(tokens)} tokens) [is_final=True]")
+            else:
+                logger.info(f"📝 Incomplete sentence: '{text}' ({len(tokens)} tokens) [is_final=False]")
 
             return {
-                'text': result['text'],
-                'segments': result.get('segments', []),
-                'is_final': False
+                'text': text,
+                'tokens': tokens,
+                'generation_progress': generation_progress,
+                'is_final': is_final  # True if sentence ends with terminal punctuation
             }
 
         except Exception as e:
             logger.error(f"Error processing chunk: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
 
     def _finish(self) -> Dict[str, Any]:
         """
-        Finish current utterance (speech ended)
+        Finish current utterance with SimulStreaming's concatenate→insert→infer pattern
 
-        Process remaining buffer and reset state
+        CRITICAL FIX: Same pattern as _process_online_chunk() but with is_last=True
+        Reference: simulstreaming_whisper.py lines 207-217 (same pattern, different is_last flag)
         """
         if self.model is None:
             logger.error("Model not initialized")
             return {}
 
         try:
-            # Process remaining buffer
-            if len(self.online_chunk_buffer) > 0:
-                result = self.model.transcribe(
-                    audio=self.online_chunk_buffer,
-                    beam_size=5,
-                    temperature=0.0
-                )
-
-                self.whisper_calls += 1
-
-                logger.info(f"✅ Final transcription: '{result['text']}'")
-
-                # Reset state
-                self.online_chunk_buffer = np.array([], dtype=np.float32)
-                self.current_online_chunk_buffer_size = 0
-                self.is_currently_final = False
-
-                return {
-                    'text': result['text'],
-                    'segments': result.get('segments', []),
-                    'is_final': True
-                }
-            else:
-                # No audio to process
+            # Step 1: Concatenate ALL accumulated chunks
+            if len(self.audio_chunks) == 0:
+                logger.info("[FINISH] No audio chunks to process in final chunk")
                 self.is_currently_final = False
                 return {}
 
+            logger.info(f"[FINISH] Concatenating {len(self.audio_chunks)} final chunks into single tensor")
+            audio = torch.cat(self.audio_chunks, dim=0)  # CONCATENATE FIRST
+            logger.info(f"[FINISH] Result: {len(audio)} samples ({len(audio)/16000:.2f}s)")
+
+            # Step 2: Clear chunk list
+            self.audio_chunks = []
+            self.current_online_chunk_buffer_size = 0
+
+            # Step 3: Insert concatenated audio ONCE
+            logger.info(f"[INSERT_AUDIO] Sending final concatenated audio to model: shape={audio.shape}, dtype={audio.dtype}")
+            self.model.insert_audio(audio)
+
+            # Step 4: Run FINAL inference with is_last=True
+            logger.info(f"[INFER] Calling model.infer(is_last=True) for final chunk")
+            tokens, generation_progress = self.model.infer(is_last=True)
+
+            # Decode tokens to text
+            text = self.model.tokenizer.decode(tokens)
+
+            self.whisper_calls += 1
+
+            # VAD silence = always final (speech ended)
+            # Even if no sentence terminal, this is a complete utterance
+            logger.info(f"✅ Final stateful infer (VAD silence): '{text}' ({len(tokens)} tokens) [is_final=True]")
+
+            # Check if it also has sentence boundary (for logging)
+            is_sentence_end = self.sentence_segmenter.is_sentence_end(text)
+            if is_sentence_end:
+                logger.info(f"   ✅ Also ends with sentence terminal (clean boundary)")
+            else:
+                logger.info(f"   ⚠️  No sentence terminal (forced final by VAD)")
+
+            # Reset VAC state
+            self.is_currently_final = False
+
+            return {
+                'text': text,
+                'tokens': tokens,
+                'generation_progress': generation_progress,
+                'is_final': True  # Always final when VAD detects speech end
+            }
+
         except Exception as e:
             logger.error(f"Error finishing utterance: {e}")
+            import traceback
+            traceback.print_exc()
             self.is_currently_final = False
             return {}
 
@@ -337,8 +447,8 @@ class VACOnlineASRProcessor:
         """
         logger.info("Resetting VACOnlineASRProcessor state")
 
-        self.audio_buffer = np.array([], dtype=np.float32)
-        self.online_chunk_buffer = np.array([], dtype=np.float32)
+        self.audio_buffer = torch.tensor([], dtype=torch.float32)
+        self.audio_chunks = []  # Clear accumulated chunks list
         self.status = 'nonvoice'
         self.is_currently_final = False
         self.current_online_chunk_buffer_size = 0

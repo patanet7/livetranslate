@@ -156,7 +156,9 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
             if len(chunk) < chunk_size:
                 chunk = np.pad(chunk, (0, chunk_size - len(chunk)), 'constant')
 
-            chunk_bytes = chunk.tobytes()
+            # Convert float32 [-1.0, 1.0] to int16 for transmission (server expects int16)
+            chunk_int16 = (chunk * 32768.0).astype(np.int16)
+            chunk_bytes = chunk_int16.tobytes()
             chunk_b64 = base64.b64encode(chunk_bytes).decode('utf-8')
 
             # Send chunk with configuration
@@ -184,7 +186,8 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
 
         # Wait for final processing
         print("\n⏳ Waiting for final results...")
-        time.sleep(2.0)
+        print("   (Waiting 10 seconds for stateful Whisper processing...)")
+        time.sleep(10.0)  # Increased wait time for stateful processing
 
         sio.emit('leave_session', {'session_id': session_id})
         time.sleep(0.3)

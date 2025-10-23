@@ -1,0 +1,185 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║          WHISPER SERVICE MULTI-LANGUAGE ARCHITECTURE - QUICK SUMMARY       ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+KEY FINDINGS:
+
+1. SESSION ARCHITECTURE: ✅ PER-SESSION ISOLATION
+   - Each session has its own audio buffer: session_audio_buffers[session_id]
+   - Each session has its own VAD state: session_vad_states[session_id]
+   - Each session has its own stability tracker: session_stability_trackers[session_id]
+   - Language is stored per-session: streaming_sessions[session_id]["language"]
+   
+2. LANGUAGE CONFIGURATION: ✅ PER-SESSION (NOT GLOBALLY LOCKED)
+   - Language is set via API parameter when creating session
+   - Each transcription request receives language from session config
+   - Language passed to Whisper model via decode_options["language"]
+   - NO global language lock detected
+
+3. MODEL LOADING: ✅ EFFICIENT SHARED CACHING
+   - Models cached globally (not per-language)
+   - Same Whisper model handles all 99 languages
+   - Max 3 models cached (LRU eviction)
+   - Language does NOT increase memory footprint
+   
+4. ROLLING CONTEXT: ⚠️ GLOBAL (LIMITATION)
+   - Rolling context stored at ModelManager level, NOT per-session
+   - If two sessions use context carryover, they'll share the same context
+   - This is the MAIN LIMITATION for concurrent multi-language support
+   - Easy to fix: Move rolling_context to per-session tracking
+
+5. AUDIO PIPELINE: ✅ FULLY ISOLATED
+   - Audio buffer per-session with thread-safe locks
+   - VAD pre-filtering is per-session (language-independent)
+   - Stability tracking per-session
+   - Concurrent sessions don't interfere with audio processing
+
+6. INFERENCE LOCK: ⚠️ SINGLE LOCK (DESIGN CHOICE)
+   - Only one session can transcribe at a time (inference_lock)
+   - Not a problem for most use cases (3-4s transcription time)
+   - Optional: Could implement async/parallel inference
+
+═════════════════════════════════════════════════════════════════════════════
+
+QUESTION: Can it support concurrent English + Chinese sessions?
+
+ANSWER: ✅ YES (with caveats)
+
+WHAT WORKS:
+  ✅ Audio buffers are per-session and isolated
+  ✅ Language is configurable per-session (not locked)
+  ✅ Whisper model handles both English and Chinese
+  ✅ VAD and stability tracking are per-session
+  ✅ Multiple sessions can coexist simultaneously
+
+WHAT NEEDS CHANGES:
+  ⚠️  Rolling context is global (needs per-session implementation)
+  ⚠️  No validation to prevent language switching within session
+  ⚠️  Context carryover will be corrupted if mixing languages
+
+═════════════════════════════════════════════════════════════════════════════
+
+MEMORY FOOTPRINT (English + Chinese concurrent sessions):
+
+  Shared:
+    - Whisper Model (large-v3):        2.7 GB
+    - Tokenizer:                       5 MB
+    - Service infrastructure:          100 MB
+    Subtotal:                          2.805 GB
+  
+  Per-Session English:
+    - Audio buffer (6 sec @ 16kHz):    192 KB
+    - Rolling context (223 tokens):    1 KB
+    - VAD state:                       100 bytes
+    - Stability tracker:               10 KB
+    Subtotal:                          ~200 KB
+  
+  Per-Session Chinese:
+    - Audio buffer (6 sec @ 16kHz):    192 KB
+    - Rolling context (223 tokens):    1 KB
+    - VAD state:                       100 bytes
+    - Stability tracker:               10 KB
+    Subtotal:                          ~200 KB
+  
+  TOTAL: ~2.805 GB (language doesn't add significant overhead)
+
+═════════════════════════════════════════════════════════════════════════════
+
+CHANGES NEEDED FOR FULL MULTI-LANGUAGE SUPPORT:
+
+PRIORITY 1 (HIGH - 1-2 days):
+  [ ] Move rolling_context from ModelManager to per-session tracking
+  [ ] Update append_to_context() and get_inference_context() to use session_id
+  [ ] Implement cleanup of session-specific rolling context
+
+PRIORITY 2 (MEDIUM - 1 hour):
+  [ ] Add language validation to prevent mid-session language changes
+  [ ] Log warnings for language inconsistencies
+  [ ] Document that language should not change during session lifetime
+
+PRIORITY 3 (OPTIONAL - 2-3 days):
+  [ ] Implement async/parallel inference for true concurrent transcription
+  [ ] Add per-session tokenizer caching (currently fine as-is)
+  [ ] Language detection confidence tracking
+
+═════════════════════════════════════════════════════════════════════════════
+
+KEY CODE LOCATIONS:
+
+File                              Lines      Component
+────────────────────────────────────────────────────────────────────────────
+src/api_server.py                 999-1027   Session configuration
+src/api_server.py                 1020-1021  Language from request
+src/whisper_service.py            1015-1018  Per-session audio buffers
+src/whisper_service.py            220-226    Rolling context (GLOBAL - FIX NEEDED)
+src/whisper_service.py            867-901    Session manager
+src/whisper_service.py            1722-1815  VAD with per-session state
+src/whisper_service.py            1543-1555  Per-session stability trackers
+src/model_manager.py              87-88      Global model cache
+src/model_manager.py              92         Inference lock (single)
+src/token_buffer.py               Full file  TokenBuffer class
+
+═════════════════════════════════════════════════════════════════════════════
+
+ARCHITECTURE PATTERN:
+
+Current (Working):
+  Session 1 (English)                Session 2 (Chinese)
+        ↓                                    ↓
+  audio_buffers["en-001"]         audio_buffers["zh-001"]
+  vad_states["en-001"] = "voice"  vad_states["zh-001"] = "voice"
+  stability_trackers["en-001"]     stability_trackers["zh-001"]
+        ↓                                    ↓
+        └──────────→ Shared ModelManager ←──┘
+                            ↓
+                    rolling_context ← PROBLEM HERE!
+                            ↓
+                    Whisper Model (shared)
+
+Fix Needed:
+  Session 1 (English)                Session 2 (Chinese)
+        ↓                                    ↓
+  audio_buffers["en-001"]         audio_buffers["zh-001"]
+  rolling_contexts["en-001"]      rolling_contexts["zh-001"]
+  vad_states["en-001"]            vad_states["zh-001"]
+  stability_trackers["en-001"]    stability_trackers["zh-001"]
+        ↓                                    ↓
+        └──────────→ Shared ModelManager ←──┘
+                            ↓
+                    Whisper Model (shared)
+
+═════════════════════════════════════════════════════════════════════════════
+
+IMPLEMENTATION EFFORT ESTIMATE:
+
+  Tier 1 (Minimal): Make rolling context per-session
+    Time: 1-2 days
+    Impact: Fixes multi-language context corruption
+    Risk: Low (isolated change to ModelManager/SessionManager)
+  
+  Tier 2 (Recommended): Add language validation
+    Time: 1 hour
+    Impact: Prevents configuration errors
+    Risk: Very low (validation logic only)
+  
+  Tier 3 (Optional): Async parallel inference
+    Time: 2-3 days
+    Impact: True concurrent transcription for multiple sessions
+    Risk: Medium (threading/async redesign required)
+
+═════════════════════════════════════════════════════════════════════════════
+
+BOTTOM LINE:
+
+The whisper-service is WELL-ARCHITECTED for multi-language support:
+  ✅ Session isolation is solid
+  ✅ Per-session configuration works
+  ✅ Audio pipelines are clean
+  ✅ VAD is language-independent
+
+One significant limitation:
+  ⚠️  Rolling context is global (EASY FIX - 1-2 days)
+
+Current Status: ✅ WORKS for concurrent English + Chinese
+With Fix:      ✅✅ WORKS ROBUSTLY for concurrent English + Chinese
+

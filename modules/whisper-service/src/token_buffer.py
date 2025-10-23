@@ -49,6 +49,7 @@ class TokenBuffer:
         self,
         text: str = "",
         tokenizer: Optional[Any] = None,
+        device: Optional[Any] = None,
         prefix_token_ids: Optional[List[int]] = None
     ):
         """
@@ -57,44 +58,40 @@ class TokenBuffer:
         Args:
             text: Initial text content
             tokenizer: Tokenizer for converting text to token IDs (tiktoken or Whisper tokenizer)
+            device: Device for tensor operations (e.g., 'cuda', 'cpu')
             prefix_token_ids: Optional prefix token IDs (e.g., <|sot_prev|> token)
         """
         self._text = text
         self.tokenizer = tokenizer
+        self.device = device
         self.prefix_token_ids = prefix_token_ids or []
 
     @classmethod
-    def empty(cls, tokenizer: Optional[Any] = None) -> "TokenBuffer":
+    def empty(cls, *args, **kwargs) -> "TokenBuffer":
         """
         Create an empty TokenBuffer
 
         Args:
-            tokenizer: Optional tokenizer for token ID conversion
+            *args, **kwargs: Arguments to pass to TokenBuffer constructor
 
         Returns:
             Empty TokenBuffer instance
         """
-        return cls(text="", tokenizer=tokenizer)
+        return cls(*args, **kwargs)
 
     @classmethod
-    def from_text(
-        cls,
-        text: str,
-        tokenizer: Optional[Any] = None,
-        prefix_token_ids: Optional[List[int]] = None
-    ) -> "TokenBuffer":
+    def from_text(cls, text: str, *args, **kwargs) -> "TokenBuffer":
         """
         Create TokenBuffer from text
 
         Args:
             text: Initial text content
-            tokenizer: Optional tokenizer for token ID conversion
-            prefix_token_ids: Optional prefix token IDs
+            *args, **kwargs: Additional arguments to pass to TokenBuffer constructor
 
         Returns:
             TokenBuffer instance with text content
         """
-        return cls(text=text, tokenizer=tokenizer, prefix_token_ids=prefix_token_ids)
+        return cls(text=text, *args, **kwargs)
 
     def is_empty(self) -> bool:
         """
@@ -156,6 +153,40 @@ class TokenBuffer:
 
         return text_token_ids
 
+    def as_tensor_beam(self, beam_size: int, device: Any):
+        """
+        Convert text to token tensor repeated for beam search
+
+        This method is called by SimulWhisper to prepare context tokens
+        for beam search decoding. The context tokens are repeated beam_size
+        times to match the beam search batch dimension.
+
+        Args:
+            beam_size: Number of beams in beam search
+            device: Torch device for tensor (e.g., 'cuda', 'cpu', 'mps')
+
+        Returns:
+            Torch tensor of shape (beam_size, num_tokens) containing context token IDs
+
+        Raises:
+            ValueError: If no tokenizer is set
+
+        Example:
+            buffer = TokenBuffer.from_text("Hello world", tokenizer=tokenizer)
+            tensor = buffer.as_tensor_beam(beam_size=5, device='cuda')
+            # Result: tensor([[50258, 50259, ...], ...]) shape (5, num_tokens)
+        """
+        import torch
+
+        # Get token IDs
+        token_ids = self.as_token_ids()
+
+        # Convert to tensor
+        token_tensor = torch.tensor([token_ids], dtype=torch.long, device=device)
+
+        # Repeat for beam search (beam_size copies)
+        return token_tensor.repeat_interleave(beam_size, dim=0)
+
     def append_token_ids(self, token_ids: List[int]):
         """
         Append token IDs to buffer (decode and append as text)
@@ -179,10 +210,14 @@ class TokenBuffer:
         """
         Trim words from beginning (FIFO word-level trimming)
 
+        CRITICAL FIX: Match SimulStreaming's tokenizer-based word splitting!
+        Reference: token_buffer.py lines 47-62
+
         Following SimulStreaming behavior:
+        - Uses tokenizer.split_to_word_tokens() to preserve tokenization boundaries
         - Removes oldest words first (FIFO)
         - Preserves static prefix (text before 'after' position)
-        - Operates at word boundaries
+        - Operates at Whisper token word boundaries (not Python str.split())
 
         Args:
             num: Number of words to trim from beginning
@@ -196,48 +231,31 @@ class TokenBuffer:
             buffer.trim_words(num=1, after=len("Medical terms: "))
             # Result: "Medical terms: has symptoms"
         """
+        if self.tokenizer is None:
+            logger.warning("Tokenizer not set - cannot trim words properly")
+            return 0
+
         if self.is_empty():
             return 0
 
-        # Split into static prefix and rolling context
-        static_prefix = self._text[:after]
-        rolling_context = self._text[after:]
+        # Encode rolling context (after static prefix)
+        # Reference: token_buffer.py line 55
+        ids = self.tokenizer.encode(self._text[after:])
 
-        # Calculate tokens before trimming
-        tokens_before = 0
-        if self.tokenizer is not None:
-            try:
-                tokens_before = len(self.tokenizer.encode(rolling_context))
-            except Exception:
-                # If tokenizer fails, just proceed with word trimming
-                pass
+        # Split into word tokens using Whisper's tokenizer
+        # Reference: token_buffer.py line 56
+        words, wids = self.tokenizer.split_to_word_tokens(ids)
 
-        # Split rolling context into words
-        words = rolling_context.split()
+        if not words:
+            return 0
 
-        # Trim requested number of words from beginning
-        if num >= len(words):
-            # Trim all words
-            trimmed_words = []
-        else:
-            # Trim first 'num' words
-            trimmed_words = words[num:]
-
-        # Reconstruct text
-        new_rolling_context = " ".join(trimmed_words)
-        self._text = static_prefix + new_rolling_context
+        # Reconstruct text: static prefix + remaining words
+        # Reference: token_buffer.py line 61
+        self._text = self._text[:after] + "".join(words[num:])
 
         # Calculate tokens removed
-        tokens_after = 0
-        if self.tokenizer is not None:
-            try:
-                tokens_after = len(self.tokenizer.encode(new_rolling_context))
-            except Exception:
-                # If tokenizer fails, estimate based on words removed
-                return min(num, len(words))
-
-        tokens_removed = tokens_before - tokens_after
-        return max(0, tokens_removed)
+        # Reference: token_buffer.py line 62
+        return sum(len(wi) for wi in wids[:num])
 
     def __repr__(self) -> str:
         """String representation for debugging"""

@@ -32,6 +32,8 @@ from collections import deque
 
 from whisper_service import WhisperService, TranscriptionRequest, create_whisper_service
 from vac_online_processor import VACOnlineASRProcessor
+from simul_whisper.config import AlignAttConfig
+from simul_whisper.simul_whisper import PaddedAlignAttWhisper
 from connection_manager import connection_manager, ConnectionState
 from error_handler import (
     error_handler, ErrorCategory, ErrorSeverity, ErrorInfo,
@@ -239,21 +241,141 @@ whisper_service: Optional[WhisperService] = None
 # Active streaming sessions
 streaming_sessions: Dict[str, Dict] = {}
 
+def initialize_stateful_whisper(model_name: str = "large-v3-turbo", language: str = "auto"):
+    """
+    Initialize PaddedAlignAttWhisper stateful wrapper
+
+    Args:
+        model_name: Whisper model name (default: large-v3-turbo)
+        language: Input language - use 'auto' for automatic detection
+    """
+    global stateful_whisper
+
+    with stateful_whisper_lock:
+        if stateful_whisper is not None:
+            logger.info("PaddedAlignAttWhisper already initialized")
+            return stateful_whisper
+
+        try:
+            # Get models directory - use the same directory as ModelManager
+            models_dir = os.getenv("WHISPER_MODELS_DIR")
+            if not models_dir:
+                # Use local .models directory (same as ModelManager default)
+                models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models")
+                os.makedirs(models_dir, exist_ok=True)
+
+            # SimulStreaming expects model_path to be: directory/model_name.pt
+            # where the directory is the download_root and model_name is just the name
+            # Following SimulStreaming pattern from line 41-43:
+            #   model_name = os.path.basename(cfg.model_path).replace(".pt", "")
+            #   model_path = os.path.dirname(os.path.abspath(cfg.model_path))
+            #   self.model = load_model(name=model_name, download_root=model_path)
+            model_path_full = os.path.join(models_dir, f"{model_name}.pt")
+
+            logger.info(f"[StatefulWhisper] Initializing PaddedAlignAttWhisper...")
+            logger.info(f"[StatefulWhisper] Model: {model_name}")
+            logger.info(f"[StatefulWhisper] Download root: {models_dir}")
+            logger.info(f"[StatefulWhisper] Full path: {model_path_full}")
+            logger.info(f"[StatefulWhisper] Input language: {language} (auto-detect if 'auto')")
+
+            # CRITICAL: Task initialization logic
+            # The task will be set PER-SESSION based on target_language from client:
+            # - If target_language == 'en': task='translate' (Whisper outputs English directly)
+            # - If target_language != 'en': task='transcribe' (Whisper transcribes, then Translation Service translates)
+            #
+            # Default to 'transcribe' for initialization (will be updated per-session via set_task())
+            task = "transcribe"
+            logger.info(f"[StatefulWhisper] Task: {task} (default, will be set per-session based on target_language)")
+
+            # Create AlignAttConfig
+            # Note: model_path should be full path with .pt extension
+            # SimulStreaming will extract basename and dirname from it
+            # SimulStreaming's logic: if beam_size > 1, automatically use decoder_type="beam"
+            # Reference: simulstreaming_whisper.py lines 55-59
+            beam_size = 5  # Use beam search for quality (5 beams)
+            decoder_type = "beam" if beam_size > 1 else "greedy"
+
+            cfg = AlignAttConfig(
+                model_path=model_path_full,
+                language=language,
+                task=task,
+                segment_length=1.2,  # Matches VAC chunk size
+                frame_threshold=4,    # SimulStreaming default
+                rewind_threshold=200, # SimulStreaming default
+                audio_min_len=1.0,    # Minimum audio length
+                audio_max_len=30.0,   # Maximum audio buffer
+                decoder_type=decoder_type,  # Auto-set based on beam_size
+                beam_size=beam_size,
+                logdir=None,  # No debug logging
+                cif_ckpt_path="",  # No CIF checkpoint for now
+                never_fire=False   # Allow CIF end-of-word detection
+            )
+
+            # Initialize PaddedAlignAttWhisper
+            stateful_whisper = PaddedAlignAttWhisper(cfg)
+
+            logger.info(f"✅ PaddedAlignAttWhisper initialized successfully")
+            logger.info(f"   Model: {model_name}")
+            logger.info(f"   Language: {language}")
+            logger.info(f"   Decoder: {decoder_type} (beam_size={beam_size})")
+            logger.info(f"   Segment length: {cfg.segment_length}s")
+            logger.info(f"   CIF enabled: {not cfg.never_fire}")
+
+            # Warmup the model to avoid slow first chunk processing
+            # Reference: SimulStreaming warmup() method and whisper_server.py lines 149-157
+            try:
+                import numpy as np
+                warmup_audio_path = "jfk.wav"  # 1 second of JFK audio
+                if os.path.exists(warmup_audio_path):
+                    import soundfile as sf
+                    warmup_audio, sr = sf.read(warmup_audio_path)
+                    # Take only 1 second
+                    warmup_audio = warmup_audio[:min(sr, len(warmup_audio))]
+                    # Convert to torch tensor
+                    import torch
+                    warmup_tensor = torch.from_numpy(warmup_audio.astype(np.float32))
+
+                    logger.info(f"[WARMUP] Warming up model with {len(warmup_tensor)} samples ({len(warmup_tensor)/16000:.2f}s)...")
+                    stateful_whisper.insert_audio(warmup_tensor)
+                    stateful_whisper.infer(is_last=True)
+                    stateful_whisper.refresh_segment(complete=True)
+                    logger.info(f"✅ [WARMUP] Model warmed up successfully")
+                else:
+                    logger.warning(f"[WARMUP] Warmup file '{warmup_audio_path}' not found, skipping warmup")
+            except Exception as e:
+                logger.warning(f"[WARMUP] Failed to warmup model: {e}")
+                # Non-fatal, continue without warmup
+
+            return stateful_whisper
+
+        except Exception as e:
+            logger.error(f"[StatefulWhisper] Failed to initialize: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+
 async def initialize_service():
     """Initialize the whisper service before handling requests"""
     global whisper_service
     try:
         whisper_service = await create_whisper_service()
-        
+
+        # Initialize PaddedAlignAttWhisper stateful wrapper
+        try:
+            initialize_stateful_whisper(model_name="large-v3-turbo", language="en")
+        except Exception as e:
+            logger.error(f"Failed to initialize stateful whisper wrapper: {e}")
+            logger.warning("Continuing with standard whisper service (stateful features disabled)")
+
         # Start connection manager
         connection_manager.start()
-        
+
         # Configure and start heartbeat manager
         heartbeat_manager.set_socketio_instance(socketio)
         heartbeat_manager.set_connection_lost_callback(handle_connection_lost)
         heartbeat_manager.set_connection_warning_callback(handle_connection_warning)
         heartbeat_manager.start()
-        
+
         # Start periodic cleanup for expired tokens
         def cleanup_expired_tokens():
             while True:
@@ -263,10 +385,10 @@ async def initialize_service():
                 except Exception as e:
                     logger.error(f"Token cleanup error: {e}")
                     time.sleep(60)  # Retry after 1 minute on error
-        
+
         cleanup_thread = threading.Thread(target=cleanup_expired_tokens, daemon=True)
         cleanup_thread.start()
-        
+
         logger.info("Whisper service, connection manager, heartbeat manager, and authentication system initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize whisper service: {e}")
@@ -1948,6 +2070,12 @@ active_streams_lock = threading.Lock()
 vac_processors = {}  # session_id -> VACOnlineASRProcessor
 vac_processors_lock = threading.Lock()
 
+# Global PaddedAlignAttWhisper stateful wrapper
+# Note: For now, all sessions share this instance (breaks multi-session support temporarily)
+# TODO: Create per-session instances when multi-session support is needed
+stateful_whisper = None  # PaddedAlignAttWhisper instance
+stateful_whisper_lock = threading.Lock()
+
 @socketio.on('transcribe_stream')
 def handle_transcribe_stream(data):
     """Handle real-time streaming transcription via WebSocket"""
@@ -2038,7 +2166,13 @@ def handle_transcribe_stream(data):
             sample_rate=data.get('sample_rate', 16000),
             enable_vad=config.get('enable_vad', data.get('enable_vad', True)),
             task=config.get('task') or data.get('task', 'transcribe'),
-            target_language=config.get('target_language') or data.get('target_language', 'en')
+            target_language=config.get('target_language') or data.get('target_language', 'en'),
+
+            # Domain prompting support (orchestration service can pass these)
+            initial_prompt=data.get('initial_prompt'),  # Custom prompt text
+            domain=data.get('domain'),  # Domain name: "medical", "legal", etc.
+            custom_terms=data.get('custom_terms'),  # List of custom terms
+            previous_context=data.get('previous_context')  # Rolling context
         )
 
         # DEBUG: Log the created TranscriptionRequest
@@ -2063,32 +2197,108 @@ def handle_transcribe_stream(data):
                     sampling_rate=transcription_request.sample_rate
                 )
 
-                # DO NOT load model - use whisper_service's already-loaded model
-                # This prevents heap corruption from loading duplicate models
+                # Use PaddedAlignAttWhisper stateful wrapper
                 try:
-                    # Get the already-loaded model from whisper_service
-                    model_name = transcription_request.model_name
-                    if model_name not in whisper_service.model_manager.models:
-                        # Load model if not already loaded
-                        whisper_service.model_manager.load_model(model_name)
+                    if stateful_whisper is None:
+                        logger.error("[VAC] PaddedAlignAttWhisper not initialized")
+                        error_info = create_system_error("Stateful whisper not initialized", "PaddedAlignAttWhisper instance is None")
+                        error_info.connection_id = request.sid
+                        error_info.session_id = session_id
+                        error_handler.handle_error(error_info)
+                        emit('error', error_info.to_websocket_response()['error'])
+                        return
 
-                    # Set VAC's model reference to the existing model (NO loading!)
-                    vac.model = whisper_service.model_manager.models[model_name]
-                    vac.model_manager = whisper_service.model_manager
+                    # Set VAC's model reference to PaddedAlignAttWhisper (stateful wrapper)
+                    vac.model = stateful_whisper
                     vac.SAMPLING_RATE = transcription_request.sample_rate
+
+                    # CRITICAL: Determine task based on target_language
+                    # Architecture:
+                    # - If target_language == 'en': Use Whisper task='translate' (Whisper outputs English directly)
+                    # - If target_language != 'en': Use Whisper task='transcribe' (output source lang, Translation Service handles rest)
+                    target_lang = transcription_request.target_language or 'en'
+                    if target_lang == 'en':
+                        whisper_task = 'translate'  # Whisper translates to English
+                        logger.info(f"[VAC] Target language is English → Using Whisper task='translate' (Whisper outputs English)")
+                    else:
+                        whisper_task = 'transcribe'  # Whisper transcribes, Translation Service translates
+                        logger.info(f"[VAC] Target language is {target_lang} → Using Whisper task='transcribe' (will send to Translation Service)")
+
+                    # Set task for this session
+                    stateful_whisper.set_task(
+                        task=whisper_task,
+                        language='auto'  # Always auto-detect input language
+                    )
+                    logger.info(f"[VAC] Configured session {session_id}: task={whisper_task}, input_lang=auto, target_lang={target_lang}")
+
+                    # CRITICAL: Refresh segment state for new session
+                    # This resets tokens, context, and segments for clean processing
+                    stateful_whisper.refresh_segment(complete=True)
+                    logger.info(f"[VAC] Refreshed segment state for new session {session_id}")
+
+                    # Apply domain prompts if provided (from orchestration service)
+                    if transcription_request.domain or transcription_request.custom_terms or transcription_request.initial_prompt:
+                        from domain_prompt_manager import DomainPromptManager
+
+                        domain_manager = DomainPromptManager()
+
+                        # Build static prompt (never trimmed)
+                        static_prompt_parts = []
+
+                        # Add domain terminology
+                        if transcription_request.domain:
+                            domain_terms = domain_manager.get_domain_terminology(
+                                transcription_request.domain,
+                                limit=15
+                            )
+                            if domain_terms:
+                                static_prompt_parts.append(f"{transcription_request.domain.capitalize()} terminology: " + ", ".join(domain_terms))
+                                logger.info(f"[DOMAIN] Added {len(domain_terms)} terms for domain '{transcription_request.domain}'")
+
+                        # Add custom terms
+                        if transcription_request.custom_terms:
+                            custom_terms_str = ", ".join(transcription_request.custom_terms)
+                            static_prompt_parts.append(f"Keywords: {custom_terms_str}")
+                            logger.info(f"[DOMAIN] Added {len(transcription_request.custom_terms)} custom terms")
+
+                        # Add initial prompt
+                        if transcription_request.initial_prompt:
+                            static_prompt_parts.append(transcription_request.initial_prompt)
+                            logger.info(f"[DOMAIN] Added initial prompt: '{transcription_request.initial_prompt[:50]}...'")
+
+                        # Apply to context
+                        if static_prompt_parts:
+                            static_prompt = ". ".join(static_prompt_parts) + "."
+                            stateful_whisper.cfg.static_init_prompt = static_prompt
+
+                            # Reinitialize context with new prompt
+                            stateful_whisper.init_context()
+                            logger.info(f"[DOMAIN] Applied domain prompt ({len(static_prompt)} chars): '{static_prompt[:100]}...'")
+
+                        # Apply previous context (rolling)
+                        if transcription_request.previous_context:
+                            stateful_whisper.cfg.init_prompt = transcription_request.previous_context
+                            stateful_whisper.init_context()
+                            logger.info(f"[DOMAIN] Applied previous context: '{transcription_request.previous_context[:50]}...'")
 
                     # Use whisper_service's already-initialized VAD iterator
                     if whisper_service.vad is not None and whisper_service.vad.vad_iterator is not None:
                         # SileroVAD wraps a FixedVADIterator - use it directly
                         vac.vad = whisper_service.vad.vad_iterator
-                        logger.info(f"[VAC] Reusing whisper_service's FixedVADIterator (threshold={vac.vad_threshold})")
+
+                        # CRITICAL: Reset VAD state for new session!
+                        # Without this, VAD sample counters accumulate across sessions
+                        vac.vad.reset_states()
+                        logger.info(f"[VAC] Reusing whisper_service's FixedVADIterator (threshold={vac.vad_threshold}), state reset")
                     else:
                         logger.warning("[VAC] No VAD available, will process all audio without filtering")
 
                     vac_processors[session_id] = vac
-                    logger.info(f"[VAC] Initialized processor for session {session_id} (reusing model {model_name})")
+                    logger.info(f"[VAC] Initialized processor for session {session_id} (using PaddedAlignAttWhisper)")
                 except Exception as e:
                     logger.error(f"[VAC] Failed to initialize processor: {e}")
+                    import traceback
+                    traceback.print_exc()
                     error_info = create_system_error("Failed to initialize VAC processor", str(e))
                     error_info.connection_id = request.sid
                     error_info.session_id = session_id

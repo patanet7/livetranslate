@@ -223,6 +223,17 @@ class ModelManager:
         # Target: +25-40% quality improvement on long-form content
         self.static_prompt = static_prompt or ""  # Domain terminology
         self.max_context_tokens = max_context_tokens  # Default: 223 (SimulStreaming Table 1)
+
+        # CRITICAL: Per-session rolling context isolation for multi-language support
+        # Each session gets its own context and tokenizer to prevent cross-contamination
+        # Example: Session 1 (English) and Session 2 (Chinese) have separate contexts
+        self.session_rolling_contexts: Dict[str, Any] = {}  # session_id -> TokenBuffer
+        self.session_tokenizers: Dict[str, Any] = {}  # session_id -> tokenizer
+        self.session_static_prompts: Dict[str, str] = {}  # session_id -> static prompt
+        self.session_languages: Dict[str, str] = {}  # session_id -> language
+        self.rolling_contexts_lock = threading.Lock()
+
+        # Legacy single rolling context for backwards compatibility (non-session mode)
         self.rolling_context = None  # TokenBuffer, initialized by init_context()
         self._init_prompt = init_prompt  # Store for init_context()
 
