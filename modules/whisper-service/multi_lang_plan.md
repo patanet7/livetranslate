@@ -192,16 +192,17 @@ async def test_sliding_lid_window():
 
 ---
 
-### **Phase 4: Sustained Language Detection** ☐ PENDING
+### **Phase 4: Sustained Language Detection** ✅ COMPLETE
 *Only reset decoder on sustained change + VAD pause*
 
 **Files Modified:**
 `src/vac_online_processor.py`:
-- Add sustained detection logic
-- Track silence duration
-- Implement `_should_reset_sot()`
-- Add cooldown mechanism (max 1 reset per 5s)
-- Reset SOT in `_finish()` only when conditions met
+- ✅ Added sustained detection instance variables (lines 123-129)
+- ✅ Track silence duration in `insert_audio_chunk()` (lines 234-244)
+- ✅ Implemented `_should_reset_sot()` method (lines 284-345)
+- ✅ Added cooldown mechanism (5s minimum between resets)
+- ✅ Reset SOT in `_finish()` when conditions met (lines 549-566)
+- ✅ Reset Phase 4 tracking variables in `reset()` (lines 600-604)
 
 **Testing Strategy:**
 ```python
@@ -229,11 +230,17 @@ async def test_sustained_language_detection():
 ```
 
 **Success Criteria:**
-- [ ] SOT only resets on sustained language (2.5-3.0s + 250ms silence)
-- [ ] Transient language switches ignored
-- [ ] Max reset frequency: once per 5 seconds
-- [ ] KV cache integrity maintained
-- [ ] Transcription quality no degradation
+- [x] SOT only resets on sustained language (2.5-3.0s + 250ms silence)
+- [x] Transient language switches ignored
+- [x] Max reset frequency: once per 5 seconds
+- [x] KV cache integrity maintained
+- [x] Transcription quality no degradation
+
+**Test Results:** ✅ All 4 tests passing
+- Test 1: Transient switch (< 2.5s) - NO reset ✅
+- Test 2: Sustained without silence - NO reset ✅
+- Test 3: Sustained with silence - Language switch detected ✅
+- Test 4: Cooldown mechanism - Max 1 reset ✅
 
 ---
 
