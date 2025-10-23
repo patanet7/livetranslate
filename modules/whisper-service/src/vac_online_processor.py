@@ -18,6 +18,7 @@ This is how SimulStreaming achieves computational efficiency!
 import numpy as np
 import torch
 import logging
+import time
 from typing import Optional, Dict, Any
 from silero_vad_iterator import FixedVADIterator
 from sentence_segmenter import SentenceSegmenter
@@ -118,6 +119,15 @@ class VACOnlineASRProcessor:
         # Phase 3: Sliding LID detector for language tracking
         from sliding_lid_detector import SlidingLIDDetector
         self.lid_detector = SlidingLIDDetector(window_size=sliding_lid_window)
+
+        # Phase 4: Sustained language detection for SOT reset
+        self.current_sustained_language: Optional[str] = None  # Track sustained language
+        self.language_start_time: float = 0.0  # When current language was first detected
+        self.last_sot_reset_time: float = 0.0  # For cooldown mechanism (5s)
+        self.silence_start_time: Optional[float] = None  # Track silence duration
+        self.sustained_language_threshold: float = 2.5  # Minimum duration for sustained detection (2.5-3.0s)
+        self.sot_reset_cooldown: float = 5.0  # Minimum time between SOT resets
+        self.min_silence_for_reset: float = 0.25  # Minimum 250ms silence required for reset
 
         # Audio buffers (using torch tensors throughout for SimulStreaming compatibility)
         self.audio_buffer = torch.tensor([], dtype=torch.float32)
@@ -221,13 +231,17 @@ class VACOnlineASRProcessor:
             if 'start' in vad_result:
                 # Speech start detected
                 self.status = 'voice'
+                # Phase 4: Reset silence timer on speech start
+                self.silence_start_time = None
                 logger.debug(f"VAD: Speech START detected (sample {vad_result['start']})")
 
             elif 'end' in vad_result:
                 # Speech end detected
                 self.status = 'nonvoice'
                 self.is_currently_final = True
-                logger.debug(f"VAD: Speech END detected (sample {vad_result['end']})")
+                # Phase 4: Start tracking silence duration
+                self.silence_start_time = time.time()
+                logger.debug(f"VAD: Speech END detected (sample {vad_result['end']}), silence timer started")
 
         else:
             # No VAD event - maintain current status
@@ -266,6 +280,69 @@ class VACOnlineASRProcessor:
         self.current_online_chunk_buffer_size += len(audio)
 
         logger.info(f"[ACCUMULATED] Total chunks: {len(self.audio_chunks)}, Total samples: {self.current_online_chunk_buffer_size} ({self.current_online_chunk_buffer_size/16000:.2f}s)")
+
+    def _should_reset_sot(self, detected_language: Optional[str]) -> bool:
+        """
+        Phase 4: Determine if SOT (Start of Transcript) should be reset
+
+        Conditions for SOT reset:
+        1. Language sustained for >= 2.5s (sustained_language_threshold)
+        2. VAD silence >= 250ms (min_silence_for_reset)
+        3. Cooldown allows (>= 5s since last reset)
+        4. Language actually changed from previous sustained language
+
+        Args:
+            detected_language: Current detected language from Whisper
+
+        Returns:
+            True if SOT should be reset, False otherwise
+        """
+        if not detected_language:
+            return False
+
+        current_time = time.time()
+
+        # Check 1: Is this a new language or continuation of current?
+        if detected_language != self.current_sustained_language:
+            # New language detected - start tracking
+            logger.info(f"[SUSTAINED_LID] Language change detected: "
+                       f"{self.current_sustained_language or 'None'} → {detected_language}")
+            self.current_sustained_language = detected_language
+            self.language_start_time = current_time
+            return False  # Not sustained yet (just started)
+
+        # Check 2: Has language been sustained long enough?
+        language_duration = current_time - self.language_start_time
+        if language_duration < self.sustained_language_threshold:
+            logger.debug(f"[SUSTAINED_LID] Language '{detected_language}' duration: "
+                        f"{language_duration:.2f}s < {self.sustained_language_threshold}s (not sustained yet)")
+            return False
+
+        # Check 3: Is there sufficient VAD silence?
+        if self.silence_start_time is None:
+            logger.debug(f"[SUSTAINED_LID] No VAD silence detected (silence_start_time=None)")
+            return False
+
+        silence_duration = current_time - self.silence_start_time
+        if silence_duration < self.min_silence_for_reset:
+            logger.debug(f"[SUSTAINED_LID] Silence duration: "
+                        f"{silence_duration:.2f}s < {self.min_silence_for_reset}s (insufficient)")
+            return False
+
+        # Check 4: Cooldown check - prevent too frequent resets
+        time_since_last_reset = current_time - self.last_sot_reset_time
+        if time_since_last_reset < self.sot_reset_cooldown:
+            logger.info(f"[SUSTAINED_LID] SOT reset blocked by cooldown: "
+                       f"{time_since_last_reset:.2f}s < {self.sot_reset_cooldown}s")
+            return False
+
+        # All conditions met!
+        logger.info(f"[SUSTAINED_LID] ✅ SOT reset conditions MET:")
+        logger.info(f"  - Language '{detected_language}' sustained for {language_duration:.2f}s (>= {self.sustained_language_threshold}s)")
+        logger.info(f"  - Silence duration: {silence_duration:.2f}s (>= {self.min_silence_for_reset}s)")
+        logger.info(f"  - Time since last reset: {time_since_last_reset:.2f}s (>= {self.sot_reset_cooldown}s)")
+
+        return True
 
     def process_iter(self) -> Dict[str, Any]:
         """
@@ -469,6 +546,25 @@ class VACOnlineASRProcessor:
             # Get current language from sliding window
             current_language = self.lid_detector.get_current_language()
 
+            # Phase 4: Check if SOT should be reset for next utterance
+            if self._should_reset_sot(detected_language):
+                logger.info(f"[SUSTAINED_LID] 🔄 Resetting SOT for language '{detected_language}'")
+
+                # Reset the model's decoder state (KV cache, accumulated tokens, etc.)
+                if hasattr(self.model, 'reset'):
+                    self.model.reset()
+                    logger.info(f"[SUSTAINED_LID] ✅ Model state reset complete")
+                else:
+                    logger.warning(f"[SUSTAINED_LID] ⚠️  Model has no reset() method, creating new instance")
+                    # Alternative: reinitialize the model (more expensive)
+                    if self.model_manager:
+                        model_name = getattr(self.model, 'model_name', 'base')
+                        self.model = self.model_manager.load_model(model_name)
+
+                # Update cooldown timer
+                self.last_sot_reset_time = time.time()
+                logger.info(f"[SUSTAINED_LID] Cooldown timer updated: {self.last_sot_reset_time}")
+
             # Reset VAC state
             self.is_currently_final = False
 
@@ -500,6 +596,12 @@ class VACOnlineASRProcessor:
         self.status = 'nonvoice'
         self.is_currently_final = False
         self.current_online_chunk_buffer_size = 0
+
+        # Phase 4: Reset sustained language detection state
+        self.current_sustained_language = None
+        self.language_start_time = 0.0
+        self.silence_start_time = None
+        # Note: We don't reset last_sot_reset_time to maintain cooldown across sessions
 
         if self.vad:
             self.vad.reset_states()
