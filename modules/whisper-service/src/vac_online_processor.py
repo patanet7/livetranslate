@@ -22,6 +22,7 @@ import time
 from typing import Optional, Dict, Any
 from silero_vad_iterator import FixedVADIterator
 from sentence_segmenter import SentenceSegmenter
+from text_language_detector import TextLanguageDetector
 
 logger = logging.getLogger(__name__)
 
@@ -513,8 +514,9 @@ class VACOnlineASRProcessor:
                 )
                 logger.info(f"[LID] Detected language: {detected_language} at {audio_position:.2f}s")
 
-            # Get current language from sliding window
+            # Get current language from sliding window (for SOT reset only)
             current_language = self.lid_detector.get_current_language()
+            logger.info(f"[LID] Per-chunk: {detected_language}, Window average: {current_language}")
 
             # Hybrid Tracking: Extract attention tracking from generation_progress
             most_attended_frame = 0
@@ -555,7 +557,7 @@ class VACOnlineASRProcessor:
                 'tokens': tokens,
                 'generation_progress': generation_progress,
                 'is_final': is_final,  # ⚠️ SENTENCE complete, NOT session complete!
-                'detected_language': current_language,  # Phase 3: From sliding window
+                'detected_language': detected_language,  # Phase 3: Per-chunk from Whisper (for code-switching)
 
                 # Hybrid Tracking: SimulStreaming attention tracking (internal precision)
                 'attention_tracking': {
@@ -655,8 +657,9 @@ class VACOnlineASRProcessor:
                 )
                 logger.info(f"[LID] Detected language: {detected_language} at {audio_position:.2f}s")
 
-            # Get current language from sliding window
+            # Get current language from sliding window (for SOT reset only)
             current_language = self.lid_detector.get_current_language()
+            logger.info(f"[LID] FINAL - Per-chunk: {detected_language}, Window average: {current_language}")
 
             # Phase 4: Check if SOT should be reset for next utterance
             if self._should_reset_sot(detected_language):
@@ -730,7 +733,7 @@ class VACOnlineASRProcessor:
                 'tokens': tokens,
                 'generation_progress': generation_progress,
                 'is_final': True,  # ⚠️ Always True for _finish() (VAD detected speech end)
-                'detected_language': current_language,  # Phase 3: From sliding window
+                'detected_language': detected_language,  # Phase 3: Per-chunk from Whisper (for code-switching)
 
                 # Hybrid Tracking: SimulStreaming attention tracking (internal precision)
                 'attention_tracking': {
