@@ -150,6 +150,14 @@ class VACOnlineASRProcessor:
         self.status = 'nonvoice'  # 'voice' or 'nonvoice'
         self.is_currently_final = False
 
+        # Hybrid Tracking: Combine SimulStreaming attention + vexa timestamps
+        self.audio_start_time = 0.0  # Session start (seconds from session beginning)
+        self.audio_end_time = 0.0    # Latest chunk end (seconds)
+        self.frames_to_time_offset = 0.0  # Mapping between frames and absolute time
+        self.total_chunks_received = 0  # Total chunks received
+        self.all_chunks_received = False  # Client signaled end of stream
+        self.TOKENS_PER_SECOND = 50  # Whisper mel-spectrogram tokens per second
+
         # Statistics
         self.vad_checks = 0
         self.whisper_calls = 0
@@ -203,7 +211,7 @@ class VACOnlineASRProcessor:
 
         logger.info("✅ VACOnlineASRProcessor ready for streaming")
 
-    def insert_audio_chunk(self, audio_chunk: np.ndarray):
+    def insert_audio_chunk(self, audio_chunk: np.ndarray, chunk_metadata: Optional[Dict[str, Any]] = None):
         """
         Insert audio chunk and run VAD detection
 
@@ -219,11 +227,38 @@ class VACOnlineASRProcessor:
 
         Args:
             audio_chunk: Audio data (numpy array, float32)
+            chunk_metadata: Hybrid tracking metadata (timestamps, indices, etc.)
         """
         # Convert to torch tensor immediately at entry point
         audio_tensor = to_torch_tensor(audio_chunk)
 
         self.total_audio_processed += len(audio_chunk)
+
+        # Hybrid Tracking: Update timestamp tracking from chunk metadata
+        if chunk_metadata:
+            chunk_start_time = chunk_metadata.get('audio_start_time', self.audio_end_time)
+            chunk_end_time = chunk_metadata.get('audio_end_time', chunk_start_time + len(audio_chunk)/self.SAMPLING_RATE)
+
+            # Update audio timeline
+            if self.total_chunks_received == 0:
+                self.audio_start_time = chunk_start_time
+            self.audio_end_time = max(self.audio_end_time, chunk_end_time)
+            self.total_chunks_received += 1
+
+            # Check if this is the last chunk
+            if chunk_metadata.get('is_last_chunk', False):
+                self.all_chunks_received = True
+                logger.info(f"[HYBRID] Received LAST chunk (total: {self.total_chunks_received})")
+
+            logger.debug(
+                f"[HYBRID] Chunk {self.total_chunks_received}: "
+                f"{chunk_start_time:.2f}s - {chunk_end_time:.2f}s"
+            )
+        else:
+            # Fallback: estimate timestamps from sample count
+            chunk_duration = len(audio_chunk) / self.SAMPLING_RATE
+            self.audio_end_time += chunk_duration
+            self.total_chunks_received += 1
 
         # Run VAD detection (VAD needs numpy)
         if isinstance(audio_chunk, torch.Tensor):
@@ -481,12 +516,58 @@ class VACOnlineASRProcessor:
             # Get current language from sliding window
             current_language = self.lid_detector.get_current_language()
 
+            # Hybrid Tracking: Extract attention tracking from generation_progress
+            most_attended_frame = 0
+            content_mel_len = 0
+            is_caught_up = False
+
+            if generation_progress and isinstance(generation_progress, dict):
+                # SimulStreaming stores attention info in generation metadata
+                most_attended_frame = generation_progress.get('most_attended_frame', 0)
+                content_mel_len = generation_progress.get('frames_len', 0)
+                frame_threshold = generation_progress.get('frames_threshold', 4)
+
+                # Check if decoder caught up to available audio
+                is_caught_up = (content_mel_len - most_attended_frame) <= frame_threshold
+
+            # Hybrid Tracking: Convert frames to absolute time
+            processed_through_time = self.frames_to_time_offset + (most_attended_frame / self.TOKENS_PER_SECOND)
+
+            # Hybrid Tracking: Check if session is complete
+            is_session_complete = is_caught_up and self.all_chunks_received
+
+            logger.info(
+                f"[HYBRID] Attention: frame {most_attended_frame}/{content_mel_len}, "
+                f"caught_up={is_caught_up}, processed={processed_through_time:.2f}s, "
+                f"received={self.audio_end_time:.2f}s, session_complete={is_session_complete}"
+            )
+
             return {
                 'text': text,
                 'tokens': tokens,
                 'generation_progress': generation_progress,
-                'is_final': is_final,  # True if sentence ends with terminal punctuation
-                'detected_language': current_language  # Phase 3: From sliding window
+                'is_final': is_final,  # ⚠️ SENTENCE complete, NOT session complete!
+                'detected_language': current_language,  # Phase 3: From sliding window
+
+                # Hybrid Tracking: SimulStreaming attention tracking (internal precision)
+                'attention_tracking': {
+                    'most_attended_frame': most_attended_frame,
+                    'content_mel_len': content_mel_len,
+                    'is_caught_up': is_caught_up,
+                },
+
+                # Hybrid Tracking: vexa timestamp tracking (external correlation)
+                'timestamp_tracking': {
+                    'processed_through_time': processed_through_time,
+                    'audio_received_through': self.audio_end_time,
+                    'is_session_complete': is_session_complete,
+                    'lag_seconds': self.audio_end_time - processed_through_time,
+                },
+
+                # vexa-style segment metadata (for deduplication)
+                'absolute_start_time': processed_through_time - (len(tokens) * 0.02),  # Rough estimate
+                'absolute_end_time': processed_through_time,
+                'updated_at': time.time(),
             }
 
         except Exception as e:
@@ -604,12 +685,55 @@ class VACOnlineASRProcessor:
             # Reset VAC state
             self.is_currently_final = False
 
+            # Hybrid Tracking: Extract attention tracking from generation_progress
+            most_attended_frame = 0
+            content_mel_len = 0
+            is_caught_up = False
+
+            if generation_progress and isinstance(generation_progress, dict):
+                most_attended_frame = generation_progress.get('most_attended_frame', 0)
+                content_mel_len = generation_progress.get('frames_len', 0)
+                frame_threshold = generation_progress.get('frames_threshold', 4)
+                is_caught_up = (content_mel_len - most_attended_frame) <= frame_threshold
+
+            # Hybrid Tracking: Convert frames to absolute time
+            processed_through_time = self.frames_to_time_offset + (most_attended_frame / self.TOKENS_PER_SECOND)
+
+            # Hybrid Tracking: Check if session is complete (final chunk + caught up)
+            is_session_complete = is_caught_up and self.all_chunks_received
+
+            logger.info(
+                f"[HYBRID] FINAL chunk - Attention: frame {most_attended_frame}/{content_mel_len}, "
+                f"caught_up={is_caught_up}, processed={processed_through_time:.2f}s, "
+                f"received={self.audio_end_time:.2f}s, session_complete={is_session_complete}"
+            )
+
             return {
                 'text': text,
                 'tokens': tokens,
                 'generation_progress': generation_progress,
-                'is_final': True,  # Always final when VAD detects speech end
-                'detected_language': current_language  # Phase 3: From sliding window
+                'is_final': True,  # ⚠️ Always True for _finish() (VAD detected speech end)
+                'detected_language': current_language,  # Phase 3: From sliding window
+
+                # Hybrid Tracking: SimulStreaming attention tracking (internal precision)
+                'attention_tracking': {
+                    'most_attended_frame': most_attended_frame,
+                    'content_mel_len': content_mel_len,
+                    'is_caught_up': is_caught_up,
+                },
+
+                # Hybrid Tracking: vexa timestamp tracking (external correlation)
+                'timestamp_tracking': {
+                    'processed_through_time': processed_through_time,
+                    'audio_received_through': self.audio_end_time,
+                    'is_session_complete': is_session_complete,
+                    'lag_seconds': self.audio_end_time - processed_through_time,
+                },
+
+                # vexa-style segment metadata (for deduplication)
+                'absolute_start_time': processed_through_time - (len(tokens) * 0.02),  # Rough estimate
+                'absolute_end_time': processed_through_time,
+                'updated_at': time.time(),
             }
 
         except Exception as e:
@@ -644,6 +768,13 @@ class VACOnlineASRProcessor:
 
         # Phase 5: Reset UTF-8 boundary fixer (new session = no boundary context)
         self.utf8_fixer.reset()
+
+        # Hybrid Tracking: Reset timestamp tracking for new session
+        self.audio_start_time = 0.0
+        self.audio_end_time = 0.0
+        self.frames_to_time_offset = 0.0
+        self.total_chunks_received = 0
+        self.all_chunks_received = False
 
         if self.vad:
             self.vad.reset_states()
