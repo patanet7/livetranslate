@@ -207,9 +207,12 @@ def resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarra
 
 
 def create_mixed_stream(jfk_audio: np.ndarray, chinese_audio: np.ndarray,
-                       chunk_size_samples: int = 16000) -> List[Tuple[np.ndarray, str]]:
+                       chunk_size_samples: int = 640) -> List[Tuple[np.ndarray, str]]:
     """
     Create mixed audio stream with realistic code-switching pattern
+
+    Default chunk size: 640 samples = 0.04s @ 16kHz (matches SimulStreaming)
+    This allows VAD to detect speech boundaries precisely for code-switching.
 
     Pattern: 2 JFK → Chinese → JFK → 3 Chinese
 
@@ -293,8 +296,9 @@ def test_orchestration_code_switching():
     jfk_audio = resample_audio(jfk_audio, jfk_sr, 16000)
     chinese_audio = resample_audio(chinese_audio, chinese_sr, 16000)
 
-    # Create mixed stream
-    stream = create_mixed_stream(jfk_audio, chinese_audio, chunk_size_samples=16000)
+    # Create mixed stream with 0.04s chunks (640 samples @ 16kHz, matches SimulStreaming)
+    # This allows VAD to detect speech boundaries more precisely for code-switching
+    stream = create_mixed_stream(jfk_audio, chinese_audio, chunk_size_samples=640)
 
     # Initialize trackers
     tracker = ChunkTracker()
@@ -403,7 +407,7 @@ def test_orchestration_code_switching():
             print(f"  Chunk {i+1}/{len(stream)}: {expected_lang} ({chunk_metadata['audio_start_time']:.2f}s - {chunk_metadata['audio_end_time']:.2f}s)")
 
             sio.emit('transcribe_stream', request_data)
-            time.sleep(0.2)  # 200ms between chunks (realistic streaming)
+            time.sleep(0.01)  # 10ms between chunks (near-realtime streaming, matches 0.04s chunks)
 
         print(f"\n  All {len(stream)} chunks sent (total: {tracker.total_audio_sent:.2f}s)")
         print(f"  ⚠️  IMPORTANT: is_final=True means 'sentence complete', NOT 'session done'!")
