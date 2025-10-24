@@ -96,7 +96,7 @@ class VACOnlineASRProcessor:
         online_chunk_size: float = 1.2,
         vad_threshold: float = 0.5,
         vad_min_speech_ms: int = 120,  # Phase 2: Configurable min speech duration
-        vad_min_silence_ms: int = 250,  # Phase 2: Configurable min silence duration
+        vad_min_silence_ms: int = 500,  # Phase 2: Min silence (500ms matches SimulStreaming default)
         sliding_lid_window: float = 0.9,  # Phase 3: Sliding LID window size
         min_buffered_length: float = 1.0,
         sampling_rate: int = 16000
@@ -413,15 +413,20 @@ class VACOnlineASRProcessor:
                 self.audio_buffer = torch.tensor([], dtype=torch.float32)
             return self._finish()
 
-        elif len(self.audio_buffer) > self.SAMPLING_RATE * self.online_chunk_size:
-            # Buffer full - move buffer to audio_chunks, then process chunk
+        elif self.current_online_chunk_buffer_size > self.SAMPLING_RATE * self.online_chunk_size:
+            # Accumulated 1.2s+ audio in processor - run inference (matches SimulStreaming line 99)
+            # CRITICAL FIX: Check current_online_chunk_buffer_size, not len(audio_buffer)!
+            # This triggers processing every 1.2s REGARDLESS of VAD state (critical for code-switching!)
             logger.info(
-                f"Processing chunk (buffer full: "
-                f"{len(self.audio_buffer) / self.SAMPLING_RATE:.2f}s >= "
-                f"{self.online_chunk_size}s)"
+                f"Processing chunk (accumulated {self.current_online_chunk_buffer_size / self.SAMPLING_RATE:.2f}s > "
+                f"{self.online_chunk_size}s in audio_chunks)"
             )
-            self._send_audio_to_online_processor(self.audio_buffer)
-            self.audio_buffer = torch.tensor([], dtype=torch.float32)
+            # Note: audio_buffer should already be empty (sent by VAD in add_chunk)
+            # If not empty, send it now before processing
+            if len(self.audio_buffer) > 0:
+                logger.info(f"Flushing remaining audio_buffer: {len(self.audio_buffer)} samples")
+                self._send_audio_to_online_processor(self.audio_buffer)
+                self.audio_buffer = torch.tensor([], dtype=torch.float32)
             return self._process_online_chunk()
 
         else:
