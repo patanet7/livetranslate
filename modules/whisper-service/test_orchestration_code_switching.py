@@ -210,12 +210,12 @@ def resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarra
 
 
 def create_mixed_stream(jfk_audio: np.ndarray, chinese_audio: np.ndarray,
-                       chunk_size_samples: int = 4000) -> List[Tuple[np.ndarray, str]]:
+                       chunk_size_samples: int = 640) -> List[Tuple[np.ndarray, str]]:
     """
     Create mixed audio stream with realistic code-switching pattern
 
-    Default chunk size: 4000 samples = 0.25s @ 16kHz
-    Balance between processing efficiency and code-switching responsiveness.
+    Default chunk size: 640 samples = 0.04s @ 16kHz (matches SimulStreaming)
+    Tiny chunks for fine-grained VAD, server processes every 1.2s internally.
 
     Pattern: Realistic code-switching blocks throughout full audio
 
@@ -234,36 +234,36 @@ def create_mixed_stream(jfk_audio: np.ndarray, chinese_audio: np.ndarray,
 
     # Pattern: Realistic code-switching throughout FULL audio duration
     # Blocks of ~2s EN, ~1s ZH, ~2s EN, ~3s ZH, then remaining audio
-    # With 0.25s chunks: 4 chunks per second
+    # With 0.04s chunks: 25 chunks per second
     jfk_idx = 0
     chinese_idx = 0
 
-    # Block 1: 2 seconds JFK (8 chunks @ 0.25s)
-    for _ in range(min(8, jfk_chunks_available - jfk_idx)):
+    # Block 1: 2 seconds JFK (50 chunks @ 0.04s)
+    for _ in range(min(50, jfk_chunks_available - jfk_idx)):
         start = jfk_idx * chunk_size_samples
         end = start + chunk_size_samples
         chunk = jfk_audio[start:end]
         stream.append((chunk, 'en'))
         jfk_idx += 1
 
-    # Block 2: 1 second Chinese (4 chunks)
-    for _ in range(min(4, chinese_chunks_available - chinese_idx)):
+    # Block 2: 1 second Chinese (25 chunks)
+    for _ in range(min(25, chinese_chunks_available - chinese_idx)):
         start = chinese_idx * chunk_size_samples
         end = start + chunk_size_samples
         chunk = chinese_audio[start:end]
         stream.append((chunk, 'zh'))
         chinese_idx += 1
 
-    # Block 3: 2 seconds JFK (8 chunks)
-    for _ in range(min(8, jfk_chunks_available - jfk_idx)):
+    # Block 3: 2 seconds JFK (50 chunks)
+    for _ in range(min(50, jfk_chunks_available - jfk_idx)):
         start = jfk_idx * chunk_size_samples
         end = start + chunk_size_samples
         chunk = jfk_audio[start:end]
         stream.append((chunk, 'en'))
         jfk_idx += 1
 
-    # Block 4: 3 seconds Chinese (12 chunks)
-    for _ in range(min(12, chinese_chunks_available - chinese_idx)):
+    # Block 4: 3 seconds Chinese (75 chunks)
+    for _ in range(min(75, chinese_chunks_available - chinese_idx)):
         start = chinese_idx * chunk_size_samples
         end = start + chunk_size_samples
         chunk = chinese_audio[start:end]
@@ -287,12 +287,12 @@ def create_mixed_stream(jfk_audio: np.ndarray, chinese_audio: np.ndarray,
         chinese_idx += 1
 
     print(f"\n📊 Stream Pattern Created: {len(stream)} total chunks ({len(stream)*chunk_size_samples/16000:.1f}s total)")
-    print(f"  Block 1: 8 EN chunks (2.0s)")
-    print(f"  Block 2: 4 ZH chunks (1.0s)")
-    print(f"  Block 3: 8 EN chunks (2.0s)")
-    print(f"  Block 4: 12 ZH chunks (3.0s)")
-    print(f"  Block 5: {jfk_idx - 24} EN chunks ({(jfk_idx-24)*chunk_size_samples/16000:.1f}s)")
-    print(f"  Block 6: {chinese_idx - 16} ZH chunks ({(chinese_idx-16)*chunk_size_samples/16000:.1f}s)")
+    print(f"  Block 1: 50 EN chunks (2.0s)")
+    print(f"  Block 2: 25 ZH chunks (1.0s)")
+    print(f"  Block 3: 50 EN chunks (2.0s)")
+    print(f"  Block 4: 75 ZH chunks (3.0s)")
+    print(f"  Block 5: {jfk_idx - 100} EN chunks ({(jfk_idx-100)*chunk_size_samples/16000:.1f}s)")
+    print(f"  Block 6: {chinese_idx - 100} ZH chunks ({(chinese_idx-100)*chunk_size_samples/16000:.1f}s)")
 
     return stream
 
@@ -313,7 +313,7 @@ def test_orchestration_code_switching():
 
     # Create mixed stream with 0.25s chunks (4000 samples @ 16kHz)
     # Balance between processing efficiency and code-switching responsiveness
-    stream = create_mixed_stream(jfk_audio, chinese_audio, chunk_size_samples=4000)
+    stream = create_mixed_stream(jfk_audio, chinese_audio, chunk_size_samples=640)
 
     # Initialize trackers
     tracker = ChunkTracker()
