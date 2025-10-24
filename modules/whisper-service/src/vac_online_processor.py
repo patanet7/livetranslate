@@ -289,7 +289,15 @@ class VACOnlineASRProcessor:
 
         else:
             # No VAD event - maintain current status
-            if self.status != 'voice':
+            if self.status == 'voice':
+                # During active speech: send audio to processor for accumulation
+                # This ensures the 1.2s timer counts ALL audio time (not just from speech end)
+                # CRITICAL: SimulStreaming processes every 1.2s of AUDIO, not 1.2s of silence-triggered chunks!
+                if len(self.audio_buffer) > 0:
+                    self._send_audio_to_online_processor(self.audio_buffer)
+                    self.audio_buffer = torch.tensor([], dtype=torch.float32)
+                    logger.debug(f"VAD: Speech continues - audio sent to processor (current_buffer_size: {self.current_online_chunk_buffer_size} samples)")
+            else:
                 # During silence: just buffer (NO processing!)
                 # Limit buffer to prevent OOM (keep only 1 second)
                 max_silence_buffer = self.SAMPLING_RATE * 1.0
