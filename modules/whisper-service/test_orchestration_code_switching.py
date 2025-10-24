@@ -88,8 +88,11 @@ class PerformanceMetrics:
 
         print(f"\n📝 Result Statistics:")
         print(f"  Total results received: {self.total_results_received}")
-        print(f"  English results: {self.english_results} ({self.english_results/self.total_results_received*100:.1f}%)")
-        print(f"  Chinese results: {self.chinese_results} ({self.chinese_results/self.total_results_received*100:.1f}%)")
+        if self.total_results_received > 0:
+            print(f"  English results: {self.english_results} ({self.english_results/self.total_results_received*100:.1f}%)")
+            print(f"  Chinese results: {self.chinese_results} ({self.chinese_results/self.total_results_received*100:.1f}%)")
+        else:
+            print(f"  ⚠️  No results received!")
 
         print(f"\n🌍 Language Switching:")
         print(f"  Total switches: {len(self.language_switches)}")
@@ -229,55 +232,66 @@ def create_mixed_stream(jfk_audio: np.ndarray, chinese_audio: np.ndarray,
     print(f"  JFK chunks available: {jfk_chunks_available} ({jfk_chunks_available * chunk_size_samples / 16000:.1f}s)")
     print(f"  Chinese chunks available: {chinese_chunks_available} ({chinese_chunks_available * chunk_size_samples / 16000:.1f}s)")
 
-    # Pattern: 2 JFK → Chinese → JFK → 3 Chinese
+    # Pattern: Realistic code-switching throughout FULL audio duration
+    # Blocks of ~2s EN, ~1s ZH, ~2s EN, ~3s ZH, then remaining audio
     jfk_idx = 0
     chinese_idx = 0
 
-    # 2 JFK chunks
-    for _ in range(2):
-        if jfk_idx < jfk_chunks_available:
-            start = jfk_idx * chunk_size_samples
-            end = start + chunk_size_samples
-            chunk = jfk_audio[start:end]
-            stream.append((chunk, 'en'))
-            jfk_idx += 1
+    # Block 1: 2 seconds JFK (50 chunks @ 0.04s)
+    for _ in range(min(50, jfk_chunks_available - jfk_idx)):
+        start = jfk_idx * chunk_size_samples
+        end = start + chunk_size_samples
+        chunk = jfk_audio[start:end]
+        stream.append((chunk, 'en'))
+        jfk_idx += 1
 
-    # 1 Chinese chunk
-    if chinese_idx < chinese_chunks_available:
+    # Block 2: 1 second Chinese (25 chunks)
+    for _ in range(min(25, chinese_chunks_available - chinese_idx)):
         start = chinese_idx * chunk_size_samples
         end = start + chunk_size_samples
         chunk = chinese_audio[start:end]
         stream.append((chunk, 'zh'))
         chinese_idx += 1
 
-    # 1 JFK chunk
-    if jfk_idx < jfk_chunks_available:
+    # Block 3: 2 seconds JFK (50 chunks)
+    for _ in range(min(50, jfk_chunks_available - jfk_idx)):
         start = jfk_idx * chunk_size_samples
         end = start + chunk_size_samples
         chunk = jfk_audio[start:end]
         stream.append((chunk, 'en'))
         jfk_idx += 1
 
-    # 3 Chinese chunks
-    for _ in range(3):
-        if chinese_idx < chinese_chunks_available:
-            start = chinese_idx * chunk_size_samples
-            end = start + chunk_size_samples
-            chunk = chinese_audio[start:end]
-            stream.append((chunk, 'zh'))
-            chinese_idx += 1
+    # Block 4: 3 seconds Chinese (75 chunks)
+    for _ in range(min(75, chinese_chunks_available - chinese_idx)):
+        start = chinese_idx * chunk_size_samples
+        end = start + chunk_size_samples
+        chunk = chinese_audio[start:end]
+        stream.append((chunk, 'zh'))
+        chinese_idx += 1
 
-    # Add remaining JFK to reach 11 chunks total (like original test)
-    while jfk_idx < jfk_chunks_available and len(stream) < 11:
+    # Block 5: Remaining JFK (all remaining)
+    while jfk_idx < jfk_chunks_available:
         start = jfk_idx * chunk_size_samples
         end = start + chunk_size_samples
         chunk = jfk_audio[start:end]
         stream.append((chunk, 'en'))
         jfk_idx += 1
 
-    print(f"\n📊 Stream Pattern Created:")
-    for i, (chunk, lang) in enumerate(stream):
-        print(f"  Chunk {i+1}: {lang} ({len(chunk)} samples, {len(chunk)/16000:.2f}s)")
+    # Block 6: Remaining Chinese (all remaining)
+    while chinese_idx < chinese_chunks_available:
+        start = chinese_idx * chunk_size_samples
+        end = start + chunk_size_samples
+        chunk = chinese_audio[start:end]
+        stream.append((chunk, 'zh'))
+        chinese_idx += 1
+
+    print(f"\n📊 Stream Pattern Created: {len(stream)} total chunks ({len(stream)*chunk_size_samples/16000:.1f}s total)")
+    print(f"  Block 1: 50 EN chunks (2.0s)")
+    print(f"  Block 2: 25 ZH chunks (1.0s)")
+    print(f"  Block 3: 50 EN chunks (2.0s)")
+    print(f"  Block 4: 75 ZH chunks (3.0s)")
+    print(f"  Block 5: {jfk_idx - 150} EN chunks ({(jfk_idx-150)*chunk_size_samples/16000:.1f}s)")
+    print(f"  Block 6: {chinese_idx - 100} ZH chunks ({(chinese_idx-100)*chunk_size_samples/16000:.1f}s)")
 
     return stream
 
