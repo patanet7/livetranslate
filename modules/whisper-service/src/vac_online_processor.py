@@ -150,6 +150,7 @@ class VACOnlineASRProcessor:
         # State tracking
         self.status = 'nonvoice'  # 'voice' or 'nonvoice'
         self.is_currently_final = False
+        self.buffer_offset = 0  # Tracks cumulative position in audio stream (in samples)
 
         # Hybrid Tracking: Combine SimulStreaming attention + vexa timestamps
         self.audio_start_time = 0.0  # Session start (seconds from session beginning)
@@ -270,44 +271,107 @@ class VACOnlineASRProcessor:
         # Append to audio buffer (torch operations)
         self.audio_buffer = torch.cat([self.audio_buffer, audio_tensor])
 
-        # Handle VAD events - ONLY update status, NO processing!
+        # Handle VAD events - Match SimulStreaming's pattern!
+        # Reference: SimulStreaming/whisper_streaming/vac_online_processor.py lines 48-94
         if vad_result is not None:
-            if 'start' in vad_result:
-                # Speech start detected
+            # Extract frame position and make relative to current buffer
+            frame = list(vad_result.values())[0] - self.buffer_offset
+            frame = max(0, int(frame))
+
+            if 'start' in vad_result and 'end' not in vad_result:
+                # Speech START - send accumulated buffer from start point onwards
+                # This is THE FIX for the 15.75s accumulation bug!
                 self.status = 'voice'
+                send_audio = self.audio_buffer[frame:]
+
+                if len(send_audio) > 0:
+                    # Initialize online processor with correct offset
+                    # Note: init() is called on the simul_whisper object, not directly exposed
+                    # We'll send audio and let the processor handle offset tracking
+                    self._send_audio_to_online_processor(send_audio)
+                    logger.info(
+                        f"VAD: Speech START at sample {vad_result['start']}, "
+                        f"sent {len(send_audio)} samples ({len(send_audio)/self.SAMPLING_RATE:.2f}s) from buffer"
+                    )
+
+                # Update buffer offset and clear
+                self.buffer_offset += len(self.audio_buffer)
+                self.audio_buffer = torch.tensor([], dtype=torch.float32)
+
                 # Phase 4: Reset silence timer on speech start
                 self.silence_start_time = None
-                logger.debug(f"VAD: Speech START detected (sample {vad_result['start']})")
 
-            elif 'end' in vad_result:
-                # Speech end detected
+            elif 'end' in vad_result and 'start' not in vad_result:
+                # Speech END - send up to end point, keep last 1 second
                 self.status = 'nonvoice'
+
+                if frame > 0:
+                    send_audio = self.audio_buffer[:frame]
+                    if len(send_audio) > 0:
+                        self._send_audio_to_online_processor(send_audio)
+                        logger.info(
+                            f"VAD: Speech END at sample {vad_result['end']}, "
+                            f"sent {len(send_audio)} samples ({len(send_audio)/self.SAMPLING_RATE:.2f}s) up to end"
+                        )
+
                 self.is_currently_final = True
+
+                # Keep last 1 second of audio (min_buffered_length)
+                min_buffered_samples = int(self.min_buffered_length * self.SAMPLING_RATE)
+                keep_frames = min(len(self.audio_buffer) - frame, min_buffered_samples)
+                self.buffer_offset += len(self.audio_buffer) - keep_frames
+                self.audio_buffer = self.audio_buffer[-keep_frames:]
+
                 # Phase 4: Start tracking silence duration
                 self.silence_start_time = time.time()
-                logger.debug(f"VAD: Speech END detected (sample {vad_result['end']}), silence timer started")
+                logger.debug(f"VAD: Kept {keep_frames} samples ({keep_frames/self.SAMPLING_RATE:.2f}s) for next segment")
+
+            else:
+                # Both start AND end in same chunk (rare)
+                beg = max(0, int(vad_result.get("start", 0) - self.buffer_offset))
+                end = max(0, int(vad_result.get("end", 0) - self.buffer_offset))
+                self.status = 'nonvoice'
+
+                if beg < end:
+                    send_audio = self.audio_buffer[beg:end]
+                    if len(send_audio) > 0:
+                        self._send_audio_to_online_processor(send_audio)
+                        logger.info(
+                            f"VAD: Speech segment {beg}-{end}, "
+                            f"sent {len(send_audio)} samples ({len(send_audio)/self.SAMPLING_RATE:.2f}s)"
+                        )
+
+                self.is_currently_final = True
+                min_buffered_samples = int(self.min_buffered_length * self.SAMPLING_RATE)
+                keep_frames = min(len(self.audio_buffer) - end, min_buffered_samples)
+                self.buffer_offset += len(self.audio_buffer) - keep_frames
+                self.audio_buffer = self.audio_buffer[-keep_frames:]
 
         else:
-            # No VAD event - maintain current status
+            # No VAD event - continue with current status
             if self.status == 'voice':
-                # During active speech: send audio to processor for accumulation
-                # This ensures the 1.2s timer counts ALL audio time (not just from speech end)
-                # CRITICAL: SimulStreaming processes every 1.2s of AUDIO, not 1.2s of silence-triggered chunks!
+                # During active speech: send entire buffer to processor
+                # CRITICAL: SimulStreaming sends audio EVERY chunk during speech!
                 if len(self.audio_buffer) > 0:
                     self._send_audio_to_online_processor(self.audio_buffer)
+                    self.buffer_offset += len(self.audio_buffer)
+                    logger.debug(
+                        f"VAD: Speech continues - sent {len(self.audio_buffer)} samples "
+                        f"(current_buffer_size: {self.current_online_chunk_buffer_size} samples)"
+                    )
                     self.audio_buffer = torch.tensor([], dtype=torch.float32)
-                    logger.debug(f"VAD: Speech continues - audio sent to processor (current_buffer_size: {self.current_online_chunk_buffer_size} samples)")
             else:
-                # During silence: just buffer (NO processing!)
-                # Limit buffer to prevent OOM (keep only 1 second)
-                max_silence_buffer = self.SAMPLING_RATE * 1.0
-                if len(self.audio_buffer) > max_silence_buffer:
-                    # Keep only most recent 1 second
-                    self.audio_buffer = self.audio_buffer[-int(max_silence_buffer):]
-
-                logger.debug(
-                    f"VAD: Silence buffering (buffer size: {len(self.audio_buffer)} samples)"
-                )
+                # During silence: trim buffer to prevent OOM
+                # Keep only last 1 second (min_buffered_length)
+                min_buffered_samples = int(self.min_buffered_length * self.SAMPLING_RATE)
+                if len(self.audio_buffer) > min_buffered_samples:
+                    # Update offset for dropped audio
+                    self.buffer_offset += len(self.audio_buffer) - min_buffered_samples
+                    self.audio_buffer = self.audio_buffer[-min_buffered_samples:]
+                    logger.debug(
+                        f"VAD: Silence buffer trimmed to {min_buffered_samples} samples "
+                        f"({min_buffered_samples/self.SAMPLING_RATE:.2f}s)"
+                    )
 
     def _send_audio_to_online_processor(self, audio: torch.Tensor):
         """
