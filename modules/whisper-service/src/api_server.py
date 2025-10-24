@@ -2492,7 +2492,14 @@ def handle_transcribe_stream(data):
                             'should_translate': result.should_translate,
                             'translation_mode': result.translation_mode,
                             'stability_score': result.stability_score,
-                            'stable_end_time': result.stable_end_time
+                            'stable_end_time': result.stable_end_time,
+
+                            # Phase 5: Hybrid Tracking metadata (SimulStreaming + vexa)
+                            'attention_tracking': vac_result.get('attention_tracking', {}),
+                            'timestamp_tracking': vac_result.get('timestamp_tracking', {}),
+                            'absolute_start_time': vac_result.get('absolute_start_time'),
+                            'absolute_end_time': vac_result.get('absolute_end_time'),
+                            'updated_at': vac_result.get('updated_at'),
                         }
 
                         # Try to emit to client
