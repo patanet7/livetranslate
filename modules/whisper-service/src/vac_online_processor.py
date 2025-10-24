@@ -522,10 +522,18 @@ class VACOnlineASRProcessor:
             is_caught_up = False
 
             if generation_progress and isinstance(generation_progress, dict):
-                # SimulStreaming stores attention info in generation metadata
-                most_attended_frame = generation_progress.get('most_attended_frame', 0)
+                # Extract from top-level generation dict
                 content_mel_len = generation_progress.get('frames_len', 0)
                 frame_threshold = generation_progress.get('frames_threshold', 4)
+
+                # most_attended_frame is in generation["progress"] list (per-iteration data)
+                # Extract from generation["progress"][-1]["most_attended_frames"][0] (last iteration, first beam)
+                if 'progress' in generation_progress and len(generation_progress['progress']) > 0:
+                    last_iteration = generation_progress['progress'][-1]
+                    if 'most_attended_frames' in last_iteration:
+                        most_attended_frames_list = last_iteration['most_attended_frames']
+                        if isinstance(most_attended_frames_list, list) and len(most_attended_frames_list) > 0:
+                            most_attended_frame = most_attended_frames_list[0]  # First beam
 
                 # Check if decoder caught up to available audio
                 is_caught_up = (content_mel_len - most_attended_frame) <= frame_threshold
@@ -691,9 +699,18 @@ class VACOnlineASRProcessor:
             is_caught_up = False
 
             if generation_progress and isinstance(generation_progress, dict):
-                most_attended_frame = generation_progress.get('most_attended_frame', 0)
+                # Extract from top-level generation dict
                 content_mel_len = generation_progress.get('frames_len', 0)
                 frame_threshold = generation_progress.get('frames_threshold', 4)
+
+                # most_attended_frame is in generation["progress"] list (per-iteration data)
+                if 'progress' in generation_progress and len(generation_progress['progress']) > 0:
+                    last_iteration = generation_progress['progress'][-1]
+                    if 'most_attended_frames' in last_iteration:
+                        most_attended_frames_list = last_iteration['most_attended_frames']
+                        if isinstance(most_attended_frames_list, list) and len(most_attended_frames_list) > 0:
+                            most_attended_frame = most_attended_frames_list[0]  # First beam
+
                 is_caught_up = (content_mel_len - most_attended_frame) <= frame_threshold
 
             # Hybrid Tracking: Convert frames to absolute time
