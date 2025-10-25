@@ -97,11 +97,14 @@ def check_jfk_file_properties():
         return None
 
 
-def test_direct_transcription(audio_data, sample_rate):
-    """Test direct Whisper transcription without streaming"""
+def test_direct_transcription(jfk_audio):
+    """Test direct Whisper transcription without streaming using jfk_audio fixture"""
     print("\n" + "="*80)
     print("DIRECT TRANSCRIPTION TEST")
     print("="*80)
+
+    # Get audio data and sample rate from fixture
+    audio_data, sample_rate = jfk_audio
 
     try:
         # Initialize Whisper service (model already preloaded)
@@ -109,7 +112,9 @@ def test_direct_transcription(audio_data, sample_rate):
         service = WhisperService()
         print("✅ Service initialized (model already preloaded)")
 
-        # Resample if needed
+        print(f"\n📊 Audio info: {len(audio_data)} samples @ {sample_rate}Hz = {len(audio_data)/sample_rate:.2f}s")
+
+        # JFK audio fixture is already 16kHz, no resampling needed
         if sample_rate != 16000:
             print(f"\n🔄 Resampling from {sample_rate}Hz to 16000Hz...")
             from scipy import signal

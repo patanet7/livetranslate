@@ -16,12 +16,12 @@ from typing import Dict, Any, List
 import numpy as np
 import soundfile as sf
 
-from .utils import (
+from ..utils import (
     WebSocketTestClient, HTTPTestClient, TestAudioGenerator,
     PerformanceMonitor, assert_response_time, assert_websocket_message,
     generate_test_token, wait_for_condition
 )
-from .fixtures import *
+from ..fixtures import *
 
 class TestWebSocketConnections:
     """Integration tests for WebSocket connections"""
