@@ -26,7 +26,7 @@ import os
 
 # Whisper service configuration
 SERVICE_URL = "http://localhost:5001"
-JFK_AUDIO_PATH = "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+JFK_AUDIO_PATH = "tests/audio/jfk.wav"
 
 # Streaming configuration (matching real-world usage)
 CHUNK_DURATION = 2.0  # 2-second chunks (realistic for live streaming)

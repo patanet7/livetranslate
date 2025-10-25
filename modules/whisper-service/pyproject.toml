@@ -93,8 +93,10 @@ python_functions = ["test_*"]
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "openvino: requires OpenVINO (skip if not installed)",
+    "gpu: requires GPU (skip if not available)",
 ]
-addopts = "-v --tb=short"
+addopts = "-v --strict-markers --tb=short"
 
 [tool.black]
 line-length = 100

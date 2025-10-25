@@ -2,6 +2,7 @@
 
 import os
 import logging
+import time
 
 import torch
 import torch.nn.functional as F
@@ -131,6 +132,7 @@ class PaddedAlignAttWhisper:
 
         # it's going to be regenerated after lang id
         self.segments = []
+        self.language_history = []  # Track language detections for sustained switching: [(timestamp, language, confidence), ...]
         self.init_tokens()
         
         self.last_attend_frame = -self.cfg.rewind_threshold
@@ -239,8 +241,8 @@ class PaddedAlignAttWhisper:
         logger.debug(f"init tokens, {len(self.segments)}")
         # init tokens (mandatory prompt)
         self.initial_tokens = torch.tensor(
-            self.tokenizer.sot_sequence_including_notimestamps, 
-            dtype=torch.long, 
+            self.tokenizer.sot_sequence_including_notimestamps,
+            dtype=torch.long,
             device=self.model.device).unsqueeze(0)
         self.initial_token_length = self.initial_tokens.shape[1]
         self.sot_index = self.tokenizer.sot_sequence.index(self.tokenizer.sot)
@@ -451,6 +453,12 @@ class PaddedAlignAttWhisper:
         )
 
         if should_detect_language:
+            # CRITICAL: Clean cache BEFORE lang_id() for code-switching
+            # Previous chunk's full SOT processing left 5-token cache entries
+            # But lang_id() only uses single token, causing dimension mismatch
+            if getattr(self, 'enable_code_switching', False) and self.detected_language is not None:
+                self._clean_cache()
+
             language_tokens, language_probs = self.lang_id(encoder_feature)
             logger.debug(f"Language tokens: {language_tokens}, probs: {language_probs}")
             top_lan, p = max(language_probs[0].items(), key=lambda x: x[1])
@@ -464,8 +472,7 @@ class PaddedAlignAttWhisper:
             else:
                 logger.info(f"Detected language: {top_lan} with p={p:.4f}")
 
-            # For code-switching: DON'T recreate tokenizer or reset tokens on language switch
-            # Keep rolling decoder active! Just track detected language for UI/formatting
+            # For code-switching: Use sustained detection to filter out single-word switches (Chinglish)
             if self.detected_language is None:
                 # First detection: must initialize tokenizer
                 self.create_tokenizer(top_lan)
@@ -473,10 +480,64 @@ class PaddedAlignAttWhisper:
                 self.init_tokens()
                 logger.info(f"Tokenizer language: {self.tokenizer.language}, {self.tokenizer.sot_sequence_including_notimestamps}")
             elif getattr(self, 'enable_code_switching', False):
-                # Code-switching mode: update detected language but DON'T reset decoder
-                # This allows Whisper to emit mixed-language tokens under one decoder
-                self.detected_language = top_lan
-                logger.info(f"[CODE-SWITCHING] Language tracked as {top_lan} but decoder unchanged (no cache flush)")
+                # SUSTAINED LANGUAGE DETECTION: Track language history with sliding window
+                current_time = time.time()
+                self.language_history.append((current_time, top_lan, p))
+
+                # Keep sliding window (last 2.5 seconds)
+                cutoff_time = current_time - 2.5
+                self.language_history = [(t, l, c) for (t, l, c) in self.language_history if t > cutoff_time]
+
+                # Check for sustained switch (3+ consecutive chunks ≈ 3.6 seconds)
+                if len(self.language_history) >= 3:
+                    recent_langs = [l for (t, l, c) in self.language_history[-3:]]
+
+                    if len(set(recent_langs)) == 1:  # All same language
+                        sustained_lang = recent_langs[0]
+
+                        if sustained_lang != self.detected_language:
+                            # SUSTAINED SWITCH DETECTED!
+                            logger.info(f"🔄 SUSTAINED language switch: {self.detected_language} → {sustained_lang}")
+                            logger.info(f"   Recent history: {[(l, f'{c:.2f}') for (t, l, c) in self.language_history[-3:]]}")
+
+                            # Step 1: Clear ALL state BEFORE changing anything (prevent contamination)
+                            # Based on SimulStreaming's refresh_segment() approach
+                            self._clean_cache()  # Clear KV cache
+                            self.dec_attns = []  # Clear decoder attention matrices
+                            self.segments = []   # Clear audio segment buffer
+                            logger.info(f"   Cleared: KV cache, dec_attns, segments")
+
+                            # Step 2: Create new tokenizer for new language
+                            self.create_tokenizer(sustained_lang)
+                            self.detected_language = sustained_lang
+
+                            # Step 3: Initialize new SOT tokens
+                            self.init_tokens()
+
+                            # Step 4: Re-initialize context with new tokenizer
+                            self.init_context()
+
+                            # Step 5: Reinitialize beam decoder with new initial_token_length
+                            if self.decoder_type == "beam":
+                                self.inference = BeamPyTorchInference(self.model, self.initial_token_length)
+                                self.inference.kv_cache = self.kv_cache
+                                self.token_decoder = BeamSearchDecoder(inference=self.inference, eot=self.tokenizer.eot, beam_size=self.cfg.beam_size)
+                                self.token_decoder.reset()  # CRITICAL: Reset finished_sequences
+                                logger.info(f"   Beam decoder reinitialized with initial_token_length={self.initial_token_length}")
+
+                            # Step 6: Reset language history
+                            self.language_history = []
+
+                            logger.info(f"✅ Switched to {sustained_lang}: New SOT={self.tokenizer.sot_sequence_including_notimestamps}")
+                        else:
+                            # Same language sustained - just update tracking
+                            logger.debug(f"[CODE-SWITCHING] Language {top_lan} sustained (no switch needed)")
+                    else:
+                        # Mixed languages in recent history - keep current decoder, just track
+                        logger.debug(f"[CODE-SWITCHING] Mixed languages detected: {recent_langs}, keeping decoder at {self.detected_language}")
+                else:
+                    # Not enough history yet - keep current decoder
+                    logger.debug(f"[CODE-SWITCHING] Building history ({len(self.language_history)}/3 chunks), detected {top_lan}")
             else:
                 # Standard mode: language shouldn't change once set
                 logger.warning(f"Language changed from {self.detected_language} to {top_lan} but not in code-switching mode")
@@ -553,6 +614,12 @@ class PaddedAlignAttWhisper:
             generation_progress_loop.append(("beam_tokens",Tokens(current_tokens[:,-1].clone())))
             generation_progress_loop.append(("sum_logprobs",sum_logprobs.tolist()))
             generation_progress_loop.append(("completed",completed))
+
+            # [DEBUG] Per-token intermediate output for Chinglish analysis
+            # Note: For beam search, current_tokens has shape [beam_size, seq_len], so we use beam 0
+            last_token_id = current_tokens[0,-1].item() if self.decoder_type == "beam" else current_tokens[:,-1].item()
+            last_token_text = self.tokenizer.decode([last_token_id])
+            logger.info(f"[TOKEN-DEBUG] Generated token #{current_tokens.shape[1]}: ID={last_token_id}, Text='{last_token_text}', Lang={self.detected_language}, SOT={self.tokenizer.language}")
 
             logger.debug(f"Decoding completed: {completed}, sum_logprobs: {sum_logprobs.tolist()}, tokens: ")
             self.debug_print_tokens(current_tokens)
