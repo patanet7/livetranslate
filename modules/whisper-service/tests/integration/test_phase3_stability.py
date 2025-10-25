@@ -9,12 +9,14 @@ import asyncio
 import numpy as np
 import sys
 import os
+import pytest
 
 # Add src to path (adjusted for tests/smoke/ location)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from whisper_service import WhisperService, TranscriptionRequest
 
+@pytest.mark.asyncio
 async def test_stability_tracking():
     """Test Phase 3C stability tracking with simulated streaming"""
 
@@ -94,6 +96,7 @@ async def test_stability_tracking():
     print("\n✅ Phase 3C: Stability tracking test completed!")
     print("=" * 80)
 
+@pytest.mark.asyncio
 async def test_helper_methods():
     """Test the helper methods for stability detection"""
 
