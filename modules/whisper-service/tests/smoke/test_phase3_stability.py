@@ -10,8 +10,8 @@ import numpy as np
 import sys
 import os
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+# Add src to path (adjusted for tests/smoke/ location)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../src'))
 
 from whisper_service import WhisperService, TranscriptionRequest
 
