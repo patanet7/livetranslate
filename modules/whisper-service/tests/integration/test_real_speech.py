@@ -14,10 +14,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 
-from whisper_service import WhisperService
+from whisper_service import WhisperService, TranscriptionRequest
 
 # Mark as slow integration tests
-pytestmark = [pytest.mark.slow, pytest.mark.integration]
+pytestmark = [pytest.mark.slow, pytest.mark.integration, pytest.mark.asyncio]
 
 
 class TestJFKSpeech:
@@ -33,20 +33,28 @@ class TestJFKSpeech:
         }
         return WhisperService(config=config)
 
-    def test_jfk_transcription_contains_famous_quote(self, service, jfk_audio):
+    async def test_jfk_transcription_contains_famous_quote(self, service, jfk_audio):
         """Test that JFK audio transcribes the famous quote"""
         audio, sr = jfk_audio
 
         print(f"\n🎤 Transcribing JFK speech ({len(audio)/sr:.1f}s at {sr}Hz)...")
 
+        # Create transcription request
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            language="en",
+            sample_rate=sr
+        )
+
         # Transcribe
-        result = service.transcribe(audio)
+        result = await service.transcribe(request)
 
         assert result is not None
-        assert 'text' in result
+        assert hasattr(result, 'text')
 
-        text = result['text'].lower()
-        print(f"📝 Transcription: {result['text']}")
+        text = result.text.lower()
+        print(f"📝 Transcription: {result.text}")
 
         # Check for key phrases from the quote
         # "Ask not what your country can do for you; ask what you can do for your country"
@@ -59,17 +67,23 @@ class TestJFKSpeech:
         # Should find at least 2 out of 3 key phrases
         assert len(found_phrases) >= 2, f"Only found {found_phrases} in: {text}"
 
-    def test_jfk_language_detected_as_english(self, service, jfk_audio):
+    async def test_jfk_language_detected_as_english(self, service, jfk_audio):
         """Test that JFK audio is detected as English"""
         audio, sr = jfk_audio
 
         print(f"\n🔍 Testing language detection...")
 
-        result = service.transcribe(audio)
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            sample_rate=sr
+        )
+
+        result = await service.transcribe(request)
 
         # Check if language is in result
-        if 'language' in result:
-            detected_lang = result['language']
+        if hasattr(result, 'language') and result.language:
+            detected_lang = result.language
             print(f"✅ Detected language: {detected_lang}")
             assert detected_lang == 'en' or detected_lang == 'english', \
                 f"Expected English, got {detected_lang}"
@@ -90,29 +104,43 @@ class TestChineseSpeech:
         }
         return WhisperService(config=config)
 
-    def test_chinese_transcription_produces_text(self, service, chinese_audio_1):
+    async def test_chinese_transcription_produces_text(self, service, chinese_audio_1):
         """Test that Chinese audio produces transcribed text"""
         audio, sr = chinese_audio_1
 
         print(f"\n🎤 Transcribing Chinese speech ({len(audio)/sr:.1f}s at {sr}Hz)...")
 
         # Transcribe with language hint
-        result = service.transcribe(audio, language="zh")
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            language="zh",
+            sample_rate=sr
+        )
+
+        result = await service.transcribe(request)
 
         assert result is not None
-        assert 'text' in result
-        assert len(result['text']) > 0, "Transcription should not be empty"
+        assert hasattr(result, 'text')
+        assert len(result.text) > 0, "Transcription should not be empty"
 
-        print(f"📝 Transcription: {result['text']}")
-        print(f"✅ Produced {len(result['text'])} characters")
+        print(f"📝 Transcription: {result.text}")
+        print(f"✅ Produced {len(result.text)} characters")
 
-    def test_chinese_transcription_contains_chinese_characters(self, service, chinese_audio_1):
+    async def test_chinese_transcription_contains_chinese_characters(self, service, chinese_audio_1):
         """Test that Chinese transcription contains Chinese characters"""
         audio, sr = chinese_audio_1
 
-        result = service.transcribe(audio, language="zh")
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            language="zh",
+            sample_rate=sr
+        )
 
-        text = result['text']
+        result = await service.transcribe(request)
+
+        text = result.text
 
         # Check for Chinese characters (Unicode range)
         has_chinese = any('\u4e00' <= char <= '\u9fff' for char in text)
@@ -136,27 +164,39 @@ class TestMultiLanguage:
         }
         return WhisperService(config=config)
 
-    def test_english_and_chinese_in_same_session(self, service, jfk_audio, chinese_audio_1):
+    async def test_english_and_chinese_in_same_session(self, service, jfk_audio, chinese_audio_1):
         """Test transcribing different languages in same session"""
         print(f"\n🌐 Testing multi-language session...")
 
         # Transcribe English
         jfk, sr_en = jfk_audio
-        result_en = service.transcribe(jfk, language="en")
+        request_en = TranscriptionRequest(
+            audio_data=jfk,
+            model_name="tiny",
+            language="en",
+            sample_rate=sr_en
+        )
+        result_en = await service.transcribe(request_en)
 
-        assert 'text' in result_en
-        print(f"📝 English: {result_en['text'][:50]}...")
+        assert hasattr(result_en, 'text')
+        print(f"📝 English: {result_en.text[:50]}...")
 
         # Transcribe Chinese
         chinese, sr_zh = chinese_audio_1
-        result_zh = service.transcribe(chinese, language="zh")
+        request_zh = TranscriptionRequest(
+            audio_data=chinese,
+            model_name="tiny",
+            language="zh",
+            sample_rate=sr_zh
+        )
+        result_zh = await service.transcribe(request_zh)
 
-        assert 'text' in result_zh
-        print(f"📝 Chinese: {result_zh['text'][:50]}...")
+        assert hasattr(result_zh, 'text')
+        print(f"📝 Chinese: {result_zh.text[:50]}...")
 
         # Both should succeed
-        assert len(result_en['text']) > 0
-        assert len(result_zh['text']) > 0
+        assert len(result_en.text) > 0
+        assert len(result_zh.text) > 0
 
         print(f"✅ Successfully transcribed both languages")
 

@@ -11,7 +11,7 @@ import sys
 import os
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from whisper_service import WhisperService, TranscriptionRequest
 
@@ -38,12 +38,12 @@ async def test_stability_tracking():
     # Create transcription request
     request = TranscriptionRequest(
         audio_data=audio_chunk,
-        model_name="whisper-base",
+        model_name="large-v3-turbo",  # Use the already-loaded model
         language="en",
         session_id="test-stability-session",
         sample_rate=sample_rate,
         streaming=True,
-        enable_vad=False  # Disable VAD for testing
+        enable_vad=True  # CRITICAL: VAD must be enabled to prevent hallucinations!
     )
 
     print("\n[3] Starting streaming transcription...")
