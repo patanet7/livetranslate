@@ -18,10 +18,10 @@ import time
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
 
 # Import the REAL ModelManager from whisper_service.py
-from whisper_service import WhisperService
+from whisper_service import WhisperService, TranscriptionRequest
 
 # Mark all tests as slow and integration
-pytestmark = [pytest.mark.slow, pytest.mark.integration]
+pytestmark = [pytest.mark.slow, pytest.mark.integration, pytest.mark.asyncio]
 
 
 class TestPyTorchModelManagerREAL:
@@ -96,58 +96,76 @@ class TestPyTorchModelManagerREAL:
         assert manager.device in ['cpu', 'cuda', 'mps']
         print(f"✅ Model on device: {manager.device}")
 
-    def test_transcribe_real_audio_hello_world(self, whisper_service_cpu, hello_world_audio):
+    async def test_transcribe_real_audio_hello_world(self, whisper_service_cpu, hello_world_audio):
         """Test transcription with REAL audio fixture"""
         audio, sr = hello_world_audio
 
         print(f"\n🎤 Transcribing {len(audio)} samples ({len(audio)/sr:.2f}s) at {sr}Hz...")
 
         # REAL transcription - no mocks!
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            sample_rate=sr
+        )
+
         start_time = time.time()
-        result = whisper_service_cpu.transcribe(audio)
+        result = await whisper_service_cpu.transcribe(request)
         elapsed = time.time() - start_time
 
         # Verify we got actual results
         assert result is not None
-        assert 'text' in result
-        assert isinstance(result['text'], str)
+        assert hasattr(result, 'text')
+        assert isinstance(result.text, str)
 
         print(f"✅ Transcribed in {elapsed:.2f}s")
-        print(f"📝 Result: {result['text'][:100]}...")
+        print(f"📝 Result: {result.text[:100]}...")
 
         # Basic quality checks
-        assert len(result['text']) > 0  # Should produce some text
+        assert len(result.text) > 0  # Should produce some text
 
-    def test_transcribe_real_audio_silence(self, whisper_service_cpu, silence_audio):
+    async def test_transcribe_real_audio_silence(self, whisper_service_cpu, silence_audio):
         """Test transcription with silence (should return empty or minimal text)"""
         audio, sr = silence_audio
 
         print(f"\n🔇 Transcribing silence...")
 
-        result = whisper_service_cpu.transcribe(audio)
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            sample_rate=sr
+        )
+
+        result = await whisper_service_cpu.transcribe(request)
 
         assert result is not None
-        assert 'text' in result
+        assert hasattr(result, 'text')
 
         # Silence should produce empty or very short transcription
-        text = result['text'].strip()
+        text = result.text.strip()
         print(f"📝 Silence result: '{text}' (length: {len(text)})")
         assert len(text) < 50  # Should be empty or very short
 
-    def test_transcribe_real_audio_noisy(self, whisper_service_cpu, noisy_audio):
+    async def test_transcribe_real_audio_noisy(self, whisper_service_cpu, noisy_audio):
         """Test transcription with noisy audio"""
         audio, sr = noisy_audio
 
         print(f"\n🔊 Transcribing noisy audio...")
 
-        result = whisper_service_cpu.transcribe(audio)
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            sample_rate=sr
+        )
+
+        result = await whisper_service_cpu.transcribe(request)
 
         assert result is not None
-        assert 'text' in result
+        assert hasattr(result, 'text')
 
-        print(f"📝 Noisy audio result: {result['text'][:100]}...")
+        print(f"📝 Noisy audio result: {result.text[:100]}...")
 
-    def test_multiple_transcriptions_session(self, whisper_service_cpu, hello_world_audio):
+    async def test_multiple_transcriptions_session(self, whisper_service_cpu, hello_world_audio):
         """Test multiple transcriptions in sequence (session context)"""
         audio, sr = hello_world_audio
 
@@ -158,21 +176,27 @@ class TestPyTorchModelManagerREAL:
 
         results = []
         for i in range(3):
-            result = whisper_service_cpu.transcribe(audio, session_id=session_id)
+            request = TranscriptionRequest(
+                audio_data=audio,
+                model_name="tiny",
+                session_id=session_id,
+                sample_rate=sr
+            )
+            result = await whisper_service_cpu.transcribe(request)
             results.append(result)
-            print(f"  {i+1}. {result['text'][:50]}...")
+            print(f"  {i+1}. {result.text[:50]}...")
 
         # Verify all succeeded
         assert len(results) == 3
-        assert all('text' in r for r in results)
+        assert all(hasattr(r, 'text') for r in results)
 
         # Check session context exists
         assert session_id in whisper_service_cpu.model_manager.sessions
 
-    def test_concurrent_sessions_isolated(self, whisper_service_cpu, hello_world_audio, noisy_audio):
+    async def test_concurrent_sessions_isolated(self, whisper_service_cpu, hello_world_audio, noisy_audio):
         """Test that multiple sessions maintain separate contexts"""
-        hello_audio, _ = hello_world_audio
-        noisy_audio_data, _ = noisy_audio
+        hello_audio, sr1 = hello_world_audio
+        noisy_audio_data, sr2 = noisy_audio
 
         session_1 = "session-english"
         session_2 = "session-noisy"
@@ -184,14 +208,26 @@ class TestPyTorchModelManagerREAL:
         print(f"\n🔀 Testing session isolation...")
 
         # Transcribe in session 1
-        result1 = whisper_service_cpu.transcribe(hello_audio, session_id=session_1)
+        request1 = TranscriptionRequest(
+            audio_data=hello_audio,
+            model_name="tiny",
+            session_id=session_1,
+            sample_rate=sr1
+        )
+        result1 = await whisper_service_cpu.transcribe(request1)
 
         # Transcribe in session 2
-        result2 = whisper_service_cpu.transcribe(noisy_audio_data, session_id=session_2)
+        request2 = TranscriptionRequest(
+            audio_data=noisy_audio_data,
+            model_name="tiny",
+            session_id=session_2,
+            sample_rate=sr2
+        )
+        result2 = await whisper_service_cpu.transcribe(request2)
 
         # Verify both succeeded
-        assert 'text' in result1
-        assert 'text' in result2
+        assert hasattr(result1, 'text')
+        assert hasattr(result2, 'text')
 
         # Verify sessions are separate in manager
         assert session_1 in whisper_service_cpu.model_manager.sessions
@@ -201,22 +237,28 @@ class TestPyTorchModelManagerREAL:
 
     @pytest.mark.skipif(not (torch.cuda.is_available() or torch.backends.mps.is_available()),
                        reason="No GPU/MPS available")
-    def test_gpu_transcription(self, whisper_service_gpu, hello_world_audio):
+    async def test_gpu_transcription(self, whisper_service_gpu, hello_world_audio):
         """Test GPU/MPS transcription (if available)"""
         audio, sr = hello_world_audio
 
         device = whisper_service_gpu.model_manager.device
         print(f"\n🚀 Testing {device.upper()} transcription...")
 
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            sample_rate=sr
+        )
+
         start_time = time.time()
-        result = whisper_service_gpu.transcribe(audio)
+        result = await whisper_service_gpu.transcribe(request)
         elapsed = time.time() - start_time
 
         assert result is not None
-        assert 'text' in result
+        assert hasattr(result, 'text')
 
         print(f"✅ {device.upper()} transcription in {elapsed:.2f}s")
-        print(f"📝 Result: {result['text'][:100]}...")
+        print(f"📝 Result: {result.text[:100]}...")
 
     def test_device_detection_priority(self):
         """Test device detection follows GPU/MPS → CPU priority"""
@@ -258,24 +300,30 @@ class TestPyTorchModelManagerREAL:
 
         print(f"✅ Warmup complete")
 
-    def test_long_audio_transcription(self, whisper_service_cpu, long_speech_audio):
+    async def test_long_audio_transcription(self, whisper_service_cpu, long_speech_audio):
         """Test transcription of longer audio (5 seconds)"""
         audio, sr = long_speech_audio
 
         print(f"\n⏱️  Transcribing long audio ({len(audio)/sr:.1f}s)...")
 
+        request = TranscriptionRequest(
+            audio_data=audio,
+            model_name="tiny",
+            sample_rate=sr
+        )
+
         start_time = time.time()
-        result = whisper_service_cpu.transcribe(audio)
+        result = await whisper_service_cpu.transcribe(request)
         elapsed = time.time() - start_time
 
         assert result is not None
-        assert 'text' in result
+        assert hasattr(result, 'text')
 
         print(f"✅ Long transcription in {elapsed:.2f}s")
-        print(f"📝 Result: {result['text'][:100]}...")
+        print(f"📝 Result: {result.text[:100]}...")
 
         # Longer audio should produce more text
-        assert len(result['text']) > 0
+        assert len(result.text) > 0
 
     def test_models_directory_separation(self, whisper_service_cpu):
         """Verify PyTorch models go to .models/pytorch/"""
@@ -329,7 +377,7 @@ class TestPyTorchContextManagementREAL:
 
         print(f"✅ Context lifecycle working")
 
-    def test_context_accumulation(self, service, hello_world_audio):
+    async def test_context_accumulation(self, service, hello_world_audio):
         """Test that context accumulates across transcriptions"""
         audio, sr = hello_world_audio
         session_id = "context-accumulation-test"
@@ -340,8 +388,14 @@ class TestPyTorchContextManagementREAL:
 
         # Transcribe 3 times
         for i in range(3):
-            result = service.transcribe(audio, session_id=session_id)
-            print(f"  {i+1}. Transcribed: {result['text'][:30]}...")
+            request = TranscriptionRequest(
+                audio_data=audio,
+                model_name="tiny",
+                session_id=session_id,
+                sample_rate=sr
+            )
+            result = await service.transcribe(request)
+            print(f"  {i+1}. Transcribed: {result.text[:30]}...")
 
         # Context should have accumulated
         # (Exact implementation depends on whisper_service.py)
@@ -362,7 +416,7 @@ class TestPyTorchPerformanceREAL:
         }
         return WhisperService(config=config)
 
-    def test_transcription_performance(self, service, hello_world_audio):
+    async def test_transcription_performance(self, service, hello_world_audio):
         """Measure real transcription performance"""
         audio, sr = hello_world_audio
 
@@ -370,8 +424,13 @@ class TestPyTorchPerformanceREAL:
 
         timings = []
         for i in range(10):
+            request = TranscriptionRequest(
+                audio_data=audio,
+                model_name="tiny",
+                sample_rate=sr
+            )
             start = time.time()
-            result = service.transcribe(audio)
+            result = await service.transcribe(request)
             elapsed = time.time() - start
             timings.append(elapsed)
 
@@ -384,40 +443,41 @@ class TestPyTorchPerformanceREAL:
         # Sanity check - should complete in reasonable time
         assert avg_time < 5.0, "Transcription taking too long"
 
-    def test_concurrent_transcriptions(self, service, hello_world_audio):
+    async def test_concurrent_transcriptions(self, service, hello_world_audio):
         """Test concurrent transcriptions (thread safety)"""
-        import threading
+        import asyncio
 
         audio, sr = hello_world_audio
 
-        print(f"\n🔀 Concurrent test: 5 threads...")
+        print(f"\n🔀 Concurrent test: 5 async tasks...")
 
         results = []
         errors = []
 
-        def transcribe_worker(thread_id):
+        async def transcribe_worker(task_id):
             try:
-                session_id = f"thread-{thread_id}"
+                session_id = f"task-{task_id}"
                 service.model_manager.init_context(session_id)
-                result = service.transcribe(audio, session_id=session_id)
-                results.append((thread_id, result))
+                request = TranscriptionRequest(
+                    audio_data=audio,
+                    model_name="tiny",
+                    session_id=session_id,
+                    sample_rate=sr
+                )
+                result = await service.transcribe(request)
+                results.append((task_id, result))
             except Exception as e:
-                errors.append((thread_id, e))
+                errors.append((task_id, e))
 
-        threads = []
-        for i in range(5):
-            t = threading.Thread(target=transcribe_worker, args=(i,))
-            threads.append(t)
-            t.start()
-
-        for t in threads:
-            t.join()
+        # Run 5 concurrent transcriptions
+        tasks = [transcribe_worker(i) for i in range(5)]
+        await asyncio.gather(*tasks)
 
         # Check results
         assert len(errors) == 0, f"Errors occurred: {errors}"
-        assert len(results) == 5, "Not all threads completed"
+        assert len(results) == 5, "Not all tasks completed"
 
-        print(f"✅ All 5 threads completed successfully")
+        print(f"✅ All 5 tasks completed successfully")
 
 
 # Usage instructions
