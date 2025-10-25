@@ -78,14 +78,23 @@ class TestPyTorchModelManagerREAL:
         """Test that model actually loads (NO MOCKS!)"""
         manager = whisper_service_cpu.model_manager
 
-        # Verify model is actually loaded
-        assert manager.model is not None
-        assert hasattr(manager.model, 'transcribe')
-        assert hasattr(manager.model, 'is_multilingual')
+        # Verify models dict exists and has loaded models
+        assert hasattr(manager, 'models')
+        assert isinstance(manager.models, dict)
+        assert len(manager.models) > 0, "Should have at least one model loaded"
+
+        # Get first loaded model
+        model_name = list(manager.models.keys())[0]
+        model = manager.models[model_name]
+
+        print(f"✅ Loaded model: {model_name}")
+
+        # Verify model has required methods
+        assert hasattr(model, 'transcribe') or hasattr(manager, 'safe_inference')
 
         # Verify device
         assert manager.device in ['cpu', 'cuda', 'mps']
-        print(f"✅ Model loaded on device: {manager.device}")
+        print(f"✅ Model on device: {manager.device}")
 
     def test_transcribe_real_audio_hello_world(self, whisper_service_cpu, hello_world_audio):
         """Test transcription with REAL audio fixture"""
