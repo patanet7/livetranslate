@@ -518,3 +518,93 @@ def print_test_environment():
     print("=" * 80 + "\n")
 
     yield
+
+
+# ============================================================================
+# REAL Speech Audio Fixtures
+# ============================================================================
+
+@pytest.fixture
+def jfk_audio() -> Tuple[np.ndarray, int]:
+    """
+    Load JFK speech audio (REAL English speech!)
+
+    Content: "And so, my fellow Americans, ask not what your country can do for you;
+              ask what you can do for your country."
+    
+    Duration: 11 seconds
+    Sample Rate: 16kHz (Whisper native)
+    Language: English
+    Source: JFK inaugural address, January 20, 1961
+    """
+    filepath = FIXTURES_DIR / "jfk.wav"
+    if not filepath.exists():
+        pytest.skip(f"JFK audio file not found: {filepath}")
+    audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
+    return audio, sr
+
+
+@pytest.fixture
+def chinese_audio_1() -> Tuple[np.ndarray, int]:
+    """
+    Load Chinese audio sample 1 (REAL Mandarin speech!)
+
+    Duration: ~20 seconds
+    Sample Rate: 8kHz (auto-resampled to 16kHz)
+    Language: Mandarin Chinese
+    """
+    filepath = FIXTURES_DIR / "OSR_cn_000_0072_8k.wav"
+    if not filepath.exists():
+        pytest.skip(f"Chinese audio file not found: {filepath}")
+    audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
+    # Resample to 16kHz for Whisper
+    if sr != SAMPLE_RATE:
+        try:
+            import librosa
+            audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
+            sr = SAMPLE_RATE
+        except ImportError:
+            pytest.skip("librosa required for resampling")
+    return audio, sr
+
+
+@pytest.fixture
+def chinese_audio_2() -> Tuple[np.ndarray, int]:
+    """Load Chinese audio sample 2"""
+    filepath = FIXTURES_DIR / "OSR_cn_000_0073_8k.wav"
+    if not filepath.exists():
+        pytest.skip(f"Chinese audio file not found: {filepath}")
+    audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
+    if sr != SAMPLE_RATE:
+        import librosa
+        audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
+        sr = SAMPLE_RATE
+    return audio, sr
+
+
+@pytest.fixture
+def chinese_audio_3() -> Tuple[np.ndarray, int]:
+    """Load Chinese audio sample 3"""
+    filepath = FIXTURES_DIR / "OSR_cn_000_0074_8k.wav"
+    if not filepath.exists():
+        pytest.skip(f"Chinese audio file not found: {filepath}")
+    audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
+    if sr != SAMPLE_RATE:
+        import librosa
+        audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
+        sr = SAMPLE_RATE
+    return audio, sr
+
+
+@pytest.fixture
+def chinese_audio_4() -> Tuple[np.ndarray, int]:
+    """Load Chinese audio sample 4"""
+    filepath = FIXTURES_DIR / "OSR_cn_000_0075_8k.wav"
+    if not filepath.exists():
+        pytest.skip(f"Chinese audio file not found: {filepath}")
+    audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
+    if sr != SAMPLE_RATE:
+        import librosa
+        audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
+        sr = SAMPLE_RATE
+    return audio, sr
