@@ -35,10 +35,12 @@
 
 ### Key Principles
 1. ✅ **Tests first** - No refactoring without passing tests
-2. ✅ **No feature loss** - Every feature documented and verified
-3. ✅ **Stateful architecture preserved** - In-memory sessions are correct
-4. ✅ **Green builds always** - Every commit must pass all tests
-5. ✅ **Incremental changes** - Small, safe, reviewable PRs
+2. ✅ **NO MOCKS for integration tests** - Use REAL models and REAL audio
+3. ✅ **No feature loss** - Every feature documented and verified
+4. ✅ **Stateful architecture preserved** - In-memory sessions are correct
+5. ✅ **Green builds always** - Every commit must pass all tests
+6. ✅ **Incremental changes** - Small, safe, reviewable PRs
+7. ✅ **Separate model directories** - `.models/pytorch/` and `.models/openvino/`
 
 ### Target Architecture
 ```
