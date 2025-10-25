@@ -35,8 +35,9 @@
 6. [Phase 3: Split api_server.py](#phase-3-split-api_serverpy)
 7. [Phase 4: Consolidate Session Management](#phase-4-consolidate-session-management)
 8. [Phase 5: Deduplication & Polish](#phase-5-deduplication--polish)
-9. [Rollback Strategy](#rollback-strategy)
-10. [Success Metrics](#success-metrics)
+9. [Phase 6: Split SimulStreaming Service](#phase-6-split-simulstreaming-service-simul_whisperpy)
+10. [Rollback Strategy](#rollback-strategy)
+11. [Success Metrics](#success-metrics)
 
 ---
 
@@ -3090,6 +3091,456 @@ def session_status():
 
 ---
 
+## Phase 6: Split SimulStreaming Service (simul_whisper.py)
+
+**Duration:** 4 days
+**Goal:** Break down 819-line SimulStreaming coordinator into 8 focused modules
+**Risk:** MEDIUM (Complex streaming logic, critical for real-time performance)
+**Reference:** `/modules/whisper-service/separation.md`
+
+### Overview
+
+The `simul_whisper.py` file (819 lines) is the core SimulStreaming coordinator that implements AlignAtt-based streaming transcription. It needs to be split into focused modules for better maintainability and testability.
+
+**Current Structure:**
+```
+src/simul_whisper/simul_whisper.py (819 lines)
+- Model loading & device detection
+- Tokenizer management
+- Audio buffer management
+- Context management
+- Decoder engine
+- Attention processing
+- KV cache management
+- Debug logging
+```
+
+**Target Structure:**
+```
+src/simul_whisper/
+├── simul_whisper.py          (~200 lines - main coordinator)
+├── model_loader.py            (NEW - Model initialization & device detection)
+├── tokenizer_manager.py       (NEW - Tokenizer & language detection)
+├── audio_buffer.py            (NEW - Audio segment management)
+├── context_manager.py         (NEW - Context and token management)
+├── decoder_engine.py          (NEW - Main decoding loop)
+├── attention_processor.py     (NEW - Attention matrix processing)
+├── cache_manager.py           (NEW - KV cache operations)
+└── debug_logger.py            (NEW - Logging utilities)
+```
+
+### Day 21: Write Tests for simul_whisper.py
+
+**Goal:** Comprehensive test coverage for SimulStreaming before splitting
+
+#### 21.1 Test Model Loading and Device Detection
+
+```python
+# tests/unit/test_simul_whisper.py (NEW FILE)
+
+import pytest
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from simul_whisper import SimulWhisper
+
+class TestSimulWhisperModelLoading:
+    """Test model loading and device detection"""
+
+    def test_model_initialization(self):
+        """Test SimulWhisper initialization with default model"""
+        simul = SimulWhisper(model_name="base")
+        assert simul.model is not None
+        assert simul.device in ["cuda", "mps", "cpu"]
+
+    def test_device_detection(self):
+        """Test automatic device detection"""
+        simul = SimulWhisper(model_name="base")
+        detected_device = simul._detect_device()
+        assert detected_device in ["cuda", "mps", "cpu"]
+
+    def test_alignment_heads_setup(self):
+        """Test alignment heads are properly set up"""
+        simul = SimulWhisper(model_name="base")
+        assert hasattr(simul, 'alignment_heads')
+        assert simul.alignment_heads is not None
+```
+
+#### 21.2 Test Tokenizer Management
+
+```python
+class TestSimulWhisperTokenizer:
+    """Test tokenizer and language detection"""
+
+    def test_tokenizer_creation(self):
+        """Test tokenizer is properly created"""
+        simul = SimulWhisper(model_name="base")
+        assert simul.tokenizer is not None
+
+    def test_language_detection(self):
+        """Test language detection from audio"""
+        simul = SimulWhisper(model_name="base")
+        import numpy as np
+
+        # Create dummy audio
+        audio = np.zeros(16000, dtype=np.float32)
+
+        lang_id = simul.lang_id(audio)
+        assert isinstance(lang_id, str)
+        assert len(lang_id) == 2  # Language codes are 2 chars
+
+    def test_task_setting(self):
+        """Test dynamic task switching"""
+        simul = SimulWhisper(model_name="base")
+
+        simul.set_task("transcribe")
+        assert simul.task == "transcribe"
+
+        simul.set_task("translate")
+        assert simul.task == "translate"
+```
+
+#### 21.3 Test Audio Buffer Management
+
+```python
+class TestSimulWhisperAudioBuffer:
+    """Test audio buffer operations"""
+
+    def test_insert_audio(self):
+        """Test audio insertion into buffer"""
+        simul = SimulWhisper(model_name="base")
+        import numpy as np
+
+        audio = np.zeros(16000, dtype=np.float32)
+        simul.insert_audio(audio)
+
+        assert len(simul.audio_buffer) > 0
+
+    def test_segments_len(self):
+        """Test segment length calculation"""
+        simul = SimulWhisper(model_name="base")
+        import numpy as np
+
+        # Insert 3 seconds of audio
+        for _ in range(3):
+            audio = np.zeros(16000, dtype=np.float32)
+            simul.insert_audio(audio)
+
+        seg_len = simul.segments_len()
+        assert seg_len >= 3.0
+
+    def test_min_seglen_application(self):
+        """Test minimum segment length enforcement"""
+        simul = SimulWhisper(model_name="base", min_seg_len=1.0)
+        import numpy as np
+
+        # Insert less than min_seg_len
+        audio = np.zeros(8000, dtype=np.float32)  # 0.5s
+        simul.insert_audio(audio)
+
+        # Should not process yet
+        result = simul._apply_minseglen()
+        assert result is False  # Not enough audio yet
+```
+
+#### 21.4 Test Context Management
+
+```python
+class TestSimulWhisperContext:
+    """Test context and token management"""
+
+    def test_context_initialization(self):
+        """Test context is properly initialized"""
+        simul = SimulWhisper(model_name="base")
+        simul.init_context()
+
+        assert hasattr(simul, 'context')
+        assert isinstance(simul.context, list)
+
+    def test_context_trimming(self):
+        """Test context trimming to max length"""
+        simul = SimulWhisper(model_name="base")
+        simul.init_context()
+
+        # Add many tokens to context
+        for i in range(300):
+            simul.context.append(i)
+
+        simul.trim_context(max_len=223)
+        assert len(simul.context) <= 223
+
+    def test_prompt_handling(self):
+        """Test static and dynamic prompt handling"""
+        simul = SimulWhisper(model_name="base", initial_prompt="Medical transcription")
+        simul.init_context()
+
+        assert simul.initial_prompt == "Medical transcription"
+```
+
+#### 21.5 Test Decoder Engine
+
+```python
+class TestSimulWhisperDecoder:
+    """Test main inference and decoding"""
+
+    @pytest.mark.integration
+    def test_basic_inference(self):
+        """Test basic inference on short audio"""
+        simul = SimulWhisper(model_name="base")
+        import numpy as np
+
+        # Create 3 seconds of audio
+        audio = np.random.randn(48000).astype(np.float32) * 0.01
+        simul.insert_audio(audio)
+
+        # Run inference
+        result = simul.infer()
+
+        assert result is not None
+        assert 'text' in result or 'segments' in result
+
+    @pytest.mark.integration
+    def test_streaming_inference(self):
+        """Test streaming inference with multiple chunks"""
+        simul = SimulWhisper(model_name="base")
+        import numpy as np
+
+        results = []
+
+        # Insert and process 3 chunks
+        for _ in range(3):
+            audio = np.random.randn(16000).astype(np.float32) * 0.01
+            simul.insert_audio(audio)
+            result = simul.infer()
+            if result:
+                results.append(result)
+
+        assert len(results) > 0
+
+    def test_beam_search_coordination(self):
+        """Test beam search is properly coordinated"""
+        simul = SimulWhisper(model_name="base", beam_size=5)
+        assert simul.beam_size == 5
+```
+
+#### 21.6 Test Attention Processing
+
+```python
+class TestSimulWhisperAttention:
+    """Test attention matrix processing"""
+
+    @pytest.mark.integration
+    def test_attention_extraction(self):
+        """Test attention matrices are extracted during inference"""
+        simul = SimulWhisper(model_name="base")
+        import numpy as np
+
+        audio = np.random.randn(16000).astype(np.float32) * 0.01
+        simul.insert_audio(audio)
+        simul.infer()
+
+        # Check attention was captured
+        assert hasattr(simul, 'attention_weights')
+
+    def test_alignment_head_processing(self):
+        """Test alignment head selection and median filtering"""
+        simul = SimulWhisper(model_name="base")
+
+        # Verify alignment heads are configured
+        assert simul.alignment_heads is not None
+```
+
+#### 21.7 Test KV Cache Management
+
+```python
+class TestSimulWhisperCache:
+    """Test KV cache operations"""
+
+    def test_cache_cleanup(self):
+        """Test cache cleanup after processing"""
+        simul = SimulWhisper(model_name="base")
+        import numpy as np
+
+        audio = np.random.randn(16000).astype(np.float32) * 0.01
+        simul.insert_audio(audio)
+        simul.infer()
+
+        # Cleanup cache
+        simul._clean_cache()
+
+        # Cache should be cleared
+        # (Exact assertion depends on cache implementation)
+```
+
+### Day 22: Extract Model Loader
+
+**Goal:** Extract model initialization and device detection
+
+#### 22.1 Create model_loader.py
+
+```python
+# src/simul_whisper/model_loader.py (NEW FILE)
+
+"""
+Model Loading and Device Detection for SimulStreaming
+
+Handles:
+- Device detection (CUDA/MPS/CPU)
+- Model loading
+- Hook installation for attention/KV cache
+- Alignment heads setup
+"""
+
+import torch
+import whisper
+import logging
+from typing import Optional, Any, Dict
+
+logger = logging.getLogger(__name__)
+
+
+class ModelLoader:
+    """Handles model loading and device setup for SimulStreaming"""
+
+    def __init__(self, models_dir: str = ".models/pytorch"):
+        self.models_dir = models_dir
+        self.device = self._detect_device()
+
+    def _detect_device(self) -> str:
+        """
+        Detect best available device.
+        Priority: CUDA → MPS → CPU
+        """
+        if torch.cuda.is_available():
+            return "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return "mps"
+        else:
+            return "cpu"
+
+    def load_model(
+        self,
+        model_name: str,
+        device: Optional[str] = None
+    ) -> Any:
+        """
+        Load Whisper model with SimulStreaming hooks.
+
+        Args:
+            model_name: Model name (e.g., "base", "large-v3")
+            device: Override device (default: auto-detect)
+
+        Returns:
+            Loaded Whisper model with hooks installed
+        """
+        if device is None:
+            device = self.device
+
+        logger.info(f"[MODEL LOADER] Loading {model_name} on {device}")
+
+        model = whisper.load_model(
+            model_name,
+            device=device,
+            download_root=self.models_dir
+        )
+
+        # Install hooks for attention capture and KV cache
+        self._install_hooks(model)
+
+        logger.info(f"[MODEL LOADER] ✓ Model loaded with hooks on {device}")
+        return model
+
+    def _install_hooks(self, model: Any) -> None:
+        """Install forward hooks for attention capture and KV cache"""
+        # Attention capture hooks
+        for block in model.decoder.blocks:
+            if hasattr(block, 'cross_attn'):
+                block.cross_attn.register_forward_hook(self._attention_hook)
+
+        # KV cache hooks
+        # (Implementation depends on specific requirements)
+        pass
+
+    def _attention_hook(self, module, input, output):
+        """Hook to capture attention weights during forward pass"""
+        # Store attention weights for AlignAtt processing
+        if not hasattr(module, 'attention_weights'):
+            module.attention_weights = []
+        module.attention_weights.append(output[1])  # qk matrix
+
+    def get_alignment_heads(self, model: Any, model_name: str) -> Optional[Any]:
+        """
+        Get alignment heads for the model.
+
+        Alignment heads are cross-attention heads that best correlate
+        with word boundaries (used for AlignAtt streaming).
+        """
+        # Model-specific alignment heads (from SimulStreaming paper)
+        alignment_heads_map = {
+            "tiny.en": [[1, 0]],
+            "tiny": [[2, 2], [3, 0]],
+            "base.en": [[3, 1], [4, 4]],
+            "base": [[3, 3], [4, 7]],
+            "small.en": [[6, 8], [9, 2]],
+            "small": [[7, 0], [10, 5]],
+            "medium.en": [[11, 4], [14, 1]],
+            "medium": [[13, 15], [15, 4]],
+            "large-v1": [[9, 19], [11, 2]],
+            "large-v2": [[10, 12], [13, 17]],
+            "large-v3": [[10, 12], [13, 17]],
+        }
+
+        return alignment_heads_map.get(model_name)
+```
+
+#### 22.2 Update simul_whisper.py to use ModelLoader
+
+```python
+# src/simul_whisper/simul_whisper.py (UPDATED)
+
+from .model_loader import ModelLoader
+
+class SimulWhisper:
+    def __init__(
+        self,
+        model_name: str = "base",
+        models_dir: str = ".models/pytorch",
+        device: Optional[str] = None,
+        **kwargs
+    ):
+        # Use ModelLoader instead of direct whisper.load_model()
+        self.model_loader = ModelLoader(models_dir=models_dir)
+        self.model = self.model_loader.load_model(model_name, device=device)
+        self.device = self.model_loader.device
+        self.alignment_heads = self.model_loader.get_alignment_heads(
+            self.model, model_name
+        )
+
+        # ... rest of initialization
+```
+
+### Day 23: Extract Remaining Modules
+
+Continue extracting:
+- tokenizer_manager.py
+- audio_buffer.py
+- context_manager.py
+- decoder_engine.py
+- attention_processor.py
+- cache_manager.py
+- debug_logger.py
+
+### Day 24: Integration & Testing
+
+- Update all imports in simul_whisper.py
+- Run full test suite
+- Verify no regressions
+- Update documentation
+
+---
+
 ## Rollback Strategy
 
 **If anything goes wrong:**
@@ -3117,6 +3568,7 @@ cp src/whisper_service.py.original src/whisper_service.py
 **Final Targets:**
 - [ ] whisper_service.py: 2,392 → 600 lines (75% reduction)
 - [ ] api_server.py: 3,642 → 800 lines (78% reduction)
+- [ ] simul_whisper.py: 819 → 200 lines (76% reduction)
 - [ ] 3 session managers → 1 unified manager
 - [ ] Test coverage: >80% across all modules
 - [ ] ZERO feature regressions
