@@ -11,6 +11,7 @@ from .text_analysis import (
     find_stable_word_prefix,
     calculate_text_stability_score
 )
+from .result_parser import parse_whisper_result
 
 __all__ = [
     "TranscriptionRequest",
@@ -19,4 +20,5 @@ __all__ = [
     "detect_hallucination",
     "find_stable_word_prefix",
     "calculate_text_stability_score",
+    "parse_whisper_result",
 ]

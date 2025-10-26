@@ -50,14 +50,15 @@ from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
 
-# Phase 2 Day 7-10: Import extracted components
+# Phase 2 Day 7-11: Import extracted components
 from transcription import (
     TranscriptionRequest,
     TranscriptionResult,
     SimpleAudioBufferManager,
     detect_hallucination,
     find_stable_word_prefix,
-    calculate_text_stability_score
+    calculate_text_stability_score,
+    parse_whisper_result
 )
 from session import SessionManager
 from config import load_whisper_config
@@ -249,165 +250,22 @@ class WhisperService:
 
             logger.info(f"[INFERENCE] Complete: model={request.model_name}, beam_size={request.beam_size}, "
                        f"domain={request.domain}, streaming={request.streaming_policy}")
-            
+
             processing_time = time.time() - start_time
-            
-            # Parse OpenVINO WhisperDecodedResults properly
+
+            # Parse result using extracted parser (handles dict, OpenVINO, fallback formats)
             logger.info(f"[WHISPER] 🔍 Result type: {type(result)}")
             logger.info(f"[WHISPER] 🔍 Result attributes: {[attr for attr in dir(result) if not attr.startswith('_')]}")
 
-            # Initialize confidence score - will be extracted from model output
-            confidence_score = 0.8  # Default for successful transcription
+            text, segments, language, confidence_score = parse_whisper_result(result)
 
-            # CRITICAL FIX: Check for dict FIRST before checking hasattr
-            if isinstance(result, dict):
-                # PyTorch Whisper returns dict with 'text' and 'segments' keys
-                text = result.get('text', '')
-                segments = result.get('segments', [])
-                language = result.get('language', 'unknown')
-                logger.info(f"[WHISPER] 📝 Dict result - text: '{text[:60]}', segments: {len(segments)}, lang: {language}")
-
-                # Extract confidence from segments
-                if segments:
-                    avg_logprobs = [seg.get('avg_logprob', -1.0) for seg in segments if 'avg_logprob' in seg]
-                    if avg_logprobs:
-                        avg_logprob = sum(avg_logprobs) / len(avg_logprobs)
-                        confidence_score = min(1.0, max(0.0, (avg_logprob + 1.0)))
-                        logger.info(f"[WHISPER] 🎯 Calculated confidence from {len(avg_logprobs)} segments: {confidence_score:.3f}")
-
-            # Handle OpenVINO WhisperDecodedResults structure
-            elif hasattr(result, 'texts') and result.texts:
-                # OpenVINO returns 'texts' (plural) - get the first text
-                text = result.texts[0] if result.texts else ""
-                logger.info(f"[WHISPER] 📝 Text extracted from 'texts': '{text}'")
-                
-                # Try to get segments from chunks and extract confidence
-                segments = []
-                chunk_confidences = []
-                
-                if hasattr(result, 'chunks') and result.chunks:
-                    segments = result.chunks
-                    logger.info(f"[WHISPER] 📋 Chunks/segments count: {len(segments)}")
-                    
-                    # Extract confidence from all chunks
-                    for i, chunk in enumerate(segments):
-                        chunk_confidence = None
-                        
-                        # Try different confidence attributes
-                        if hasattr(chunk, 'confidence'):
-                            chunk_confidence = chunk.confidence
-                        elif hasattr(chunk, 'score'):
-                            chunk_confidence = chunk.score
-                        elif hasattr(chunk, 'probability'):
-                            chunk_confidence = chunk.probability
-                        elif hasattr(chunk, 'prob'):
-                            chunk_confidence = chunk.prob
-                        elif hasattr(chunk, 'avg_logprob'):
-                            # Convert log probability to confidence (0-1 range)
-                            # avg_logprob is typically negative, closer to 0 is better
-                            chunk_confidence = min(1.0, max(0.0, (chunk.avg_logprob + 1.0)))
-                        elif hasattr(chunk, 'no_speech_prob'):
-                            # Convert no-speech probability to confidence
-                            chunk_confidence = 1.0 - chunk.no_speech_prob
-                        
-                        if chunk_confidence is not None:
-                            # Ensure confidence is in valid range
-                            chunk_confidence = max(0.0, min(1.0, chunk_confidence))
-                            chunk_confidences.append(chunk_confidence)
-                            if i == 0:  # Log first chunk for debugging
-                                logger.info(f"[WHISPER] 🎯 Chunk {i} confidence: {chunk_confidence:.3f}")
-                
-                # Calculate overall confidence from chunks
-                if chunk_confidences:
-                    # Use weighted average of chunk confidences
-                    confidence_score = sum(chunk_confidences) / len(chunk_confidences)
-                    logger.info(f"[WHISPER] 🎯 Calculated confidence from {len(chunk_confidences)} chunks: {confidence_score:.3f}")
-                
-                # Try to extract overall confidence from result object if no chunk confidence
-                elif hasattr(result, 'confidence'):
-                    confidence_score = result.confidence
-                    logger.info(f"[WHISPER] 🎯 Found result confidence: {confidence_score:.3f}")
-                elif hasattr(result, 'avg_logprob'):
-                    # Convert log probability to confidence
-                    confidence_score = min(1.0, max(0.0, (result.avg_logprob + 1.0)))
-                    logger.info(f"[WHISPER] 🎯 Calculated confidence from result avg_logprob: {confidence_score:.3f}")
-                elif hasattr(result, 'no_speech_prob'):
-                    confidence_score = 1.0 - result.no_speech_prob
-                    logger.info(f"[WHISPER] 🎯 Calculated confidence from no_speech_prob: {confidence_score:.3f}")
-                elif hasattr(result, 'scores') and result.scores:
-                    try:
-                        # Get average score
-                        avg_score = sum(result.scores) / len(result.scores)
-                        confidence_score = max(0.0, min(1.0, avg_score))
-                        logger.info(f"[WHISPER] 🎯 Average result score: {confidence_score:.3f}")
-                    except:
-                        logger.info(f"[WHISPER] ⚠️ Failed to calculate average score - using default")
-                else:
-                    logger.info(f"[WHISPER] ⚠️ No confidence attributes found - using default: {confidence_score:.3f}")
-                
-            elif hasattr(result, 'text'):
-                # Fallback to 'text' attribute
-                text = result.text
-                segments = getattr(result, 'segments', [])
-                logger.info(f"[WHISPER] 📝 Text extracted from 'text': '{text}'")
-                logger.info(f"[WHISPER] 📋 Segments count: {len(segments)}")
-                
-            else:
-                # Last resort: string conversion
-                text = str(result)
-                segments = []
-                logger.info(f"[WHISPER] ⚠️ Using string conversion: '{text}'")
-            
-            # Enhanced language detection for OpenVINO
-            # Only detect if not already set from dict
-            if 'language' not in locals() or language == 'unknown':
-                language = 'unknown'
-
-            # Method 1: Check result attributes (for non-dict results)
-            if language == 'unknown' and hasattr(result, 'language'):
-                language = result.language
-                logger.info(f"[WHISPER] 🌍 Found language attribute: {language}")
-            elif hasattr(result, 'lang'):
-                language = result.lang
-                logger.info(f"[WHISPER] 🌍 Found lang attribute: {language}")
-                
-            # Method 2: Check chunks for language info
-            elif hasattr(result, 'chunks') and result.chunks:
-                try:
-                    first_chunk = result.chunks[0]
-                    if hasattr(first_chunk, 'language'):
-                        language = first_chunk.language
-                        logger.info(f"[WHISPER] 🌍 Found language in chunk: {language}")
-                    elif hasattr(first_chunk, 'lang'):
-                        language = first_chunk.lang
-                        logger.info(f"[WHISPER] 🌍 Found lang in chunk: {language}")
-                except Exception as e:
-                    logger.debug(f"[WHISPER] Could not extract language from chunks: {e}")
-                    
-            # Method 3: Simple language detection from text content
-            if language == 'unknown' and text:
-                # Detect Chinese characters
-                if any('\u4e00' <= char <= '\u9fff' for char in text):
-                    language = 'zh'
-                    logger.info(f"[WHISPER] 🌍 Detected Chinese from text content: {language}")
-                # Detect other common patterns
-                elif any(char in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' for char in text):
-                    language = 'en'
-                    logger.info(f"[WHISPER] 🌍 Detected English from text content: {language}")
-                else:
-                    language = 'auto'
-                    logger.info(f"[WHISPER] 🌍 Auto-detected language: {language}")
-            
             # Improved hallucination detection - only flag obvious cases
             is_likely_hallucination = detect_hallucination(text, confidence_score)
-            
+
             if is_likely_hallucination:
                 # Reduce confidence but don't make it too low if the model was confident
                 confidence_score = max(0.3, confidence_score * 0.7)
                 logger.info(f"[WHISPER] ⚠️ Possible hallucination detected: '{text[:50]}...' - adjusted confidence to {confidence_score:.3f}")
-            
-            # Ensure confidence is in valid range
-            confidence_score = max(0.0, min(1.0, confidence_score))
             
             transcription_result = TranscriptionResult(
                 text=text,
