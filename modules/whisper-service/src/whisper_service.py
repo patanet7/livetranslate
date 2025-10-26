@@ -50,8 +50,15 @@ from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
 
-# Phase 2 Day 7: Import extracted components
-from transcription import TranscriptionRequest, TranscriptionResult, SimpleAudioBufferManager
+# Phase 2 Day 7-8: Import extracted components
+from transcription import (
+    TranscriptionRequest,
+    TranscriptionResult,
+    SimpleAudioBufferManager,
+    detect_hallucination,
+    find_stable_word_prefix,
+    calculate_text_stability_score
+)
 from session import SessionManager
 
 # Configure logging
@@ -163,146 +170,10 @@ class WhisperService:
             total_samples = sum(len(seg) for seg in segments)
             return total_samples / 16000.0  # Assuming 16kHz sample rate
 
-    def _detect_hallucination(self, text: str, confidence: float) -> bool:
-        """
-        Improved hallucination detection that only flags obvious cases
-        and considers model confidence in the decision
-        """
-        if not text or len(text.strip()) < 2:
-            return True
-        
-        text_lower = text.lower().strip()
-        
-        # Only flag very obvious hallucination patterns
-        obvious_noise_patterns = [
-            # Very short repetitive patterns
-            'aaaa', 'bbbb', 'cccc', 'dddd', 'eeee',
-            # Common Whisper artifacts (but be more selective)
-            'mbc 뉴스', '김정진입니다', 'thanks for watching our channel',
-        ]
-        
-        # Check for obvious noise only
-        for pattern in obvious_noise_patterns:
-            if pattern in text_lower:
-                return True
-        
-        # Check for excessive repetition (stricter criteria)
-        words = text_lower.split()
-        if len(words) > 5:
-            # Only flag if more than 80% of words are the same
-            unique_words = set(words)
-            repetition_ratio = len(unique_words) / len(words)
-            if repetition_ratio < 0.2:  # Less than 20% unique words (was 10%)
-                return True
-        
-        # Check for single character repetition
-        if len(text_lower) > 10 and len(set(text_lower.replace(' ', ''))) < 3:
-            return True
-        
-        # Don't flag educational content about language learning
-        educational_phrases = [
-            'english phrase', 'language', 'learning', 'practice', 'exercise',
-            'get in shape', 'happened to you', 'trying to think', 'word', 'vocabulary'
-        ]
-        
-        for phrase in educational_phrases:
-            if phrase in text_lower:
-                return False  # Definitely not hallucination
-        
-        return False
-
-    def _find_stable_word_prefix(self, text_history: List[Tuple[str, float]], current_text: str) -> str:
-        """
-        Find the stable word prefix from text history.
-
-        A word is considered stable if it appears in the same position
-        across multiple consecutive transcriptions.
-
-        Args:
-            text_history: List of (text, timestamp) tuples
-            current_text: Current transcription text
-
-        Returns:
-            Stable prefix string
-        """
-        if not text_history or len(text_history) < 2:
-            return ""
-
-        # Get all texts from history
-        texts = [txt for txt, _ in text_history]
-
-        # Split into words
-        current_words = current_text.split()
-        if not current_words:
-            return ""
-
-        # Find longest common prefix across recent texts
-        stable_word_count = 0
-
-        for i, word in enumerate(current_words):
-            # Check if this word appears in same position in at least 2 recent texts
-            appearances = 0
-            for text in texts[-3:]:  # Check last 3 texts
-                words = text.split()
-                if i < len(words) and words[i] == word:
-                    appearances += 1
-
-            # If word appears in at least 2 texts, consider it stable
-            if appearances >= min(2, len(texts)):
-                stable_word_count = i + 1
-            else:
-                break  # Stop at first unstable word
-
-        # Return stable prefix
-        if stable_word_count > 0:
-            return " ".join(current_words[:stable_word_count])
-        return ""
-
-    def _calculate_text_stability_score(self, text_history: List[Tuple[str, float]], stable_prefix: str) -> float:
-        """
-        Calculate stability score based on text consistency.
-
-        Args:
-            text_history: List of (text, timestamp) tuples
-            stable_prefix: Current stable prefix
-
-        Returns:
-            Stability score (0.0-1.0)
-        """
-        if not text_history:
-            return 0.0
-
-        if not stable_prefix:
-            return 0.1  # Low score if nothing is stable
-
-        # Calculate based on:
-        # 1. Length of stable prefix relative to total text
-        # 2. Consistency across history
-        # 3. Age of stable prefix (older = more stable)
-
-        current_text = text_history[-1][0] if text_history else ""
-        if not current_text:
-            return 0.0
-
-        # Factor 1: Proportion of text that's stable
-        stable_ratio = len(stable_prefix) / max(1, len(current_text))
-
-        # Factor 2: Consistency (how many recent texts contain this prefix)
-        consistency = 0
-        for text, _ in text_history[-5:]:
-            if text.startswith(stable_prefix):
-                consistency += 1
-        consistency_score = consistency / min(5, len(text_history))
-
-        # Factor 3: Age bonus (longer stable = higher score)
-        if len(text_history) >= 3:
-            age_bonus = min(0.2, len(text_history) * 0.05)
-        else:
-            age_bonus = 0.0
-
-        # Combine factors
-        score = (stable_ratio * 0.5 + consistency_score * 0.4 + age_bonus)
-        return min(1.0, max(0.0, score))
+    # Phase 2 Day 8: Helper methods extracted to transcription/text_analysis.py
+    # - detect_hallucination()
+    # - find_stable_word_prefix()
+    # - calculate_text_stability_score()
 
     async def transcribe(self, request: TranscriptionRequest) -> TranscriptionResult:
         """
@@ -537,7 +408,7 @@ class WhisperService:
                     logger.info(f"[WHISPER] 🌍 Auto-detected language: {language}")
             
             # Improved hallucination detection - only flag obvious cases
-            is_likely_hallucination = self._detect_hallucination(text, confidence_score)
+            is_likely_hallucination = detect_hallucination(text, confidence_score)
             
             if is_likely_hallucination:
                 # Reduce confidence but don't make it too low if the model was confident
@@ -704,7 +575,7 @@ class WhisperService:
                             text_history = [(txt, ts) for txt, ts in text_history if ts >= cutoff_time]
 
                             # Find stable word prefix (words that appear consistently across recent history)
-                            stable_prefix = self._find_stable_word_prefix(text_history, current_text)
+                            stable_prefix = find_stable_word_prefix(text_history, current_text)
                             unstable_tail = current_text[len(stable_prefix):].strip()
 
                             # Determine emission type
@@ -724,7 +595,7 @@ class WhisperService:
                             result.stable_end_time = current_time
 
                             # Calculate stability score (based on text consistency)
-                            result.stability_score = self._calculate_text_stability_score(text_history, stable_prefix)
+                            result.stability_score = calculate_text_stability_score(text_history, stable_prefix)
 
                             last_stable_prefix = stable_prefix
 
