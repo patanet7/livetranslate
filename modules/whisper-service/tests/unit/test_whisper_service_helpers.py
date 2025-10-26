@@ -3,10 +3,10 @@
 Unit Tests for WhisperService Helper Methods
 
 Tests helper methods that don't require model loading:
-- _detect_hallucination()
-- _find_stable_word_prefix()
-- _calculate_text_stability_score()
-- _segments_len()
+- detect_hallucination() (from transcription.text_analysis)
+- find_stable_word_prefix() (from transcription.text_analysis)
+- calculate_text_stability_score() (from transcription.text_analysis)
+- _segments_len() (WhisperService method)
 
 Following TDD principle: Test current behavior BEFORE refactoring
 NO MOCKS - Testing actual implementation behavior
@@ -23,6 +23,11 @@ SRC_DIR = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
 from whisper_service import WhisperService, TranscriptionRequest, TranscriptionResult
+from transcription.text_analysis import (
+    detect_hallucination,
+    find_stable_word_prefix,
+    calculate_text_stability_score
+)
 
 
 class TestHallucinationDetection:
@@ -32,32 +37,32 @@ class TestHallucinationDetection:
         """Empty or whitespace-only text should be flagged"""
         service = WhisperService(config={"orchestration_mode": True})
 
-        assert service._detect_hallucination("", 0.8) is True
-        assert service._detect_hallucination("   ", 0.8) is True
-        assert service._detect_hallucination("\n", 0.8) is True
+        assert detect_hallucination("", 0.8) is True
+        assert detect_hallucination("   ", 0.8) is True
+        assert detect_hallucination("\n", 0.8) is True
 
     def test_short_text_is_hallucination(self):
         """Very short text (< 2 chars after strip) should be flagged"""
         service = WhisperService(config={"orchestration_mode": True})
 
-        assert service._detect_hallucination("a", 0.8) is True
-        assert service._detect_hallucination(" b ", 0.8) is True
+        assert detect_hallucination("a", 0.8) is True
+        assert detect_hallucination(" b ", 0.8) is True
 
     def test_repetitive_characters_are_hallucination(self):
         """Repetitive character patterns should be flagged"""
         service = WhisperService(config={"orchestration_mode": True})
 
-        assert service._detect_hallucination("aaaa", 0.8) is True
-        assert service._detect_hallucination("bbbb", 0.8) is True
-        assert service._detect_hallucination("cccc hello world", 0.8) is True
+        assert detect_hallucination("aaaa", 0.8) is True
+        assert detect_hallucination("bbbb", 0.8) is True
+        assert detect_hallucination("cccc hello world", 0.8) is True
 
     def test_whisper_artifacts_are_hallucination(self):
         """Known Whisper hallucination patterns should be flagged"""
         service = WhisperService(config={"orchestration_mode": True})
 
-        assert service._detect_hallucination("mbc 뉴스", 0.8) is True
-        assert service._detect_hallucination("김정진입니다", 0.8) is True
-        assert service._detect_hallucination("thanks for watching our channel", 0.8) is True
+        assert detect_hallucination("mbc 뉴스", 0.8) is True
+        assert detect_hallucination("김정진입니다", 0.8) is True
+        assert detect_hallucination("thanks for watching our channel", 0.8) is True
 
     def test_excessive_word_repetition(self):
         """Text with >80% word repetition should be flagged"""
@@ -65,30 +70,30 @@ class TestHallucinationDetection:
 
         # 10 words, only 1 unique (10% unique = below 20% threshold)
         repetitive = "the the the the the the the the the the"
-        assert service._detect_hallucination(repetitive, 0.8) is True
+        assert detect_hallucination(repetitive, 0.8) is True
 
     def test_educational_content_not_hallucination(self):
         """Educational phrases should NOT be flagged"""
         service = WhisperService(config={"orchestration_mode": True})
 
-        assert service._detect_hallucination("Let's practice this English phrase", 0.8) is False
-        assert service._detect_hallucination("This is a language learning exercise", 0.8) is False
-        assert service._detect_hallucination("Try to get in shape with vocabulary", 0.8) is False
+        assert detect_hallucination("Let's practice this English phrase", 0.8) is False
+        assert detect_hallucination("This is a language learning exercise", 0.8) is False
+        assert detect_hallucination("Try to get in shape with vocabulary", 0.8) is False
 
     def test_normal_speech_not_hallucination(self):
         """Normal speech should NOT be flagged"""
         service = WhisperService(config={"orchestration_mode": True})
 
-        assert service._detect_hallucination("Hello world, how are you today?", 0.8) is False
-        assert service._detect_hallucination("The quick brown fox jumps over the lazy dog", 0.9) is False
-        assert service._detect_hallucination("I would like to order a coffee please", 0.7) is False
+        assert detect_hallucination("Hello world, how are you today?", 0.8) is False
+        assert detect_hallucination("The quick brown fox jumps over the lazy dog", 0.9) is False
+        assert detect_hallucination("I would like to order a coffee please", 0.7) is False
 
     def test_single_character_repetition(self):
         """Text with very few unique characters should be flagged"""
         service = WhisperService(config={"orchestration_mode": True})
 
         # Long text but only 2 unique characters (excluding spaces)
-        assert service._detect_hallucination("aaa bbb aaa bbb aaa", 0.8) is True
+        assert detect_hallucination("aaa bbb aaa bbb aaa", 0.8) is True
 
 
 class TestStabilityTracking:
@@ -101,7 +106,7 @@ class TestStabilityTracking:
         text_history: List[Tuple[str, float]] = []
         current_text = "hello world"
 
-        stable_prefix = service._find_stable_word_prefix(text_history, current_text)
+        stable_prefix = find_stable_word_prefix(text_history, current_text)
         assert stable_prefix == ""
 
     def test_single_item_history_returns_empty_prefix(self):
@@ -111,7 +116,7 @@ class TestStabilityTracking:
         text_history = [("hello", 1.0)]
         current_text = "hello world"
 
-        stable_prefix = service._find_stable_word_prefix(text_history, current_text)
+        stable_prefix = find_stable_word_prefix(text_history, current_text)
         assert stable_prefix == ""
 
     def test_consistent_prefix_detected(self):
@@ -125,7 +130,7 @@ class TestStabilityTracking:
         ]
         current_text = "hello world this is a test"
 
-        stable_prefix = service._find_stable_word_prefix(text_history, current_text)
+        stable_prefix = find_stable_word_prefix(text_history, current_text)
 
         # Should detect "hello world this is" as stable (appears in at least 2 recent texts)
         assert "hello world" in stable_prefix
@@ -142,7 +147,7 @@ class TestStabilityTracking:
         ]
         current_text = "hello world again"
 
-        stable_prefix = service._find_stable_word_prefix(text_history, current_text)
+        stable_prefix = find_stable_word_prefix(text_history, current_text)
 
         # Only "hello" should be stable (consistent position)
         # "world" appears but not in consistent position
@@ -155,7 +160,7 @@ class TestStabilityTracking:
         text_history = [("hello", 1.0), ("hello world", 2.0)]
         current_text = ""
 
-        stable_prefix = service._find_stable_word_prefix(text_history, current_text)
+        stable_prefix = find_stable_word_prefix(text_history, current_text)
         assert stable_prefix == ""
 
     def test_stability_score_calculation(self):
@@ -169,7 +174,7 @@ class TestStabilityTracking:
         ]
         stable_prefix = "hello world"
 
-        score = service._calculate_text_stability_score(text_history, stable_prefix)
+        score = calculate_text_stability_score(text_history, stable_prefix)
 
         # Score should be between 0.0 and 1.0
         assert 0.0 <= score <= 1.0
@@ -183,7 +188,7 @@ class TestStabilityTracking:
         text_history: List[Tuple[str, float]] = []
         stable_prefix = ""
 
-        score = service._calculate_text_stability_score(text_history, stable_prefix)
+        score = calculate_text_stability_score(text_history, stable_prefix)
         assert score == 0.0
 
 
