@@ -50,7 +50,7 @@ from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
 
-# Phase 2 Day 7-11: Import extracted components
+# Phase 2 Day 7-13: Import extracted components
 from transcription import (
     TranscriptionRequest,
     TranscriptionResult,
@@ -63,6 +63,7 @@ from transcription import (
 from session import SessionManager
 from config import load_whisper_config
 from audio import load_audio_from_bytes, ensure_sample_rate, VADProcessor
+from orchestration import format_success_response, format_error_response
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -602,58 +603,25 @@ class WhisperService:
             # Process the chunk directly (bypass buffering)
             result = await self.transcribe(transcription_request)
             processing_time = time.time() - start_time
-            
+
             # Update statistics
             self.stats["orchestration_chunks_processed"] += 1
             self.stats["total_processing_time"] += processing_time
-            
-            # Prepare orchestration-compatible response
-            response = {
-                "chunk_id": chunk_id,
-                "session_id": session_id,
-                "status": "success",
-                "transcription": {
-                    "text": result.text,
-                    "language": result.language,
-                    "confidence_score": result.confidence_score,
-                    "segments": result.segments,
-                    "timestamp": result.timestamp
-                },
-                "processing_info": {
-                    "model_used": result.model_used,
-                    "device_used": result.device_used,
-                    "processing_time": processing_time,
-                    "chunk_metadata": chunk_metadata,
-                    "service_mode": "orchestration"
-                },
-                "chunk_sequence": chunk_metadata.get('sequence_number', 0),
-                "chunk_timing": {
-                    "start_time": chunk_metadata.get('start_time', 0.0),
-                    "end_time": chunk_metadata.get('end_time', 0.0),
-                    "duration": chunk_metadata.get('duration', 0.0),
-                    "overlap_start": chunk_metadata.get('overlap_start', 0.0),
-                    "overlap_end": chunk_metadata.get('overlap_end', 0.0)
-                }
-            }
-            
+
+            # Format success response using orchestration formatter
+            response = format_success_response(chunk_id, session_id, result, processing_time, chunk_metadata)
+
             logger.info(f"[ORCHESTRATION] ✅ Chunk {chunk_id} processed successfully in {processing_time:.2f}s")
             return response
             
         except Exception as e:
             processing_time = time.time() - start_time
             self.stats["errors"] += 1
-            
+
             logger.error(f"[ORCHESTRATION] ❌ Failed to process chunk {chunk_id}: {e}")
-            
-            return {
-                "chunk_id": chunk_id,
-                "session_id": session_id,
-                "status": "error",
-                "error": str(e),
-                "error_type": "orchestration_processing_error",
-                "processing_time": processing_time,
-                "chunk_metadata": chunk_metadata
-            }
+
+            # Format error response using orchestration formatter
+            return format_error_response(chunk_id, session_id, e, processing_time, chunk_metadata)
     
     def get_available_models(self) -> List[str]:
         """Get list of available models"""
