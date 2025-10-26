@@ -50,7 +50,7 @@ from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
 
-# Phase 2 Day 7-9: Import extracted components
+# Phase 2 Day 7-10: Import extracted components
 from transcription import (
     TranscriptionRequest,
     TranscriptionResult,
@@ -61,6 +61,7 @@ from transcription import (
 )
 from session import SessionManager
 from config import load_whisper_config
+from audio import load_audio_from_bytes, ensure_sample_rate
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -191,25 +192,14 @@ class WhisperService:
         try:
             # Process audio data
             if isinstance(request.audio_data, bytes):
-                # Load audio from bytes using soundfile (Python 3.13 compatible)
-                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
-                    tmp_file.write(request.audio_data)
-                    tmp_file.flush()
-
-                    # Use soundfile instead of librosa.load to avoid aifc dependency (Python 3.13)
-                    audio_data, sr = sf.read(tmp_file.name, dtype='float32')
-                    os.unlink(tmp_file.name)
-
-                    # soundfile returns stereo as (samples, channels), librosa expects (samples,)
-                    if len(audio_data.shape) > 1:
-                        audio_data = audio_data[:, 0]  # Take first channel
+                # Load audio from bytes (handles stereo to mono conversion)
+                audio_data, sr = load_audio_from_bytes(request.audio_data)
             else:
                 audio_data = request.audio_data
                 sr = request.sample_rate
-            
-            # Ensure correct sample rate
-            if sr != request.sample_rate:
-                audio_data = librosa.resample(audio_data, orig_sr=sr, target_sr=request.sample_rate)
+
+            # Ensure correct sample rate (resample if needed)
+            audio_data = ensure_sample_rate(audio_data, sr, request.sample_rate)
 
             # Note: VAD is handled internally by AlignAtt/BeamSearch decoders
             # No need for separate VAD processing in SimulStreaming mode
