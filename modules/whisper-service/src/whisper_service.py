@@ -62,7 +62,7 @@ from transcription import (
 )
 from session import SessionManager
 from config import load_whisper_config
-from audio import load_audio_from_bytes, ensure_sample_rate
+from audio import load_audio_from_bytes, ensure_sample_rate, VADProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -108,18 +108,15 @@ class WhisperService:
         self.session_audio_buffers = {}  # session_id -> List[torch.Tensor]
         self.session_buffers_lock = threading.Lock()
 
-        # Per-session VAD state tracking (VACOnlineProcessor pattern)
-        # Tracks which sessions are currently in speech vs silence
-        self.session_vad_states = {}  # session_id -> 'voice' | 'nonvoice' | None
-
         # Initialize Silero VAD for speech detection (prevents hallucinations on silence)
         # Following SimulStreaming: VAD is used as PRE-FILTER before adding to buffer
         try:
-            self.vad = get_vad(threshold=0.5)
+            vad = get_vad(threshold=0.5)
+            self.vad_processor = VADProcessor(vad)
             logger.info("🎤 Silero VAD initialized (VACOnlineProcessor pattern - pre-filters silence)")
         except Exception as e:
             logger.warning(f"⚠️ VAD initialization failed: {e}, continuing without VAD")
-            self.vad = None
+            self.vad_processor = VADProcessor(None)
 
         # Phase 3: Initialize Stability Trackers for draft/final emission
         # Per-session trackers for token stability detection
@@ -550,58 +547,12 @@ class WhisperService:
         # VAD PRE-FILTER (OPTIONAL - controlled by enable_vad_prefilter flag)
         # When enabled, filters silence chunks before adding to buffer
         # When disabled, ALL audio chunks are added (better for file playback/testing)
-        if enable_vad_prefilter and self.vad is not None:
-            vad_result = self.vad.check_speech(audio_chunk)
-
-            # Initialize session VAD state if needed
-            if session_id not in self.session_vad_states:
-                self.session_vad_states[session_id] = None
-                logger.info(f"[VAD] Session {session_id}: Initialized VAD state tracking")
-
-                # CRITICAL FIX: Preload VAD with silence to build analysis window
-                # This "primes" the VAD so it's ready to detect speech immediately
-                # SimulStreaming does this implicitly - we need to do it explicitly
-                silence_frames = 3  # Preload 3 frames of silence (3 * 512 samples = 1536 samples = ~96ms)
-                silence_chunk = np.zeros(512, dtype=np.float32)
-                for _ in range(silence_frames):
-                    self.vad.check_speech(silence_chunk)
-                logger.info(f"[VAD] Session {session_id}: 🔧 Preloaded VAD with {silence_frames} silence frames for immediate readiness")
-
-            # Update VAD state based on result
-            if vad_result is not None:
-                if 'start' in vad_result:
-                    self.session_vad_states[session_id] = 'voice'
-                    logger.info(f"[VAD] Session {session_id}: 🎤 Speech started at {vad_result['start']:.2f}s")
-                elif 'end' in vad_result:
-                    self.session_vad_states[session_id] = 'nonvoice'
-                    logger.info(f"[VAD] Session {session_id}: 🔇 Speech ended at {vad_result['end']:.2f}s")
-            else:
-                # VAD returned None - this could mean:
-                # 1. ONGOING speech (between start and end events)
-                # 2. VAD is still accumulating data (first few chunks)
-                # 3. Silence after speech has ended
-                current_state = self.session_vad_states.get(session_id)
-                if current_state == 'voice':
-                    # Still in speech - vad_result is None but we're between start and end
-                    logger.debug(f"[VAD] Session {session_id}: ✅ Ongoing speech (vad_result=None, state=voice)")
-                elif current_state is None:
-                    # CRITICAL FIX: First chunks - VAD needs data to accumulate
-                    # ACCEPT these chunks so VAD can build up its analysis window
-                    logger.debug(f"[VAD] Session {session_id}: ✅ Accepting initial chunk for VAD analysis (state=None)")
-                elif current_state == 'nonvoice':
-                    # Confirmed non-voice state and still no speech detected - discard
-                    logger.info(f"[VAD] Session {session_id}: ❌ Discarding chunk (state: nonvoice, vad_result: None)")
-                    with self.session_buffers_lock:
-                        return len(self.session_audio_buffers.get(session_id, []))
-
-            # If we got here with an explicit start/end event, handle it
-            if vad_result is not None:
-                current_state = self.session_vad_states.get(session_id)
-                if current_state != 'voice':
-                    logger.info(f"[VAD] Session {session_id}: ❌ Discarding chunk (state: {current_state}, vad_result: {vad_result})")
-                    # Return current buffer size without adding chunk
-                    with self.session_buffers_lock:
-                        return len(self.session_audio_buffers.get(session_id, []))
+        if enable_vad_prefilter:
+            should_keep_chunk = self.vad_processor.process_chunk(audio_chunk, session_id)
+            if not should_keep_chunk:
+                # VAD determined chunk should be discarded
+                with self.session_buffers_lock:
+                    return len(self.session_audio_buffers.get(session_id, []))
 
         # Only reached if VAD detected speech or VAD is disabled
         audio_tensor = torch.from_numpy(audio_chunk).float()
@@ -739,19 +690,18 @@ class WhisperService:
         # Clean up per-session rolling context and tokenizer
         self.model_manager.cleanup_session_context(session_id)
 
-        # Clean up audio buffers and stability trackers
+        # Clean up audio buffers, VAD state, and stability trackers
         with self.session_buffers_lock:
             if session_id in self.session_audio_buffers:
                 del self.session_audio_buffers[session_id]
                 logger.info(f"[CLEANUP] Cleared audio buffer for session {session_id}")
 
-            if session_id in self.session_vad_states:
-                del self.session_vad_states[session_id]
-                logger.info(f"[CLEANUP] Cleared VAD state for session {session_id}")
-
             if session_id in self.session_stability_trackers:
                 del self.session_stability_trackers[session_id]
                 logger.info(f"[CLEANUP] Cleared stability tracker for session {session_id}")
+
+        # Clean up VAD state using processor
+        self.vad_processor.clear_session(session_id)
 
         return self.session_manager.close_session(session_id)
     
