@@ -50,7 +50,7 @@ from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
 
-# Phase 2 Day 7-13: Import extracted components
+# Phase 2 Day 7-14: Import extracted components
 from transcription import (
     TranscriptionRequest,
     TranscriptionResult,
@@ -58,7 +58,8 @@ from transcription import (
     detect_hallucination,
     find_stable_word_prefix,
     calculate_text_stability_score,
-    parse_whisper_result
+    parse_whisper_result,
+    prepare_domain_prompt
 )
 from session import SessionManager
 from config import load_whisper_config
@@ -204,30 +205,12 @@ class WhisperService:
             # No need for separate VAD processing in SimulStreaming mode
 
             # Prepare domain-specific prompt and context carryover
-            initial_prompt = None
-            if request.domain or request.custom_terms or request.previous_context or request.initial_prompt:
-                try:
-                    from domain_prompt_manager import DomainPromptManager
-
-                    # Create domain prompt manager
-                    domain_mgr = DomainPromptManager()
-
-                    # Use provided initial_prompt or generate from domain/terms
-                    if request.initial_prompt:
-                        initial_prompt = request.initial_prompt
-                        logger.info(f"[DOMAIN] Using provided initial prompt")
-                    else:
-                        initial_prompt = domain_mgr.create_domain_prompt(
-                            domain=request.domain,
-                            custom_terms=request.custom_terms,
-                            previous_context=request.previous_context
-                        )
-                        logger.info(f"[DOMAIN] Generated prompt: {len(initial_prompt)} chars, domain={request.domain}")
-
-                except Exception as e:
-                    logger.warning(f"[DOMAIN] Failed to create prompt: {e}")
-                    # Fall back to basic initial_prompt if provided
-                    initial_prompt = request.initial_prompt
+            initial_prompt = prepare_domain_prompt(
+                domain=request.domain,
+                custom_terms=request.custom_terms,
+                previous_context=request.previous_context,
+                initial_prompt=request.initial_prompt
+            )
 
             # Perform inference with beam search, domain prompts, and streaming policy
             result = await asyncio.get_event_loop().run_in_executor(

@@ -12,6 +12,7 @@ from .text_analysis import (
     calculate_text_stability_score
 )
 from .result_parser import parse_whisper_result
+from .domain_prompt_helper import prepare_domain_prompt
 
 __all__ = [
     "TranscriptionRequest",
@@ -21,4 +22,5 @@ __all__ = [
     "find_stable_word_prefix",
     "calculate_text_stability_score",
     "parse_whisper_result",
+    "prepare_domain_prompt",
 ]
