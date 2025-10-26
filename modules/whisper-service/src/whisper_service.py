@@ -50,7 +50,7 @@ from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
 
-# Phase 2 Day 7-8: Import extracted components
+# Phase 2 Day 7-9: Import extracted components
 from transcription import (
     TranscriptionRequest,
     TranscriptionResult,
@@ -60,6 +60,7 @@ from transcription import (
     calculate_text_stability_score
 )
 from session import SessionManager
+from config import load_whisper_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -92,7 +93,7 @@ class WhisperService:
     
     def __init__(self, config: Optional[Dict] = None):
         """Initialize Whisper service with configuration"""
-        self.config = config or self._load_config()
+        self.config = config or load_whisper_config()
         
         # Check if running in orchestration mode (disable internal chunking)
         self.orchestration_mode = self.config.get("orchestration_mode", False)
@@ -913,51 +914,10 @@ class WhisperService:
     def clear_cache(self):
         """Clear model cache"""
         self.model_manager.clear_cache()
-    
-    def _load_config(self) -> Dict:
-        """Load configuration from environment and config files"""
-        config = {
-            # Model settings - use local .models directory first
-            "models_dir": os.getenv("WHISPER_MODELS_DIR",
-                os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models")
-                if os.path.exists(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".models"))
-                else os.path.expanduser("~/.whisper/models")),
-            "default_model": os.getenv("WHISPER_DEFAULT_MODEL", "large-v3-turbo"),
-            
-            # Audio settings - optimized for reduced duplicates
-            "sample_rate": int(os.getenv("SAMPLE_RATE", "16000")),
-            "buffer_duration": float(os.getenv("BUFFER_DURATION", "4.0")),  # Reduced from 6.0
-            "inference_interval": float(os.getenv("INFERENCE_INTERVAL", "3.0")),
-            "overlap_duration": float(os.getenv("OVERLAP_DURATION", "0.2")),  # Minimal overlap
-            "enable_vad": os.getenv("ENABLE_VAD", "true").lower() == "true",
-            
-            # Device settings
-            "device": os.getenv("OPENVINO_DEVICE"),
-            
-            # Session settings
-            "session_dir": os.getenv("SESSION_DIR"),
-            
-            # Performance settings
-            "min_inference_interval": float(os.getenv("MIN_INFERENCE_INTERVAL", "0.2")),
-            "max_concurrent_requests": int(os.getenv("MAX_CONCURRENT_REQUESTS", "10")),
-            
-            # Orchestration integration settings
-            "orchestration_mode": os.getenv("ORCHESTRATION_MODE", "false").lower() == "true",
-            "orchestration_endpoint": os.getenv("ORCHESTRATION_ENDPOINT", "http://localhost:3000/api/audio"),
-        }
-        
-        # Load from config file if exists
-        config_file = os.path.join(os.path.dirname(__file__), "..", "config.json")
-        if os.path.exists(config_file):
-            try:
-                with open(config_file, 'r') as f:
-                    file_config = json.load(f)
-                    config.update(file_config)
-            except Exception as e:
-                logger.warning(f"Failed to load config file: {e}")
-        
-        return config
-    
+
+    # Phase 2 Day 9: Configuration loading extracted to config/config_loader.py
+    # - load_whisper_config()
+
     async def shutdown(self):
         """Shutdown the whisper service and cleanup resources"""
         try:
