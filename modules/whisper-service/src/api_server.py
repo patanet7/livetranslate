@@ -2020,6 +2020,7 @@ def handle_join_session(data):
             "enable_diarization": config.get('enable_diarization', True),
             "enable_cif": config.get('enable_cif', True),
             "enable_rolling_context": config.get('enable_rolling_context', True),
+            "enable_code_switching": config.get('enable_code_switching', False),
             "created_at": datetime.now().isoformat()
         }
         streaming_sessions[session_id] = streaming_config

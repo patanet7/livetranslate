@@ -35,7 +35,8 @@ import json
 from pathlib import Path
 
 ORCHESTRATION_URL = "http://localhost:3000"
-JFK_AUDIO_PATH = "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+# Use fixtures path (consistent with conftest.py jfk_audio fixture)
+JFK_AUDIO_PATH = str(Path(__file__).parent.parent / "fixtures" / "audio" / "jfk.wav")
 
 
 def test_jfk_via_orchestration():
