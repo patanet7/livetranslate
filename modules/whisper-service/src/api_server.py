@@ -2318,11 +2318,11 @@ def handle_transcribe_stream(data):
 
                     # Phase 2: Create per-session VAD iterator with custom config
                     # Instead of reusing global VAD, create new FixedVADIterator with session-specific params
-                    if whisper_service.vad is not None and whisper_service.vad.vad_iterator is not None:
+                    if whisper_service.vad_processor.vad is not None and whisper_service.vad_processor.vad.vad_iterator is not None:
                         from silero_vad_iterator import FixedVADIterator
 
                         # Create per-session VAD with custom thresholds
-                        vad_model = whisper_service.vad.vad_iterator.model
+                        vad_model = whisper_service.vad_processor.vad.vad_iterator.model
                         vac.vad = FixedVADIterator(
                             model=vad_model,
                             threshold=vac.vad_threshold,
