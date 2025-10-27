@@ -130,6 +130,7 @@ class AudioStreamingTester:
     async def start_session(self):
         """Start streaming session"""
         logger.info(f"🎬 Starting session: {self.session_id}")
+        logger.info(f"📝 Config: {self.config}")
 
         start_msg = {
             'type': 'start_session',
@@ -188,15 +189,10 @@ class AudioStreamingTester:
 
         await self.ws.send(json.dumps(end_msg))
 
-        # Wait for session_ended response
-        response = await self.ws.recv()
-        response_msg = json.loads(response)
-
-        if response_msg.get('type') == 'session_ended':
-            self.session_started = False
-            logger.info(f"✅ Session ended: {response_msg}")
-        else:
-            logger.warning(f"⚠️ Unexpected response: {response_msg}")
+        # Don't wait for response here - let receive_messages() handle it
+        # to avoid WebSocket concurrency error
+        self.session_started = False
+        logger.info(f"✅ Session end message sent")
 
     async def disconnect(self):
         """Disconnect from orchestration service"""
@@ -230,6 +226,9 @@ class AudioStreamingTester:
                     # Respond to ping
                     await self.ws.send(json.dumps({'type': 'pong'}))
 
+                elif msg_type == 'session_ended':
+                    logger.info(f"✅ Session ended: {msg}")
+
                 else:
                     logger.debug(f"📨 Received: {msg_type}")
 
@@ -244,7 +243,7 @@ class AudioStreamingTester:
         speaker = segment.get('speaker', 'Unknown')
         confidence = segment.get('confidence', 0) * 100
         is_final = segment.get('is_final', False)
-        language = segment.get('language', 'unknown')
+        language = segment.get('detected_language', 'unknown')
 
         status = "✅ FINAL" if is_final else "⏳ PARTIAL"
 
@@ -504,6 +503,7 @@ async def main():
     parser.add_argument('--no-vad', action='store_true', help='Disable VAD')
     parser.add_argument('--no-diarization', action='store_true', help='Disable speaker diarization')
     parser.add_argument('--no-cif', action='store_true', help='Disable CIF')
+    parser.add_argument('--code-switching', action='store_true', help='Enable code-switching (multi-language detection)')
 
     # Logging
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
@@ -521,7 +521,8 @@ async def main():
         'enable_vad': not args.no_vad,
         'enable_diarization': not args.no_diarization,
         'enable_cif': not args.no_cif,
-        'enable_rolling_context': True
+        'enable_rolling_context': True,
+        'enable_code_switching': args.code_switching
     }
 
     # Create tester
@@ -555,6 +556,10 @@ async def main():
 
         # End session
         await tester.end_session()
+
+        # Wait a bit for any pending transcription segments to arrive
+        logger.info("⏳ Waiting for pending segments...")
+        await asyncio.sleep(5)
 
         # Print statistics
         tester.print_statistics()

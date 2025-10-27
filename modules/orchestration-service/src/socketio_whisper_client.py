@@ -226,6 +226,7 @@ class SocketIOWhisperClient:
         self.sessions[session_id] = session_state
 
         # Send join_session event to Whisper
+        logger.debug(f"📤 Sending join_session to Whisper with config: {config}")
         await self.sio.emit('join_session', {
             'session_id': session_id,
             'config': config
