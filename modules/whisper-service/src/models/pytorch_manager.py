@@ -946,6 +946,24 @@ class PyTorchModelManager:
                 self.last_inference_time = time.time()  # Still update to prevent hammering
                 raise e
 
+    @property
+    def current_model(self):
+        """
+        Get the currently active model instance.
+
+        Returns the default model if loaded, otherwise returns any loaded model.
+        Returns None if no models are loaded.
+
+        Returns:
+            Whisper model instance or None
+        """
+        if self.default_model in self.models:
+            return self.models[self.default_model]
+        elif self.models:
+            # Return first available model
+            return next(iter(self.models.values()))
+        return None
+
 
 # For backwards compatibility, create an alias
 ModelManager = PyTorchModelManager
