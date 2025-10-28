@@ -2024,6 +2024,7 @@ def handle_join_session(data):
             "created_at": datetime.now().isoformat()
         }
         streaming_sessions[session_id] = streaming_config
+        logger.info(f"[JOIN_SESSION] Stored config for {session_id}: enable_code_switching={streaming_config.get('enable_code_switching')}, model={streaming_config.get('model_name')}")
 
         # Update connection manager
         if connection_manager.join_session(request.sid, session_id):
@@ -2114,10 +2115,25 @@ def handle_transcribe_stream(data):
             emit('error', error_info.to_websocket_response()['error'])
             return
         
-        # Decode and process audio
+        # Decode and process audio (handle both raw bytes and base64)
         try:
             import base64
-            audio_bytes = base64.b64decode(audio_data)
+
+            # Try to detect if it's already raw bytes or base64-encoded
+            if isinstance(audio_data, bytes):
+                # Already raw bytes
+                audio_bytes = audio_data
+            elif isinstance(audio_data, str):
+                # Base64-encoded string
+                audio_bytes = base64.b64decode(audio_data)
+            else:
+                # Try base64 decode, fall back to treating as raw bytes
+                try:
+                    audio_bytes = base64.b64decode(audio_data)
+                except Exception:
+                    # Not base64, treat as raw bytes
+                    audio_bytes = bytes(audio_data) if not isinstance(audio_data, bytes) else audio_data
+
             connection_manager.update_connection_activity(request.sid, bytes_received=len(audio_bytes))
             
             # Check audio size limits
@@ -2147,8 +2163,10 @@ def handle_transcribe_stream(data):
             emit('error', error_info.to_websocket_response()['error'])
             return
         
-        # Extract config from data if present
-        config = data.get('config', {})
+        # Extract config from data if present, OR use stored session config
+        # PRIORITY: Fresh data from orchestration FIRST, then fallback to stored session config
+        session_id = data.get('session_id')
+        config = data.get('config', streaming_sessions.get(session_id, {})) if session_id else data.get('config', {})
 
         # DEBUG: Log received data
         logger.info(f"[WS DEBUG] Received data keys: {list(data.keys())}")
