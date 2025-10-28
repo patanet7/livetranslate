@@ -51,10 +51,10 @@ from stability_tracker import StabilityTracker, StabilityConfig, TokenState
 from models.pytorch_manager import PyTorchModelManager
 
 # Phase 2 Day 7-14: Import extracted components
+# CLEANUP: Removed SimpleAudioBufferManager (unused - VACOnlineASRProcessor handles buffering)
 from transcription import (
     TranscriptionRequest,
     TranscriptionResult,
-    SimpleAudioBufferManager,
     detect_hallucination,
     find_stable_word_prefix,
     calculate_text_stability_score,

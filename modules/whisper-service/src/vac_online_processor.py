@@ -129,15 +129,6 @@ class VACOnlineASRProcessor:
         from utf8_boundary_fixer import UTF8BoundaryFixer
         self.utf8_fixer = UTF8BoundaryFixer()
 
-        # Phase 4: Sustained language detection for SOT reset
-        self.current_sustained_language: Optional[str] = None  # Track sustained language
-        self.language_start_time: float = 0.0  # When current language was first detected
-        self.last_sot_reset_time: float = 0.0  # For cooldown mechanism (5s)
-        self.silence_start_time: Optional[float] = None  # Track silence duration
-        self.sustained_language_threshold: float = 2.5  # Minimum duration for sustained detection (2.5-3.0s)
-        self.sot_reset_cooldown: float = 5.0  # Minimum time between SOT resets
-        self.min_silence_for_reset: float = 0.25  # Minimum 250ms silence required for reset
-
         # Audio buffers (using torch tensors throughout for SimulStreaming compatibility)
         self.audio_buffer = torch.tensor([], dtype=torch.float32)
 
@@ -146,6 +137,12 @@ class VACOnlineASRProcessor:
         # Reference: simulstreaming_whisper.py lines 151-152, 207-217
         self.audio_chunks = []  # List of torch tensors (like SimulStreaming's audio_chunks)
         self.current_online_chunk_buffer_size = 0  # Track total samples in audio_chunks
+
+        # CRITICAL FIX: Prevent audio accumulation during inference
+        # When Whisper is processing (synchronous/blocking), new audio should go to pending buffer
+        self.is_processing = False  # True while inference is running
+        self.pending_chunks = []  # Audio that arrived during processing
+        self.pending_chunk_size = 0  # Track total samples in pending_chunks
 
         # State tracking
         self.status = 'nonvoice'  # 'voice' or 'nonvoice'
@@ -275,15 +272,13 @@ class VACOnlineASRProcessor:
             if 'start' in vad_result:
                 # Speech start detected
                 self.status = 'voice'
-                self.silence_start_time = None
                 logger.debug(f"VAD: Speech START detected (sample {vad_result['start']})")
 
             elif 'end' in vad_result:
                 # Speech end detected
                 self.status = 'nonvoice'
                 self.is_currently_final = True
-                self.silence_start_time = time.time()
-                logger.debug(f"VAD: Speech END detected (sample {vad_result['end']}), silence timer started")
+                logger.debug(f"VAD: Speech END detected (sample {vad_result['end']})")
 
         else:
             # No VAD event - maintain current status
@@ -309,8 +304,19 @@ class VACOnlineASRProcessor:
         1. insert_audio_chunk(): Just append to audio_chunks[] list (NO processing)
         2. process_iter(): Concatenate audio_chunks → insert_audio() ONCE → infer()
 
-        We were incorrectly calling insert_audio() immediately for each chunk!
+        CRITICAL FIX: If inference is currently running (is_processing=True),
+        route to pending_chunks buffer to prevent audio accumulation during processing.
         """
+        # Check if Whisper is currently processing
+        if self.is_processing:
+            # Inference is running - add to pending buffer instead
+            logger.info(f"[PENDING] Inference running, buffering {len(audio)} samples ({len(audio)/16000:.2f}s) to pending_chunks")
+            self.pending_chunks.append(audio)
+            self.pending_chunk_size += len(audio)
+            logger.info(f"[PENDING] Total pending: {len(self.pending_chunks)} chunks, {self.pending_chunk_size} samples ({self.pending_chunk_size/16000:.2f}s)")
+            return
+
+        # Normal path: add to audio_chunks for processing
         logger.info(f"[ACCUMULATE] Adding {len(audio)} samples ({len(audio)/16000:.2f}s) to audio_chunks list")
 
         # CORRECT SimulStreaming pattern: Accumulate chunks in a list
@@ -321,69 +327,6 @@ class VACOnlineASRProcessor:
         self.current_online_chunk_buffer_size += len(audio)
 
         logger.info(f"[ACCUMULATED] Total chunks: {len(self.audio_chunks)}, Total samples: {self.current_online_chunk_buffer_size} ({self.current_online_chunk_buffer_size/16000:.2f}s)")
-
-    def _should_reset_sot(self, detected_language: Optional[str]) -> bool:
-        """
-        Phase 4: Determine if SOT (Start of Transcript) should be reset
-
-        Conditions for SOT reset:
-        1. Language sustained for >= 2.5s (sustained_language_threshold)
-        2. VAD silence >= 250ms (min_silence_for_reset)
-        3. Cooldown allows (>= 5s since last reset)
-        4. Language actually changed from previous sustained language
-
-        Args:
-            detected_language: Current detected language from Whisper
-
-        Returns:
-            True if SOT should be reset, False otherwise
-        """
-        if not detected_language:
-            return False
-
-        current_time = time.time()
-
-        # Check 1: Is this a new language or continuation of current?
-        if detected_language != self.current_sustained_language:
-            # New language detected - start tracking
-            logger.info(f"[SUSTAINED_LID] Language change detected: "
-                       f"{self.current_sustained_language or 'None'} → {detected_language}")
-            self.current_sustained_language = detected_language
-            self.language_start_time = current_time
-            return False  # Not sustained yet (just started)
-
-        # Check 2: Has language been sustained long enough?
-        language_duration = current_time - self.language_start_time
-        if language_duration < self.sustained_language_threshold:
-            logger.debug(f"[SUSTAINED_LID] Language '{detected_language}' duration: "
-                        f"{language_duration:.2f}s < {self.sustained_language_threshold}s (not sustained yet)")
-            return False
-
-        # Check 3: Is there sufficient VAD silence?
-        if self.silence_start_time is None:
-            logger.debug(f"[SUSTAINED_LID] No VAD silence detected (silence_start_time=None)")
-            return False
-
-        silence_duration = current_time - self.silence_start_time
-        if silence_duration < self.min_silence_for_reset:
-            logger.debug(f"[SUSTAINED_LID] Silence duration: "
-                        f"{silence_duration:.2f}s < {self.min_silence_for_reset}s (insufficient)")
-            return False
-
-        # Check 4: Cooldown check - prevent too frequent resets
-        time_since_last_reset = current_time - self.last_sot_reset_time
-        if time_since_last_reset < self.sot_reset_cooldown:
-            logger.info(f"[SUSTAINED_LID] SOT reset blocked by cooldown: "
-                       f"{time_since_last_reset:.2f}s < {self.sot_reset_cooldown}s")
-            return False
-
-        # All conditions met!
-        logger.info(f"[SUSTAINED_LID] ✅ SOT reset conditions MET:")
-        logger.info(f"  - Language '{detected_language}' sustained for {language_duration:.2f}s (>= {self.sustained_language_threshold}s)")
-        logger.info(f"  - Silence duration: {silence_duration:.2f}s (>= {self.min_silence_for_reset}s)")
-        logger.info(f"  - Time since last reset: {time_since_last_reset:.2f}s (>= {self.sot_reset_cooldown}s)")
-
-        return True
 
     def process_iter(self) -> Dict[str, Any]:
         """
@@ -450,6 +393,10 @@ class VACOnlineASRProcessor:
         if self.model is None:
             logger.error("Model not initialized")
             return {}
+
+        # CRITICAL FIX: Set processing flag to prevent audio accumulation during inference
+        self.is_processing = True
+        logger.info("[PROCESS] Set is_processing=True, new audio will buffer to pending_chunks")
 
         try:
             # Step 1: Concatenate ALL accumulated chunks
@@ -587,6 +534,34 @@ class VACOnlineASRProcessor:
             import traceback
             traceback.print_exc()
             return {}
+        finally:
+            # CRITICAL FIX: Transfer ONLY 1.2s from pending (queue-like behavior)
+            # This prevents the feedback loop: large batch → slow processing → more accumulation
+            self.is_processing = False
+            if len(self.pending_chunks) > 0:
+                # Transfer maximum 1.2s worth of chunks (prevents processing huge batches)
+                target_samples = int(self.SAMPLING_RATE * self.online_chunk_size)  # 1.2s
+                transferred_samples = 0
+                chunks_to_transfer = []
+
+                logger.info(f"[PENDING] Have {len(self.pending_chunks)} pending chunks ({self.pending_chunk_size/16000:.2f}s)")
+
+                # FIFO queue: transfer oldest chunks first, up to 1.2s
+                while self.pending_chunks and transferred_samples < target_samples:
+                    chunk = self.pending_chunks.pop(0)  # Remove from front (FIFO)
+                    chunks_to_transfer.append(chunk)
+                    transferred_samples += len(chunk)
+
+                logger.info(f"[PENDING] Transferring {len(chunks_to_transfer)} chunks ({transferred_samples/16000:.2f}s) to audio_chunks")
+                logger.info(f"[PENDING] Remaining in pending: {len(self.pending_chunks)} chunks ({(self.pending_chunk_size - transferred_samples)/16000:.2f}s)")
+
+                # Add transferred chunks to processing queue
+                self.audio_chunks.extend(chunks_to_transfer)
+                self.current_online_chunk_buffer_size += transferred_samples
+                self.pending_chunk_size -= transferred_samples
+
+                logger.info(f"[ACCUMULATED] After transfer: {len(self.audio_chunks)} chunks, {self.current_online_chunk_buffer_size} samples ({self.current_online_chunk_buffer_size/16000:.2f}s)")
+            logger.info("[PROCESS] Set is_processing=False, processing complete")
 
     def _finish(self) -> Dict[str, Any]:
         """
@@ -598,6 +573,10 @@ class VACOnlineASRProcessor:
         if self.model is None:
             logger.error("Model not initialized")
             return {}
+
+        # CRITICAL FIX: Set processing flag to prevent audio accumulation during inference
+        self.is_processing = True
+        logger.info("[FINISH] Set is_processing=True, new audio will buffer to pending_chunks")
 
         try:
             # Step 1: Concatenate ALL accumulated chunks
@@ -658,42 +637,6 @@ class VACOnlineASRProcessor:
                     audio_position=audio_position
                 )
                 logger.info(f"[LID] Detected language: {detected_language} at {audio_position:.2f}s")
-
-            # Get current language from sliding window (for SOT reset only)
-            current_language = self.lid_detector.get_current_language()
-            logger.info(f"[LID] FINAL - Per-chunk: {detected_language}, Window average: {current_language}")
-
-            # Phase 4: Check if SOT should be reset for next utterance
-            if self._should_reset_sot(detected_language):
-                logger.info(f"[SUSTAINED_LID] 🔄 Resetting SOT for language '{detected_language}'")
-
-                # Reset the model's decoder state (KV cache, accumulated tokens, etc.)
-                # CRITICAL: Must call _clean_cache() to clear KV cache and avoid dimension mismatches
-                if hasattr(self.model, '_clean_cache'):
-                    self.model._clean_cache()
-                    logger.info(f"[SUSTAINED_LID] ✅ KV cache cleared")
-                elif hasattr(self.model, 'reset'):
-                    self.model.reset()
-                    logger.info(f"[SUSTAINED_LID] ✅ Model state reset complete")
-                else:
-                    logger.warning(f"[SUSTAINED_LID] ⚠️  Model has no _clean_cache() or reset() method")
-
-                # Also reset initial tokens to force new SOT
-                if hasattr(self.model, 'init_tokens'):
-                    self.model.init_tokens()
-                    logger.info(f"[SUSTAINED_LID] ✅ Initial tokens reset")
-
-                # Phase 5: Reset token deduplicator on SOT reset (new decoder state = new token context)
-                self.token_deduplicator.reset()
-                logger.info(f"[SUSTAINED_LID] Token deduplicator reset")
-
-                # Phase 5: Reset UTF-8 fixer on SOT reset (new segment = new boundary context)
-                self.utf8_fixer.reset()
-                logger.info(f"[SUSTAINED_LID] UTF-8 boundary fixer reset")
-
-                # Update cooldown timer
-                self.last_sot_reset_time = time.time()
-                logger.info(f"[SUSTAINED_LID] Cooldown timer updated: {self.last_sot_reset_time}")
 
             # Reset VAC state
             self.is_currently_final = False
@@ -764,6 +707,34 @@ class VACOnlineASRProcessor:
             traceback.print_exc()
             self.is_currently_final = False
             return {}
+        finally:
+            # CRITICAL FIX: Transfer ONLY 1.2s from pending (queue-like behavior)
+            # This prevents the feedback loop: large batch → slow processing → more accumulation
+            self.is_processing = False
+            if len(self.pending_chunks) > 0:
+                # Transfer maximum 1.2s worth of chunks (prevents processing huge batches)
+                target_samples = int(self.SAMPLING_RATE * self.online_chunk_size)  # 1.2s
+                transferred_samples = 0
+                chunks_to_transfer = []
+
+                logger.info(f"[PENDING] Have {len(self.pending_chunks)} pending chunks ({self.pending_chunk_size/16000:.2f}s)")
+
+                # FIFO queue: transfer oldest chunks first, up to 1.2s
+                while self.pending_chunks and transferred_samples < target_samples:
+                    chunk = self.pending_chunks.pop(0)  # Remove from front (FIFO)
+                    chunks_to_transfer.append(chunk)
+                    transferred_samples += len(chunk)
+
+                logger.info(f"[PENDING] Transferring {len(chunks_to_transfer)} chunks ({transferred_samples/16000:.2f}s) to audio_chunks")
+                logger.info(f"[PENDING] Remaining in pending: {len(self.pending_chunks)} chunks ({(self.pending_chunk_size - transferred_samples)/16000:.2f}s)")
+
+                # Add transferred chunks to processing queue
+                self.audio_chunks.extend(chunks_to_transfer)
+                self.current_online_chunk_buffer_size += transferred_samples
+                self.pending_chunk_size -= transferred_samples
+
+                logger.info(f"[ACCUMULATED] After transfer: {len(self.audio_chunks)} chunks, {self.current_online_chunk_buffer_size} samples ({self.current_online_chunk_buffer_size/16000:.2f}s)")
+            logger.info("[FINISH] Set is_processing=False, processing complete")
 
     def reset(self):
         """
@@ -779,11 +750,10 @@ class VACOnlineASRProcessor:
         self.is_currently_final = False
         self.current_online_chunk_buffer_size = 0
 
-        # Phase 4: Reset sustained language detection state
-        self.current_sustained_language = None
-        self.language_start_time = 0.0
-        self.silence_start_time = None
-        # Note: We don't reset last_sot_reset_time to maintain cooldown across sessions
+        # Reset processing flag and pending chunks
+        self.is_processing = False
+        self.pending_chunks = []
+        self.pending_chunk_size = 0
 
         # Phase 5: Reset token deduplicator (new session = no token context to deduplicate)
         self.token_deduplicator.reset()

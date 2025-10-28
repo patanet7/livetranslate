@@ -113,11 +113,28 @@ def test_streaming_code_switching():
         time.sleep(0.5)
 
         session_id = f"code-switching-stream-test-{int(time.time())}"
-        sio.emit('join_session', {'session_id': session_id})
+
+        # Send configuration during join_session (not during transcribe_stream)
+        join_config = {
+            'model': 'base',
+            'language': None,  # Auto-detect for code-switching
+            'enable_vad': True,
+            'enable_code_switching': True,  # ✅ CRITICAL: Must be in join_session config
+            'target_language': 'en'
+        }
+
+        sio.emit('join_session', {
+            'session_id': session_id,
+            'config': join_config  # ✅ Pass config here, not in transcribe_stream
+        })
         time.sleep(0.5)
 
         print(f"\n[3/5] Streaming mixed audio with code-switching enabled...")
         print(f"   Session ID: {session_id}")
+        print(f"\n📝 Configuration:")
+        print(f"   enable_code_switching: {join_config['enable_code_switching']}")
+        print(f"   language: {join_config['language']} (auto-detect)")
+        print(f"   model: {join_config['model']}")
 
         # Split audio into 2-second chunks (like production)
         chunk_duration = 2.0
@@ -136,26 +153,13 @@ def test_streaming_code_switching():
             chunk_int16 = (chunk_audio * 32768.0).astype(np.int16)
             chunk_b64 = base64.b64encode(chunk_int16.tobytes()).decode('utf-8')
 
-            # Build request with CODE-SWITCHING ENABLED
+            # Build request - config already set in session during join_session
             request_data = {
                 "session_id": session_id,
                 "audio_data": chunk_b64,
-                "model_name": "base",
-                "language": None,  # Auto-detect
-                "beam_size": 5,
                 "sample_rate": sample_rate,
-                "task": "transcribe",
-                "target_language": "en",
-                "enable_vad": True,
-                "enable_code_switching": True,  # ✅ CODE-SWITCHING ENABLED
+                "beam_size": 5,
             }
-
-            # Only log config for first chunk
-            if i == 0:
-                print(f"\n📝 Configuration:")
-                print(f"   enable_code_switching: True")
-                print(f"   language: None (auto-detect)")
-                print(f"   model: base")
 
             chunk_start_time = start_idx / sample_rate
             chunk_end_time = end_idx / sample_rate
