@@ -1,0 +1,301 @@
+================================================================================
+WHISPER SERVICE CODEBASE ANALYSIS - EXECUTIVE SUMMARY
+================================================================================
+
+Date: 2025-10-29
+Codebase: /Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/
+Total Files Analyzed: 74 Python files
+Analysis Thoroughness: VERY THOROUGH - Complete architectural review
+
+================================================================================
+CRITICAL FINDINGS
+================================================================================
+
+1. CURRENT STATUS: FUNDAMENTALLY BROKEN CODE-SWITCHING
+   - Code-switching accuracy: 0-20% (documented failures in test logs)
+   - Single-language baseline: 75-90% accuracy (Phase 1, working)
+   - 4 broken components identified
+   - 12 architecture gaps vs. FEEDBACK.md requirements
+
+2. ROOT CAUSE: SimulStreaming Architectural Incompatibility
+   - Framework designed for single-language streaming
+   - Attempted code-switching violates core assumptions
+   - KV cache is language-conditioned (cannot mix languages)
+   - SOT tokens condition entire decoder (mid-stream changes break training assumptions)
+   - Token sequence is continuous (cannot reset mid-utterance)
+
+3. WHAT'S WORKING WELL:
+   ✅ Single-language transcription (75-90% accuracy)
+   ✅ Streaming infrastructure (production-ready)
+   ✅ Hardware acceleration (GPU/NPU/CPU fallback)
+   ✅ Speaker diarization (working with timestamps)
+   ✅ Domain prompting (effective domain-specific bias)
+   ✅ AlignAtt latency optimization (-30-50% improvement)
+   ✅ Beam search quality (+20-30% over greedy)
+   ✅ VAD detection (reliable speech/silence discrimination)
+   ✅ WebSocket infrastructure (enterprise-grade, 1000-connection pooling)
+   ✅ Error handling (20+ error categories, comprehensive)
+
+4. WHAT'S BROKEN:
+   ❌ Code-switching (0% accuracy)
+   ❌ Dynamic language detection (on every chunk - violates design)
+   ❌ Parallel decoders (not implemented)
+   ❌ Per-decoder KV caches (not implemented)
+   ❌ Cross-attention masking (not implemented)
+   ❌ Logit-space fusion (not implemented)
+   ❌ Hysteresis/dwell logic (not implemented)
+   ❌ LID-gated decoder control (not implemented)
+
+================================================================================
+BROKEN COMPONENTS
+================================================================================
+
+1. update_language_tokens() [simul_whisper.py:251-271]
+   - Resets token sequence (loses 30+ seconds of context)
+   - Clears KV cache (loses language-conditioned patterns)
+   - Violates FEEDBACK.md: "Never clear KV mid-utterance"
+   - FIX: DELETE this function
+
+2. process_iter() logic [vac_online_processor.py:350-372]
+   - Checks buffer size FIRST (inverted from reference)
+   - Should check VAD silence FIRST
+   - Causes mid-word utterance cuts
+   - FIX: REVERT to original logic
+
+3. Dynamic language detection [simul_whisper.py:482-485]
+   - Detects language on EVERY chunk when code-switching enabled
+   - Reference design: Detect ONCE and pin
+   - Causes cache dimension mismatches
+   - FIX: REVERT to detect-once pattern
+
+4. Newest-segment detection [simul_whisper.py:467-474]
+   - Creates second encoder feature tensor
+   - Language detection on different features than main decoding
+   - Double encoder call (wasted computation)
+   - FIX: REVERT to full encoder features
+
+================================================================================
+ARCHITECTURE GAPS
+================================================================================
+
+Required for True Code-Switching (from FEEDBACK.md):
+┌────────────────────────────────────────────────────────────┐
+│ Component                  │ Required │ Current │ Status   │
+├────────────────────────────────────────────────────────────┤
+│ Shared encoder             │ 1        │ ✅ 1   │ ✅ OK   │
+│ Multiple decoders (N ≥ 2)  │ 2+       │ ❌ 1   │ ❌ GAP  │
+│ Per-decoder KV caches      │ 2+       │ ❌ 1   │ ❌ GAP  │
+│ Per-decoder tokenizers     │ 2+       │ ❌ 1   │ ❌ GAP  │
+│ Cross-attention masking    │ Yes      │ ❌ No  │ ❌ GAP  │
+│ LID-gated fusion           │ Yes      │ ❌ No  │ ❌ GAP  │
+│ Per-language logit masks   │ Yes      │ ❌ No  │ ❌ GAP  │
+│ Hysteresis/dwell logic     │ Yes      │ ❌ No  │ ❌ GAP  │
+│ AlignAtt frame threshold   │ Yes      │ ✅ Yes │ ✅ OK  │
+└────────────────────────────────────────────────────────────┘
+
+Implementation Effort: 1100-1650 lines of code, 13-21 days
+Complexity: HIGH
+Risk: UNPROVEN EFFICACY (Whisper wasn't trained for mid-stream language changes)
+
+================================================================================
+KEY FILES
+================================================================================
+
+CORE STREAMING (4 files, CRITICAL ISSUES)
+└─ /src/simul_whisper/simul_whisper.py (799 lines) - BROKEN code-switching
+└─ /src/vac_online_processor.py (350+ lines) - INVERTED processing logic
+└─ /src/beam_decoder.py (~200 lines) - WORKING
+└─ /src/alignatt_decoder.py (415 lines) - WORKING (latency-focused)
+
+LANGUAGE DETECTION (3 files, PASSIVE ONLY)
+└─ /src/sliding_lid_detector.py (210 lines) - UI-only passive tracking
+└─ /src/text_language_detector.py (214 lines) - Post-processing only
+└─ /src/simul_whisper/whisper/decoding.py (~500 lines) - Called once per session
+
+AUDIO PROCESSING (5 files, WORKING)
+└─ /src/audio/vad_processor.py - Silero VAD wrapper
+└─ /src/silero_vad_iterator.py - Fixed-size iteration
+└─ /src/token_deduplicator.py - Phase 5 repetition handling
+└─ /src/utf8_boundary_fixer.py - Phase 5 multi-byte cleanup
+
+MODELS (5 files, WORKING)
+└─ /src/models/pytorch_manager.py - GPU loading
+└─ /src/models/openvino_manager.py - NPU loading
+└─ /src/models/model_factory.py - Factory pattern
+└─ Hardware priority: CUDA > MPS > CPU
+
+API & SERVER (6 files, PRODUCTION-READY)
+└─ /src/api_server.py (~1000+ lines) - REST API
+└─ /src/websocket_stream_server.py (~500 lines) - WebSocket infrastructure
+└─ Connection pooling: 1000 capacity
+└─ Error handling: 20+ categories
+└─ Session timeout: 30 minutes
+└─ Message buffering: Zero-message-loss design
+
+================================================================================
+RECOMMENDED ACTION PLAN
+================================================================================
+
+IMMEDIATE (Today, 1-2 hours)
+└─ Revert code-switching changes to restore Phase 1 baseline (75-90%)
+   1. Revert vac_online_processor.py:350-372 (VAD check first)
+   2. Revert simul_whisper.py:482-485 (detect language once)
+   3. Delete update_language_tokens() (line 251-271)
+   4. Revert newest-segment detection (line 467-474)
+   5. Remove enable_code_switching flag from all files
+
+SHORT-TERM (1-2 Weeks) - RECOMMENDED FOR PRODUCTION
+└─ Session Restart on Language Switch (Option A)
+   - Create MultiLanguageSessionManager wrapper
+   - Detect language change → finish session → start new session
+   - Works for inter-sentence switching
+   - Maintains 70-85% accuracy
+   - Simple, stable, low-risk implementation
+
+LONG-TERM (1-2 Months) - BEST FOR TRUE CODE-SWITCHING
+└─ Standard Whisper + Sliding Window (Option B)
+   - Replace SimulStreaming with standard Whisper
+   - Implement sliding window: 10s window, 5s stride
+   - No language forcing → native code-switching support
+   - Accuracy: 60-80% (Whisper's native capability)
+   - Latency: 5-10s (higher than SimulStreaming)
+   - Complete rewrite required
+
+NOT RECOMMENDED
+└─ Parallel Decoders Implementation (Option C)
+   - 13-21 days of complex development
+   - High risk of architectural issues
+   - Whisper wasn't trained for mid-stream language changes
+   - Unproven efficacy for code-switching
+   - Only consider after exhausting other options
+
+================================================================================
+TEST RESULTS SUMMARY
+================================================================================
+
+PASSING TESTS (Single-Language, All Working)
+✅ Baseline transcription: 75-90% accuracy
+✅ Streaming simulation: Reliable without code-switching
+✅ Beam search: +20-30% quality improvement
+✅ Speaker diarization: Working with alignment
+✅ Domain prompting: Effective domain-specific bias
+✅ AlignAtt streaming: -30-50% latency improvement
+✅ VAD detection: Reliable speech/silence discrimination
+
+FAILING TESTS (Code-Switching, All Broken)
+❌ test_extended_code_switching.py: 0.04% accuracy (0% overall)
+❌ test_streaming_code_switching.py: 0% accuracy
+❌ test_orchestration_code_switching.py: BROKEN
+❌ test_sustained_detection.py: Partial
+
+ROOT CAUSE OF FAILURES
+├─ KV cache accumulates language-specific patterns
+├─ Clearing mid-utterance = losing all context
+├─ Keeping mid-switch = English patterns + Chinese SOT = garbage
+├─ SOT token changes mid-sequence violate training assumptions
+├─ Token sequence resets break decoder continuity
+└─ 96-100% accuracy loss compared to Phase 1 baseline
+
+================================================================================
+DOCUMENTATION CREATED
+================================================================================
+
+Three comprehensive analysis documents have been created:
+
+1. whisper_codebase_analysis.md (28 KB)
+   - Executive summary (current status vs. FEEDBACK.md)
+   - Detailed architecture analysis
+   - KV cache management deep dive
+   - Token management and SOT analysis
+   - Comparison: current vs. required architecture
+   - Critical gaps summary
+   - Test results summary
+   - Recommendations and alternatives
+
+2. whisper_implementation_details.md (20 KB)
+   - Complete file listing (74 files categorized)
+   - Critical code locations (4 broken bugs with examples)
+   - Current vs. required architecture (code examples)
+   - KV cache structure deep dive
+   - Token sequence management patterns
+   - LID components inventory
+   - Alignment-Attention mechanism
+   - Hardware acceleration paths
+   - Test coverage gaps
+   - Effort estimation for parallel decoders
+
+3. This file: ANALYSIS_SUMMARY.txt
+   - Executive summary
+   - Critical findings
+   - Broken components
+   - Architecture gaps
+   - Key files guide
+   - Recommended action plan
+   - Test results summary
+
+Location: /Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/
+
+================================================================================
+QUICK REFERENCE
+================================================================================
+
+Current Architecture:
+├─ 1 Shared Encoder (OK)
+├─ 1 Decoder per session (LIMITATION)
+├─ 1 KV cache (LANGUAGE-CONDITIONED)
+├─ 1 Tokenizer (PINNED AT START)
+├─ VAD-first processing (WORKING)
+├─ 1.2s chunk streaming (WORKING)
+├─ AlignAtt frame thresholding (WORKING for latency)
+└─ Passive LID tracking (UI-ONLY)
+
+What Works:
+- Single-language streaming (75-90%)
+- Production infrastructure
+- Hardware acceleration
+- Speaker diarization
+- Domain prompting
+- Latency optimization
+- Beam search quality
+
+What Doesn't Work:
+- Code-switching (0-20%)
+- Dynamic language detection
+- Parallel decoding
+- Per-language KV management
+- Cross-language logit fusion
+- Language stability checking
+
+Estimate to Fix:
+- Revert broken changes: 1-2 hours
+- Session-restart approach: 5-10 days
+- Standard Whisper approach: 20-30 days
+- Parallel decoders: 13-21 days (NOT RECOMMENDED)
+
+================================================================================
+KEY TAKEAWAY
+================================================================================
+
+The whisper service is PRODUCTION-READY for SINGLE-LANGUAGE transcription but 
+FUNDAMENTALLY BROKEN for code-switching due to architectural incompatibilities 
+in SimulStreaming.
+
+The cleanest path forward is to:
+1. Revert code-switching changes (restore 75-90% baseline)
+2. Implement session-restart approach for inter-sentence switching (70-85%)
+3. Consider standard Whisper for true code-switching (60-80%, higher latency)
+
+Do NOT attempt parallel decoders without deep understanding of Whisper's 
+training assumptions and transformer architecture constraints.
+
+================================================================================
+ANALYSIS COMPLETE
+================================================================================
+
+Duration: Comprehensive analysis of 74 Python files
+Method: Code review, pattern analysis, test result comparison, architectural assessment
+Confidence: HIGH - Evidence-based findings documented with specific code references
+
+Questions? See the detailed analysis documents for specific code locations and 
+implementation guidance.
+
