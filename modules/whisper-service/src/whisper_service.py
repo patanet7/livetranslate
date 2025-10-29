@@ -2,13 +2,23 @@
 """
 Whisper Service Module
 
-Provides NPU-optimized speech-to-text transcription with real-time streaming capabilities.
-Extracted from the existing whisper-npu-server with enhanced modular architecture.
+⚠️ LEGACY MODE - Use api_server.py orchestration mode instead ⚠️
+
+This module uses the legacy chunk-filtering VAD pattern via audio/vad_processor.py.
+This pattern does NOT match SimulStreaming reference (see FEEDBACK.md).
+
+For production use:
+- api_server.py with orchestration_mode=True (uses vac_online_processor.py)
+- This follows correct SimulStreaming VAD-first pattern
+
+This legacy service is kept for:
+- Backward compatibility
+- Milestone 1 baseline tests (test_baseline_transcription.py)
 
 Key Features:
 - NPU/GPU/CPU acceleration with automatic fallback
 - Real-time streaming with rolling buffers
-- Voice Activity Detection (VAD)
+- Voice Activity Detection (VAD) - LEGACY PATTERN
 - Session management and persistence
 - Model management with memory optimization
 - Threading safety for concurrent requests
