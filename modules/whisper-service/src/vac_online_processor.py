@@ -332,8 +332,13 @@ class VACOnlineASRProcessor:
         """
         Process iteration - decides when to run Whisper
 
-        CRITICAL FIX: Match SimulStreaming's process_iter() pattern!
-        Reference: simulstreaming_whisper.py lines 207-217
+        MILESTONE 1 FIX: Restore VAD-first processing order per FEEDBACK.md
+        Reference: FEEDBACK.md lines 12, 106, 342: "Keep VAD-first processing"
+
+        SimulStreaming's CORRECT order:
+        1. Check VAD FIRST (speech ended = highest priority for clean boundaries)
+        2. Then check buffer size (chunk full = secondary trigger)
+        3. Otherwise buffer (no processing yet)
 
         This is the CORE ADAPTIVE LOGIC:
         - If speech ended (is_currently_final): Move buffer to audio_chunks, then process
@@ -344,22 +349,22 @@ class VACOnlineASRProcessor:
             - Transcription result if processing occurred
             - Empty dict if still buffering
         """
-        # Check if we should process
+        # MILESTONE 1 FIX: Check VAD FIRST per FEEDBACK.md
+        # Priority 1: Process on VAD silence (for clean boundaries)
         if self.is_currently_final:
             # Speech ended - move buffer to audio_chunks, then process final chunk
-            logger.info("Processing FINAL chunk (speech ended)")
+            logger.info("Processing FINAL chunk (speech ended) [VAD-FIRST]")
             if len(self.audio_buffer) > 0:
                 self._send_audio_to_online_processor(self.audio_buffer)
                 self.audio_buffer = torch.tensor([], dtype=torch.float32)
             return self._finish()
 
+        # Priority 2: Check buffer size (prevents excessive accumulation)
         elif self.current_online_chunk_buffer_size > self.SAMPLING_RATE * self.online_chunk_size:
-            # Accumulated 1.2s+ audio in processor - run inference (matches SimulStreaming line 99)
-            # CRITICAL FIX: Check current_online_chunk_buffer_size, not len(audio_buffer)!
-            # This triggers processing every 1.2s REGARDLESS of VAD state (critical for code-switching!)
+            # Accumulated 1.2s+ audio in processor - run inference
             logger.info(
                 f"Processing chunk (accumulated {self.current_online_chunk_buffer_size / self.SAMPLING_RATE:.2f}s > "
-                f"{self.online_chunk_size}s in audio_chunks)"
+                f"{self.online_chunk_size}s in audio_chunks) [BUFFER-FULL]"
             )
             # Note: audio_buffer should already be empty (sent by VAD in add_chunk)
             # If not empty, send it now before processing
