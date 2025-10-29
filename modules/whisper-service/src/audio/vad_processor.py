@@ -2,8 +2,24 @@
 """
 VAD (Voice Activity Detection) Processing
 
-Handles VAD state management and speech detection for audio chunks.
-Extracted from whisper_service.py for better modularity and testability.
+⚠️ DEPRECATED - LEGACY CODE ⚠️
+
+This module implements chunk-level VAD filtering (returns True/False to discard chunks).
+This is NOT the correct SimulStreaming pattern per FEEDBACK.md.
+
+Correct pattern (see reference/SimulStreaming/whisper_streaming/vac_online_processor.py):
+- ALWAYS buffer audio
+- Detect VAD events
+- During voice: send buffer to processor
+- During silence: keep last 1s buffer (for speech onset detection)
+
+This legacy pattern DISCARDS audio and was causing issues.
+
+For new code use:
+- Milestone 1: vac_online_processor.py (correct SimulStreaming pattern)
+- Milestone 2: session_restart/session_manager.py (correct VAD-first pattern)
+
+Only kept for backward compatibility with legacy WhisperService.
 """
 
 import logging
