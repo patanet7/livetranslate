@@ -316,12 +316,13 @@ def test_extended_code_switching_stream():
         print(f"   model: base")
         print(f"   enable_vad: True")
 
-        # Stream audio in TINY 0.04-second chunks (realistic streaming)
-        CHUNK_DURATION = 0.04  # 40ms chunks = 640 samples
+        # FIXED: Stream audio in 2-second chunks (matches simple test, avoids VAD dimension error)
+        # Original 0.04s chunks caused: "LSTMCell: Expected input to be 1D or 2D, got 3D instead"
+        CHUNK_DURATION = 2.0  # 2-second chunks = 32000 samples (safe for VAD)
         chunk_size = int(16000 * CHUNK_DURATION)
         num_chunks = int(np.ceil(len(mixed_audio) / chunk_size))
 
-        print(f"   Sending {num_chunks} chunks of {CHUNK_DURATION}s each (realistic streaming)\n")
+        print(f"   Sending {num_chunks} chunks of {CHUNK_DURATION}s each\n")
 
         chunk_count = 0
         for i in range(num_chunks):
@@ -340,13 +341,12 @@ def test_extended_code_switching_stream():
             })
 
             chunk_count += 1
-            # Print progress every 50 chunks
-            if chunk_count % 50 == 0:
-                chunk_start_time = start_idx / 16000
-                print(f"📤 Sent {chunk_count}/{num_chunks} chunks ({chunk_start_time:.1f}s)")
+            chunk_start_time = start_idx / 16000
+            chunk_end_time = end_idx / 16000
+            print(f"📤 Sent chunk {chunk_count}/{num_chunks} ({chunk_start_time:.1f}s - {chunk_end_time:.1f}s)")
 
-            # Tiny delay to simulate real-time streaming
-            time.sleep(0.04)  # Match chunk duration for realtime
+            # Wait for processing (2.5s per 2s chunk gives processing time)
+            time.sleep(2.5)
 
         print(f"\n   ✅ Finished sending all {num_chunks} chunks!")
         print("\n[5/5] Waiting for final results...")
