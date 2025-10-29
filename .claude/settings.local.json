@@ -15,7 +15,8 @@
       "Bash(git clone:*)",
       "Bash(touch:*)",
       "Bash(rm:*)",
-      "Bash(poetry run pytest:*)"
+      "Bash(poetry run pytest:*)",
+      "Read(//private/tmp/**)"
     ],
     "deny": []
   }

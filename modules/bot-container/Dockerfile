@@ -13,14 +13,38 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install system dependencies
-# - For browser automation: chromium, chromedriver
+# - For Playwright: Dependencies for Chromium
 # - For audio processing: ffmpeg, pulseaudio
+# - For virtual webcam: v4l2loopback
 RUN apt-get update && apt-get install -y \
-    chromium \
-    chromium-driver \
+    wget \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
+    fonts-unifont \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libwayland-client0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
     ffmpeg \
     pulseaudio \
     xvfb \
+    v4l2loopback-dkms \
+    v4l2loopback-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
@@ -28,6 +52,10 @@ COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright browsers (Chromium only for Google Meet)
+# Note: System dependencies already installed above, skipping install-deps
+RUN playwright install chromium
 
 # Copy source code
 COPY src/ ./src/

@@ -9,6 +9,6 @@ if [ ! -z "$PID" ]; then
     sleep 2
 fi
 
-# Start new process
-echo "Starting orchestration service..."
-python src/main_fastapi.py
+# Start new process with Poetry
+echo "Starting orchestration service with Poetry environment..."
+poetry run python src/main_fastapi.py

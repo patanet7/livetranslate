@@ -127,10 +127,10 @@ class OrchestrationClient:
             self.connected = True
             logger.info("WebSocket connection established")
 
-            # Step 1: Authenticate (same as frontend)
+            # Step 1: Authenticate (handle connection:established)
             await self._authenticate()
 
-            # Step 2: Start session (same as frontend)
+            # Step 2: Start session
             await self._start_session()
 
             # Step 3: Start background receiver for segments
@@ -148,39 +148,30 @@ class OrchestrationClient:
             self.connected = False
 
             if self.error_callback:
-                await self.error_callback(f"Connection failed: {e}")
+                # Check if callback is async or sync
+                if asyncio.iscoroutinefunction(self.error_callback):
+                    await self.error_callback(f"Connection failed: {e}")
+                else:
+                    self.error_callback(f"Connection failed: {e}")
 
             return False
 
     async def _authenticate(self):
         """
-        Send authentication message (same format as frontend)
+        Handle WebSocket connection establishment
 
-        Message format:
-        {
-            "type": "authenticate",
-            "user_id": "bot-{connection_id}",
-            "token": "{user_token}"
-        }
+        The orchestration service sends 'connection:established' immediately upon connection.
+        We treat this as successful authentication for bot connections.
         """
-        auth_message = {
-            "type": "authenticate",
-            "user_id": f"bot-{self.connection_id}",
-            "token": self.user_token
-        }
-
-        logger.info(f"Sending authentication for bot-{self.connection_id}")
-        await self.websocket.send(json.dumps(auth_message))
-
-        # Wait for authenticated response
+        # Wait for connection:established message
         response_raw = await self.websocket.recv()
         response = json.loads(response_raw)
 
-        if response.get("type") != "authenticated":
-            raise RuntimeError(f"Authentication failed: {response}")
+        if response.get("type") != "connection:established":
+            raise RuntimeError(f"Connection failed: Expected 'connection:established', got {response}")
 
+        logger.info(f"✅ Connection established: {response.get('data', {}).get('connectionId')}")
         self.authenticated = True
-        logger.info("✅ Authentication successful")
 
     async def _start_session(self):
         """

@@ -85,6 +85,8 @@ class AudioStreamingTester:
         self.chunks_sent = 0
         self.segments_received = 0
         self.start_time = None
+        self.last_segment_time = None
+        self.session_ended = False
 
     async def connect(self):
         """Connect to orchestration service WebSocket"""
@@ -214,6 +216,7 @@ class AudioStreamingTester:
 
                 if msg_type == 'segment':
                     self.segments_received += 1
+                    self.last_segment_time = time.time()
                     self._print_segment(msg)
 
                 elif msg_type == 'translation':
@@ -517,13 +520,18 @@ async def main():
     # Create configuration
     config = {
         'model': args.model,
-        'language': args.language,
         'enable_vad': not args.no_vad,
         'enable_diarization': not args.no_diarization,
         'enable_cif': not args.no_cif,
         'enable_rolling_context': True,
-        'enable_code_switching': args.code_switching
+        'enable_code_switching': args.code_switching,
     }
+
+    # Code-switching requires language='auto' for proper detection
+    if args.code_switching:
+        config['language'] = 'auto'
+    else:
+        config['language'] = args.language
 
     # Create tester
     tester = AudioStreamingTester(
@@ -557,9 +565,29 @@ async def main():
         # End session
         await tester.end_session()
 
-        # Wait a bit for any pending transcription segments to arrive
+        # Wait for pending transcription segments to arrive
+        # Keep waiting as long as segments are still arriving
         logger.info("⏳ Waiting for pending segments...")
-        await asyncio.sleep(5)
+        max_wait_time = 30  # Maximum 30 seconds total
+        segment_timeout = 3  # 3 seconds without new segments = done
+        wait_start = time.time()
+
+        while True:
+            elapsed = time.time() - wait_start
+            if elapsed > max_wait_time:
+                logger.info(f"⏱️ Reached max wait time ({max_wait_time}s)")
+                break
+
+            # Check if we received segments recently
+            if tester.last_segment_time is not None:
+                time_since_last_segment = time.time() - tester.last_segment_time
+                if time_since_last_segment > segment_timeout:
+                    logger.info(f"✅ No segments for {segment_timeout}s, processing complete")
+                    break
+
+            await asyncio.sleep(0.5)  # Check every 500ms
+
+        logger.info(f"📊 Received {tester.segments_received} total segments")
 
         # Print statistics
         tester.print_statistics()

@@ -76,13 +76,21 @@ class BotConfig:
     task: str = "transcribe"
     enable_virtual_webcam: bool = False
 
+    # Google Authentication (for restricted meetings)
+    google_email: Optional[str] = None
+    google_password: Optional[str] = None
+    user_data_dir: Optional[str] = None
+    headless: bool = True
+    screenshots_enabled: bool = True
+    screenshots_path: str = "/tmp/bot-screenshots"
+
     # Docker
     docker_image: str = "livetranslate-bot:latest"
     docker_network: str = "livetranslate_default"
 
     def to_env_vars(self) -> Dict[str, str]:
         """Convert config to Docker environment variables"""
-        return {
+        env_vars = {
             "MEETING_URL": self.meeting_url,
             "CONNECTION_ID": self.connection_id,
             "USER_TOKEN": self.user_token,
@@ -93,6 +101,21 @@ class BotConfig:
             "TASK": self.task,
             "ENABLE_VIRTUAL_WEBCAM": str(self.enable_virtual_webcam).lower(),
         }
+
+        # Add Google authentication if provided
+        if self.google_email:
+            env_vars["GOOGLE_EMAIL"] = self.google_email
+        if self.google_password:
+            env_vars["GOOGLE_PASSWORD"] = self.google_password
+        if self.user_data_dir:
+            env_vars["USER_DATA_DIR"] = self.user_data_dir
+
+        # Browser settings
+        env_vars["HEADLESS"] = str(self.headless).lower()
+        env_vars["SCREENSHOTS_ENABLED"] = str(self.screenshots_enabled).lower()
+        env_vars["SCREENSHOTS_PATH"] = self.screenshots_path
+
+        return env_vars
 
 
 @dataclass
@@ -124,13 +147,17 @@ class BotInstance:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary"""
-        return {
-            **asdict(self),
-            "status": self.status.value,
-            "uptime_seconds": self.uptime_seconds,
-            "is_healthy": self.is_healthy
-        }
+        """Convert to dictionary with JSON-safe types"""
+        data = asdict(self)
+        # Ensure status is a string
+        data["status"] = self.status.value if isinstance(self.status, BotStatus) else str(self.status)
+        # Add computed properties
+        data["uptime_seconds"] = self.uptime_seconds
+        data["is_healthy"] = self.is_healthy
+        # Remove config if it's None or empty to reduce response size
+        if not data.get("config"):
+            data.pop("config", None)
+        return data
 
     @property
     def uptime_seconds(self) -> float:
@@ -188,17 +215,35 @@ class DockerBotManager:
 
     def __init__(
         self,
-        orchestration_url: str = "http://orchestration:3000",
-        redis_url: str = "redis://redis:6379",
+        orchestration_url: str = "http://localhost:3000",
+        redis_url: str = "redis://localhost:6379",
         docker_image: str = "livetranslate-bot:latest",
         docker_network: str = "livetranslate_default",
-        enable_database: bool = True
+        enable_database: bool = False,  # Disabled by default for local testing
+        # Google Authentication (for restricted meetings)
+        google_email: Optional[str] = None,
+        google_password: Optional[str] = None,
+        user_data_dir: Optional[str] = None,
+        headless: bool = True,
+        screenshots_enabled: bool = True,
+        screenshots_path: str = "/tmp/bot-screenshots"
     ):
         self.orchestration_url = orchestration_url
         self.redis_url = redis_url
         self.docker_image = docker_image
         self.docker_network = docker_network
         self.enable_database = enable_database
+
+        # Google Authentication
+        self.google_email = google_email
+        self.google_password = google_password
+        self.user_data_dir = user_data_dir
+        self.headless = headless
+        self.screenshots_enabled = screenshots_enabled
+        self.screenshots_path = screenshots_path
+
+        # Debug logging
+        logger.info(f"🔧 DockerBotManager initialized with Google credentials: email={google_email}, password={'***' + google_password[-4:] if google_password else None}, user_data_dir={user_data_dir}")
 
         # Bot tracking
         self.bots: Dict[str, BotInstance] = {}
@@ -251,11 +296,25 @@ class DockerBotManager:
         if self.enable_database:
             try:
                 from database.bot_session_manager import create_bot_session_manager
-                self.db_manager = await create_bot_session_manager()
+                from config import get_settings
+
+                # Get database config from settings
+                settings = get_settings()
+                database_config = {
+                    "host": settings.bot.database_host,
+                    "port": settings.bot.database_port,
+                    "database": settings.bot.database_name,
+                    "username": settings.bot.database_user,
+                    "password": settings.bot.database_password
+                }
+                audio_storage_path = settings.bot.audio_storage_path
+
+                self.db_manager = await create_bot_session_manager(database_config, audio_storage_path)
                 logger.info("✅ Database manager initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize database: {e}")
                 logger.warning("Running without database persistence")
+                self.db_manager = None
 
         logger.info("Docker bot manager initialized successfully")
 
@@ -305,17 +364,29 @@ class DockerBotManager:
         connection_id = f"bot-{uuid.uuid4().hex[:12]}"
 
         # Create bot config
+        # For Docker containers, replace localhost with host.docker.internal to reach host machine
+        orchestration_url_for_container = self.orchestration_url.replace("localhost", "host.docker.internal")
+        redis_url_for_container = self.redis_url.replace("localhost", "host.docker.internal") if self.redis_url else None
+
         config = BotConfig(
             meeting_url=meeting_url,
             connection_id=connection_id,
             user_token=user_token,
             user_id=user_id,
-            orchestration_ws_url=self.orchestration_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws",
-            redis_url=self.redis_url,
-            bot_manager_url=self.orchestration_url,
+            orchestration_ws_url=orchestration_url_for_container.replace("http://", "ws://").replace("https://", "wss://") + "/ws",
+            redis_url=redis_url_for_container,
+            bot_manager_url=orchestration_url_for_container,
             language=language,
             task=task,
             enable_virtual_webcam=enable_virtual_webcam,
+            # Google Authentication
+            google_email=self.google_email,
+            google_password=self.google_password,
+            user_data_dir=self.user_data_dir,
+            headless=self.headless,
+            screenshots_enabled=self.screenshots_enabled,
+            screenshots_path=self.screenshots_path,
+            # Docker
             docker_image=self.docker_image,
             docker_network=self.docker_network
         )
@@ -519,14 +590,15 @@ class DockerBotManager:
 
         logger.info(f"Cleaning up bot {connection_id}")
 
-        # Remove container
-        if self.docker_client and bot.container_id:
-            try:
-                container = self.docker_client.containers.get(bot.container_id)
-                container.remove(force=True)
-                logger.info(f"Removed container: {bot.container_id}")
-            except Exception as e:
-                logger.error(f"Failed to remove container: {e}")
+        # Remove container (DISABLED FOR DEBUGGING)
+        # if self.docker_client and bot.container_id:
+        #     try:
+        #         container = self.docker_client.containers.get(bot.container_id)
+        #         container.remove(force=True)
+        #         logger.info(f"Removed container: {bot.container_id}")
+        #     except Exception as e:
+        #         logger.error(f"Failed to remove container: {e}")
+        logger.info(f"Container cleanup disabled for debugging: {bot.container_id}")
 
         # Keep bot in memory for stats/history
         # (could implement removal after X hours)
@@ -589,10 +661,26 @@ _manager: Optional[DockerBotManager] = None
 
 
 async def get_bot_manager() -> DockerBotManager:
-    """Get or create bot manager singleton"""
+    """Get or create bot manager singleton with configuration from settings"""
     global _manager
     if _manager is None:
-        _manager = DockerBotManager()
+        from config import get_settings
+        settings = get_settings()
+
+        _manager = DockerBotManager(
+            orchestration_url=f"http://localhost:{settings.port}",
+            redis_url=settings.redis.url,
+            docker_image=settings.bot.docker_image,
+            docker_network=settings.bot.docker_network,
+            enable_database=settings.bot.enable_database,
+            # Google Authentication
+            google_email=settings.bot.google_email,
+            google_password=settings.bot.google_password,
+            user_data_dir=settings.bot.user_data_dir,
+            headless=settings.bot.headless,
+            screenshots_enabled=settings.bot.screenshots_enabled,
+            screenshots_path=settings.bot.screenshots_path
+        )
         await _manager.initialize()
     return _manager
 
