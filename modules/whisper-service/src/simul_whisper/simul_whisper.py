@@ -248,6 +248,15 @@ class PaddedAlignAttWhisper:
         logger.debug(f"init tokens after, {len(self.segments)}")
         self.tokens = [self.initial_tokens]
 
+    # MILESTONE 1 FIX: update_language_tokens() DELETED
+    # This function violated FEEDBACK.md non-negotiables:
+    # - Line 6: "Never clear KV mid-utterance" (violated by self._clean_cache())
+    # - Line 9: "Never swap SOT mid-sequence" (violated by updating initial_tokens)
+    #
+    # Per FEEDBACK.md line 267: "Do not run language detection once and pin it for a session if you need code-switch"
+    # For Milestone 1, we REVERT to session-level detection (detect once, pin for session)
+    # For Milestone 2+, we'll implement proper LID-gated parallel decoders per FEEDBACK.md architecture
+
     def trim_context(self):
         logger.info("Trimming context")
         c = len(self.context.as_token_ids()) - len(self.context.prefix_token_ids)
@@ -439,52 +448,42 @@ class PaddedAlignAttWhisper:
         # encode
         encoder_feature = self.model.encoder(mel)
 
+        # MILESTONE 1 FIX: Remove double encoder call
+        # This caused 2x latency for newest segment
+        # Language detection now uses same encoder_feature as decoding (single call)
+        # Per FEEDBACK.md: Shared encoder runs ONCE per chunk
+
 #        logger.debug(f"Encoder feature shape: {encoder_feature.shape}")
 #        if mel.shape[-2:] != (self.model.dims.n_audio_ctx, self.model.dims.n_audio_state):
 #            logger.debug("mel ")
-        # Phase 5: Dynamic language detection for code-switching
-        # For code-switching: detect language on EVERY chunk (not just first)
-        # For standard mode: detect once and pin (original behavior)
+        # MILESTONE 1 FIX: Revert to session-level language detection
+        # Per FEEDBACK.md line 267, 342: "Keep SimulStreaming's VAD-first policy" and
+        # "Do not run language detection once and pin it for a session if you need code-switch"
+        #
+        # For Milestone 1: Detect ONCE per session (original SimulStreaming behavior)
+        # This restores 75-90% WER baseline for single-language streaming
+        #
+        # For Milestone 2+: We'll implement frame-level LID with session-restart approach
+        # For Milestone 3+: We'll implement parallel decoders with LID-gated fusion
         should_detect_language = (
             self.cfg.language == "auto" and
-            (self.detected_language is None or getattr(self, 'enable_code_switching', False))
+            self.detected_language is None  # Only detect ONCE (removed code-switching condition)
         )
 
         if should_detect_language:
-            # CRITICAL: Clean cache BEFORE lang_id() for code-switching
-            # Previous chunk's full SOT processing left 5-token cache entries
-            # But lang_id() only uses single token, causing dimension mismatch
-            if getattr(self, 'enable_code_switching', False) and self.detected_language is not None:
-                self._clean_cache()
-
+            # Detect language once at session start
             language_tokens, language_probs = self.lang_id(encoder_feature)
             logger.debug(f"Language tokens: {language_tokens}, probs: {language_probs}")
             top_lan, p = max(language_probs[0].items(), key=lambda x: x[1])
 
-            # Check if language switched
-            language_switched = (self.detected_language is not None and
-                                self.detected_language != top_lan)
+            logger.info(f"✅ Detected language: {top_lan} with p={p:.4f} (session-level, pinned)")
 
-            if language_switched:
-                logger.info(f"🔄 Language switch detected: {self.detected_language} → {top_lan} (p={p:.4f})")
-            else:
-                logger.info(f"Detected language: {top_lan} with p={p:.4f}")
+            # Initialize tokenizer with detected language
+            self.create_tokenizer(top_lan)
+            self.detected_language = top_lan
+            self.init_tokens()
 
-            # For code-switching: Immediate language tracking without decoder reset
-            if self.detected_language is None:
-                # First detection: must initialize tokenizer
-                self.create_tokenizer(top_lan)
-                self.detected_language = top_lan
-                self.init_tokens()
-                logger.info(f"Tokenizer language: {self.tokenizer.language}, {self.tokenizer.sot_sequence_including_notimestamps}")
-            elif getattr(self, 'enable_code_switching', False):
-                # Code-switching mode: update detected language but DON'T reset decoder
-                # This allows Whisper to emit mixed-language tokens under one decoder
-                self.detected_language = top_lan
-                logger.info(f"[CODE-SWITCHING] Language tracked as {top_lan} but decoder unchanged (no cache flush)")
-            else:
-                # Standard mode: language shouldn't change once set
-                logger.warning(f"Language changed from {self.detected_language} to {top_lan} but not in code-switching mode")
+            logger.info(f"✅ Language pinned to '{top_lan}' for session duration (SimulStreaming baseline behavior)")
 
         self.trim_context()
         current_tokens = self._current_tokens()
