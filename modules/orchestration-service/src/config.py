@@ -229,6 +229,97 @@ class MonitoringSettings(BaseSettings):
     model_config = ConfigDict(env_prefix="MONITORING_")
 
 
+class BotSettings(BaseSettings):
+    """Bot management configuration"""
+
+    # Docker settings
+    docker_image: str = Field(
+        default="livetranslate-bot:latest",
+        env="BOT_DOCKER_IMAGE",
+        description="Docker image for bot containers"
+    )
+    docker_network: str = Field(
+        default="livetranslate_default",
+        env="BOT_DOCKER_NETWORK",
+        description="Docker network for bot containers"
+    )
+
+    # Database settings (optional)
+    enable_database: bool = Field(
+        default=False,
+        env="BOT_ENABLE_DATABASE",
+        description="Enable database persistence for bots"
+    )
+    database_host: str = Field(
+        default="localhost",
+        env="BOT_DATABASE_HOST",
+        description="Bot database host"
+    )
+    database_port: int = Field(
+        default=5432,
+        env="BOT_DATABASE_PORT",
+        description="Bot database port"
+    )
+    database_name: str = Field(
+        default="livetranslate",
+        env="BOT_DATABASE_NAME",
+        description="Bot database name"
+    )
+    database_user: str = Field(
+        default="postgres",
+        env="BOT_DATABASE_USER",
+        description="Bot database username"
+    )
+    database_password: str = Field(
+        default="",
+        env="BOT_DATABASE_PASSWORD",
+        description="Bot database password"
+    )
+
+    # Storage settings
+    audio_storage_path: str = Field(
+        default="/tmp/livetranslate/audio",
+        env="BOT_AUDIO_STORAGE_PATH",
+        description="Path for bot audio file storage"
+    )
+
+    # Google Account Authentication (for restricted meetings)
+    google_email: str = Field(
+        default="",
+        description="Google account email for bot authentication"
+    )
+    google_password: str = Field(
+        default="",
+        description="Google account password (use App Password if 2FA enabled)"
+    )
+
+    # Persistent Browser Profile (keeps bot logged in)
+    user_data_dir: str = Field(
+        default="/tmp/bot-browser-profile",
+        env="BOT_USER_DATA_DIR",
+        description="Path to persistent browser profile (stores login state)"
+    )
+
+    # Browser Settings
+    headless: bool = Field(
+        default=True,
+        env="BOT_HEADLESS",
+        description="Run browser in headless mode"
+    )
+    screenshots_enabled: bool = Field(
+        default=True,
+        env="BOT_SCREENSHOTS_ENABLED",
+        description="Enable screenshot debugging"
+    )
+    screenshots_path: str = Field(
+        default="/tmp/bot-screenshots",
+        env="BOT_SCREENSHOTS_PATH",
+        description="Path for bot screenshots"
+    )
+
+    model_config = ConfigDict(env_prefix="BOT_", env_file=".env", extra="ignore")
+
+
 class Settings(BaseSettings):
     """Main application settings"""
 
@@ -270,6 +361,7 @@ class Settings(BaseSettings):
     security: SecuritySettings = SecuritySettings()
     logging: LoggingSettings = LoggingSettings()
     monitoring: MonitoringSettings = MonitoringSettings()
+    bot: BotSettings = BotSettings()
 
     # Feature flags
     enable_audio_processing: bool = Field(

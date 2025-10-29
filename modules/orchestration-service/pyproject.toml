@@ -81,6 +81,7 @@ openvino-genai = "^2025.3.0.0"
 transformers = "^4.57.1"
 torch = "^2.9.0"
 python-socketio = {extras = ["client"], version = "^5.14.2"}
+docker = "^7.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
@@ -93,7 +94,7 @@ mypy = "^1.5.1"
 pre-commit = "^3.4.0"
 
 [tool.poetry.group.test.dependencies]
-httpx = "^0.25.0"
+httpx = "^0.28.1"
 pytest-mock = "^3.11.1"
 faker = "^19.6.2"
 timecode = "^1.4.1"  # SMPTE timecode for precise audio overlap handling in tests

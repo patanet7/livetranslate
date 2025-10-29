@@ -112,7 +112,7 @@ class Bot:
 
         # Components (initialize as None, create in run())
         self.orchestration: Optional[OrchestrationClient] = None
-        # self.browser: Optional[GoogleMeetAutomation] = None
+        self.browser = None  # GoogleMeetAutomation instance
         # self.audio: Optional[AudioCapture] = None
         # self.redis: Optional[RedisSubscriber] = None
         # self.webcam: Optional[VirtualWebcam] = None
@@ -182,12 +182,12 @@ class Bot:
             # Phase 2: Join Google Meet
             self.status = "joining"
             await self._notify_manager("joining")
-            # await self._join_meeting()  # TODO: Implement
+            await self._join_meeting()
 
             # Phase 3: Start audio streaming
             self.status = "active"
             await self._notify_manager("active")
-            # await self._start_audio_stream()  # TODO: Implement
+            await self._start_audio_stream()
 
             # Phase 4: Main loop - keep bot alive
             await self._main_loop()
@@ -231,7 +231,41 @@ class Bot:
         """Join Google Meet via browser automation"""
         logger.info(f"Joining Google Meet: {self.config.meeting_url}")
 
-        # TODO: Implement browser automation
+        from google_meet_automation import GoogleMeetAutomation, BrowserConfig, MeetingState
+
+        # Configure browser automation with Google credentials from environment
+        browser_config = BrowserConfig(
+            headless=os.getenv("HEADLESS", "true").lower() == "true",
+            audio_capture_enabled=True,
+            video_enabled=False,
+            microphone_enabled=False,
+            screenshots_enabled=os.getenv("SCREENSHOTS_ENABLED", "true").lower() == "true",
+            screenshots_path=os.getenv("SCREENSHOTS_PATH", "/tmp/bot-screenshots"),
+            # Google Authentication
+            google_email=os.getenv("GOOGLE_EMAIL"),
+            google_password=os.getenv("GOOGLE_PASSWORD"),
+            user_data_dir=os.getenv("USER_DATA_DIR")
+        )
+
+        # Create and initialize automation
+        self.browser = GoogleMeetAutomation(browser_config)
+        await self.browser.initialize()
+
+        # Join meeting
+        bot_name = f"LiveTranslate-{self.connection_id[:8]}"
+        success = await self.browser.join_meeting(self.config.meeting_url, bot_name)
+
+        if not success:
+            raise RuntimeError("Failed to join Google Meet")
+
+        # Wait for admission if in waiting room
+        if self.browser.get_state() == MeetingState.WAITING_ROOM:
+            logger.info("⏳ Bot is in waiting room, waiting for admission...")
+            admitted = await self.browser.wait_for_active(timeout=300)
+            if not admitted:
+                logger.warning("⚠️  Bot was not admitted from waiting room")
+
+        logger.info(f"✅ Bot joined Google Meet (state: {self.browser.get_state().value})")
         # self.browser = GoogleMeetAutomation()
         # await self.browser.join(self.config.meeting_url)
 
@@ -295,11 +329,11 @@ class Bot:
         Send HTTP callback to bot manager (like Vexa)
 
         Endpoints:
-        - POST /bots/internal/callback/started
-        - POST /bots/internal/callback/joining
-        - POST /bots/internal/callback/active
-        - POST /bots/internal/callback/completed
-        - POST /bots/internal/callback/failed
+        - POST /api/bots/internal/callback/started
+        - POST /api/bots/internal/callback/joining
+        - POST /api/bots/internal/callback/active
+        - POST /api/bots/internal/callback/completed
+        - POST /api/bots/internal/callback/failed
 
         Args:
             status: Status to notify (started, joining, active, completed, failed)
@@ -312,7 +346,7 @@ class Bot:
         try:
             import httpx
 
-            url = f"{self.config.bot_manager_url}/bots/internal/callback/{status}"
+            url = f"{self.config.bot_manager_url}/api/bots/internal/callback/{status}"
             payload = {
                 "connection_id": self.config.connection_id,
                 "container_id": os.getenv("HOSTNAME", "unknown")  # Docker container ID
@@ -343,7 +377,15 @@ class Bot:
             except Exception as e:
                 logger.error(f"Error disconnecting from orchestration: {e}")
 
-        # Leave Google Meet
+        # Leave Google Meet and cleanup browser
+        if self.browser:
+            try:
+                await self.browser.leave_meeting()
+                await self.browser.cleanup()
+            except Exception as e:
+                logger.error(f"Error cleaning up browser: {e}")
+
+        # Original commented lines:
         # if self.browser:
         #     try:
         #         await self.browser.leave()

@@ -338,18 +338,18 @@ router_logger.info("[OK] bot_router registered successfully")
 
 # Register bot_management_router (new Docker-based management)
 router_logger.info("[3a] Registering bot_management_router...")
-log_router_details("bot_management_router", bot_management_router, "")  # Uses own prefix /bots
-conflicts = check_route_conflicts("", "bot_management_router", registered_routes)
-app.include_router(bot_management_router)  # Router defines its own prefix /bots
-registered_routes.append(("", "bot_management_router"))
+log_router_details("bot_management_router", bot_management_router, "/api")  # Add /api prefix
+conflicts = check_route_conflicts("/api", "bot_management_router", registered_routes)
+app.include_router(bot_management_router, prefix="/api")  # Add /api prefix so routes become /api/bots/*
+registered_routes.append(("/api", "bot_management_router"))
 router_logger.info("[OK] bot_management_router registered successfully")
 
 # Register bot_callbacks_router (internal callbacks from bot containers)
 router_logger.info("[3b] Registering bot_callbacks_router...")
-log_router_details("bot_callbacks_router", bot_callbacks_router, "")  # Uses own prefix /bots/internal/callback
-conflicts = check_route_conflicts("", "bot_callbacks_router", registered_routes)
-app.include_router(bot_callbacks_router)  # Router defines its own prefix
-registered_routes.append(("", "bot_callbacks_router"))
+log_router_details("bot_callbacks_router", bot_callbacks_router, "/api")  # Add /api prefix
+conflicts = check_route_conflicts("/api/bots/internal", "bot_callbacks_router", registered_routes)
+app.include_router(bot_callbacks_router, prefix="/api")  # Add /api prefix so routes become /api/bots/internal/*
+registered_routes.append(("/api/bots/internal", "bot_callbacks_router"))
 router_logger.info("[OK] bot_callbacks_router registered successfully")
 
 # Register websocket_router
@@ -748,7 +748,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             from dependencies import get_health_monitor
                             health_monitor = get_health_monitor()
                             health_data = await health_monitor.get_system_health()
-                            
+
                             health_response = {
                                 "type": "system:health_update",
                                 "data": health_data,
@@ -767,6 +767,23 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                                 "correlationId": message_data.get("messageId"),
                             }
                             await websocket.send_text(json.dumps(error_response))
+                    elif message_type == "start_session":
+                        # Handle session start from bots
+                        session_id = message_data.get("session_id", connection_id)
+                        config = message_data.get("config", {})
+
+                        logger.info(f"Starting session for {session_id} with config: {config}")
+
+                        session_response = {
+                            "type": "session_started",
+                            "session_id": session_id,
+                            "connection_id": connection_id,
+                            "config": config,
+                            "timestamp": int(datetime.utcnow().timestamp() * 1000),
+                            "messageId": f"session-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                            "correlationId": message_data.get("messageId"),
+                        }
+                        await websocket.send_text(json.dumps(session_response))
                     else:
                         # Echo back other messages for now with proper format
                         echo_response = {
