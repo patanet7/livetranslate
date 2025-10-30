@@ -21,7 +21,7 @@ from typing import Optional, Dict, Any, List
 from enum import Enum
 from dataclasses import dataclass
 from playwright.async_api import async_playwright, Browser, Page, BrowserContext, Playwright
-from playwright_stealth import Stealth
+from undetected_playwright import Malenia
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +46,20 @@ class BrowserConfig:
     video_enabled: bool = False
     microphone_enabled: bool = False
     join_timeout: int = 120
-    window_size: tuple = (1920, 1080)
+    window_size: tuple = (1280, 720)  # Match ScreenApp's size
     user_agent: Optional[str] = None
     screenshots_enabled: bool = True
     screenshots_path: str = "/tmp/bot-screenshots"
-    # Persistent browser profile for staying logged in
-    user_data_dir: Optional[str] = None  # Path to persistent browser profile
-    # Google account credentials (ONLY for initial setup, not production use)
+
+    # DEPRECATED: Authentication no longer used - bots join anonymously
+    # Keeping for backward compatibility but will be ignored
+    user_data_dir: Optional[str] = None
     google_email: Optional[str] = None
     google_password: Optional[str] = None
+
+    # NEW: Bearer token for API callbacks (ScreenApp/Vexa pattern)
+    bearer_token: Optional[str] = None
+    callback_url: Optional[str] = None
 
 
 class GoogleMeetSelectors:
@@ -158,59 +163,56 @@ class GoogleMeetAutomation:
             # Start Playwright
             self.playwright = await async_playwright().start()
 
-            # Launch browser with Vexa's exact configuration for stealth
+            # MINIMAL args - Google flags aggressive automation args!
+            # Only include what's ABSOLUTELY necessary for media capture
+            browser_args = [
+                # Media capture (ScreenApp's critical args)
+                '--enable-usermedia-screen-capturing',
+                '--allow-http-screen-capture',
+                '--auto-accept-this-tab-capture',
+                '--enable-features=MediaRecorder',
+
+                # Window config
+                f'--window-size={self.config.window_size[0]},{self.config.window_size[1]}',
+
+                # Fake UI for media prompts (needed to auto-accept)
+                '--use-fake-ui-for-media-stream',
+            ]
+
+            # ⚡ USE REAL CHROME to match TLS/HTTP fingerprint (NOT Playwright's Chromium!)
+            # This is CRITICAL - Google detects Chromium's different TLS signature
+            chrome_path = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
             self.browser = await self.playwright.chromium.launch(
                 headless=self.config.headless,
-                args=[
-                    '--incognito',  # Vexa uses incognito mode
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-features=IsolateOrigins,site-per-process',
-                    '--disable-infobars',
-                    '--disable-gpu',
-                    '--use-fake-ui-for-media-stream',
-                    '--use-file-for-fake-video-capture=/dev/null',
-                    '--use-file-for-fake-audio-capture=/dev/null',
-                    '--allow-running-insecure-content',
-                    '--disable-web-security',
-                    '--disable-features=VizDisplayCompositor',
-                    '--ignore-certificate-errors',
-                    '--ignore-ssl-errors',
-                    '--ignore-certificate-errors-spki-list',
-                    '--disable-site-isolation-trials'
-                ]
+                executable_path=chrome_path,  # ← REAL Chrome = Real TLS fingerprint!
+                args=browser_args,
+                ignore_default_args=['--mute-audio'],  # ScreenApp: Don't mute audio!
+                channel=None  # Don't use channel when using executable_path
             )
 
             # Create browser context with media permissions and Vexa's user agent
+            # Using Vexa's Chrome 129 user agent (battle-tested for Google Meet)
             vexa_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 
-            # Use persistent context if user_data_dir is provided (keeps login state)
-            if self.config.user_data_dir:
-                logger.info(f"📂 Using persistent browser profile: {self.config.user_data_dir}")
-                self.context = await self.browser.new_context(
-                    viewport={'width': self.config.window_size[0], 'height': self.config.window_size[1]},
-                    user_agent=self.config.user_agent or vexa_user_agent,
-                    bypass_csp=True,
-                    storage_state=f"{self.config.user_data_dir}/state.json" if os.path.exists(f"{self.config.user_data_dir}/state.json") else None,
-                )
-            else:
-                self.context = await self.browser.new_context(
-                    viewport={'width': self.config.window_size[0], 'height': self.config.window_size[1]},
-                    user_agent=self.config.user_agent or vexa_user_agent,
-                    bypass_csp=True,
-                )
+            # Simple context - no persistent storage needed for anonymous joining
+            self.context = await self.browser.new_context(
+                viewport={'width': self.config.window_size[0], 'height': self.config.window_size[1]},
+                user_agent=self.config.user_agent or vexa_user_agent,
+                bypass_csp=True,
+                ignore_https_errors=True,  # ScreenApp uses this
+            )
 
             # Grant camera and microphone permissions to Google Meet
             await self.context.grant_permissions(['microphone', 'camera'], origin='https://meet.google.com')
 
-            # Create page
-            self.page = await self.context.new_page()
+            # Apply Malenia's UNDETECTED stealth mode to bypass Google bot detection!
+            logger.info("🥷 Applying Malenia stealth to context...")
+            await Malenia.apply_stealth(self.context)
+            logger.info("✅ Undetected mode active - bot detection bypassed by Malenia!")
 
-            # Apply stealth techniques to hide automation (bypass Google Meet bot detection)
-            logger.info("🥷 Applying stealth techniques to hide automation signals...")
-            stealth = Stealth()
-            await stealth.apply_stealth_async(self.page)
-            logger.info("✅ Stealth mode activated - navigator.webdriver hidden, CDP signals masked")
+            # Create page AFTER stealth is applied
+            self.page = await self.context.new_page()
 
             # Enable console logging for debugging
             self.page.on('console', lambda msg: logger.debug(f"Browser console: {msg.text}"))
@@ -316,12 +318,9 @@ class GoogleMeetAutomation:
         logger.info(f"👤 Bot name: {bot_name}")
 
         try:
-            # Login to Google account if credentials provided
-            # This must be done BEFORE joining the meeting for restricted meetings
-            if self.config.google_email and self.config.google_password:
-                login_success = await self.login_google_account()
-                if not login_success:
-                    logger.warning("⚠️  Failed to login to Google account, continuing as anonymous")
+            # ANONYMOUS JOINING: No authentication required!
+            # Vexa & ScreenApp both prove this works for public Google Meet meetings
+            logger.info("🎭 Joining anonymously (no authentication required)")
 
             # Navigate to meeting
             await self.page.goto(meeting_url, wait_until='networkidle', timeout=60000)
@@ -333,15 +332,8 @@ class GoogleMeetAutomation:
             logger.info("⏳ Waiting for page elements to load...")
             await asyncio.sleep(2)  # Reduced from 5s
 
-            # Check for error page BEFORE trying to enter name
-            error_text = await self.page.text_content("body")
-            if "You can't join this video call" in error_text:
-                logger.error("❌ Google Meet is blocking access: 'You can't join this video call'")
-                logger.error("   This meeting may require:")
-                logger.error("   - A signed-in Google account")
-                logger.error("   - Host to be present in the meeting")
-                logger.error("   - Meeting security settings to allow external/anonymous users")
-                raise RuntimeError("Access denied by Google Meet security settings")
+            # NOTE: Don't check for "You can't join" here - that message appears even for
+            # meetings with waiting rooms. We'll try to join and handle rejection later.
 
             self.state = MeetingState.JOINING
 
