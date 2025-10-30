@@ -115,12 +115,12 @@ class SessionRestartTranscriber:
         else:
             self.beam_size = beam_size
 
-        # Frame-level LID with smoothing (Phase 2.1)
+        # Frame-level LID with Whisper-native probe (Phase 2.1)
+        # Zero-cost language detection using Whisper's encoder
         self.lid_detector = FrameLevelLID(
             hop_ms=lid_hop_ms,
-            sample_rate=sampling_rate,
             target_languages=target_languages,
-            smoothing=True  # Median smoothing
+            smoothing=True  # Median smoothing (5-frame window)
         )
 
         # HMM/Viterbi smoother for additional stability (Phase 2.1)
@@ -391,23 +391,40 @@ class SessionRestartTranscriber:
         ])
 
         # Run frame-level LID at 10Hz (100ms hop)
+        # Only run if we have an active session (need model for Whisper-native probe)
         switch_detected = False
-        while len(self.audio_buffer_for_lid) >= self.lid_hop_samples:
+        while len(self.audio_buffer_for_lid) >= self.lid_hop_samples and self.current_session is not None:
             # Extract LID frame
             lid_frame_audio = self.audio_buffer_for_lid[:self.lid_hop_samples]
             self.audio_buffer_for_lid = self.audio_buffer_for_lid[self.lid_hop_samples:]
 
-            # Run LID detection
+            # Run LID detection with Whisper-native probe
+            # Convert audio to mel spectrogram
+            from simul_whisper.whisper.audio import log_mel_spectrogram, pad_or_trim
+
+            # Pad audio to 30 seconds (Whisper requirement)
+            lid_audio_padded = pad_or_trim(lid_frame_audio)
+            mel = log_mel_spectrogram(lid_audio_padded)
+
+            # Run encoder to get features (Whisper-native zero-cost probe)
+            with torch.no_grad():
+                encoder_output = self.current_session.processor.model.encoder(
+                    mel.unsqueeze(0).to(self.current_session.processor.model.device)
+                )
+
+            # Run Whisper-native LID probe
+            # This is a READ-ONLY probe that extracts language token logits
             current_time = self.last_lid_time + (self.lid_hop_samples / self.sampling_rate)
-            lid_frame = self.lid_detector.detect(
-                audio_chunk=lid_frame_audio,
-                timestamp=current_time,
-                model=None  # TODO: Pass Whisper model for language detection
+            lid_probs = self.lid_detector.detect(
+                encoder_output=encoder_output,
+                model=self.current_session.processor.model,
+                tokenizer=self.current_session.processor.tokenizer,
+                timestamp=current_time
             )
 
             # Apply Viterbi smoothing
             smoothed_result = self.lid_smoother.smooth(
-                lid_probs=lid_frame.probabilities,
+                lid_probs=lid_probs,  # Now returns Dict[str, float] instead of LIDFrame
                 timestamp=current_time
             )
 
