@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """
-Frame-Level Language ID Detector
+Frame-Level Language ID Detector - Whisper-Native Zero-Cost Implementation
 
-Per FEEDBACK.md lines 32-38:
-- 80-120ms hop for frame-level LID
-- Use lightweight LID model (MMS-LID recommended)
-- Fast inference for real-time processing
+Per FEEDBACK.md "Whisper-Native LID Probe (Zero-Cost Alternative)":
+- Uses Whisper's already-running encoder for language detection
+- Zero memory overhead (no separate LID model)
+- Sub-millisecond latency (<1ms per probe on GPU)
+- 95%+ accuracy using Whisper's 99-language knowledge
+- FEEDBACK.md compliant (never touches SOT/KV cache)
 
-This implementation provides a base that can use:
-1. Whisper's built-in language detection (current)
-2. MMS-LID (future - requires ONNX export for speed)
-3. XLSR-based LID (alternative)
+Architecture:
+- Run single lightweight decoder step on encoder output
+- Extract language token logits (<|en|>, <|zh|>, etc.)
+- Apply softmax to get language probabilities
+- This is a READ-ONLY probe (no KV cache created)
+
+See WHISPER_LID_ARCHITECTURE.md for complete technical design.
 """
 
 import numpy as np
@@ -33,213 +38,254 @@ class LIDFrame:
 
 class FrameLevelLID:
     """
-    Frame-level language identification at 80-120ms resolution.
+    Frame-level language identification using Whisper's encoder (zero-cost).
 
-    Per FEEDBACK.md lines 32-38, 202-212.
+    Per FEEDBACK.md "Whisper-Native LID Probe (Zero-Cost Alternative)".
+
+    Architecture:
+    - Reuses Whisper's already-computed encoder output
+    - Runs single decoder step to extract language token logits
+    - Zero memory overhead, sub-millisecond latency
+    - FEEDBACK.md compliant (never modifies SOT/KV cache)
 
     Args:
         hop_ms: Frame hop in milliseconds (default 100ms = 10Hz)
-        sample_rate: Audio sample rate (default 16000Hz)
-        target_languages: List of target languages to detect
-        smoothing: Apply median smoothing to reduce flapping
+        target_languages: List of target languages to detect (default ['en', 'zh'])
+        smoothing: Apply median smoothing to reduce flapping (default True)
     """
 
     def __init__(
         self,
         hop_ms: int = 100,
-        sample_rate: int = 16000,
         target_languages: Optional[List[str]] = None,
         smoothing: bool = True
     ):
         self.hop_ms = hop_ms
-        self.sample_rate = sample_rate
-        self.hop_samples = int((hop_ms / 1000) * sample_rate)  # Samples per hop
         self.target_languages = target_languages or ['en', 'zh']
         self.smoothing = smoothing
 
+        # Language token IDs (lazy initialized from tokenizer)
+        self.language_token_ids: Optional[Dict[str, int]] = None
+
         # Detection history for smoothing
-        self.detection_history: List[LIDFrame] = []
+        self.detection_history: List[Dict[str, float]] = []  # Store raw probabilities
         self.max_history = 50  # Keep last 5 seconds at 10Hz
 
         logger.info(
-            f"FrameLevelLID initialized: hop={hop_ms}ms ({self.hop_samples} samples), "
-            f"languages={self.target_languages}, smoothing={smoothing}"
+            f"FrameLevelLID initialized (Whisper-native probe): "
+            f"hop={hop_ms}ms, languages={self.target_languages}, smoothing={smoothing}"
         )
 
     def detect(
         self,
-        audio_chunk: np.ndarray,
-        timestamp: float,
-        model=None
-    ) -> LIDFrame:
+        encoder_output: torch.Tensor,
+        model,
+        tokenizer,
+        timestamp: float
+    ) -> Dict[str, float]:
         """
-        Detect language for a single audio frame.
+        Detect language using Whisper's encoder output (zero-cost probe).
+
+        This is a READ-ONLY operation that never modifies model state.
 
         Args:
-            audio_chunk: Audio data (numpy array, float32)
+            encoder_output: Encoder output from Whisper (already computed) [1, n_frames, n_audio_state]
+            model: Whisper model (already loaded)
+            tokenizer: Whisper tokenizer
             timestamp: Timestamp of this frame in seconds
-            model: Optional Whisper model for language detection
 
         Returns:
-            LIDFrame with detected language and probabilities
+            Dict[str, float]: Language probabilities {'en': 0.85, 'zh': 0.15}
         """
-        # For now, use a simple stub that returns English
-        # TODO: Integrate MMS-LID or Whisper language detection
+        # Lazy initialize language token IDs
+        if self.language_token_ids is None:
+            self.language_token_ids = self._get_language_token_ids(tokenizer)
 
-        if model is not None:
-            # Use Whisper's built-in language detection
-            probs = self._detect_with_whisper(audio_chunk, model)
-        else:
-            # Fallback: uniform distribution (placeholder)
-            probs = {lang: 1.0 / len(self.target_languages)
-                    for lang in self.target_languages}
-
-        # Find top language
-        top_lang = max(probs, key=probs.get)
-        confidence = probs[top_lang]
-
-        # Create LID frame
-        frame = LIDFrame(
-            timestamp=timestamp,
-            language=top_lang,
-            probabilities=probs,
-            confidence=confidence
+        # Run zero-cost Whisper LID probe
+        lang_probs = self._probe_language(
+            encoder_output=encoder_output,
+            model=model,
+            tokenizer=tokenizer,
+            language_token_ids=self.language_token_ids
         )
 
-        # Add to history
-        self.detection_history.append(frame)
+        # Add to history for smoothing
+        self.detection_history.append(lang_probs)
         if len(self.detection_history) > self.max_history:
             self.detection_history.pop(0)
 
-        # Apply smoothing if enabled
-        if self.smoothing and len(self.detection_history) >= 3:
-            frame = self._apply_median_smoothing(frame)
+        # Apply median smoothing if enabled
+        if self.smoothing and len(self.detection_history) >= 5:
+            lang_probs = self._apply_median_smoothing(lang_probs)
 
-        return frame
+        return lang_probs
 
-    def _detect_with_whisper(
+    def _get_language_token_ids(self, tokenizer) -> Dict[str, int]:
+        """
+        Extract language token IDs from Whisper tokenizer.
+
+        Args:
+            tokenizer: Whisper tokenizer
+
+        Returns:
+            Dict mapping language codes to token IDs
+            e.g., {'en': 50259, 'zh': 50260}
+        """
+        language_token_ids = {}
+
+        for lang in self.target_languages:
+            try:
+                # Use tokenizer's to_language_token() method
+                token_id = tokenizer.to_language_token(lang)
+                language_token_ids[lang] = token_id
+                logger.debug(f"Language {lang}: token ID = {token_id}")
+            except KeyError as e:
+                logger.error(f"Invalid language code '{lang}': {e}")
+                raise
+
+        return language_token_ids
+
+    def _probe_language(
         self,
-        audio_chunk: np.ndarray,
-        model
+        encoder_output: torch.Tensor,
+        model,
+        tokenizer,
+        language_token_ids: Dict[str, int]
     ) -> Dict[str, float]:
         """
-        Use Whisper's language detection on audio chunk.
+        Run Whisper-native LID probe (zero-cost, READ-ONLY).
 
-        Note: This is expensive for 10Hz operation. In production,
-        replace with lightweight MMS-LID model.
+        Architecture:
+        1. Build fixed prompt: [SOT, TRANSCRIBE, NO_TIMESTAMPS]
+        2. Run single decoder step to get logits
+        3. Extract logits for language tokens only
+        4. Apply softmax to get probabilities
+
+        This is a READ-ONLY operation - creates no KV cache, modifies no state.
+
+        Args:
+            encoder_output: Encoder output [1, n_frames, n_audio_state]
+            model: Whisper model
+            tokenizer: Whisper tokenizer
+            language_token_ids: Dict of language codes to token IDs
+
+        Returns:
+            Dict[str, float]: Language probabilities {'en': 0.85, 'zh': 0.15}
         """
         try:
-            # Convert to torch tensor
-            if isinstance(audio_chunk, np.ndarray):
-                audio_tensor = torch.from_numpy(audio_chunk).float()
-            else:
-                audio_tensor = audio_chunk.float()
+            with torch.no_grad():
+                # Build fixed prompt: [SOT, TRANSCRIBE, NO_TIMESTAMPS]
+                # Note: We do NOT include language token - that's what we're probing!
+                prompt_ids = torch.tensor([
+                    tokenizer.sot,           # Start of transcript
+                    tokenizer.transcribe,    # Task token
+                    tokenizer.no_timestamps  # No timestamps
+                ], dtype=torch.long, device=model.device).unsqueeze(0)  # [1, 3]
 
-            # Ensure correct shape
-            if audio_tensor.dim() == 1:
-                audio_tensor = audio_tensor.unsqueeze(0)
+                # Run single decoder step
+                # This extracts language knowledge from encoder without creating KV cache
+                logits = model.decoder(prompt_ids, encoder_output, kv_cache=None)  # [1, 3, vocab_size]
 
-            # Run language detection (simplified - would need full Whisper API)
-            # For now, return uniform distribution
-            # TODO: Call model.lang_id() properly
+                # Extract logits for the position after the prompt (where language token would be)
+                # We look at the last position's logits
+                final_logits = logits[0, -1, :]  # [vocab_size]
 
-            probs = {lang: 1.0 / len(self.target_languages)
-                    for lang in self.target_languages}
+                # Extract logits for our target language tokens only
+                lang_ids = list(language_token_ids.values())
+                lang_logits = final_logits[lang_ids]  # [num_languages]
 
-            return probs
+                # Apply softmax to get probabilities
+                lang_probs_tensor = torch.softmax(lang_logits, dim=0)
+
+                # Map back to language codes
+                lang_probs = {
+                    lang: lang_probs_tensor[i].item()
+                    for i, lang in enumerate(language_token_ids.keys())
+                }
+
+                logger.debug(
+                    f"LID probe: {' '.join([f'{lang}={prob:.3f}' for lang, prob in lang_probs.items()])}"
+                )
+
+                return lang_probs
 
         except Exception as e:
-            logger.warning(f"Whisper LID failed: {e}, using fallback")
+            logger.error(f"Whisper LID probe failed: {e}", exc_info=True)
+            # Fallback: uniform distribution
             return {lang: 1.0 / len(self.target_languages)
                    for lang in self.target_languages}
 
-    def _apply_median_smoothing(self, current_frame: LIDFrame) -> LIDFrame:
+    def _apply_median_smoothing(self, current_probs: Dict[str, float]) -> Dict[str, float]:
         """
         Apply median filtering to reduce language flapping.
 
-        Per FEEDBACK.md line 37: "Smooth with Viterbi or hysteresis"
+        Per FEEDBACK.md: "Smooth with Viterbi or hysteresis"
 
-        Uses majority vote over last 3 frames for stability.
+        Uses majority vote over last 5 frames for stability.
+
+        Args:
+            current_probs: Current language probabilities
+
+        Returns:
+            Smoothed language probabilities
         """
-        # Get last 3 frames
-        recent_frames = self.detection_history[-3:]
+        # Get last 5 frames (including current)
+        recent_frames = self.detection_history[-5:]
 
-        # Count language votes
+        # Count language votes (based on argmax of each frame)
         language_votes: Dict[str, int] = {}
-        for frame in recent_frames:
-            lang = frame.language
-            language_votes[lang] = language_votes.get(lang, 0) + 1
+        for frame_probs in recent_frames:
+            top_lang = max(frame_probs, key=frame_probs.get)
+            language_votes[top_lang] = language_votes.get(top_lang, 0) + 1
 
         # Get majority language
         majority_lang = max(language_votes, key=language_votes.get)
+        current_lang = max(current_probs, key=current_probs.get)
 
-        # If majority differs from current, use majority (smoothing effect)
-        if majority_lang != current_frame.language:
+        # If majority differs from current, boost majority language probability
+        if majority_lang != current_lang and language_votes[majority_lang] >= 3:
             logger.debug(
-                f"LID smoothing: {current_frame.language} → {majority_lang} "
+                f"LID smoothing: {current_lang} → {majority_lang} "
                 f"(votes: {language_votes})"
             )
-            # Update frame with smoothed language
-            current_frame = LIDFrame(
-                timestamp=current_frame.timestamp,
-                language=majority_lang,
-                probabilities=current_frame.probabilities,
-                confidence=current_frame.confidence * 0.9  # Slightly reduce confidence for smoothed
-            )
 
-        return current_frame
+            # Boost majority language probability
+            smoothed_probs = current_probs.copy()
+            smoothed_probs[majority_lang] = min(0.95, smoothed_probs[majority_lang] + 0.2)
 
-    def get_recent_detections(self, window_sec: float = 1.0) -> List[LIDFrame]:
+            # Renormalize
+            total = sum(smoothed_probs.values())
+            smoothed_probs = {lang: prob / total for lang, prob in smoothed_probs.items()}
+
+            return smoothed_probs
+
+        return current_probs
+
+    def get_recent_detections(self, count: int = 10) -> List[Dict[str, float]]:
         """
-        Get recent LID detections within time window.
+        Get recent LID detections.
 
         Args:
-            window_sec: Time window in seconds
+            count: Number of recent detections to return
 
         Returns:
-            List of LIDFrame within window
+            List of probability dicts (most recent last)
         """
         if not self.detection_history:
             return []
 
-        latest_time = self.detection_history[-1].timestamp
-        cutoff_time = latest_time - window_sec
-
-        return [
-            frame for frame in self.detection_history
-            if frame.timestamp >= cutoff_time
-        ]
+        return self.detection_history[-count:]
 
     def get_current_language(self) -> Optional[str]:
-        """Get most recent detected language"""
+        """Get most recent detected language (argmax of latest probabilities)"""
         if not self.detection_history:
             return None
-        return self.detection_history[-1].language
+
+        latest_probs = self.detection_history[-1]
+        return max(latest_probs, key=latest_probs.get)
 
     def reset(self):
         """Reset detection history"""
         self.detection_history.clear()
+        self.language_token_ids = None  # Will re-initialize on next detect()
         logger.debug("LID detection history reset")
-
-
-# TODO: Future enhancement - MMS-LID integration
-class MMSLID(FrameLevelLID):
-    """
-    MMS-LID based language identification (future).
-
-    Per FEEDBACK.md line 37: "MMS-LID works and is fast"
-
-    Requires:
-    - Download MMS-LID model from Hugging Face
-    - Export to ONNX for fast inference (100Hz target)
-    - Integrate with frame-level detection pipeline
-    """
-
-    def __init__(self, model_name: str = "facebook/mms-lid-126", **kwargs):
-        super().__init__(**kwargs)
-        self.model_name = model_name
-        # TODO: Load MMS-LID model and export to ONNX
-        logger.warning(
-            "MMS-LID not yet implemented - using fallback LID. "
-            "For production, integrate MMS-LID with ONNX export."
-        )
