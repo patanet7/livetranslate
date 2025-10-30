@@ -153,15 +153,12 @@ class FrameLevelLID:
         language_token_ids: Dict[str, int]
     ) -> Dict[str, float]:
         """
-        Run Whisper-native LID probe (zero-cost, READ-ONLY).
+        Run Whisper-native LID probe using Whisper's built-in detect_language().
 
-        Architecture:
-        1. Build fixed prompt: [SOT, TRANSCRIBE, NO_TIMESTAMPS]
-        2. Run single decoder step to get logits
-        3. Extract logits for language tokens only
-        4. Apply softmax to get probabilities
+        Uses Whisper's official language detection that "is performed outside
+        the main decode loop in order to not interfere with kv-caching".
 
-        This is a READ-ONLY operation - creates no KV cache, modifies no state.
+        This is the RECOMMENDED approach per Whisper's design - zero side effects.
 
         Args:
             encoder_output: Encoder output [1, n_frames, n_audio_state]
@@ -173,38 +170,36 @@ class FrameLevelLID:
             Dict[str, float]: Language probabilities {'en': 0.85, 'zh': 0.15}
         """
         try:
-            with torch.no_grad():
-                # Build fixed prompt: [SOT, TRANSCRIBE, NO_TIMESTAMPS]
-                # Note: We do NOT include language token - that's what we're probing!
-                prompt_ids = torch.tensor([
-                    tokenizer.sot,           # Start of transcript
-                    tokenizer.transcribe,    # Task token
-                    tokenizer.no_timestamps  # No timestamps
-                ], dtype=torch.long, device=model.device).unsqueeze(0)  # [1, 3]
+            with torch.inference_mode():
+                # Use Whisper's built-in detect_language function
+                # This runs a single forward pass with [SOT] token to extract
+                # language probabilities without interfering with KV cache
+                #
+                # NOTE: detect_language expects encoder output (already computed)
+                # Shape: [batch, n_audio_ctx, n_audio_state]
+                _, all_lang_probs = model.detect_language(encoder_output, tokenizer)
 
-                # Run single decoder step
-                # This extracts language knowledge from encoder without creating KV cache
-                logits = model.decoder(prompt_ids, encoder_output, kv_cache=None)  # [1, 3, vocab_size]
+                # all_lang_probs is a list of dicts with ALL language probabilities
+                # Extract only our target languages
+                full_probs = all_lang_probs[0]  # Get first batch element
 
-                # Extract logits for the position after the prompt (where language token would be)
-                # We look at the last position's logits
-                final_logits = logits[0, -1, :]  # [vocab_size]
-
-                # Extract logits for our target language tokens only
-                lang_ids = list(language_token_ids.values())
-                lang_logits = final_logits[lang_ids]  # [num_languages]
-
-                # Apply softmax to get probabilities
-                lang_probs_tensor = torch.softmax(lang_logits, dim=0)
-
-                # Map back to language codes
-                lang_probs = {
-                    lang: lang_probs_tensor[i].item()
-                    for i, lang in enumerate(language_token_ids.keys())
+                # Filter to target languages
+                target_probs = {
+                    lang: full_probs.get(lang, 0.0)
+                    for lang in self.target_languages
                 }
 
+                # Renormalize to sum to 1.0 (since we're only looking at subset)
+                total = sum(target_probs.values())
+                if total > 0:
+                    lang_probs = {lang: prob / total for lang, prob in target_probs.items()}
+                else:
+                    # Fallback to uniform if something went wrong
+                    lang_probs = {lang: 1.0 / len(self.target_languages)
+                                 for lang in self.target_languages}
+
                 logger.debug(
-                    f"LID probe: {' '.join([f'{lang}={prob:.3f}' for lang, prob in lang_probs.items()])}"
+                    f"LID probe (Whisper built-in): {' '.join([f'{lang}={prob:.3f}' for lang, prob in lang_probs.items()])}"
                 )
 
                 return lang_probs

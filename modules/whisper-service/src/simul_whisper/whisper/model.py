@@ -133,6 +133,9 @@ class MultiHeadAttention(nn.Module):
         self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         n_batch, n_ctx, n_state = q.shape
+        # import sys
+        # print(f"[ATTENTION DEBUG] qkv_attention: q.shape={q.shape}, k.shape={k.shape}, v.shape={v.shape}, mask.shape={mask.shape if mask is not None else 'None'}, n_ctx={n_ctx}", file=sys.stderr)
+
         scale = (n_state // self.n_head) ** -0.25
         q = q.view(*q.shape[:2], self.n_head, -1).permute(0, 2, 1, 3)
         k = k.view(*k.shape[:2], self.n_head, -1).permute(0, 2, 1, 3)
@@ -146,8 +149,28 @@ class MultiHeadAttention(nn.Module):
             qk = None
         else:
             qk = (q * scale) @ (k * scale).transpose(-1, -2)
+            # print(f"[ATTENTION DEBUG] qk.shape after matmul={qk.shape}, about to slice mask where n_ctx={n_ctx}", file=sys.stderr)
             if mask is not None:
-                qk = qk + mask[:n_ctx, :n_ctx]
+                # When using KV cache, Q has shape [B, n_new, D] but K has shape [B, n_total, D]
+                # where n_total = n_cached + n_new
+                # qk has shape [B, n_heads, n_new, n_total]
+                # We need to slice mask to match: mask[offset:offset+n_new, :n_total]
+                n_query, n_key = qk.shape[2], qk.shape[3]
+                # print(f"[ATTENTION DEBUG] n_query={n_query}, n_key={n_key}, computing offset={n_key - n_query}", file=sys.stderr)
+
+                # Offset = number of cached tokens
+                offset = n_key - n_query
+
+                # Defensive check: ensure offset is valid
+                if offset < 0 or offset >= mask.shape[0] or n_key > mask.shape[1]:
+                    # Edge case: use standard slice for safety
+                    # print(f"[ATTENTION DEBUG] Edge case: offset={offset}, n_key={n_key}, mask.shape={mask.shape}, falling back to standard slice", file=sys.stderr)
+                    mask_slice = mask[:n_query, :n_key]
+                else:
+                    mask_slice = mask[offset:n_key, :n_key]
+
+                # print(f"[ATTENTION DEBUG] mask_slice.shape={mask_slice.shape}, qk.shape={qk.shape}", file=sys.stderr)
+                qk = qk + mask_slice
             qk = qk.float()
 
             w = F.softmax(qk, dim=-1).to(q.dtype)
@@ -262,6 +285,8 @@ class TextDecoder(nn.Module):
         xa : torch.Tensor, shape = (batch_size, n_audio_ctx, n_audio_state)
             the encoded audio features to be attended on
         """
+        # import sys
+        # print(f"[DECODER DEBUG] forward() called: x.shape={x.shape}, mask.shape={self.mask.shape}, kv_cache={'None' if kv_cache is None else f'{len(kv_cache)} keys'}", file=sys.stderr)
 
         offset = next(iter(kv_cache.values())).shape[1] if kv_cache else 0
         x = (

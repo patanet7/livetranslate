@@ -404,7 +404,13 @@ class SessionRestartTranscriber:
 
             # Pad audio to 30 seconds (Whisper requirement)
             lid_audio_padded = pad_or_trim(lid_frame_audio)
-            mel = log_mel_spectrogram(lid_audio_padded)
+
+            # Create mel spectrogram with model-specific parameters
+            # IMPORTANT: Use n_mels from model (128 for large-v3, 80 for older models)
+            mel = log_mel_spectrogram(
+                lid_audio_padded,
+                n_mels=self.current_session.processor.model.dims.n_mels
+            )
 
             # Run encoder to get features (Whisper-native zero-cost probe)
             with torch.no_grad():
