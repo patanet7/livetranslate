@@ -27,15 +27,23 @@ import os
 import time
 import wave
 import numpy as np
-import re
-import string
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict
 import logging
 
-# Add src directory to path
+# Add src and tests directory to path
 SRC_DIR = Path(__file__).parent.parent.parent / "src"
+TESTS_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(TESTS_DIR))
+
+# Import test utilities
+from test_utils import (
+    normalize_text,
+    calculate_wer_detailed,
+    calculate_cer,
+    print_wer_results
+)
 
 # Setup logging
 logging.basicConfig(
@@ -47,145 +55,6 @@ logger = logging.getLogger(__name__)
 # Test configuration
 JFK_AUDIO_PATH = Path(__file__).parent.parent / "audio" / "jfk.wav"
 EXPECTED_JFK_TEXT = "And so my fellow Americans ask not what your country can do for you ask what you can do for your country"
-
-
-def normalize_text(text: str) -> str:
-    """
-    Normalize text for fair comparison:
-    - Remove punctuation
-    - Lowercase
-    - Normalize whitespace
-    - Strip leading/trailing whitespace
-    """
-    # Remove punctuation
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    # Lowercase
-    text = text.lower()
-    # Normalize whitespace (multiple spaces to single space)
-    text = re.sub(r'\s+', ' ', text)
-    # Strip
-    text = text.strip()
-    return text
-
-
-def calculate_wer_detailed(reference: str, hypothesis: str) -> Dict:
-    """
-    Calculate detailed Word Error Rate (WER) with alignment information
-
-    WER = (S + D + I) / N
-    where:
-    - S = substitutions
-    - D = deletions
-    - I = insertions
-    - N = number of words in reference
-
-    Returns both raw and normalized WER
-    """
-    # Calculate raw WER (with punctuation)
-    ref_words_raw = reference.lower().split()
-    hyp_words_raw = hypothesis.lower().split()
-
-    # Calculate normalized WER (without punctuation)
-    ref_normalized = normalize_text(reference)
-    hyp_normalized = normalize_text(hypothesis)
-    ref_words = ref_normalized.split()
-    hyp_words = hyp_normalized.split()
-
-    # Levenshtein distance with backtracking for alignment
-    def levenshtein_with_alignment(ref_words: List[str], hyp_words: List[str]):
-        d = np.zeros((len(ref_words) + 1, len(hyp_words) + 1), dtype=int)
-
-        # Initialize
-        for i in range(len(ref_words) + 1):
-            d[i][0] = i
-        for j in range(len(hyp_words) + 1):
-            d[0][j] = j
-
-        # Fill matrix
-        for i in range(1, len(ref_words) + 1):
-            for j in range(1, len(hyp_words) + 1):
-                if ref_words[i-1] == hyp_words[j-1]:
-                    d[i][j] = d[i-1][j-1]
-                else:
-                    substitution = d[i-1][j-1] + 1
-                    insertion = d[i][j-1] + 1
-                    deletion = d[i-1][j] + 1
-                    d[i][j] = min(substitution, insertion, deletion)
-
-        # Backtrack to get alignment
-        i, j = len(ref_words), len(hyp_words)
-        substitutions = []
-        deletions = []
-        insertions = []
-
-        while i > 0 or j > 0:
-            if i > 0 and j > 0 and ref_words[i-1] == hyp_words[j-1]:
-                # Match
-                i -= 1
-                j -= 1
-            elif i > 0 and j > 0 and d[i][j] == d[i-1][j-1] + 1:
-                # Substitution
-                substitutions.append((ref_words[i-1], hyp_words[j-1]))
-                i -= 1
-                j -= 1
-            elif j > 0 and d[i][j] == d[i][j-1] + 1:
-                # Insertion
-                insertions.append(hyp_words[j-1])
-                j -= 1
-            else:
-                # Deletion
-                deletions.append(ref_words[i-1])
-                i -= 1
-
-        edit_distance = d[len(ref_words)][len(hyp_words)]
-        wer = (edit_distance / len(ref_words) * 100) if len(ref_words) > 0 else 0
-
-        return {
-            'wer': wer,
-            'edit_distance': int(edit_distance),
-            'substitutions': substitutions,
-            'deletions': deletions,
-            'insertions': insertions,
-            'num_words': len(ref_words)
-        }
-
-    # Calculate both metrics
-    raw_result = levenshtein_with_alignment(ref_words_raw, hyp_words_raw)
-    normalized_result = levenshtein_with_alignment(ref_words, hyp_words)
-
-    return {
-        'raw': raw_result,
-        'normalized': normalized_result,
-        'ref_normalized': ref_normalized,
-        'hyp_normalized': hyp_normalized
-    }
-
-
-def calculate_cer(reference: str, hypothesis: str) -> float:
-    """Calculate Character Error Rate (CER) - normalized"""
-    ref_norm = normalize_text(reference)
-    hyp_norm = normalize_text(hypothesis)
-
-    # Levenshtein distance for characters
-    d = np.zeros((len(ref_norm) + 1, len(hyp_norm) + 1), dtype=int)
-
-    for i in range(len(ref_norm) + 1):
-        d[i][0] = i
-    for j in range(len(hyp_norm) + 1):
-        d[0][j] = j
-
-    for i in range(1, len(ref_norm) + 1):
-        for j in range(1, len(hyp_norm) + 1):
-            if ref_norm[i-1] == hyp_norm[j-1]:
-                d[i][j] = d[i-1][j-1]
-            else:
-                substitution = d[i-1][j-1] + 1
-                insertion = d[i][j-1] + 1
-                deletion = d[i-1][j] + 1
-                d[i][j] = min(substitution, insertion, deletion)
-
-    cer = d[len(ref_norm)][len(hyp_norm)] / len(ref_norm) if len(ref_norm) > 0 else 0
-    return cer * 100
 
 
 def load_audio_file(file_path: Path) -> tuple[np.ndarray, int]:
@@ -380,67 +249,17 @@ def test_milestone1_baseline_english():
         print(f"Reference (raw):")
         print(f"  '{EXPECTED_JFK_TEXT}'\n")
 
-        # Calculate detailed metrics
+        # Calculate and print detailed WER/CER metrics using test_utils library
+        metrics = print_wer_results(EXPECTED_JFK_TEXT, transcription, target_wer=25.0)
+
+        # Extract key metrics from result
+        normalized_wer = metrics['wer']
+        normalized_accuracy = metrics['accuracy']
+        cer = metrics['cer']
+
+        # Also calculate raw WER for reference
         wer_details = calculate_wer_detailed(EXPECTED_JFK_TEXT, transcription)
-        cer = calculate_cer(EXPECTED_JFK_TEXT, transcription)
-
-        # Normalized text comparison
-        print("="*80)
-        print("NORMALIZED TEXT (for fair comparison)")
-        print("="*80)
-        print(f"Reference (normalized):")
-        print(f"  '{wer_details['ref_normalized']}'")
-        print(f"\nTranscription (normalized):")
-        print(f"  '{wer_details['hyp_normalized']}'")
-        print()
-
-        # Extract key metrics
         raw_wer = wer_details['raw']['wer']
-        normalized_wer = wer_details['normalized']['wer']
-        normalized_accuracy = 100 - normalized_wer
-
-        print("="*80)
-        print("ACCURACY METRICS")
-        print("="*80)
-        print(f"📊 Word Error Rate (WER):")
-        print(f"   Raw WER (with punctuation):        {raw_wer:.1f}%")
-        print(f"   Normalized WER (no punctuation):   {normalized_wer:.1f}%")
-        print(f"   Normalized Accuracy:               {normalized_accuracy:.1f}%")
-        print(f"\n📊 Character Error Rate (CER):")
-        print(f"   Normalized CER:                    {cer:.1f}%")
-        print(f"\n🎯 Target: ≥75% accuracy (≤25% WER)")
-        print()
-
-        # Show detailed error analysis if there are errors
-        if wer_details['normalized']['edit_distance'] > 0:
-            print("="*80)
-            print("DETAILED ERROR ANALYSIS (Normalized)")
-            print("="*80)
-            norm = wer_details['normalized']
-            print(f"Total errors: {norm['edit_distance']} / {norm['num_words']} words")
-
-            if norm['substitutions']:
-                print(f"\n❌ Substitutions ({len(norm['substitutions'])}):")
-                for ref_word, hyp_word in norm['substitutions']:
-                    print(f"   '{ref_word}' → '{hyp_word}'")
-
-            if norm['deletions']:
-                print(f"\n❌ Deletions ({len(norm['deletions'])}):")
-                for word in norm['deletions']:
-                    print(f"   Missing: '{word}'")
-
-            if norm['insertions']:
-                print(f"\n❌ Insertions ({len(norm['insertions'])}):")
-                for word in norm['insertions']:
-                    print(f"   Extra: '{word}'")
-            print()
-        else:
-            print("="*80)
-            print("🎉 PERFECT TRANSCRIPTION - ZERO ERRORS!")
-            print("="*80)
-            print("All words match exactly (after normalization)")
-            print("Differences are only in punctuation/formatting")
-            print()
 
         # Verify monitors
         print("="*80)
@@ -500,11 +319,10 @@ def test_milestone1_baseline_english():
             "cer": cer,
             "detected_language": detected_language,
             "transcription": transcription,
-            "transcription_normalized": wer_details['hyp_normalized'],
+            "transcription_normalized": normalize_text(transcription),
             "kv_compliant": kv_compliant,
             "sot_compliant": sot_compliant,
-            "processing_time": elapsed,
-            "error_details": wer_details['normalized']
+            "processing_time": elapsed
         }
 
     except Exception as e:
