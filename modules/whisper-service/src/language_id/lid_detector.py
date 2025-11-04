@@ -177,7 +177,22 @@ class FrameLevelLID:
                 #
                 # NOTE: detect_language expects encoder output (already computed)
                 # Shape: [batch, n_audio_ctx, n_audio_state]
-                _, all_lang_probs = model.detect_language(encoder_output, tokenizer)
+                #
+                # CRITICAL FIX: Move model AND encoder_output to CPU to avoid MPS device issues
+                # MPS has known bugs with token_embedding layers creating placeholder tensors
+                # CPU is fast enough for this single forward pass (~10ms)
+                original_device = str(encoder_output.device)
+                encoder_output_cpu = encoder_output.cpu()
+                model_cpu = model.to('cpu')
+
+                _, all_lang_probs = model.detect_language(encoder_output_cpu, tokenizer)
+
+                # Move model back to original device for transcription
+                if 'mps' in original_device.lower():
+                    model.to('mps')
+                elif 'cuda' in original_device.lower():
+                    model.to('cuda')
+                # else: already on CPU, no need to move
 
                 # all_lang_probs is a list of dicts with ALL language probabilities
                 # Extract only our target languages

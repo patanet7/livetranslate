@@ -428,6 +428,18 @@ class SessionRestartTranscriber:
                 should_process = True  # CRITICAL FIX: Process when speech starts!
                 should_buffer_chunk = True  # Buffer this speech chunk
 
+                # CRITICAL FIX: Create session at VAD START if none exists
+                # This ensures we have a session ready when we need to process audio
+                # Use LID's current language if available, otherwise fall back to first target language
+                if self.current_session is None:
+                    initial_language = self.sustained_detector.get_current_language()
+                    if initial_language is None:
+                        initial_language = self.target_languages[0]
+                        logger.info(f"🆕 Creating initial session with fallback language: {initial_language}")
+                    else:
+                        logger.info(f"🆕 Creating initial session with LID language: {initial_language}")
+                    self.current_session = self._create_new_session(initial_language)
+
             if has_end:
                 # Speech END detected - final processing
                 logger.info(f"🔇 VAD: Speech END detected at {vad_result['end']:.2f}s")
