@@ -152,15 +152,22 @@ class FixedVADIterator(VADIterator):
             if r is not None:
                 logger.info(f"[FixedVAD] Chunk {chunks_processed} result: {r}")
 
+            # SESSION-RESTART PATTERN: Don't merge segments
+            # For session-restart architecture, we WANT to process at END boundaries
+            # The old merging logic would delete END events when START followed quickly,
+            # preventing the session manager from processing buffered audio
             if ret is None:
                 ret = r
             elif r is not None:
-                # Merge multiple events
+                # Merge multiple events - can have BOTH 'end' and 'start' simultaneously
+                # This happens when speech ends and immediately starts again (< 512ms gap)
+                # Session manager handles both events in sequence: END first, then START
                 if 'end' in r:
-                    ret['end'] = r['end']  # Use latest end
-                if 'start' in r and 'end' in ret:
-                    # Remove end - merging segments
-                    del ret['end']
+                    ret['end'] = r['end']  # Update to latest end
+                if 'start' in r:
+                    # Add START even if we have END - both can coexist
+                    # Session manager processes END first, then START begins new buffer
+                    ret['start'] = r['start']
 
         if chunks_processed > 0:
             logger.info(f"[FixedVAD] Processed {chunks_processed} chunks, {len(self.buffer)} samples remaining")

@@ -15,11 +15,12 @@ Components:
 """
 
 from .lid_detector import FrameLevelLID
-from .sustained_detector import SustainedLanguageDetector
+from .sustained_detector import SustainedLanguageDetector, LanguageSwitchEvent
 from .smoother import LIDSmoother
 
 __all__ = [
     'FrameLevelLID',
     'SustainedLanguageDetector',
+    'LanguageSwitchEvent',
     'LIDSmoother'
 ]

@@ -215,8 +215,8 @@ def test_mixed_language_transcription():
 
     # Show all segments
     logger.info("\nAll segments:")
-    segments = transcriber._get_all_segments()
-    for seg in segments:
+    all_segments = transcriber._get_all_segments()
+    for seg in all_segments:
         if seg.get('text') and seg.get('text').strip():
             logger.info(f"  [{seg['language']}] {seg['start']:.1f}s-{seg['end']:.1f}s: {seg['text']}")
 
@@ -555,6 +555,10 @@ def test_english_only_no_switch():
         if result.get('silence_detected', False):
             logger.info(f"🛑 Stopping at chunk {i}: sustained silence detected")
             break
+
+    # Finalize: Process any remaining buffered audio (EOF handling)
+    logger.info("🏁 Finalizing transcription...")
+    transcriber.finalize()
 
     logger.info(f"Language switches detected: {detected_switches}")
 
