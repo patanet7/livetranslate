@@ -133,6 +133,20 @@ class MultiHeadAttention(nn.Module):
         self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         n_batch, n_ctx, n_state = q.shape
+
+        # SAFETY CHECK: Handle empty query tensor (edge case after many tokens)
+        if n_ctx == 0:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"⚠️  Empty query tensor in qkv_attention: q.shape={q.shape}, "
+                f"k.shape={k.shape}, v.shape={v.shape}. This usually means context was "
+                f"fully trimmed or decoder reached max tokens. Returning empty output."
+            )
+            # Return empty output matching expected shape
+            empty_out = torch.zeros(n_batch, 0, n_state, dtype=q.dtype, device=q.device)
+            return empty_out, None
+
         # import sys
         # print(f"[ATTENTION DEBUG] qkv_attention: q.shape={q.shape}, k.shape={k.shape}, v.shape={v.shape}, mask.shape={mask.shape if mask is not None else 'None'}, n_ctx={n_ctx}", file=sys.stderr)
 
@@ -161,13 +175,27 @@ class MultiHeadAttention(nn.Module):
                 # Offset = number of cached tokens
                 offset = n_key - n_query
 
-                # Defensive check: ensure offset is valid
-                if offset < 0 or offset >= mask.shape[0] or n_key > mask.shape[1]:
-                    # Edge case: use standard slice for safety
-                    # print(f"[ATTENTION DEBUG] Edge case: offset={offset}, n_key={n_key}, mask.shape={mask.shape}, falling back to standard slice", file=sys.stderr)
-                    mask_slice = mask[:n_query, :n_key]
-                else:
-                    mask_slice = mask[offset:n_key, :n_key]
+                # Clip indices to mask dimensions to handle edge cases
+                # (e.g., when n_key approaches or exceeds n_text_ctx=448)
+                max_rows, max_cols = mask.shape
+                offset_clipped = max(0, min(offset, max_rows))
+                n_key_clipped = min(n_key, max_cols)
+
+                # Slice mask with clipped indices
+                mask_slice = mask[offset_clipped:n_key_clipped, :n_key_clipped]
+
+                # If the clipped slice doesn't match qk dimensions, pad or create a new mask
+                if mask_slice.shape[0] != n_query or mask_slice.shape[1] != n_key:
+                    # Create a causal mask for the actual dimensions
+                    # print(f"[ATTENTION DEBUG] Creating new mask: n_query={n_query}, n_key={n_key}, offset={offset}", file=sys.stderr)
+                    mask_slice = torch.empty(n_query, n_key, device=mask.device, dtype=mask.dtype)
+                    mask_slice.fill_(0.0)
+                    # Make it causal: each query can only attend to keys up to its position
+                    for i in range(n_query):
+                        # Query at position offset+i can attend to keys [0...offset+i]
+                        # So keys [offset+i+1...n_key-1] should be -inf
+                        if offset + i + 1 < n_key:
+                            mask_slice[i, offset + i + 1:] = -np.inf
 
                 # print(f"[ATTENTION DEBUG] mask_slice.shape={mask_slice.shape}, qk.shape={qk.shape}", file=sys.stderr)
                 qk = qk + mask_slice
