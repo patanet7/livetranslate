@@ -130,8 +130,9 @@ export const CreateBotModal: React.FC<CreateBotModalProps> = ({
         }
         break;
       case 1:
-        if (formData.targetLanguages.length === 0) {
-          newErrors.targetLanguages = 'At least one target language must be selected';
+        // Only require languages when translation is enabled
+        if (formData.autoTranslation && formData.targetLanguages.length === 0) {
+          newErrors.targetLanguages = 'At least one target language must be selected for translation';
         }
         break;
       case 2:
