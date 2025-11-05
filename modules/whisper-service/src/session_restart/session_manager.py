@@ -427,18 +427,8 @@ class SessionRestartTranscriber:
                 self.vad_status = 'voice'
                 should_process = True  # CRITICAL FIX: Process when speech starts!
                 should_buffer_chunk = True  # Buffer this speech chunk
-
-                # CRITICAL FIX: Create session at VAD START if none exists
-                # This ensures we have a session ready when we need to process audio
-                # Use LID's current language if available, otherwise fall back to first target language
-                if self.current_session is None:
-                    initial_language = self.sustained_detector.get_current_language()
-                    if initial_language is None:
-                        initial_language = self.target_languages[0]
-                        logger.info(f"🆕 Creating initial session with fallback language: {initial_language}")
-                    else:
-                        logger.info(f"🆕 Creating initial session with LID language: {initial_language}")
-                    self.current_session = self._create_new_session(initial_language)
+                # NOTE: Session creation moved to AFTER LID processing (lines ~603-614)
+                # This allows LID to detect language BEFORE creating session with correct SOT token
 
             if has_end:
                 # Speech END detected - final processing
@@ -507,20 +497,74 @@ class SessionRestartTranscriber:
         # OPTIMIZATION: Use RingBuffer.append() instead of np.concatenate()
         with self.metrics.measure('lid.buffer_append'):
             self.audio_buffer_for_lid.append(audio_chunk)
+            # DEBUG: Log LID buffer state
+            logger.debug(
+                f"📊 LID buffer updated: {len(self.audio_buffer_for_lid)} samples "
+                f"({len(self.audio_buffer_for_lid)/self.sampling_rate:.2f}s), "
+                f"hop_samples={self.lid_hop_samples}"
+            )
 
-        # CRITICAL FIX: LID now uses shared model (no session dependency)
-        # This enables LID to run ANYTIME (before, during, after sessions)
-        # No need to create dummy session for LID probing
-
-        # Run frame-level LID at 10Hz (100ms hop)
-        # CRITICAL FIX: Uses shared model, works even when current_session is None
+        # Run frame-level LID at 10Hz (100ms hop) BEFORE creating session
+        # CRITICAL FIX: LID must run BEFORE session creation to detect initial language correctly
+        # This breaks the circular dependency where session needs language but LID needs session
         # OPTIMIZATION: Process LID frames with encoder caching
         switch_detected = False
-        while len(self.audio_buffer_for_lid) >= self.lid_hop_samples:
+        lid_frames_processed = 0
+
+        # CRITICAL: Wait for minimum audio before running LID
+        # Whisper's detect_language() pads to 30s with silence, so short frames bias toward English
+        # Require at least 3 seconds of speech for reliable LID (10% of 30s context)
+        min_lid_buffer_for_init = int(self.sampling_rate * 3.0)  # 3 seconds minimum
+        min_lid_buffer_for_ongoing = int(self.sampling_rate * 2.0)  # 2 seconds for ongoing
+
+        # Can run LID if we have enough audio
+        can_run_lid = False
+        if self.current_session is None:
+            # Before session: need 3s for reliable initial detection
+            can_run_lid = len(self.audio_buffer_for_lid) >= min_lid_buffer_for_init
+        else:
+            # After session: need 2s for switch detection
+            can_run_lid = len(self.audio_buffer_for_lid) >= min_lid_buffer_for_ongoing
+
+        # Process ALL available LID frames (no session dependency)
+        # This allows LID to detect language BEFORE first session is created
+        while len(self.audio_buffer_for_lid) >= self.lid_hop_samples and can_run_lid:
+            lid_frames_processed += 1
             with self.metrics.measure('lid.total'):
                 # Extract LID frame (O(1) with RingBuffer.consume())
                 with self.metrics.measure('lid.frame_extract'):
-                    lid_frame_audio = self.audio_buffer_for_lid.consume(self.lid_hop_samples)
+                    # CRITICAL FIX: Always use 3-second window for LID accuracy
+                    # Whisper pads to 30s, so we need at least 10% real audio (3s) to avoid English bias
+                    # Solution: analyze last 3s of audio (or all available if less)
+                    # Then consume only the hop size to advance the window
+
+                    # Determine window size: use 3 seconds or all available audio
+                    lid_window_size = min(len(self.audio_buffer_for_lid), int(self.sampling_rate * 3))  # 3 seconds
+
+                    is_initial_detection = False
+                    if self.current_session is None:
+                        # Initial detection: use ALL available audio (max 5s for speed)
+                        max_initial_audio = self.sampling_rate * 5.0  # 5 seconds max
+                        samples_to_use = min(len(self.audio_buffer_for_lid), int(max_initial_audio))
+                        lid_frame_audio = self.audio_buffer_for_lid.consume(samples_to_use)
+                        is_initial_detection = True
+                        logger.info(
+                            f"🔍 Initial LID using {samples_to_use} samples "
+                            f"({samples_to_use/self.sampling_rate:.2f}s) for better accuracy"
+                        )
+                    else:
+                        # Normal processing: use sliding 3-second window
+                        # Read last N samples WITHOUT consuming
+                        all_buffered = self.audio_buffer_for_lid.read_all()
+                        lid_frame_audio = all_buffered[-lid_window_size:]  # Last 3 seconds
+
+                        # Now consume only the hop size to advance window
+                        self.audio_buffer_for_lid.consume(self.lid_hop_samples)
+
+                        logger.debug(
+                            f"🔍 LID sliding window: {len(lid_frame_audio)} samples "
+                            f"({len(lid_frame_audio)/self.sampling_rate:.2f}s)"
+                        )
 
                 # Run LID detection with Whisper-native probe
                 # Convert audio to mel spectrogram
@@ -538,14 +582,14 @@ class SessionRestartTranscriber:
 
                         # Create mel spectrogram with model-specific parameters
                         # IMPORTANT: Use n_mels from shared model (128 for large-v3, 80 for older models)
-                        # CRITICAL FIX: Uses shared model instead of session model
+                        # CRITICAL FIX: Uses shared model instead of session model (DI pattern)
                         mel = log_mel_spectrogram(
                             lid_audio_padded,
                             n_mels=self.shared_whisper_model.dims.n_mels
                         )
 
                         # Run encoder to get features (Whisper-native zero-cost probe)
-                        # CRITICAL FIX: Uses shared model encoder, works anytime
+                        # CRITICAL FIX: Uses shared model encoder - works even when session is None
                         with torch.no_grad():
                             encoder_output = self.shared_whisper_model.encoder(
                                 mel.unsqueeze(0).to(self.shared_whisper_model.device)
@@ -556,13 +600,13 @@ class SessionRestartTranscriber:
 
                 # Run Whisper-native LID probe
                 # This is a READ-ONLY probe that extracts language token logits
-                # CRITICAL FIX: Uses shared model/tokenizer, works even when session is None
+                # CRITICAL FIX: Uses shared model/tokenizer (DI pattern) - works even when session is None
                 current_time = self.last_lid_time + (self.lid_hop_samples / self.sampling_rate)
                 with self.metrics.measure('lid.detect'):
                     lid_probs = self.lid_detector.detect(
                         encoder_output=encoder_output,
-                        model=self.shared_whisper_model,
-                        tokenizer=self.shared_tokenizer,
+                        model=self.shared_whisper_model,  # Use SHARED model (DI pattern)
+                        tokenizer=self.shared_tokenizer,  # Use SHARED tokenizer (DI pattern)
                         timestamp=current_time
                     )
 
@@ -599,6 +643,61 @@ class SessionRestartTranscriber:
                 logger.info("✅ Switching sessions at sustained language change")
                 self._switch_session(switch_event.to_language)
                 switch_detected = True
+
+            # If this was initial detection, break out of loop (we consumed all buffered audio)
+            if is_initial_detection:
+                logger.debug("🔍 Initial LID complete, breaking loop")
+                break
+
+        # DEBUG: Log LID processing summary
+        if lid_frames_processed > 0:
+            logger.debug(
+                f"🔍 Processed {lid_frames_processed} LID frames this chunk, "
+                f"current_language={self.sustained_detector.get_current_language()}"
+            )
+
+        # NOW create session AFTER LID has detected initial language
+        # This ensures we use the CORRECT language SOT token from the start
+        if self.current_session is None:
+            # CRITICAL: Only create session if we have detected a language OR accumulated enough audio
+            # If we don't have enough audio yet, return early and wait for more chunks
+            initial_language = self.sustained_detector.get_current_language()
+
+            if initial_language is None:
+                # No LID detection yet - check if we should wait for more audio
+                min_required = int(self.sampling_rate * 3.0)  # Need 3 seconds
+                if len(self.audio_buffer_for_lid) < min_required:
+                    # Not enough audio for reliable LID - wait for more chunks
+                    logger.debug(
+                        f"⏳ Waiting for {min_required} samples ({min_required/self.sampling_rate:.1f}s) for initial LID "
+                        f"(have {len(self.audio_buffer_for_lid)} samples = {len(self.audio_buffer_for_lid)/self.sampling_rate:.2f}s)"
+                    )
+                    return {
+                        'text': '',
+                        'language': None,
+                        'is_final': False,
+                        'segments': [],
+                        'switch_detected': False,
+                        'current_language': None,
+                        'candidate_language': None,
+                        'statistics': self.get_statistics(),
+                        'chunk_id': chunk_id,
+                        'chunks_since_output': chunk_id - self.last_chunk_with_output,
+                        'silence_detected': False,
+                        'waiting_for_lid': True
+                    }
+                else:
+                    # Have enough audio but LID didn't run (should not happen)
+                    # Fall back to first target language
+                    initial_language = self.target_languages[0]
+                    logger.warning(
+                        f"⚠️  LID didn't detect language despite having {len(self.audio_buffer_for_lid)} samples ({len(self.audio_buffer_for_lid)/self.sampling_rate:.2f}s). "
+                        f"Creating initial session with fallback language: {initial_language}"
+                    )
+            else:
+                logger.info(f"🆕 Creating initial session with LID-detected language: {initial_language}")
+
+            self.current_session = self._create_new_session(initial_language)
 
         # Safety check - ensure session exists before processing (should always be true now)
         if self.current_session is None:
