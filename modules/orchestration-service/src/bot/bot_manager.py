@@ -396,7 +396,7 @@ class GoogleMeetBotManager:
                         database_manager=self.database_manager,
                         audio_storage_path=audio_storage_path
                     )
-                    await self.data_pipeline.initialize()
+                    # No async initialize() needed - pipeline ready to use
                     logger.info("Transcription data pipeline initialized")
                 else:
                     logger.warning(
