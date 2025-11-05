@@ -77,8 +77,9 @@ export const BotSpawner: React.FC<BotSpawnerProps> = ({ onBotSpawned, onError })
       return;
     }
 
-    if (formData.targetLanguages.length === 0) {
-      onError?.('At least one target language must be selected');
+    // Only require languages when translation is enabled
+    if (formData.autoTranslation && formData.targetLanguages.length === 0) {
+      onError?.('At least one target language must be selected for translation');
       return;
     }
 
