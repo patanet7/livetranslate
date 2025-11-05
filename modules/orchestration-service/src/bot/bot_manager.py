@@ -41,6 +41,12 @@ from database.bot_session_manager import (
     create_bot_session_manager,
 )
 
+# Import data pipeline
+from pipeline.data_pipeline import (
+    TranscriptionDataPipeline,
+    create_data_pipeline,
+)
+
 # Import enhanced lifecycle manager
 from bot.bot_lifecycle_manager import BotLifecycleManager, create_lifecycle_manager
 
@@ -259,6 +265,9 @@ class GoogleMeetBotManager:
         # Database integration
         self.database_manager = None
 
+        # Data pipeline integration
+        self.data_pipeline = None
+
         # Enhanced lifecycle management
         self.lifecycle_manager = None
 
@@ -379,6 +388,27 @@ class GoogleMeetBotManager:
                     f"Database setup failed: {e} - continuing without database features"
                 )
                 self.database_manager = None
+
+            # Initialize data pipeline (uses same database manager)
+            try:
+                if self.database_manager:
+                    self.data_pipeline = create_data_pipeline(
+                        database_manager=self.database_manager,
+                        audio_storage_path=audio_storage_path
+                    )
+                    await self.data_pipeline.initialize()
+                    logger.info("Transcription data pipeline initialized")
+                else:
+                    logger.warning(
+                        "Data pipeline initialization skipped - database manager not available"
+                    )
+                    self.data_pipeline = None
+
+            except Exception as e:
+                logger.warning(
+                    f"Data pipeline setup failed: {e} - continuing without pipeline features"
+                )
+                self.data_pipeline = None
 
             # Initialize enhanced lifecycle manager
             try:
@@ -965,6 +995,178 @@ class GoogleMeetBotManager:
 
         except Exception as e:
             logger.error(f"Error processing bot queue: {e}")
+
+    # ==================== Data Pipeline Integration Methods ====================
+
+    async def save_audio_chunk(
+        self, session_id: str, audio_data: bytes, metadata: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        Save audio chunk to pipeline.
+
+        Args:
+            session_id: Session identifier
+            audio_data: Raw audio bytes
+            metadata: Chunk metadata (timestamp, chunk_id, duration, etc.)
+
+        Returns:
+            audio_file_id if successful, None otherwise
+        """
+        if not self.data_pipeline:
+            logger.debug("Data pipeline not available, skipping audio chunk save")
+            return None
+
+        try:
+            audio_file_id = await self.data_pipeline.process_audio_chunk(
+                session_id, audio_data, metadata
+            )
+            logger.debug(f"Saved audio chunk {metadata.get('chunk_id')} → {audio_file_id}")
+            return audio_file_id
+
+        except Exception as e:
+            logger.error(f"Failed to save audio chunk: {e}")
+            return None
+
+    async def save_transcription(
+        self,
+        session_id: str,
+        audio_file_id: str,
+        transcription: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        Save transcription result to pipeline.
+
+        Args:
+            session_id: Session identifier
+            audio_file_id: ID of the audio file that was transcribed
+            transcription: Transcription data with text, language, speaker, confidence, etc.
+
+        Returns:
+            transcript_id if successful, None otherwise
+        """
+        if not self.data_pipeline:
+            logger.debug("Data pipeline not available, skipping transcription save")
+            return None
+
+        try:
+            transcript_id = await self.data_pipeline.process_transcription_result(
+                session_id, audio_file_id, transcription
+            )
+            logger.debug(
+                f"Saved transcription {transcription.get('text', '')[:50]} → {transcript_id}"
+            )
+            return transcript_id
+
+        except Exception as e:
+            logger.error(f"Failed to save transcription: {e}")
+            return None
+
+    async def save_translation(
+        self,
+        session_id: str,
+        source_transcript_id: str,
+        translation: Dict[str, Any]
+    ) -> Optional[str]:
+        """
+        Save translation result to pipeline.
+
+        Args:
+            session_id: Session identifier
+            source_transcript_id: ID of the source transcript
+            translation: Translation data with text, target_language, quality_score, etc.
+
+        Returns:
+            translation_id if successful, None otherwise
+        """
+        if not self.data_pipeline:
+            logger.debug("Data pipeline not available, skipping translation save")
+            return None
+
+        try:
+            translation_id = await self.data_pipeline.process_translation_result(
+                session_id, source_transcript_id, translation
+            )
+            logger.debug(
+                f"Saved translation {translation.get('text', '')[:50]} → {translation_id}"
+            )
+            return translation_id
+
+        except Exception as e:
+            logger.error(f"Failed to save translation: {e}")
+            return None
+
+    async def get_session_timeline(
+        self,
+        session_id: str,
+        speaker_id: Optional[str] = None,
+        start_time: Optional[float] = None,
+        end_time: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get chronological timeline of transcriptions and translations.
+
+        Args:
+            session_id: Session identifier
+            speaker_id: Optional filter by speaker
+            start_time: Optional start timestamp
+            end_time: Optional end timestamp
+
+        Returns:
+            List of timeline events with transcripts and translations
+        """
+        if not self.data_pipeline:
+            logger.debug("Data pipeline not available")
+            return []
+
+        try:
+            filters = {}
+            if speaker_id:
+                filters['speaker_id'] = speaker_id
+            if start_time:
+                filters['start_time'] = start_time
+            if end_time:
+                filters['end_time'] = end_time
+
+            timeline = await self.data_pipeline.get_session_timeline(session_id, filters)
+            logger.debug(f"Retrieved timeline for session {session_id}: {len(timeline)} events")
+            return timeline
+
+        except Exception as e:
+            logger.error(f"Failed to get session timeline: {e}")
+            return []
+
+    async def get_speaker_timeline(
+        self, session_id: str, speaker_id: str
+    ) -> Dict[str, Any]:
+        """
+        Get complete timeline for a specific speaker.
+
+        Args:
+            session_id: Session identifier
+            speaker_id: Speaker identifier
+
+        Returns:
+            Dict with speaker info, transcripts, and translations
+        """
+        if not self.data_pipeline:
+            logger.debug("Data pipeline not available")
+            return {}
+
+        try:
+            speaker_data = await self.data_pipeline.get_speaker_timeline(
+                session_id, speaker_id
+            )
+            logger.debug(
+                f"Retrieved speaker timeline for {speaker_id}: "
+                f"{speaker_data.get('transcript_count', 0)} transcripts"
+            )
+            return speaker_data
+
+        except Exception as e:
+            logger.error(f"Failed to get speaker timeline: {e}")
+            return {}
+
+    # ==================== End Data Pipeline Methods ====================
 
     def _management_loop(self):
         """Background management loop."""
