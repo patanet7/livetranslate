@@ -53,6 +53,7 @@ import {
   getDisplayLevel,
 } from '@/utils/audioLevelCalculation';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
+import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 
 interface StreamingChunk {
   id: string;
@@ -94,16 +95,19 @@ const MeetingTest: React.FC = () => {
   const { devices, visualization, config } = useAppSelector(state => state.audio);
   
   // Load available models and device information dynamically
-  const { 
-    models: availableModels, 
-    loading: modelsLoading, 
-    error: modelsError, 
+  const {
+    models: availableModels,
+    loading: modelsLoading,
+    error: modelsError,
     status: modelsStatus,
     serviceMessage,
     deviceInfo,
-    refetch: refetchModels 
+    refetch: refetchModels
   } = useAvailableModels();
-  
+
+  // Use unified audio manager for proper abstraction
+  const { uploadAndProcessAudio } = useUnifiedAudio();
+
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingStats, setStreamingStats] = useState({
@@ -455,68 +459,59 @@ const MeetingTest: React.FC = () => {
   // Send audio chunk to orchestration service
   const sendAudioChunk = useCallback(async (chunkId: string, audioBlob: Blob) => {
     try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'chunk.webm');
-      formData.append('chunk_id', chunkId);
-      formData.append('session_id', sessionId);
-      console.log('🌐 Frontend: targetLanguages state:', targetLanguages);
-      console.log('🌐 Frontend: targetLanguages JSON:', JSON.stringify(targetLanguages));
-      formData.append('target_languages', JSON.stringify(targetLanguages));
-      formData.append('enable_transcription', processingConfig.enableTranscription.toString());
-      formData.append('enable_translation', processingConfig.enableTranslation.toString());
-      formData.append('enable_diarization', processingConfig.enableDiarization.toString());
-      formData.append('whisper_model', processingConfig.whisperModel);
-      formData.append('translation_quality', processingConfig.translationQuality);
-      formData.append('enable_vad', processingConfig.enableVAD.toString());
-      formData.append('audio_processing', processingConfig.audioProcessing.toString());
-      formData.append('noise_reduction', processingConfig.noiseReduction.toString());
-      formData.append('speech_enhancement', processingConfig.speechEnhancement.toString());
-      
-      const response = await fetch('/api/audio/upload', {
-        method: 'POST',
-        body: formData
+      // Build configuration object that backend expects as JSON
+      const config = {
+        chunk_id: chunkId,
+        target_languages: targetLanguages,
+        enable_transcription: processingConfig.enableTranscription,
+        enable_translation: processingConfig.enableTranslation,
+        enable_diarization: processingConfig.enableDiarization,
+        whisper_model: processingConfig.whisperModel,
+        translation_quality: processingConfig.translationQuality,
+        enable_vad: processingConfig.enableVAD,
+        audio_processing: processingConfig.audioProcessing,
+        noise_reduction: processingConfig.noiseReduction,
+        speech_enhancement: processingConfig.speechEnhancement,
+      };
+
+      console.log('🌐 Frontend: Sending config:', config);
+
+      // Use unified audio manager for proper abstraction (DRY principle)
+      const result = await uploadAndProcessAudio(audioBlob, {
+        sessionId,
+        ...config,
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
+
       // Handle the response directly
       handleStreamingResponse(result, chunkId);
-      
+
       // Remove from active chunks
       setActiveChunks(prev => {
         const newSet = new Set(prev);
         newSet.delete(chunkId);
         return newSet;
       });
-      
+
       dispatch(addProcessingLog({
         level: 'INFO',
         message: `Audio chunk ${chunkId} processed successfully`,
         timestamp: Date.now()
       }));
     } catch (error) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Failed to process audio chunk ${chunkId}: ${error}`,
-        timestamp: Date.now()
-      }));
-      
+      // Error handling is already done by uploadAndProcessAudio
+      // Just update local state
       setActiveChunks(prev => {
         const newSet = new Set(prev);
         newSet.delete(chunkId);
         return newSet;
       });
-      
+
       setStreamingStats(prev => ({
         ...prev,
         errorCount: prev.errorCount + 1
       }));
     }
-  }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, dispatch]);
+  }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, uploadAndProcessAudio, dispatch]);
 
   const handleLanguageToggle = useCallback((language: string) => {
     console.log('🌐 Frontend: Toggling language:', language);
