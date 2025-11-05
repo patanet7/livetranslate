@@ -98,15 +98,20 @@ export const apiSlice = createApi({
       },
     }),
     
-    uploadAudioFile: builder.mutation<ApiResponse<{ fileId: string }>, {
-      file: File;
-      metadata?: Record<string, any>;
+    uploadAudioFile: builder.mutation<ApiResponse<any>, {
+      audio: Blob | File;
+      config?: Record<string, any>;
+      sessionId?: string;
     }>({
-      query: ({ file, metadata }) => {
+      query: ({ audio, config, sessionId }) => {
         const formData = new FormData();
-        formData.append('file', file);
-        if (metadata) formData.append('metadata', JSON.stringify(metadata));
-        
+        // Backend expects 'audio' field name (not 'file')
+        const audioFile = audio instanceof File ? audio : new File([audio], 'audio.webm', { type: 'audio/webm' });
+        formData.append('audio', audioFile);
+        // Backend expects 'config' field name (not 'metadata') as JSON string
+        if (config) formData.append('config', JSON.stringify(config));
+        if (sessionId) formData.append('session_id', sessionId);
+
         return {
           url: 'audio/upload',
           method: 'POST',
