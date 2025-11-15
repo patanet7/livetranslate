@@ -36,6 +36,7 @@ import { PipelineProcessing } from './components/PipelineProcessing';
 import { ProcessingPresets } from './components/ProcessingPresets';
 import { ActivityLogs } from './components/ActivityLogs';
 import { useAudioProcessing } from '@/hooks/useAudioProcessing';
+import { useAudioDevices } from '@/hooks/useAudioDevices';
 import { TabPanel } from '@/components/ui';
 import { DEFAULT_TARGET_LANGUAGES } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
@@ -69,37 +70,8 @@ const AudioTesting: React.FC = () => {
     processingProgress
   } = useAudioProcessing();
 
-  // Initialize audio devices on mount
-  useEffect(() => {
-    const initializeAudioDevices = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioDevices = devices
-          .filter(device => device.kind === 'audioinput')
-          .map(device => ({
-            deviceId: device.deviceId,
-            label: device.label || `Microphone ${device.deviceId.substr(0, 8)}`,
-            kind: device.kind as 'audioinput',
-            groupId: device.groupId || ''
-          }));
-        
-        dispatch(setAudioDevices(audioDevices));
-        dispatch(addProcessingLog({
-          level: 'INFO',
-          message: `Found ${audioDevices.length} audio input devices`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to load audio devices: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    initializeAudioDevices();
-  }, [dispatch]);
+  // Initialize audio devices
+  useAudioDevices();
 
   // Initialize audio context and visualization
   useEffect(() => {
