@@ -39,22 +39,12 @@ import {
   Tune,
 } from '@mui/icons-material';
 import { useAppSelector, useAppDispatch } from '@/store';
-import {
-  setAudioDevices,
-  setVisualizationData,
-  addProcessingLog,
-  setAudioQualityMetrics,
-  updateConfig,
-} from '@/store/slices/audioSlice';
+import { addProcessingLog } from '@/store/slices/audioSlice';
 import { AudioVisualizer } from '../AudioTesting/components/AudioVisualizer';
-import {
-  calculateMeetingAudioLevel,
-  getMeetingAudioQuality,
-  getDisplayLevel,
-} from '@/utils/audioLevelCalculation';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 import { useAudioDevices } from '@/hooks/useAudioDevices';
+import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
 import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
@@ -97,10 +87,6 @@ const MeetingTest: React.FC = () => {
   // Audio refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const chunkIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
 
@@ -111,115 +97,13 @@ const MeetingTest: React.FC = () => {
     onDeviceSelected: setSelectedDevice
   });
 
-  // Initialize audio visualization
-  useEffect(() => {
-    if (!selectedDevice) return;
-
-    const initializeAudioVisualization = async () => {
-      try {
-        const constraints = {
-          audio: {
-            deviceId: selectedDevice,
-            sampleRate: 16000,
-            channelCount: 1,
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        audioStreamRef.current = stream;
-        
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close();
-        }
-        
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 2048;
-        microphoneRef.current.connect(analyserRef.current);
-
-        startVisualization();
-        
-        dispatch(addProcessingLog({
-          level: 'SUCCESS',
-          message: `Audio visualization initialized with device: ${selectedDevice}`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to initialize audio visualization: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    initializeAudioVisualization();
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-      }
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [dispatch, selectedDevice]);
-
-  const startVisualization = useCallback(() => {
-    if (!analyserRef.current) return;
-
-    const updateVisualization = () => {
-      if (!analyserRef.current) return;
-
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const frequencyData = new Uint8Array(bufferLength);
-      analyserRef.current.getByteFrequencyData(frequencyData);
-
-      const timeData = new Uint8Array(analyserRef.current.fftSize);
-      analyserRef.current.getByteTimeDomainData(timeData);
-
-      // Calculate professional meeting-optimized audio metrics
-      const audioMetrics = calculateMeetingAudioLevel(timeData, frequencyData, 16000);
-      const qualityAssessment = getMeetingAudioQuality(audioMetrics);
-      const displayLevel = getDisplayLevel(audioMetrics);
-
-      // Update Redux store with enhanced visualization data
-      dispatch(setVisualizationData({
-        frequencyData: Array.from(frequencyData),
-        timeData: Array.from(timeData),
-        audioLevel: displayLevel
-      }));
-
-      // Update comprehensive audio quality metrics
-      dispatch(setAudioQualityMetrics({
-        rmsLevel: audioMetrics.rmsDb,
-        peakLevel: audioMetrics.peakDb,
-        signalToNoise: audioMetrics.signalToNoise,
-        frequency: 16000,
-        clipping: audioMetrics.clipping * 100,
-        voiceActivity: audioMetrics.voiceActivity,
-        spectralCentroid: audioMetrics.spectralCentroid,
-        dynamicRange: audioMetrics.dynamicRange,
-        speechClarity: audioMetrics.speechClarity,
-        backgroundNoise: audioMetrics.backgroundNoise,
-        qualityAssessment: qualityAssessment.quality,
-        qualityScore: qualityAssessment.score,
-        recommendations: qualityAssessment.recommendations,
-        issues: qualityAssessment.issues
-      }));
-
-      animationFrameRef.current = requestAnimationFrame(updateVisualization);
-    };
-
-    updateVisualization();
-  }, [dispatch]);
+  // Initialize audio visualization with shared hook
+  useAudioVisualization({
+    deviceId: selectedDevice,
+    sampleRate: 16000,
+    audioStreamRef: audioStreamRef,
+    enableLogging: true
+  });
 
   // Simple session management for testing
   const [sessionId] = useState(() => `meeting_test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
