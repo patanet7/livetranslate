@@ -31,8 +31,8 @@ import {
   Clear as ClearIcon,
   Mic as MicIcon,
 } from '@mui/icons-material';
-import { useAppSelector, useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
+import { useAppSelector } from '@/store';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface TranscriptionResult {
   id: string;
@@ -77,7 +77,7 @@ interface TranscriptionSettings {
 }
 
 const TranscriptionTesting: React.FC = () => {
-  const dispatch = useAppDispatch();
+  const { notifySuccess, notifyError } = useNotifications();
   const { isConnected: webSocketConnected } = useAppSelector(state => state.websocket.connection);
 
   // Audio Recording State
@@ -171,17 +171,12 @@ const TranscriptionTesting: React.FC = () => {
         }
       } catch (error) {
         console.error('Failed to enumerate audio devices:', error);
-        dispatch(addNotification({
-          type: 'error',
-          title: 'Audio Device Error',
-          message: 'Failed to access audio devices',
-          autoHide: false
-        }));
+        notifyError('Audio Device Error', 'Failed to access audio devices');
       }
     };
 
     getAudioDevices();
-  }, [dispatch]);
+  }, [notifyError]);
 
   // Recording timer
   useEffect(() => {
@@ -266,23 +261,13 @@ const TranscriptionTesting: React.FC = () => {
       mediaRecorder.start();
       setIsRecording(true);
 
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Recording Started',
-        message: 'Audio recording has begun',
-        autoHide: true
-      }));
+      notifySuccess('Recording Started', 'Audio recording has begun');
 
     } catch (error) {
       console.error('Failed to start recording:', error);
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Recording Error',
-        message: 'Failed to start audio recording',
-        autoHide: false
-      }));
+      notifyError('Recording Error', 'Failed to start audio recording');
     }
-  }, [selectedDevice, audioSettings, monitorAudioLevel, dispatch]);
+  }, [selectedDevice, audioSettings, monitorAudioLevel, notifySuccess, notifyError]);
 
   // Start audio preview when device changes
   useEffect(() => {
@@ -412,23 +397,13 @@ const TranscriptionTesting: React.FC = () => {
       setIsStreaming(true);
       setStreamingResults('');
 
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Streaming Started',
-        message: `Started streaming with ${transcriptionSettings.chunkDuration}s chunks`,
-        autoHide: true
-      }));
+      notifySuccess('Streaming Started', `Started streaming with ${transcriptionSettings.chunkDuration}s chunks`);
 
     } catch (error) {
       console.error('Failed to start streaming:', error);
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Streaming Error',
-        message: 'Failed to start audio streaming',
-        autoHide: false
-      }));
+      notifyError('Streaming Error', 'Failed to start audio streaming');
     }
-  }, [selectedDevice, audioSettings, transcriptionSettings, sessionId, monitorAudioLevel, dispatch]);
+  }, [selectedDevice, audioSettings, transcriptionSettings, sessionId, monitorAudioLevel, notifySuccess, notifyError]);
 
   // Stop streaming
   const stopStreaming = useCallback(() => {
@@ -508,26 +483,16 @@ const TranscriptionTesting: React.FC = () => {
         setCurrentTranscription(transcriptionResult);
         setTranscriptionResults(prev => [transcriptionResult, ...prev]);
 
-        dispatch(addNotification({
-          type: 'success',
-          title: 'Transcription Complete',
-          message: 'Audio has been transcribed successfully',
-          autoHide: true
-        }));
+        notifySuccess('Transcription Complete', 'Audio has been transcribed successfully');
       }
 
     } catch (error) {
       console.error('Transcription failed:', error);
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Transcription Failed',
-        message: `Failed to transcribe audio: ${error}`,
-        autoHide: false
-      }));
+      notifyError('Transcription Failed', `Failed to transcribe audio: ${error}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [sessionId, transcriptionSettings, dispatch]);
+  }, [sessionId, transcriptionSettings, notifySuccess, notifyError]);
 
   // Process audio chunk for streaming
   const processAudioChunk = useCallback(async (audioBlob: Blob, chunkId: string) => {
