@@ -212,7 +212,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize managers
-        settings = get_settings()
+        get_settings()
 
         # Initialize dependencies
         from dependencies import initialize_dependencies

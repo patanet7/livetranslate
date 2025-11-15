@@ -265,8 +265,6 @@ class RealTimeDashboard:
     def update_metrics(self, orchestration_service):
         """Update metrics from orchestration service components"""
         try:
-            current_time = time.time()
-
             # WebSocket metrics
             if hasattr(orchestration_service, "websocket_manager"):
                 ws_stats = orchestration_service.websocket_manager.get_statistics()
@@ -298,7 +296,6 @@ class RealTimeDashboard:
 
             # Health Monitor metrics
             if hasattr(orchestration_service, "health_monitor"):
-                health_metrics = orchestration_service.health_monitor.get_metrics()
                 service_status = (
                     orchestration_service.health_monitor.get_all_service_status()
                 )

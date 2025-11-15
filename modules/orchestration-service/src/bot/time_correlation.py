@@ -494,9 +494,8 @@ class TimeCorrelationEngine:
         end_time: float,
     ) -> Optional[CorrelationResult]:
         """Interpolate speaker from nearby timeline events."""
-        # Find events before and after
+        # Find events before
         before_events = [e for e in self.external_events if e.timestamp < start_time]
-        after_events = [e for e in self.external_events if e.timestamp > end_time]
 
         if not before_events:
             return None
