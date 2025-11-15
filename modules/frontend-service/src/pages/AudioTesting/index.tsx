@@ -7,7 +7,6 @@ import {
   Tabs,
   Tab,
   Alert,
-  Fade,
   Button,
   Card,
   CardContent,
@@ -37,40 +36,15 @@ import { PipelineProcessing } from './components/PipelineProcessing';
 import { ProcessingPresets } from './components/ProcessingPresets';
 import { ActivityLogs } from './components/ActivityLogs';
 import { useAudioProcessing } from '@/hooks/useAudioProcessing';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`audio-testing-tabpanel-${index}`}
-      aria-labelledby={`audio-testing-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Fade in={true} timeout={300}>
-          <Box sx={{ py: 3 }}>
-            {children}
-          </Box>
-        </Fade>
-      )}
-    </div>
-  );
-}
+import { TabPanel } from '@/components/ui';
+import { DEFAULT_TARGET_LANGUAGES } from '@/constants/defaultConfig';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 
 const AudioTesting: React.FC = () => {
   const dispatch = useAppDispatch();
   const { recording, visualization, stages, config } = useAppSelector(state => state.audio);
   const [tabValue, setTabValue] = useState(0);
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
   const [translationResults, setTranslationResults] = useState<any>(null);
   const [transcriptionResult, setTranscriptionResult] = useState<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -432,7 +406,7 @@ const AudioTesting: React.FC = () => {
           </Tabs>
         </Box>
 
-        <TabPanel value={tabValue} index={0}>
+        <TabPanel value={tabValue} index={0} idPrefix="audio-testing">
           <Grid container spacing={3}>
             <Grid item xs={12} lg={8}>
               <Box sx={{ mb: 3 }}>
@@ -476,7 +450,7 @@ const AudioTesting: React.FC = () => {
           </Grid>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={1}>
+        <TabPanel value={tabValue} index={1} idPrefix="audio-testing">
           <PipelineProcessing
             onRunPipeline={handleRunPipeline}
             onRunStepByStep={runStepByStep}
@@ -489,7 +463,7 @@ const AudioTesting: React.FC = () => {
           />
         </TabPanel>
 
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={2} idPrefix="audio-testing">
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Card sx={{ mb: 3 }}>
@@ -505,16 +479,7 @@ const AudioTesting: React.FC = () => {
                     Target Languages:
                   </Typography>
                   <FormGroup row>
-                    {[
-                      { code: 'es', name: 'Spanish' },
-                      { code: 'fr', name: 'French' },
-                      { code: 'de', name: 'German' },
-                      { code: 'it', name: 'Italian' },
-                      { code: 'pt', name: 'Portuguese' },
-                      { code: 'ja', name: 'Japanese' },
-                      { code: 'ko', name: 'Korean' },
-                      { code: 'zh', name: 'Chinese' },
-                    ].map((lang) => (
+                    {SUPPORTED_LANGUAGES.slice(1, 9).map((lang) => (
                       <FormControlLabel
                         key={lang.code}
                         control={
@@ -659,11 +624,11 @@ const AudioTesting: React.FC = () => {
           </Grid>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={3} idPrefix="audio-testing">
           <ProcessingPresets />
         </TabPanel>
 
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={4} idPrefix="audio-testing">
           <ActivityLogs />
         </TabPanel>
       </Paper>

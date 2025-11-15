@@ -53,41 +53,9 @@ import {
   getDisplayLevel,
 } from '@/utils/audioLevelCalculation';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
-
-interface StreamingChunk {
-  id: string;
-  audio: Blob;
-  timestamp: number;
-  duration: number;
-}
-
-interface TranscriptionResult {
-  id: string;
-  chunkId: string;
-  text: string;
-  confidence: number;
-  language: string;
-  speakers?: Array<{
-    speaker_id: string;
-    speaker_name: string;
-    start_time: number;
-    end_time: number;
-  }>;
-  timestamp: number;
-  processing_time: number;
-}
-
-interface TranslationResult {
-  id: string;
-  transcriptionId: string;
-  sourceText: string;
-  translatedText: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  confidence: number;
-  timestamp: number;
-  processing_time: number;
-}
+import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
+import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 
 const StreamingProcessor: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -106,29 +74,19 @@ const StreamingProcessor: React.FC = () => {
   
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingStats, setStreamingStats] = useState({
-    chunksStreamed: 0,
-    totalDuration: 0,
-    averageProcessingTime: 0,
-    errorCount: 0,
-  });
+  const [streamingStats, setStreamingStats] = useState<StreamingStats>(DEFAULT_STREAMING_STATS);
   
   // Audio streaming - CHANGE 1: Add English as first option
   const [chunkDuration, setChunkDuration] = useState(3); // 3 seconds default
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', 'es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', ...DEFAULT_TARGET_LANGUAGES]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  
+
   // Processing configuration - CHANGE 2: Disable audio pipeline features by default
   const [processingConfig, setProcessingConfig] = useState({
-    enableTranscription: true,
-    enableTranslation: true,
+    ...DEFAULT_PROCESSING_CONFIG,
     enableDiarization: false,
     enableVAD: false,
-    whisperModel: 'whisper-base',
-    translationQuality: 'balanced',
     audioProcessing: false,
-    noiseReduction: false,
-    speechEnhancement: false,
   });
   
   // Results
@@ -538,12 +496,7 @@ const StreamingProcessor: React.FC = () => {
     setTranscriptionResults([]);
     setTranslationResults([]);
     setActiveChunks(new Set());
-    setStreamingStats({
-      chunksStreamed: 0,
-      totalDuration: 0,
-      averageProcessingTime: 0,
-      errorCount: 0,
-    });
+    setStreamingStats(DEFAULT_STREAMING_STATS);
   }, []);
 
   return (
@@ -834,17 +787,7 @@ const StreamingProcessor: React.FC = () => {
                 </Typography>
                 
                 <FormGroup>
-                  {[
-                    { code: 'en', name: 'English' },
-                    { code: 'es', name: 'Spanish' },
-                    { code: 'fr', name: 'French' },
-                    { code: 'de', name: 'German' },
-                    { code: 'it', name: 'Italian' },
-                    { code: 'pt', name: 'Portuguese' },
-                    { code: 'ja', name: 'Japanese' },
-                    { code: 'ko', name: 'Korean' },
-                    { code: 'zh', name: 'Chinese' },
-                  ].map((lang) => (
+                  {SUPPORTED_LANGUAGES.slice(0, 9).map((lang) => (
                     <FormControlLabel
                       key={lang.code}
                       control={

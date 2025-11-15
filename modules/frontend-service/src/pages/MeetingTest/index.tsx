@@ -54,41 +54,9 @@ import {
 } from '@/utils/audioLevelCalculation';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
-
-interface StreamingChunk {
-  id: string;
-  audio: Blob;
-  timestamp: number;
-  duration: number;
-}
-
-interface TranscriptionResult {
-  id: string;
-  chunkId: string;
-  text: string;
-  confidence: number;
-  language: string;
-  speakers?: Array<{
-    speaker_id: string;
-    speaker_name: string;
-    start_time: number;
-    end_time: number;
-  }>;
-  timestamp: number;
-  processing_time: number;
-}
-
-interface TranslationResult {
-  id: string;
-  transcriptionId: string;
-  sourceText: string;
-  translatedText: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  confidence: number;
-  timestamp: number;
-  processing_time: number;
-}
+import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
+import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 
 const MeetingTest: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -110,30 +78,15 @@ const MeetingTest: React.FC = () => {
 
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingStats, setStreamingStats] = useState({
-    chunksStreamed: 0,
-    totalDuration: 0,
-    averageProcessingTime: 0,
-    errorCount: 0,
-  });
-  
+  const [streamingStats, setStreamingStats] = useState<StreamingStats>(DEFAULT_STREAMING_STATS);
+
   // Audio streaming
   const [chunkDuration, setChunkDuration] = useState(3); // 3 seconds default
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  
+
   // Processing configuration
-  const [processingConfig, setProcessingConfig] = useState({
-    enableTranscription: true,
-    enableTranslation: true,
-    enableDiarization: true,
-    enableVAD: true,
-    whisperModel: 'whisper-base',
-    translationQuality: 'balanced',
-    audioProcessing: true,
-    noiseReduction: false,
-    speechEnhancement: true,
-  });
+  const [processingConfig, setProcessingConfig] = useState(DEFAULT_PROCESSING_CONFIG);
   
   // Results
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
@@ -533,12 +486,7 @@ const MeetingTest: React.FC = () => {
     setTranscriptionResults([]);
     setTranslationResults([]);
     setActiveChunks(new Set());
-    setStreamingStats({
-      chunksStreamed: 0,
-      totalDuration: 0,
-      averageProcessingTime: 0,
-      errorCount: 0,
-    });
+    setStreamingStats(DEFAULT_STREAMING_STATS);
   }, []);
 
   return (
@@ -813,16 +761,7 @@ const MeetingTest: React.FC = () => {
                 </Typography>
                 
                 <FormGroup>
-                  {[
-                    { code: 'es', name: 'Spanish' },
-                    { code: 'fr', name: 'French' },
-                    { code: 'de', name: 'German' },
-                    { code: 'it', name: 'Italian' },
-                    { code: 'pt', name: 'Portuguese' },
-                    { code: 'ja', name: 'Japanese' },
-                    { code: 'ko', name: 'Korean' },
-                    { code: 'zh', name: 'Chinese' },
-                  ].map((lang) => (
+                  {SUPPORTED_LANGUAGES.slice(1, 9).map((lang) => (
                     <FormControlLabel
                       key={lang.code}
                       control={
