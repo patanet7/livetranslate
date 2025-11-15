@@ -18,12 +18,10 @@ import {
   CardContent,
   Tabs,
   Tab,
-  Button,
   IconButton,
   Tooltip,
   Chip,
   Alert,
-  Divider,
   useTheme,
   alpha,
 } from '@mui/material';
@@ -79,7 +77,7 @@ const SystemAnalytics: React.FC = () => {
   const { data: systemMetrics, isLoading: metricsLoading, error: metricsError } = useGetSystemMetricsQuery();
   const { data: serviceHealth, isLoading: serviceLoading, error: serviceError } = useGetServiceHealthQuery();
 
-  const handleTabChange = useCallback((event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   }, []);
 
@@ -178,8 +176,8 @@ const SystemAnalytics: React.FC = () => {
     
     // Get system metrics
     const metrics = systemMetrics?.data || {};
-    const avgLatency = metrics.avgLatency || systemHealth?.data?.performance?.avgLatency || 0;
-    const memoryUsage = metrics.memoryUsage || systemHealth?.data?.performance?.memory?.percentage || 0;
+    const avgLatency = metrics.avgLatency || (systemHealth?.data as any)?.performance?.avgLatency || 0;
+    const memoryUsage = metrics.memoryUsage || (systemHealth?.data as any)?.performance?.memory?.percentage || 0;
     const activeConnections = metrics.activeConnections || 0;
     
     // Determine colors based on values
@@ -276,9 +274,9 @@ const SystemAnalytics: React.FC = () => {
                   alignItems: 'center', 
                   gap: 1.5,
                   p: 2,
-                  bgcolor: alpha(theme.palette[stat.color as keyof typeof theme.palette].main, 0.1),
+                  bgcolor: alpha((theme.palette[stat.color as 'primary'] as any)?.main || '#1976d2', 0.1),
                   borderRadius: 2,
-                  border: `1px solid ${alpha(theme.palette[stat.color as keyof typeof theme.palette].main, 0.2)}`,
+                  border: `1px solid ${alpha((theme.palette[stat.color as 'primary'] as any)?.main || '#1976d2', 0.2)}`,
                 }}>
                   <Box sx={{ 
                     color: `${stat.color}.main`,

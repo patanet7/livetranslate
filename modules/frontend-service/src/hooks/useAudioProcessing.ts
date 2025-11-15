@@ -1,10 +1,11 @@
 import { useCallback, useState, useRef } from 'react';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { 
-  setRecordingState, 
+import {
+  setRecordingState,
   setRecordedBlobUrl,
   addProcessingLog,
-  updateProcessingStage
+  updateProcessingStage,
+  updateConfig
 } from '@/store/slices/audioSlice';
 
 export const useAudioProcessing = () => {
@@ -43,7 +44,7 @@ export const useAudioProcessing = () => {
           const settings = audioTrack.getSettings();
           if (settings.deviceId && settings.deviceId !== config.deviceId) {
             // Update Redux with the actual selected device
-            dispatch(updateRecordingConfig({ deviceId: settings.deviceId }));
+            dispatch(updateConfig({ deviceId: settings.deviceId }));
             dispatch(addProcessingLog({
               level: 'INFO',
               message: `Using audio device: ${settings.deviceId}`,
@@ -51,9 +52,9 @@ export const useAudioProcessing = () => {
             }));
           }
         }
-      } catch (error) {
+      } catch (deviceError) {
         // Non-critical error, continue with recording
-        console.log('Could not detect selected device:', error);
+        console.log('Could not detect selected device:', deviceError);
       }
       
       // Check supported formats
@@ -161,7 +162,8 @@ export const useAudioProcessing = () => {
       }
 
     } catch (error) {
-      throw new Error(`Failed to start recording: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to start recording: ${errorMessage}`);
     }
   }, [config, dispatch, recording.duration]);
 
@@ -464,21 +466,22 @@ export const useAudioProcessing = () => {
       }
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       dispatch(addProcessingLog({
         level: 'ERROR',
-        message: `Pipeline processing failed: ${error}`,
+        message: `Pipeline processing failed: ${errorMessage}`,
         timestamp: Date.now()
       }));
-      
+
       // Mark any in-progress stages as failed
       stages.forEach(stageId => {
         dispatch(updateProcessingStage({
           id: stageId,
           status: 'error',
-          error: error.toString()
+          error: errorMessage
         }));
       });
-      
+
       throw error;
     } finally {
       setIsProcessing(false);

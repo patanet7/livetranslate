@@ -6,9 +6,7 @@ import {
   Typography,
   IconButton,
   Slider,
-  LinearProgress,
   Chip,
-  Tooltip,
   Alert,
   Menu,
   MenuItem,
@@ -22,7 +20,7 @@ import {
   VolumeOff,
   Download,
   Compare,
-  Waveform,
+  GraphicEq,
   MoreVert,
   Loop,
 } from '@mui/icons-material';
@@ -98,8 +96,8 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
       }
     };
 
-    const handleError = (e: any) => {
-      console.error('Audio playback error:', e);
+    const handleError = () => {
+      console.error('Audio playback error');
       setIsPlaying(false);
     };
 
@@ -293,17 +291,17 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
         </Box>
 
         {/* Waveform Placeholder */}
-        <Box 
-          height={60} 
-          bgcolor="background.default" 
-          borderRadius={1} 
-          display="flex" 
-          alignItems="center" 
+        <Box
+          height={60}
+          bgcolor="background.default"
+          borderRadius={1}
+          display="flex"
+          alignItems="center"
           justifyContent="center"
           mb={2}
           position="relative"
         >
-          <Waveform color="disabled" />
+          <GraphicEq color="disabled" />
           <Typography variant="caption" color="text.secondary" ml={1}>
             Waveform visualization
           </Typography>

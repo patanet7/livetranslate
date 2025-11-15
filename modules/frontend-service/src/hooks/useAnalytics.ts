@@ -217,7 +217,6 @@ export const useAnalytics = () => {
   const connectionStatus = useMemo((): ConnectionStatus => {
     const hasErrors = systemMetricsError || systemHealthError || analyticsOverviewError;
     const isLoading = systemMetricsLoading || systemHealthLoading || analyticsOverviewLoading;
-    const isFetching = systemMetricsFetching || systemHealthFetching || analyticsOverviewFetching;
 
     return {
       isConnected: !hasErrors && !isLoading,

@@ -23,7 +23,6 @@ import {
   Error,
   ExpandMore,
   Refresh,
-  Analytics,
 } from '@mui/icons-material';
 
 interface StageMetricsProps {
@@ -155,7 +154,7 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [expanded, setExpanded] = useState(false);
 
-  const targets = STAGE_PERFORMANCE_TARGETS[stageName] || { target: 10.0, max: 20.0 };
+  const targets = (STAGE_PERFORMANCE_TARGETS as Record<string, { target: number; max: number }>)[stageName] || { target: 10.0, max: 20.0 };
 
   useEffect(() => {
     if (isActive && onRefresh) {
@@ -333,7 +332,6 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
 
             {/* Audio Quality Metrics */}
             <Typography variant="body2" gutterBottom mt={2}>
-              <Analytics sx={{ verticalAlign: 'middle', mr: 1, fontSize: 16 }} />
               Audio Quality Analysis
             </Typography>
             

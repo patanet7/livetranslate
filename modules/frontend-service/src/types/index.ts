@@ -159,6 +159,8 @@ export interface WebcamConfig {
   displayMode: 'overlay' | 'sidebar' | 'fullscreen';
   theme: 'light' | 'dark' | 'auto';
   maxTranslationsDisplayed: number;
+  fontSize: number;
+  backgroundOpacity: number;
 }
 
 export interface SystemStats {
@@ -269,12 +271,15 @@ export interface FormFieldProps {
 export * from './audio';
 export * from './bot';
 
-// Export additional bot-related types
-export type {
+// Export additional bot-related types and enums
+export {
   BotPriority,
   MeetingPlatform,
   WebcamDisplayMode,
   WebcamTheme,
+} from './bot';
+
+export type {
   BotConfiguration,
   BotSpawnRequest,
   AudioCaptureConfig,

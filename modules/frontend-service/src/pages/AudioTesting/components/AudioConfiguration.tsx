@@ -15,7 +15,6 @@ import {
   Stack,
   Chip,
   Alert,
-  Box,
 } from '@mui/material';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { updateRecordingConfig } from '@/store/slices/audioSlice';
@@ -32,10 +31,6 @@ export const AudioConfiguration: React.FC = () => {
   const handleSourceChange = (source: 'microphone' | 'file' | 'sample') => {
     setSelectedSource(source);
     handleConfigChange('source', source);
-  };
-
-  const formatFrequency = (value: number) => {
-    return value >= 1000 ? `${value / 1000}kHz` : `${value}Hz`;
   };
 
   const sampleRates = [

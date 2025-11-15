@@ -96,25 +96,21 @@ export const useBotManager = () => {
       }
 
       const data = await response.json();
-      
-      // Create bot instance for the store
-      const botInstance = {
+
+      // Create bot instance for the store (partial update - full data will come from status updates)
+      const botInstance: Partial<BotInstance> = {
+        id: data.bot_id,
         botId: data.bot_id,
-        meetingId: data.meeting_id || request.meetingId,
-        status: data.status || 'spawning',
+        status: (data.status as BotInstance['status']) || 'spawning',
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         lastActiveAt: new Date().toISOString(),
         errorMessages: [],
-        config: {
-          targetLanguages: request.targetLanguages,
-          autoTranslation: request.autoTranslation,
-          priority: request.priority
-        }
       };
-      
-      // Add the new bot to the store
-      dispatch(addBot(botInstance));
-      
+
+      // Add the new bot to the store (will be merged with existing state)
+      dispatch(addBot(botInstance as BotInstance));
+
       return data.bot_id;
     } catch (error) {
       handleError(error);
@@ -143,7 +139,8 @@ export const useBotManager = () => {
         botId,
         updates: {
           status: 'terminated',
-          lastActiveAt: Date.now(),
+          lastActiveAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       }));
     } catch (error) {
@@ -164,29 +161,25 @@ export const useBotManager = () => {
       }
 
       const rawBot = await response.json();
-      
-      // Convert backend format to frontend format
-      const bot = {
+
+      // Convert backend format to frontend format (partial update)
+      const botUpdates: Partial<BotInstance> = {
+        id: rawBot.bot_id || rawBot.botId || botId,
         botId: rawBot.bot_id || rawBot.botId || botId,
-        meetingId: rawBot.meeting_id || rawBot.meetingId,
-        status: rawBot.status || 'unknown',
+        status: rawBot.status || 'active',
         createdAt: rawBot.created_at || rawBot.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         lastActiveAt: rawBot.last_activity || rawBot.lastActiveAt || new Date().toISOString(),
         errorMessages: rawBot.error_message ? [rawBot.error_message] : [],
-        config: {
-          targetLanguages: rawBot.target_languages || ['en'],
-          autoTranslation: true,
-          priority: 'medium'
-        }
       };
-      
+
       // Update the bot in the store
       dispatch(updateBot({
         botId,
-        updates: bot,
+        updates: botUpdates,
       }));
 
-      return bot;
+      return botUpdates as BotInstance;
     } catch (error) {
       handleError(error);
       throw error;
@@ -203,30 +196,26 @@ export const useBotManager = () => {
       }
 
       const activeBots = await response.json();
-      
-      // Convert backend format to frontend format
+
+      // Convert backend format to frontend format (partial updates)
       const processedBots = Array.isArray(activeBots) ? activeBots : [];
-      const botsObject = processedBots.reduce((acc: Record<string, BotInstance>, bot: any) => {
-        const processedBot = {
+      const botsObject = processedBots.reduce((acc: Record<string, Partial<BotInstance>>, bot: any) => {
+        const processedBot: Partial<BotInstance> = {
+          id: bot.bot_id || bot.botId,
           botId: bot.bot_id || bot.botId,
-          meetingId: bot.meeting_id || bot.meetingId,
           status: bot.status || 'active',
           createdAt: bot.created_at || bot.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
           lastActiveAt: bot.last_activity || bot.lastActiveAt || new Date().toISOString(),
           errorMessages: bot.error_message ? [bot.error_message] : [],
-          config: {
-            targetLanguages: bot.target_languages || ['en'],
-            autoTranslation: true,
-            priority: 'medium'
-          }
         };
-        acc[processedBot.botId] = processedBot;
+        acc[processedBot.botId!] = processedBot;
         return acc;
       }, {});
-      
+
       const activeBotIds = processedBots.map((bot: any) => bot.bot_id || bot.botId);
-      
-      dispatch(setBots(botsObject));
+
+      dispatch(setBots(botsObject as Record<string, BotInstance>));
       dispatch(setActiveBotIds(activeBotIds));
 
       return processedBots;
@@ -246,24 +235,23 @@ export const useBotManager = () => {
         return {
           totalBotsSpawned: 0,
           activeBots: 0,
+          completedSessions: 0,
           errorRate: 0,
-          avgSessionLength: 0,
-          peakConcurrentBots: 0,
-          totalErrors: 0,
+          averageSessionDuration: 0,
         };
       }
 
       const rawStats = await response.json();
-      
+
       // Convert backend format to frontend format
-      const stats = {
+      const stats: SystemStats = {
         totalBotsSpawned: rawStats.total_bots_created || rawStats.totalBotsSpawned || 0,
         activeBots: rawStats.active_bots || rawStats.activeBots || 0,
         completedSessions: rawStats.total_bots_completed || rawStats.completedSessions || 0,
         errorRate: rawStats.recovery_rate ? (100 - rawStats.recovery_rate) / 100 : rawStats.errorRate || 0,
         averageSessionDuration: rawStats.capacity_utilization || rawStats.averageSessionDuration || 0
       };
-      
+
       // Update the store with system stats
       dispatch(setSystemStats(stats));
 
@@ -275,10 +263,9 @@ export const useBotManager = () => {
       return {
         totalBotsSpawned: 0,
         activeBots: 0,
+        completedSessions: 0,
         errorRate: 0,
-        avgSessionLength: 0,
-        peakConcurrentBots: 0,
-        totalErrors: 0,
+        averageSessionDuration: 0,
       };
     }
   }, [dispatch, handleError]);
@@ -421,7 +408,8 @@ export const useBotManager = () => {
         botId,
         updates: {
           status: 'spawning',
-          lastActiveAt: Date.now(),
+          lastActiveAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       }));
     } catch (error) {
@@ -447,7 +435,8 @@ export const useBotManager = () => {
       dispatch(updateBot({
         botId,
         updates: {
-          lastActiveAt: Date.now(),
+          lastActiveAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       }));
     } catch (error) {
@@ -472,7 +461,8 @@ export const useBotManager = () => {
         botId,
         updates: {
           status: 'active',
-          lastActiveAt: Date.now(),
+          lastActiveAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       }));
     } catch (error) {

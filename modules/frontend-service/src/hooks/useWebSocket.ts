@@ -313,20 +313,8 @@ export const useWebSocket = () => {
           if (websocketRef.current?.readyState === WebSocket.OPEN) {
             sendMessage('connection:ping', { timestamp: Date.now() });
             dispatch(updateHeartbeat());
-            
-            // Request health updates every few heartbeats
-            if (Math.random() < 0.3) { // 30% chance each heartbeat
-              sendMessage('system:health_request', { timestamp: Date.now() });
-            }
           }
         }, enhancedConfig.heartbeatInterval);
-        
-        // Request initial health data
-        setTimeout(() => {
-          if (websocketRef.current?.readyState === WebSocket.OPEN) {
-            sendMessage('system:health_request', { timestamp: Date.now() });
-          }
-        }, 1000);
         
         // Only show initial connection notification once per session
         if (!hasShownInitialConnectionRef.current) {

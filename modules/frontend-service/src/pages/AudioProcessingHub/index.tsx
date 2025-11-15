@@ -38,7 +38,6 @@ import {
 
 // Import existing components
 import PipelineStudio from '../PipelineStudio';
-import MeetingTest from '../MeetingTest';
 import StreamingProcessor from '../StreamingProcessor';
 import TranscriptionTesting from '../TranscriptionTesting';
 import TranslationTesting from '../TranslationTesting';
@@ -138,7 +137,7 @@ const AudioProcessingHub: React.FC<AudioProcessingHubProps> = ({
   const audioManager = useUnifiedAudio();
 
   // Get system state
-  const { isConnected } = useAppSelector(state => state.websocket);
+  const isConnected = useAppSelector(state => state.websocket.connection.isConnected);
   const { notifications } = useAppSelector(state => state.ui);
 
   // Load system health on mount
@@ -163,7 +162,7 @@ const AudioProcessingHub: React.FC<AudioProcessingHubProps> = ({
     }
   };
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: string) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     setCurrentTab(newValue);
   };
 

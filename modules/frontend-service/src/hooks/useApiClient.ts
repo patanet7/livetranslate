@@ -1,11 +1,10 @@
 import { useCallback } from 'react';
 import { useAppDispatch } from '@/store';
 import { addNotification } from '@/store/slices/uiSlice';
-import { 
-  WebSocketEventType, 
+import {
+  WebSocketEventType,
   WebSocketEventData,
-  BotSpawnRequest,
-  SystemHealthRequest 
+  BotSpawnRequest
 } from '@/types';
 
 interface ApiResponse<T = any> {
@@ -202,45 +201,43 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
   const sendMessage = useCallback(async <T extends WebSocketEventType>(
     type: T,
     data: WebSocketEventData<T>,
-    correlationId?: string
-  ) => {
+    _correlationId?: string
+  ): Promise<ApiResponse> => {
     console.log(`API fallback: ${type}`, data);
 
     switch (type) {
-      case 'bot:spawn':
-        return await spawnBot(data as BotSpawnRequest);
-        
-      case 'bot:terminate':
+      case 'bot:spawned':
+        if ('botId' in data && 'meetingId' in data) {
+          return await spawnBot(data as unknown as BotSpawnRequest);
+        }
+        break;
+
+      case 'bot:terminated':
         if ('botId' in data) {
           return await terminateBot((data as any).botId);
         }
         break;
-        
-      case 'bot:get_status':
+
+      case 'bot:status_change':
         if ('botId' in data) {
           return await getBotStatus((data as any).botId);
         }
         break;
-        
-      case 'system:health_check':
+
+      case 'system:health_update':
         return await getSystemHealth();
-        
-      case 'audio:upload':
-        if ('audioBlob' in data) {
-          return await uploadAudio((data as any).audioBlob, (data as any).options);
+
+      case 'audio:chunk':
+        if ('chunk' in data) {
+          const audioBlob = new Blob([data.chunk as ArrayBuffer], { type: 'audio/webm' });
+          return await uploadAudio(audioBlob, {});
         }
         break;
-        
-      case 'translate:text':
-        if ('text' in data) {
-          return await translateText(data as any);
-        }
-        break;
-        
+
       case 'connection:ping':
         // Simulate ping with health check
         return await getSystemHealth();
-        
+
       default:
         console.warn(`API fallback not implemented for event type: ${type}`);
         dispatch(addNotification({
@@ -253,7 +250,7 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
     }
 
     return { success: false, error: 'Invalid request' };
-  }, [spawnBot, terminateBot, getBotStatus, getSystemHealth, uploadAudio, translateText, dispatch]);
+  }, [spawnBot, terminateBot, getBotStatus, getSystemHealth, uploadAudio, dispatch]);
 
   // Polling for real-time updates when in API mode
   const startPolling = useCallback((interval = 5000) => {

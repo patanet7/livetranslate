@@ -19,18 +19,13 @@ import {
   AccordionSummary,
   AccordionDetails,
   Chip,
-  Divider,
   Alert,
-  Paper,
   IconButton,
   Tooltip,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RestoreIcon from '@mui/icons-material/Restore';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import InfoIcon from '@mui/icons-material/Info';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '@/store';
 
 interface AudioProcessingConfig {
   // VAD Configuration

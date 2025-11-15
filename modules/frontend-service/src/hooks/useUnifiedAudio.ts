@@ -5,7 +5,7 @@
  * Provides centralized audio processing functionality with standardized patterns
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { useAppDispatch } from '@/store';
 import { addNotification } from '@/store/slices/uiSlice';
 import { addProcessingLog } from '@/store/slices/audioSlice';

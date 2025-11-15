@@ -10,7 +10,6 @@ import {
   Chip,
   List,
   ListItem,
-  ListItemText,
   Paper,
   Tabs,
   Tab,
@@ -29,7 +28,6 @@ import {
 import {
   Send as SendIcon,
   Clear as ClearIcon,
-  PlayArrow as PlayIcon,
   Stop as StopIcon,
   Download as DownloadIcon,
   Translate as TranslateIcon,
@@ -44,7 +42,7 @@ interface WebSocketMessage {
   type: 'send' | 'receive' | 'error' | 'system';
   timestamp: Date;
   data: any;
-  service?: 'translation' | 'whisper' | 'orchestration' | 'general';
+  service?: 'translation' | 'whisper' | 'orchestration' | 'general' | 'system';
 }
 
 interface TranslationTestMessage {

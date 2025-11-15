@@ -106,7 +106,19 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
   const [speakers, setSpeakers] = useState<SpeakerActivity[]>([]);
   const [selectedSession, setSelectedSession] = useState<BotSession | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  // Helper function to safely format dates
+  const safeFormatDate = (dateString: string, formatString: string): string => {
+    try {
+      const date = parseISO(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      return format(date, formatString);
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
   
   // Pagination
   const [page, setPage] = useState(0);
@@ -128,7 +140,6 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
   }, []);
 
   const loadSessions = async () => {
-    setLoading(true);
     try {
       const response = await fetch('/api/bot/sessions');
       if (!response.ok) {
@@ -142,8 +153,6 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
       console.error('Error loading sessions:', error);
       setSessions([]);
       onError('Failed to load session data');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -424,7 +433,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
                               {session.meetingTitle || 'Untitled Meeting'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {session.meetingId} • {format(parseISO(session.startTime), 'MMM dd, yyyy HH:mm')}
+                              {session.meetingId} • {safeFormatDate(session.startTime, 'MMM dd, yyyy HH:mm')}
                             </Typography>
                           </Box>
                         </TableCell>
@@ -540,7 +549,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
                         </TableCell>
                         <TableCell>
                           <Typography variant="caption">
-                            {format(parseISO(translation.timestamp), 'HH:mm:ss')}
+                            {safeFormatDate(translation.timestamp, 'HH:mm:ss')}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -608,7 +617,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
                         </TableCell>
                         <TableCell>
                           <Typography variant="caption">
-                            {format(parseISO(speaker.timestamp), 'MMM dd, HH:mm:ss')}
+                            {safeFormatDate(speaker.timestamp, 'MMM dd, HH:mm:ss')}
                           </Typography>
                         </TableCell>
                       </TableRow>
