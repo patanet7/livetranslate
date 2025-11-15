@@ -31,20 +31,7 @@ import { BotAnalytics } from './components/BotAnalytics';
 import { BotSettings } from './components/BotSettings';
 import { CreateBotModal } from './components/CreateBotModal';
 import { useBotManager } from '@/hooks/useBotManager';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
-};
+import { TabPanel } from '@/components/ui';
 
 const BotManagement: React.FC = () => {
   const { bots, activeBotIds, systemStats } = useAppSelector(state => state.bot);

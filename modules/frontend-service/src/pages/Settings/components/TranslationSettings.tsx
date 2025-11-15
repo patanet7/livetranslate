@@ -92,30 +92,13 @@ interface TranslationConfig {
   };
 }
 
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
+
 interface TranslationSettingsProps {
   onSave: (message: string, success?: boolean) => void;
 }
 
-const availableLanguages = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ar', name: 'Arabic' },
-  { code: 'hi', name: 'Hindi' },
-  { code: 'tr', name: 'Turkish' },
-  { code: 'pl', name: 'Polish' },
-  { code: 'nl', name: 'Dutch' },
-  { code: 'sv', name: 'Swedish' },
-  { code: 'da', name: 'Danish' },
-  { code: 'no', name: 'Norwegian' },
-];
+const availableLanguages = SUPPORTED_LANGUAGES;
 
 const availableModels = [
   { id: 'llama2-7b-chat', name: 'Llama 2 7B Chat' },

@@ -48,6 +48,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker as MuiDatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format, parseISO } from 'date-fns';
+import { TabPanel } from '@/components/ui';
 
 interface SessionDatabaseProps {
   onError: (error: string) => void;
@@ -97,20 +98,6 @@ interface SpeakerActivity {
   confidence: number;
   duration?: number;
 }
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
-};
 
 export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => {
   const [tabValue, setTabValue] = useState(0);
