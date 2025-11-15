@@ -414,7 +414,7 @@ const botSlice = createSlice({
       
       if (bot) {
         Object.assign(bot.performance, metrics);
-        bot.lastActiveAt = Date.now();
+        bot.lastActiveAt = new Date().toISOString();
       }
     },
     
@@ -428,7 +428,7 @@ const botSlice = createSlice({
       
       if (bot) {
         Object.assign(bot.timeCorrelation, metrics);
-        bot.lastActiveAt = Date.now();
+        bot.lastActiveAt = new Date().toISOString();
       }
     },
     

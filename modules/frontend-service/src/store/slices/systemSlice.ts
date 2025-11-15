@@ -233,14 +233,13 @@ const systemSlice = createSlice({
               serviceName,
               status: serviceData.status,
               lastCheck: serviceData.last_check || Date.now(),
-              responseTime: serviceData.response_time || 0,
-              errorCount: serviceData.error_count || 0,
-              version: '1.0.0',
-              dependencies: [],
-              healthChecks: [],
-              alerts: [],
-              endpoints: [],
-              lastError: serviceData.last_error || null,
+              uptime: serviceData.uptime || 0,
+              version: serviceData.version || '1.0.0',
+              details: {
+                responseTime: serviceData.response_time || 0,
+                errorCount: serviceData.error_count || 0,
+                lastError: serviceData.last_error || null,
+              }
             };
           }
         });
