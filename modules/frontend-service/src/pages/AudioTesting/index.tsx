@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -17,18 +17,7 @@ import {
   Divider,
   Stack,
 } from '@mui/material';
-import { useAppSelector, useAppDispatch } from '@/store';
-import { 
-  setAudioDevices, 
-  setVisualizationData,
-  addProcessingLog,
-  setAudioQualityMetrics
-} from '@/store/slices/audioSlice';
-import { 
-  calculateMeetingAudioLevel, 
-  getMeetingAudioQuality, 
-  getDisplayLevel
-} from '@/utils/audioLevelCalculation';
+import { useAppSelector } from '@/store';
 import { RecordingControls } from './components/RecordingControls';
 import { AudioConfiguration } from './components/AudioConfiguration';
 import { AudioVisualizer } from './components/AudioVisualizer';
@@ -37,6 +26,7 @@ import { ProcessingPresets } from './components/ProcessingPresets';
 import { ActivityLogs } from './components/ActivityLogs';
 import { useAudioProcessing } from '@/hooks/useAudioProcessing';
 import { useAudioDevices } from '@/hooks/useAudioDevices';
+import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import { TabPanel } from '@/components/ui';
 import { DEFAULT_TARGET_LANGUAGES } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
@@ -48,10 +38,6 @@ const AudioTesting: React.FC = () => {
   const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
   const [translationResults, setTranslationResults] = useState<any>(null);
   const [transcriptionResult, setTranscriptionResult] = useState<any>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
 
   const {
     startRecording,
@@ -73,112 +59,22 @@ const AudioTesting: React.FC = () => {
   // Initialize audio devices
   useAudioDevices();
 
-  // Initialize audio context and visualization
-  useEffect(() => {
-    const initializeAudioContext = async () => {
-      try {
-        // ✅ Use same device constraints as recording
-        const constraints = {
-          audio: {
-            deviceId: config.deviceId || undefined,
-            sampleRate: config.sampleRate,
-            channelCount: 1,
-            echoCancellation: config.rawAudio ? false : config.echoCancellation,
-            noiseSuppression: config.rawAudio ? false : config.noiseSuppression,
-            autoGainControl: config.rawAudio ? false : config.autoGainControl,
-          }
-        };
+  // Compute audio constraints based on config
+  const audioConstraints = useMemo(() => ({
+    deviceId: config.deviceId || undefined,
+    sampleRate: config.sampleRate,
+    channelCount: 1,
+    echoCancellation: config.rawAudio ? false : config.echoCancellation,
+    noiseSuppression: config.rawAudio ? false : config.noiseSuppression,
+    autoGainControl: config.rawAudio ? false : config.autoGainControl,
+  }), [config.deviceId, config.sampleRate, config.echoCancellation, config.noiseSuppression, config.autoGainControl, config.rawAudio]);
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        // Clean up previous audio context if it exists
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close();
-        }
-        
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 2048;
-        microphoneRef.current.connect(analyserRef.current);
-
-        startVisualization();
-        
-        dispatch(addProcessingLog({
-          level: 'SUCCESS',
-          message: `Audio visualization initialized with device: ${config.deviceId || 'default'}`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to initialize audio context: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    initializeAudioContext();
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-      }
-    };
-  }, [dispatch, config.deviceId, config.sampleRate, config.echoCancellation, config.noiseSuppression, config.autoGainControl, config.rawAudio]);
-
-  const startVisualization = useCallback(() => {
-    if (!analyserRef.current) return;
-
-    const updateVisualization = () => {
-      if (!analyserRef.current) return;
-
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const frequencyData = new Uint8Array(bufferLength);
-      analyserRef.current.getByteFrequencyData(frequencyData);
-
-      const timeData = new Uint8Array(analyserRef.current.fftSize);
-      analyserRef.current.getByteTimeDomainData(timeData);
-
-      // ✅ Calculate professional meeting-optimized audio metrics
-      const audioMetrics = calculateMeetingAudioLevel(timeData, frequencyData, config.sampleRate);
-      const qualityAssessment = getMeetingAudioQuality(audioMetrics);
-      const displayLevel = getDisplayLevel(audioMetrics);
-
-      // Update Redux store with enhanced visualization data
-      dispatch(setVisualizationData({
-        frequencyData: Array.from(frequencyData),
-        timeData: Array.from(timeData),
-        audioLevel: displayLevel
-      }));
-
-      // Update comprehensive audio quality metrics
-      dispatch(setAudioQualityMetrics({
-        rmsLevel: audioMetrics.rmsDb,
-        peakLevel: audioMetrics.peakDb,
-        signalToNoise: audioMetrics.signalToNoise,
-        frequency: config.sampleRate,
-        clipping: audioMetrics.clipping * 100, // Convert to percentage
-        // Meeting-specific metrics
-        voiceActivity: audioMetrics.voiceActivity,
-        spectralCentroid: audioMetrics.spectralCentroid,
-        dynamicRange: audioMetrics.dynamicRange,
-        speechClarity: audioMetrics.speechClarity,
-        backgroundNoise: audioMetrics.backgroundNoise,
-        qualityAssessment: qualityAssessment.quality,
-        qualityScore: qualityAssessment.score,
-        recommendations: qualityAssessment.recommendations,
-        issues: qualityAssessment.issues
-      }));
-
-      animationFrameRef.current = requestAnimationFrame(updateVisualization);
-    };
-
-    updateVisualization();
-  }, [dispatch, config.sampleRate]);
+  // Initialize audio visualization with shared hook
+  useAudioVisualization({
+    sampleRate: config.sampleRate,
+    customConstraints: audioConstraints,
+    enableLogging: true
+  });
 
   const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
