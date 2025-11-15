@@ -3,7 +3,7 @@ WebSocket-related Pydantic models
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import Field, field_validator
 

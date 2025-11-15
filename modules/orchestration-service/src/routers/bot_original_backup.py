@@ -12,16 +12,12 @@ import logging
 import time
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from dependencies import get_bot_manager
 from models.bot import (
     BotSpawnRequest,
     BotResponse,
-    BotInstance,
-    BotStats,
-    BotConfiguration,
 )
 
 router = APIRouter()
@@ -189,7 +185,6 @@ async def get_active_bots(
         active_bots = [bot for bot in bots if bot.get("status") == "active"]
 
         # Ensure JSON serializable by converting any datetime objects
-        import json
         from datetime import datetime
         
         def convert_datetime(obj):

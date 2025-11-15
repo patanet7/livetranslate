@@ -215,7 +215,7 @@ class HealthMonitor:
             service.last_error = None
             service.response_time = 1  # Minimal response time for self-check
             service.last_check = time.time()
-            logger.debug(f"Orchestration service self-check: healthy")
+            logger.debug("Orchestration service self-check: healthy")
             return
             
         health_url = f"{config['url']}{config['health_endpoint']}"
@@ -321,9 +321,9 @@ class HealthMonitor:
             
             # Additional debug info for SSL errors
             if "ssl" in str(e).lower():
-                logger.error(f"  This appears to be an SSL/TLS error")
+                logger.error("  This appears to be an SSL/TLS error")
                 logger.error(f"  URL scheme: {health_url.split('://')[0]}")
-                logger.error(f"  If using HTTP, ensure no HTTPS redirect is happening")
+                logger.error("  If using HTTP, ensure no HTTPS redirect is happening")
     
     async def get_all_services_status(self) -> List[Dict[str, Any]]:
         """Get status of all services"""

@@ -1321,7 +1321,6 @@ async def _store_temp_file(content: bytes, filename: str, request_id: str) -> st
     """Store uploaded file temporarily"""
 
     import tempfile
-    import os
     from pathlib import Path
 
     try:

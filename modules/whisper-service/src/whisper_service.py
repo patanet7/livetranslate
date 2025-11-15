@@ -22,17 +22,14 @@ import time
 import json
 import tempfile
 from typing import Dict, List, Optional, AsyncGenerator, Union, Tuple, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
-from queue import Queue, Empty
+from queue import Queue
 from collections import deque
 
 import numpy as np
-import soundfile as sf
 import librosa
 import webrtcvad
-from scipy import signal
 
 # OpenVINO imports for NPU acceleration
 import openvino as ov
@@ -744,7 +741,7 @@ class WhisperService:
                         confidence_score = max(0.0, min(1.0, avg_score))
                         logger.info(f"[WHISPER] 🎯 Average result score: {confidence_score:.3f}")
                     except:
-                        logger.info(f"[WHISPER] ⚠️ Failed to calculate average score - using default")
+                        logger.info("[WHISPER] ⚠️ Failed to calculate average score - using default")
                 else:
                     logger.info(f"[WHISPER] ⚠️ No confidence attributes found - using default: {confidence_score:.3f}")
                 

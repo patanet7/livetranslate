@@ -7,7 +7,6 @@ SQLAlchemy async database setup and connection management.
 import logging
 from typing import AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy import event
 from contextlib import asynccontextmanager
 
@@ -189,7 +188,6 @@ class DatabaseUtils:
         """Create test data for development"""
         from .models import BotSession, AudioFile, Transcript, Translation, Participant
         from datetime import datetime
-        import uuid
 
         # Create test session
         test_session = BotSession(
@@ -284,7 +282,6 @@ class DatabaseUtils:
     @staticmethod
     async def cleanup_old_sessions(session: AsyncSession, days: int = 30):
         """Clean up old session data"""
-        from .models import BotSession
         from datetime import datetime, timedelta
 
         cutoff_date = datetime.utcnow() - timedelta(days=days)

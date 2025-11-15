@@ -18,8 +18,6 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
-import asyncio
-import json
 import io
 import csv
 from enum import Enum
@@ -1032,7 +1030,7 @@ def _export_csv(data: Dict[str, Any], start_time: datetime, end_time: datetime) 
 def _export_pdf(data: Dict[str, Any], start_time: datetime, end_time: datetime) -> StreamingResponse:
     """Export data as PDF"""
     # Simplified PDF export - in production, use proper PDF library
-    content = f"Analytics Report\n"
+    content = "Analytics Report\n"
     content += f"Time Range: {start_time} to {end_time}\n\n"
     
     for metric_name, metric_data in data.items():

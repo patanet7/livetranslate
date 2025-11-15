@@ -9,11 +9,9 @@ FastAPI router for system-wide management endpoints including:
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import asyncio
 import psutil
 import time
 from datetime import datetime
@@ -21,15 +19,10 @@ from datetime import datetime
 from dependencies import (
     get_health_monitor,
     get_websocket_manager,
-    get_audio_service_client,
-    get_translation_service_client,
 )
 from models.system import (
-    SystemStatus,
     ServiceHealth,
-    SystemResources,
     SystemMetrics,
-    ErrorResponse,
 )
 
 router = APIRouter()

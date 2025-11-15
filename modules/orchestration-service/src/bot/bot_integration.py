@@ -17,23 +17,19 @@ Features:
 - Database integration for persistent storage
 """
 
-import os
-import sys
 import time
 import logging
 import asyncio
 import threading
 from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
 import json
 import httpx
 import uuid
-from collections import deque
 
 # Import bot components (now integrated in orchestration service)
 from .audio_capture import GoogleMeetAudioCapture, AudioConfig, MeetingInfo
-from .browser_audio_capture import BrowserAudioCapture, BrowserAudioConfig, create_browser_audio_capture
+from .browser_audio_capture import BrowserAudioConfig, create_browser_audio_capture
 from .caption_processor import GoogleMeetCaptionProcessor
 from .time_correlation import (
     TimeCorrelationEngine,
@@ -41,9 +37,8 @@ from .time_correlation import (
     ExternalSpeakerEvent,
     InternalTranscriptionResult,
 )
-from .virtual_webcam import VirtualWebcamManager, WebcamConfig, DisplayMode, Theme
+from .virtual_webcam import VirtualWebcamManager, WebcamConfig
 from .google_meet_automation import (
-    GoogleMeetAutomation,
     GoogleMeetConfig,
     MeetingState,
     create_google_meet_automation
@@ -302,7 +297,7 @@ class GoogleMeetBotIntegration:
         # Thread safety
         self.lock = threading.RLock()
 
-        logger.info(f"GoogleMeetBotIntegration initialized")
+        logger.info("GoogleMeetBotIntegration initialized")
         logger.info(f"  Bot ID: {bot_config.bot_id}")
         logger.info(f"  Target languages: {bot_config.target_languages}")
         logger.info(f"  Virtual webcam enabled: {bot_config.virtual_webcam_enabled}")

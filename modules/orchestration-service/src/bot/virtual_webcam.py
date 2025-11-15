@@ -16,19 +16,17 @@ Features:
 """
 
 import os
-import sys
 import time
 import logging
 import asyncio
 import threading
 import uuid
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from typing import Dict, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from enum import Enum
 import json
 import numpy as np
-import cv2
 from PIL import Image, ImageDraw, ImageFont
 import io
 import base64
@@ -291,7 +289,7 @@ class VirtualWebcamManager:
             duration = time.time() - self.start_time if self.start_time else 0
             fps = self.frames_generated / duration if duration > 0 else 0
 
-            logger.info(f"Stopped virtual webcam stream")
+            logger.info("Stopped virtual webcam stream")
             logger.info(f"  Duration: {duration:.1f}s")
             logger.info(f"  Frames generated: {self.frames_generated}")
             logger.info(f"  Average FPS: {fps:.1f}")

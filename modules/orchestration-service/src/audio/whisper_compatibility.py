@@ -14,12 +14,10 @@ This module provides:
 
 import logging
 import os
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
-from pathlib import Path
 
 from .models import AudioChunkingConfig
-from .config import AudioProcessingConfig
 
 logger = logging.getLogger(__name__)
 

@@ -11,10 +11,10 @@ and professional audio applications.
 
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple, Deque
+from typing import Dict, Any, Tuple
 from collections import deque
 from ..stage_components import BaseAudioStage
-from ..config import LUFSNormalizationConfig, LUFSNormalizationMode
+from ..config import LUFSNormalizationConfig
 
 
 class LUFSNormalizationStage(BaseAudioStage):

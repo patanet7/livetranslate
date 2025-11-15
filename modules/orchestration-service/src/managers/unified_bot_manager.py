@@ -12,12 +12,12 @@ while maintaining a consistent interface for the rest of the system.
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List, Callable, Union
+from typing import Dict, Any, Optional, List, Callable
 from enum import Enum
 from dataclasses import dataclass
 
-from .bot_manager import BotManager, BotStatus as GenericBotStatus, MeetingRequest as GenericMeetingRequest
-from bot.bot_manager import GoogleMeetBotManager, BotStatus as GoogleMeetBotStatus, MeetingRequest as GoogleMeetMeetingRequest
+from .bot_manager import BotManager, MeetingRequest as GenericMeetingRequest
+from bot.bot_manager import GoogleMeetBotManager, MeetingRequest as GoogleMeetMeetingRequest
 
 logger = logging.getLogger(__name__)
 

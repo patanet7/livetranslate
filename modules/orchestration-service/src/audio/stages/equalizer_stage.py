@@ -8,7 +8,7 @@ or as part of the complete audio processing pipeline.
 
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple
 from ..stage_components import BaseAudioStage
 from ..config import EqualizerConfig, EqualizerBand
 
@@ -62,7 +62,7 @@ class EqualizerStage(BaseAudioStage):
                 # Initialize filter state (zeros for IIR filter)
                 self.filter_states.append(np.zeros(max(len(filter_coeff[0]), len(filter_coeff[1])) - 1))
                 
-            except Exception as e:
+            except Exception:
                 # Skip problematic bands
                 self.filters.append(None)
                 self.filter_states.append(None)
@@ -174,7 +174,7 @@ class EqualizerStage(BaseAudioStage):
                         bands_applied.append(f"{band.filter_type}_{band.frequency}Hz")
                         band_gains.append(band.gain)
                 
-                except Exception as e:
+                except Exception:
                     # Skip problematic bands but continue processing
                     continue
             

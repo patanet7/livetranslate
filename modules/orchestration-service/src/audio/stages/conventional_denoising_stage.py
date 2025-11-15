@@ -9,7 +9,7 @@ Complements spectral denoising for optimal noise reduction performance.
 
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple
 from ..stage_components import BaseAudioStage
 from ..config import ConventionalDenoisingConfig, ConventionalDenoisingMode
 
@@ -251,7 +251,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
             
             return denoised, stats
             
-        except Exception as e:
+        except Exception:
             # Fallback to Gaussian filter on error
             return self._gaussian_filter_denoising(audio_data)
     

@@ -7,15 +7,13 @@ Provides automatic detection of disconnected clients, connection health monitori
 and graceful cleanup of stale connections.
 """
 
-import asyncio
 import logging
 import time
 import threading
-from typing import Dict, Set, Optional, Callable, Any
+from typing import Dict, Optional, Callable, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-import json
 
 logger = logging.getLogger(__name__)
 
