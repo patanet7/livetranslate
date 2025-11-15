@@ -47,8 +47,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
-import { useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface AudioQualityMetrics {
   snr: number;
@@ -84,7 +83,7 @@ interface AnalysisSettings {
 
 const QualityAnalysis: React.FC = () => {
   const theme = useTheme();
-  const dispatch = useAppDispatch();
+  const { notifySuccess, notifyWarning, notifyError } = useNotifications();
   useUnifiedAudio();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -166,13 +165,9 @@ const QualityAnalysis: React.FC = () => {
       setAudioFile(file);
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
-      
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Audio File Loaded',
-        message: `Loaded ${file.name} for analysis`,
-        autoHide: true,
-      }));
+
+
+      notifySuccess('Audio File Loaded', `Loaded ${file.name} for analysis`);
     }
   };
 
@@ -210,12 +205,7 @@ const QualityAnalysis: React.FC = () => {
   // Analysis functions
   const runAnalysis = async () => {
     if (!audioFile) {
-      dispatch(addNotification({
-        type: 'warning',
-        title: 'No Audio File',
-        message: 'Please select an audio file to analyze',
-        autoHide: true,
-      }));
+      notifyWarning('No Audio File', 'Please select an audio file to analyze');
       return;
     }
 
@@ -224,20 +214,11 @@ const QualityAnalysis: React.FC = () => {
       // Simulate analysis delay
       await new Promise(resolve => setTimeout(resolve, 2000));
       generateMockAnalysis();
-      
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Analysis Complete',
-        message: 'Audio quality analysis finished successfully',
-        autoHide: true,
-      }));
+
+
+      notifySuccess('Analysis Complete', 'Audio quality analysis finished successfully');
     } catch (error) {
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Analysis Failed',
-        message: 'Failed to analyze audio quality',
-        autoHide: true,
-      }));
+      notifyError('Analysis Failed', 'Failed to analyze audio quality', true);
     } finally {
       setIsAnalyzing(false);
     }

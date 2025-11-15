@@ -7,8 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSnackbar } from 'notistack';
-import { useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
+import { useNotifications } from './useNotifications';
 
 interface QueuedRequest {
   id: string;
@@ -39,7 +38,7 @@ export const useOfflineHandler = (options: OfflineOptions = {}) => {
   } = options;
 
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
-  const dispatch = useAppDispatch();
+  const { notifyWarning, notifySuccess } = useNotifications();
   
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queueSize, setQueueSize] = useState(0);
@@ -80,13 +79,12 @@ export const useOfflineHandler = (options: OfflineOptions = {}) => {
       }
     ) as string;
 
-    dispatch(addNotification({
-      type: 'warning',
-      title: 'Offline Mode',
-      message: 'You are currently offline. Changes will be queued and synced when connection is restored.',
-      autoHide: false,
-    }));
-  }, [showNotifications, enqueueSnackbar, closeSnackbar, dispatch]);
+    notifyWarning(
+      'Offline Mode',
+      'You are currently offline. Changes will be queued and synced when connection is restored.',
+      false
+    );
+  }, [showNotifications, enqueueSnackbar, closeSnackbar, notifyWarning]);
 
   const hideOfflineNotification = useCallback(() => {
     if (offlineNotificationRef.current) {
@@ -100,14 +98,9 @@ export const useOfflineHandler = (options: OfflineOptions = {}) => {
         autoHideDuration: 3000,
       });
 
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Connection Restored',
-        message: 'Syncing queued changes...',
-        autoHide: true,
-      }));
+      notifySuccess('Connection Restored', 'Syncing queued changes...');
     }
-  }, [showNotifications, enqueueSnackbar, closeSnackbar, dispatch]);
+  }, [showNotifications, enqueueSnackbar, closeSnackbar, notifySuccess]);
 
   // Add request to queue
   const queueRequest = useCallback((
