@@ -48,6 +48,7 @@ import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
 import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
+import { generateSessionId } from '@/utils/sessionUtils';
 
 const MeetingTest: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -106,7 +107,7 @@ const MeetingTest: React.FC = () => {
   });
 
   // Simple session management for testing
-  const [sessionId] = useState(() => `meeting_test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  const [sessionId] = useState(() => generateSessionId('meeting_test'));
   
   // Handle response from streaming endpoint directly (no WebSocket needed for simple testing)
   const handleStreamingResponse = useCallback((response: any, chunkId: string) => {
