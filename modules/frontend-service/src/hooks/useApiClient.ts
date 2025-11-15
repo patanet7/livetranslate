@@ -1,11 +1,10 @@
 import { useCallback } from 'react';
-import { useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
 import {
   WebSocketEventType,
   WebSocketEventData,
   BotSpawnRequest
 } from '@/types';
+import { useNotifications } from './useNotifications';
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -21,8 +20,8 @@ interface ApiClientConfig {
 }
 
 export const useApiClient = (config?: Partial<ApiClientConfig>) => {
-  const dispatch = useAppDispatch();
-  
+  const { notifySuccess, notifyError, notifyWarning, notifyInfo } = useNotifications();
+
   const defaultConfig: ApiClientConfig = {
     baseUrl: '/api',
     timeout: 10000,
@@ -82,23 +81,13 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
     });
 
     if (response.success) {
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Bot Spawned',
-        message: `Bot spawned successfully via API`,
-        autoHide: true
-      }));
+      notifySuccess('Bot Spawned', 'Bot spawned successfully via API');
     } else {
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Bot Spawn Failed',
-        message: response.error || 'Failed to spawn bot',
-        autoHide: false
-      }));
+      notifyError('Bot Spawn Failed', response.error || 'Failed to spawn bot');
     }
 
     return response;
-  }, [apiRequest, dispatch]);
+  }, [apiRequest, notifySuccess, notifyError]);
 
   const terminateBot = useCallback(async (botId: string) => {
     const response = await apiRequest<{ success: boolean }>(`/bot/${botId}/terminate`, {
@@ -106,16 +95,11 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
     });
 
     if (response.success) {
-      dispatch(addNotification({
-        type: 'info',
-        title: 'Bot Terminated',
-        message: `Bot ${botId} terminated via API`,
-        autoHide: true
-      }));
+      notifyInfo('Bot Terminated', `Bot ${botId} terminated via API`);
     }
 
     return response;
-  }, [apiRequest, dispatch]);
+  }, [apiRequest, notifyInfo]);
 
   const getBotStatus = useCallback(async (botId: string) => {
     return await apiRequest<any>(`/bot/${botId}/status`);
@@ -130,16 +114,11 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
     const response = await apiRequest<any>('/health');
     
     if (!response.success) {
-      dispatch(addNotification({
-        type: 'warning',
-        title: 'Health Check Failed',
-        message: 'Unable to retrieve system health status',
-        autoHide: true
-      }));
+      notifyWarning('Health Check Failed', 'Unable to retrieve system health status');
     }
-    
+
     return response;
-  }, [apiRequest, dispatch]);
+  }, [apiRequest, notifyWarning]);
 
   const getServiceHealth = useCallback(async (serviceName: string) => {
     return await apiRequest<any>(`/health/${serviceName}`);
@@ -161,23 +140,13 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
     });
 
     if (response.success) {
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Audio Processed',
-        message: 'Audio processing completed via API',
-        autoHide: true
-      }));
+      notifySuccess('Audio Processed', 'Audio processing completed via API');
     } else {
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Audio Processing Failed',
-        message: response.error || 'Failed to process audio',
-        autoHide: false
-      }));
+      notifyError('Audio Processing Failed', response.error || 'Failed to process audio');
     }
 
     return response;
-  }, [apiRequest, dispatch]);
+  }, [apiRequest, notifySuccess, notifyError]);
 
   // Translation API endpoints  
   const translateText = useCallback(async (request: any) => {
@@ -240,17 +209,12 @@ export const useApiClient = (config?: Partial<ApiClientConfig>) => {
 
       default:
         console.warn(`API fallback not implemented for event type: ${type}`);
-        dispatch(addNotification({
-          type: 'warning',
-          title: 'Feature Unavailable',
-          message: `${type} requires WebSocket connection`,
-          autoHide: true
-        }));
+        notifyWarning('Feature Unavailable', `${type} requires WebSocket connection`);
         return { success: false, error: 'Not supported in API mode' };
     }
 
     return { success: false, error: 'Invalid request' };
-  }, [spawnBot, terminateBot, getBotStatus, getSystemHealth, uploadAudio, dispatch]);
+  }, [spawnBot, terminateBot, getBotStatus, getSystemHealth, uploadAudio, notifyWarning]);
 
   // Polling for real-time updates when in API mode
   const startPolling = useCallback((interval = 5000) => {
