@@ -9,8 +9,8 @@ Integrates with the shared inference infrastructure for efficient model manageme
 import os
 import logging
 import asyncio
-from typing import Dict, List, Optional, AsyncGenerator, Union, Tuple
-from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional, AsyncGenerator, Tuple
+from dataclasses import dataclass
 from datetime import datetime
 import json
 
@@ -20,7 +20,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'shared', 's
 
 from inference import get_inference_client_async, BaseInferenceClient
 from local_translation import LocalTranslationService
-import re
 from collections import deque
 
 # Configure logging

@@ -16,18 +16,16 @@ Features:
 - Database integration for persistent storage
 """
 
-import os
 import time
 import logging
 import asyncio
 import threading
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import numpy as np
-from collections import deque, defaultdict
-import httpx
+from collections import deque
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

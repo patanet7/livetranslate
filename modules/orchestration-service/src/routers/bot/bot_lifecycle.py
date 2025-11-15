@@ -217,7 +217,7 @@ async def get_bot_details(
         return BotResponse(
             bot_id=bot_instance.bot_id,
             status=bot_instance.status,
-            message=f"Bot details retrieved",
+            message="Bot details retrieved",
             meeting_id=bot_instance.meeting_id,
             meeting_url=bot_instance.meeting_url,
             bot_type=bot_instance.bot_type,

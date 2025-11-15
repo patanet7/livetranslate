@@ -6,10 +6,8 @@ Enhanced connection management system for real-time audio streaming.
 Provides connection tracking, timeout handling, session management, and health monitoring.
 """
 
-import asyncio
 import logging
 import time
-import uuid
 from typing import Dict, Set, Optional, Any, List
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta

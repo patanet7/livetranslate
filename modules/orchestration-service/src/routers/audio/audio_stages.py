@@ -367,7 +367,6 @@ async def _process_compression_stage(audio_bytes: bytes, config: Dict[str, Any],
     release = config.get("release", 0.1)
     
     # Simulate compression metrics
-    import numpy as np
     gain_reduction_max = (ratio - 1) / ratio * abs(threshold) / 3
     gain_reduction_avg = gain_reduction_max * 0.6
     

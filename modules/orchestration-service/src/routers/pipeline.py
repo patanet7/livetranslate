@@ -4,20 +4,15 @@ Pipeline Processing API Router
 Real-time audio pipeline processing endpoints for the Pipeline Studio
 """
 
-import asyncio
 import json
-import logging
 import time
 import uuid
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ValidationError
 
 from dependencies import (
-    get_audio_service_client,
     get_audio_coordinator,
     get_config_manager,
 )

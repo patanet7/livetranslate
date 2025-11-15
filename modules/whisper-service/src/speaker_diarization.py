@@ -14,13 +14,12 @@ Features:
 - Memory-efficient processing
 """
 
-import os
 import numpy as np
 import logging
 import time
 import threading
 from collections import deque, defaultdict
-from typing import Dict, List, Tuple, Optional, Union, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -418,7 +417,7 @@ class AdvancedSpeakerDiarization:
         # Thread safety
         self.lock = threading.Lock()
         
-        logger.info(f"AdvancedSpeakerDiarization initialized:")
+        logger.info("AdvancedSpeakerDiarization initialized:")
         logger.info(f"  Embedding: {self.config.embedding_method}")
         logger.info(f"  Clustering: {self.config.clustering_method}")
         logger.info(f"  Enhancement: {self.config.enable_enhancement}")

@@ -128,7 +128,7 @@ async def initialize_internal_vllm() -> Optional[SimpleVLLMTranslationServer]:
             if not is_valid:
                 logger.error(f"❌ Model validation failed: {validation_message}")
                 logger.error(f"💡 Please ensure your model is downloaded to: {default_model}")
-                logger.error(f"💡 The model directory should contain: config.json, tokenizer files, and model weights")
+                logger.error("💡 The model directory should contain: config.json, tokenizer files, and model weights")
                 return None
             else:
                 logger.info(f"✅ Model validation passed: {validation_message}")
@@ -140,7 +140,7 @@ async def initialize_internal_vllm() -> Optional[SimpleVLLMTranslationServer]:
             "internal_host": vllm_host
         })
         
-        logger.info(f"🔧 Initializing internal vLLM server...")
+        logger.info("🔧 Initializing internal vLLM server...")
         logger.info(f"   Model: {default_model}")
         logger.info(f"   Host: {vllm_host}:{vllm_port}")
         
@@ -156,14 +156,14 @@ async def initialize_internal_vllm() -> Optional[SimpleVLLMTranslationServer]:
         logger.info("✅ Internal vLLM server initialized successfully")
         logger.info(f"   REST API: http://{vllm_host}:{vllm_port}")
         logger.info(f"   Health Check: http://{vllm_host}:{vllm_port}/health")
-        logger.info(f"   Model loading in background...")
+        logger.info("   Model loading in background...")
         
         return internal_vllm_server
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize internal vLLM server: {e}")
-        logger.error(f"   This may be due to insufficient GPU memory or missing dependencies")
-        logger.error(f"   Will fallback to external services...")
+        logger.error("   This may be due to insufficient GPU memory or missing dependencies")
+        logger.error("   Will fallback to external services...")
         return None
 
 async def initialize_service():

@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from enum import Enum
 import time
 import re
-from pathlib import Path
 
 # Browser automation imports
 try:
@@ -202,7 +201,7 @@ class GoogleMeetAutomation:
                 try:
                     if selector.startswith("span:contains") or selector.startswith("button:contains"):
                         # Handle text-based selectors
-                        elements = self.driver.find_elements(By.XPATH, f"//*[contains(text(), 'Join now')]")
+                        elements = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'Join now')]")
                         if elements:
                             elements[0].click()
                             logger.info("Clicked join button via text")

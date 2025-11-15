@@ -24,7 +24,6 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import numpy as np
 import threading
-from werkzeug.utils import secure_filename
 
 # Import whisper service components
 from model_manager import ModelManager

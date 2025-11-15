@@ -6,7 +6,6 @@ This module handles real-time integration with the Whisper service for
 continuous transcription -> translation pipeline.
 """
 
-import asyncio
 import json
 import logging
 import aiohttp

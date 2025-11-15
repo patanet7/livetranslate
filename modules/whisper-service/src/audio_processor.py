@@ -19,9 +19,7 @@ import os
 import io
 import tempfile
 import logging
-import time
-from typing import Tuple, Optional, Dict, Any, Union, BinaryIO
-from pathlib import Path
+from typing import Tuple, Optional, Dict, Any
 from contextlib import contextmanager
 import numpy as np
 
@@ -115,7 +113,7 @@ class AudioProcessor:
             'aiff': ['.aiff', '.aif']
         }
         
-        logger.info(f"AudioProcessor initialized:")
+        logger.info("AudioProcessor initialized:")
         logger.info(f"  Default sample rate: {default_sample_rate}Hz")
         logger.info(f"  Enhancement enabled: {enable_enhancement}")
         logger.info(f"  Librosa available: {LIBROSA_AVAILABLE}")
@@ -285,7 +283,7 @@ class AudioProcessor:
             
             return audio.astype(np.float32), sr
             
-        except Exception as e:
+        except Exception:
             # Fallback to temporary file
             with self._temp_audio_file(audio_data, format_hint) as temp_path:
                 audio, sr = sf.read(temp_path)

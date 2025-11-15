@@ -16,9 +16,7 @@ import aiohttp
 import aiofiles
 from pydantic import BaseModel
 from utils.audio_errors import (
-    AudioProcessingBaseError, AudioFormatError, AudioCorruptionError,
-    AudioProcessingError, ServiceUnavailableError, ValidationError,
-    NetworkError, TimeoutError, CircuitBreaker, RetryManager, RetryConfig,
+    AudioFormatError, ServiceUnavailableError, NetworkError, TimeoutError, CircuitBreaker, RetryManager, RetryConfig,
     ErrorLogger, error_boundary
 )
 

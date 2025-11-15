@@ -19,7 +19,7 @@ import time
 import threading
 import logging
 import gc
-from queue import Queue, Empty
+from queue import Queue
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from contextlib import contextmanager
@@ -106,7 +106,7 @@ class ModelManager:
         # Weak references for automatic cleanup
         self._pipeline_refs = weakref.WeakValueDictionary()
         
-        logger.info(f"ModelManager initialized:")
+        logger.info("ModelManager initialized:")
         logger.info(f"  Device: {self.device}")
         logger.info(f"  Models directory: {self.models_dir}")
         logger.info(f"  Default model: {self.default_model}")

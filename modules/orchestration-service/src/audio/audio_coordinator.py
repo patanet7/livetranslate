@@ -20,36 +20,25 @@ import asyncio
 import json
 import logging
 import time
-import uuid
-from collections import defaultdict, deque
+from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable, Set, AsyncGenerator
+from datetime import datetime
+from typing import Dict, List, Optional, Any, Callable, AsyncGenerator
 import httpx
 import numpy as np
-from dataclasses import asdict
 
 from .models import (
     AudioChunkMetadata,
     AudioChunkingConfig,
-    ProcessingResult,
-    SpeakerCorrelation,
     AudioStreamingSession,
-    ProcessingStatus,
     SourceType,
-    CorrelationType,
-    create_audio_chunk_metadata,
-    create_speaker_correlation,
-    create_processing_result,
     get_default_chunking_config,
 )
 from .database_adapter import AudioDatabaseAdapter
 from .chunk_manager import ChunkManager, create_chunk_manager
 from .config import (
-    AudioConfigurationManager,
     AudioProcessingConfig,
     create_audio_config_manager,
-    get_default_audio_processing_config,
 )
 from .audio_processor import AudioPipelineProcessor, create_audio_pipeline_processor
 
@@ -620,7 +609,7 @@ class AudioCoordinator:
                 # Update all processors with new default config
                 for processor in self.audio_processors.values():
                     processor.update_config(config)
-                logger.info(f"Updated all audio processors with new default config")
+                logger.info("Updated all audio processors with new default config")
                 
             # Emit configuration change event
             if self.on_session_event:

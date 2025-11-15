@@ -5,7 +5,7 @@ SQLAlchemy models for the orchestration service database.
 """
 
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from sqlalchemy import (
     Column,
     Integer,
@@ -19,7 +19,7 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, Session
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 

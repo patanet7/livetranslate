@@ -15,17 +15,14 @@ Features:
 - Memory-efficient circular buffer implementation
 """
 
-import os
 import time
 import threading
 import logging
-import asyncio
 from collections import deque
 from typing import Optional, Dict, Any, List, Callable, Tuple
 import numpy as np
 from dataclasses import dataclass
 from contextlib import contextmanager
-import weakref
 
 try:
     import webrtcvad
@@ -234,7 +231,7 @@ class RollingBufferManager:
         self.speech_segments_detected = 0
         self.inference_count = 0
         
-        logger.info(f"RollingBufferManager initialized:")
+        logger.info("RollingBufferManager initialized:")
         logger.info(f"  Buffer duration: {self.config.buffer_duration}s ({self.max_samples} samples)")
         logger.info(f"  Inference interval: {self.config.inference_interval}s")
         logger.info(f"  Sample rate: {self.config.sample_rate}Hz")

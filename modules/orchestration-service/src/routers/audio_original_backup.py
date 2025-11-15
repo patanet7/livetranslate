@@ -40,7 +40,7 @@ from utils.audio_errors import (
     ConfigurationError, NetworkError, TimeoutError,
     CircuitBreaker, RetryManager, RetryConfig,
     FormatRecoveryStrategy, ServiceRecoveryStrategy,
-    ErrorLogger, error_boundary, default_circuit_breaker, default_retry_manager
+    ErrorLogger, error_boundary
 )
 
 logger = logging.getLogger(__name__)
@@ -1404,7 +1404,6 @@ async def _store_temp_file(content: bytes, filename: str, request_id: str) -> st
     """Store uploaded file temporarily"""
 
     import tempfile
-    import os
     from pathlib import Path
 
     try:
@@ -1535,7 +1534,7 @@ async def analyze_audio_fft(
         
         try:
             audio_data, sample_rate = sf.read(audio_buffer, dtype='float32')
-        except Exception as e:
+        except Exception:
             # Fallback for various audio formats
             try:
                 import librosa
@@ -1774,7 +1773,7 @@ async def analyze_audio_lufs(
         
         try:
             audio_data, sample_rate = sf.read(audio_buffer, dtype='float32')
-        except Exception as e:
+        except Exception:
             try:
                 import librosa
                 audio_data, sample_rate = librosa.load(audio_buffer, sr=None, dtype=np.float32)
@@ -2041,7 +2040,7 @@ async def process_audio_single_stage(
         
         try:
             audio_data, detected_sample_rate = sf.read(audio_buffer, dtype='float32')
-        except Exception as e:
+        except Exception:
             try:
                 import librosa
                 audio_data, detected_sample_rate = librosa.load(audio_buffer, sr=None, dtype=np.float32)
@@ -2434,7 +2433,6 @@ async def get_audio_presets() -> Dict[str, Any]:
     detailed information about each preset's characteristics.
     """
     try:
-        from ..audio.config import AudioConfigurationManager, AudioProcessingConfig
         
         # Built-in presets with detailed configurations
         builtin_presets = {
@@ -2630,7 +2628,7 @@ async def get_audio_preset(preset_name: str) -> Dict[str, Any]:
     initialize the audio processing pipeline.
     """
     try:
-        from ..audio.config import AudioProcessingConfig, AudioConfigurationManager
+        from ..audio.config import AudioProcessingConfig
         
         # Check if it's a built-in preset first
         builtin_presets = (await get_audio_presets())["builtin_presets"]
@@ -2695,7 +2693,6 @@ async def apply_audio_preset(
     Allows customization of preset settings before application.
     """
     try:
-        from ..audio.config import AudioProcessingConfig
         import json
         
         # Get the preset configuration
@@ -3008,9 +3005,9 @@ def _estimate_cpu_difference(stages1: set, stages2: set) -> str:
     if abs(diff) < 2:
         return "similar"
     elif diff > 0:
-        return f"preset1 uses less CPU"
+        return "preset1 uses less CPU"
     else:
-        return f"preset2 uses less CPU"
+        return "preset2 uses less CPU"
 
 
 def _estimate_quality_difference(info1: Dict, info2: Dict) -> str:

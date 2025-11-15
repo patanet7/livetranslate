@@ -15,7 +15,6 @@ import numpy as np
 import io
 import wave
 import subprocess
-import tempfile
 import os
 
 try:
@@ -112,7 +111,7 @@ class BrowserAudioCapture:
             elif audio_method == "system_default":
                 await self._setup_system_audio_capture()
             else:
-                raise RuntimeError(f"No suitable audio capture method available")
+                raise RuntimeError("No suitable audio capture method available")
             
             logger.info("Browser audio capture initialized successfully")
             

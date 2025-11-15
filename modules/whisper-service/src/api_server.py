@@ -13,9 +13,8 @@ import io
 import tempfile
 import time
 from typing import Dict, Any, Optional
-import json
 from datetime import datetime
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import uuid
@@ -26,7 +25,7 @@ from pydub import AudioSegment
 from pydub.utils import which
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from queue import Queue, LifoQueue, PriorityQueue
+from queue import PriorityQueue
 import weakref
 from collections import deque
 
@@ -34,20 +33,16 @@ from whisper_service import WhisperService, TranscriptionRequest, create_whisper
 from connection_manager import connection_manager, ConnectionState
 from error_handler import (
     error_handler, ErrorCategory, ErrorSeverity, ErrorInfo,
-    create_connection_error, create_audio_error, create_model_error,
-    create_validation_error, create_session_error, create_system_error
+    create_connection_error, create_audio_error, create_validation_error, create_system_error
 )
 from heartbeat_manager import heartbeat_manager, HeartbeatState
 from message_router import message_router, MessageType, RoutePermission, MessageContext
-from simple_auth import simple_auth, auth_middleware, UserRole
-from reconnection_manager import reconnection_manager, SessionState, BufferedMessage
+from simple_auth import simple_auth, auth_middleware
+from reconnection_manager import reconnection_manager
 from utils.audio_errors import (
-    WhisperProcessingBaseError, AudioFormatError, AudioCorruptionError,
-    ModelLoadingError, ModelInferenceError, ValidationError as WhisperValidationError,
-    ConfigurationError, MemoryError, HardwareError, TimeoutError as WhisperTimeoutError,
-    CircuitBreaker, ErrorRecoveryStrategy, ModelRecoveryStrategy, FormatRecoveryStrategy,
-    ErrorLogger, error_boundary, default_circuit_breaker, default_error_logger,
-    model_recovery, format_recovery
+    WhisperProcessingBaseError, AudioCorruptionError,
+    ModelLoadingError, ValidationError as WhisperValidationError,
+    MemoryError, HardwareError, error_boundary, default_circuit_breaker, model_recovery, format_recovery
 )
 
 # Configure logging
@@ -660,7 +655,7 @@ async def transcribe_with_model(model_name: str):
                         result.confidence_score = max(0.2, result.confidence_score * 0.5)
                         logger.info(f"[WHISPER] Adjusted confidence to {result.confidence_score:.3f} due to repetition")
             
-            logger.info(f"[WHISPER] ✅ Transcription completed successfully")
+            logger.info("[WHISPER] ✅ Transcription completed successfully")
             logger.info(f"[WHISPER] 📝 Result: '{result.text}'")
             logger.info(f"[WHISPER] ⏱️ Processing time: {processing_time:.2f}s")
             logger.info(f"[WHISPER] 🧠 Model used: {result.model_used}")

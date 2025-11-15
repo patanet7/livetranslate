@@ -13,14 +13,12 @@ Features:
 - Automated bot deployment and scaling
 """
 
-import os
-import sys
 import time
 import logging
 import asyncio
 import threading
 import uuid
-from typing import Dict, List, Optional, Callable, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 # Removed datetime import - now using time.time() for float timestamps
 from enum import Enum
@@ -30,19 +28,17 @@ from collections import defaultdict, deque
 
 # Import Google Meet API client
 from .google_meet_client import (
-    GoogleMeetClient,
     BotManagerIntegration,
     create_google_meet_client,
 )
 
 # Import database manager
 from database.bot_session_manager import (
-    BotSessionDatabaseManager,
     create_bot_session_manager,
 )
 
 # Import enhanced lifecycle manager
-from bot.bot_lifecycle_manager import BotLifecycleManager, create_lifecycle_manager
+from bot.bot_lifecycle_manager import create_lifecycle_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -283,7 +279,7 @@ class GoogleMeetBotManager:
         # Thread safety
         self.lock = threading.RLock()
 
-        logger.info(f"GoogleMeetBotManager initialized")
+        logger.info("GoogleMeetBotManager initialized")
         logger.info(
             f"  Max concurrent bots: {self.config.get('max_concurrent_bots', 10)}"
         )

@@ -3,7 +3,6 @@ Local translation implementation using vLLM and Ollama inference.
 Provides privacy-focused, high-performance translation without external API calls.
 """
 
-import asyncio
 import time
 from typing import Dict, Any, Optional, List, AsyncGenerator
 from dataclasses import dataclass
@@ -16,12 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../../shared/src"))
 
 from inference import (
     get_inference_client_async,
-    InferenceRequest,
-    InferenceResponse,
-    InferenceBackend,
-    InferenceClientError,
-    ModelNotFoundError,
-    BackendUnavailableError
+    InferenceRequest
 )
 
 logger = logging.getLogger(__name__)

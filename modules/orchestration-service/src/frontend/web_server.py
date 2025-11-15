@@ -10,7 +10,7 @@ functionality from the legacy whisper-npu-server.
 import os
 import time
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pathlib import Path
 
 from flask import Flask, render_template, send_from_directory, jsonify, request

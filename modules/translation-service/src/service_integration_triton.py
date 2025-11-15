@@ -9,17 +9,16 @@ This module handles integration with other LiveTranslate services:
 - Session management and state synchronization
 """
 
-import asyncio
 import json
 import logging
 import time
 from typing import Dict, List, Optional, Any, AsyncGenerator
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import websockets
 import aiohttp
 from datetime import datetime
 
-from translation_service import TranslationService, TranslationRequest, TranslationResult
+from translation_service import TranslationService, TranslationRequest
 
 logger = logging.getLogger(__name__)
 
