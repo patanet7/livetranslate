@@ -57,6 +57,7 @@ import {
 
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 import { useAnalytics } from '@/hooks/useAnalytics';
+import type { ServiceHealth as BaseServiceHealth } from '@/types';
 
 // Types
 interface HealthIndicator {
@@ -77,7 +78,8 @@ interface HealthIndicator {
   dependencies?: string[];
 }
 
-interface ServiceHealth {
+// Component-specific service health interface
+interface ServiceHealthDisplay {
   name: string;
   status: 'online' | 'degraded' | 'offline' | 'maintenance';
   uptime: number;
@@ -105,7 +107,7 @@ const SystemHealthIndicators: React.FC<SystemHealthIndicatorsProps> = ({
 
   // State
   const [indicators, setIndicators] = useState<HealthIndicator[]>([]);
-  const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [services, setServices] = useState<ServiceHealthDisplay[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['service', 'infrastructure']));
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -126,7 +128,7 @@ const SystemHealthIndicators: React.FC<SystemHealthIndicatorsProps> = ({
   const transformHealthData = useCallback(async () => {
     const now = new Date();
     const realIndicators: HealthIndicator[] = [];
-    const realServices: ServiceHealth[] = [];
+    const realServices: ServiceHealthDisplay[] = [];
 
     // Add service health indicators
     if (analyticsData.serviceHealth) {
@@ -387,7 +389,7 @@ const SystemHealthIndicators: React.FC<SystemHealthIndicatorsProps> = ({
     }
   };
 
-  const getServiceStatusColor = (status: ServiceHealth['status']) => {
+  const getServiceStatusColor = (status: ServiceHealthDisplay['status']) => {
     switch (status) {
       case 'online':
         return 'success';

@@ -11,6 +11,7 @@ import {
   useGetSystemHealthQuery,
   useGetAnalyticsOverviewQuery,
 } from '@/store/slices/apiSlice';
+import type { ServiceHealth as BaseServiceHealth } from '@/types';
 
 // Types
 export interface SystemMetrics {
@@ -46,13 +47,12 @@ export interface SystemMetrics {
   };
 }
 
-export interface ServiceHealth {
+// Extended ServiceHealth with analytics-specific fields
+export interface ServiceHealth extends Omit<BaseServiceHealth, 'serviceName' | 'lastCheck' | 'status'> {
   id: string;
   name: string;
   status: 'healthy' | 'degraded' | 'critical' | 'unknown';
-  uptime: number;
   responseTime: number;
-  version: string;
   lastCheck: Date;
   trend: 'improving' | 'degrading' | 'stable';
   details: string[];
