@@ -54,6 +54,7 @@ import {
 } from '@/utils/audioLevelCalculation';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
+import { useAudioDevices } from '@/hooks/useAudioDevices';
 import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
 import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
@@ -102,42 +103,13 @@ const MeetingTest: React.FC = () => {
   const animationFrameRef = useRef<number | null>(null);
   const chunkIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
-  
-  // Initialize audio devices
-  useEffect(() => {
-    const initializeDevices = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioDevices = devices
-          .filter(device => device.kind === 'audioinput')
-          .map(device => ({
-            deviceId: device.deviceId,
-            label: device.label || `Microphone ${device.deviceId.substr(0, 8)}`,
-            kind: device.kind as 'audioinput',
-            groupId: device.groupId || ''
-          }));
-        
-        dispatch(setAudioDevices(audioDevices));
-        if (audioDevices.length > 0 && !selectedDevice) {
-          setSelectedDevice(audioDevices[0].deviceId);
-        }
-        
-        dispatch(addProcessingLog({
-          level: 'INFO',
-          message: `Found ${audioDevices.length} audio input devices`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to load audio devices: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
 
-    initializeDevices();
-  }, [dispatch, selectedDevice]);
+  // Initialize audio devices with auto-selection
+  useAudioDevices({
+    autoSelect: true,
+    selectedDevice,
+    onDeviceSelected: setSelectedDevice
+  });
 
   // Initialize audio visualization
   useEffect(() => {
