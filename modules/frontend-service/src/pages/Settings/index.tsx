@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store';
+import { TabPanel } from '@/components/ui';
 import AudioProcessingSettings from './components/AudioProcessingSettings';
 import ChunkingSettings from './components/ChunkingSettings';
 import CorrelationSettings from './components/CorrelationSettings';
@@ -20,32 +21,6 @@ import { PromptManagementSettings } from './components/PromptManagementSettings'
 import SystemSettings from './components/SystemSettings';
 import BotSettings from './components/BotSettings';
 import ConfigSyncSettings from './components/ConfigSyncSettings';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`settings-tabpanel-${index}`}
-      aria-labelledby={`settings-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box sx={{ py: 3 }}>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
 
 function a11yProps(index: number) {
   return {
@@ -109,35 +84,35 @@ const Settings: React.FC = () => {
           </Box>
 
           <CardContent>
-            <TabPanel value={activeTab} index={0}>
+            <TabPanel value={activeTab} index={0} idPrefix="settings">
               <AudioProcessingSettings onSave={handleSettingsSaved} />
             </TabPanel>
-            
-            <TabPanel value={activeTab} index={1}>
+
+            <TabPanel value={activeTab} index={1} idPrefix="settings">
               <ChunkingSettings onSave={handleSettingsSaved} />
             </TabPanel>
-            
-            <TabPanel value={activeTab} index={2}>
+
+            <TabPanel value={activeTab} index={2} idPrefix="settings">
               <CorrelationSettings onSave={handleSettingsSaved} />
             </TabPanel>
-            
-            <TabPanel value={activeTab} index={3}>
+
+            <TabPanel value={activeTab} index={3} idPrefix="settings">
               <TranslationSettings onSave={handleSettingsSaved} />
             </TabPanel>
-            
-            <TabPanel value={activeTab} index={4}>
+
+            <TabPanel value={activeTab} index={4} idPrefix="settings">
               <PromptManagementSettings />
             </TabPanel>
-            
-            <TabPanel value={activeTab} index={5}>
+
+            <TabPanel value={activeTab} index={5} idPrefix="settings">
               <BotSettings onSave={handleSettingsSaved} />
             </TabPanel>
-            
-            <TabPanel value={activeTab} index={6}>
+
+            <TabPanel value={activeTab} index={6} idPrefix="settings">
               <ConfigSyncSettings onSave={handleSettingsSaved} />
             </TabPanel>
-            
-            <TabPanel value={activeTab} index={7}>
+
+            <TabPanel value={activeTab} index={7} idPrefix="settings">
               <SystemSettings onSave={handleSettingsSaved} />
             </TabPanel>
           </CardContent>
