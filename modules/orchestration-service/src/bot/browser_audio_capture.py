@@ -19,14 +19,12 @@ import os
 
 try:
     import sounddevice as sd
-    import soundfile as sf
     SOUNDDEVICE_AVAILABLE = True
 except ImportError:
     SOUNDDEVICE_AVAILABLE = False
 
 try:
     from selenium import webdriver
-    from selenium.webdriver.common.by import By
     SELENIUM_AVAILABLE = True
 except ImportError:
     SELENIUM_AVAILABLE = False
@@ -400,11 +398,11 @@ class BrowserAudioCapture:
             # Check for PulseAudio monitor (Linux)
             elif os.name == 'posix':
                 try:
-                    result = subprocess.run(['pactl', 'list', 'sources'], 
+                    result = subprocess.run(['pactl', 'list', 'sources'],
                                           capture_output=True, text=True, timeout=5)
                     if 'monitor' in result.stdout.lower():
                         return True
-                except:
+                except Exception:
                     pass
             
             return False

@@ -72,7 +72,6 @@ def validate_local_model(model_path: str) -> tuple:
             return False, f"Model path is not a directory: {model_path}"
         
         # Check for required model files
-        required_files = ["config.json"]
         model_files = [f for f in model_path.iterdir() if f.suffix in ['.bin', '.safetensors']]
         tokenizer_files = [f for f in model_path.iterdir() if 'tokenizer' in f.name.lower()]
         

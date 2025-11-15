@@ -8,7 +8,26 @@ Individual audio processing stage endpoints including:
 - Pipeline management
 """
 
-from ._shared import *
+import asyncio
+import base64
+from datetime import datetime
+from typing import Dict, Any
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_audio_router,
+    logger,
+    error_boundary,
+    format_recovery,
+    service_recovery
+)
+from dependencies import get_audio_coordinator, get_config_manager
+from utils.audio_errors import (
+    ValidationError,
+    AudioProcessingError,
+    AudioProcessingBaseError
+)
 
 # Create router for audio stage processing
 router = create_audio_router()

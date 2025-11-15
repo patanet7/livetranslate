@@ -704,7 +704,7 @@ class ConfigurationSyncManager:
         
         try:
             # Send configuration updates to whisper service
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession():
                 # Note: Whisper service may need restart for some config changes
                 # For now, we'll update our local cache and notify
                 

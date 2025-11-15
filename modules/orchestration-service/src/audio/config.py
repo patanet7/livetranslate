@@ -1171,11 +1171,11 @@ class AudioConfigurationManager:
     def validate_config_updates(self, config_updates: Dict[str, Any]) -> List[str]:
         """Validate configuration updates and return list of errors."""
         errors = []
-        schema = self.get_config_schema()
-        
+        _ = self.get_config_schema()
+
         # TODO: Implement comprehensive validation
         # This would validate each field against the schema
-        
+
         return errors
 
 

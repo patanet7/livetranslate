@@ -8,9 +8,25 @@ Advanced audio analysis endpoints including:
 - Audio Quality Metrics
 """
 
-from ._shared import *
 import numpy as np
-from typing import List
+from datetime import datetime
+from typing import List, Dict, Any
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_audio_router,
+    logger,
+    error_boundary,
+    format_recovery,
+    service_recovery
+)
+from dependencies import get_audio_service_client, get_config_manager
+from utils.audio_errors import (
+    ValidationError,
+    AudioProcessingError,
+    AudioProcessingBaseError
+)
 
 # Create router for audio analysis
 router = create_audio_router()

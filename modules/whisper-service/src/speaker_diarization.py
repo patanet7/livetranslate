@@ -27,7 +27,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # Optional dependencies with graceful fallback
 try:
     import torch
-    import torchaudio
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -35,16 +34,9 @@ except ImportError:
 try:
     from sklearn.cluster import AgglomerativeClustering, DBSCAN
     from sklearn.metrics.pairwise import cosine_similarity
-    from sklearn.preprocessing import StandardScaler
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
-
-try:
-    import umap
-    UMAP_AVAILABLE = True
-except ImportError:
-    UMAP_AVAILABLE = False
 
 try:
     import hdbscan
@@ -65,7 +57,6 @@ except ImportError:
     NOISEREDUCE_AVAILABLE = False
 
 try:
-    import speechbrain as sb
     from speechbrain.pretrained import EncoderClassifier
     SPEECHBRAIN_AVAILABLE = True
 except ImportError:

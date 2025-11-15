@@ -448,7 +448,7 @@ async def stop_realtime_session(session_id: str):
         if session_data.get("websocket"):
             try:
                 await session_data["websocket"].close()
-            except:
+            except Exception:
                 pass
         
         # Remove session

@@ -436,9 +436,8 @@ class ConnectionManager:
     def cleanup_expired_connections(self) -> List[str]:
         """Clean up expired connections and return their IDs"""
         expired_sids = []
-        
+
         with self._lock:
-            current_time = datetime.now()
             for sid, connection in list(self.connections.items()):
                 if connection.is_expired(self.connection_timeout):
                     expired_sids.append(sid)

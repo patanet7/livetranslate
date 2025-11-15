@@ -43,8 +43,8 @@ except ImportError:
     PYDUB_AVAILABLE = False
 
 try:
-    import ffmpeg
-    FFMPEG_PYTHON_AVAILABLE = True
+    import importlib.util
+    FFMPEG_PYTHON_AVAILABLE = importlib.util.find_spec("ffmpeg") is not None
 except ImportError:
     FFMPEG_PYTHON_AVAILABLE = False
 
@@ -353,7 +353,7 @@ class AudioProcessor:
             audio_16 = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
             if len(audio_16) > 100:  # Reasonable length
                 return audio_16, target_sr
-        except:
+        except (ValueError, TypeError):
             pass
         
         try:
@@ -361,7 +361,7 @@ class AudioProcessor:
             audio_32f = np.frombuffer(audio_data, dtype=np.float32)
             if len(audio_32f) > 100 and np.max(np.abs(audio_32f)) <= 1.0:
                 return audio_32f, target_sr
-        except:
+        except (ValueError, TypeError):
             pass
         
         raise AudioConversionError("Could not interpret as raw audio data")
