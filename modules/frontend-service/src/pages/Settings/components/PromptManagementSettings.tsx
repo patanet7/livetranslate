@@ -55,6 +55,7 @@ import {
   TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
 import { useApiClient } from '@/hooks/useApiClient';
+import { TabPanel } from '@/components/ui';
 
 interface PromptTemplate {
   id: string;
@@ -96,32 +97,6 @@ interface PromptVariable {
   defaultValue?: string;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`prompt-management-tabpanel-${index}`}
-      aria-labelledby={`prompt-management-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Fade in={true} timeout={300}>
-          <Box sx={{ py: 3 }}>
-            {children}
-          </Box>
-        </Fade>
-      )}
-    </div>
-  );
-}
 
 export const PromptManagementSettings: React.FC = () => {
   const { apiRequest } = useApiClient();
@@ -470,7 +445,7 @@ export const PromptManagementSettings: React.FC = () => {
           </Tabs>
         </Box>
 
-        <TabPanel value={tabValue} index={0}>
+        <TabPanel value={tabValue} index={0} idPrefix="prompt-management">
           <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
             <Button
               variant="contained"
@@ -723,7 +698,7 @@ export const PromptManagementSettings: React.FC = () => {
           </Grid>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={1}>
+        <TabPanel value={tabValue} index={1} idPrefix="prompt-management">
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -791,7 +766,7 @@ export const PromptManagementSettings: React.FC = () => {
           </Card>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={2} idPrefix="prompt-management">
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>

@@ -54,10 +54,10 @@ import {
 } from '@mui/icons-material';
 
 // Import our professional components
-import { 
-  RealTimeMetrics, 
-  PerformanceCharts, 
-  SystemHealthIndicators 
+import {
+  RealTimeMetrics,
+  PerformanceCharts,
+  SystemHealthIndicators
 } from '@/components/analytics';
 
 import {
@@ -66,31 +66,7 @@ import {
   LatencyHeatmap,
 } from '@/components/visualizations';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`analytics-tabpanel-${index}`}
-      aria-labelledby={`analytics-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Box>
-          {children}
-        </Box>
-      )}
-    </div>
-  );
-}
+import { TabPanel } from '@/components/ui';
 
 const SystemAnalytics: React.FC = () => {
   const theme = useTheme();
@@ -432,12 +408,12 @@ const SystemAnalytics: React.FC = () => {
       }}>
         <CardContent sx={{ p: 3 }}>
           {/* Live Monitoring Tab */}
-          <TabPanel value={activeTab} index={0}>
+          <TabPanel value={activeTab} index={0} idPrefix="analytics">
             <Box>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 Real-Time System Monitoring
               </Typography>
-              <RealTimeMetrics 
+              <RealTimeMetrics
                 updateInterval={2000}
                 showHistory={true}
                 compact={false}
@@ -446,12 +422,12 @@ const SystemAnalytics: React.FC = () => {
           </TabPanel>
 
           {/* Performance Charts Tab */}
-          <TabPanel value={activeTab} index={1}>
+          <TabPanel value={activeTab} index={1} idPrefix="analytics">
             <Box>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 Performance Analysis & Trends
               </Typography>
-              <PerformanceCharts 
+              <PerformanceCharts
                 height={500}
                 showControls={true}
                 autoRefresh={true}
@@ -460,12 +436,12 @@ const SystemAnalytics: React.FC = () => {
           </TabPanel>
 
           {/* System Health Tab */}
-          <TabPanel value={activeTab} index={2}>
+          <TabPanel value={activeTab} index={2} idPrefix="analytics">
             <Box>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 System Health & Infrastructure Status
               </Typography>
-              <SystemHealthIndicators 
+              <SystemHealthIndicators
                 compact={false}
                 showTrends={true}
                 autoRefresh={true}
@@ -475,18 +451,18 @@ const SystemAnalytics: React.FC = () => {
           </TabPanel>
 
           {/* Audio Analysis Tab */}
-          <TabPanel value={activeTab} index={3}>
+          <TabPanel value={activeTab} index={3} idPrefix="analytics">
             <Box>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 Professional Audio Spectral Analysis
               </Typography>
               <Alert severity="info" sx={{ mb: 3 }}>
                 <Typography variant="body2">
-                  Professional FFT spectral analysis with customizable windowing functions, 
+                  Professional FFT spectral analysis with customizable windowing functions,
                   peak detection, and harmonic analysis for audio quality assessment.
                 </Typography>
               </Alert>
-              <FFTSpectralAnalyzer 
+              <FFTSpectralAnalyzer
                 height={450}
                 realTime={true}
                 showControls={true}
@@ -498,18 +474,18 @@ const SystemAnalytics: React.FC = () => {
           </TabPanel>
 
           {/* LUFS Metering Tab */}
-          <TabPanel value={activeTab} index={4}>
+          <TabPanel value={activeTab} index={4} idPrefix="analytics">
             <Box>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 Professional LUFS Loudness Metering
               </Typography>
               <Alert severity="info" sx={{ mb: 3 }}>
                 <Typography variant="body2">
-                  EBU R128 / ITU-R BS.1770 compliant loudness measurement with integrated, 
+                  EBU R128 / ITU-R BS.1770 compliant loudness measurement with integrated,
                   short-term, and momentary loudness analysis for broadcast standards compliance.
                 </Typography>
               </Alert>
-              <LUFSMeter 
+              <LUFSMeter
                 height={400}
                 showControls={true}
                 standard="ebu"
@@ -524,7 +500,7 @@ const SystemAnalytics: React.FC = () => {
           </TabPanel>
 
           {/* Latency Analysis Tab */}
-          <TabPanel value={activeTab} index={5}>
+          <TabPanel value={activeTab} index={5} idPrefix="analytics">
             <Box>
               <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
                 Advanced Latency Analysis & Heatmap
