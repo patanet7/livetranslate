@@ -111,10 +111,9 @@ async def process_pipeline(
             )
 
         # Parse metadata
-        metadata_dict = {}
         if metadata:
             try:
-                metadata_dict = json.loads(metadata)
+                json.loads(metadata)
             except json.JSONDecodeError:
                 logger.warning("Invalid metadata JSON, using empty dict")
 

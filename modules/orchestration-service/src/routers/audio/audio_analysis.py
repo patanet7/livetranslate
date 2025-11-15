@@ -132,11 +132,7 @@ async def _perform_fft_analysis(
 ) -> Dict[str, Any]:
     """Core FFT analysis implementation"""
     try:
-        # Decode audio data
-        import base64
-        audio_bytes = base64.b64decode(audio_data)
-        
-        # Convert to numpy array (placeholder - would use actual audio processing)
+        # Decode audio data (placeholder - would use actual audio processing)
         # This is a simplified implementation
         sample_rate = 44100  # Default sample rate
         
@@ -270,10 +266,6 @@ async def _perform_lufs_analysis(
 ) -> Dict[str, Any]:
     """Core LUFS analysis implementation"""
     try:
-        # Decode audio data
-        import base64
-        audio_bytes = base64.b64decode(audio_data)
-        
         # Simulate LUFS analysis results (placeholder implementation)
         # In real implementation, this would use pyloudnorm or similar library
         

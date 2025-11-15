@@ -314,12 +314,12 @@ class TimingCoordinator:
             
             # Calculate optimal time baseline
             baseline_offset = await self._calculate_optimal_baseline(session_data)
-            
+
             # Apply alignment corrections
-            alignment_results = await self._apply_timestamp_alignment(
+            await self._apply_timestamp_alignment(
                 session_id, session_data, baseline_offset
             )
-            
+
             # Verify alignment quality
             post_alignment_quality = await self._assess_synchronization_quality(session_id)
             

@@ -2012,7 +2012,7 @@ async def update_prompt(prompt_id: str, updates: Dict[str, Any]):
         async with await get_translation_service_client() as client:
             async with client.put(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}", json=updates) as response:
                 if response.status == 200:
-                    result = await response.json()
+                    await response.json()
                     return {
                         "success": True,
                         "prompt_id": prompt_id,
@@ -2051,7 +2051,7 @@ async def delete_prompt(prompt_id: str):
         async with await get_translation_service_client() as client:
             async with client.delete(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}") as response:
                 if response.status == 200:
-                    result = await response.json()
+                    await response.json()
                     return {
                         "success": True,
                         "prompt_id": prompt_id,

@@ -405,8 +405,8 @@ async def get_translation_analytics(
     """
     try:
         end_time = datetime.now()
-        start_time = _get_start_time(time_range, end_time)
-        
+        _get_start_time(time_range, end_time)
+
         # Get translation service metrics
         translation_stats = await translation_client.get_analytics()
         
@@ -460,8 +460,8 @@ async def get_websocket_analytics(
     """
     try:
         end_time = datetime.now()
-        start_time = _get_start_time(time_range, end_time)
-        
+        _get_start_time(time_range, end_time)
+
         # Get WebSocket analytics
         ws_stats = await websocket_manager.get_connection_stats()
         
@@ -518,8 +518,8 @@ async def get_bot_session_analytics(
     """
     try:
         end_time = datetime.now()
-        start_time = _get_start_time(time_range, end_time)
-        
+        _get_start_time(time_range, end_time)
+
         # Get bot session analytics (use placeholder for now)
         bot_stats = {"total_sessions": 0, "successful_sessions": 0, "avg_session_duration_minutes": 0, "success_rate": 0}
         

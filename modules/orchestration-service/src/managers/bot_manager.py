@@ -300,7 +300,6 @@ class BotManager:
     async def _start_bot_processes(self, bot_id: str):
         """Start bot processes"""
         bot_instance = self.bots[bot_id]
-        meeting_request = bot_instance.meeting_request
 
         # This would start the actual bot processes
         # For now, simulate process startup
