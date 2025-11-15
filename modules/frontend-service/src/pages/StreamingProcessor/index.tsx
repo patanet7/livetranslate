@@ -44,10 +44,11 @@ import { AudioVisualizer } from '../AudioTesting/components/AudioVisualizer';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { useAudioDevices } from '@/hooks/useAudioDevices';
 import { useAudioVisualization } from '@/hooks/useAudioVisualization';
+import { useAudioStreaming } from '@/hooks/useAudioStreaming';
 import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
 import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
-import { generateSessionId, generateChunkId } from '@/utils/sessionUtils';
+import { generateSessionId } from '@/utils/sessionUtils';
 
 const StreamingProcessor: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -64,10 +65,6 @@ const StreamingProcessor: React.FC = () => {
     refetch: refetchModels 
   } = useAvailableModels();
   
-  // Streaming state
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingStats, setStreamingStats] = useState<StreamingStats>(DEFAULT_STREAMING_STATS);
-  
   // Audio streaming - CHANGE 1: Add English as first option
   const [chunkDuration, setChunkDuration] = useState(3); // 3 seconds default
   const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', ...DEFAULT_TARGET_LANGUAGES]);
@@ -80,17 +77,16 @@ const StreamingProcessor: React.FC = () => {
     enableVAD: false,
     audioProcessing: false,
   });
-  
+
   // Results
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
   const [translationResults, setTranslationResults] = useState<TranslationResult[]>([]);
-  const [activeChunks, setActiveChunks] = useState<Set<string>>(new Set());
-  
-  // Audio refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Audio stream ref
   const audioStreamRef = useRef<MediaStream | null>(null);
-  const chunkIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const recordingChunksRef = useRef<Blob[]>([]);
+
+  // Simple session management for testing
+  const [sessionId] = useState(() => generateSessionId('streaming_test'));
 
   // Initialize audio devices with auto-selection
   useAudioDevices({
@@ -107,8 +103,23 @@ const StreamingProcessor: React.FC = () => {
     enableLogging: true
   });
 
-  // Simple session management for testing
-  const [sessionId] = useState(() => generateSessionId('streaming_test'));
+  // Audio streaming with shared hook
+  const {
+    isStreaming,
+    streamingStats,
+    startStreaming,
+    stopStreaming,
+    resetStats,
+    activeChunks
+  } = useAudioStreaming({
+    sessionId,
+    audioStream: audioStreamRef.current,
+    chunkDuration,
+    targetLanguages,
+    processingConfig,
+    onChunkProcessed: handleStreamingResponse,
+    enableLogging: true
+  });
   
   // Handle response from streaming endpoint directly (no WebSocket needed for simple testing)
   const handleStreamingResponse = useCallback((response: any, chunkId: string) => {
