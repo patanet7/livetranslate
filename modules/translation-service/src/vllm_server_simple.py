@@ -405,7 +405,7 @@ class SimpleVLLMTranslationServer:
                     tokenize=False,
                     add_generation_prompt=True
                 )
-            except:
+            except Exception:
                 # Fallback if chat template fails
                 return f"{system}\n\nTranslate: {text}\n\nTranslation:"
     

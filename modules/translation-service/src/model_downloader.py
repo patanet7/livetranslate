@@ -17,7 +17,7 @@ import time
 
 # Hugging Face imports
 try:
-    from huggingface_hub import snapshot_download, hf_hub_download, HfApi
+    from huggingface_hub import snapshot_download, HfApi
     from huggingface_hub.utils import HfHubHTTPError
     HF_AVAILABLE = True
 except ImportError:
@@ -26,7 +26,7 @@ except ImportError:
 
 # Transformers for model validation
 try:
-    from transformers import AutoTokenizer, AutoConfig
+    from transformers import AutoConfig
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -195,9 +195,9 @@ class ModelDownloader:
             def hf_progress_callback(downloaded: int, total: int):
                 if progress_callback:
                     progress_callback(downloaded, total, model_info.name)
-            
+
             # Download model using snapshot_download for full model
-            downloaded_path = snapshot_download(
+            snapshot_download(
                 repo_id=model_info.repo_id,
                 cache_dir=str(self.cache_dir),
                 local_dir=str(local_path),

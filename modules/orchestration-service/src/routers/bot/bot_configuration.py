@@ -6,7 +6,18 @@ Bot configuration endpoints including:
 - Bot config retrieval (/config)
 """
 
-from ._shared import *
+from typing import Dict, Any
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_bot_router,
+    BotConfigUpdateRequest,
+    logger,
+    get_error_response,
+    validate_bot_exists
+)
+from dependencies import get_bot_manager
 
 # Create router for bot configuration management
 router = create_bot_router()

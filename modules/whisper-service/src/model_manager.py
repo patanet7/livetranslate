@@ -222,14 +222,13 @@ class ModelManager:
                 if item.is_dir():
                     # Check for OpenVINO IR files
                     xml_file = item / f"{item.name}.xml"
-                    bin_file = item / f"{item.name}.bin"
-                    
+
                     # Also check for standard OpenVINO model files
                     if not xml_file.exists():
                         xml_files = list(item.glob("*.xml"))
                         if xml_files:
                             xml_file = xml_files[0]
-                    
+
                     if xml_file.exists() or any(item.glob("*.xml")):
                         models.append(item.name)
                         

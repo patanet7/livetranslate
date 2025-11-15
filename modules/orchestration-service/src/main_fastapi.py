@@ -16,7 +16,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.security import HTTPBearer
 from fastapi.openapi.utils import get_openapi
 
@@ -121,7 +121,7 @@ except ImportError as e:
 # Import models with logging
 try:
     import_logger.debug("Importing models...")
-    from models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
+    from models import ConfigUpdate, ErrorResponse
     import_logger.info("[OK] Models imported successfully")
 except ImportError as e:
     import_logger.error(f"[ERROR] Models import failed: {e}")
@@ -133,7 +133,6 @@ try:
         get_config_manager,
         get_websocket_manager,
         get_health_monitor,
-        get_bot_manager,
         get_database_manager,
     )
     import_logger.info("[OK] Dependencies imported successfully")

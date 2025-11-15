@@ -9,7 +9,18 @@ Virtual webcam endpoints including:
 """
 
 import time
-from ._shared import *
+from typing import Dict, Any
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_bot_router,
+    VirtualWebcamConfigRequest,
+    logger,
+    get_error_response,
+    validate_bot_exists
+)
+from dependencies import get_bot_manager
 
 # Create router for virtual webcam management
 router = create_bot_router()

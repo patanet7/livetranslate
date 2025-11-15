@@ -12,6 +12,7 @@ import aiohttp
 import websockets
 from typing import Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
+from flask import request, jsonify
 
 from translation_service import TranslationService, TranslationRequest
 

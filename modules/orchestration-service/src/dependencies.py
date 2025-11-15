@@ -270,34 +270,34 @@ async def startup_dependencies():
     
     try:
         # Initialize core managers first
-        config = get_config_manager()
+        _ = get_config_manager()
         logger.info(" ConfigManager initialized")
         
         # Initialize database components
-        db_manager = get_database_manager()
-        repository = get_unified_repository()
+        _ = get_database_manager()
+        _ = get_unified_repository()
         logger.info(" Database components initialized")
         
         # Initialize service clients
-        audio_client = get_audio_service_client()
-        translation_client = get_translation_service_client()
+        _ = get_audio_service_client()
+        _ = get_translation_service_client()
         logger.info(" Service clients initialized")
         
         # Initialize system managers
-        websocket_manager = get_websocket_manager()
-        health_monitor = get_health_monitor()
-        bot_manager = get_bot_manager()
+        _ = get_websocket_manager()
+        _ = get_health_monitor()
+        _ = get_bot_manager()
         logger.info(" System managers initialized")
         
         # Initialize audio processing
-        audio_coordinator = get_audio_coordinator()
-        config_sync = get_config_sync_manager()
-        audio_config = get_audio_config_manager()
+        _ = get_audio_coordinator()
+        _ = get_config_sync_manager()
+        _ = get_audio_config_manager()
         logger.info(" Audio processing components initialized")
         
         # Initialize utilities
-        rate_limiter = get_rate_limiter()
-        security_utils = get_security_utils()
+        _ = get_rate_limiter()
+        _ = get_security_utils()
         logger.info(" Utility components initialized")
         
         logger.info("All dependencies initialized successfully")

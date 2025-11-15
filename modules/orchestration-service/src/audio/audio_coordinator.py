@@ -1089,11 +1089,11 @@ class AudioCoordinator:
             
             # Check if we have an audio processor for this session
             if session_id in self.audio_processors:
-                audio_processor = self.audio_processors[session_id]
+                _ = self.audio_processors[session_id]
                 logger.info(f"[{request_id}] Using existing audio processor for session {session_id}")
             else:
                 # Create a new audio processor with the provided config
-                audio_processor = self._get_or_create_audio_processor(session_id)
+                _ = self._get_or_create_audio_processor(session_id)
                 logger.info(f"[{request_id}] Created new audio processor for session {session_id}")
             
             # For file-based processing, we'll return the original file path
