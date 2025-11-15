@@ -15,6 +15,7 @@ import {
   MeetingPlatform,
   BotPriority
 } from '@/types';
+import { getCurrentISOTimestamp } from '@/utils/dateTimeUtils';
 
 interface BotState {
   // Bot instances
@@ -200,14 +201,14 @@ const botSlice = createSlice({
             enableSpeakerDiarization: true,
             enableVirtualWebcam: true,
           },
-          updatedAt: new Date().toISOString(),
+          updatedAt: getCurrentISOTimestamp(),
           audioCapture: {
             isCapturing: false,
             totalChunksCaptured: 0,
             averageChunkSizeBytes: 0,
             totalAudioDurationS: 0,
             averageQualityScore: 0,
-            lastCaptureTimestamp: new Date().toISOString(),
+            lastCaptureTimestamp: getCurrentISOTimestamp(),
             deviceInfo: '',
             sampleRateActual: 16000,
             channelsActual: 1,
@@ -217,7 +218,7 @@ const botSlice = createSlice({
             totalSpeakers: 0,
             speakerTimeline: [],
             averageConfidence: 0,
-            lastCaptionTimestamp: new Date().toISOString(),
+            lastCaptionTimestamp: getCurrentISOTimestamp(),
             processingLatencyMs: 0,
           },
           virtualWebcam: {
@@ -230,13 +231,13 @@ const botSlice = createSlice({
               fontSize: state.spawnerConfig.defaultBotConfig.webcamConfig.fontSize || 16,
               backgroundOpacity: state.spawnerConfig.defaultBotConfig.webcamConfig.backgroundOpacity || 0.8,
             },
-            lastFrameTimestamp: new Date().toISOString(),
+            lastFrameTimestamp: getCurrentISOTimestamp(),
           },
           timeCorrelation: {
             totalCorrelations: 0,
             successRate: 0,
             averageTimingOffsetMs: 0,
-            lastCorrelationTimestamp: new Date().toISOString(),
+            lastCorrelationTimestamp: getCurrentISOTimestamp(),
             correlationAccuracy: 0,
           },
           performance: {
@@ -250,8 +251,8 @@ const botSlice = createSlice({
             errorCount: 0,
           },
           errorMessages: [],
-          createdAt: new Date().toISOString(),
-          lastActiveAt: new Date().toISOString(),
+          createdAt: getCurrentISOTimestamp(),
+          lastActiveAt: getCurrentISOTimestamp(),
           ...botData,
         };
         
@@ -282,7 +283,7 @@ const botSlice = createSlice({
 
       if (bot) {
         bot.status = status;
-        bot.lastActiveAt = new Date().toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
 
         if (data) {
           Object.assign(bot, data);
@@ -336,8 +337,8 @@ const botSlice = createSlice({
         bot.audioCapture.totalChunksCaptured += 1;
         bot.audioCapture.averageQualityScore =
           (bot.audioCapture.averageQualityScore + (metrics.qualityScore || 0)) / 2;
-        bot.audioCapture.lastCaptureTimestamp = new Date().toISOString();
-        bot.lastActiveAt = new Date().toISOString();
+        bot.audioCapture.lastCaptureTimestamp = getCurrentISOTimestamp();
+        bot.lastActiveAt = getCurrentISOTimestamp();
 
         // Store realtime metrics
         state.realtimeData.audioCapture[botId] = metrics;
@@ -364,7 +365,7 @@ const botSlice = createSlice({
       if (bot) {
         bot.captionProcessor.totalCaptionsProcessed += 1;
         bot.captionProcessor.lastCaptionTimestamp = new Date(caption.timestamp).toISOString();
-        bot.lastActiveAt = new Date().toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
 
         // Store in realtime data
         if (!state.realtimeData.captions[botId]) {
@@ -412,7 +413,7 @@ const botSlice = createSlice({
           state.realtimeData.translations[botId].shift();
         }
 
-        bot.lastActiveAt = new Date().toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
     
@@ -436,7 +437,7 @@ const botSlice = createSlice({
       if (bot) {
         bot.virtualWebcam.framesGenerated += 1;
         state.realtimeData.webcamFrames[botId] = frameBase64;
-        bot.lastActiveAt = new Date().toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
     
@@ -456,10 +457,10 @@ const botSlice = createSlice({
 
       const bot = state.bots[botId];
       if (bot) {
-        bot.lastActiveAt = new Date().toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
-    
+
     // Performance metrics
     updatePerformanceMetrics: (state, action: PayloadAction<{ 
       botId: string; 
@@ -470,10 +471,10 @@ const botSlice = createSlice({
       
       if (bot) {
         Object.assign(bot.performance, metrics);
-        bot.lastActiveAt = new Date().toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
-    
+
     // Time correlation updates
     updateTimeCorrelation: (state, action: PayloadAction<{
       botId: string;
@@ -484,7 +485,7 @@ const botSlice = createSlice({
       
       if (bot) {
         Object.assign(bot.timeCorrelation, metrics);
-        bot.lastActiveAt = new Date().toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
     

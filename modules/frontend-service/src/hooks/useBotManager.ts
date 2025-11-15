@@ -9,6 +9,7 @@ import {
   setError,
 } from '@/store/slices/botSlice';
 import { MeetingRequest, BotInstance, SystemStats } from '@/types';
+import { getCurrentISOTimestamp } from '@/utils/dateTimeUtils';
 
 export const useBotManager = () => {
   const dispatch = useAppDispatch();
@@ -102,9 +103,9 @@ export const useBotManager = () => {
         id: data.bot_id,
         botId: data.bot_id,
         status: (data.status as BotInstance['status']) || 'spawning',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
+        createdAt: getCurrentISOTimestamp(),
+        updatedAt: getCurrentISOTimestamp(),
+        lastActiveAt: getCurrentISOTimestamp(),
         errorMessages: [],
       };
 
@@ -139,8 +140,8 @@ export const useBotManager = () => {
         botId,
         updates: {
           status: 'terminated',
-          lastActiveAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          lastActiveAt: getCurrentISOTimestamp(),
+          updatedAt: getCurrentISOTimestamp(),
         },
       }));
     } catch (error) {
@@ -167,9 +168,9 @@ export const useBotManager = () => {
         id: rawBot.bot_id || rawBot.botId || botId,
         botId: rawBot.bot_id || rawBot.botId || botId,
         status: rawBot.status || 'active',
-        createdAt: rawBot.created_at || rawBot.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastActiveAt: rawBot.last_activity || rawBot.lastActiveAt || new Date().toISOString(),
+        createdAt: rawBot.created_at || rawBot.createdAt || getCurrentISOTimestamp(),
+        updatedAt: getCurrentISOTimestamp(),
+        lastActiveAt: rawBot.last_activity || rawBot.lastActiveAt || getCurrentISOTimestamp(),
         errorMessages: rawBot.error_message ? [rawBot.error_message] : [],
       };
 
@@ -204,9 +205,9 @@ export const useBotManager = () => {
           id: bot.bot_id || bot.botId,
           botId: bot.bot_id || bot.botId,
           status: bot.status || 'active',
-          createdAt: bot.created_at || bot.createdAt || new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          lastActiveAt: bot.last_activity || bot.lastActiveAt || new Date().toISOString(),
+          createdAt: bot.created_at || bot.createdAt || getCurrentISOTimestamp(),
+          updatedAt: getCurrentISOTimestamp(),
+          lastActiveAt: bot.last_activity || bot.lastActiveAt || getCurrentISOTimestamp(),
           errorMessages: bot.error_message ? [bot.error_message] : [],
         };
         acc[processedBot.botId!] = processedBot;
@@ -408,8 +409,8 @@ export const useBotManager = () => {
         botId,
         updates: {
           status: 'spawning',
-          lastActiveAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          lastActiveAt: getCurrentISOTimestamp(),
+          updatedAt: getCurrentISOTimestamp(),
         },
       }));
     } catch (error) {
@@ -435,8 +436,8 @@ export const useBotManager = () => {
       dispatch(updateBot({
         botId,
         updates: {
-          lastActiveAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          lastActiveAt: getCurrentISOTimestamp(),
+          updatedAt: getCurrentISOTimestamp(),
         },
       }));
     } catch (error) {
@@ -461,8 +462,8 @@ export const useBotManager = () => {
         botId,
         updates: {
           status: 'active',
-          lastActiveAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          lastActiveAt: getCurrentISOTimestamp(),
+          updatedAt: getCurrentISOTimestamp(),
         },
       }));
     } catch (error) {
