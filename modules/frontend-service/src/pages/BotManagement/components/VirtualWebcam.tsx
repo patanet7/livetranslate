@@ -31,7 +31,8 @@ import {
   Refresh as RefreshIcon,
   Language as LanguageIcon,
 } from '@mui/icons-material';
-import { BotInstance, WebcamConfig } from '@/types';
+import { BotInstance } from '@/types';
+import { WebcamConfig, WebcamDisplayMode, WebcamTheme } from '@/types/bot';
 import { TabPanel } from '@/components/ui';
 
 interface VirtualWebcamProps {
@@ -50,9 +51,11 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
     width: 1920,
     height: 1080,
     fps: 30,
-    displayMode: 'overlay',
-    theme: 'dark',
+    displayMode: WebcamDisplayMode.OVERLAY,
+    theme: WebcamTheme.DARK,
     maxTranslationsDisplayed: 5,
+    fontSize: 16,
+    backgroundOpacity: 0.8,
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
@@ -68,8 +71,11 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
 
   useEffect(() => {
     if (selectedBotId && bots[selectedBotId]) {
-      setWebcamConfig(bots[selectedBotId].virtualWebcam.webcamConfig);
-      setIsStreaming(bots[selectedBotId].virtualWebcam.isStreaming);
+      const bot = bots[selectedBotId];
+      if (bot?.virtualWebcam?.webcamConfig) {
+        setWebcamConfig(bot.virtualWebcam.webcamConfig);
+        setIsStreaming(bot.virtualWebcam.isStreaming ?? false);
+      }
     }
   }, [selectedBotId, bots]);
 
@@ -155,9 +161,9 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
     document.body.removeChild(a);
   };
 
-  const activeBots = activeBotIds.map(id => bots[id]).filter(Boolean);
+  const activeBots = activeBotIds.map(id => bots[id]).filter((bot): bot is BotInstance => Boolean(bot));
   const selectedBot = selectedBotId ? bots[selectedBotId] : null;
-  const recentTranslations = selectedBot?.virtualWebcam.currentTranslations || [];
+  const recentTranslations = selectedBot?.virtualWebcam?.currentTranslations || [];
 
   if (activeBots.length === 0) {
     return (
@@ -194,7 +200,7 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
             >
               {activeBots.map((bot) => (
                 <MenuItem key={bot.botId} value={bot.botId}>
-                  {bot.meetingInfo.meetingTitle || bot.meetingInfo.meetingId}
+                  {bot.config?.meetingInfo?.meetingTitle || bot.config?.meetingInfo?.meetingId || bot.botId}
                 </MenuItem>
               ))}
             </Select>
@@ -338,7 +344,7 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                 
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="body2" color="text.secondary">
-                    Frames Generated: {selectedBot.virtualWebcam.framesGenerated.toLocaleString()}
+                    Frames Generated: {selectedBot?.virtualWebcam?.framesGenerated?.toLocaleString() || '0'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Active Translations: {recentTranslations.length}
@@ -352,34 +358,18 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                     </Alert>
                   ) : (
                     <Stack spacing={1}>
-                      {recentTranslations.map((translation) => (
-                        <Paper key={translation.translationId} sx={{ p: 2 }}>
+                      {recentTranslations.map((translation, index) => (
+                        <Paper key={`translation-${index}`} sx={{ p: 2 }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Chip
-                              label={translation.speakerName}
+                              label={translation.language?.toUpperCase() || 'Unknown'}
                               size="small"
                               variant="outlined"
                             />
-                            <Typography variant="caption" color="text.secondary">
-                              {new Date(translation.timestamp).toLocaleTimeString()}
-                            </Typography>
                           </Box>
-                          <Typography variant="body2" sx={{ mb: 1 }}>
-                            <strong>Original ({translation.sourceLanguage.toUpperCase()}):</strong> {translation.translatedText}
-                          </Typography>
                           <Typography variant="body2" color="primary">
-                            <strong>Translation ({translation.targetLanguage.toUpperCase()}):</strong> {translation.translatedText}
+                            {translation.text || 'No translation available'}
                           </Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                            <Typography variant="caption" color="text.secondary">
-                              Confidence: {Math.round(translation.translationConfidence * 100)}%
-                            </Typography>
-                            <Chip
-                              label={`${translation.sourceLanguage} → ${translation.targetLanguage}`}
-                              size="small"
-                              color="primary"
-                            />
-                          </Box>
                         </Paper>
                       ))}
                     </Stack>
@@ -454,11 +444,12 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                   <Select
                     value={webcamConfig.displayMode}
                     label="Display Mode"
-                    onChange={(e) => handleConfigChange('displayMode', e.target.value)}
+                    onChange={(e) => handleConfigChange('displayMode', e.target.value as WebcamDisplayMode)}
                   >
-                    <MenuItem value="overlay">Overlay on Video</MenuItem>
-                    <MenuItem value="sidebar">Sidebar Panel</MenuItem>
-                    <MenuItem value="fullscreen">Fullscreen Translations</MenuItem>
+                    <MenuItem value={WebcamDisplayMode.OVERLAY}>Overlay on Video</MenuItem>
+                    <MenuItem value={WebcamDisplayMode.SIDEBAR}>Sidebar Panel</MenuItem>
+                    <MenuItem value={WebcamDisplayMode.FULLSCREEN}>Fullscreen Translations</MenuItem>
+                    <MenuItem value={WebcamDisplayMode.PICTURE_IN_PICTURE}>Picture-in-Picture</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -468,11 +459,12 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                   <Select
                     value={webcamConfig.theme}
                     label="Theme"
-                    onChange={(e) => handleConfigChange('theme', e.target.value)}
+                    onChange={(e) => handleConfigChange('theme', e.target.value as WebcamTheme)}
                   >
-                    <MenuItem value="light">Light</MenuItem>
-                    <MenuItem value="dark">Dark</MenuItem>
-                    <MenuItem value="auto">Auto</MenuItem>
+                    <MenuItem value={WebcamTheme.LIGHT}>Light</MenuItem>
+                    <MenuItem value={WebcamTheme.DARK}>Dark</MenuItem>
+                    <MenuItem value={WebcamTheme.AUTO}>Auto</MenuItem>
+                    <MenuItem value={WebcamTheme.CUSTOM}>Custom</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>

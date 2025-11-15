@@ -23,15 +23,11 @@ import {
   IconButton,
   Tooltip,
   Paper,
-  List,
-  ListItem,
-  ListItemText,
   Checkbox,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RestoreIcon from '@mui/icons-material/Restore';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import TranslateIcon from '@mui/icons-material/Translate';
 
 interface TranslationConfig {
   // Service Configuration

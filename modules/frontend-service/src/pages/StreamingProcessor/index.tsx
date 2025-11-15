@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   Grid,
   Button,
   Card,
@@ -30,8 +29,6 @@ import {
 import {
   Mic,
   MicOff,
-  PlayArrow,
-  Stop,
   Settings,
   Translate,
   RecordVoiceOver,
@@ -45,24 +42,23 @@ import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { useAudioDevices } from '@/hooks/useAudioDevices';
 import { useAudioVisualization } from '@/hooks/useAudioVisualization';
 import { useAudioStreaming } from '@/hooks/useAudioStreaming';
-import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
-import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
+import type { TranscriptionResult, TranslationResult } from '@/types/streaming';
+import { DEFAULT_TARGET_LANGUAGES, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 import { generateSessionId } from '@/utils/sessionUtils';
 
 const StreamingProcessor: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { devices, visualization, config } = useAppSelector(state => state.audio);
-  
+  const { devices, visualization } = useAppSelector(state => state.audio);
+
   // Load available models and device information dynamically
-  const { 
-    models: availableModels, 
-    loading: modelsLoading, 
-    error: modelsError, 
+  const {
+    models: availableModels,
+    loading: modelsLoading,
+    error: modelsError,
     status: modelsStatus,
     serviceMessage,
     deviceInfo,
-    refetch: refetchModels 
   } = useAvailableModels();
   
   // Audio streaming - CHANGE 1: Add English as first option
@@ -103,26 +99,8 @@ const StreamingProcessor: React.FC = () => {
     enableLogging: true
   });
 
-  // Audio streaming with shared hook
-  const {
-    isStreaming,
-    streamingStats,
-    startStreaming,
-    stopStreaming,
-    resetStats,
-    activeChunks
-  } = useAudioStreaming({
-    sessionId,
-    audioStream: audioStreamRef.current,
-    chunkDuration,
-    targetLanguages,
-    processingConfig,
-    onChunkProcessed: handleStreamingResponse,
-    enableLogging: true
-  });
-  
   // Handle response from streaming endpoint directly (no WebSocket needed for simple testing)
-  const handleStreamingResponse = useCallback((response: any, chunkId: string) => {
+  const handleStreamingResponse = useCallback((chunkId: string, response: any) => {
     try {
       // Look for transcription in processing_result (backend format) or transcription_result (fallback)
       const transcriptionData = response.processing_result || response.transcription_result;
@@ -183,166 +161,23 @@ const StreamingProcessor: React.FC = () => {
     }
   }, [processingConfig, dispatch]);
 
-  // Start streaming
-  const startStreaming = useCallback(async () => {
-    if (!selectedDevice || !audioStreamRef.current) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: 'No audio device selected or audio stream not available',
-        timestamp: Date.now()
-      }));
-      return;
-    }
-
-    try {
-      setIsStreaming(true);
-      
-      // Initialize MediaRecorder for chunk recording
-      recordingChunksRef.current = [];
-      
-      const mediaRecorder = new MediaRecorder(audioStreamRef.current, {
-        mimeType: 'audio/webm; codecs=opus',
-        audioBitsPerSecond: 128000
-      });
-      
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = async (event) => {
-        if (event.data.size > 0) {
-          recordingChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (recordingChunksRef.current.length > 0) {
-          const audioBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
-          const chunkId = `chunk_${Date.now()}`;
-          
-          setActiveChunks(prev => new Set([...prev, chunkId]));
-          
-          // Send audio chunk to orchestration service
-          await sendAudioChunk(chunkId, audioBlob);
-          
-          setStreamingStats(prev => ({
-            ...prev,
-            chunksStreamed: prev.chunksStreamed + 1,
-            totalDuration: prev.totalDuration + chunkDuration
-          }));
-          
-          recordingChunksRef.current = [];
-        }
-      };
-
-      // Start recording and set up interval for chunks
-      mediaRecorder.start();
-      
-      chunkIntervalRef.current = setInterval(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.stop();
-          mediaRecorderRef.current.start();
-        }
-      }, chunkDuration * 1000);
-      
-      dispatch(addProcessingLog({
-        level: 'SUCCESS',
-        message: `Started streaming with ${chunkDuration}s chunks`,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      setIsStreaming(false);
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Failed to start streaming: ${error}`,
-        timestamp: Date.now()
-      }));
-    }
-  }, [selectedDevice, chunkDuration, dispatch]);
-
-  // Stop streaming
-  const stopStreaming = useCallback(() => {
-    setIsStreaming(false);
-    
-    if (chunkIntervalRef.current) {
-      clearInterval(chunkIntervalRef.current);
-      chunkIntervalRef.current = null;
-    }
-    
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    
-    dispatch(addProcessingLog({
-      level: 'INFO',
-      message: 'Streaming stopped',
-      timestamp: Date.now()
-    }));
-  }, [dispatch]);
-
-  // Send audio chunk to orchestration service
-  const sendAudioChunk = useCallback(async (chunkId: string, audioBlob: Blob) => {
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'chunk.webm');
-      formData.append('chunk_id', chunkId);
-      formData.append('session_id', sessionId);
-      console.log('🌐 Frontend: targetLanguages state:', targetLanguages);
-      console.log('🌐 Frontend: targetLanguages JSON:', JSON.stringify(targetLanguages));
-      formData.append('target_languages', JSON.stringify(targetLanguages));
-      formData.append('enable_transcription', processingConfig.enableTranscription.toString());
-      formData.append('enable_translation', processingConfig.enableTranslation.toString());
-      formData.append('enable_diarization', processingConfig.enableDiarization.toString());
-      formData.append('whisper_model', processingConfig.whisperModel);
-      formData.append('translation_quality', processingConfig.translationQuality);
-      formData.append('enable_vad', processingConfig.enableVAD.toString());
-      formData.append('audio_processing', processingConfig.audioProcessing.toString());
-      formData.append('noise_reduction', processingConfig.noiseReduction.toString());
-      formData.append('speech_enhancement', processingConfig.speechEnhancement.toString());
-      
-      const response = await fetch('/api/audio/upload', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
-      // Handle the response directly
-      handleStreamingResponse(result, chunkId);
-      
-      // Remove from active chunks
-      setActiveChunks(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(chunkId);
-        return newSet;
-      });
-      
-      dispatch(addProcessingLog({
-        level: 'INFO',
-        message: `Audio chunk ${chunkId} processed successfully`,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Failed to process audio chunk ${chunkId}: ${error}`,
-        timestamp: Date.now()
-      }));
-      
-      setActiveChunks(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(chunkId);
-        return newSet;
-      });
-      
-      setStreamingStats(prev => ({
-        ...prev,
-        errorCount: prev.errorCount + 1
-      }));
-    }
-  }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, dispatch]);
+  // Audio streaming with shared hook
+  const {
+    isStreaming,
+    streamingStats,
+    startStreaming,
+    stopStreaming,
+    resetStats,
+    activeChunks
+  } = useAudioStreaming({
+    sessionId,
+    audioStream: audioStreamRef.current,
+    chunkDuration,
+    targetLanguages,
+    processingConfig,
+    onChunkProcessed: handleStreamingResponse,
+    enableLogging: true
+  });
 
   const handleLanguageToggle = useCallback((language: string) => {
     console.log('🌐 Frontend: Toggling language:', language);
@@ -363,9 +198,8 @@ const StreamingProcessor: React.FC = () => {
   const clearResults = useCallback(() => {
     setTranscriptionResults([]);
     setTranslationResults([]);
-    setActiveChunks(new Set());
-    setStreamingStats(DEFAULT_STREAMING_STATS);
-  }, []);
+    resetStats();
+  }, [resetStats]);
 
   return (
     <Box>
@@ -433,7 +267,6 @@ const StreamingProcessor: React.FC = () => {
                     timeData={visualization.timeData}
                     audioLevel={visualization.audioLevel}
                     isRecording={isStreaming}
-                    height={120}
                   />
                 </Card>
               </CardContent>
@@ -735,7 +568,7 @@ const StreamingProcessor: React.FC = () => {
                     Errors: {streamingStats.errorCount}
                   </Typography>
                   
-                  {activeChunks.size > 0 && (
+                  {activeChunks && activeChunks.size > 0 && (
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="caption">
                         Processing {activeChunks.size} chunk(s)...

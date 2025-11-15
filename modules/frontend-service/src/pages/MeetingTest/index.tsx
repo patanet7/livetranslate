@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   Grid,
   Button,
   Card,
@@ -30,8 +29,6 @@ import {
 import {
   Mic,
   MicOff,
-  PlayArrow,
-  Stop,
   Settings,
   Translate,
   RecordVoiceOver,
@@ -45,15 +42,15 @@ import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 import { useAudioDevices } from '@/hooks/useAudioDevices';
 import { useAudioVisualization } from '@/hooks/useAudioVisualization';
-import type { StreamingChunk, TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
+import type { TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
 import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
 import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 import { generateSessionId } from '@/utils/sessionUtils';
 
 const MeetingTest: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { devices, visualization, config } = useAppSelector(state => state.audio);
-  
+  const { devices, visualization } = useAppSelector(state => state.audio);
+
   // Load available models and device information dynamically
   const {
     models: availableModels,
@@ -62,7 +59,6 @@ const MeetingTest: React.FC = () => {
     status: modelsStatus,
     serviceMessage,
     deviceInfo,
-    refetch: refetchModels
   } = useAvailableModels();
 
   // Use unified audio manager for proper abstraction

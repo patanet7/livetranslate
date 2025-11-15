@@ -209,7 +209,7 @@ export const useErrorHandler = () => {
         appError.type === 'validation' ? 'warning' :
         'error';
 
-      const snackbarKey = enqueueSnackbar(appError.userMessage || appError.message, {
+      enqueueSnackbar(appError.userMessage || appError.message, {
         variant: severity,
         persist: severity === 'error',
         action: showRetry && appError.recoverable ? (key) => (
@@ -238,7 +238,6 @@ export const useErrorHandler = () => {
         title: `${appError.type.charAt(0).toUpperCase() + appError.type.slice(1)} Error`,
         message: appError.userMessage || appError.message,
         autoHide: severity !== 'error',
-        timestamp: appError.timestamp.toISOString(),
       }));
     }
 

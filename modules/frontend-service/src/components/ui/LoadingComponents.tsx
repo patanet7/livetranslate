@@ -14,7 +14,6 @@ import {
   Paper,
   Skeleton,
   Stack,
-  Avatar,
   Fade,
   Backdrop,
   Alert,

@@ -32,26 +32,18 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  IconButton,
-  Tooltip,
   LinearProgress,
-  Fade,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Save as SaveIcon,
-  Cancel as CancelIcon,
   Code as CodeIcon,
-  Assessment as AssessmentIcon,
-  Visibility as VisibilityIcon,
   Download as DownloadIcon,
   Upload as UploadIcon,
   ContentCopy as CopyIcon,
   PlayArrow as TestIcon,
-  History as HistoryIcon,
   TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
 import { useApiClient } from '@/hooks/useApiClient';
@@ -244,9 +236,9 @@ export const PromptManagementSettings: React.FC = () => {
   const loadPrompts = useCallback(async () => {
     try {
       // Try to load from API first
-      const response = await apiRequest('/api/settings/prompts');
-      if (response && response.prompts) {
-        setPrompts(response.prompts);
+      const response = await apiRequest('/api/settings/prompts') as any;
+      if (response && response.data?.prompts) {
+        setPrompts(response.data.prompts);
       } else {
         // Fall back to default prompts
         setPrompts(defaultPrompts);
@@ -255,14 +247,14 @@ export const PromptManagementSettings: React.FC = () => {
       console.error('Failed to load prompts, using defaults:', error);
       setPrompts(defaultPrompts);
     }
-  }, [apiRequest]);
+  }, [apiRequest, defaultPrompts]);
 
   const savePrompts = useCallback(async (updatedPrompts: PromptTemplate[]) => {
     setSaveInProgress(true);
     try {
       await apiRequest('/api/settings/prompts', {
         method: 'POST',
-        data: { prompts: updatedPrompts }
+        body: JSON.stringify({ prompts: updatedPrompts })
       });
       setPrompts(updatedPrompts);
     } catch (error) {
@@ -327,22 +319,22 @@ export const PromptManagementSettings: React.FC = () => {
 
   const handleTestPrompt = useCallback(async () => {
     if (!selectedPrompt) return;
-    
+
     setTestInProgress(true);
     try {
       const response = await apiRequest('/api/translation/test', {
         method: 'POST',
-        data: {
+        body: JSON.stringify({
           text: testText,
           source_language: testSourceLang,
           target_language: testTargetLang,
           prompt_id: selectedPrompt.id,
           prompt_template: selectedPrompt.template,
           system_message: selectedPrompt.systemMessage
-        }
-      });
-      
-      setTestResults(response);
+        })
+      }) as any;
+
+      setTestResults(response.data || response);
     } catch (error) {
       console.error('Prompt test failed:', error);
       setTestResults({ error: 'Test failed. Please check your configuration.' });
@@ -389,11 +381,6 @@ export const PromptManagementSettings: React.FC = () => {
       }
     };
     reader.readAsText(file);
-  }, []);
-
-  const getLanguageName = useCallback((code: string) => {
-    const lang = supportedLanguages.find(l => l.code === code);
-    return lang ? `${lang.flag} ${lang.name}` : code;
   }, []);
 
   const getCategoryConfig = useCallback((category: string) => {

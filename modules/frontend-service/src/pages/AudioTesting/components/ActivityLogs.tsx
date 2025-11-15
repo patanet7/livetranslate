@@ -10,7 +10,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,7 +32,6 @@ import {
 } from '@mui/icons-material';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { clearProcessingLogs } from '@/store/slices/audioSlice';
-import { ProcessingLog } from '@/types/audio';
 
 const getLogIcon = (level: string) => {
   switch (level) {

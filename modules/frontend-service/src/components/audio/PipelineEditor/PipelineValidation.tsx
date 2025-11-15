@@ -54,28 +54,6 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
     }));
   };
 
-  const getSeverityIcon = (severity: 'error' | 'warning' | 'suggestion') => {
-    switch (severity) {
-      case 'error':
-        return <Error sx={{ color: 'error.main' }} />;
-      case 'warning':
-        return <Warning sx={{ color: 'warning.main' }} />;
-      case 'suggestion':
-        return <Lightbulb sx={{ color: 'info.main' }} />;
-    }
-  };
-
-  const getSeverityColor = (severity: 'error' | 'warning' | 'suggestion') => {
-    switch (severity) {
-      case 'error':
-        return 'error';
-      case 'warning':
-        return 'warning';
-      case 'suggestion':
-        return 'info';
-    }
-  };
-
   if (compact) {
     return (
       <Alert

@@ -17,7 +17,8 @@ import {
   Divider,
   Stack,
 } from '@mui/material';
-import { useAppSelector } from '@/store';
+import { useAppSelector, useAppDispatch } from '@/store';
+import { addProcessingLog } from '@/store/slices/audioSlice';
 import { RecordingControls } from './components/RecordingControls';
 import { AudioConfiguration } from './components/AudioConfiguration';
 import { AudioVisualizer } from './components/AudioVisualizer';
@@ -76,7 +77,7 @@ const AudioTesting: React.FC = () => {
     enableLogging: true
   });
 
-  const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = useCallback((__event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   }, []);
 

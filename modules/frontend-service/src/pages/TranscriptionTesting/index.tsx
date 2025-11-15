@@ -11,7 +11,6 @@ import {
   FormGroup,
   FormControlLabel,
   Switch,
-  Divider,
   Stack,
   TextField,
   Select,
@@ -23,8 +22,6 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  IconButton,
-  Tooltip,
   CircularProgress,
 } from '@mui/material';
 import {
@@ -33,15 +30,8 @@ import {
   Stop as StopIcon,
   Clear as ClearIcon,
   Mic as MicIcon,
-  MicOff as MicOffIcon,
-  Settings as SettingsIcon,
-  Assessment as AssessmentIcon,
-  Download as DownloadIcon,
-  Upload as UploadIcon,
 } from '@mui/icons-material';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { useWebSocket } from '@/hooks/useWebSocket';
-import { useApiClient } from '@/hooks/useApiClient';
 import { addNotification } from '@/store/slices/uiSlice';
 
 interface TranscriptionResult {
@@ -89,8 +79,7 @@ interface TranscriptionSettings {
 const TranscriptionTesting: React.FC = () => {
   const dispatch = useAppDispatch();
   const { isConnected: webSocketConnected } = useAppSelector(state => state.websocket.connection);
-  const { uploadAudio } = useApiClient();
-  
+
   // Audio Recording State
   const [isRecording, setIsRecording] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);

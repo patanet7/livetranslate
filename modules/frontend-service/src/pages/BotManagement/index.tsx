@@ -22,7 +22,7 @@ import {
   Analytics as AnalyticsIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { useAppSelector } from '@/store/hooks';
 import { BotSpawner } from './components/BotSpawner';
 import { ActiveBots } from './components/ActiveBots';
 import { VirtualWebcam } from './components/VirtualWebcam';
@@ -64,7 +64,7 @@ const BotManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
@@ -169,15 +169,12 @@ const BotManagement: React.FC = () => {
             />
           </Grid>
           <Grid item xs={12} lg={8}>
-            <ActiveBots 
+            <ActiveBots
               bots={bots}
               activeBotIds={activeBotIds}
               onTerminateBot={(botId) => {
                 terminateBot(botId);
                 showNotification(`Bot ${botId} terminated`, 'info');
-              }}
-              onBotError={(botId, error) => {
-                showNotification(`Bot ${botId} error: ${error}`, 'error');
               }}
             />
           </Grid>
@@ -185,10 +182,10 @@ const BotManagement: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <VirtualWebcam 
+        <VirtualWebcam
           bots={bots}
           activeBotIds={activeBotIds}
-          onWebcamUpdate={(botId, config) => {
+          onWebcamUpdate={(botId, _config) => {
             showNotification(`Webcam updated for bot ${botId}`, 'success');
           }}
         />
@@ -209,8 +206,8 @@ const BotManagement: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={4}>
-        <BotSettings 
-          onSettingsUpdate={(settings) => {
+        <BotSettings
+          onSettingsUpdate={(_settings) => {
             showNotification('Settings updated successfully', 'success');
           }}
         />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -7,11 +7,8 @@ import {
   Card,
   CardContent,
   Container,
-  Alert,
   Snackbar,
 } from '@mui/material';
-import { useDispatch, useSelector } from 'react-redux';
-import { RootState } from '@/store';
 import { TabPanel } from '@/components/ui';
 import AudioProcessingSettings from './components/AudioProcessingSettings';
 import ChunkingSettings from './components/ChunkingSettings';

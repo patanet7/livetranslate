@@ -26,57 +26,112 @@ export const createMockAudioDevice = (overrides = {}) => ({
   ...overrides,
 });
 
-export const createMockBotInstance = (overrides = {}) => ({
-  botId: 'mock-bot-id',
-  status: 'active' as const,
-  meetingInfo: {
-    meetingId: 'mock-meeting-id',
-    meetingTitle: 'Mock Meeting',
-    organizerEmail: 'organizer@example.com',
-    participantCount: 3,
-  },
-  audioCapture: {
-    isCapturing: true,
-    totalChunksCaptured: 100,
-    averageQualityScore: 0.85,
-    lastCaptureTimestamp: Date.now(),
-    deviceInfo: 'Mock Audio Device',
-  },
-  captionProcessor: {
-    totalCaptionsProcessed: 50,
-    totalSpeakers: 3,
-    speakerTimeline: [],
-    lastCaptionTimestamp: Date.now(),
-  },
-  virtualWebcam: {
-    isStreaming: true,
-    framesGenerated: 1000,
-    currentTranslations: [],
-    webcamConfig: {
-      width: 1280,
-      height: 720,
-      fps: 30,
-      displayMode: 'overlay' as const,
-      theme: 'dark' as const,
-      maxTranslationsDisplayed: 5,
+export const createMockBotInstance = (overrides: any = {}) => {
+  const now = new Date().toISOString();
+  const hourAgo = new Date(Date.now() - 3600000).toISOString();
+
+  return {
+    id: overrides.id || overrides.botId || 'mock-bot-id',
+    botId: overrides.botId || 'mock-bot-id',
+    status: 'active' as const,
+    config: {
+      meetingInfo: {
+        meetingId: 'mock-meeting-id',
+        meetingTitle: 'Mock Meeting',
+        platform: 'google_meet' as const,
+        organizerEmail: 'organizer@example.com',
+        participantCount: 3,
+      },
+      audioCapture: {
+        sampleRate: 16000,
+        channels: 1,
+        chunkSize: 1024,
+        enableNoiseSuppression: true,
+        enableEchoCancellation: true,
+        enableAutoGain: true,
+      },
+      translation: {
+        targetLanguages: ['en', 'es'],
+        enableAutoTranslation: true,
+        translationQuality: 'balanced' as const,
+        realTimeTranslation: true,
+      },
+      webcam: {
+        width: 1280,
+        height: 720,
+        fps: 30,
+        displayMode: 'overlay' as const,
+        theme: 'dark' as const,
+        maxTranslationsDisplayed: 5,
+        fontSize: 16,
+        backgroundOpacity: 0.8,
+      },
+      priority: 'medium' as const,
+      enableRecording: true,
+      enableTranscription: true,
+      enableSpeakerDiarization: true,
+      enableVirtualWebcam: true,
     },
-  },
-  timeCorrelation: {
-    totalCorrelations: 25,
-    successRate: 0.9,
-    averageTimingOffset: 50,
-    lastCorrelationTimestamp: Date.now(),
-  },
-  performance: {
-    sessionDuration: 3600,
-    totalProcessingTime: 1800,
-    averageLatency: 150,
-    errorCount: 2,
-  },
-  createdAt: Date.now() - 3600000,
-  lastActiveAt: Date.now(),
-  ...overrides,
-});
+    audioCapture: {
+      isCapturing: true,
+      totalChunksCaptured: 100,
+      averageChunkSizeBytes: 16384,
+      totalAudioDurationS: 120.5,
+      averageQualityScore: 0.85,
+      lastCaptureTimestamp: now,
+      deviceInfo: 'Mock Audio Device',
+      sampleRateActual: 16000,
+      channelsActual: 1,
+    },
+    captionProcessor: {
+      totalCaptionsProcessed: 50,
+      totalSpeakers: 3,
+      speakerTimeline: [],
+      averageConfidence: 0.92,
+      lastCaptionTimestamp: now,
+      processingLatencyMs: 50,
+    },
+    virtualWebcam: {
+      isStreaming: true,
+      framesGenerated: 1000,
+      currentTranslations: [],
+      averageFps: 30,
+      webcamConfig: {
+        width: 1280,
+        height: 720,
+        fps: 30,
+        displayMode: 'overlay' as const,
+        theme: 'dark' as const,
+        maxTranslationsDisplayed: 5,
+        fontSize: 16,
+        backgroundOpacity: 0.8,
+      },
+      lastFrameTimestamp: now,
+    },
+    timeCorrelation: {
+      totalCorrelations: 25,
+      successRate: 0.9,
+      averageTimingOffsetMs: 50,
+      lastCorrelationTimestamp: now,
+      correlationAccuracy: 0.95,
+    },
+    performance: {
+      sessionDurationS: 3600,
+      totalProcessingTimeS: 1800,
+      cpuUsagePercent: 45.5,
+      memoryUsageMb: 256,
+      networkBytesSent: 1024000,
+      networkBytesReceived: 2048000,
+      averageLatencyMs: 150,
+      errorCount: 2,
+    },
+    createdAt: hourAgo,
+    lastActiveAt: now,
+    updatedAt: now,
+    errorMessages: [],
+    ...overrides,
+  };
+};
 
 export const createMockTranslation = (overrides = {}) => ({
   translationId: 'mock-translation-id',
