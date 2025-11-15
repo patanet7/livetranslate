@@ -54,8 +54,10 @@ import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { addNotification } from '@/store/slices/uiSlice';
+import type { ServiceHealth as BaseServiceHealth } from '@/types';
 
-interface ServiceHealth {
+// Component-specific service health interface
+interface ServiceHealthDisplay {
   name: string;
   status: 'healthy' | 'degraded' | 'down';
   responseTime: number;
@@ -90,7 +92,7 @@ const LiveAnalytics: React.FC = () => {
   const audioManager = useUnifiedAudio();
 
   // State
-  const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [services, setServices] = useState<ServiceHealthDisplay[]>([]);
   const [metrics, setMetrics] = useState<SystemMetrics[]>([]);
   const [processingStats, setProcessingStats] = useState<ProcessingStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -122,7 +124,7 @@ const LiveAnalytics: React.FC = () => {
       errorRate: systemMetricsData?.performance?.errorRate || 0,
     };
 
-    const serviceHealth: ServiceHealth[] = serviceHealthData.map(service => ({
+    const serviceHealth: ServiceHealthDisplay[] = serviceHealthData.map(service => ({
       name: service.name,
       status: service.status === 'healthy' ? 'healthy' : 
              service.status === 'degraded' ? 'degraded' : 'down',
@@ -198,7 +200,7 @@ const LiveAnalytics: React.FC = () => {
   }, [refreshAnalyticsData]);
 
   // Helper functions
-  const getStatusIcon = (status: ServiceHealth['status']) => {
+  const getStatusIcon = (status: ServiceHealthDisplay['status']) => {
     switch (status) {
       case 'healthy':
         return <CheckCircle color="success" />;
@@ -211,7 +213,7 @@ const LiveAnalytics: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: ServiceHealth['status']) => {
+  const getStatusColor = (status: ServiceHealthDisplay['status']) => {
     switch (status) {
       case 'healthy':
         return 'success';

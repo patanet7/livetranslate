@@ -58,48 +58,11 @@ export interface WebSocketConfig {
   connectionTimeout: number;
 }
 
+// Import types from index.ts to avoid duplication
+import type { ServiceHealth, Notification, Translation, AudioDevice } from './index';
+
 // Define types to avoid circular imports with index.ts
 type BotStatus = 'spawning' | 'active' | 'error' | 'terminated';
-
-interface AudioDevice {
-  deviceId: string;
-  label: string;
-  kind: 'audioinput' | 'audiooutput';
-  groupId: string;
-}
-
-interface Translation {
-  translationId: string;
-  translatedText: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  speakerName: string;
-  speakerId: string;
-  translationConfidence: number;
-  timestamp: number;
-}
-
-interface ServiceHealth {
-  serviceName: string;
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  version: string;
-  uptime: number;
-  lastCheck: number;
-  details?: Record<string, any>;
-}
-
-interface Notification {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  title: string;
-  message: string;
-  timestamp: number;
-  autoHide: boolean;
-  actions?: Array<{
-    label: string;
-    action: () => void;
-  }>;
-}
 
 export interface WebSocketEventMap {
   // Connection events
