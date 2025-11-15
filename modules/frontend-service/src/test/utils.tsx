@@ -16,6 +16,7 @@ import systemSlice from '@/store/slices/systemSlice';
 import { apiSlice } from '@/store/slices/apiSlice';
 import { RootState } from '@/store';
 import { theme } from '@/styles/theme';
+import { getCurrentISOTimestamp } from '@/utils/dateTimeUtils';
 
 // Mock data factories
 export const createMockAudioDevice = (overrides = {}) => ({
@@ -27,7 +28,7 @@ export const createMockAudioDevice = (overrides = {}) => ({
 });
 
 export const createMockBotInstance = (overrides: any = {}) => {
-  const now = new Date().toISOString();
+  const now = getCurrentISOTimestamp();
   const hourAgo = new Date(Date.now() - 3600000).toISOString();
 
   return {
