@@ -14,6 +14,8 @@ from .bot_manager import BotManager, BotStatus, BotInstance, MeetingRequest
 __all__ = [
     "ConfigManager",
     "OrchestrationConfig",
+    "UnifiedConfigurationManager",
+    "UnifiedBotManager",
     "WebSocketManager",
     "ConnectionInfo",
     "SessionInfo",

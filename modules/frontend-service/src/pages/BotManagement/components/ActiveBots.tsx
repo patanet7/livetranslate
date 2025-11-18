@@ -5,14 +5,12 @@ import {
   Typography,
   Box,
   Grid,
-  Button,
   Chip,
   Avatar,
   IconButton,
   Menu,
   MenuItem,
   LinearProgress,
-  Alert,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -42,14 +40,12 @@ interface ActiveBotsProps {
   bots: Record<string, BotInstance>;
   activeBotIds: string[];
   onTerminateBot: (botId: string) => void;
-  onBotError: (botId: string, error: string) => void;
 }
 
 export const ActiveBots: React.FC<ActiveBotsProps> = ({
   bots,
   activeBotIds,
   onTerminateBot,
-  onBotError,
 }) => {
   const [anchorEls, setAnchorEls] = useState<Record<string, HTMLElement | null>>({});
   const [expandedBot, setExpandedBot] = useState<string | null>(null);
@@ -98,14 +94,14 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
 
   const calculateQualityScore = (bot: BotInstance) => {
     const { audioCapture, performance } = bot;
-    const audioQuality = audioCapture.averageQualityScore || 0;
-    const latencyScore = Math.max(0, 1 - (performance.averageLatency / 1000));
-    const errorScore = Math.max(0, 1 - (performance.errorCount / 100));
-    
+    const audioQuality = audioCapture?.averageQualityScore || 0;
+    const latencyScore = Math.max(0, 1 - ((performance?.averageLatencyMs || 0) / 1000));
+    const errorScore = Math.max(0, 1 - ((performance?.errorCount || 0) / 100));
+
     return Math.round(((audioQuality + latencyScore + errorScore) / 3) * 100);
   };
 
-  const activeBots = activeBotIds.map(id => bots[id]).filter(Boolean);
+  const activeBots = activeBotIds.map(id => bots[id]).filter((bot): bot is BotInstance => Boolean(bot));
 
   if (activeBots.length === 0) {
     return (
@@ -144,10 +140,10 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                   
                   <Box sx={{ flexGrow: 1 }}>
                     <Typography variant="h6" component="div">
-                      {bot.meetingInfo.meetingTitle || 'Untitled Meeting'}
+                      {bot?.config?.meetingInfo?.meetingTitle || 'Untitled Meeting'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Bot ID: {bot.botId} • Meeting: {bot.meetingInfo.meetingId}
+                      Bot ID: {bot.botId} • Meeting: {bot?.config?.meetingInfo?.meetingId || 'Unknown'}
                     </Typography>
                   </Box>
                   
@@ -176,29 +172,29 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                 {/* Status Indicators */}
                 <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
                   <Chip
-                    icon={bot.audioCapture.isCapturing ? <MicIcon /> : <MicOffIcon />}
-                    label={bot.audioCapture.isCapturing ? 'Audio Active' : 'Audio Inactive'}
-                    color={bot.audioCapture.isCapturing ? 'success' : 'error'}
+                    icon={bot?.audioCapture?.isCapturing ? <MicIcon /> : <MicOffIcon />}
+                    label={bot?.audioCapture?.isCapturing ? 'Audio Active' : 'Audio Inactive'}
+                    color={bot?.audioCapture?.isCapturing ? 'success' : 'error'}
                     size="small"
                     variant="outlined"
                   />
                   <Chip
-                    icon={bot.virtualWebcam.isStreaming ? <VideocamIcon /> : <VideocamOffIcon />}
-                    label={bot.virtualWebcam.isStreaming ? 'Webcam Active' : 'Webcam Inactive'}
-                    color={bot.virtualWebcam.isStreaming ? 'success' : 'error'}
+                    icon={bot?.virtualWebcam?.isStreaming ? <VideocamIcon /> : <VideocamOffIcon />}
+                    label={bot?.virtualWebcam?.isStreaming ? 'Webcam Active' : 'Webcam Inactive'}
+                    color={bot?.virtualWebcam?.isStreaming ? 'success' : 'error'}
                     size="small"
                     variant="outlined"
                   />
                   <Chip
                     icon={<LanguageIcon />}
-                    label={`${bot.virtualWebcam.currentTranslations.length} Translations`}
+                    label={`${bot?.virtualWebcam?.currentTranslations?.length || 0} Translations`}
                     color="info"
                     size="small"
                     variant="outlined"
                   />
                   <Chip
                     icon={<TimelineIcon />}
-                    label={`${bot.captionProcessor.totalSpeakers} Speakers`}
+                    label={`${bot?.captionProcessor?.totalSpeakers || 0} Speakers`}
                     color="secondary"
                     size="small"
                     variant="outlined"
@@ -212,7 +208,7 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                       Session Duration
                     </Typography>
                     <Typography variant="h6">
-                      {formatDuration(bot.performance.sessionDuration)}
+                      {formatDuration(bot?.performance?.sessionDurationS || 0)}
                     </Typography>
                   </Grid>
                   <Grid item xs={6} sm={3}>
@@ -220,7 +216,7 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                       Audio Chunks
                     </Typography>
                     <Typography variant="h6">
-                      {bot.audioCapture.totalChunksCaptured.toLocaleString()}
+                      {(bot?.audioCapture?.totalChunksCaptured || 0).toLocaleString()}
                     </Typography>
                   </Grid>
                   <Grid item xs={6} sm={3}>
@@ -228,7 +224,7 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                       Captions Processed
                     </Typography>
                     <Typography variant="h6">
-                      {bot.captionProcessor.totalCaptionsProcessed.toLocaleString()}
+                      {(bot?.captionProcessor?.totalCaptionsProcessed || 0).toLocaleString()}
                     </Typography>
                   </Grid>
                   <Grid item xs={6} sm={3}>
@@ -236,7 +232,7 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                       Avg Latency
                     </Typography>
                     <Typography variant="h6">
-                      {bot.performance.averageLatency}ms
+                      {bot?.performance?.averageLatencyMs || 0}ms
                     </Typography>
                   </Grid>
                 </Grid>
@@ -244,12 +240,12 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                 {/* Progress Indicators */}
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Audio Quality: {bot.audioCapture.averageQualityScore?.toFixed(2) || 'N/A'}
+                    Audio Quality: {bot?.audioCapture?.averageQualityScore?.toFixed(2) || 'N/A'}
                   </Typography>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={(bot.audioCapture.averageQualityScore || 0) * 100} 
-                    color={bot.audioCapture.averageQualityScore > 0.8 ? 'success' : 'warning'}
+                  <LinearProgress
+                    variant="determinate"
+                    value={(bot?.audioCapture?.averageQualityScore || 0) * 100}
+                    color={(bot?.audioCapture?.averageQualityScore || 0) > 0.8 ? 'success' : 'warning'}
                   />
                 </Box>
 
@@ -273,15 +269,15 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                         <Stack spacing={1}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2">Total Correlations:</Typography>
-                            <Typography variant="body2">{bot.timeCorrelation.totalCorrelations}</Typography>
+                            <Typography variant="body2">{bot?.timeCorrelation?.totalCorrelations || 0}</Typography>
                           </Box>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2">Success Rate:</Typography>
-                            <Typography variant="body2">{(bot.timeCorrelation.successRate * 100).toFixed(1)}%</Typography>
+                            <Typography variant="body2">{((bot?.timeCorrelation?.successRate || 0) * 100).toFixed(1)}%</Typography>
                           </Box>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2">Avg Timing Offset:</Typography>
-                            <Typography variant="body2">{bot.timeCorrelation.averageTimingOffset}ms</Typography>
+                            <Typography variant="body2">{bot?.timeCorrelation?.averageTimingOffsetMs || 0}ms</Typography>
                           </Box>
                         </Stack>
                       </Grid>
@@ -293,15 +289,15 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                         <Stack spacing={1}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2">Frames Generated:</Typography>
-                            <Typography variant="body2">{bot.virtualWebcam.framesGenerated.toLocaleString()}</Typography>
+                            <Typography variant="body2">{(bot?.virtualWebcam?.framesGenerated || 0).toLocaleString()}</Typography>
                           </Box>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2">Resolution:</Typography>
-                            <Typography variant="body2">{bot.virtualWebcam.webcamConfig.width}x{bot.virtualWebcam.webcamConfig.height}</Typography>
+                            <Typography variant="body2">{bot?.virtualWebcam?.webcamConfig?.width || 0}x{bot?.virtualWebcam?.webcamConfig?.height || 0}</Typography>
                           </Box>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                             <Typography variant="body2">FPS:</Typography>
-                            <Typography variant="body2">{bot.virtualWebcam.webcamConfig.fps}</Typography>
+                            <Typography variant="body2">{bot?.virtualWebcam?.webcamConfig?.fps || 0}</Typography>
                           </Box>
                         </Stack>
                       </Grid>
@@ -312,16 +308,21 @@ export const ActiveBots: React.FC<ActiveBotsProps> = ({
                           Recent Speaker Activity
                         </Typography>
                         <Box sx={{ maxHeight: 200, overflowY: 'auto' }}>
-                          {bot.captionProcessor.speakerTimeline.slice(-5).map((event, index) => (
-                            <Box key={event.eventId} sx={{ mb: 1, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
+                          {(bot?.captionProcessor?.speakerTimeline || []).slice(-5).map((event, index) => (
+                            <Box key={`speaker-${index}`} sx={{ mb: 1, p: 1, bgcolor: 'background.default', borderRadius: 1 }}>
                               <Typography variant="body2">
-                                <strong>{event.speakerName}</strong> • {event.eventType} • {formatDistanceToNow(new Date(event.timestamp))} ago
+                                <strong>Speaker {event?.speakerId || 'Unknown'}</strong> • {formatDistanceToNow(new Date((event?.start || 0) * 1000))} ago
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
-                                Confidence: {(event.confidence * 100).toFixed(1)}%
+                                Duration: {((event?.end || 0) - (event?.start || 0)).toFixed(1)}s
                               </Typography>
                             </Box>
                           ))}
+                          {(!bot?.captionProcessor?.speakerTimeline || bot.captionProcessor.speakerTimeline.length === 0) && (
+                            <Typography variant="caption" color="text.secondary">
+                              No speaker activity recorded
+                            </Typography>
+                          )}
                         </Box>
                       </Grid>
                     </Grid>

@@ -23,7 +23,6 @@ import {
   CheckCircle,
   Error,
   Analytics,
-  Translate,
   Settings,
   ArrowForward,
   Assessment,
@@ -40,15 +39,15 @@ import { LoadingScreen } from '@/components/ui/LoadingScreen';
 // Dashboard widgets
 const SystemHealthWidget: React.FC = () => {
   const { data: healthData, isLoading } = useGetSystemHealthQuery();
-  const { serviceHealth, performance } = useAppSelector(state => state.system);
+  const { performance } = useAppSelector(state => state.system);
 
   if (isLoading) return <LoadingScreen variant="minimal" size="small" />;
 
   // Use API data directly if available, otherwise fall back to Redux state
-  const apiData = healthData;
-  const overallStatus = apiData?.status || 'unknown';
-  const services = apiData?.services || {};
-  const performanceData = apiData?.performance || performance;
+  const apiData = healthData?.data || healthData;
+  const overallStatus = (apiData as any)?.status || 'unknown';
+  const services = (apiData as any)?.services || {};
+  const performanceData = (apiData as any)?.performance || performance;
   
   const statusColor = overallStatus === 'healthy' ? 'success' : 
                      overallStatus === 'degraded' ? 'warning' : 'error';

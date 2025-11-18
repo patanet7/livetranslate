@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from enum import Enum
 import time
 import re
-from pathlib import Path
 
 # Browser automation imports
 try:
@@ -21,7 +20,6 @@ try:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options as ChromeOptions
-    from selenium.webdriver.chrome.service import Service as ChromeService
     from selenium.common.exceptions import TimeoutException, NoSuchElementException
     SELENIUM_AVAILABLE = True
 except ImportError:
@@ -202,7 +200,7 @@ class GoogleMeetAutomation:
                 try:
                     if selector.startswith("span:contains") or selector.startswith("button:contains"):
                         # Handle text-based selectors
-                        elements = self.driver.find_elements(By.XPATH, f"//*[contains(text(), 'Join now')]")
+                        elements = self.driver.find_elements(By.XPATH, "//*[contains(text(), 'Join now')]")
                         if elements:
                             elements[0].click()
                             logger.info("Clicked join button via text")

@@ -18,22 +18,20 @@ Ensures all components have consistent configuration and provides:
 import asyncio
 import json
 import logging
-import time
 import hashlib
 import copy
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List, Callable, Union, Tuple
+from datetime import datetime
+from typing import Dict, Any, Optional, List, Callable
 from dataclasses import asdict
 from enum import Enum
 import aiohttp
 from pathlib import Path
 import threading
-from collections import defaultdict, deque
+from collections import deque
 
 from .models import AudioChunkingConfig
 from .whisper_compatibility import (
     WhisperCompatibilityManager, 
-    WhisperServiceConfig,
     get_frontend_compatible_config,
     CONFIGURATION_PRESETS
 )
@@ -706,7 +704,7 @@ class ConfigurationSyncManager:
         
         try:
             # Send configuration updates to whisper service
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession():
                 # Note: Whisper service may need restart for some config changes
                 # For now, we'll update our local cache and notify
                 

@@ -4,48 +4,21 @@ Shared components for audio router modules
 Common imports, utilities, and configurations used across all audio router components.
 """
 
-import asyncio
-import json
 import logging
-import time
-from typing import Optional, Dict, Any
-from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
-from fastapi.responses import StreamingResponse, FileResponse
-from pydantic import ValidationError
+from fastapi import APIRouter
 
 # Model imports
-from models.audio import (
-    AudioProcessingRequest,
-    AudioProcessingResponse,
-    AudioConfiguration,
-    AudioStats,
-    ProcessingStage,
-    ProcessingQuality,
-)
 
 # Dependency imports
-from dependencies import (
-    get_config_manager,
-    get_health_monitor,
-    get_audio_service_client,
-    get_translation_service_client,
-    get_audio_coordinator,
-    get_config_sync_manager,
-)
 
 # Utility imports
-from utils.audio_processing import AudioProcessor
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
 from utils.audio_errors import (
-    AudioProcessingBaseError, AudioFormatError, AudioCorruptionError, 
-    AudioProcessingError, ServiceUnavailableError, ValidationError, 
-    ConfigurationError, NetworkError, TimeoutError,
     CircuitBreaker, RetryManager, RetryConfig,
     FormatRecoveryStrategy, ServiceRecoveryStrategy,
-    ErrorLogger, error_boundary, default_circuit_breaker, default_retry_manager
+    ErrorLogger
 )
 
 # Shared logger

@@ -10,7 +10,26 @@ Preset management endpoints including:
 - Preset comparison (/presets/compare/{preset1}/{preset2})
 """
 
-from ._shared import *
+import numpy as np
+from datetime import datetime, timedelta
+from typing import Dict, Optional, Any, List
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_audio_router,
+    logger,
+    error_boundary,
+    format_recovery,
+    service_recovery
+)
+from models.audio import AudioConfiguration
+from dependencies import get_config_manager, get_audio_coordinator
+from utils.audio_errors import (
+    ValidationError,
+    AudioProcessingError,
+    AudioProcessingBaseError
+)
 
 # Create router for audio presets
 router = create_audio_router()

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -7,7 +7,6 @@ import {
   Tabs,
   Tab,
   Alert,
-  Fade,
   Button,
   Card,
   CardContent,
@@ -19,17 +18,7 @@ import {
   Stack,
 } from '@mui/material';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { 
-  setAudioDevices, 
-  setVisualizationData,
-  addProcessingLog,
-  setAudioQualityMetrics
-} from '@/store/slices/audioSlice';
-import { 
-  calculateMeetingAudioLevel, 
-  getMeetingAudioQuality, 
-  getDisplayLevel
-} from '@/utils/audioLevelCalculation';
+import { addProcessingLog } from '@/store/slices/audioSlice';
 import { RecordingControls } from './components/RecordingControls';
 import { AudioConfiguration } from './components/AudioConfiguration';
 import { AudioVisualizer } from './components/AudioVisualizer';
@@ -37,46 +26,19 @@ import { PipelineProcessing } from './components/PipelineProcessing';
 import { ProcessingPresets } from './components/ProcessingPresets';
 import { ActivityLogs } from './components/ActivityLogs';
 import { useAudioProcessing } from '@/hooks/useAudioProcessing';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`audio-testing-tabpanel-${index}`}
-      aria-labelledby={`audio-testing-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Fade in={true} timeout={300}>
-          <Box sx={{ py: 3 }}>
-            {children}
-          </Box>
-        </Fade>
-      )}
-    </div>
-  );
-}
+import { useAudioDevices } from '@/hooks/useAudioDevices';
+import { useAudioVisualization } from '@/hooks/useAudioVisualization';
+import { TabPanel } from '@/components/ui';
+import { DEFAULT_TARGET_LANGUAGES } from '@/constants/defaultConfig';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 
 const AudioTesting: React.FC = () => {
   const dispatch = useAppDispatch();
   const { recording, visualization, stages, config } = useAppSelector(state => state.audio);
   const [tabValue, setTabValue] = useState(0);
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
   const [translationResults, setTranslationResults] = useState<any>(null);
   const [transcriptionResult, setTranscriptionResult] = useState<any>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
 
   const {
     startRecording,
@@ -95,146 +57,27 @@ const AudioTesting: React.FC = () => {
     processingProgress
   } = useAudioProcessing();
 
-  // Initialize audio devices on mount
-  useEffect(() => {
-    const initializeAudioDevices = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioDevices = devices
-          .filter(device => device.kind === 'audioinput')
-          .map(device => ({
-            deviceId: device.deviceId,
-            label: device.label || `Microphone ${device.deviceId.substr(0, 8)}`,
-            kind: device.kind as 'audioinput',
-            groupId: device.groupId || ''
-          }));
-        
-        dispatch(setAudioDevices(audioDevices));
-        dispatch(addProcessingLog({
-          level: 'INFO',
-          message: `Found ${audioDevices.length} audio input devices`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to load audio devices: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
+  // Initialize audio devices
+  useAudioDevices();
 
-    initializeAudioDevices();
-  }, [dispatch]);
+  // Compute audio constraints based on config
+  const audioConstraints = useMemo(() => ({
+    deviceId: config.deviceId || undefined,
+    sampleRate: config.sampleRate,
+    channelCount: 1,
+    echoCancellation: config.rawAudio ? false : config.echoCancellation,
+    noiseSuppression: config.rawAudio ? false : config.noiseSuppression,
+    autoGainControl: config.rawAudio ? false : config.autoGainControl,
+  }), [config.deviceId, config.sampleRate, config.echoCancellation, config.noiseSuppression, config.autoGainControl, config.rawAudio]);
 
-  // Initialize audio context and visualization
-  useEffect(() => {
-    const initializeAudioContext = async () => {
-      try {
-        // ✅ Use same device constraints as recording
-        const constraints = {
-          audio: {
-            deviceId: config.deviceId || undefined,
-            sampleRate: config.sampleRate,
-            channelCount: 1,
-            echoCancellation: config.rawAudio ? false : config.echoCancellation,
-            noiseSuppression: config.rawAudio ? false : config.noiseSuppression,
-            autoGainControl: config.rawAudio ? false : config.autoGainControl,
-          }
-        };
+  // Initialize audio visualization with shared hook
+  useAudioVisualization({
+    sampleRate: config.sampleRate,
+    customConstraints: audioConstraints,
+    enableLogging: true
+  });
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        // Clean up previous audio context if it exists
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close();
-        }
-        
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 2048;
-        microphoneRef.current.connect(analyserRef.current);
-
-        startVisualization();
-        
-        dispatch(addProcessingLog({
-          level: 'SUCCESS',
-          message: `Audio visualization initialized with device: ${config.deviceId || 'default'}`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to initialize audio context: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    initializeAudioContext();
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-      }
-    };
-  }, [dispatch, config.deviceId, config.sampleRate, config.echoCancellation, config.noiseSuppression, config.autoGainControl, config.rawAudio]);
-
-  const startVisualization = useCallback(() => {
-    if (!analyserRef.current) return;
-
-    const updateVisualization = () => {
-      if (!analyserRef.current) return;
-
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const frequencyData = new Uint8Array(bufferLength);
-      analyserRef.current.getByteFrequencyData(frequencyData);
-
-      const timeData = new Uint8Array(analyserRef.current.fftSize);
-      analyserRef.current.getByteTimeDomainData(timeData);
-
-      // ✅ Calculate professional meeting-optimized audio metrics
-      const audioMetrics = calculateMeetingAudioLevel(timeData, frequencyData, config.sampleRate);
-      const qualityAssessment = getMeetingAudioQuality(audioMetrics);
-      const displayLevel = getDisplayLevel(audioMetrics);
-
-      // Update Redux store with enhanced visualization data
-      dispatch(setVisualizationData({
-        frequencyData: Array.from(frequencyData),
-        timeData: Array.from(timeData),
-        audioLevel: displayLevel
-      }));
-
-      // Update comprehensive audio quality metrics
-      dispatch(setAudioQualityMetrics({
-        rmsLevel: audioMetrics.rmsDb,
-        peakLevel: audioMetrics.peakDb,
-        signalToNoise: audioMetrics.signalToNoise,
-        frequency: config.sampleRate,
-        clipping: audioMetrics.clipping * 100, // Convert to percentage
-        // Meeting-specific metrics
-        voiceActivity: audioMetrics.voiceActivity,
-        spectralCentroid: audioMetrics.spectralCentroid,
-        dynamicRange: audioMetrics.dynamicRange,
-        speechClarity: audioMetrics.speechClarity,
-        backgroundNoise: audioMetrics.backgroundNoise,
-        qualityAssessment: qualityAssessment.quality,
-        qualityScore: qualityAssessment.score,
-        recommendations: qualityAssessment.recommendations,
-        issues: qualityAssessment.issues
-      }));
-
-      animationFrameRef.current = requestAnimationFrame(updateVisualization);
-    };
-
-    updateVisualization();
-  }, [dispatch, config.sampleRate]);
-
-  const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = useCallback((__event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   }, []);
 
@@ -432,7 +275,7 @@ const AudioTesting: React.FC = () => {
           </Tabs>
         </Box>
 
-        <TabPanel value={tabValue} index={0}>
+        <TabPanel value={tabValue} index={0} idPrefix="audio-testing">
           <Grid container spacing={3}>
             <Grid item xs={12} lg={8}>
               <Box sx={{ mb: 3 }}>
@@ -476,7 +319,7 @@ const AudioTesting: React.FC = () => {
           </Grid>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={1}>
+        <TabPanel value={tabValue} index={1} idPrefix="audio-testing">
           <PipelineProcessing
             onRunPipeline={handleRunPipeline}
             onRunStepByStep={runStepByStep}
@@ -489,7 +332,7 @@ const AudioTesting: React.FC = () => {
           />
         </TabPanel>
 
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={2} idPrefix="audio-testing">
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <Card sx={{ mb: 3 }}>
@@ -505,16 +348,7 @@ const AudioTesting: React.FC = () => {
                     Target Languages:
                   </Typography>
                   <FormGroup row>
-                    {[
-                      { code: 'es', name: 'Spanish' },
-                      { code: 'fr', name: 'French' },
-                      { code: 'de', name: 'German' },
-                      { code: 'it', name: 'Italian' },
-                      { code: 'pt', name: 'Portuguese' },
-                      { code: 'ja', name: 'Japanese' },
-                      { code: 'ko', name: 'Korean' },
-                      { code: 'zh', name: 'Chinese' },
-                    ].map((lang) => (
+                    {SUPPORTED_LANGUAGES.slice(1, 9).map((lang) => (
                       <FormControlLabel
                         key={lang.code}
                         control={
@@ -659,11 +493,11 @@ const AudioTesting: React.FC = () => {
           </Grid>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={3}>
+        <TabPanel value={tabValue} index={3} idPrefix="audio-testing">
           <ProcessingPresets />
         </TabPanel>
 
-        <TabPanel value={tabValue} index={4}>
+        <TabPanel value={tabValue} index={4} idPrefix="audio-testing">
           <ActivityLogs />
         </TabPanel>
       </Paper>

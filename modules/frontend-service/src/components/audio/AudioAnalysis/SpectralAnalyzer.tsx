@@ -12,7 +12,6 @@ import {
   FormControlLabel,
   Chip,
   IconButton,
-  Tooltip,
   Alert,
   Slider,
   Grid,
@@ -24,18 +23,12 @@ import {
 } from '@mui/material';
 import {
   ShowChart,
-  Timeline,
   Download,
-  Settings,
   ExpandMore,
-  Equalizer,
-  Tune,
   Analytics,
-  WaveformIcon,
-  BarChart,
 } from '@mui/icons-material';
 
-interface SpectralAnalyzerProps {
+export interface SpectralAnalyzerProps {
   audioData?: {
     fft_data: Float32Array;
     frequency_analysis: {
@@ -117,7 +110,7 @@ export const SpectralAnalyzer: React.FC<SpectralAnalyzerProps> = ({
   
   const [analysisView, setAnalysisView] = useState<AnalysisView>('spectrum');
   const [spectralDisplay, setSpectralDisplay] = useState<SpectralDisplay>('log_power');
-  const [frequencyRange, setFrequencyRange] = useState<[number, number]>([20, 8000]);
+  const [frequencyRange] = useState<[number, number]>([20, 8000]);
   const [smoothingFactor, setSmoothingFactor] = useState(0.8);
   const [showPeaks, setShowPeaks] = useState(true);
   const [showFormants, setShowFormants] = useState(true);
@@ -250,7 +243,7 @@ export const SpectralAnalyzer: React.FC<SpectralAnalyzerProps> = ({
     if (!ctx) return;
 
     const { width, height: canvasHeight } = canvas;
-    const { fft_data, frequency_analysis, metadata } = audioData;
+    const { fft_data, metadata } = audioData;
     const { sample_rate } = metadata;
     
     // Clear canvas
@@ -291,14 +284,10 @@ export const SpectralAnalyzer: React.FC<SpectralAnalyzerProps> = ({
           break;
         case 'mel_scale':
           // Mel scale conversion
-          const freq = i * binWidth;
-          const mel = 2595 * Math.log10(1 + freq / 700);
           processedData[i - startBin] = value;
           break;
         case 'bark_scale':
-          // Bark scale conversion  
-          const freqBark = i * binWidth;
-          const bark = 13 * Math.atan(0.00076 * freqBark) + 3.5 * Math.atan(Math.pow(freqBark / 7500, 2));
+          // Bark scale conversion
           processedData[i - startBin] = value;
           break;
       }
@@ -363,7 +352,7 @@ export const SpectralAnalyzer: React.FC<SpectralAnalyzerProps> = ({
     ctx.fill();
   };
 
-  const drawFormantView = (ctx: CanvasRenderingContext2D, data: Float32Array, width: number, height: number, minValue: number, range: number, binWidth: number) => {
+  const drawFormantView = (ctx: CanvasRenderingContext2D, data: Float32Array, width: number, height: number, minValue: number, range: number, _binWidth: number) => {
     // Draw spectrum background
     drawSpectrumView(ctx, data, width, height, minValue, range);
     
@@ -395,7 +384,7 @@ export const SpectralAnalyzer: React.FC<SpectralAnalyzerProps> = ({
     }
   };
 
-  const drawHarmonicView = (ctx: CanvasRenderingContext2D, data: Float32Array, width: number, height: number, minValue: number, range: number, binWidth: number) => {
+  const drawHarmonicView = (ctx: CanvasRenderingContext2D, data: Float32Array, width: number, height: number, minValue: number, range: number, _binWidth: number) => {
     // Draw spectrum background
     drawSpectrumView(ctx, data, width, height, minValue, range);
     
@@ -583,12 +572,12 @@ export const SpectralAnalyzer: React.FC<SpectralAnalyzerProps> = ({
     return harmonics.length > 0 ? inharmonicity / harmonics.length : 0;
   };
 
-  const calculateSpectralKurtosis = (spectrum: Float32Array, centroid: number, spread: number): number => {
+  const calculateSpectralKurtosis = (_spectrum: Float32Array, _centroid: number, _spread: number): number => {
     // Simplified spectral kurtosis calculation
     return 0; // Would require more complex implementation
   };
 
-  const calculateSpectralSkewness = (spectrum: Float32Array, centroid: number, spread: number): number => {
+  const calculateSpectralSkewness = (_spectrum: Float32Array, _centroid: number, _spread: number): number => {
     // Simplified spectral skewness calculation
     return 0; // Would require more complex implementation
   };

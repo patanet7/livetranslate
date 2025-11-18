@@ -8,7 +8,6 @@ or as part of the complete modular audio processing pipeline.
 """
 
 import numpy as np
-import scipy.signal
 from typing import Dict, Any, Tuple
 from ..stage_components import BaseAudioStage
 from ..config import SpectralDenoisingConfig, SpectralDenoisingMode

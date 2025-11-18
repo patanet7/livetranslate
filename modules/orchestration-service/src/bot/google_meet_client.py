@@ -18,16 +18,12 @@ API Documentation: https://developers.google.com/workspace/meet/api
 """
 
 import os
-import sys
 import time
 import logging
 import asyncio
 import json
-from typing import Dict, List, Optional, Any, AsyncGenerator
-from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
-import httpx
-import jwt
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -427,7 +423,7 @@ class GoogleMeetClient:
         self.monitored_spaces: Dict[str, Dict] = {}
         self.active_conferences: Dict[str, Dict] = {}
 
-        logger.info(f"GoogleMeetClient initialized")
+        logger.info("GoogleMeetClient initialized")
         logger.info(f"  Application: {config.application_name}")
         logger.info(f"  API Version: {config.api_version}")
 

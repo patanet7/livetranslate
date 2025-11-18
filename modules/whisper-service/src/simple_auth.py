@@ -10,7 +10,7 @@ import logging
 import time
 import hashlib
 import secrets
-from typing import Dict, Optional, Set
+from typing import Dict, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum

@@ -18,13 +18,7 @@ import {
   Divider,
   Alert,
   Tooltip,
-  Switch,
-  FormControlLabel,
   Slider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,22 +27,10 @@ import {
 import {
   Mic,
   MicOff,
-  PlayArrow,
-  Stop,
   Settings,
-  Analytics,
   VolumeUp,
   VolumeDown,
-  GraphicEq,
-  Timeline,
-  Speed,
-  Memory,
-  NetworkCheck,
-  Warning,
-  CheckCircle,
   Upload,
-  Download,
-  Refresh,
 } from '@mui/icons-material';
 import { usePipelineProcessing } from '@/hooks/usePipelineProcessing';
 import { PipelineData } from './PipelineCanvas';
@@ -56,90 +38,11 @@ import { PipelineData } from './PipelineCanvas';
 interface RealTimeProcessorProps {
   currentPipeline: PipelineData | null;
   onMetricsUpdate?: (metrics: any) => void;
-  onProcessedAudio?: (audio: string) => void;
 }
-
-interface AudioVisualizerProps {
-  audioData?: number[];
-  isActive: boolean;
-  label: string;
-}
-
-const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioData, isActive, label }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  
-  useEffect(() => {
-    if (!canvasRef.current || !audioData) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d')!;
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-    
-    if (!isActive) {
-      ctx.fillStyle = '#424242';
-      ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '12px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('No Signal', width / 2, height / 2);
-      return;
-    }
-    
-    // Draw waveform
-    ctx.strokeStyle = '#4caf50';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    
-    const sliceWidth = width / audioData.length;
-    let x = 0;
-    
-    for (let i = 0; i < audioData.length; i++) {
-      const v = audioData[i] * height / 2;
-      const y = height / 2 + v;
-      
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-      
-      x += sliceWidth;
-    }
-    
-    ctx.stroke();
-    
-    // Draw label
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(5, 5, 60, 20);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(label, 8, 18);
-  }, [audioData, isActive, label]);
-  
-  return (
-    <canvas
-      ref={canvasRef}
-      width={200}
-      height={80}
-      style={{
-        width: '100%',
-        height: '80px',
-        backgroundColor: '#f5f5f5',
-        borderRadius: '4px',
-      }}
-    />
-  );
-};
 
 const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
   currentPipeline,
   onMetricsUpdate,
-  onProcessedAudio,
 }) => {
   const {
     isProcessing,
@@ -151,7 +54,6 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
     startRealtimeProcessing,
     startMicrophoneCapture,
     stopRealtimeProcessing,
-    updateRealtimeConfig,
     processPipeline,
     analyzeFFT,
     analyzeLUFS,
@@ -171,7 +73,6 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   // Audio level monitoring
-  const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>();
 

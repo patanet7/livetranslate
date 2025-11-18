@@ -10,21 +10,18 @@ import {
   Slider,
   Switch,
   FormControlLabel,
-  TextField,
   Select,
   MenuItem,
   FormControl,
   InputLabel,
   Tabs,
   Tab,
-  Divider,
   Alert,
   IconButton,
   Chip,
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
   Tooltip,
   Paper,
   Grid,
@@ -39,10 +36,10 @@ import {
   Settings,
   Speed,
   Memory,
-  BatteryFull,
   Warning,
   CheckCircle,
 } from '@mui/icons-material';
+import ListItemIcon from '@mui/material/ListItemIcon';
 
 interface SettingsPanelProps {
   open: boolean;
@@ -85,11 +82,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState(0);
   const [unsavedChanges, setUnsavedChanges] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [_showAdvanced] = useState(false);
 
   if (!nodeData) return null;
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
@@ -110,13 +107,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   const formatGain = (value: number): string => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(1)}dB`;
-  };
-
-  const getQualityImpact = (param: any): 'positive' | 'negative' | 'neutral' => {
-    // Simple heuristic for quality impact
-    if (param.name.includes('quality') || param.name.includes('enhancement')) return 'positive';
-    if (param.name.includes('reduction') || param.name.includes('compression')) return 'negative';
-    return 'neutral';
   };
 
   const getPerformanceImpact = (param: any): 'low' | 'medium' | 'high' => {

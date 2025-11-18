@@ -37,14 +37,10 @@ import {
   Error,
   Refresh,
   Timer,
-  Assessment,
 } from '@mui/icons-material';
 
 // Import chart components
-import { LineChart, Line, XAxis, YAxis, ResponsiveContainer, AreaChart, Area } from 'recharts';
-
-import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
-import { useAnalytics } from '@/hooks/useAnalytics';
+import { ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 // Types
 interface SystemMetric {
@@ -83,7 +79,6 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   compact = false,
 }) => {
   const theme = useTheme();
-  const audioManager = useUnifiedAudio();
 
   // State
   const [metrics, setMetrics] = useState<SystemMetric[]>([]);
@@ -163,7 +158,7 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   ], []);
 
   // Subscribe to unified analytics service
-  const [analyticsData, setAnalyticsData] = useState<{
+  const [analyticsData] = useState<{
     systemMetrics: any;
     serviceHealth: any[];
     connectionStatus: any;

@@ -6,11 +6,9 @@ Fixed Whisper Service with proper model path handling and fallbacks
 import os
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Union
-import tempfile
+from typing import Dict, List, Optional
 import time
 import numpy as np
-import librosa
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -106,7 +104,7 @@ class ModelManager:
             if available:
                 raise FileNotFoundError(f"Model '{model_name}' not found. Available: {available}")
             else:
-                raise FileNotFoundError(f"No models found. Please download models first.")
+                raise FileNotFoundError("No models found. Please download models first.")
         
         logger.info(f"Loading model: {model_name} from {model_path}")
         

@@ -4,20 +4,15 @@ Pipeline Processing API Router
 Real-time audio pipeline processing endpoints for the Pipeline Studio
 """
 
-import asyncio
 import json
-import logging
 import time
 import uuid
 from typing import Dict, Any, List, Optional
-from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ValidationError
 
 from dependencies import (
-    get_audio_service_client,
     get_audio_coordinator,
     get_config_manager,
 )
@@ -116,10 +111,9 @@ async def process_pipeline(
             )
 
         # Parse metadata
-        metadata_dict = {}
         if metadata:
             try:
-                metadata_dict = json.loads(metadata)
+                json.loads(metadata)
             except json.JSONDecodeError:
                 logger.warning("Invalid metadata JSON, using empty dict")
 
@@ -453,7 +447,7 @@ async def stop_realtime_session(session_id: str):
         if session_data.get("websocket"):
             try:
                 await session_data["websocket"].close()
-            except:
+            except Exception:
                 pass
         
         # Remove session

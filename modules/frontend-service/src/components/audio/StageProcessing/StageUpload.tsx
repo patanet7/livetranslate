@@ -8,19 +8,13 @@ import {
   LinearProgress,
   Alert,
   Chip,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  IconButton,
   Tooltip,
+  IconButton,
 } from '@mui/material';
 import {
   CloudUpload,
   AudioFile,
   PlayArrow,
-  Stop,
-  Settings,
   Info,
 } from '@mui/icons-material';
 import { useDropzone } from 'react-dropzone';
@@ -314,23 +308,12 @@ export const StageUpload: React.FC<StageUploadProps> = ({
         <Button
           fullWidth
           variant="contained"
-          startIcon={isProcessing ? <Stop /> : <PlayArrow />}
+          startIcon={<PlayArrow />}
           onClick={handleUpload}
           disabled={!selectedFile || isProcessing || uploadProgress > 0}
           size="large"
         >
           {isProcessing ? 'Processing...' : `Process through ${stageDisplayName}`}
-        </Button>
-
-        {/* Stage Configuration Link */}
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<Settings />}
-          sx={{ mt: 1 }}
-          size="small"
-        >
-          Configure {stageDisplayName} Parameters
         </Button>
       </CardContent>
     </Card>

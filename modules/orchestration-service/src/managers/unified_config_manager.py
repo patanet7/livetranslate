@@ -14,10 +14,9 @@ Consolidates:
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List, Union, Callable
+from typing import Dict, Any, Optional, List, Callable
 from datetime import datetime
 from pathlib import Path
-import json
 
 # Import specialized configuration managers
 from .config_manager import ConfigManager

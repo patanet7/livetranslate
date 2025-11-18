@@ -5,7 +5,6 @@ Provides security features including request validation, rate limiting, and secu
 """
 
 import logging
-import json
 from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware

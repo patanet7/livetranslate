@@ -11,7 +11,19 @@ Bot analytics and performance monitoring endpoints including:
 - Quality analytics (/analytics/quality)
 """
 
-from ._shared import *
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_bot_router,
+    BotAnalyticsResponse,
+    logger,
+    get_error_response,
+    validate_bot_exists
+)
+from dependencies import get_bot_manager
 
 # Create router for bot analytics
 router = create_bot_router()

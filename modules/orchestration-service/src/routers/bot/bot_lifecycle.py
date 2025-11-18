@@ -9,7 +9,21 @@ Bot lifecycle endpoints including:
 - Bot termination (/{bot_id}/terminate)
 """
 
-from ._shared import *
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_bot_router,
+    BotResponse,
+    BotListResponse,
+    logger,
+    get_error_response,
+    validate_bot_exists
+)
+from models.bot import BotSpawnRequest
+from dependencies import get_bot_manager
 
 # Create router for bot lifecycle management
 router = create_bot_router()
@@ -217,7 +231,7 @@ async def get_bot_details(
         return BotResponse(
             bot_id=bot_instance.bot_id,
             status=bot_instance.status,
-            message=f"Bot details retrieved",
+            message="Bot details retrieved",
             meeting_id=bot_instance.meeting_id,
             meeting_url=bot_instance.meeting_url,
             bot_type=bot_instance.bot_type,

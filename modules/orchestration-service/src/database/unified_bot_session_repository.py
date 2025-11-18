@@ -15,18 +15,16 @@ This unified approach reduces complexity while maintaining all functionality
 through a clean repository pattern with specialized method groups.
 """
 
-import asyncio
 import logging
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 from pathlib import Path
-import json
 import uuid
 
 from .database import DatabaseManager
 from .models import (
     BotSession, AudioFile, Transcript, Translation, 
-    SpeakerCorrelation, ProcessingMetrics
+    SpeakerCorrelation
 )
 
 logger = logging.getLogger(__name__)
