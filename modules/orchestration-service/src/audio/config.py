@@ -17,20 +17,16 @@ Features:
 """
 
 import asyncio
-import json
 import logging
 import os
-import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Union, Callable
+from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
-from pydantic import BaseModel, Field, validator, root_validator
 from enum import Enum
 import yaml
 import numpy as np
 
-from .models import AudioChunkingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -747,7 +743,6 @@ class AudioConfigurationManager:
         auto_reload: bool = False
     ):
         # Default to local config file within the service directory
-        import os
         service_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up from src/audio to orchestration-service
         default_config_path = os.path.join(service_dir, "config", "audio_config.yaml")
         self.config_file_path = config_file_path or default_config_path
@@ -902,7 +897,7 @@ class AudioConfigurationManager:
                         self.default_config.update_from_dict(audio_config)
                         logger.info(f"Loaded configuration from {config_path}")
                     else:
-                        logger.info(f"Empty configuration file, using defaults")
+                        logger.info("Empty configuration file, using defaults")
                         
                 except yaml.YAMLError as yaml_e:
                     logger.error(f"YAML parsing error in {config_path}: {yaml_e}")
@@ -1176,11 +1171,11 @@ class AudioConfigurationManager:
     def validate_config_updates(self, config_updates: Dict[str, Any]) -> List[str]:
         """Validate configuration updates and return list of errors."""
         errors = []
-        schema = self.get_config_schema()
-        
+        _ = self.get_config_schema()
+
         # TODO: Implement comprehensive validation
         # This would validate each field against the schema
-        
+
         return errors
 
 

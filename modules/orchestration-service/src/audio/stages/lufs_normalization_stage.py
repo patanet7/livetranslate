@@ -11,10 +11,10 @@ and professional audio applications.
 
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple, Deque
+from typing import Dict, Any, Tuple
 from collections import deque
 from ..stage_components import BaseAudioStage
-from ..config import LUFSNormalizationConfig, LUFSNormalizationMode
+from ..config import LUFSNormalizationConfig
 
 
 class LUFSNormalizationStage(BaseAudioStage):
@@ -279,17 +279,16 @@ class LUFSNormalizationStage(BaseAudioStage):
         if max_peak > peak_threshold_linear:
             # Apply limiting
             limiting_ratio = peak_threshold_linear / max_peak
-            limited_audio = audio_data * limiting_ratio
-            
+
             # Soft knee limiting for smoother results
             knee_width = 0.1  # 10% soft knee
             soft_knee_factor = np.where(
                 peaks > peak_threshold_linear * (1 - knee_width),
-                limiting_ratio + (1 - limiting_ratio) * 
+                limiting_ratio + (1 - limiting_ratio) *
                 np.maximum(0, (peak_threshold_linear - peaks) / (peak_threshold_linear * knee_width)),
                 1.0
             )
-            
+
             return audio_data * soft_knee_factor
         
         return audio_data

@@ -5,7 +5,7 @@
  * Provides centralized audio processing functionality with standardized patterns
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { useAppDispatch } from '@/store';
 import { addNotification } from '@/store/slices/uiSlice';
 import { addProcessingLog } from '@/store/slices/audioSlice';
@@ -196,16 +196,8 @@ export const useUnifiedAudio = () => {
     }
   }, [processAudio, dispatch]);
 
-  const transcribeWithModel = useCallback(async (
-    audioBlob: Blob,
-    modelName: string,
-    options: TranscriptionOptions = {}
-  ): Promise<any> => {
-    return transcribeAudio(audioBlob, { ...options, model: modelName });
-  }, [transcribeAudio]);
-
   // ============================================================================
-  // Translation Services  
+  // Translation Services
   // ============================================================================
 
   const translateTextContent = useCallback(async (
@@ -267,57 +259,6 @@ export const useUnifiedAudio = () => {
   }, [translateTextContent]);
 
   // ============================================================================
-  // Complete Audio Processing Workflows
-  // ============================================================================
-
-  const processAudioComplete = useCallback(async (
-    audioBlob: Blob,
-    config: AudioProcessingConfig = {}
-  ): Promise<AudioProcessingResult> => {
-    dispatch(addProcessingLog({
-      level: 'INFO',
-      message: 'Starting complete audio processing workflow...',
-      timestamp: Date.now()
-    }));
-
-    try {
-      // Use the unified upload endpoint which handles all processing
-      const result = await uploadAndProcessAudio(audioBlob, config);
-      
-      dispatch(addProcessingLog({
-        level: 'SUCCESS',
-        message: 'Complete audio processing workflow finished successfully',
-        timestamp: Date.now()
-      }));
-
-      return result;
-
-    } catch (error) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Complete audio processing workflow failed: ${error}`,
-        timestamp: Date.now()
-      }));
-      throw error;
-    }
-  }, [uploadAndProcessAudio, dispatch]);
-
-  const processAudioWithTranscriptionAndTranslation = useCallback(async (
-    audioBlob: Blob,
-    targetLanguages: string[],
-    config: Partial<AudioProcessingConfig> = {}
-  ): Promise<AudioProcessingResult> => {
-    const fullConfig: AudioProcessingConfig = {
-      enableTranscription: true,
-      enableTranslation: true,
-      targetLanguages,
-      ...config
-    };
-
-    return processAudioComplete(audioBlob, fullConfig);
-  }, [processAudioComplete]);
-
-  // ============================================================================
   // Service Health and Status
   // ============================================================================
 
@@ -333,12 +274,9 @@ export const useUnifiedAudio = () => {
   return {
     // Core audio processing
     uploadAndProcessAudio,
-    processAudioComplete,
-    processAudioWithTranscriptionAndTranslation,
 
     // Transcription
     transcribeAudio,
-    transcribeWithModel,
 
     // Translation
     translateText: translateTextContent,

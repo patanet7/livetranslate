@@ -15,8 +15,7 @@ import json
 import logging
 import requests
 import websockets
-import time
-from typing import Dict, List, Optional, Callable
+from typing import Dict
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -212,7 +211,7 @@ class ServiceIntegration:
             )
             
             if response.status_code == 200:
-                logger.info(f"📤 Sent to speaker service for post-processing")
+                logger.info("📤 Sent to speaker service for post-processing")
                 
                 # Send final result to frontend
                 await self.send_to_frontend(processed_data)
@@ -260,7 +259,7 @@ class ServiceIntegration:
             # Send via WebSocket if available, otherwise REST
             if "frontend" in self.ws_connections:
                 await self.ws_connections["frontend"].send(json.dumps(frontend_data))
-                logger.info(f"📡 Sent to frontend via WebSocket")
+                logger.info("📡 Sent to frontend via WebSocket")
             else:
                 # Fallback to REST API
                 response = requests.post(
@@ -270,7 +269,7 @@ class ServiceIntegration:
                 )
                 
                 if response.status_code == 200:
-                    logger.info(f"📡 Sent to frontend via REST")
+                    logger.info("📡 Sent to frontend via REST")
                 else:
                     logger.warning(f"Frontend REST failed: HTTP {response.status_code}")
             
@@ -288,7 +287,7 @@ class ServiceIntegration:
             
             async with websockets.connect(whisper_ws_url) as websocket:
                 self.ws_connections["whisper"] = websocket
-                logger.info(f"✅ Connected to Whisper service")
+                logger.info("✅ Connected to Whisper service")
                 
                 async for message in websocket:
                     try:
@@ -321,7 +320,7 @@ class ServiceIntegration:
             
             async with websockets.connect(frontend_ws_url) as websocket:
                 self.ws_connections["frontend"] = websocket
-                logger.info(f"✅ Connected to Frontend service")
+                logger.info("✅ Connected to Frontend service")
                 
                 async for message in websocket:
                     try:

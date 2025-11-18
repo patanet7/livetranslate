@@ -8,7 +8,7 @@ Provides structured logging setup for the orchestration service.
 import logging
 import sys
 import json
-from typing import Dict, Any, Optional
+from typing import Optional
 from datetime import datetime
 import threading
 

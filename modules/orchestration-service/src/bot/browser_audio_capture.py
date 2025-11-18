@@ -15,19 +15,16 @@ import numpy as np
 import io
 import wave
 import subprocess
-import tempfile
 import os
 
 try:
     import sounddevice as sd
-    import soundfile as sf
     SOUNDDEVICE_AVAILABLE = True
 except ImportError:
     SOUNDDEVICE_AVAILABLE = False
 
 try:
     from selenium import webdriver
-    from selenium.webdriver.common.by import By
     SELENIUM_AVAILABLE = True
 except ImportError:
     SELENIUM_AVAILABLE = False
@@ -112,7 +109,7 @@ class BrowserAudioCapture:
             elif audio_method == "system_default":
                 await self._setup_system_audio_capture()
             else:
-                raise RuntimeError(f"No suitable audio capture method available")
+                raise RuntimeError("No suitable audio capture method available")
             
             logger.info("Browser audio capture initialized successfully")
             
@@ -401,11 +398,11 @@ class BrowserAudioCapture:
             # Check for PulseAudio monitor (Linux)
             elif os.name == 'posix':
                 try:
-                    result = subprocess.run(['pactl', 'list', 'sources'], 
+                    result = subprocess.run(['pactl', 'list', 'sources'],
                                           capture_output=True, text=True, timeout=5)
                     if 'monitor' in result.stdout.lower():
                         return True
-                except:
+                except Exception:
                     pass
             
             return False

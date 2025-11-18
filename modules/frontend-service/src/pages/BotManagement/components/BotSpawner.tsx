@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { MeetingRequest } from '@/types';
 import { useBotManager } from '@/hooks/useBotManager';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 
 interface BotSpawnerProps {
   onBotSpawned?: (botId: string) => void;
@@ -43,18 +44,7 @@ export const BotSpawner: React.FC<BotSpawnerProps> = ({ onBotSpawned, onError })
     priority: 'medium',
   });
 
-  const [availableLanguages] = useState([
-    { code: 'en', name: 'English' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'it', name: 'Italian' },
-    { code: 'pt', name: 'Portuguese' },
-    { code: 'ja', name: 'Japanese' },
-    { code: 'ko', name: 'Korean' },
-    { code: 'zh', name: 'Chinese' },
-    { code: 'ru', name: 'Russian' },
-  ]);
+  const availableLanguages = SUPPORTED_LANGUAGES;
 
   const handleInputChange = (field: keyof MeetingRequest, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));

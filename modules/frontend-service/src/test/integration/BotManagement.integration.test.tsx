@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import BotManagement from '@/pages/BotManagement';
 import {
@@ -338,10 +338,10 @@ describe('BotManagement Integration', () => {
         download: '',
         click: mockClick,
       };
-      
+
       vi.spyOn(document, 'createElement').mockReturnValue(mockAnchor as any);
-      vi.spyOn(document.body, 'appendChild').mockImplementation(vi.fn());
-      vi.spyOn(document.body, 'removeChild').mockImplementation(vi.fn());
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => mockAnchor as any);
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => mockAnchor as any);
 
       renderBotManagement();
 

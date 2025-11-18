@@ -3,14 +3,46 @@ Audio Core Processing Router
 
 Main audio processing endpoints including:
 - Audio processing (/process)
-- File upload (/upload) 
+- File upload (/upload)
 - Audio streaming (/stream)
 - Transcription (/transcribe)
 - Health monitoring (/health)
 - Model management (/models)
 """
 
-from ._shared import *
+import json
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+from fastapi import Depends, UploadFile, File, Form, HTTPException, status
+
+from ._shared import (
+    create_audio_router,
+    logger,
+    format_recovery,
+    service_recovery,
+    audio_service_circuit_breaker,
+    retry_manager
+)
+from models.audio import AudioProcessingRequest, AudioProcessingResponse, AudioStats
+from dependencies import (
+    get_config_manager,
+    get_audio_service_client,
+    get_audio_coordinator,
+    get_config_sync_manager,
+    get_health_monitor
+)
+from utils.audio_errors import (
+    error_boundary,
+    AudioProcessingError,
+    AudioProcessingBaseError,
+    ValidationError,
+    AudioFormatError,
+    AudioCorruptionError,
+    NetworkError,
+    ServiceUnavailableError,
+    ConfigurationError
+)
 
 # Create router for core audio processing
 router = create_audio_router()

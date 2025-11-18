@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Set, Optional, Any, Callable, List
 from dataclasses import dataclass, field
 from enum import Enum
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)

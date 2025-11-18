@@ -7,14 +7,12 @@ circuit breaker patterns, retry mechanisms, and error recovery strategies.
 
 import asyncio
 import logging
-import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Dict, Any, Optional, List, Callable, Union
-from dataclasses import dataclass, field
+from typing import Dict, Any, Optional, List, Callable
+from dataclasses import dataclass
 from contextlib import asynccontextmanager
-import json
 
 
 logger = logging.getLogger(__name__)

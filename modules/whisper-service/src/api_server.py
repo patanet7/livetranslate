@@ -13,9 +13,8 @@ import io
 import tempfile
 import time
 from typing import Dict, Any, Optional
-import json
 from datetime import datetime
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 import uuid
@@ -26,37 +25,31 @@ from pydub import AudioSegment
 from pydub.utils import which
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from queue import Queue, LifoQueue, PriorityQueue
+from queue import PriorityQueue, Full, Empty
 import weakref
 from collections import deque
+from pathlib import Path
+import pydub.utils
 
 from whisper_service import WhisperService, TranscriptionRequest, create_whisper_service
 from connection_manager import connection_manager, ConnectionState
 from error_handler import (
     error_handler, ErrorCategory, ErrorSeverity, ErrorInfo,
-    create_connection_error, create_audio_error, create_model_error,
-    create_validation_error, create_session_error, create_system_error
+    create_connection_error, create_audio_error, create_validation_error, create_system_error
 )
 from heartbeat_manager import heartbeat_manager, HeartbeatState
 from message_router import message_router, MessageType, RoutePermission, MessageContext
-from simple_auth import simple_auth, auth_middleware, UserRole
-from reconnection_manager import reconnection_manager, SessionState, BufferedMessage
+from simple_auth import simple_auth, auth_middleware
+from reconnection_manager import reconnection_manager
 from utils.audio_errors import (
-    WhisperProcessingBaseError, AudioFormatError, AudioCorruptionError,
-    ModelLoadingError, ModelInferenceError, ValidationError as WhisperValidationError,
-    ConfigurationError, MemoryError, HardwareError, TimeoutError as WhisperTimeoutError,
-    CircuitBreaker, ErrorRecoveryStrategy, ModelRecoveryStrategy, FormatRecoveryStrategy,
-    ErrorLogger, error_boundary, default_circuit_breaker, default_error_logger,
-    model_recovery, format_recovery
+    WhisperProcessingBaseError, AudioCorruptionError,
+    ModelLoadingError, ValidationError as WhisperValidationError,
+    MemoryError, HardwareError, error_boundary, default_circuit_breaker, model_recovery, format_recovery
 )
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Configure pydub to use local ffmpeg
-from pathlib import Path
-import pydub.utils
 
 # Set up ffmpeg path for pydub
 ffmpeg_path = Path(__file__).parent.parent / "ffmpeg" / "bin"
@@ -137,7 +130,7 @@ class MessageQueue:
             if priority <= 3:  # High priority
                 try:
                     self.priority_queue.put_nowait((priority, message))
-                except:
+                except Full:
                     pass  # Queue full, skip
     
     def get_batch(self, timeout: float = 1.0) -> list:
@@ -149,7 +142,7 @@ class MessageQueue:
                 try:
                     _, message = self.priority_queue.get_nowait()
                     batch.append(message)
-                except:
+                except Empty:
                     break
             
             # Fill remaining batch with regular messages
@@ -660,7 +653,7 @@ async def transcribe_with_model(model_name: str):
                         result.confidence_score = max(0.2, result.confidence_score * 0.5)
                         logger.info(f"[WHISPER] Adjusted confidence to {result.confidence_score:.3f} due to repetition")
             
-            logger.info(f"[WHISPER] ✅ Transcription completed successfully")
+            logger.info("[WHISPER] ✅ Transcription completed successfully")
             logger.info(f"[WHISPER] 📝 Result: '{result.text}'")
             logger.info(f"[WHISPER] ⏱️ Processing time: {processing_time:.2f}s")
             logger.info(f"[WHISPER] 🧠 Model used: {result.model_used}")
@@ -1344,10 +1337,10 @@ def handle_connection_lost(connection_id: str):
     
     # Handle session disconnection for reconnection support
     session_info = reconnection_manager.handle_disconnection(connection_id)
-    
+
     # Remove from connection manager
-    connection_info = connection_manager.remove_connection(connection_id)
-    
+    connection_manager.remove_connection(connection_id)
+
     # Remove from message router
     message_router.cleanup_connection(connection_id)
     
@@ -2249,7 +2242,7 @@ def _calculate_audio_quality_metrics(audio: np.ndarray, sr: int) -> dict:
         spectral_centroids = librosa.feature.spectral_centroid(y=audio, sr=sr)[0]
         metrics['spectral_centroid_mean'] = float(np.mean(spectral_centroids))
         metrics['spectral_centroid_std'] = float(np.std(spectral_centroids))
-    except:
+    except Exception:
         metrics['spectral_centroid_mean'] = 0.0
         metrics['spectral_centroid_std'] = 0.0
     
@@ -2426,7 +2419,7 @@ def _process_audio_data(audio_data: bytes, enhance: bool = False, target_sr: int
                     if wav_file_path and os.path.exists(wav_file_path):
                         try:
                             os.unlink(wav_file_path)
-                        except:
+                        except OSError:
                             pass
                             
             finally:
@@ -2434,7 +2427,7 @@ def _process_audio_data(audio_data: bytes, enhance: bool = False, target_sr: int
                 if tmp_file_path and os.path.exists(tmp_file_path):
                     try:
                         os.unlink(tmp_file_path)
-                    except:
+                    except OSError:
                         pass
         
         # Ensure we have mono audio (convert stereo to mono in-place)
@@ -2809,7 +2802,7 @@ def _safe_model_loading(model_name: str, correlation_id: str):
 def _safe_audio_processing(audio_data: bytes, correlation_id: str):
     """Safe audio processing with error handling"""
     try:
-        return _process_audio_enhanced(audio_data)
+        return _process_audio_data(audio_data)
     except Exception as e:
         if "memory" in str(e).lower() or "allocation" in str(e).lower():
             raise MemoryError(

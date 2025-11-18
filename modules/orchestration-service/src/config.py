@@ -6,7 +6,6 @@ Centralized configuration using Pydantic Settings with environment variable supp
 and validation.
 """
 
-import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from functools import lru_cache

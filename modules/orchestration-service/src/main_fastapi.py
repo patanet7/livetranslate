@@ -6,11 +6,9 @@ Modern async/await backend with enhanced API endpoints, automatic documentation,
 and improved performance over the legacy Flask implementation.
 """
 
-import os
 import logging
-import asyncio
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -18,12 +16,11 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, Response
 from fastapi.security import HTTPBearer
 from fastapi.openapi.utils import get_openapi
 
 import sys
-from pathlib import Path
 from datetime import datetime
 
 # Enhanced logging configuration for debugging
@@ -124,7 +121,7 @@ except ImportError as e:
 # Import models with logging
 try:
     import_logger.debug("Importing models...")
-    from models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
+    from models import ConfigUpdate, ErrorResponse
     import_logger.info("[OK] Models imported successfully")
 except ImportError as e:
     import_logger.error(f"[ERROR] Models import failed: {e}")
@@ -136,7 +133,6 @@ try:
         get_config_manager,
         get_websocket_manager,
         get_health_monitor,
-        get_bot_manager,
         get_database_manager,
     )
     import_logger.info("[OK] Dependencies imported successfully")
@@ -216,7 +212,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize managers
-        settings = get_settings()
+        get_settings()
 
         # Initialize dependencies
         from dependencies import initialize_dependencies
@@ -598,7 +594,6 @@ async def websocket_endpoint_direct(websocket: WebSocket):
     import logging
     from datetime import datetime
     from dependencies import get_websocket_manager
-    from models.websocket import WebSocketResponse, MessageType
     from utils.rate_limiting import RateLimiter
 
     logger = logging.getLogger(__name__)

@@ -14,13 +14,12 @@ Features:
 - Memory-efficient processing
 """
 
-import os
 import numpy as np
 import logging
 import time
 import threading
 from collections import deque, defaultdict
-from typing import Dict, List, Tuple, Optional, Union, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -28,7 +27,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # Optional dependencies with graceful fallback
 try:
     import torch
-    import torchaudio
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -36,16 +34,9 @@ except ImportError:
 try:
     from sklearn.cluster import AgglomerativeClustering, DBSCAN
     from sklearn.metrics.pairwise import cosine_similarity
-    from sklearn.preprocessing import StandardScaler
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
-
-try:
-    import umap
-    UMAP_AVAILABLE = True
-except ImportError:
-    UMAP_AVAILABLE = False
 
 try:
     import hdbscan
@@ -66,7 +57,6 @@ except ImportError:
     NOISEREDUCE_AVAILABLE = False
 
 try:
-    import speechbrain as sb
     from speechbrain.pretrained import EncoderClassifier
     SPEECHBRAIN_AVAILABLE = True
 except ImportError:
@@ -418,7 +408,7 @@ class AdvancedSpeakerDiarization:
         # Thread safety
         self.lock = threading.Lock()
         
-        logger.info(f"AdvancedSpeakerDiarization initialized:")
+        logger.info("AdvancedSpeakerDiarization initialized:")
         logger.info(f"  Embedding: {self.config.embedding_method}")
         logger.info(f"  Clustering: {self.config.clustering_method}")
         logger.info(f"  Enhancement: {self.config.enable_enhancement}")

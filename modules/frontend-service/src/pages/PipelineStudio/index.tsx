@@ -24,14 +24,7 @@ import {
 } from '@mui/material';
 import {
   Menu,
-  Close,
-  Save,
-  FolderOpen,
-  PlayArrow,
-  Stop,
   Info,
-  Warning,
-  CheckCircle,
   Share,
   FileUpload,
   AutoFixHigh,
@@ -48,7 +41,6 @@ import {
   type PipelineData,
   type PipelinePreset,
   type AudioComponent,
-  AUDIO_COMPONENT_LIBRARY,
 } from '@/components/audio/PipelineEditor';
 
 const DRAWER_WIDTH = 320;
@@ -239,7 +231,7 @@ const PipelineStudio: React.FC = () => {
     });
   }, []);
 
-  const handleDeletePreset = useCallback((presetId: string) => {
+  const handleDeletePreset = useCallback((_presetId: string) => {
     setSnackbar({
       open: true,
       message: 'Preset deleted',
@@ -468,7 +460,7 @@ const PipelineStudio: React.FC = () => {
             )}
             {activeLeftTab === 'presets' && (
               <PresetManager
-                currentPipeline={pipelineState.currentPipeline}
+                currentPipeline={pipelineState.selectedPreset || undefined}
                 onLoadPreset={handleLoadPreset}
                 onSavePreset={handleSavePreset}
                 onDeletePreset={handleDeletePreset}
@@ -557,7 +549,7 @@ const PipelineStudio: React.FC = () => {
               isProcessing={pipelineState.isProcessing}
               showMinimap={true}
               showGrid={true}
-              height="100%"
+              height={window.innerHeight - 64}
             />
           </ReactFlowProvider>
         )}
@@ -626,10 +618,6 @@ const PipelineStudio: React.FC = () => {
                 onMetricsUpdate={(metrics) => {
                   // Update pipeline metrics in real-time
                   console.log('Real-time metrics:', metrics);
-                }}
-                onProcessedAudio={(audio) => {
-                  // Handle processed audio output
-                  console.log('Processed audio received');
                 }}
               />
             )}

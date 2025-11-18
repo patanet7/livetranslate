@@ -23,9 +23,8 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 import aiofiles
 
 # Initialize logger
@@ -171,7 +170,8 @@ async def get_user_settings(
     Returns current user settings and preferences.
     """
     try:
-        user_id = user.get("user_id", "anonymous") if user else "anonymous"
+        # TODO: Implement user authentication
+        user_id = "anonymous"
 
         settings = await config_manager.get_user_settings(user_id)
 
@@ -210,7 +210,8 @@ async def update_user_settings(
     Updates user preferences and settings. Only provided fields are updated.
     """
     try:
-        user_id = user.get("user_id", "anonymous") if user else "anonymous"
+        # TODO: Implement user authentication
+        user_id = "anonymous"
 
         # Build update data from request
         update_data = {}
@@ -1337,33 +1338,34 @@ async def test_bot_spawn(test_request: Dict[str, Any]):
         raise HTTPException(status_code=500, detail="Bot spawn test failed")
 
 # ============================================================================
-# Enhanced System Settings Endpoints
+# Enhanced System Settings Endpoints (Alternative - File-based)
 # ============================================================================
+# NOTE: Duplicate endpoints removed - use the main system settings endpoints above
 
-@router.get("/system", response_model=Dict[str, Any])
-async def get_system_settings():
-    """Get current system configuration"""
-    try:
-        default_config = SystemConfig().dict()
-        config = await load_config(SYSTEM_CONFIG_FILE, default_config)
-        return config
-    except Exception as e:
-        logger.error(f"Error getting system settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load system settings")
-
-@router.post("/system")
-async def save_system_settings(config: SystemConfig):
-    """Save system configuration"""
-    try:
-        config_dict = config.dict()
-        success = await save_config(SYSTEM_CONFIG_FILE, config_dict)
-        if success:
-            return {"message": "System settings saved successfully", "config": config_dict}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to save system settings")
-    except Exception as e:
-        logger.error(f"Error saving system settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save system settings")
+# @router.get("/system/config-file", response_model=Dict[str, Any])
+# async def get_system_settings_from_file():
+#     """Get current system configuration from file"""
+#     try:
+#         default_config = SystemConfig().dict()
+#         config = await load_config(SYSTEM_CONFIG_FILE, default_config)
+#         return config
+#     except Exception as e:
+#         logger.error(f"Error getting system settings: {e}")
+#         raise HTTPException(status_code=500, detail="Failed to load system settings")
+#
+# @router.post("/system/config-file")
+# async def save_system_settings_to_file(config: SystemConfig):
+#     """Save system configuration to file"""
+#     try:
+#         config_dict = config.dict()
+#         success = await save_config(SYSTEM_CONFIG_FILE, config_dict)
+#         if success:
+#             return {"message": "System settings saved successfully", "config": config_dict}
+#         else:
+#             raise HTTPException(status_code=500, detail="Failed to save system settings")
+#     except Exception as e:
+#         logger.error(f"Error saving system settings: {e}")
+#         raise HTTPException(status_code=500, detail="Failed to save system settings")
 
 @router.get("/system/health")
 async def get_system_health():
@@ -2010,7 +2012,7 @@ async def update_prompt(prompt_id: str, updates: Dict[str, Any]):
         async with await get_translation_service_client() as client:
             async with client.put(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}", json=updates) as response:
                 if response.status == 200:
-                    result = await response.json()
+                    await response.json()
                     return {
                         "success": True,
                         "prompt_id": prompt_id,
@@ -2049,7 +2051,7 @@ async def delete_prompt(prompt_id: str):
         async with await get_translation_service_client() as client:
             async with client.delete(f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}") as response:
                 if response.status == 200:
-                    result = await response.json()
+                    await response.json()
                     return {
                         "success": True,
                         "prompt_id": prompt_id,

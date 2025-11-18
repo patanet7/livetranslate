@@ -23,10 +23,6 @@ import {
   IconButton,
   Tooltip,
   Paper,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
   Divider,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -37,7 +33,6 @@ import StorageIcon from '@mui/icons-material/Storage';
 import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
 import BugReportIcon from '@mui/icons-material/BugReport';
 import PaletteIcon from '@mui/icons-material/Palette';
-import NotificationsIcon from '@mui/icons-material/Notifications';
 
 interface SystemConfig {
   // General System Settings

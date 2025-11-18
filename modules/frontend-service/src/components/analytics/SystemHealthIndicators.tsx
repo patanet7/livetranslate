@@ -39,12 +39,8 @@ import {
   Error,
   Schedule,
   Speed,
-  Memory,
-  Storage,
-  NetworkWifi,
   Cloud,
   Security,
-  Database,
   Api,
   Refresh,
   ExpandMore,
@@ -56,7 +52,6 @@ import {
 } from '@mui/icons-material';
 
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
-import { useAnalytics } from '@/hooks/useAnalytics';
 
 // Types
 interface HealthIndicator {
@@ -77,7 +72,8 @@ interface HealthIndicator {
   dependencies?: string[];
 }
 
-interface ServiceHealth {
+// Component-specific service health interface
+interface ServiceHealthDisplay {
   name: string;
   status: 'online' | 'degraded' | 'offline' | 'maintenance';
   uptime: number;
@@ -101,20 +97,20 @@ const SystemHealthIndicators: React.FC<SystemHealthIndicatorsProps> = ({
   refreshInterval = 30000,
 }) => {
   const theme = useTheme();
-  const audioManager = useUnifiedAudio();
+  useUnifiedAudio();
 
   // State
   const [indicators, setIndicators] = useState<HealthIndicator[]>([]);
-  const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [services, setServices] = useState<ServiceHealthDisplay[]>([]);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['service', 'infrastructure']));
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [criticalAlerts, setCriticalAlerts] = useState<string[]>([]);
   const [hasError, setHasError] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
+  const [, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
 
   // Subscribe to unified analytics service
-  const [analyticsData, setAnalyticsData] = useState<{
+  const [analyticsData] = useState<{
     systemMetrics: any;
     serviceHealth: any[];
     connectionStatus: any;
@@ -126,7 +122,7 @@ const SystemHealthIndicators: React.FC<SystemHealthIndicatorsProps> = ({
   const transformHealthData = useCallback(async () => {
     const now = new Date();
     const realIndicators: HealthIndicator[] = [];
-    const realServices: ServiceHealth[] = [];
+    const realServices: ServiceHealthDisplay[] = [];
 
     // Add service health indicators
     if (analyticsData.serviceHealth) {
@@ -387,7 +383,7 @@ const SystemHealthIndicators: React.FC<SystemHealthIndicatorsProps> = ({
     }
   };
 
-  const getServiceStatusColor = (status: ServiceHealth['status']) => {
+  const getServiceStatusColor = (status: ServiceHealthDisplay['status']) => {
     switch (status) {
       case 'online':
         return 'success';
@@ -638,7 +634,7 @@ const SystemHealthIndicators: React.FC<SystemHealthIndicatorsProps> = ({
               onClick={() => toggleCategory(category)}
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                {getCategoryIcon(category)}
+                {getCategoryIcon(category as HealthIndicator['category'])}
                 <Typography variant="h6" sx={{ fontWeight: 500, textTransform: 'capitalize' }}>
                   {category}
                 </Typography>

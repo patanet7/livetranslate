@@ -30,13 +30,7 @@ import {
   alpha,
 } from '@mui/material';
 import {
-  Timeline,
-  ShowChart,
-  BarChart as BarChartIcon,
-  DonutLarge,
   Refresh,
-  ZoomIn,
-  ZoomOut,
   Download,
   Settings,
 } from '@mui/icons-material';
@@ -55,15 +49,8 @@ import {
   Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  ScatterChart,
-  Scatter,
   ComposedChart,
 } from 'recharts';
-
-import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 
 // Types
 interface TimeSeriesData {
@@ -98,7 +85,6 @@ const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
   autoRefresh = true,
 }) => {
   const theme = useTheme();
-  const audioManager = useUnifiedAudio();
 
   // State
   const [data, setData] = useState<TimeSeriesData[]>([]);
@@ -301,7 +287,7 @@ const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
               }}
             />
             <Legend />
-            {config.metrics.map((metric, index) => (
+            {config.metrics.map((metric) => (
               <Line
                 key={metric.dataKey}
                 type="monotone"
@@ -334,7 +320,7 @@ const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
               }}
             />
             <Legend />
-            {config.metrics.map((metric, index) => (
+            {config.metrics.map((metric) => (
               <Area
                 key={metric.dataKey}
                 type="monotone"
@@ -367,7 +353,7 @@ const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
               }}
             />
             <Legend />
-            {config.metrics.map((metric, index) => (
+            {config.metrics.map((metric) => (
               <Bar
                 key={metric.dataKey}
                 dataKey={metric.dataKey}
@@ -530,9 +516,18 @@ const PerformanceCharts: React.FC<PerformanceChartsProps> = ({
 
           {/* Chart */}
           <Box sx={{ height, width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              {renderChart()}
-            </ResponsiveContainer>
+            {(() => {
+              const chart = renderChart();
+              return chart ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  {chart}
+                </ResponsiveContainer>
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height }}>
+                  <Typography color="textSecondary">Chart type not supported</Typography>
+                </Box>
+              );
+            })()}
           </Box>
         </CardContent>
       </Card>

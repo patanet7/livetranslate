@@ -6,13 +6,13 @@ This module handles real-time integration with the Whisper service for
 continuous transcription -> translation pipeline.
 """
 
-import asyncio
 import json
 import logging
 import aiohttp
 import websockets
 from typing import Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
+from flask import request, jsonify
 
 from translation_service import TranslationService, TranslationRequest
 

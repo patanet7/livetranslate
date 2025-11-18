@@ -13,7 +13,6 @@ import ReactFlow, {
   NodeTypes,
   EdgeTypes,
   ReactFlowProvider,
-  useReactFlow,
   MarkerType,
   Panel,
   useKeyPress,
@@ -23,29 +22,21 @@ import 'reactflow/dist/style.css';
 import {
   Box,
   Card,
-  Button,
   IconButton,
   Typography,
   Chip,
   Tooltip,
   Alert,
   Snackbar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Menu,
   MenuItem,
   ListItemIcon,
   ListItemText,
   Divider,
-  Badge,
   useTheme,
 } from '@mui/material';
 import {
   Save,
-  SaveAs,
-  FolderOpen,
   PlayArrow,
   Stop,
   Refresh,
@@ -57,22 +48,17 @@ import {
   ZoomIn,
   ZoomOut,
   FitScreen,
-  GridOn,
   Timeline,
   Warning,
   CheckCircle,
   Error,
-  Info,
-  Add,
-  Remove,
   Settings,
   ExpandMore,
   ExpandLess,
 } from '@mui/icons-material';
 
 import AudioStageNode from './AudioStageNode';
-import ComponentLibrary, { AudioComponent, AUDIO_COMPONENT_LIBRARY } from './ComponentLibrary';
-import PresetManager from './PresetManager';
+import { AudioComponent } from './ComponentLibrary';
 import SettingsPanel from './SettingsPanel';
 
 interface PipelineCanvasProps {
@@ -112,7 +98,7 @@ interface PipelineValidationResult {
 
 // Custom node types
 const nodeTypes: NodeTypes = {
-  audioStage: AudioStageNode,
+  audioStage: AudioStageNode as any,
 };
 
 // Custom edge styles
@@ -648,7 +634,6 @@ const PipelineCanvas: React.FC<PipelineCanvasProps> = ({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             fitView
-            attributionPosition={false}
             nodesConnectable={true}
             nodesDraggable={true}
             elementsSelectable={true}

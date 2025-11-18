@@ -22,30 +22,18 @@ import {
   Select,
   MenuItem,
   Chip,
-  Button,
   IconButton,
-  Tooltip,
   Grid,
   Alert,
   Switch,
   FormControlLabel,
-  Slider,
   useTheme,
   alpha,
 } from '@mui/material';
 import {
-  Timeline,
   Refresh,
   Download,
   Settings,
-  ZoomIn,
-  ZoomOut,
-  Fullscreen,
-  Warning,
-  CheckCircle,
-  TrendingUp,
-  Speed,
-  Public,
 } from '@mui/icons-material';
 
 // Types
@@ -108,7 +96,7 @@ const LatencyHeatmap: React.FC<LatencyHeatmapProps> = ({
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [showAnomalies, setShowAnomalies] = useState(true);
   const [colorScale, setColorScale] = useState<'linear' | 'logarithmic'>('linear');
-  const [bucketSize, setBucketSize] = useState(5); // minutes
+  const [bucketSize] = useState(5); // minutes
 
   // Generate mock latency data
   const generateMockData = useCallback((points: number = 1000): LatencyDataPoint[] => {
@@ -210,7 +198,6 @@ const LatencyHeatmap: React.FC<LatencyHeatmapProps> = ({
 
         if (bucketData.length > 0) {
           const avgLatency = bucketData.reduce((sum, d) => sum + d.latency, 0) / bucketData.length;
-          const maxLatency = Math.max(...bucketData.map(d => d.latency));
           
           // Color based on latency
           let color = theme.palette.success.main;

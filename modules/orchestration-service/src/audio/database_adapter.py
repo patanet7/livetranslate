@@ -23,19 +23,13 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple, AsyncGenerator
+from typing import Dict, List, Optional, Any, AsyncGenerator
 import asyncpg
-from dataclasses import asdict
 
 from .models import (
     AudioChunkMetadata,
     SpeakerCorrelation,
-    ProcessingResult,
-    ChunkLineage,
-    QualityMetrics,
     ProcessingStatus,
-    SourceType,
-    CorrelationType,
 )
 
 logger = logging.getLogger(__name__)

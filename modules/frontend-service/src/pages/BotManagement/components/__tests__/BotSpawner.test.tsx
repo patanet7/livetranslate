@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BotSpawner } from '../BotSpawner';
-import { render, createTestStore, mockApiResponse } from '@/test/utils';
+import { render } from '@/test/utils';
 
 // Mock the useBotManager hook
 const mockSpawnBot = vi.fn();
@@ -277,7 +277,6 @@ describe('BotSpawner', () => {
 
   describe('loading state', () => {
     it('should show loading state during submission', async () => {
-      const user = userEvent.setup();
       mockUseBotManager.isLoading = true;
 
       renderBotSpawner();

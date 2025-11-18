@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -9,7 +9,6 @@ import {
   Chip,
   LinearProgress,
   Tooltip,
-  Badge,
   Divider,
 } from '@mui/material';
 import {
@@ -206,7 +205,7 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
               }}
             >
               {data.icon && typeof data.icon === 'function' ? (
-                React.createElement(data.icon, { sx: { fontSize: 16 } })
+                React.createElement(data.icon as any, { style: { fontSize: 16 } })
               ) : (
                 <Settings sx={{ fontSize: 16 }} />
               )}

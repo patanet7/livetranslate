@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   Grid,
   Button,
   Card,
@@ -30,8 +29,6 @@ import {
 import {
   Mic,
   MicOff,
-  PlayArrow,
-  Stop,
   Settings,
   Translate,
   RecordVoiceOver,
@@ -39,264 +36,71 @@ import {
   Tune,
 } from '@mui/icons-material';
 import { useAppSelector, useAppDispatch } from '@/store';
-import {
-  setAudioDevices,
-  setVisualizationData,
-  addProcessingLog,
-  setAudioQualityMetrics,
-  updateConfig,
-} from '@/store/slices/audioSlice';
+import { addProcessingLog } from '@/store/slices/audioSlice';
 import { AudioVisualizer } from '../AudioTesting/components/AudioVisualizer';
-import {
-  calculateMeetingAudioLevel,
-  getMeetingAudioQuality,
-  getDisplayLevel,
-} from '@/utils/audioLevelCalculation';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
-
-interface StreamingChunk {
-  id: string;
-  audio: Blob;
-  timestamp: number;
-  duration: number;
-}
-
-interface TranscriptionResult {
-  id: string;
-  chunkId: string;
-  text: string;
-  confidence: number;
-  language: string;
-  speakers?: Array<{
-    speaker_id: string;
-    speaker_name: string;
-    start_time: number;
-    end_time: number;
-  }>;
-  timestamp: number;
-  processing_time: number;
-}
-
-interface TranslationResult {
-  id: string;
-  transcriptionId: string;
-  sourceText: string;
-  translatedText: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  confidence: number;
-  timestamp: number;
-  processing_time: number;
-}
+import { useAudioDevices } from '@/hooks/useAudioDevices';
+import { useAudioVisualization } from '@/hooks/useAudioVisualization';
+import { useAudioStreaming } from '@/hooks/useAudioStreaming';
+import type { TranscriptionResult, TranslationResult } from '@/types/streaming';
+import { DEFAULT_TARGET_LANGUAGES, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
+import { generateSessionId } from '@/utils/sessionUtils';
 
 const StreamingProcessor: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { devices, visualization, config } = useAppSelector(state => state.audio);
-  
+  const { devices, visualization } = useAppSelector(state => state.audio);
+
   // Load available models and device information dynamically
-  const { 
-    models: availableModels, 
-    loading: modelsLoading, 
-    error: modelsError, 
+  const {
+    models: availableModels,
+    loading: modelsLoading,
+    error: modelsError,
     status: modelsStatus,
     serviceMessage,
     deviceInfo,
-    refetch: refetchModels 
   } = useAvailableModels();
-  
-  // Streaming state
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingStats, setStreamingStats] = useState({
-    chunksStreamed: 0,
-    totalDuration: 0,
-    averageProcessingTime: 0,
-    errorCount: 0,
-  });
   
   // Audio streaming - CHANGE 1: Add English as first option
   const [chunkDuration, setChunkDuration] = useState(3); // 3 seconds default
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', 'es', 'fr', 'de']);
+  const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', ...DEFAULT_TARGET_LANGUAGES]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  
+
   // Processing configuration - CHANGE 2: Disable audio pipeline features by default
   const [processingConfig, setProcessingConfig] = useState({
-    enableTranscription: true,
-    enableTranslation: true,
+    ...DEFAULT_PROCESSING_CONFIG,
     enableDiarization: false,
     enableVAD: false,
-    whisperModel: 'whisper-base',
-    translationQuality: 'balanced',
     audioProcessing: false,
-    noiseReduction: false,
-    speechEnhancement: false,
   });
-  
+
   // Results
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
   const [translationResults, setTranslationResults] = useState<TranslationResult[]>([]);
-  const [activeChunks, setActiveChunks] = useState<Set<string>>(new Set());
-  
-  // Audio refs
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Audio stream ref
   const audioStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const chunkIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const recordingChunksRef = useRef<Blob[]>([]);
-  
-  // Initialize audio devices
-  useEffect(() => {
-    const initializeDevices = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioDevices = devices
-          .filter(device => device.kind === 'audioinput')
-          .map(device => ({
-            deviceId: device.deviceId,
-            label: device.label || `Microphone ${device.deviceId.substr(0, 8)}`,
-            kind: device.kind as 'audioinput',
-            groupId: device.groupId || ''
-          }));
-        
-        dispatch(setAudioDevices(audioDevices));
-        if (audioDevices.length > 0 && !selectedDevice) {
-          setSelectedDevice(audioDevices[0].deviceId);
-        }
-        
-        dispatch(addProcessingLog({
-          level: 'INFO',
-          message: `Found ${audioDevices.length} audio input devices`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to load audio devices: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    initializeDevices();
-  }, [dispatch, selectedDevice]);
-
-  // Initialize audio visualization
-  useEffect(() => {
-    if (!selectedDevice) return;
-
-    const initializeAudioVisualization = async () => {
-      try {
-        const constraints = {
-          audio: {
-            deviceId: selectedDevice,
-            sampleRate: 16000,
-            channelCount: 1,
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        audioStreamRef.current = stream;
-        
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close();
-        }
-        
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 2048;
-        microphoneRef.current.connect(analyserRef.current);
-
-        startVisualization();
-        
-        dispatch(addProcessingLog({
-          level: 'SUCCESS',
-          message: `Audio visualization initialized with device: ${selectedDevice}`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to initialize audio visualization: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    initializeAudioVisualization();
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-      }
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [dispatch, selectedDevice]);
-
-  const startVisualization = useCallback(() => {
-    if (!analyserRef.current) return;
-
-    const updateVisualization = () => {
-      if (!analyserRef.current) return;
-
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const frequencyData = new Uint8Array(bufferLength);
-      analyserRef.current.getByteFrequencyData(frequencyData);
-
-      const timeData = new Uint8Array(analyserRef.current.fftSize);
-      analyserRef.current.getByteTimeDomainData(timeData);
-
-      // Calculate professional meeting-optimized audio metrics
-      const audioMetrics = calculateMeetingAudioLevel(timeData, frequencyData, 16000);
-      const qualityAssessment = getMeetingAudioQuality(audioMetrics);
-      const displayLevel = getDisplayLevel(audioMetrics);
-
-      // Update Redux store with enhanced visualization data
-      dispatch(setVisualizationData({
-        frequencyData: Array.from(frequencyData),
-        timeData: Array.from(timeData),
-        audioLevel: displayLevel
-      }));
-
-      // Update comprehensive audio quality metrics
-      dispatch(setAudioQualityMetrics({
-        rmsLevel: audioMetrics.rmsDb,
-        peakLevel: audioMetrics.peakDb,
-        signalToNoise: audioMetrics.signalToNoise,
-        frequency: 16000,
-        clipping: audioMetrics.clipping * 100,
-        voiceActivity: audioMetrics.voiceActivity,
-        spectralCentroid: audioMetrics.spectralCentroid,
-        dynamicRange: audioMetrics.dynamicRange,
-        speechClarity: audioMetrics.speechClarity,
-        backgroundNoise: audioMetrics.backgroundNoise,
-        qualityAssessment: qualityAssessment.quality,
-        qualityScore: qualityAssessment.score,
-        recommendations: qualityAssessment.recommendations,
-        issues: qualityAssessment.issues
-      }));
-
-      animationFrameRef.current = requestAnimationFrame(updateVisualization);
-    };
-
-    updateVisualization();
-  }, [dispatch]);
 
   // Simple session management for testing
-  const [sessionId] = useState(() => `streaming_test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
-  
+  const [sessionId] = useState(() => generateSessionId('streaming_test'));
+
+  // Initialize audio devices with auto-selection
+  useAudioDevices({
+    autoSelect: true,
+    selectedDevice,
+    onDeviceSelected: setSelectedDevice
+  });
+
+  // Initialize audio visualization with shared hook
+  useAudioVisualization({
+    deviceId: selectedDevice,
+    sampleRate: 16000,
+    audioStreamRef: audioStreamRef,
+    enableLogging: true
+  });
+
   // Handle response from streaming endpoint directly (no WebSocket needed for simple testing)
-  const handleStreamingResponse = useCallback((response: any, chunkId: string) => {
+  const handleStreamingResponse = useCallback((chunkId: string, response: any) => {
     try {
       // Look for transcription in processing_result (backend format) or transcription_result (fallback)
       const transcriptionData = response.processing_result || response.transcription_result;
@@ -357,166 +161,23 @@ const StreamingProcessor: React.FC = () => {
     }
   }, [processingConfig, dispatch]);
 
-  // Start streaming
-  const startStreaming = useCallback(async () => {
-    if (!selectedDevice || !audioStreamRef.current) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: 'No audio device selected or audio stream not available',
-        timestamp: Date.now()
-      }));
-      return;
-    }
-
-    try {
-      setIsStreaming(true);
-      
-      // Initialize MediaRecorder for chunk recording
-      recordingChunksRef.current = [];
-      
-      const mediaRecorder = new MediaRecorder(audioStreamRef.current, {
-        mimeType: 'audio/webm; codecs=opus',
-        audioBitsPerSecond: 128000
-      });
-      
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = async (event) => {
-        if (event.data.size > 0) {
-          recordingChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        if (recordingChunksRef.current.length > 0) {
-          const audioBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
-          const chunkId = `chunk_${Date.now()}`;
-          
-          setActiveChunks(prev => new Set([...prev, chunkId]));
-          
-          // Send audio chunk to orchestration service
-          await sendAudioChunk(chunkId, audioBlob);
-          
-          setStreamingStats(prev => ({
-            ...prev,
-            chunksStreamed: prev.chunksStreamed + 1,
-            totalDuration: prev.totalDuration + chunkDuration
-          }));
-          
-          recordingChunksRef.current = [];
-        }
-      };
-
-      // Start recording and set up interval for chunks
-      mediaRecorder.start();
-      
-      chunkIntervalRef.current = setInterval(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-          mediaRecorderRef.current.stop();
-          mediaRecorderRef.current.start();
-        }
-      }, chunkDuration * 1000);
-      
-      dispatch(addProcessingLog({
-        level: 'SUCCESS',
-        message: `Started streaming with ${chunkDuration}s chunks`,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      setIsStreaming(false);
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Failed to start streaming: ${error}`,
-        timestamp: Date.now()
-      }));
-    }
-  }, [selectedDevice, chunkDuration, dispatch]);
-
-  // Stop streaming
-  const stopStreaming = useCallback(() => {
-    setIsStreaming(false);
-    
-    if (chunkIntervalRef.current) {
-      clearInterval(chunkIntervalRef.current);
-      chunkIntervalRef.current = null;
-    }
-    
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    
-    dispatch(addProcessingLog({
-      level: 'INFO',
-      message: 'Streaming stopped',
-      timestamp: Date.now()
-    }));
-  }, [dispatch]);
-
-  // Send audio chunk to orchestration service
-  const sendAudioChunk = useCallback(async (chunkId: string, audioBlob: Blob) => {
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'chunk.webm');
-      formData.append('chunk_id', chunkId);
-      formData.append('session_id', sessionId);
-      console.log('🌐 Frontend: targetLanguages state:', targetLanguages);
-      console.log('🌐 Frontend: targetLanguages JSON:', JSON.stringify(targetLanguages));
-      formData.append('target_languages', JSON.stringify(targetLanguages));
-      formData.append('enable_transcription', processingConfig.enableTranscription.toString());
-      formData.append('enable_translation', processingConfig.enableTranslation.toString());
-      formData.append('enable_diarization', processingConfig.enableDiarization.toString());
-      formData.append('whisper_model', processingConfig.whisperModel);
-      formData.append('translation_quality', processingConfig.translationQuality);
-      formData.append('enable_vad', processingConfig.enableVAD.toString());
-      formData.append('audio_processing', processingConfig.audioProcessing.toString());
-      formData.append('noise_reduction', processingConfig.noiseReduction.toString());
-      formData.append('speech_enhancement', processingConfig.speechEnhancement.toString());
-      
-      const response = await fetch('/api/audio/upload', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
-      // Handle the response directly
-      handleStreamingResponse(result, chunkId);
-      
-      // Remove from active chunks
-      setActiveChunks(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(chunkId);
-        return newSet;
-      });
-      
-      dispatch(addProcessingLog({
-        level: 'INFO',
-        message: `Audio chunk ${chunkId} processed successfully`,
-        timestamp: Date.now()
-      }));
-    } catch (error) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Failed to process audio chunk ${chunkId}: ${error}`,
-        timestamp: Date.now()
-      }));
-      
-      setActiveChunks(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(chunkId);
-        return newSet;
-      });
-      
-      setStreamingStats(prev => ({
-        ...prev,
-        errorCount: prev.errorCount + 1
-      }));
-    }
-  }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, dispatch]);
+  // Audio streaming with shared hook
+  const {
+    isStreaming,
+    streamingStats,
+    startStreaming,
+    stopStreaming,
+    resetStats,
+    activeChunks
+  } = useAudioStreaming({
+    sessionId,
+    audioStream: audioStreamRef.current,
+    chunkDuration,
+    targetLanguages,
+    processingConfig,
+    onChunkProcessed: handleStreamingResponse,
+    enableLogging: true
+  });
 
   const handleLanguageToggle = useCallback((language: string) => {
     console.log('🌐 Frontend: Toggling language:', language);
@@ -537,14 +198,8 @@ const StreamingProcessor: React.FC = () => {
   const clearResults = useCallback(() => {
     setTranscriptionResults([]);
     setTranslationResults([]);
-    setActiveChunks(new Set());
-    setStreamingStats({
-      chunksStreamed: 0,
-      totalDuration: 0,
-      averageProcessingTime: 0,
-      errorCount: 0,
-    });
-  }, []);
+    resetStats();
+  }, [resetStats]);
 
   return (
     <Box>
@@ -612,7 +267,6 @@ const StreamingProcessor: React.FC = () => {
                     timeData={visualization.timeData}
                     audioLevel={visualization.audioLevel}
                     isRecording={isStreaming}
-                    height={120}
                   />
                 </Card>
               </CardContent>
@@ -834,17 +488,7 @@ const StreamingProcessor: React.FC = () => {
                 </Typography>
                 
                 <FormGroup>
-                  {[
-                    { code: 'en', name: 'English' },
-                    { code: 'es', name: 'Spanish' },
-                    { code: 'fr', name: 'French' },
-                    { code: 'de', name: 'German' },
-                    { code: 'it', name: 'Italian' },
-                    { code: 'pt', name: 'Portuguese' },
-                    { code: 'ja', name: 'Japanese' },
-                    { code: 'ko', name: 'Korean' },
-                    { code: 'zh', name: 'Chinese' },
-                  ].map((lang) => (
+                  {SUPPORTED_LANGUAGES.slice(0, 9).map((lang) => (
                     <FormControlLabel
                       key={lang.code}
                       control={
@@ -924,7 +568,7 @@ const StreamingProcessor: React.FC = () => {
                     Errors: {streamingStats.errorCount}
                   </Typography>
                   
-                  {activeChunks.size > 0 && (
+                  {activeChunks && activeChunks.size > 0 && (
                     <Box sx={{ mt: 1 }}>
                       <Typography variant="caption">
                         Processing {activeChunks.size} chunk(s)...

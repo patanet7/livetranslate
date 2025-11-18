@@ -4,11 +4,8 @@ import {
   Card,
   CardContent,
   Typography,
-  List,
-  ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Button,
   Dialog,
@@ -20,8 +17,6 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  Alert,
-  Tooltip,
   Grid,
   Divider,
   FormControl,
@@ -31,9 +26,7 @@ import {
   Tabs,
 } from '@mui/material';
 import {
-  Save,
   SaveAs,
-  FolderOpen,
   Delete,
   Edit,
   ContentCopy,
@@ -44,17 +37,12 @@ import {
   Category,
   Speed,
   VolumeUp,
-  FilterList,
-  AutoFixHigh,
-  GraphicEq,
   Mic,
   Radio,
   RecordVoiceOver,
   Podcasts,
   MusicNote,
   MoreVert,
-  Add,
-  Check,
 } from '@mui/icons-material';
 
 interface PresetManagerProps {
@@ -210,7 +198,7 @@ const PresetManager: React.FC<PresetManagerProps> = ({
   onImportPreset,
 }) => {
   const [presets, setPresets] = useState<PipelinePreset[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<PresetCategory | 'all'>('all');
+  const [selectedCategory] = useState<PresetCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [editingPreset, setEditingPreset] = useState<PipelinePreset | null>(null);

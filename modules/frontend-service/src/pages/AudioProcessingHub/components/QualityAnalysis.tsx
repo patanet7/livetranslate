@@ -24,13 +24,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Paper,
   LinearProgress,
   Alert,
   Tabs,
   Tab,
   IconButton,
-  Tooltip,
   useTheme,
   alpha,
 } from '@mui/material';
@@ -43,18 +41,13 @@ import {
   ShowChart,
   Assessment,
   Download,
-  Settings,
-  Refresh,
-  ZoomIn,
-  ZoomOut,
 } from '@mui/icons-material';
 
 // Import chart components
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
-import { useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface AudioQualityMetrics {
   snr: number;
@@ -90,8 +83,8 @@ interface AnalysisSettings {
 
 const QualityAnalysis: React.FC = () => {
   const theme = useTheme();
-  const dispatch = useAppDispatch();
-  const audioManager = useUnifiedAudio();
+  const { notifySuccess, notifyWarning, notifyError } = useNotifications();
+  useUnifiedAudio();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -108,7 +101,6 @@ const QualityAnalysis: React.FC = () => {
   const [qualityMetrics, setQualityMetrics] = useState<AudioQualityMetrics | null>(null);
   const [frequencyData, setFrequencyData] = useState<FrequencyData[]>([]);
   const [waveformData, setWaveformData] = useState<WaveformData[]>([]);
-  const [spectrogramData, setSpectrogramData] = useState<any[]>([]);
 
   // Settings
   const [settings, setSettings] = useState<AnalysisSettings>({
@@ -173,13 +165,9 @@ const QualityAnalysis: React.FC = () => {
       setAudioFile(file);
       const url = URL.createObjectURL(file);
       setAudioUrl(url);
-      
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Audio File Loaded',
-        message: `Loaded ${file.name} for analysis`,
-        autoHide: true,
-      }));
+
+
+      notifySuccess('Audio File Loaded', `Loaded ${file.name} for analysis`);
     }
   };
 
@@ -217,12 +205,7 @@ const QualityAnalysis: React.FC = () => {
   // Analysis functions
   const runAnalysis = async () => {
     if (!audioFile) {
-      dispatch(addNotification({
-        type: 'warning',
-        title: 'No Audio File',
-        message: 'Please select an audio file to analyze',
-        autoHide: true,
-      }));
+      notifyWarning('No Audio File', 'Please select an audio file to analyze');
       return;
     }
 
@@ -231,20 +214,11 @@ const QualityAnalysis: React.FC = () => {
       // Simulate analysis delay
       await new Promise(resolve => setTimeout(resolve, 2000));
       generateMockAnalysis();
-      
-      dispatch(addNotification({
-        type: 'success',
-        title: 'Analysis Complete',
-        message: 'Audio quality analysis finished successfully',
-        autoHide: true,
-      }));
+
+
+      notifySuccess('Analysis Complete', 'Audio quality analysis finished successfully');
     } catch (error) {
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Analysis Failed',
-        message: 'Failed to analyze audio quality',
-        autoHide: true,
-      }));
+      notifyError('Analysis Failed', 'Failed to analyze audio quality', true);
     } finally {
       setIsAnalyzing(false);
     }
@@ -568,8 +542,8 @@ const QualityAnalysis: React.FC = () => {
                             tickFormatter={(value) => `${value >= 1000 ? (value/1000).toFixed(1) + 'k' : value}`}
                           />
                           <YAxis domain={[-80, 0]} label={{ value: 'Magnitude (dB)', angle: -90, position: 'insideLeft' }} />
-                          <RechartsTooltip 
-                            formatter={(value: number, name: string) => [`${value.toFixed(1)} dB`, 'Magnitude']}
+                          <RechartsTooltip
+                            formatter={(value: number, _name: string) => [`${value.toFixed(1)} dB`, 'Magnitude']}
                             labelFormatter={(value) => `${value >= 1000 ? (value/1000).toFixed(1) + ' kHz' : value + ' Hz'}`}
                           />
                           <Line 
@@ -603,8 +577,8 @@ const QualityAnalysis: React.FC = () => {
                             domain={[-1, 1]}
                             label={{ value: 'Amplitude', angle: -90, position: 'insideLeft' }}
                           />
-                          <RechartsTooltip 
-                            formatter={(value: number, name: string) => [value.toFixed(3), 'Amplitude']}
+                          <RechartsTooltip
+                            formatter={(value: number, _name: string) => [value.toFixed(3), 'Amplitude']}
                             labelFormatter={(value) => `${value.toFixed(3)}s`}
                           />
                           <Area 

@@ -21,10 +21,7 @@ import {
 import {
   VolumeUp,
   VolumeDown,
-  Settings,
   Refresh,
-  Save,
-  Equalizer,
   Tune,
 } from '@mui/icons-material';
 
@@ -175,11 +172,11 @@ export const StageControls: React.FC<StageControlsProps> = ({
   };
 
   const resetToDefaults = () => {
-    const defaultConfig = {
+    const defaultConfig: Record<string, any> = {
       gain_in: 0,
       gain_out: 0,
     };
-    
+
     stageParameters.forEach(param => {
       defaultConfig[param.key] = param.defaultValue;
     });

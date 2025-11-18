@@ -36,13 +36,11 @@ import {
   Speed,
   AutoFixHigh,
   GraphicEq,
-  AudioFile,
   VolumeOff,
   Settings,
   // Output Components
   Speaker,
   Download,
-  CloudUpload,
 } from '@mui/icons-material';
 
 interface AudioComponent {
@@ -1050,8 +1048,8 @@ const ComponentLibrary: React.FC<ComponentLibraryProps> = ({
                       }}
                     >
                       <ListItemIcon sx={{ minWidth: 36 }}>
-                        {React.createElement(component.icon, { 
-                          sx: { 
+                        {React.createElement(component.icon as any, {
+                          style: {
                             fontSize: 20,
                             color: component.type === 'input' ? '#2196f3' :
                                    component.type === 'processing' ? '#4caf50' :

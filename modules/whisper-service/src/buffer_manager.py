@@ -15,17 +15,14 @@ Features:
 - Memory-efficient circular buffer implementation
 """
 
-import os
 import time
 import threading
 import logging
-import asyncio
 from collections import deque
 from typing import Optional, Dict, Any, List, Callable, Tuple
 import numpy as np
 from dataclasses import dataclass
 from contextlib import contextmanager
-import weakref
 
 try:
     import webrtcvad
@@ -38,6 +35,12 @@ try:
     SILERO_VAD_AVAILABLE = True
 except ImportError:
     SILERO_VAD_AVAILABLE = False
+
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -133,13 +136,13 @@ class VADProcessor:
                     return speech_ratio > 0.3  # 30% threshold
             
             # Fallback to Silero VAD
-            if self.silero_vad:
+            if self.silero_vad and TORCH_AVAILABLE:
                 try:
                     # Ensure correct tensor format for Silero
                     audio_tensor = torch.from_numpy(audio_data).float()
                     if len(audio_tensor.shape) == 1:
                         audio_tensor = audio_tensor.unsqueeze(0)
-                    
+
                     speech_prob = self.silero_vad(audio_tensor, self.sample_rate).item()
                     return speech_prob > 0.5
                 except Exception as e:
@@ -234,7 +237,7 @@ class RollingBufferManager:
         self.speech_segments_detected = 0
         self.inference_count = 0
         
-        logger.info(f"RollingBufferManager initialized:")
+        logger.info("RollingBufferManager initialized:")
         logger.info(f"  Buffer duration: {self.config.buffer_duration}s ({self.max_samples} samples)")
         logger.info(f"  Inference interval: {self.config.inference_interval}s")
         logger.info(f"  Sample rate: {self.config.sample_rate}Hz")
@@ -339,8 +342,8 @@ class RollingBufferManager:
                 # Enhance audio if enabled and speech detected
                 if self.speech_enhancer and is_speech:
                     try:
-                        enhanced_audio = self.speech_enhancer.enhance_audio(audio_samples)
-                        # Could store enhanced version separately or replace
+                        # Speech enhancement - could store enhanced version separately or replace
+                        self.speech_enhancer.enhance_audio(audio_samples)
                     except Exception as e:
                         logger.debug(f"Speech enhancement failed: {e}")
                 
@@ -445,9 +448,8 @@ class RollingBufferManager:
                 return np.array([], dtype=np.float32), 0
             
             min_new = min_new_samples or self.inference_samples
-            
+
             # Calculate how many new samples we have since last processing
-            samples_in_buffer = len(self.audio_buffer)
             new_samples_available = self.total_samples_added - self.last_processed_sample_index
             
             # If we don't have enough new samples, return empty

@@ -22,7 +22,7 @@ import {
   Analytics as AnalyticsIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
-import { useAppSelector, useAppDispatch } from '@/store/hooks';
+import { useAppSelector } from '@/store/hooks';
 import { BotSpawner } from './components/BotSpawner';
 import { ActiveBots } from './components/ActiveBots';
 import { VirtualWebcam } from './components/VirtualWebcam';
@@ -31,20 +31,7 @@ import { BotAnalytics } from './components/BotAnalytics';
 import { BotSettings } from './components/BotSettings';
 import { CreateBotModal } from './components/CreateBotModal';
 import { useBotManager } from '@/hooks/useBotManager';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
-};
+import { TabPanel } from '@/components/ui';
 
 const BotManagement: React.FC = () => {
   const { bots, activeBotIds, systemStats } = useAppSelector(state => state.bot);
@@ -77,7 +64,7 @@ const BotManagement: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
@@ -182,15 +169,12 @@ const BotManagement: React.FC = () => {
             />
           </Grid>
           <Grid item xs={12} lg={8}>
-            <ActiveBots 
+            <ActiveBots
               bots={bots}
               activeBotIds={activeBotIds}
               onTerminateBot={(botId) => {
                 terminateBot(botId);
                 showNotification(`Bot ${botId} terminated`, 'info');
-              }}
-              onBotError={(botId, error) => {
-                showNotification(`Bot ${botId} error: ${error}`, 'error');
               }}
             />
           </Grid>
@@ -198,10 +182,10 @@ const BotManagement: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={1}>
-        <VirtualWebcam 
+        <VirtualWebcam
           bots={bots}
           activeBotIds={activeBotIds}
-          onWebcamUpdate={(botId, config) => {
+          onWebcamUpdate={(botId, _config) => {
             showNotification(`Webcam updated for bot ${botId}`, 'success');
           }}
         />
@@ -222,8 +206,8 @@ const BotManagement: React.FC = () => {
       </TabPanel>
 
       <TabPanel value={tabValue} index={4}>
-        <BotSettings 
-          onSettingsUpdate={(settings) => {
+        <BotSettings
+          onSettingsUpdate={(_settings) => {
             showNotification('Settings updated successfully', 'success');
           }}
         />

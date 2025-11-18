@@ -17,24 +17,15 @@ import {
 } from '@mui/material';
 import {
   Dashboard,
-  AudioFile,
   SmartToy,
-  Cable,
   Settings,
   ChevronLeft,
   ChevronRight,
   ExpandLess,
   ExpandMore,
-  Mic,
-  Equalizer,
   Analytics,
-  VideoCall,
-  Translate,
-  Timeline,
-  Videocam,
   Hub,
   Monitor,
-  Waves,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { 

@@ -22,17 +22,14 @@ import time
 import json
 import tempfile
 from typing import Dict, List, Optional, AsyncGenerator, Union, Tuple, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
-from queue import Queue, Empty
+from queue import Queue
 from collections import deque
 
 import numpy as np
-import soundfile as sf
 import librosa
 import webrtcvad
-from scipy import signal
 
 # OpenVINO imports for NPU acceleration
 import openvino as ov
@@ -206,9 +203,9 @@ class ModelManager:
     def list_models(self) -> List[str]:
         """List available models in the models directory"""
         try:
-            return [d for d in os.listdir(self.models_dir) 
+            return [d for d in os.listdir(self.models_dir)
                     if os.path.isdir(os.path.join(self.models_dir, d))]
-        except:
+        except (OSError, FileNotFoundError):
             return []
     
     def _preload_default_model(self):
@@ -231,7 +228,7 @@ class ModelManager:
                 try:
                     del self.pipelines[model_name]
                     logger.debug(f"Cleared pipeline for {model_name}")
-                except:
+                except Exception:
                     pass
             
             self.pipelines.clear()
@@ -327,7 +324,7 @@ class AudioBufferManager:
                 self.vad = webrtcvad.Vad(2)  # Aggressiveness level 0-3
                 self.vad_enabled = True
                 logger.info("✓ Voice Activity Detection enabled")
-            except:
+            except Exception:
                 self.vad = None
                 self.vad_enabled = False
                 logger.warning("⚠ Voice Activity Detection not available")
@@ -743,8 +740,8 @@ class WhisperService:
                         avg_score = sum(result.scores) / len(result.scores)
                         confidence_score = max(0.0, min(1.0, avg_score))
                         logger.info(f"[WHISPER] 🎯 Average result score: {confidence_score:.3f}")
-                    except:
-                        logger.info(f"[WHISPER] ⚠️ Failed to calculate average score - using default")
+                    except (TypeError, ZeroDivisionError):
+                        logger.info("[WHISPER] ⚠️ Failed to calculate average score - using default")
                 else:
                     logger.info(f"[WHISPER] ⚠️ No confidence attributes found - using default: {confidence_score:.3f}")
                 
@@ -856,10 +853,8 @@ class WhisperService:
             # Start periodic inference
             if not self.streaming_active:
                 await self.start_streaming(request)
-            
+
             # Yield results as they become available
-            last_result_time = time.time()
-            
             while self.streaming_active:
                 await asyncio.sleep(self.inference_interval)
                 
@@ -885,11 +880,10 @@ class WhisperService:
                         
                         # Mark this audio as processed to prevent re-transcription
                         self.buffer_manager.mark_audio_as_processed(samples_to_mark)
-                        
+
                         # Yield result
                         yield result
-                        last_result_time = time.time()
-                        
+
                         logger.info(f"[STREAM] ✅ Transcribed new audio: '{result.text[:50]}...' (Lang: {result.language})")
                         
                     except Exception as e:

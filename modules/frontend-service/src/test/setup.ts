@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
 
 // Mock IntersectionObserver
 global.IntersectionObserver = vi.fn().mockImplementation(() => ({
@@ -93,7 +93,10 @@ global.MediaRecorder = vi.fn().mockImplementation(() => ({
   state: 'inactive',
   stream: null,
   mimeType: 'audio/webm',
-}));
+})) as any;
+
+// Add static method to MediaRecorder
+(global.MediaRecorder as any).isTypeSupported = vi.fn(() => true);
 
 // Mock getUserMedia
 Object.defineProperty(navigator, 'mediaDevices', {
@@ -116,17 +119,21 @@ Object.defineProperty(navigator, 'mediaDevices', {
 });
 
 // Mock WebSocket
-global.WebSocket = vi.fn().mockImplementation(() => ({
+const WebSocketMock = vi.fn().mockImplementation(() => ({
   send: vi.fn(),
   close: vi.fn(),
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
   readyState: 1, // OPEN
-  CONNECTING: 0,
-  OPEN: 1,
-  CLOSING: 2,
-  CLOSED: 3,
-}));
+})) as any;
+
+// Add WebSocket constants
+WebSocketMock.CONNECTING = 0;
+WebSocketMock.OPEN = 1;
+WebSocketMock.CLOSING = 2;
+WebSocketMock.CLOSED = 3;
+
+global.WebSocket = WebSocketMock;
 
 // Mock fetch
 global.fetch = vi.fn();

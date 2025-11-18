@@ -6,15 +6,15 @@ Database schema and operations for storing audio processing
 performance metrics and statistics for long-term analysis.
 """
 
-import time
 import json
-from typing import Dict, Any, List, Optional
+import logging
+from typing import Dict, Any
 from datetime import datetime, timedelta
-from sqlalchemy import Column, Integer, Float, String, DateTime, Text, Boolean, Index
+
+import numpy as np
+from sqlalchemy import Column, Integer, Float, String, DateTime, Text, Boolean, Index, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-import logging
 
 logger = logging.getLogger(__name__)
 

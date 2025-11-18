@@ -19,7 +19,7 @@ import time
 import threading
 import logging
 import gc
-from queue import Queue, Empty
+from queue import Queue
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from contextlib import contextmanager
@@ -106,7 +106,7 @@ class ModelManager:
         # Weak references for automatic cleanup
         self._pipeline_refs = weakref.WeakValueDictionary()
         
-        logger.info(f"ModelManager initialized:")
+        logger.info("ModelManager initialized:")
         logger.info(f"  Device: {self.device}")
         logger.info(f"  Models directory: {self.models_dir}")
         logger.info(f"  Default model: {self.default_model}")
@@ -222,14 +222,13 @@ class ModelManager:
                 if item.is_dir():
                     # Check for OpenVINO IR files
                     xml_file = item / f"{item.name}.xml"
-                    bin_file = item / f"{item.name}.bin"
-                    
+
                     # Also check for standard OpenVINO model files
                     if not xml_file.exists():
                         xml_files = list(item.glob("*.xml"))
                         if xml_files:
                             xml_file = xml_files[0]
-                    
+
                     if xml_file.exists() or any(item.glob("*.xml")):
                         models.append(item.name)
                         

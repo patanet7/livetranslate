@@ -17,20 +17,14 @@ Key Features:
 
 import asyncio
 import logging
-import time
-from typing import Dict, List, Optional, Any, Tuple, Set
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime
 from dataclasses import dataclass, field
 from enum import Enum
 import json
 import statistics
 from collections import defaultdict
 
-from .models import (
-    ProcessingStatus,
-    CorrelationType,
-    create_processing_result,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -320,12 +314,12 @@ class TimingCoordinator:
             
             # Calculate optimal time baseline
             baseline_offset = await self._calculate_optimal_baseline(session_data)
-            
+
             # Apply alignment corrections
-            alignment_results = await self._apply_timestamp_alignment(
+            await self._apply_timestamp_alignment(
                 session_id, session_data, baseline_offset
             )
-            
+
             # Verify alignment quality
             post_alignment_quality = await self._assess_synchronization_quality(session_id)
             

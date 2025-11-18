@@ -14,18 +14,15 @@ Features:
 - Integration with bot session management and database
 """
 
-import os
 import time
 import logging
 import asyncio
 import threading
 from typing import Dict, List, Optional, Callable, Any, Tuple
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import re
-import httpx
-from collections import deque, defaultdict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

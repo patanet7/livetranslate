@@ -14,14 +14,13 @@ Features:
 - Integration with continuous stream processor
 """
 
-import os
 import json
 import time
 import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
-from collections import defaultdict, deque
+from datetime import datetime
+from collections import defaultdict
 import threading
 from pathlib import Path
 
@@ -106,7 +105,7 @@ class TranscriptManager:
             self.storage_path = None
             logger.info("Transcript manager initialized (memory-only)")
         
-        logger.info(f"TranscriptManager initialized:")
+        logger.info("TranscriptManager initialized:")
         logger.info(f"  Max sessions: {self.max_sessions}")
         logger.info(f"  Session timeout: {self.session_timeout}s")
         logger.info(f"  Storage: {'persistent' if self.storage_path else 'memory-only'}")
