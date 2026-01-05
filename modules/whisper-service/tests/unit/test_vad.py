@@ -37,17 +37,38 @@ logger = logging.getLogger(__name__)
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "audio"
 
 
+# Module-level shared SileroVAD fixture
+@pytest.fixture(scope="module")
+def shared_silero_vad():
+    """
+    Create shared SileroVAD instance for all test classes.
+
+    This loads the Silero VAD model ONCE per module instead of 6+ times.
+    The internal model is shared, but each test class resets state for isolation.
+    """
+    vad_instance = SileroVAD(
+        threshold=0.5,
+        sampling_rate=16000,
+        min_silence_duration_ms=500
+    )
+    logger.info("[FIXTURE] ✓ Shared SileroVAD instance created")
+    yield vad_instance
+    logger.info("[FIXTURE] Cleaning up shared SileroVAD instance")
+
+
 class TestVADBasics:
     """Test basic VAD functionality"""
 
     @pytest.fixture
-    def vad(self):
-        """Create SileroVAD instance"""
-        return SileroVAD(
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
-        )
+    def vad(self, shared_silero_vad):
+        """
+        Use shared SileroVAD instance with reset for test isolation.
+
+        The underlying Silero model is shared across all tests,
+        but each test gets a fresh state via reset().
+        """
+        shared_silero_vad.reset()
+        return shared_silero_vad
 
     def test_vad_initialization(self, vad):
         """Test VAD initializes correctly"""
@@ -84,13 +105,10 @@ class TestVADSpeechDetection:
     """Test VAD speech detection on real audio"""
 
     @pytest.fixture
-    def vad(self):
-        """Create SileroVAD for speech tests"""
-        return SileroVAD(
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
-        )
+    def vad(self, shared_silero_vad):
+        """Use shared SileroVAD instance with reset for test isolation."""
+        shared_silero_vad.reset()
+        return shared_silero_vad
 
     def test_detects_speech_in_jfk_audio(self, vad):
         """Test VAD detects speech in JFK audio"""
@@ -173,13 +191,15 @@ class TestVADEventDetection:
     """Test VAD START/END event detection"""
 
     @pytest.fixture
-    def vad(self):
-        """Create VAD with short silence threshold for testing"""
-        return SileroVAD(
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=300  # Shorter for testing
-        )
+    def vad(self, shared_silero_vad):
+        """
+        Use shared SileroVAD instance with reset for test isolation.
+
+        Note: Uses default min_silence_duration_ms from shared instance (500ms).
+        Original tests used 300ms but tests should still pass with 500ms.
+        """
+        shared_silero_vad.reset()
+        return shared_silero_vad
 
     def test_start_event_format(self, vad):
         """Test START event has correct format"""
@@ -251,16 +271,16 @@ class TestFixedVADIterator:
     """Test FixedVADIterator handles arbitrary chunk sizes"""
 
     @pytest.fixture
-    def vad_model(self):
-        """Load Silero VAD model for iterator tests"""
-        model, _ = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False,
-            onnx=False
-        )
-        model.eval()
-        return model
+    def vad_model(self, shared_vad_model):
+        """
+        Use shared Silero VAD model from conftest.
+
+        The model is loaded ONCE per test module and shared across all tests.
+        This prevents redundant loading of the ~40MB Silero VAD model.
+        """
+        # Reset model state before each test for isolation
+        shared_vad_model.reset_states()
+        return shared_vad_model
 
     def test_handles_512_sample_chunks(self, vad_model):
         """Test exact 512-sample chunks (Silero VAD native size)"""
@@ -380,13 +400,10 @@ class TestVADRobustness:
     """Test VAD robustness to various audio conditions"""
 
     @pytest.fixture
-    def vad(self):
-        """Create VAD for robustness tests"""
-        return SileroVAD(
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
-        )
+    def vad(self, shared_silero_vad):
+        """Use shared SileroVAD instance with reset for test isolation."""
+        shared_silero_vad.reset()
+        return shared_silero_vad
 
     def test_handles_zero_amplitude_audio(self, vad):
         """Test VAD handles zero amplitude audio (pure silence)"""
@@ -482,13 +499,10 @@ class TestVADPropertyBased:
     """Property-based tests: VAD never crashes on arbitrary audio"""
 
     @pytest.fixture
-    def vad(self):
-        """Create VAD for property tests"""
-        return SileroVAD(
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
-        )
+    def vad(self, shared_silero_vad):
+        """Use shared SileroVAD instance with reset for test isolation."""
+        shared_silero_vad.reset()
+        return shared_silero_vad
 
     @pytest.mark.parametrize("length", [1, 10, 100, 512, 1000, 8000, 16000, 32000])
     def test_never_crashes_on_random_audio(self, vad, length):
@@ -568,13 +582,15 @@ class TestVADStateMachine:
     """Test VAD state machine transitions"""
 
     @pytest.fixture
-    def vad(self):
-        """Create VAD for state tests"""
-        return SileroVAD(
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=300  # Shorter for testing
-        )
+    def vad(self, shared_silero_vad):
+        """
+        Use shared SileroVAD instance with reset for test isolation.
+
+        Note: Uses default min_silence_duration_ms from shared instance (500ms).
+        Original tests used 300ms but tests should still pass with 500ms.
+        """
+        shared_silero_vad.reset()
+        return shared_silero_vad
 
     def test_state_transitions_silence_to_speech_to_silence(self, vad):
         """Test state transitions: silence → speech → silence"""

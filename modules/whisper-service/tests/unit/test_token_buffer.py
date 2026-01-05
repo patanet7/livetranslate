@@ -345,30 +345,27 @@ class TestContextCarryover:
     """
 
     @pytest.mark.integration
-    def test_rolling_context_with_real_inference(self):
+    def test_rolling_context_with_real_inference(self, shared_whisper_manager):
         """
         CRITICAL INTEGRATION TEST: Rolling context with real Whisper model
 
         Tests:
-        - Real Whisper model loading
+        - Real Whisper model loading (SHARED large-v3 model across all integration tests)
         - Real audio processing
         - Context carryover between segments
         - Context used in actual inference
         """
-        from whisper_service import ModelManager
         import numpy as np
 
-        models_dir = Path(__file__).parent.parent / ".models"
+        # Use the shared manager - model loaded ONCE per test module (saves ~6GB)
+        manager = shared_whisper_manager
 
-        # Initialize with static prompt for medical domain
-        manager = ModelManager(
-            models_dir=str(models_dir),
-            static_prompt="Medical terminology: hypertension diabetes cardiomyopathy"
-        )
+        # Configure for this test (reset and set custom static prompt)
+        manager.static_prompt = "Medical terminology: hypertension diabetes cardiomyopathy"
         manager.init_context()
 
-        # Load model (real model load)
-        model = manager.load_model("large-v3")
+        # Get the pre-loaded large-v3 model
+        model = manager.pipelines.get("large-v3")
         assert model is not None
 
         # Create test audio segments (silent for speed, but real inference)
@@ -409,27 +406,25 @@ class TestContextCarryover:
         print(f"   Context after 2 segments: '{manager.rolling_context.text[:100]}...'")
 
     @pytest.mark.integration
-    def test_context_improves_consistency_across_segments(self):
+    def test_context_improves_consistency_across_segments(self, shared_whisper_manager):
         """
         INTEGRATION TEST: Context improves transcription consistency
 
         Verifies that rolling context helps maintain consistent terminology
-        across multiple audio segments (real Whisper inference)
+        across multiple audio segments (real Whisper inference with SHARED model)
         """
-        from whisper_service import ModelManager
         import numpy as np
 
-        models_dir = Path(__file__).parent.parent / ".models"
+        # Use the shared manager - model loaded ONCE per test module (saves ~3GB)
+        manager = shared_whisper_manager
 
-        # Medical domain with specific terminology
-        manager = ModelManager(
-            models_dir=str(models_dir),
-            static_prompt="Medical: hypertension, myocardial infarction, ECG",
-            max_context_tokens=223
-        )
+        # Configure for this test
+        manager.static_prompt = "Medical: hypertension, myocardial infarction, ECG"
+        manager.max_context_tokens = 223
         manager.init_context()
 
-        model = manager.load_model("large-v3")
+        # Get the pre-loaded large-v3 model
+        model = manager.pipelines.get("large-v3")
 
         # Simulate 5 audio segments in a medical consultation
         num_segments = 5
@@ -461,25 +456,24 @@ class TestContextCarryover:
         print(f"   Final context tokens: {context_tokens}/{manager.max_context_tokens}")
 
     @pytest.mark.integration
-    def test_context_trimming_during_real_inference_session(self):
+    def test_context_trimming_during_real_inference_session(self, shared_whisper_manager):
         """
         INTEGRATION TEST: Context trimming during long real inference session
 
-        Tests FIFO trimming with real Whisper model over many segments
+        Tests FIFO trimming with real Whisper model over many segments (SHARED model)
         """
-        from whisper_service import ModelManager
         import numpy as np
 
-        models_dir = Path(__file__).parent.parent / ".models"
+        # Use the shared manager - model loaded ONCE per test module (saves ~3GB)
+        manager = shared_whisper_manager
 
-        manager = ModelManager(
-            models_dir=str(models_dir),
-            static_prompt="Session start:",
-            max_context_tokens=50  # Small limit to force trimming
-        )
+        # Configure for this test
+        manager.static_prompt = "Session start:"
+        manager.max_context_tokens = 50  # Small limit to force trimming
         manager.init_context()
 
-        model = manager.load_model("large-v3")
+        # Get the pre-loaded large-v3 model
+        model = manager.pipelines.get("large-v3")
 
         # Process many segments to trigger trimming
         for i in range(20):
