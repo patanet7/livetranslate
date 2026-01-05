@@ -1,1 +1,0 @@
-# Test package for whisper-service-mac

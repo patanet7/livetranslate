@@ -7,9 +7,9 @@ readme = "README.md"
 packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.15"
+python = ">=3.12,<3.15"
 # Core web framework
-fastapi = "^0.104.1"
+fastapi = "^0.121.0"
 uvicorn = {extras = ["standard"], version = "^0.24.0"}
 
 # WebSocket support (FastAPI native)
@@ -52,7 +52,7 @@ aiohttp = "^3.8.5"
 watchdog = "^3.0.0"
 
 # Audio processing (Windows-compatible versions)
-numpy = "^1.24.3"
+numpy = "^2.0.0"
 scipy = "^1.11.3"
 librosa = "^0.10.1"
 soundfile = "^0.12.1"
@@ -76,12 +76,12 @@ structlog = "^23.1.0"
 werkzeug = "^2.3.7"
 aiofiles = "^24.1.0"
 asyncpg = "^0.30.0"
-openvino = "^2025.3.0"
 openvino-genai = "^2025.3.0.0"
 transformers = "^4.57.1"
-torch = "^2.9.0"
 python-socketio = {extras = ["client"], version = "^5.14.2"}
 docker = "^7.1.0"
+pillow = "^12.0.0"
+opencv-python = "^4.12.0.88"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"

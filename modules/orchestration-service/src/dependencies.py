@@ -35,6 +35,14 @@ from audio.audio_coordinator import AudioCoordinator, create_audio_coordinator
 from audio.config_sync import ConfigurationSyncManager
 from audio.config import AudioConfigurationManager
 
+# Data pipeline imports
+try:
+    from pipeline.data_pipeline import TranscriptionDataPipeline, create_data_pipeline
+except ImportError:
+    TranscriptionDataPipeline = None
+    create_data_pipeline = None
+    logger.warning("TranscriptionDataPipeline not available - using legacy database adapter")
+
 # Utility imports
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
@@ -60,6 +68,7 @@ _audio_config_manager: Optional[AudioConfigurationManager] = None
 _rate_limiter: Optional[RateLimiter] = None
 _security_utils: Optional[SecurityUtils] = None
 _event_publisher: Optional[EventPublisher] = None
+_data_pipeline: Optional['TranscriptionDataPipeline'] = None
 
 
 # ============================================================================
@@ -161,6 +170,53 @@ def get_unified_repository() -> UnifiedBotSessionRepository:
         _unified_repository = UnifiedBotSessionRepository(db_manager)
         logger.info("UnifiedBotSessionRepository initialized successfully")
     return _unified_repository
+
+
+# ============================================================================
+# Data Pipeline (Production-Ready Database Operations)
+# ============================================================================
+
+@lru_cache()
+def get_data_pipeline() -> Optional['TranscriptionDataPipeline']:
+    """
+    Get singleton TranscriptionDataPipeline instance.
+
+    This is the production-ready database pipeline with:
+    - NULL-safe timeline queries
+    - LRU cache with automatic eviction
+    - Connection pooling with proper configuration
+    - Transaction support with automatic rollback
+    - Rate limiting and backpressure protection
+
+    Returns:
+        TranscriptionDataPipeline instance if available, None otherwise
+    """
+    global _data_pipeline
+
+    if not create_data_pipeline:
+        logger.warning("TranscriptionDataPipeline not available - pipeline module not imported")
+        return None
+
+    if _data_pipeline is None:
+        logger.info("Initializing TranscriptionDataPipeline singleton")
+
+        # Get bot manager's database manager (already initialized with bot sessions)
+        bot_manager = get_bot_manager()
+
+        if hasattr(bot_manager, 'database_manager') and bot_manager.database_manager:
+            logger.info("Using bot_manager's database_manager for pipeline")
+            _data_pipeline = create_data_pipeline(
+                database_manager=bot_manager.database_manager,
+                audio_storage_path=None,  # Uses database_manager's storage path
+                enable_speaker_tracking=True,
+                enable_segment_continuity=True,
+            )
+            logger.info("TranscriptionDataPipeline initialized successfully with production fixes")
+        else:
+            logger.warning("Bot manager database not available - pipeline not initialized")
+            return None
+
+    return _data_pipeline
 
 
 # ============================================================================
@@ -349,19 +405,30 @@ def get_audio_coordinator() -> AudioCoordinator:
         audio_client = get_audio_service_client()
         translation_client = get_translation_service_client()
 
+        # Get production-ready data pipeline (preferred over legacy database_url)
+        data_pipeline = get_data_pipeline()
+
         max_sessions = int(os.getenv("AUDIO_MAX_CONCURRENT_SESSIONS", "10"))
         audio_config_file = os.getenv("AUDIO_CONFIG_FILE")
 
         _audio_coordinator = create_audio_coordinator(
-            database_url=database_url,
+            database_url=database_url if not data_pipeline else None,  # Use database_url only if pipeline not available
             service_urls=service_urls,
             config=None,
             max_concurrent_sessions=max_sessions,
             audio_config_file=audio_config_file,
             audio_client=audio_client,
             translation_client=translation_client,
+            data_pipeline=data_pipeline,  # Pass production-ready pipeline
         )
-        logger.info("AudioCoordinator instance created")
+
+        if data_pipeline:
+            logger.info("AudioCoordinator instance created with TranscriptionDataPipeline (production-ready)")
+        elif database_url:
+            logger.warning("AudioCoordinator instance created with legacy AudioDatabaseAdapter (deprecated)")
+        else:
+            logger.info("AudioCoordinator instance created without persistence")
+
     return _audio_coordinator
 
 
@@ -465,6 +532,14 @@ async def startup_dependencies():
         bot_manager = get_bot_manager()
         logger.info(" System managers initialized")
         
+        
+        # Initialize data pipeline (must be before audio coordinator)
+        data_pipeline = get_data_pipeline()
+        if data_pipeline:
+            logger.info(" Data pipeline initialized (production-ready)")
+        else:
+            logger.warning(" Data pipeline not available (using legacy adapter)")
+
         # Initialize audio processing
         audio_coordinator = get_audio_coordinator()
         config_sync = get_config_sync_manager()
@@ -577,10 +652,10 @@ def reset_dependencies():
     global _config_manager, _websocket_manager, _health_monitor, _bot_manager
     global _database_manager, _unified_repository, _audio_service_client
     global _translation_service_client, _audio_coordinator, _config_sync_manager
-    global _audio_config_manager, _rate_limiter, _security_utils
-    
+    global _audio_config_manager, _rate_limiter, _security_utils, _data_pipeline
+
     logger.warning("Resetting all dependency singletons")
-    
+
     _config_manager = None
     _websocket_manager = None
     _health_monitor = None
@@ -594,7 +669,8 @@ def reset_dependencies():
     _audio_config_manager = None
     _rate_limiter = None
     _security_utils = None
-    
+    _data_pipeline = None
+
     # Clear LRU cache
     get_config_manager.cache_clear()
     get_websocket_manager.cache_clear()
@@ -602,6 +678,7 @@ def reset_dependencies():
     get_bot_manager.cache_clear()
     get_database_manager.cache_clear()
     get_unified_repository.cache_clear()
+    get_data_pipeline.cache_clear()
     get_audio_service_client.cache_clear()
     get_translation_service_client.cache_clear()
     get_audio_coordinator.cache_clear()
