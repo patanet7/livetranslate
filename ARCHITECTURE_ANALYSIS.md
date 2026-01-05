@@ -599,7 +599,7 @@ Output: Speaker timeline with IDs
 - **Integration**: TensorFlow Serving, JAX
 
 #### Apple Neural Engine (macOS/iOS)
-- **Current Status**: ⚠️ Separate module (whisper-service-mac)
+- **Current Status**: ✅ Integrated into main whisper-service (legacy platform-specific services removed)
 - **Potential**: Device-local inference without network
 - **Integration**: Core ML, Metal Performance Shaders
 
