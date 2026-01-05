@@ -144,7 +144,7 @@ class CorrelationRecord:
 
 
 class DatabaseConfig:
-    """Database configuration."""
+    """Database configuration with production-ready pool settings."""
 
     def __init__(self, **kwargs):
         self.host = kwargs.get("host", "localhost")
@@ -152,9 +152,17 @@ class DatabaseConfig:
         self.database = kwargs.get("database", "livetranslate")
         self.username = kwargs.get("username", "postgres")
         self.password = kwargs.get("password", "livetranslate")
+        # Connection pool configuration
         self.min_connections = kwargs.get("min_connections", 5)
         self.max_connections = kwargs.get("max_connections", 20)
-        self.command_timeout = kwargs.get("command_timeout", 60)
+        # Timeout configuration (in seconds)
+        self.connection_timeout = kwargs.get("connection_timeout", 30.0)
+        self.command_timeout = kwargs.get("command_timeout", 60.0)
+        # Pool behavior
+        self.max_queries = kwargs.get("max_queries", 50000)  # Recycle connection after N queries
+        self.max_inactive_connection_lifetime = kwargs.get(
+            "max_inactive_connection_lifetime", 300.0  # 5 minutes
+        )
 
 
 class AudioFileManager:
@@ -725,18 +733,31 @@ class BotSessionDatabaseManager:
         self.total_correlations = 0
 
     async def initialize(self) -> bool:
-        """Initialize database connection and managers."""
+        """Initialize database connection pool with production-ready settings."""
         try:
-            # Create database connection pool
+            # Create database connection pool with comprehensive configuration
             self.db_pool = await asyncpg.create_pool(
                 host=self.config.host,
                 port=self.config.port,
                 database=self.config.database,
                 user=self.config.username,
                 password=self.config.password,
+                # Pool size limits
                 min_size=self.config.min_connections,
                 max_size=self.config.max_connections,
-                command_timeout=self.config.command_timeout,
+                # Timeout configuration (prevents connection exhaustion)
+                timeout=self.config.connection_timeout,  # Connection acquisition timeout
+                command_timeout=self.config.command_timeout,  # Individual command timeout
+                # Connection lifecycle management
+                max_queries=self.config.max_queries,  # Recycle connection after N queries
+                max_inactive_connection_lifetime=self.config.max_inactive_connection_lifetime,
+            )
+
+            logger.info(
+                f"Database connection pool initialized: "
+                f"min={self.config.min_connections}, max={self.config.max_connections}, "
+                f"conn_timeout={self.config.connection_timeout}s, "
+                f"cmd_timeout={self.config.command_timeout}s"
             )
 
             # Initialize component managers

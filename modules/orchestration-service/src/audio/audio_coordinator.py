@@ -55,6 +55,21 @@ from .models import (
 )
 from .database_adapter import AudioDatabaseAdapter
 from .chunk_manager import ChunkManager, create_chunk_manager
+
+# Import data pipeline for modern database operations
+try:
+    from pipeline.data_pipeline import (
+        TranscriptionDataPipeline,
+        TranscriptionResult,
+        TranslationResult,
+        AudioChunkMetadata as PipelineAudioChunkMetadata,
+    )
+except ImportError:
+    TranscriptionDataPipeline = None
+    TranscriptionResult = None
+    TranslationResult = None
+    PipelineAudioChunkMetadata = None
+    logger.warning("TranscriptionDataPipeline not available - falling back to AudioDatabaseAdapter")
 from .config import (
     AudioConfigurationManager,
     AudioProcessingConfig,
@@ -598,15 +613,27 @@ class AudioCoordinator:
         audio_config_file: Optional[str] = None,
         audio_client: Optional[AudioServiceClient] = None,
         translation_client: Optional[TranslationServiceClient] = None,
+        data_pipeline: Optional['TranscriptionDataPipeline'] = None,
     ):
         self.config = config
         self.database_url = database_url
         self.service_urls = service_urls
         self.audio_client = audio_client
         self.translation_client = translation_client
-        
-        # Core components
-        self.database_adapter = AudioDatabaseAdapter(database_url) if database_url else None
+
+        # Core components - Prefer data pipeline over legacy AudioDatabaseAdapter
+        self.data_pipeline = data_pipeline
+        if data_pipeline:
+            logger.info("AudioCoordinator using TranscriptionDataPipeline for database operations (production-ready)")
+            # Keep AudioDatabaseAdapter as None when using pipeline
+            self.database_adapter = None
+        elif database_url:
+            logger.warning("AudioCoordinator using legacy AudioDatabaseAdapter (deprecated - migrate to data_pipeline)")
+            self.database_adapter = AudioDatabaseAdapter(database_url)
+        else:
+            logger.info("AudioCoordinator running without database persistence")
+            self.database_adapter = None
+
         self.service_client = ServiceClientPool(
             service_urls,
             audio_client=audio_client,
@@ -674,7 +701,126 @@ class AudioCoordinator:
         self.on_error: Optional[Callable] = None
         
         logger.info("AudioCoordinator initialized")
-    
+
+    # ==================== Format Conversion Helper Methods ====================
+
+    def _create_transcription_result(self, transcript_data: Dict[str, Any]) -> 'TranscriptionResult':
+        """
+        Convert transcript dictionary to TranscriptionResult dataclass for pipeline.
+
+        Args:
+            transcript_data: Transcript dictionary with text, timestamps, language, etc.
+
+        Returns:
+            TranscriptionResult instance for pipeline processing
+        """
+        if not TranscriptionResult:
+            raise ImportError("TranscriptionResult not available - pipeline not imported")
+
+        speaker_info = transcript_data.get("speaker_info", {})
+
+        return TranscriptionResult(
+            text=transcript_data.get("text", ""),
+            language=transcript_data.get("language", "en"),
+            start_time=transcript_data.get("start_timestamp", 0.0),
+            end_time=transcript_data.get("end_timestamp", 0.0),
+            speaker=speaker_info.get("speaker_id") if speaker_info else None,
+            speaker_name=speaker_info.get("speaker_name") if speaker_info else None,
+            confidence=transcript_data.get("confidence", 0.0),
+            segment_index=transcript_data.get("segment_index", 0),
+            is_final=transcript_data.get("is_final", True),
+            words=transcript_data.get("words", None),
+        )
+
+    def _create_translation_result(self, translation_data: Dict[str, Any]) -> 'TranslationResult':
+        """
+        Convert translation dictionary to TranslationResult dataclass for pipeline.
+
+        Args:
+            translation_data: Translation dictionary with translated_text, languages, etc.
+
+        Returns:
+            TranslationResult instance for pipeline processing
+        """
+        if not TranslationResult:
+            raise ImportError("TranslationResult not available - pipeline not imported")
+
+        return TranslationResult(
+            text=translation_data.get("translated_text", ""),
+            source_language=translation_data.get("source_language", "auto"),
+            target_language=translation_data.get("target_language", "en"),
+            speaker=translation_data.get("speaker_id"),
+            speaker_name=translation_data.get("speaker_name"),
+            confidence=translation_data.get("confidence", 0.0),
+            translation_service=translation_data.get("translation_service", "translation_service"),
+            model_name=translation_data.get("model", None),
+        )
+
+    async def _store_transcript_via_pipeline(
+        self,
+        session_id: str,
+        transcript_data: Dict[str, Any],
+        audio_file_id: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Store transcript using data pipeline with proper format conversion.
+
+        Args:
+            session_id: Session identifier
+            transcript_data: Transcript dictionary from whisper service
+            audio_file_id: Optional audio file ID for linking
+
+        Returns:
+            Transcript ID if successful, None otherwise
+        """
+        try:
+            transcription_result = self._create_transcription_result(transcript_data)
+            return await self.data_pipeline.process_transcription_result(
+                session_id=session_id,
+                file_id=audio_file_id,
+                transcription=transcription_result,
+                source_type=transcript_data.get("source_type", "whisper_service"),
+            )
+        except Exception as e:
+            logger.error(f"Failed to store transcript via pipeline: {e}", exc_info=True)
+            return None
+
+    async def _store_translation_via_pipeline(
+        self,
+        session_id: str,
+        transcript_id: str,
+        translation_data: Dict[str, Any],
+        start_timestamp: float,
+        end_timestamp: float
+    ) -> Optional[str]:
+        """
+        Store translation using data pipeline with proper format conversion.
+
+        Args:
+            session_id: Session identifier
+            transcript_id: Source transcript ID
+            translation_data: Translation dictionary from translation service
+            start_timestamp: Start time of translation
+            end_timestamp: End time of translation
+
+        Returns:
+            Translation ID if successful, None otherwise
+        """
+        try:
+            translation_result = self._create_translation_result(translation_data)
+            return await self.data_pipeline.process_translation_result(
+                session_id=session_id,
+                transcript_id=transcript_id,
+                translation=translation_result,
+                start_time=start_timestamp,
+                end_time=end_timestamp,
+            )
+        except Exception as e:
+            logger.error(f"Failed to store translation via pipeline: {e}", exc_info=True)
+            return None
+
+    # ==================== Initialization and Lifecycle ====================
+
     async def initialize(self) -> bool:
         """Initialize the audio coordinator and all components."""
         try:
@@ -1068,7 +1214,25 @@ class AudioCoordinator:
             if transcript_result and transcript_result.get("text"):
                 # Store transcript in database (if available)
                 transcript_id = None
-                if self.database_adapter:
+                if self.data_pipeline:
+                    # Use production-ready pipeline with all fixes (NULL safety, caching, transactions, rate limiting)
+                    transcript_id = await self._store_transcript_via_pipeline(
+                        metadata.session_id,
+                        {
+                            "text": transcript_result["text"],
+                            "start_timestamp": metadata.chunk_start_time,
+                            "end_timestamp": metadata.chunk_end_time,
+                            "language": transcript_result.get("language", "en"),
+                            "confidence": transcript_result.get("confidence", 0.0),
+                            "speaker_info": transcript_result.get("speaker_info", {}),
+                            "chunk_id": metadata.chunk_id,
+                            "source_type": "whisper_service",
+                            "metadata": transcript_result.get("metadata", {}),
+                        },
+                        audio_file_id=metadata.chunk_id
+                    )
+                elif self.database_adapter:
+                    # Fallback to legacy adapter (deprecated)
                     transcript_id = await self.database_adapter.store_transcript(
                         metadata.session_id,
                         {
@@ -1311,7 +1475,26 @@ class AudioCoordinator:
             if translation_result and translation_result.get("translated_text"):
                 # Store translation in database (if available)
                 translation_id = None
-                if self.database_adapter:
+                if self.data_pipeline:
+                    # Use production-ready pipeline with all fixes
+                    translation_id = await self._store_translation_via_pipeline(
+                        session_id,
+                        transcript_id,
+                        {
+                            "translated_text": translation_result["translated_text"],
+                            "source_language": transcript_result.get("language", "auto"),
+                            "target_language": target_language,
+                            "confidence": translation_result.get("confidence", 0.0),
+                            "translation_service": translation_result.get("service", "unknown"),
+                            "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                            "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
+                            "metadata": translation_result.get("metadata", {}),
+                        },
+                        start_timestamp=transcript_result.get("start_timestamp", 0.0),
+                        end_timestamp=transcript_result.get("end_timestamp", 0.0)
+                    )
+                elif self.database_adapter:
+                    # Fallback to legacy adapter (deprecated)
                     translation_id = await self.database_adapter.store_translation(
                         session_id,
                         transcript_id,
@@ -1380,7 +1563,26 @@ class AudioCoordinator:
         # Store translation in database (if available)
         translation_id = None
 
-        if self.database_adapter:
+        if self.data_pipeline:
+            # Use production-ready pipeline with all fixes
+            translation_id = await self._store_translation_via_pipeline(
+                session_id,
+                transcript_id,
+                {
+                    "translated_text": translation_data.get("translated_text", ""),
+                    "source_language": transcript_result.get("language", "auto"),
+                    "target_language": target_language,
+                    "confidence": translation_data.get("confidence", 0.0),
+                    "translation_service": translation_data.get("metadata", {}).get("backend_used", "unknown"),
+                    "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                    "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
+                    "metadata": translation_data.get("metadata", {}),
+                },
+                start_timestamp=transcript_result.get("start_timestamp", 0.0),
+                end_timestamp=transcript_result.get("end_timestamp", 0.0)
+            )
+        elif self.database_adapter:
+            # Fallback to legacy adapter (deprecated)
             translation_id = await self.database_adapter.store_translation(
                 session_id,
                 transcript_id,
@@ -1763,23 +1965,42 @@ class AudioCoordinator:
                     )
 
                     # Store transcript in database if available
-                    if self.database_adapter and config.get("session_id"):
+                    if (self.data_pipeline or self.database_adapter) and config.get("session_id"):
                         try:
-                            transcript_id = await self.database_adapter.store_transcript(
-                                config.get("session_id"),
-                                {
-                                    "text": result["transcription"],
-                                    "start_timestamp": 0.0,
-                                    "end_timestamp": audio_duration,
-                                    "language": result["language"],
-                                    "confidence": result["confidence"],
-                                    "speaker_info": speaker_info,
-                                    "chunk_id": chunk_metadata.chunk_id,
-                                    "source_type": "file_upload",
-                                    "metadata": transcript_result.get("metadata", {}),
-                                },
-                                audio_file_id=chunk_metadata.chunk_id
-                            )
+                            if self.data_pipeline:
+                                # Use production-ready pipeline
+                                transcript_id = await self._store_transcript_via_pipeline(
+                                    config.get("session_id"),
+                                    {
+                                        "text": result["transcription"],
+                                        "start_timestamp": 0.0,
+                                        "end_timestamp": audio_duration,
+                                        "language": result["language"],
+                                        "confidence": result["confidence"],
+                                        "speaker_info": speaker_info,
+                                        "chunk_id": chunk_metadata.chunk_id,
+                                        "source_type": "file_upload",
+                                        "metadata": transcript_result.get("metadata", {}),
+                                    },
+                                    audio_file_id=chunk_metadata.chunk_id
+                                )
+                            else:
+                                # Fallback to legacy adapter (deprecated)
+                                transcript_id = await self.database_adapter.store_transcript(
+                                    config.get("session_id"),
+                                    {
+                                        "text": result["transcription"],
+                                        "start_timestamp": 0.0,
+                                        "end_timestamp": audio_duration,
+                                        "language": result["language"],
+                                        "confidence": result["confidence"],
+                                        "speaker_info": speaker_info,
+                                        "chunk_id": chunk_metadata.chunk_id,
+                                        "source_type": "file_upload",
+                                        "metadata": transcript_result.get("metadata", {}),
+                                    },
+                                    audio_file_id=chunk_metadata.chunk_id
+                                )
                             result["transcript_id"] = transcript_id
                             logger.info(f"[{request_id}] Stored transcript in database: {transcript_id}")
                         except Exception as db_error:
@@ -1881,22 +2102,42 @@ class AudioCoordinator:
 
             if translation_result and translation_result.get("translated_text"):
                 # Store translation in database if available
-                if self.database_adapter and config.get("session_id") and transcript_result.get("transcript_id"):
+                if (self.data_pipeline or self.database_adapter) and config.get("session_id") and transcript_result.get("transcript_id"):
                     try:
-                        translation_id = await self.database_adapter.store_translation(
-                            config.get("session_id"),
-                            transcript_result.get("transcript_id"),
-                            {
-                                "translated_text": translation_result["translated_text"],
-                                "source_language": transcript_result.get("language", "auto"),
-                                "target_language": target_language,
-                                "confidence": translation_result.get("confidence", 0.0),
-                                "translation_service": translation_result.get("service", "unknown"),
-                                "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
-                                "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
-                                "start_timestamp": 0.0,
-                                "end_timestamp": config.get("duration", 0.0),
-                                "metadata": translation_result.get("metadata", {}),
+                        if self.data_pipeline:
+                            # Use production-ready pipeline
+                            translation_id = await self._store_translation_via_pipeline(
+                                config.get("session_id"),
+                                transcript_result.get("transcript_id"),
+                                {
+                                    "translated_text": translation_result["translated_text"],
+                                    "source_language": transcript_result.get("language", "auto"),
+                                    "target_language": target_language,
+                                    "confidence": translation_result.get("confidence", 0.0),
+                                    "translation_service": translation_result.get("service", "unknown"),
+                                    "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                                    "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
+                                    "metadata": translation_result.get("metadata", {}),
+                                },
+                                start_timestamp=0.0,
+                                end_timestamp=config.get("duration", 0.0)
+                            )
+                        else:
+                            # Fallback to legacy adapter (deprecated)
+                            translation_id = await self.database_adapter.store_translation(
+                                config.get("session_id"),
+                                transcript_result.get("transcript_id"),
+                                {
+                                    "translated_text": translation_result["translated_text"],
+                                    "source_language": transcript_result.get("language", "auto"),
+                                    "target_language": target_language,
+                                    "confidence": translation_result.get("confidence", 0.0),
+                                    "translation_service": translation_result.get("service", "unknown"),
+                                    "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                                    "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
+                                    "start_timestamp": 0.0,
+                                    "end_timestamp": config.get("duration", 0.0),
+                                    "metadata": translation_result.get("metadata", {}),
                             }
                         )
                         translation_result["translation_id"] = translation_id
@@ -1922,11 +2163,31 @@ def create_audio_coordinator(
     audio_config_file: Optional[str] = None,
     audio_client: Optional[AudioServiceClient] = None,
     translation_client: Optional[TranslationServiceClient] = None,
+    data_pipeline: Optional['TranscriptionDataPipeline'] = None,
 ) -> AudioCoordinator:
-    """Create and return an AudioCoordinator instance."""
+    """
+    Create and return an AudioCoordinator instance.
+
+    Args:
+        database_url: Database URL (deprecated if data_pipeline provided)
+        service_urls: Dictionary of downstream service URLs
+        config: Audio chunking configuration
+        max_concurrent_sessions: Maximum concurrent audio sessions
+        audio_config_file: Path to audio configuration file
+        audio_client: Optional audio service client (for embedded mode)
+        translation_client: Optional translation service client (for embedded mode)
+        data_pipeline: Production-ready TranscriptionDataPipeline (RECOMMENDED)
+
+    Returns:
+        Configured AudioCoordinator instance
+
+    Note:
+        Prefer passing data_pipeline over database_url for production deployments.
+        The data_pipeline includes NULL safety, LRU caching, transactions, and rate limiting.
+    """
     if not config:
         config = get_default_chunking_config()
-    
+
     return AudioCoordinator(
         config,
         database_url,
@@ -1935,6 +2196,7 @@ def create_audio_coordinator(
         audio_config_file,
         audio_client=audio_client,
         translation_client=translation_client,
+        data_pipeline=data_pipeline,
     )
 
 

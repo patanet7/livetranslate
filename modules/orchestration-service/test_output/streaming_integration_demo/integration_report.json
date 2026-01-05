@@ -1,0 +1,47 @@
+{
+  "test_mode": "mock",
+  "session_id": "integration_test_1762381904",
+  "timestamp": "2025-11-05T14:32:04.681263",
+  "chunks_processed": 2,
+  "frames_saved": 100,
+  "integration_results": [
+    {
+      "chunk_id": "chunk_0001",
+      "status": "failed",
+      "error": "HTTP 404",
+      "timestamp": 1762381909.8272629
+    },
+    {
+      "chunk_id": "chunk_0002",
+      "status": "failed",
+      "error": "HTTP 404",
+      "timestamp": 1762381912.279584
+    }
+  ],
+  "webcam_stats": {
+    "is_streaming": true,
+    "session_id": "integration_test_1762381904",
+    "frames_generated": 408,
+    "duration_seconds": 19.883990049362183,
+    "average_fps": 20.519020527929072,
+    "current_translations_count": 0,
+    "speakers_count": 0,
+    "config": {
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "format": "RGB24",
+      "device_name": "LiveTranslate Virtual Camera",
+      "display_mode": "DisplayMode.OVERLAY",
+      "theme": "Theme.DARK",
+      "max_translations_displayed": 5,
+      "translation_duration_seconds": 15.0,
+      "font_size": 32,
+      "background_opacity": 0.8,
+      "show_speaker_names": true,
+      "show_confidence": true,
+      "show_timestamps": true
+    },
+    "last_translation_time": null
+  }
+}

@@ -258,6 +258,14 @@ class GoogleMeetBotManager:
             "translation_service_url", "http://localhost:5003"
         )
 
+        # Rate limiting / Backpressure protection
+        self._db_operation_semaphore = asyncio.Semaphore(
+            self.config.get("max_concurrent_db_operations", 50)
+        )
+        self._db_operation_queue_depth = 0
+        self._db_operations_completed = 0
+        self._db_operations_rejected = 0
+
         # Google Meet API integration
         self.google_meet_client = None
         self.bot_manager_integration = None
@@ -321,6 +329,9 @@ class GoogleMeetBotManager:
                 "password": "livetranslate",
             },
             "audio_storage_path": "/data/livetranslate/audio",
+            # Rate limiting configuration
+            "max_concurrent_db_operations": 50,  # Prevents overwhelming database
+            "db_operation_timeout": 30.0,  # Timeout for acquiring semaphore
         }
 
     async def start(self) -> bool:
@@ -996,13 +1007,75 @@ class GoogleMeetBotManager:
         except Exception as e:
             logger.error(f"Error processing bot queue: {e}")
 
+    # ==================== Rate Limiting / Backpressure Methods ====================
+
+    async def _rate_limited_db_operation(self, operation_func, operation_name: str, *args, **kwargs):
+        """
+        Execute database operation with rate limiting.
+
+        Args:
+            operation_func: Async function to execute
+            operation_name: Name of operation for logging
+            *args, **kwargs: Arguments to pass to operation_func
+
+        Returns:
+            Result from operation_func, or None if rate limited
+
+        Raises:
+            asyncio.TimeoutError: If cannot acquire semaphore within timeout
+        """
+        timeout = self.config.get("db_operation_timeout", 30.0)
+
+        try:
+            # Try to acquire semaphore with timeout
+            self._db_operation_queue_depth += 1
+
+            async with asyncio.timeout(timeout):
+                async with self._db_operation_semaphore:
+                    self._db_operation_queue_depth -= 1
+                    result = await operation_func(*args, **kwargs)
+                    self._db_operations_completed += 1
+                    return result
+
+        except asyncio.TimeoutError:
+            self._db_operation_queue_depth -= 1
+            self._db_operations_rejected += 1
+            logger.warning(
+                f"Database operation '{operation_name}' rejected due to rate limiting "
+                f"(queue depth: {self._db_operation_queue_depth}, "
+                f"timeout: {timeout}s)"
+            )
+            return None
+        except Exception as e:
+            self._db_operation_queue_depth -= 1
+            logger.error(f"Database operation '{operation_name}' failed: {e}")
+            return None
+
+    def get_rate_limit_statistics(self) -> Dict[str, Any]:
+        """
+        Get rate limiting statistics.
+
+        Returns:
+            Dictionary with rate limiting metrics
+        """
+        return {
+            "max_concurrent_operations": self.config.get("max_concurrent_db_operations", 50),
+            "current_queue_depth": self._db_operation_queue_depth,
+            "operations_completed": self._db_operations_completed,
+            "operations_rejected": self._db_operations_rejected,
+            "rejection_rate": (
+                self._db_operations_rejected /
+                max(1, self._db_operations_completed + self._db_operations_rejected)
+            ),
+        }
+
     # ==================== Data Pipeline Integration Methods ====================
 
     async def save_audio_chunk(
         self, session_id: str, audio_data: bytes, metadata: Dict[str, Any]
     ) -> Optional[str]:
         """
-        Save audio chunk to pipeline.
+        Save audio chunk to pipeline with rate limiting.
 
         Args:
             session_id: Session identifier
@@ -1016,16 +1089,20 @@ class GoogleMeetBotManager:
             logger.debug("Data pipeline not available, skipping audio chunk save")
             return None
 
-        try:
-            audio_file_id = await self.data_pipeline.process_audio_chunk(
+        # Rate-limited database operation
+        async def _save_operation():
+            return await self.data_pipeline.process_audio_chunk(
                 session_id, audio_data, metadata
             )
-            logger.debug(f"Saved audio chunk {metadata.get('chunk_id')} → {audio_file_id}")
-            return audio_file_id
 
-        except Exception as e:
-            logger.error(f"Failed to save audio chunk: {e}")
-            return None
+        audio_file_id = await self._rate_limited_db_operation(
+            _save_operation, f"save_audio_chunk[{session_id}]"
+        )
+
+        if audio_file_id:
+            logger.debug(f"Saved audio chunk {metadata.get('chunk_id')} → {audio_file_id}")
+
+        return audio_file_id
 
     async def save_transcription(
         self,
@@ -1034,7 +1111,7 @@ class GoogleMeetBotManager:
         transcription: Dict[str, Any]
     ) -> Optional[str]:
         """
-        Save transcription result to pipeline.
+        Save transcription result to pipeline with rate limiting.
 
         Args:
             session_id: Session identifier
@@ -1048,18 +1125,22 @@ class GoogleMeetBotManager:
             logger.debug("Data pipeline not available, skipping transcription save")
             return None
 
-        try:
-            transcript_id = await self.data_pipeline.process_transcription_result(
+        # Rate-limited database operation
+        async def _save_operation():
+            return await self.data_pipeline.process_transcription_result(
                 session_id, audio_file_id, transcription
             )
+
+        transcript_id = await self._rate_limited_db_operation(
+            _save_operation, f"save_transcription[{session_id}]"
+        )
+
+        if transcript_id:
             logger.debug(
                 f"Saved transcription {transcription.get('text', '')[:50]} → {transcript_id}"
             )
-            return transcript_id
 
-        except Exception as e:
-            logger.error(f"Failed to save transcription: {e}")
-            return None
+        return transcript_id
 
     async def save_translation(
         self,
@@ -1068,7 +1149,7 @@ class GoogleMeetBotManager:
         translation: Dict[str, Any]
     ) -> Optional[str]:
         """
-        Save translation result to pipeline.
+        Save translation result to pipeline with rate limiting.
 
         Args:
             session_id: Session identifier
@@ -1082,18 +1163,22 @@ class GoogleMeetBotManager:
             logger.debug("Data pipeline not available, skipping translation save")
             return None
 
-        try:
-            translation_id = await self.data_pipeline.process_translation_result(
+        # Rate-limited database operation
+        async def _save_operation():
+            return await self.data_pipeline.process_translation_result(
                 session_id, source_transcript_id, translation
             )
+
+        translation_id = await self._rate_limited_db_operation(
+            _save_operation, f"save_translation[{session_id}]"
+        )
+
+        if translation_id:
             logger.debug(
                 f"Saved translation {translation.get('text', '')[:50]} → {translation_id}"
             )
-            return translation_id
 
-        except Exception as e:
-            logger.error(f"Failed to save translation: {e}")
-            return None
+        return translation_id
 
     async def get_session_timeline(
         self,

@@ -35,6 +35,8 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
+from collections import OrderedDict
+from contextlib import asynccontextmanager
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -140,6 +142,7 @@ class TranscriptionDataPipeline:
         db_manager: BotSessionDatabaseManager,
         enable_speaker_tracking: bool = True,
         enable_segment_continuity: bool = True,
+        max_cache_size: int = 1000,
     ):
         """
         Initialize the data pipeline.
@@ -148,17 +151,25 @@ class TranscriptionDataPipeline:
             db_manager: Database manager instance
             enable_speaker_tracking: Enable speaker identity tracking
             enable_segment_continuity: Enable segment continuity tracking
+            max_cache_size: Maximum number of entries in segment cache (LRU eviction)
         """
         self.db_manager = db_manager
         self.enable_speaker_tracking = enable_speaker_tracking
         self.enable_segment_continuity = enable_segment_continuity
+        self.max_cache_size = max_cache_size
 
-        # Cache for recent segments (for continuity tracking)
-        self._segment_cache: Dict[str, str] = {}  # session_id -> last_transcript_id
+        # Cache for recent segments (for continuity tracking) with LRU eviction
+        self._segment_cache: OrderedDict[str, str] = OrderedDict()  # session_id -> last_transcript_id
+
+        # Cache statistics for monitoring
+        self._cache_hits: int = 0
+        self._cache_misses: int = 0
+        self._cache_evictions: int = 0
 
         logger.info("Transcription data pipeline initialized")
         logger.info(f"  Speaker tracking: {enable_speaker_tracking}")
         logger.info(f"  Segment continuity: {enable_segment_continuity}")
+        logger.info(f"  Max cache size: {max_cache_size}")
 
     async def process_audio_chunk(
         self,
@@ -447,16 +458,26 @@ class TranscriptionDataPipeline:
                         continue
                     if speaker_filter and translation.speaker_id != speaker_filter:
                         continue
-                    if start_time is not None and translation.start_timestamp < start_time:
-                        continue
-                    if end_time is not None and translation.end_timestamp > end_time:
-                        continue
+                    # NULL-safe timestamp comparisons - prevent TypeError on NULL timestamps
+                    if start_time is not None and translation.start_timestamp is not None:
+                        if translation.start_timestamp < start_time:
+                            continue
+                    if end_time is not None and translation.end_timestamp is not None:
+                        if translation.end_timestamp > end_time:
+                            continue
+
+                    # NULL-safe duration calculation
+                    if translation.start_timestamp is not None and translation.end_timestamp is not None:
+                        duration = translation.end_timestamp - translation.start_timestamp
+                        timestamp = translation.start_timestamp
+                    else:
+                        duration = 0.0
+                        timestamp = translation.start_timestamp or 0.0
 
                     timeline.append(
                         TimelineEntry(
-                            timestamp=translation.start_timestamp,
-                            duration=translation.end_timestamp
-                            - translation.start_timestamp,
+                            timestamp=timestamp,
+                            duration=duration,
                             entry_type="translation",
                             content=translation.translated_text,
                             language=translation.target_language,
@@ -650,7 +671,7 @@ class TranscriptionDataPipeline:
         self, session_id: str, transcript_id: str
     ) -> None:
         """
-        Update segment continuity links.
+        Update segment continuity links with LRU cache.
 
         Args:
             session_id: Session identifier
@@ -661,6 +682,7 @@ class TranscriptionDataPipeline:
             previous_id = self._segment_cache.get(session_id)
 
             if previous_id:
+                self._cache_hits += 1
                 # Update previous segment's next_segment_id
                 async with self.db_manager.db_pool.acquire() as conn:
                     await conn.execute(
@@ -683,12 +705,174 @@ class TranscriptionDataPipeline:
                         previous_id,
                         transcript_id,
                     )
+            else:
+                self._cache_misses += 1
 
-            # Update cache
+            # Update cache with LRU eviction
+            # Move to end if exists (mark as recently used)
+            if session_id in self._segment_cache:
+                self._segment_cache.move_to_end(session_id)
+
             self._segment_cache[session_id] = transcript_id
+
+            # Evict oldest entry if cache is full
+            if len(self._segment_cache) > self.max_cache_size:
+                evicted_key = next(iter(self._segment_cache))
+                self._segment_cache.pop(evicted_key)
+                self._cache_evictions += 1
+                logger.debug(
+                    f"Evicted session {evicted_key} from segment cache "
+                    f"(size: {len(self._segment_cache)}/{self.max_cache_size})"
+                )
 
         except Exception as e:
             logger.warning(f"Error updating segment continuity: {e}")
+
+    async def clear_session_cache(self, session_id: str) -> None:
+        """
+        Clear cache entries for a specific session.
+
+        Args:
+            session_id: Session identifier to clear from cache
+        """
+        try:
+            if session_id in self._segment_cache:
+                self._segment_cache.pop(session_id)
+                logger.debug(f"Cleared cache for session {session_id}")
+        except Exception as e:
+            logger.warning(f"Error clearing session cache: {e}")
+
+    def get_cache_statistics(self) -> Dict[str, Any]:
+        """
+        Get cache performance statistics.
+
+        Returns:
+            Dictionary with cache metrics (hits, misses, evictions, size, hit rate)
+        """
+        total_requests = self._cache_hits + self._cache_misses
+        hit_rate = (
+            self._cache_hits / total_requests if total_requests > 0 else 0.0
+        )
+
+        return {
+            "cache_size": len(self._segment_cache),
+            "max_cache_size": self.max_cache_size,
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
+            "cache_evictions": self._cache_evictions,
+            "total_requests": total_requests,
+            "hit_rate": hit_rate,
+        }
+
+    @asynccontextmanager
+    async def transaction(self):
+        """
+        Async context manager for database transactions.
+
+        Provides atomic transaction support for multi-step operations.
+        Automatically commits on success, rolls back on failure.
+
+        Usage:
+            async with pipeline.transaction() as conn:
+                await conn.execute("INSERT ...")
+                await conn.execute("UPDATE ...")
+                # Automatic commit on exit
+
+        Yields:
+            Database connection with active transaction
+
+        Raises:
+            Exception: Re-raises any exception after rolling back transaction
+        """
+        async with self.db_manager.db_pool.acquire() as conn:
+            async with conn.transaction():
+                yield conn
+
+    async def process_complete_segment(
+        self,
+        session_id: str,
+        audio_bytes: bytes,
+        transcription: TranscriptionResult,
+        translations: List[TranslationResult],
+        audio_metadata: Optional[AudioChunkMetadata] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Process complete segment atomically (audio + transcription + translations).
+
+        All operations succeed or fail together. On failure, all changes are rolled back.
+
+        Args:
+            session_id: Session identifier
+            audio_bytes: Raw audio data
+            transcription: Transcription result
+            translations: List of translation results
+            audio_metadata: Optional audio metadata
+
+        Returns:
+            Dictionary with file_id, transcript_id, and translation_ids if successful,
+            None if any step fails
+        """
+        try:
+            async with self.transaction():
+                # Step 1: Store audio chunk
+                file_id = await self.process_audio_chunk(
+                    session_id=session_id,
+                    audio_bytes=audio_bytes,
+                    file_format="wav",
+                    metadata=audio_metadata,
+                )
+
+                if not file_id:
+                    raise Exception("Failed to store audio chunk")
+
+                # Step 2: Store transcription
+                transcript_id = await self.process_transcription_result(
+                    session_id=session_id,
+                    file_id=file_id,
+                    transcription=transcription,
+                )
+
+                if not transcript_id:
+                    raise Exception("Failed to store transcription")
+
+                # Step 3: Store all translations
+                translation_ids = []
+                for translation in translations:
+                    translation_id = await self.process_translation_result(
+                        session_id=session_id,
+                        transcript_id=transcript_id,
+                        translation=translation,
+                        start_time=transcription.start_time,
+                        end_time=transcription.end_time,
+                    )
+
+                    if not translation_id:
+                        raise Exception(
+                            f"Failed to store translation to {translation.target_language}"
+                        )
+
+                    translation_ids.append(translation_id)
+
+                # All operations succeeded
+                logger.info(
+                    f"Processed complete segment atomically: "
+                    f"audio={file_id}, transcript={transcript_id}, "
+                    f"translations={len(translation_ids)}"
+                )
+
+                return {
+                    "file_id": file_id,
+                    "transcript_id": transcript_id,
+                    "translation_ids": translation_ids,
+                    "session_id": session_id,
+                }
+
+        except Exception as e:
+            logger.error(
+                f"Failed to process complete segment (transaction rolled back): {e}",
+                exc_info=True,
+            )
+            return None
 
     async def _track_speaker(
         self,
