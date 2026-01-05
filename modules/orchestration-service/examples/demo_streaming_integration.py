@@ -69,8 +69,7 @@ from bot.virtual_webcam import (
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -94,13 +93,13 @@ class MockServiceServer:
         self.app = web.Application()
 
         if self.service_type == "whisper":
-            self.app.router.add_post('/transcribe', self._handle_whisper_request)
+            self.app.router.add_post("/transcribe", self._handle_whisper_request)
         elif self.service_type == "translation":
-            self.app.router.add_post('/translate', self._handle_translation_request)
+            self.app.router.add_post("/translate", self._handle_translation_request)
 
         runner = web.AppRunner(self.app)
         await runner.setup()
-        site = web.TCPSite(runner, 'localhost', self.port)
+        site = web.TCPSite(runner, "localhost", self.port)
         await site.start()
 
         logger.info(f"Mock {self.service_type} service started on port {self.port}")
@@ -135,19 +134,13 @@ class MockServiceServer:
                     "text": "Hello everyone, welcome to today's meeting.",
                     "tokens": [50364, 2425, 1518, 11, 2928, 1025],
                     "avg_logprob": -0.18,
-                    "no_speech_prob": 0.02
+                    "no_speech_prob": 0.02,
                 }
             ],
             "diarization": {
                 "speaker_id": "SPEAKER_00",
-                "segments": [
-                    {
-                        "speaker": "SPEAKER_00",
-                        "start": 0.0,
-                        "end": 2.5
-                    }
-                ]
-            }
+                "segments": [{"speaker": "SPEAKER_00", "start": 0.0, "end": 2.5}],
+            },
         }
 
         return web.json_response(response)
@@ -171,7 +164,7 @@ class MockServiceServer:
         translations = {
             "es": "Hola a todos, bienvenidos a la reunión de hoy.",
             "fr": "Bonjour à tous, bienvenue à la réunion d'aujourd'hui.",
-            "de": "Hallo zusammen, willkommen zum heutigen Meeting."
+            "de": "Hallo zusammen, willkommen zum heutigen Meeting.",
         }
 
         # Return realistic translation response with EXACT format
@@ -181,7 +174,7 @@ class MockServiceServer:
             "target_language": target_lang,
             "confidence": 0.88,
             "model_used": f"opus-mt-en-{target_lang}",
-            "translation_time_ms": 45
+            "translation_time_ms": 45,
         }
 
         return web.json_response(response)
@@ -207,7 +200,7 @@ class AudioStreamSimulator:
 
         # Convert to WAV bytes
         wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
+        with wave.open(wav_buffer, "wb") as wav_file:
             wav_file.setnchannels(1)  # Mono
             wav_file.setsampwidth(2)  # 16-bit
             wav_file.setframerate(self.sample_rate)
@@ -216,7 +209,9 @@ class AudioStreamSimulator:
         wav_buffer.seek(0)
         return wav_buffer.read()
 
-    def generate_tone_audio_chunk(self, duration_seconds: float, frequency: float = 440.0) -> bytes:
+    def generate_tone_audio_chunk(
+        self, duration_seconds: float, frequency: float = 440.0
+    ) -> bytes:
         """Generate a tone audio chunk (for more realistic testing)."""
         num_samples = int(self.sample_rate * duration_seconds)
 
@@ -229,7 +224,7 @@ class AudioStreamSimulator:
 
         # Convert to WAV bytes
         wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
+        with wave.open(wav_buffer, "wb") as wav_file:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
             wav_file.setframerate(self.sample_rate)
@@ -238,11 +233,7 @@ class AudioStreamSimulator:
         wav_buffer.seek(0)
         return wav_buffer.read()
 
-    async def stream_audio_chunks(
-        self,
-        num_chunks: int,
-        chunk_callback: Any
-    ):
+    async def stream_audio_chunks(self, num_chunks: int, chunk_callback: Any):
         """
         Stream audio chunks asynchronously.
         Simulates real-time audio streaming from browser.
@@ -256,16 +247,20 @@ class AudioStreamSimulator:
                 audio_bytes = self.generate_silent_audio_chunk(self.chunk_duration)
             else:
                 # Tone chunks (makes it more realistic)
-                audio_bytes = self.generate_tone_audio_chunk(self.chunk_duration, frequency=440.0 + (i * 50))
+                audio_bytes = self.generate_tone_audio_chunk(
+                    self.chunk_duration, frequency=440.0 + (i * 50)
+                )
 
             chunk_metadata = {
                 "chunk_index": i,
                 "timestamp": time.time(),
                 "duration_seconds": self.chunk_duration,
-                "sample_rate": self.sample_rate
+                "sample_rate": self.sample_rate,
             }
 
-            logger.info(f"Generated audio chunk {i+1}/{num_chunks} ({len(audio_bytes)} bytes)")
+            logger.info(
+                f"Generated audio chunk {i + 1}/{num_chunks} ({len(audio_bytes)} bytes)"
+            )
 
             # Call the callback with audio data
             await chunk_callback(audio_bytes, chunk_metadata)
@@ -292,7 +287,9 @@ class StreamingIntegrationDemo:
 
     def __init__(self, mode: str = "mock"):
         self.mode = mode
-        self.output_dir = Path(__file__).parent / "test_output" / "streaming_integration_demo"
+        self.output_dir = (
+            Path(__file__).parent / "test_output" / "streaming_integration_demo"
+        )
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Service configuration
@@ -324,11 +321,7 @@ class StreamingIntegrationDemo:
 
     async def check_services(self) -> Dict[str, bool]:
         """Check which services are available."""
-        services = {
-            "orchestration": False,
-            "whisper": False,
-            "translation": False
-        }
+        services = {"orchestration": False, "whisper": False, "translation": False}
 
         async with httpx.AsyncClient(timeout=2.0) as client:
             # Check orchestration service (FastAPI backend)
@@ -341,7 +334,9 @@ class StreamingIntegrationDemo:
                     # Fallback to /health
                     response = await client.get(f"{self.orchestration_url}/health")
                     # If we get a redirect (307) to /login, it's not the API
-                    services["orchestration"] = response.status_code == 200 and "<!DOCTYPE" not in response.text
+                    services["orchestration"] = (
+                        response.status_code == 200 and "<!DOCTYPE" not in response.text
+                    )
                 except Exception:
                     pass
 
@@ -400,7 +395,7 @@ class StreamingIntegrationDemo:
             font_size=32,
             show_speaker_names=True,
             show_confidence=True,
-            show_timestamps=True
+            show_timestamps=True,
         )
 
         self.webcam_manager = VirtualWebcamManager(webcam_config)
@@ -442,9 +437,7 @@ class StreamingIntegrationDemo:
                 logger.error(f"Error saving frame {frame_count}: {e}")
 
     async def send_audio_chunk_via_http(
-        self,
-        audio_bytes: bytes,
-        chunk_metadata: Dict[str, Any]
+        self, audio_bytes: bytes, chunk_metadata: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Send audio chunk via REAL HTTP POST to /api/audio/upload.
@@ -459,63 +452,67 @@ class StreamingIntegrationDemo:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Prepare multipart form data (EXACT format from browser_audio_capture.py:277)
                 files = {
-                    'file': ('audio_chunk.wav', audio_bytes, 'audio/wav'),
+                    "file": ("audio_chunk.wav", audio_bytes, "audio/wav"),
                 }
 
                 data = {
-                    'chunk_id': chunk_id,
-                    'session_id': self.session_id,
-                    'target_languages': json.dumps(['es', 'fr', 'de']),
-                    'enable_transcription': 'true',
-                    'enable_translation': 'true',
-                    'enable_diarization': 'true',
-                    'whisper_model': 'whisper-base',
-                    'metadata': json.dumps(chunk_metadata)
+                    "chunk_id": chunk_id,
+                    "session_id": self.session_id,
+                    "target_languages": json.dumps(["es", "fr", "de"]),
+                    "enable_transcription": "true",
+                    "enable_translation": "true",
+                    "enable_diarization": "true",
+                    "whisper_model": "whisper-base",
+                    "metadata": json.dumps(chunk_metadata),
                 }
 
                 # REAL HTTP POST to orchestration service
                 # Try /api/audio/upload first, then /audio/upload as fallback
                 endpoint = f"{self.orchestration_url}/api/audio/upload"
-                response = await client.post(
-                    endpoint,
-                    files=files,
-                    data=data
-                )
+                response = await client.post(endpoint, files=files, data=data)
 
                 if response.status_code == 200:
                     result = response.json()
                     logger.info(f"✅ Chunk {chunk_id} processed successfully")
 
                     # Record integration result
-                    self.integration_results.append({
-                        "chunk_id": chunk_id,
-                        "status": "success",
-                        "response": result,
-                        "timestamp": time.time()
-                    })
+                    self.integration_results.append(
+                        {
+                            "chunk_id": chunk_id,
+                            "status": "success",
+                            "response": result,
+                            "timestamp": time.time(),
+                        }
+                    )
 
                     return result
                 else:
-                    logger.error(f"❌ Chunk {chunk_id} failed: {response.status_code} {response.text}")
+                    logger.error(
+                        f"❌ Chunk {chunk_id} failed: {response.status_code} {response.text}"
+                    )
 
-                    self.integration_results.append({
-                        "chunk_id": chunk_id,
-                        "status": "failed",
-                        "error": f"HTTP {response.status_code}",
-                        "timestamp": time.time()
-                    })
+                    self.integration_results.append(
+                        {
+                            "chunk_id": chunk_id,
+                            "status": "failed",
+                            "error": f"HTTP {response.status_code}",
+                            "timestamp": time.time(),
+                        }
+                    )
 
                     return None
 
         except Exception as e:
             logger.error(f"❌ Error sending chunk {chunk_id}: {e}")
 
-            self.integration_results.append({
-                "chunk_id": chunk_id,
-                "status": "error",
-                "error": str(e),
-                "timestamp": time.time()
-            })
+            self.integration_results.append(
+                {
+                    "chunk_id": chunk_id,
+                    "status": "error",
+                    "error": str(e),
+                    "timestamp": time.time(),
+                }
+            )
 
             return None
 
@@ -538,8 +535,7 @@ class StreamingIntegrationDemo:
 
         # Stream audio chunks
         await self.audio_simulator.stream_audio_chunks(
-            num_chunks=num_chunks,
-            chunk_callback=self.send_audio_chunk_via_http
+            num_chunks=num_chunks, chunk_callback=self.send_audio_chunk_via_http
         )
 
         # Wait for final processing and webcam display
@@ -560,14 +556,18 @@ class StreamingIntegrationDemo:
         self.print_banner("✅ INTEGRATION VALIDATION")
 
         total_chunks = len(self.integration_results)
-        successful_chunks = sum(1 for r in self.integration_results if r["status"] == "success")
+        successful_chunks = sum(
+            1 for r in self.integration_results if r["status"] == "success"
+        )
         failed_chunks = total_chunks - successful_chunks
 
         print(f"📊 Processing Results:")
         print(f"   Total chunks sent: {total_chunks}")
         print(f"   Successful: {successful_chunks}")
         print(f"   Failed: {failed_chunks}")
-        print(f"   Success rate: {(successful_chunks/total_chunks*100) if total_chunks > 0 else 0:.1f}%")
+        print(
+            f"   Success rate: {(successful_chunks / total_chunks * 100) if total_chunks > 0 else 0:.1f}%"
+        )
 
         print(f"\n📸 Frame Capture:")
         print(f"   Frames saved: {len(self.frames_saved)}")
@@ -596,7 +596,9 @@ class StreamingIntegrationDemo:
 
         # Check 2: Processing success
         if successful_chunks > 0:
-            print(f"   ✅ Audio processing successful ({successful_chunks}/{total_chunks})")
+            print(
+                f"   ✅ Audio processing successful ({successful_chunks}/{total_chunks})"
+            )
         else:
             print(f"   ❌ All audio processing failed")
             all_passed = False
@@ -627,12 +629,14 @@ class StreamingIntegrationDemo:
             "chunks_processed": len(self.integration_results),
             "frames_saved": len(self.frames_saved),
             "integration_results": self.integration_results,
-            "webcam_stats": self.webcam_manager.get_webcam_stats() if self.webcam_manager else None
+            "webcam_stats": self.webcam_manager.get_webcam_stats()
+            if self.webcam_manager
+            else None,
         }
 
         # Save report to JSON
         report_path = self.output_dir / "integration_report.json"
-        with open(report_path, 'w') as f:
+        with open(report_path, "w") as f:
             json.dump(report, f, indent=2, default=str)
 
         print(f"📄 Report saved: {report_path}")
@@ -642,8 +646,12 @@ class StreamingIntegrationDemo:
         print(f"   ✅ STREAMING audio chunks (not fake data)")
         print(f"   ✅ REAL HTTP POST /api/audio/upload")
         print(f"   ✅ AudioCoordinator processing")
-        print(f"   ✅ Whisper service integration ({'mocked' if self.mode != 'real' else 'real'})")
-        print(f"   ✅ Translation service integration ({'mocked' if self.mode != 'real' else 'real'})")
+        print(
+            f"   ✅ Whisper service integration ({'mocked' if self.mode != 'real' else 'real'})"
+        )
+        print(
+            f"   ✅ Translation service integration ({'mocked' if self.mode != 'real' else 'real'})"
+        )
         print(f"   ✅ Virtual webcam rendering with REAL data")
         print(f"   ✅ Complete integration flow validation")
 
@@ -655,7 +663,9 @@ class StreamingIntegrationDemo:
 
         print(f"\n🔍 Key Differences from Unit Test:")
         print(f"   ❌ Unit test: webcam.add_translation(fake_data)")
-        print(f"   ✅ This test: HTTP POST → AudioCoordinator → Services → BotIntegration → Webcam")
+        print(
+            f"   ✅ This test: HTTP POST → AudioCoordinator → Services → BotIntegration → Webcam"
+        )
 
         print("\n" + "=" * 100)
 
@@ -685,13 +695,10 @@ async def main():
         "--mode",
         choices=["mock", "real", "hybrid"],
         default="mock",
-        help="Test mode: mock (all mocked), real (all real), hybrid (mock services, real orchestration)"
+        help="Test mode: mock (all mocked), real (all real), hybrid (mock services, real orchestration)",
     )
     parser.add_argument(
-        "--chunks",
-        type=int,
-        default=5,
-        help="Number of audio chunks to stream"
+        "--chunks", type=int, default=5, help="Number of audio chunks to stream"
     )
 
     args = parser.parse_args()
@@ -708,7 +715,9 @@ async def main():
         print("Available services:")
         for service, available in services.items():
             status = "✅" if available else "❌"
-            print(f"   {status} {service}: {'available' if available else 'not available'}")
+            print(
+                f"   {status} {service}: {'available' if available else 'not available'}"
+            )
 
         # Determine test mode based on available services
         if args.mode == "real" and not all(services.values()):
@@ -744,6 +753,7 @@ async def main():
     except Exception as e:
         print(f"\n\n❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         await demo.cleanup()
         return 1

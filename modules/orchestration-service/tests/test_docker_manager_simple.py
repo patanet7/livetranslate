@@ -32,7 +32,7 @@ async def test_start_bot():
     connection_id = await manager.start_bot(
         meeting_url="https://meet.google.com/test",
         user_token="token-123",
-        user_id="user-456"
+        user_id="user-456",
     )
 
     assert connection_id in manager.bots
@@ -51,9 +51,7 @@ async def test_callbacks():
 
     # Start bot
     connection_id = await manager.start_bot(
-        "https://meet.google.com/test",
-        "token",
-        "user-123"
+        "https://meet.google.com/test", "token", "user-123"
     )
 
     # Simulate callback progression
@@ -120,7 +118,9 @@ async def test_stats():
     assert stats["total_failed"] == 1
     assert stats["success_rate"] == 0.5
 
-    print(f"  ✓ Stats: {stats['total_started']} started, {stats['total_completed']} completed, {stats['total_failed']} failed")
+    print(
+        f"  ✓ Stats: {stats['total_started']} started, {stats['total_completed']} completed, {stats['total_failed']} failed"
+    )
     print("✅ PASS")
 
 
@@ -132,9 +132,7 @@ async def test_health_check():
 
     # Start and activate bot
     connection_id = await manager.start_bot(
-        "https://meet.google.com/test",
-        "token",
-        "user-123"
+        "https://meet.google.com/test", "token", "user-123"
     )
     await manager.handle_bot_callback(connection_id, "active", {})
 

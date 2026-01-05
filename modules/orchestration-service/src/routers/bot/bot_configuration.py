@@ -6,7 +6,18 @@ Bot configuration endpoints including:
 - Bot config retrieval (/config)
 """
 
-from ._shared import *
+from typing import Dict, Any
+
+from fastapi import Depends, HTTPException, status
+
+from ._shared import (
+    create_bot_router,
+    BotConfigUpdateRequest,
+    logger,
+    get_error_response,
+    validate_bot_exists,
+)
+from dependencies import get_bot_manager
 
 # Create router for bot configuration management
 router = create_bot_router()
@@ -14,9 +25,7 @@ router = create_bot_router()
 
 @router.post("/{bot_id}/config")
 async def update_bot_config(
-    bot_id: str,
-    request: BotConfigUpdateRequest,
-    bot_manager=Depends(get_bot_manager)
+    bot_id: str, request: BotConfigUpdateRequest, bot_manager=Depends(get_bot_manager)
 ) -> Dict[str, Any]:
     """
     Update bot configuration
@@ -46,14 +55,13 @@ async def update_bot_config(
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             f"Failed to update bot config: {str(e)}",
-            {"bot_id": bot_id}
+            {"bot_id": bot_id},
         )
 
 
 @router.get("/{bot_id}/config")
 async def get_bot_config(
-    bot_id: str,
-    bot_manager=Depends(get_bot_manager)
+    bot_id: str, bot_manager=Depends(get_bot_manager)
 ) -> Dict[str, Any]:
     """
     Get bot configuration
@@ -76,5 +84,5 @@ async def get_bot_config(
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             f"Failed to get bot config: {str(e)}",
-            {"bot_id": bot_id}
+            {"bot_id": bot_id},
         )

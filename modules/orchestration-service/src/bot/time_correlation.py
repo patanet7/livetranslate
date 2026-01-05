@@ -16,18 +16,16 @@ Features:
 - Database integration for persistent storage
 """
 
-import os
 import time
 import logging
 import asyncio
 import threading
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import numpy as np
-from collections import deque, defaultdict
-import httpx
+from collections import deque
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -496,9 +494,8 @@ class TimeCorrelationEngine:
         end_time: float,
     ) -> Optional[CorrelationResult]:
         """Interpolate speaker from nearby timeline events."""
-        # Find events before and after
+        # Find events before
         before_events = [e for e in self.external_events if e.timestamp < start_time]
-        after_events = [e for e in self.external_events if e.timestamp > end_time]
 
         if not before_events:
             return None

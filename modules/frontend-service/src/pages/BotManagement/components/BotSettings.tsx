@@ -33,6 +33,8 @@ import {
   Speed as SpeedIcon,
   Storage as StorageIcon,
 } from '@mui/icons-material';
+import { TabPanel } from '@/components/ui';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
 
 interface BotSettingsProps {
   onSettingsUpdate: (settings: BotConfiguration) => void;
@@ -96,20 +98,6 @@ interface BotConfiguration {
   };
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
-};
-
 const defaultSettings: BotConfiguration = {
   audioProcessing: {
     sampleRate: 16000,
@@ -159,23 +147,7 @@ const defaultSettings: BotConfiguration = {
   },
 };
 
-const availableLanguages = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ru', name: 'Russian' },
-  { code: 'ar', name: 'Arabic' },
-  { code: 'hi', name: 'Hindi' },
-  { code: 'nl', name: 'Dutch' },
-  { code: 'sv', name: 'Swedish' },
-  { code: 'no', name: 'Norwegian' },
-];
+const availableLanguages = SUPPORTED_LANGUAGES;
 
 export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) => {
   const [tabValue, setTabValue] = useState(0);

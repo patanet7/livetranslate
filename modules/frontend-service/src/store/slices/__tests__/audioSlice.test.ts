@@ -4,7 +4,7 @@ import audioSlice, {
   startRecording,
   stopRecording,
   updateRecordingDuration,
-  setAudioBlob,
+  setRecordedBlobUrl,
   clearRecording,
   startPlayback,
   pausePlayback,
@@ -19,7 +19,7 @@ import audioSlice, {
   addProcessingLog,
   resetAudioState,
 } from '../audioSlice';
-import { createMockAudioDevice, MOCK_AUDIO_CONFIG } from '@/test/utils';
+import { createMockAudioDevice } from '@/test/utils';
 import { AudioQualityMetrics, ProcessingLog } from '@/types';
 
 describe('audioSlice', () => {
@@ -43,8 +43,11 @@ describe('audioSlice', () => {
           autoStop: true,
           format: 'wav',
           sampleRate: 16000,
-          blob: null,
+          recordedBlobUrl: null,
           status: 'idle',
+          isPlaying: false,
+          recordingStartTime: null,
+          sessionId: null,
         },
         playback: {
           isPlaying: false,
@@ -154,11 +157,11 @@ describe('audioSlice', () => {
       expect(state.recording.duration).toBe(duration);
     });
 
-    it('should set audio blob', () => {
-      const blob = new Blob(['audio data'], { type: 'audio/wav' });
-      const state = audioSlice.reducer(initialState, setAudioBlob(blob));
+    it('should set audio blob URL', () => {
+      const blobUrl = 'blob:http://localhost/123-456-789';
+      const state = audioSlice.reducer(initialState, setRecordedBlobUrl(blobUrl));
 
-      expect(state.recording.blob).toBe(blob);
+      expect(state.recording.recordedBlobUrl).toBe(blobUrl);
     });
 
     it('should clear recording', () => {
@@ -168,7 +171,7 @@ describe('audioSlice', () => {
           ...initialState.recording,
           isRecording: true,
           duration: 30,
-          blob: new Blob(['audio data']),
+          recordedBlobUrl: 'blob:http://localhost/123-456-789',
           status: 'completed' as const,
         },
       };
@@ -177,7 +180,7 @@ describe('audioSlice', () => {
 
       expect(state.recording.isRecording).toBe(false);
       expect(state.recording.duration).toBe(0);
-      expect(state.recording.blob).toBe(null);
+      expect(state.recording.recordedBlobUrl).toBe(null);
       expect(state.recording.status).toBe('idle');
       // Should preserve max duration and format
       expect(state.recording.maxDuration).toBe(recordingState.recording.maxDuration);
@@ -351,7 +354,7 @@ describe('audioSlice', () => {
         zeroCrossingRate: 0.1,
         snrEstimate: 15,
         signalToNoise: 15,
-        voiceActivity: true,
+        voiceActivity: 0.85,
         qualityScore: 0.85,
         clippingDetected: false,
       };

@@ -12,18 +12,22 @@ while maintaining a consistent interface for the rest of the system.
 
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List, Callable, Union
+from typing import Dict, Any, Optional, List, Callable
 from enum import Enum
 from dataclasses import dataclass
 
-from .bot_manager import BotManager, BotStatus as GenericBotStatus, MeetingRequest as GenericMeetingRequest
-from bot.bot_manager import GoogleMeetBotManager, BotStatus as GoogleMeetBotStatus, MeetingRequest as GoogleMeetMeetingRequest
+from .bot_manager import BotManager, MeetingRequest as GenericMeetingRequest
+from bot.bot_manager import (
+    GoogleMeetBotManager,
+    MeetingRequest as GoogleMeetMeetingRequest,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class BotType(Enum):
     """Bot type enumeration for unified interface."""
+
     GENERIC = "generic"
     GOOGLE_MEET = "google_meet"
     ZOOM = "zoom"
@@ -33,6 +37,7 @@ class BotType(Enum):
 @dataclass
 class UnifiedMeetingRequest:
     """Unified meeting request that can be converted to specific implementations."""
+
     meeting_id: str
     meeting_title: Optional[str] = None
     meeting_uri: Optional[str] = None
@@ -68,7 +73,7 @@ class UnifiedMeetingRequest:
             enable_virtual_webcam=self.enable_virtual_webcam,
             audio_storage_enabled=self.audio_storage_enabled,
             cleanup_on_exit=self.cleanup_on_exit,
-            metadata=self.metadata
+            metadata=self.metadata,
         )
 
     def to_google_meet_request(self) -> GoogleMeetMeetingRequest:
@@ -83,14 +88,14 @@ class UnifiedMeetingRequest:
             auto_translation=self.enable_translation,
             priority=self.priority,
             requester_id=self.requester_id,
-            metadata=self.metadata
+            metadata=self.metadata,
         )
 
 
 class UnifiedBotManager:
     """
     Unified bot manager that coordinates between different bot implementations.
-    
+
     Provides a single interface for bot management while delegating to
     appropriate specialized managers based on bot type.
     """
@@ -98,11 +103,13 @@ class UnifiedBotManager:
     def __init__(self, config: Dict[str, Any] = None):
         """Initialize unified bot manager."""
         self.config = config or {}
-        
+
         # Initialize specialized managers
         self.generic_manager = BotManager(self.config.get("generic_bot_config"))
-        self.google_meet_manager = GoogleMeetBotManager(self.config.get("google_meet_config"))
-        
+        self.google_meet_manager = GoogleMeetBotManager(
+            self.config.get("google_meet_config")
+        )
+
         # Manager routing
         self.manager_map = {
             BotType.GENERIC: self.generic_manager,
@@ -110,17 +117,19 @@ class UnifiedBotManager:
             BotType.ZOOM: self.generic_manager,  # Fallback to generic for now
             BotType.TEAMS: self.generic_manager,  # Fallback to generic for now
         }
-        
+
         # Unified state tracking
-        self.active_bots: Dict[str, Dict[str, Any]] = {}  # bot_id -> {manager, type, info}
+        self.active_bots: Dict[
+            str, Dict[str, Any]
+        ] = {}  # bot_id -> {manager, type, info}
         self._initialized = False
-        
+
         # Event callbacks
         self.unified_callbacks: List[Callable] = []
-        
+
         # Setup cross-manager coordination
         self._setup_manager_coordination()
-        
+
         logger.info("UnifiedBotManager initialized")
 
     async def initialize(self) -> bool:
@@ -129,18 +138,18 @@ class UnifiedBotManager:
             # Initialize generic manager
             await self.generic_manager.start()
             logger.info("Generic bot manager initialized")
-            
+
             # Initialize Google Meet manager
             google_meet_success = await self.google_meet_manager.start()
             if google_meet_success:
                 logger.info("Google Meet bot manager initialized")
             else:
                 logger.warning("Google Meet bot manager initialization failed")
-            
+
             self._initialized = True
             logger.info("Unified bot manager initialized successfully")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize unified bot manager: {e}")
             return False
@@ -150,72 +159,86 @@ class UnifiedBotManager:
         try:
             await self.generic_manager.stop()
             await self.google_meet_manager.stop()
-            
+
             self._initialized = False
             logger.info("Unified bot manager shutdown completed")
-            
+
         except Exception as e:
             logger.error(f"Error during unified bot manager shutdown: {e}")
 
     def _setup_manager_coordination(self):
         """Setup coordination between managers."""
-        
+
         # Generic manager callbacks
         def on_generic_status_change(bot_id: str, old_status, new_status):
             self._handle_status_change(bot_id, "generic", old_status, new_status)
-        
+
         def on_generic_lifecycle(bot_id: str, bot_info: Dict[str, Any]):
             self._handle_lifecycle_event(bot_id, "generic", bot_info)
-        
+
         self.generic_manager.add_status_change_handler(on_generic_status_change)
         self.generic_manager.add_lifecycle_handler(on_generic_lifecycle)
-        
+
         # Google Meet manager callbacks
         def on_google_meet_spawned(bot):
             self._handle_bot_spawned(bot.bot_id, "google_meet", bot)
-        
+
         def on_google_meet_terminated(bot):
             self._handle_bot_terminated(bot.bot_id, "google_meet", bot)
-        
+
         def on_google_meet_error(bot, error):
             self._handle_bot_error(bot.bot_id, "google_meet", bot, error)
-        
+
         self.google_meet_manager.on_bot_spawned = on_google_meet_spawned
         self.google_meet_manager.on_bot_terminated = on_google_meet_terminated
         self.google_meet_manager.on_bot_error = on_google_meet_error
 
-    def _handle_status_change(self, bot_id: str, manager_type: str, old_status, new_status):
+    def _handle_status_change(
+        self, bot_id: str, manager_type: str, old_status, new_status
+    ):
         """Handle status changes from managers."""
         try:
             if bot_id in self.active_bots:
                 self.active_bots[bot_id]["status"] = new_status
-                self.active_bots[bot_id]["last_update"] = asyncio.get_event_loop().time()
-                
+                self.active_bots[bot_id]["last_update"] = (
+                    asyncio.get_event_loop().time()
+                )
+
                 # Notify unified callbacks
-                self._notify_unified_callbacks("status_change", {
-                    "bot_id": bot_id,
-                    "manager_type": manager_type,
-                    "old_status": old_status,
-                    "new_status": new_status
-                })
-                
+                self._notify_unified_callbacks(
+                    "status_change",
+                    {
+                        "bot_id": bot_id,
+                        "manager_type": manager_type,
+                        "old_status": old_status,
+                        "new_status": new_status,
+                    },
+                )
+
         except Exception as e:
             logger.error(f"Error handling status change for bot {bot_id}: {e}")
 
-    def _handle_lifecycle_event(self, bot_id: str, manager_type: str, bot_info: Dict[str, Any]):
+    def _handle_lifecycle_event(
+        self, bot_id: str, manager_type: str, bot_info: Dict[str, Any]
+    ):
         """Handle lifecycle events from managers."""
         try:
             if bot_id in self.active_bots:
                 self.active_bots[bot_id]["info"] = bot_info
-                self.active_bots[bot_id]["last_update"] = asyncio.get_event_loop().time()
-                
+                self.active_bots[bot_id]["last_update"] = (
+                    asyncio.get_event_loop().time()
+                )
+
                 # Notify unified callbacks
-                self._notify_unified_callbacks("lifecycle", {
-                    "bot_id": bot_id,
-                    "manager_type": manager_type,
-                    "bot_info": bot_info
-                })
-                
+                self._notify_unified_callbacks(
+                    "lifecycle",
+                    {
+                        "bot_id": bot_id,
+                        "manager_type": manager_type,
+                        "bot_info": bot_info,
+                    },
+                )
+
         except Exception as e:
             logger.error(f"Error handling lifecycle event for bot {bot_id}: {e}")
 
@@ -229,16 +252,15 @@ class UnifiedBotManager:
                 "status": "active",
                 "created_at": asyncio.get_event_loop().time(),
                 "last_update": asyncio.get_event_loop().time(),
-                "info": bot
+                "info": bot,
             }
-            
+
             # Notify unified callbacks
-            self._notify_unified_callbacks("bot_spawned", {
-                "bot_id": bot_id,
-                "manager_type": manager_type,
-                "bot": bot
-            })
-            
+            self._notify_unified_callbacks(
+                "bot_spawned",
+                {"bot_id": bot_id, "manager_type": manager_type, "bot": bot},
+            )
+
         except Exception as e:
             logger.error(f"Error handling bot spawned for {bot_id}: {e}")
 
@@ -247,18 +269,19 @@ class UnifiedBotManager:
         try:
             if bot_id in self.active_bots:
                 self.active_bots[bot_id]["status"] = "terminated"
-                self.active_bots[bot_id]["last_update"] = asyncio.get_event_loop().time()
-                
+                self.active_bots[bot_id]["last_update"] = (
+                    asyncio.get_event_loop().time()
+                )
+
                 # Notify unified callbacks
-                self._notify_unified_callbacks("bot_terminated", {
-                    "bot_id": bot_id,
-                    "manager_type": manager_type,
-                    "bot": bot
-                })
-                
+                self._notify_unified_callbacks(
+                    "bot_terminated",
+                    {"bot_id": bot_id, "manager_type": manager_type, "bot": bot},
+                )
+
                 # Remove from active bots after a delay
                 asyncio.create_task(self._cleanup_terminated_bot(bot_id))
-                
+
         except Exception as e:
             logger.error(f"Error handling bot terminated for {bot_id}: {e}")
 
@@ -268,23 +291,31 @@ class UnifiedBotManager:
             if bot_id in self.active_bots:
                 self.active_bots[bot_id]["status"] = "error"
                 self.active_bots[bot_id]["error"] = error
-                self.active_bots[bot_id]["last_update"] = asyncio.get_event_loop().time()
-                
+                self.active_bots[bot_id]["last_update"] = (
+                    asyncio.get_event_loop().time()
+                )
+
                 # Notify unified callbacks
-                self._notify_unified_callbacks("bot_error", {
-                    "bot_id": bot_id,
-                    "manager_type": manager_type,
-                    "bot": bot,
-                    "error": error
-                })
-                
+                self._notify_unified_callbacks(
+                    "bot_error",
+                    {
+                        "bot_id": bot_id,
+                        "manager_type": manager_type,
+                        "bot": bot,
+                        "error": error,
+                    },
+                )
+
         except Exception as e:
             logger.error(f"Error handling bot error for {bot_id}: {e}")
 
     async def _cleanup_terminated_bot(self, bot_id: str):
         """Cleanup terminated bot after delay."""
         await asyncio.sleep(300)  # 5 minute delay
-        if bot_id in self.active_bots and self.active_bots[bot_id]["status"] == "terminated":
+        if (
+            bot_id in self.active_bots
+            and self.active_bots[bot_id]["status"] == "terminated"
+        ):
             del self.active_bots[bot_id]
 
     def _notify_unified_callbacks(self, event_type: str, event_data: Dict[str, Any]):
@@ -300,21 +331,23 @@ class UnifiedBotManager:
 
     # Unified API Methods
 
-    async def request_bot(self, meeting_request: UnifiedMeetingRequest) -> Optional[str]:
+    async def request_bot(
+        self, meeting_request: UnifiedMeetingRequest
+    ) -> Optional[str]:
         """Request a new bot using unified interface."""
         try:
             if not self._initialized:
                 logger.error("Unified bot manager not initialized")
                 return None
-            
+
             # Determine which manager to use
             bot_type = meeting_request.bot_type
             manager = self.manager_map.get(bot_type)
-            
+
             if not manager:
                 logger.error(f"No manager available for bot type: {bot_type}")
                 return None
-            
+
             # Convert request to appropriate format and delegate
             if bot_type == BotType.GOOGLE_MEET:
                 google_request = meeting_request.to_google_meet_request()
@@ -322,7 +355,7 @@ class UnifiedBotManager:
             else:
                 generic_request = meeting_request.to_generic_request()
                 bot_id = await self.generic_manager.request_bot(generic_request)
-            
+
             if bot_id and bot_id != "queued":
                 # Track in unified state
                 self.active_bots[bot_id] = {
@@ -332,11 +365,11 @@ class UnifiedBotManager:
                     "status": "spawning",
                     "created_at": asyncio.get_event_loop().time(),
                     "last_update": asyncio.get_event_loop().time(),
-                    "meeting_request": meeting_request
+                    "meeting_request": meeting_request,
                 }
-            
+
             return bot_id
-            
+
         except Exception as e:
             logger.error(f"Failed to request bot: {e}")
             return None
@@ -347,16 +380,18 @@ class UnifiedBotManager:
             if bot_id not in self.active_bots:
                 logger.warning(f"Bot not found in unified manager: {bot_id}")
                 return False
-            
+
             bot_info = self.active_bots[bot_id]
             manager = bot_info["manager"]
-            
+
             # Delegate to appropriate manager
             if isinstance(manager, GoogleMeetBotManager):
                 return await manager.terminate_bot(bot_id)
             else:
-                return await manager.terminate_bot(bot_id, "Unified manager termination")
-            
+                return await manager.terminate_bot(
+                    bot_id, "Unified manager termination"
+                )
+
         except Exception as e:
             logger.error(f"Failed to terminate bot {bot_id}: {e}")
             return False
@@ -366,16 +401,16 @@ class UnifiedBotManager:
         try:
             if bot_id not in self.active_bots:
                 return None
-            
+
             bot_info = self.active_bots[bot_id]
             manager = bot_info["manager"]
-            
+
             # Get status from appropriate manager
             if isinstance(manager, GoogleMeetBotManager):
                 manager_status = manager.get_bot_status(bot_id)
             else:
                 manager_status = manager.get_bot_status(bot_id)
-            
+
             # Combine with unified tracking info
             unified_status = {
                 "bot_id": bot_id,
@@ -383,16 +418,16 @@ class UnifiedBotManager:
                 "bot_type": bot_info["bot_type"].value,
                 "unified_status": bot_info["status"],
                 "created_at": bot_info["created_at"],
-                "last_update": bot_info["last_update"]
+                "last_update": bot_info["last_update"],
             }
-            
+
             if manager_status:
                 # Properly merge dictionaries
                 for key, value in manager_status.items():
                     unified_status[key] = value
-            
+
             return unified_status
-            
+
         except Exception as e:
             logger.error(f"Failed to get bot status for {bot_id}: {e}")
             return None
@@ -401,14 +436,14 @@ class UnifiedBotManager:
         """Get status of all bots using unified interface."""
         try:
             all_status = []
-            
+
             for bot_id in self.active_bots.keys():
                 status = self.get_bot_status(bot_id)
                 if status:
                     all_status.append(status)
-            
+
             return all_status
-            
+
         except Exception as e:
             logger.error(f"Failed to get all bots status: {e}")
             return []
@@ -419,30 +454,30 @@ class UnifiedBotManager:
             # Get statistics from individual managers
             generic_stats = self.generic_manager.get_bot_stats()
             google_meet_stats = self.google_meet_manager.get_manager_statistics()
-            
+
             # Unified statistics
             total_active = len(self.active_bots)
             by_type = {}
             by_status = {}
-            
+
             for bot_info in self.active_bots.values():
                 bot_type = bot_info["bot_type"].value
                 status = bot_info["status"]
-                
+
                 by_type[bot_type] = by_type.get(bot_type, 0) + 1
                 by_status[status] = by_status.get(status, 0) + 1
-            
+
             return {
                 "unified_manager": {
                     "initialized": self._initialized,
                     "total_active_bots": total_active,
                     "bots_by_type": by_type,
-                    "bots_by_status": by_status
+                    "bots_by_status": by_status,
                 },
                 "generic_manager": generic_stats,
-                "google_meet_manager": google_meet_stats
+                "google_meet_manager": google_meet_stats,
             }
-            
+
         except Exception as e:
             logger.error(f"Failed to get manager statistics: {e}")
             return {"error": str(e)}
@@ -469,23 +504,22 @@ class UnifiedBotManager:
             health_status = {
                 "unified_manager": {
                     "status": "healthy" if self._initialized else "not_initialized",
-                    "active_bots": len(self.active_bots)
+                    "active_bots": len(self.active_bots),
                 },
                 "generic_manager": {
                     "status": "healthy" if self.generic_manager._running else "stopped"
                 },
                 "google_meet_manager": {
-                    "status": "healthy" if self.google_meet_manager.running else "stopped"
-                }
+                    "status": "healthy"
+                    if self.google_meet_manager.running
+                    else "stopped"
+                },
             }
-            
+
             return health_status
-            
+
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "error": str(e)
-            }
+            return {"status": "unhealthy", "error": str(e)}
 
 
 # Global unified bot manager instance
@@ -495,11 +529,11 @@ _unified_bot_manager: Optional[UnifiedBotManager] = None
 async def get_unified_bot_manager() -> UnifiedBotManager:
     """Get the global unified bot manager instance."""
     global _unified_bot_manager
-    
+
     if _unified_bot_manager is None:
         _unified_bot_manager = UnifiedBotManager()
         await _unified_bot_manager.initialize()
-    
+
     return _unified_bot_manager
 
 

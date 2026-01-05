@@ -13,15 +13,14 @@ Features:
 - Automated bot deployment and scaling
 """
 
-import os
-import sys
 import time
 import logging
 import asyncio
 import threading
 import uuid
-from typing import Dict, List, Optional, Callable, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
+
 # Removed datetime import - now using time.time() for float timestamps
 from enum import Enum
 import json
@@ -30,14 +29,12 @@ from collections import defaultdict, deque
 
 # Import Google Meet API client
 from .google_meet_client import (
-    GoogleMeetClient,
     BotManagerIntegration,
     create_google_meet_client,
 )
 
 # Import database manager
 from database.bot_session_manager import (
-    BotSessionDatabaseManager,
     create_bot_session_manager,
 )
 
@@ -48,7 +45,7 @@ from pipeline.data_pipeline import (
 )
 
 # Import enhanced lifecycle manager
-from bot.bot_lifecycle_manager import BotLifecycleManager, create_lifecycle_manager
+from bot.bot_lifecycle_manager import create_lifecycle_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -177,7 +174,9 @@ class BotHealthMonitor:
 
         # Check activity
         if bot.last_activity:
-            inactivity = time.time() - bot.last_activity  # Both are now float timestamps
+            inactivity = (
+                time.time() - bot.last_activity
+            )  # Both are now float timestamps
             if inactivity > self.health_thresholds["min_activity_interval"]:
                 issues.append(f"Inactive for {inactivity:.0f}s")
                 health_factors.append(0.6)
@@ -300,7 +299,7 @@ class GoogleMeetBotManager:
         # Thread safety
         self.lock = threading.RLock()
 
-        logger.info(f"GoogleMeetBotManager initialized")
+        logger.info("GoogleMeetBotManager initialized")
         logger.info(
             f"  Max concurrent bots: {self.config.get('max_concurrent_bots', 10)}"
         )
@@ -405,7 +404,7 @@ class GoogleMeetBotManager:
                 if self.database_manager:
                     self.data_pipeline = create_data_pipeline(
                         database_manager=self.database_manager,
-                        audio_storage_path=audio_storage_path
+                        audio_storage_path=audio_storage_path,
                     )
                     # No async initialize() needed - pipeline ready to use
                     logger.info("Transcription data pipeline initialized")
@@ -668,7 +667,9 @@ class GoogleMeetBotManager:
             # Update status
             with self.lock:
                 bot.status = BotStatus.ACTIVE
-                bot.last_activity = time.time()  # Use float timestamp instead of datetime object
+                bot.last_activity = (
+                    time.time()
+                )  # Use float timestamp instead of datetime object
 
             # Update database session
             if self.database_manager:
@@ -749,9 +750,15 @@ class GoogleMeetBotManager:
                         bot.meeting_request.metadata = {}
                     if not bot.meeting_request.metadata:
                         bot.meeting_request.metadata = {}
-                    bot.meeting_request.metadata["join_method"] = meeting_info.get("join_method")
-                    bot.meeting_request.metadata["api_access"] = meeting_info.get("api_access")
-                    bot.meeting_request.metadata["meeting_code"] = meeting_info.get("meeting_code")
+                    bot.meeting_request.metadata["join_method"] = meeting_info.get(
+                        "join_method"
+                    )
+                    bot.meeting_request.metadata["api_access"] = meeting_info.get(
+                        "api_access"
+                    )
+                    bot.meeting_request.metadata["meeting_code"] = meeting_info.get(
+                        "meeting_code"
+                    )
 
                     logger.info(
                         f"Bot {bot.bot_id} configured for external meeting: {meeting_uri}"
@@ -779,8 +786,12 @@ class GoogleMeetBotManager:
                     bot.meeting_request.meeting_id = meeting_info["meeting_id"]
                     if not bot.meeting_request.metadata:
                         bot.meeting_request.metadata = {}
-                    bot.meeting_request.metadata["meeting_uri"] = meeting_info["meeting_uri"]
-                    bot.meeting_request.metadata["space_name"] = meeting_info["space_name"]
+                    bot.meeting_request.metadata["meeting_uri"] = meeting_info[
+                        "meeting_uri"
+                    ]
+                    bot.meeting_request.metadata["space_name"] = meeting_info[
+                        "space_name"
+                    ]
                     bot.meeting_request.metadata["created_by_api"] = True
 
                     logger.info(
@@ -1009,7 +1020,9 @@ class GoogleMeetBotManager:
 
     # ==================== Rate Limiting / Backpressure Methods ====================
 
-    async def _rate_limited_db_operation(self, operation_func, operation_name: str, *args, **kwargs):
+    async def _rate_limited_db_operation(
+        self, operation_func, operation_name: str, *args, **kwargs
+    ):
         """
         Execute database operation with rate limiting.
 
@@ -1059,13 +1072,15 @@ class GoogleMeetBotManager:
             Dictionary with rate limiting metrics
         """
         return {
-            "max_concurrent_operations": self.config.get("max_concurrent_db_operations", 50),
+            "max_concurrent_operations": self.config.get(
+                "max_concurrent_db_operations", 50
+            ),
             "current_queue_depth": self._db_operation_queue_depth,
             "operations_completed": self._db_operations_completed,
             "operations_rejected": self._db_operations_rejected,
             "rejection_rate": (
-                self._db_operations_rejected /
-                max(1, self._db_operations_completed + self._db_operations_rejected)
+                self._db_operations_rejected
+                / max(1, self._db_operations_completed + self._db_operations_rejected)
             ),
         }
 
@@ -1100,15 +1115,14 @@ class GoogleMeetBotManager:
         )
 
         if audio_file_id:
-            logger.debug(f"Saved audio chunk {metadata.get('chunk_id')} → {audio_file_id}")
+            logger.debug(
+                f"Saved audio chunk {metadata.get('chunk_id')} → {audio_file_id}"
+            )
 
         return audio_file_id
 
     async def save_transcription(
-        self,
-        session_id: str,
-        audio_file_id: str,
-        transcription: Dict[str, Any]
+        self, session_id: str, audio_file_id: str, transcription: Dict[str, Any]
     ) -> Optional[str]:
         """
         Save transcription result to pipeline with rate limiting.
@@ -1143,10 +1157,7 @@ class GoogleMeetBotManager:
         return transcript_id
 
     async def save_translation(
-        self,
-        session_id: str,
-        source_transcript_id: str,
-        translation: Dict[str, Any]
+        self, session_id: str, source_transcript_id: str, translation: Dict[str, Any]
     ) -> Optional[str]:
         """
         Save translation result to pipeline with rate limiting.
@@ -1185,7 +1196,7 @@ class GoogleMeetBotManager:
         session_id: str,
         speaker_id: Optional[str] = None,
         start_time: Optional[float] = None,
-        end_time: Optional[float] = None
+        end_time: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get chronological timeline of transcriptions and translations.
@@ -1206,14 +1217,18 @@ class GoogleMeetBotManager:
         try:
             filters = {}
             if speaker_id:
-                filters['speaker_id'] = speaker_id
+                filters["speaker_id"] = speaker_id
             if start_time:
-                filters['start_time'] = start_time
+                filters["start_time"] = start_time
             if end_time:
-                filters['end_time'] = end_time
+                filters["end_time"] = end_time
 
-            timeline = await self.data_pipeline.get_session_timeline(session_id, filters)
-            logger.debug(f"Retrieved timeline for session {session_id}: {len(timeline)} events")
+            timeline = await self.data_pipeline.get_session_timeline(
+                session_id, filters
+            )
+            logger.debug(
+                f"Retrieved timeline for session {session_id}: {len(timeline)} events"
+            )
             return timeline
 
         except Exception as e:
@@ -1309,7 +1324,9 @@ class GoogleMeetBotManager:
     def _check_bot_timeouts(self):
         """Check for bot timeouts and cleanup."""
         current_time = time.time()  # Use float timestamp
-        timeout_duration = self.config.get("meeting_timeout", 14400.0)  # Duration in seconds
+        timeout_duration = self.config.get(
+            "meeting_timeout", 14400.0
+        )  # Duration in seconds
 
         bots_to_terminate = []
 
@@ -1593,7 +1610,9 @@ class GoogleMeetBotManager:
             if self.lifecycle_manager:
                 try:
                     lifecycle_stats = self.lifecycle_manager.get_lifecycle_statistics()
-                    lifecycle_status["monitoring_active"] = self.lifecycle_manager.monitoring_active
+                    lifecycle_status["monitoring_active"] = (
+                        self.lifecycle_manager.monitoring_active
+                    )
                     lifecycle_status["statistics"] = lifecycle_stats
                 except Exception as e:
                     lifecycle_status["error"] = str(e)

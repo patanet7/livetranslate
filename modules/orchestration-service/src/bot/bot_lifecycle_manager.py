@@ -14,16 +14,13 @@ Features:
 - SLA monitoring and compliance tracking
 """
 
-import os
-import sys
 import time
 import logging
 import asyncio
-import threading
 import uuid
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 import json
 import psutil
@@ -291,9 +288,9 @@ class ResourceManager:
             # Check CPU
             if cpu_percent > self.resource_limits["max_cpu_percent"]:
                 available = False
-                constraints[
-                    "cpu"
-                ] = f"Current: {cpu_percent}%, Limit: {self.resource_limits['max_cpu_percent']}%"
+                constraints["cpu"] = (
+                    f"Current: {cpu_percent}%, Limit: {self.resource_limits['max_cpu_percent']}%"
+                )
 
             # Check Memory
             memory_percent = memory.percent
@@ -301,22 +298,22 @@ class ResourceManager:
 
             if memory_percent > self.resource_limits["max_memory_percent"]:
                 available = False
-                constraints[
-                    "memory_percent"
-                ] = f"Current: {memory_percent}%, Limit: {self.resource_limits['max_memory_percent']}%"
+                constraints["memory_percent"] = (
+                    f"Current: {memory_percent}%, Limit: {self.resource_limits['max_memory_percent']}%"
+                )
 
             if memory_available_gb < self.resource_limits["min_available_memory_gb"]:
                 available = False
-                constraints[
-                    "memory_available"
-                ] = f"Available: {memory_available_gb:.1f}GB, Required: {self.resource_limits['min_available_memory_gb']}GB"
+                constraints["memory_available"] = (
+                    f"Available: {memory_available_gb:.1f}GB, Required: {self.resource_limits['min_available_memory_gb']}GB"
+                )
 
             # Check disk space (warn if < 10GB)
             disk_free_gb = disk.free / (1024**3)
             if disk_free_gb < 10.0:
-                constraints[
-                    "disk_warning"
-                ] = f"Low disk space: {disk_free_gb:.1f}GB free"
+                constraints["disk_warning"] = (
+                    f"Low disk space: {disk_free_gb:.1f}GB free"
+                )
 
             resource_status = {
                 "available": available,

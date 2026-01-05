@@ -12,7 +12,9 @@ from typing import List, Dict, Any
 from timecode import Timecode
 
 
-def generate_test_audio(duration_seconds: float = 1.0, frequency: int = 440, sample_rate: int = 16000) -> bytes:
+def generate_test_audio(
+    duration_seconds: float = 1.0, frequency: int = 440, sample_rate: int = 16000
+) -> bytes:
     """Generate sine wave audio for testing"""
     num_samples = int(duration_seconds * sample_rate)
     t = np.linspace(0, duration_seconds, num_samples, False)
@@ -27,7 +29,7 @@ def chunk_audio_with_smpte(
     overlap_ms: int = 100,
     sample_rate: int = 16000,
     sample_width: int = 2,
-    framerate: str = '30',
+    framerate: str = "30",
 ) -> List[Dict[str, Any]]:
     """
     Split audio into overlapping chunks with SMPTE timecode.
@@ -104,7 +106,7 @@ class TestSMPTEChunking:
             audio,
             chunk_size_ms=500,
             overlap_ms=0,  # No overlap
-            framerate='30',
+            framerate="30",
         )
 
         # Should have 4 chunks (2 seconds / 0.5 seconds)
@@ -116,7 +118,9 @@ class TestSMPTEChunking:
 
         print(f"\n✅ Basic chunking: {len(chunks)} chunks")
         for i, chunk in enumerate(chunks):
-            print(f"   Chunk {i}: {chunk['smpte_timecode']['start']} -> {chunk['smpte_timecode']['end']}")
+            print(
+                f"   Chunk {i}: {chunk['smpte_timecode']['start']} -> {chunk['smpte_timecode']['end']}"
+            )
 
     def test_overlapping_chunks(self):
         """TEST: Audio chunking with 20% overlap"""
@@ -125,7 +129,7 @@ class TestSMPTEChunking:
             audio,
             chunk_size_ms=500,
             overlap_ms=100,  # 20% overlap
-            framerate='30',
+            framerate="30",
         )
 
         assert len(chunks) > 0, "Should have chunks"
@@ -136,17 +140,26 @@ class TestSMPTEChunking:
             previous = chunks[i - 1]
 
             assert current["has_overlap"] == True
-            assert current["start_time_seconds"] < previous["end_time_seconds"], \
+            assert current["start_time_seconds"] < previous["end_time_seconds"], (
                 f"Chunk {i} should overlap with previous"
+            )
 
             # Verify overlap amount
             overlap_time = previous["end_time_seconds"] - current["start_time_seconds"]
             overlap_ms = overlap_time * 1000
-            assert 95 <= overlap_ms <= 105, f"Overlap should be ~100ms, got {overlap_ms:.1f}ms"
+            assert 95 <= overlap_ms <= 105, (
+                f"Overlap should be ~100ms, got {overlap_ms:.1f}ms"
+            )
 
-        print(f"\n✅ Overlapping chunks: {len(chunks)} chunks with {chunks[1]['overlap_ms']}ms overlap")
-        print(f"   First chunk: {chunks[0]['smpte_timecode']['start']} -> {chunks[0]['smpte_timecode']['end']}")
-        print(f"   Second chunk: {chunks[1]['smpte_timecode']['start']} -> {chunks[1]['smpte_timecode']['end']}")
+        print(
+            f"\n✅ Overlapping chunks: {len(chunks)} chunks with {chunks[1]['overlap_ms']}ms overlap"
+        )
+        print(
+            f"   First chunk: {chunks[0]['smpte_timecode']['start']} -> {chunks[0]['smpte_timecode']['end']}"
+        )
+        print(
+            f"   Second chunk: {chunks[1]['smpte_timecode']['start']} -> {chunks[1]['smpte_timecode']['end']}"
+        )
         print(f"   Overlap verified: {overlap_ms:.1f}ms")
 
     def test_smpte_framerate_accuracy(self):
@@ -154,7 +167,7 @@ class TestSMPTEChunking:
         audio = generate_test_audio(duration_seconds=1.0)
 
         # Test different framerates
-        for framerate in ['24', '25', '30', '60']:
+        for framerate in ["24", "25", "30", "60"]:
             chunks = chunk_audio_with_smpte(
                 audio,
                 chunk_size_ms=100,
@@ -166,9 +179,14 @@ class TestSMPTEChunking:
 
             # Verify frame numbers increase
             for i in range(1, len(chunks)):
-                assert chunks[i]["smpte_timecode"]["start_frames"] > chunks[i-1]["smpte_timecode"]["start_frames"]
+                assert (
+                    chunks[i]["smpte_timecode"]["start_frames"]
+                    > chunks[i - 1]["smpte_timecode"]["start_frames"]
+                )
 
-            print(f"\n✅ {framerate}fps: {len(chunks)} chunks, frames {chunks[0]['smpte_timecode']['start_frames']}-{chunks[-1]['smpte_timecode']['end_frames']}")
+            print(
+                f"\n✅ {framerate}fps: {len(chunks)} chunks, frames {chunks[0]['smpte_timecode']['start_frames']}-{chunks[-1]['smpte_timecode']['end_frames']}"
+            )
 
     def test_timeline_reconstruction(self):
         """TEST: Reconstruct timeline from SMPTE timecodes"""
@@ -177,17 +195,21 @@ class TestSMPTEChunking:
             audio,
             chunk_size_ms=500,
             overlap_ms=100,
-            framerate='30',
+            framerate="30",
         )
 
         # Verify no gaps in timeline
         for i in range(1, len(chunks)):
-            gap = chunks[i]["start_time_seconds"] - chunks[i-1]["end_time_seconds"]
+            gap = chunks[i]["start_time_seconds"] - chunks[i - 1]["end_time_seconds"]
             assert gap <= 0, f"No gaps allowed (gap: {gap:.3f}s at chunk {i})"
 
         # Verify total duration
-        total_duration = chunks[-1]["end_time_seconds"] - chunks[0]["start_time_seconds"]
-        assert abs(total_duration - 3.0) < 0.1, f"Total duration should be ~3.0s, got {total_duration:.2f}s"
+        total_duration = (
+            chunks[-1]["end_time_seconds"] - chunks[0]["start_time_seconds"]
+        )
+        assert abs(total_duration - 3.0) < 0.1, (
+            f"Total duration should be ~3.0s, got {total_duration:.2f}s"
+        )
 
         print(f"\n✅ Timeline reconstruction successful")
         print(f"   Total chunks: {len(chunks)}")
@@ -199,15 +221,15 @@ class TestSMPTEChunking:
 if __name__ == "__main__":
     # Run tests directly
     test = TestSMPTEChunking()
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SMPTE Timecode Audio Chunking Tests")
-    print("="*70)
+    print("=" * 70)
 
     test.test_basic_chunking()
     test.test_overlapping_chunks()
     test.test_smpte_framerate_accuracy()
     test.test_timeline_reconstruction()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("✅ All SMPTE chunking tests passed!")
-    print("="*70)
+    print("=" * 70)

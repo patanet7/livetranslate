@@ -14,16 +14,13 @@ Key Features:
 - Session-based processing for multiple concurrent conversations
 """
 
-import os
 import time
 import logging
 import asyncio
 import httpx
 from collections import deque
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from typing import Dict
 import numpy as np
-import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

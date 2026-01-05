@@ -3,14 +3,47 @@ Audio Core Processing Router
 
 Main audio processing endpoints including:
 - Audio processing (/process)
-- File upload (/upload) 
+- File upload (/upload)
 - Audio streaming (/stream)
 - Transcription (/transcribe)
 - Health monitoring (/health)
 - Model management (/models)
 """
 
-from ._shared import *
+import json
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+from fastapi import Depends, UploadFile, File, Form, HTTPException, status
+
+from ._shared import (
+    create_audio_router,
+    logger,
+    format_recovery,
+    service_recovery,
+    audio_service_circuit_breaker,
+    retry_manager,
+)
+from models.audio import AudioProcessingRequest, AudioProcessingResponse, AudioStats
+from dependencies import (
+    get_config_manager,
+    get_audio_service_client,
+    get_audio_coordinator,
+    get_config_sync_manager,
+    get_health_monitor,
+    get_event_publisher,
+)
+from utils.audio_errors import (
+    error_boundary,
+    AudioProcessingError,
+    AudioProcessingBaseError,
+    ValidationError,
+    AudioFormatError,
+    AudioCorruptionError,
+    NetworkError,
+    ServiceUnavailableError,
+    ConfigurationError,
+)
 
 # Create router for core audio processing
 router = create_audio_router()
@@ -42,9 +75,9 @@ async def process_audio(
             "service": "orchestration",
             "endpoint": "/process",
             "streaming": request.streaming,
-            "request_size": len(str(request))
+            "request_size": len(str(request)),
         },
-        recovery_strategies=[format_recovery, service_recovery]
+        recovery_strategies=[format_recovery, service_recovery],
     ) as correlation_id:
         try:
             logger.info(f"[{correlation_id}] Processing audio request")
@@ -75,19 +108,25 @@ async def process_audio(
                 raise ConfigurationError(
                     f"Failed to get audio service configuration: {str(e)}",
                     correlation_id=correlation_id,
-                    config_details={"service": "audio"}
+                    config_details={"service": "audio"},
                 )
 
             # Process through enhanced pipeline with circuit breaker
             if request.streaming:
                 return await audio_service_circuit_breaker.call(
                     _process_audio_streaming_with_retry,
-                    request, correlation_id, audio_client, audio_service_config
+                    request,
+                    correlation_id,
+                    audio_client,
+                    audio_service_config,
                 )
             else:
                 return await audio_service_circuit_breaker.call(
                     _process_audio_batch_with_retry,
-                    request, correlation_id, audio_client, audio_service_config
+                    request,
+                    correlation_id,
+                    audio_client,
+                    audio_service_config,
                 )
 
         except AudioProcessingBaseError:
@@ -99,7 +138,7 @@ async def process_audio(
                 f"Unexpected error in audio processing: {str(e)}",
                 correlation_id=correlation_id,
                 processing_stage="main_pipeline",
-                details={"exception_type": type(e).__name__}
+                details={"exception_type": type(e).__name__},
             )
 
 
@@ -112,26 +151,32 @@ async def _validate_audio_request(request: AudioProcessingRequest, correlation_i
             correlation_id=correlation_id,
             validation_details={
                 "missing_fields": ["audio_data", "audio_url", "file_upload"],
-                "provided_fields": [k for k, v in request.dict().items() if v is not None]
-            }
+                "provided_fields": [
+                    k for k, v in request.dict().items() if v is not None
+                ],
+            },
         )
-    
+
     # Validate audio data if provided
     if request.audio_data:
         try:
             import base64
+
             audio_bytes = base64.b64decode(request.audio_data)
             if len(audio_bytes) == 0:
                 raise AudioCorruptionError(
                     "Audio data is empty after base64 decoding",
                     correlation_id=correlation_id,
-                    corruption_details={"original_length": len(request.audio_data)}
+                    corruption_details={"original_length": len(request.audio_data)},
                 )
             if len(audio_bytes) > 100 * 1024 * 1024:  # 100MB limit
                 raise ValidationError(
                     "Audio file too large (max 100MB)",
                     correlation_id=correlation_id,
-                    validation_details={"size_bytes": len(audio_bytes), "max_size": 100 * 1024 * 1024}
+                    validation_details={
+                        "size_bytes": len(audio_bytes),
+                        "max_size": 100 * 1024 * 1024,
+                    },
                 )
         except Exception as e:
             if isinstance(e, AudioProcessingBaseError):
@@ -139,9 +184,9 @@ async def _validate_audio_request(request: AudioProcessingRequest, correlation_i
             raise AudioFormatError(
                 f"Invalid base64 audio data: {str(e)}",
                 correlation_id=correlation_id,
-                format_details={"encoding": "base64", "error": str(e)}
+                format_details={"encoding": "base64", "error": str(e)},
             )
-    
+
     # Validate configuration
     if request.config:
         try:
@@ -151,7 +196,7 @@ async def _validate_audio_request(request: AudioProcessingRequest, correlation_i
             raise ValidationError(
                 f"Invalid JSON configuration: {str(e)}",
                 correlation_id=correlation_id,
-                validation_details={"config_error": str(e)}
+                validation_details={"config_error": str(e)},
             )
 
 
@@ -159,14 +204,17 @@ async def _process_audio_streaming_with_retry(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any]
+    audio_service_config: Dict[str, Any],
 ) -> AudioProcessingResponse:
     """Streaming audio processing with retry mechanism"""
     return await retry_manager.execute_with_retry(
         _process_audio_streaming,
-        request, correlation_id, audio_client, audio_service_config,
+        request,
+        correlation_id,
+        audio_client,
+        audio_service_config,
         correlation_id=correlation_id,
-        retryable_exceptions=(NetworkError, TimeoutError, ServiceUnavailableError)
+        retryable_exceptions=(NetworkError, TimeoutError, ServiceUnavailableError),
     )
 
 
@@ -174,14 +222,17 @@ async def _process_audio_batch_with_retry(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any]
+    audio_service_config: Dict[str, Any],
 ) -> AudioProcessingResponse:
     """Batch audio processing with retry mechanism"""
     return await retry_manager.execute_with_retry(
         _process_audio_batch,
-        request, correlation_id, audio_client, audio_service_config,
+        request,
+        correlation_id,
+        audio_client,
+        audio_service_config,
         correlation_id=correlation_id,
-        retryable_exceptions=(NetworkError, TimeoutError, ServiceUnavailableError)
+        retryable_exceptions=(NetworkError, TimeoutError, ServiceUnavailableError),
     )
 
 
@@ -189,7 +240,7 @@ async def _process_audio_streaming(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any]
+    audio_service_config: Dict[str, Any],
 ) -> AudioProcessingResponse:
     """Core streaming audio processing logic"""
     # Placeholder for streaming implementation
@@ -199,7 +250,7 @@ async def _process_audio_streaming(
         status="processed",
         transcription="Streaming processing placeholder",
         processing_time=0.1,
-        confidence=0.95
+        confidence=0.95,
     )
 
 
@@ -207,7 +258,7 @@ async def _process_audio_batch(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any]
+    audio_service_config: Dict[str, Any],
 ) -> AudioProcessingResponse:
     """Core batch audio processing logic"""
     # Placeholder for batch implementation
@@ -217,7 +268,7 @@ async def _process_audio_batch(
         status="processed",
         transcription="Batch processing placeholder",
         processing_time=0.2,
-        confidence=0.96
+        confidence=0.96,
     )
 
 
@@ -263,24 +314,50 @@ async def upload_audio_file(
             "service": "orchestration",
             "endpoint": "/upload",
             "filename": audio.filename,
-            "content_type": audio.content_type
+            "content_type": audio.content_type,
         },
-        recovery_strategies=[format_recovery, service_recovery]
+        recovery_strategies=[format_recovery, service_recovery],
     ) as upload_correlation_id:
         try:
-            logger.info(f"[{upload_correlation_id}] Processing file upload: {audio.filename}")
+            logger.info(
+                f"[{upload_correlation_id}] Processing file upload: {audio.filename}"
+            )
 
             # Enhanced file validation
             await _validate_upload_file(audio, upload_correlation_id)
 
             # Build configuration from form parameters
             # Convert string booleans to actual booleans
-            enable_trans = enable_transcription.lower() in ("true", "1", "yes") if enable_transcription else True
-            enable_transl = enable_translation.lower() in ("true", "1", "yes") if enable_translation else False
-            enable_diar = enable_diarization.lower() in ("true", "1", "yes") if enable_diarization else True
-            enable_audio_proc = audio_processing.lower() in ("true", "1", "yes") if audio_processing else True
-            enable_noise_red = noise_reduction.lower() in ("true", "1", "yes") if noise_reduction else False
-            enable_speech_enh = speech_enhancement.lower() in ("true", "1", "yes") if speech_enhancement else True
+            enable_trans = (
+                enable_transcription.lower() in ("true", "1", "yes")
+                if enable_transcription
+                else True
+            )
+            enable_transl = (
+                enable_translation.lower() in ("true", "1", "yes")
+                if enable_translation
+                else False
+            )
+            enable_diar = (
+                enable_diarization.lower() in ("true", "1", "yes")
+                if enable_diarization
+                else True
+            )
+            enable_audio_proc = (
+                audio_processing.lower() in ("true", "1", "yes")
+                if audio_processing
+                else True
+            )
+            enable_noise_red = (
+                noise_reduction.lower() in ("true", "1", "yes")
+                if noise_reduction
+                else False
+            )
+            enable_speech_enh = (
+                speech_enhancement.lower() in ("true", "1", "yes")
+                if speech_enhancement
+                else True
+            )
 
             request_config = {
                 "session_id": session_id,
@@ -303,10 +380,13 @@ async def upload_audio_file(
             if config:
                 try:
                     import json
+
                     legacy_config = json.loads(config)
                     request_config.update(legacy_config)
                 except json.JSONDecodeError as e:
-                    logger.warning(f"[{upload_correlation_id}] Failed to parse legacy config JSON: {e}")
+                    logger.warning(
+                        f"[{upload_correlation_id}] Failed to parse legacy config JSON: {e}"
+                    )
 
             logger.info(
                 f"[{upload_correlation_id}] Processing configuration: "
@@ -323,7 +403,9 @@ async def upload_audio_file(
             import tempfile
             import os
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{audio.filename}") as temp_file:
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=f"_{audio.filename}"
+            ) as temp_file:
                 # Read and save uploaded file
                 content = await audio.read()
                 temp_file.write(content)
@@ -354,7 +436,7 @@ async def upload_audio_file(
                     audio_client,
                     request_config,
                     audio_coordinator,
-                    config_sync_manager
+                    config_sync_manager,
                 )
 
                 return {
@@ -364,7 +446,7 @@ async def upload_audio_file(
                     "status": "uploaded_and_processed",
                     "file_size": len(content),
                     "processing_result": result,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 }
 
             finally:
@@ -372,7 +454,9 @@ async def upload_audio_file(
                 try:
                     os.unlink(temp_file_path)
                 except Exception as e:
-                    logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
+                    logger.warning(
+                        f"Failed to clean up temp file {temp_file_path}: {e}"
+                    )
 
         except AudioProcessingBaseError:
             # Re-raise our custom errors
@@ -383,7 +467,7 @@ async def upload_audio_file(
                 f"File upload failed: {str(e)}",
                 correlation_id=upload_correlation_id,
                 processing_stage="file_upload",
-                details={"filename": audio.filename, "error": str(e)}
+                details={"filename": audio.filename, "error": str(e)},
             )
 
 
@@ -394,39 +478,47 @@ async def _validate_upload_file(audio: UploadFile, correlation_id: str):
         raise ValidationError(
             "No filename provided",
             correlation_id=correlation_id,
-            validation_details={"missing_field": "filename"}
+            validation_details={"missing_field": "filename"},
         )
-    
+
     # Validate content type
     allowed_types = {
-        'audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 
-        'audio/webm', 'audio/mp4', 'audio/flac', 'audio/x-flac',
-        'application/octet-stream'  # Allow generic binary for various formats
+        "audio/wav",
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/ogg",
+        "audio/webm",
+        "audio/mp4",
+        "audio/flac",
+        "audio/x-flac",
+        "application/octet-stream",  # Allow generic binary for various formats
     }
-    
+
     if audio.content_type and audio.content_type not in allowed_types:
         raise AudioFormatError(
             f"Unsupported audio format: {audio.content_type}",
             correlation_id=correlation_id,
             format_details={
                 "provided_type": audio.content_type,
-                "allowed_types": list(allowed_types)
-            }
+                "allowed_types": list(allowed_types),
+            },
         )
-    
+
     # Validate file extension
     if audio.filename:
-        allowed_extensions = {'.wav', '.mp3', '.ogg', '.webm', '.mp4', '.flac', '.m4a'}
-        file_ext = '.' + audio.filename.split('.')[-1].lower() if '.' in audio.filename else ''
-        
+        allowed_extensions = {".wav", ".mp3", ".ogg", ".webm", ".mp4", ".flac", ".m4a"}
+        file_ext = (
+            "." + audio.filename.split(".")[-1].lower() if "." in audio.filename else ""
+        )
+
         if file_ext not in allowed_extensions:
             raise AudioFormatError(
                 f"Unsupported file extension: {file_ext}",
                 correlation_id=correlation_id,
                 format_details={
                     "provided_extension": file_ext,
-                    "allowed_extensions": list(allowed_extensions)
-                }
+                    "allowed_extensions": list(allowed_extensions),
+                },
             )
 
 
@@ -437,7 +529,7 @@ async def _process_uploaded_file_safe(
     audio_client,
     request_data: Dict[str, Any],
     audio_coordinator,
-    config_sync_manager
+    config_sync_manager,
 ) -> Dict[str, Any]:
     """Safe wrapper for uploaded file processing with error handling"""
     try:
@@ -448,7 +540,7 @@ async def _process_uploaded_file_safe(
             audio_client,
             request_data,
             audio_coordinator,
-            config_sync_manager
+            config_sync_manager,
         )
     except Exception as e:
         # Convert generic exceptions to appropriate audio errors
@@ -456,26 +548,26 @@ async def _process_uploaded_file_safe(
             raise NetworkError(
                 f"Network error during audio processing: {str(e)}",
                 correlation_id=correlation_id,
-                network_details={"original_error": str(e)}
+                network_details={"original_error": str(e)},
             )
         elif "timeout" in str(e).lower():
             raise TimeoutError(
                 f"Timeout during audio processing: {str(e)}",
                 correlation_id=correlation_id,
-                timeout_details={"original_error": str(e)}
+                timeout_details={"original_error": str(e)},
             )
         elif "service" in str(e).lower() or "unavailable" in str(e).lower():
             raise ServiceUnavailableError(
                 f"Audio service unavailable: {str(e)}",
                 correlation_id=correlation_id,
-                service_name="whisper_service"
+                service_name="whisper_service",
             )
         else:
             raise AudioProcessingError(
                 f"Audio processing failed: {str(e)}",
                 correlation_id=correlation_id,
                 processing_stage="file_processing",
-                details={"original_error": str(e)}
+                details={"original_error": str(e)},
             )
 
 
@@ -486,7 +578,7 @@ async def _process_uploaded_file(
     audio_client,
     request_data: Dict[str, Any],
     audio_coordinator,
-    config_sync_manager
+    config_sync_manager,
 ) -> Dict[str, Any]:
     """
     Core uploaded file processing logic - processes audio through the full orchestration pipeline.
@@ -495,41 +587,45 @@ async def _process_uploaded_file(
     and translation, replacing the previous placeholder implementation.
     """
     try:
-        logger.info(f"[{correlation_id}] Processing uploaded file through AudioCoordinator")
+        logger.info(
+            f"[{correlation_id}] Processing uploaded file through AudioCoordinator"
+        )
 
         # Use audio coordinator for complete processing
         result = await audio_coordinator.process_audio_file(
             session_id=request_data.get("session_id", "unknown"),
             audio_file_path=temp_file_path,
             config=request_data,
-            request_id=correlation_id
+            request_id=correlation_id,
         )
 
-        logger.info(f"[{correlation_id}] Audio coordinator processing complete: status={result.get('status')}")
+        logger.info(
+            f"[{correlation_id}] Audio coordinator processing complete: status={result.get('status')}"
+        )
 
         return result
 
     except Exception as e:
-        logger.error(f"[{correlation_id}] Failed to process uploaded file: {e}", exc_info=True)
+        logger.error(
+            f"[{correlation_id}] Failed to process uploaded file: {e}", exc_info=True
+        )
         return {
             "status": "error",
             "error": str(e),
             "file_path": temp_file_path,
-            "processing_time": 0.0
+            "processing_time": 0.0,
         }
 
 
 @router.get("/health")
-async def health_check(
-    health_monitor=Depends(get_health_monitor)
-) -> Dict[str, Any]:
+async def health_check(health_monitor=Depends(get_health_monitor)) -> Dict[str, Any]:
     """
     Audio service health check with comprehensive diagnostics
     """
     try:
         # Get comprehensive health status
         health_status = await health_monitor.get_comprehensive_health()
-        
+
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
@@ -538,24 +634,24 @@ async def health_check(
             "components": health_status,
             "endpoints": {
                 "process": "operational",
-                "upload": "operational", 
+                "upload": "operational",
                 "stream": "operational",
-                "transcribe": "operational"
-            }
+                "transcribe": "operational",
+            },
         }
-        
+
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
 @router.get("/models/transcription")
 async def get_transcription_models(
-    audio_client=Depends(get_audio_service_client)
+    audio_client=Depends(get_audio_service_client),
 ) -> Dict[str, Any]:
     """
     Get available Whisper transcription models
@@ -573,20 +669,20 @@ async def get_transcription_models(
             "status": "success",
             "service": "whisper",
             "total_models": len(models),
-            "device_info": audio_device_info
+            "device_info": audio_device_info,
         }
 
     except Exception as e:
         logger.error(f"Failed to get transcription models: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Whisper service unavailable: {str(e)}"
+            detail=f"Whisper service unavailable: {str(e)}",
         )
 
 
 @router.get("/models/translation")
 async def get_translation_models(
-    translation_client=Depends(get_translation_service_client)
+    translation_client=Depends(get_translation_service_client),
 ) -> Dict[str, Any]:
     """
     Get available translation models
@@ -604,21 +700,21 @@ async def get_translation_models(
             "status": "success",
             "service": "translation",
             "total_models": len(models),
-            "device_info": translation_device_info
+            "device_info": translation_device_info,
         }
 
     except Exception as e:
         logger.error(f"Failed to get translation models: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Translation service unavailable: {str(e)}"
+            detail=f"Translation service unavailable: {str(e)}",
         )
 
 
 @router.get("/models")
 async def get_all_models(
     audio_client=Depends(get_audio_service_client),
-    translation_client=Depends(get_translation_service_client)
+    translation_client=Depends(get_translation_service_client),
 ) -> Dict[str, Any]:
     """
     Get all available models (transcription + translation) with device information
@@ -643,40 +739,38 @@ async def get_all_models(
             "service": "orchestration",
             "device_info": {
                 "audio_service": audio_device_info,
-                "translation_service": translation_device_info
-            }
+                "translation_service": translation_device_info,
+            },
         }
 
     except Exception as e:
         logger.error(f"Failed to get models: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service unavailable: {str(e)}"
+            detail=f"Service unavailable: {str(e)}",
         )
 
 
 @router.get("/stats", response_model=AudioStats)
-async def get_audio_stats(
-    health_monitor=Depends(get_health_monitor)
-) -> AudioStats:
+async def get_audio_stats(health_monitor=Depends(get_health_monitor)) -> AudioStats:
     """
     Get audio processing statistics
     """
     try:
         # Get processing statistics
         stats = await health_monitor.get_processing_stats()
-        
+
         return AudioStats(
             total_requests=stats.get("total_requests", 0),
             successful_requests=stats.get("successful_requests", 0),
             failed_requests=stats.get("failed_requests", 0),
             average_processing_time=stats.get("average_processing_time", 0.0),
-            active_sessions=stats.get("active_sessions", 0)
+            active_sessions=stats.get("active_sessions", 0),
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve statistics: {str(e)}"
+            detail=f"Failed to retrieve statistics: {str(e)}",
         )

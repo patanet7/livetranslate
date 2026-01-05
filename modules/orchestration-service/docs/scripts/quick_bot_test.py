@@ -53,8 +53,8 @@ async def start_bot(base_url: str, meeting_url: str) -> str:
                 "language": "en",
                 "task": "transcribe",
                 "enable_virtual_webcam": False,
-                "metadata": {"test": True, "quick_test": True}
-            }
+                "metadata": {"test": True, "quick_test": True},
+            },
         )
 
         if response.status_code == 200:
@@ -74,9 +74,9 @@ async def get_status(base_url: str, connection_id: str) -> dict:
 
 async def monitor_bot(base_url: str, connection_id: str, max_time: int = 60):
     """Monitor bot status and show progress"""
-    print(f"\n{BLUE}{'='*70}{RESET}")
+    print(f"\n{BLUE}{'=' * 70}{RESET}")
     print(f"{BOLD}Monitoring Bot: {connection_id}{RESET}")
-    print(f"{BLUE}{'='*70}{RESET}\n")
+    print(f"{BLUE}{'=' * 70}{RESET}\n")
 
     start_time = time.time()
     last_status = None
@@ -95,14 +95,20 @@ async def monitor_bot(base_url: str, connection_id: str, max_time: int = 60):
             timestamp = time.strftime("%H:%M:%S")
 
             if current_status == "spawning":
-                print(f"{timestamp} | {YELLOW}🔄 SPAWNING{RESET} - Bot container starting...")
+                print(
+                    f"{timestamp} | {YELLOW}🔄 SPAWNING{RESET} - Bot container starting..."
+                )
             elif current_status == "starting":
                 print(f"{timestamp} | {YELLOW}🚀 STARTING{RESET} - Bot initializing...")
             elif current_status == "joining":
-                print(f"{timestamp} | {YELLOW}🚪 JOINING{RESET} - Bot joining Google Meet...")
+                print(
+                    f"{timestamp} | {YELLOW}🚪 JOINING{RESET} - Bot joining Google Meet..."
+                )
             elif current_status == "active":
                 print(f"{timestamp} | {GREEN}✅ ACTIVE{RESET} - Bot is in the meeting!")
-                print(f"\n{GREEN}{BOLD}SUCCESS! Bot successfully joined Google Meet!{RESET}\n")
+                print(
+                    f"\n{GREEN}{BOLD}SUCCESS! Bot successfully joined Google Meet!{RESET}\n"
+                )
 
                 # Show additional info
                 print(f"{BLUE}Bot Details:{RESET}")
@@ -132,18 +138,18 @@ async def main():
     parser.add_argument(
         "--url",
         default="https://meet.google.com/test-bot-meeting",
-        help="Google Meet URL (default: test URL)"
+        help="Google Meet URL (default: test URL)",
     )
     parser.add_argument(
         "--service",
         default="http://localhost:3000",
-        help="Orchestration service URL (default: localhost:3000)"
+        help="Orchestration service URL (default: localhost:3000)",
     )
     parser.add_argument(
         "--timeout",
         type=int,
         default=90,
-        help="Maximum time to wait in seconds (default: 90)"
+        help="Maximum time to wait in seconds (default: 90)",
     )
 
     args = parser.parse_args()
@@ -178,7 +184,7 @@ async def main():
     success = await monitor_bot(args.service, connection_id, args.timeout)
 
     # Final result
-    print(f"\n{BLUE}{'='*70}{RESET}")
+    print(f"\n{BLUE}{'=' * 70}{RESET}")
     if success:
         print(f"{GREEN}{BOLD}✅ TEST PASSED{RESET}")
         print(f"{GREEN}The bot successfully logged into Google Meet!{RESET}")
@@ -186,7 +192,7 @@ async def main():
         print(f"{YELLOW}{BOLD}⚠️  TEST INCOMPLETE{RESET}")
         print(f"{YELLOW}The bot started but didn't reach active state.{RESET}")
         print(f"{YELLOW}This might be normal if the meeting requires approval.{RESET}")
-    print(f"{BLUE}{'='*70}{RESET}\n")
+    print(f"{BLUE}{'=' * 70}{RESET}\n")
 
     sys.exit(0 if success else 1)
 

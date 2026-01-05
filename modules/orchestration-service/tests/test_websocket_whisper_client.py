@@ -28,8 +28,7 @@ class TestWhisperSessionState:
     def test_session_state_initialization(self):
         """Test session state can be initialized"""
         state = WhisperSessionState(
-            session_id="test-session",
-            config={"model": "large-v3", "language": "en"}
+            session_id="test-session", config={"model": "large-v3", "language": "en"}
         )
 
         assert state.session_id == "test-session"
@@ -42,10 +41,7 @@ class TestWhisperSessionState:
 
     def test_update_activity(self):
         """Test updating last activity timestamp"""
-        state = WhisperSessionState(
-            session_id="test",
-            config={}
-        )
+        state = WhisperSessionState(session_id="test", config={})
 
         original_time = state.last_activity
         asyncio.sleep(0.01)  # Small delay
@@ -64,7 +60,7 @@ class TestWebSocketWhisperClient:
             whisper_host="localhost",
             whisper_port=5001,
             auto_reconnect=True,
-            max_reconnect_attempts=3
+            max_reconnect_attempts=3,
         )
 
         assert client.whisper_host == "localhost"
@@ -77,8 +73,7 @@ class TestWebSocketWhisperClient:
     def test_whisper_url_property(self):
         """Test Whisper URL is correctly formatted"""
         client = WebSocketWhisperClient(
-            whisper_host="whisper.example.com",
-            whisper_port=8080
+            whisper_host="whisper.example.com", whisper_port=8080
         )
 
         assert client.whisper_url == "ws://whisper.example.com:8080/stream"
@@ -111,8 +106,7 @@ class TestWebSocketWhisperClient:
 
         # Manually create session (without actual connection)
         session = WhisperSessionState(
-            session_id="test-session",
-            config={"model": "base"}
+            session_id="test-session", config={"model": "base"}
         )
         client.sessions["test-session"] = session
 
@@ -136,15 +130,13 @@ class TestWebSocketWhisperClient:
 
         # Add test sessions
         client.sessions["session1"] = WhisperSessionState(
-            session_id="session1",
-            config={}
+            session_id="session1", config={}
         )
         client.sessions["session1"].chunks_sent = 5
         client.sessions["session1"].segments_received = 3
 
         client.sessions["session2"] = WhisperSessionState(
-            session_id="session2",
-            config={}
+            session_id="session2", config={}
         )
         client.sessions["session2"].chunks_sent = 10
         client.sessions["session2"].is_active = False
@@ -171,7 +163,9 @@ class TestWebSocketWhisperClientIntegration:
         """Test client can connect to Whisper WebSocket server"""
         # Import here to avoid import errors if websocket_stream_server doesn't exist
         try:
-            WHISPER_SRC = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            WHISPER_SRC = (
+                Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            )
             sys.path.insert(0, str(WHISPER_SRC))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
@@ -185,9 +179,7 @@ class TestWebSocketWhisperClientIntegration:
         try:
             # Create and connect client
             client = WebSocketWhisperClient(
-                whisper_host="localhost",
-                whisper_port=5020,
-                auto_reconnect=False
+                whisper_host="localhost", whisper_port=5020, auto_reconnect=False
             )
 
             connected = await client.connect()
@@ -207,7 +199,9 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_start_stream(self):
         """Test client can start a streaming session"""
         try:
-            WHISPER_SRC = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            WHISPER_SRC = (
+                Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            )
             sys.path.insert(0, str(WHISPER_SRC))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
@@ -218,17 +212,14 @@ class TestWebSocketWhisperClientIntegration:
         await asyncio.sleep(0.5)
 
         try:
-            client = WebSocketWhisperClient(
-                whisper_host="localhost",
-                whisper_port=5021
-            )
+            client = WebSocketWhisperClient(whisper_host="localhost", whisper_port=5021)
 
             await client.connect()
 
             # Start stream
             session_id = await client.start_stream(
                 session_id="integration-test-session",
-                config={"model": "large-v3", "language": "en"}
+                config={"model": "large-v3", "language": "en"},
             )
 
             assert session_id == "integration-test-session"
@@ -250,7 +241,9 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_send_audio(self):
         """Test client can send audio chunks"""
         try:
-            WHISPER_SRC = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            WHISPER_SRC = (
+                Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            )
             sys.path.insert(0, str(WHISPER_SRC))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
@@ -261,23 +254,18 @@ class TestWebSocketWhisperClientIntegration:
         await asyncio.sleep(0.5)
 
         try:
-            client = WebSocketWhisperClient(
-                whisper_host="localhost",
-                whisper_port=5022
-            )
+            client = WebSocketWhisperClient(whisper_host="localhost", whisper_port=5022)
 
             await client.connect()
 
             session_id = await client.start_stream(
-                session_id="audio-test-session",
-                config={"model": "base"}
+                session_id="audio-test-session", config={"model": "base"}
             )
 
             # Send audio chunk
             test_audio = np.random.randn(16000).astype(np.float32)
             await client.send_audio_chunk(
-                session_id=session_id,
-                audio_data=test_audio.tobytes()
+                session_id=session_id, audio_data=test_audio.tobytes()
             )
 
             # Verify session stats
@@ -286,8 +274,7 @@ class TestWebSocketWhisperClientIntegration:
 
             # Send another chunk
             await client.send_audio_chunk(
-                session_id=session_id,
-                audio_data=test_audio.tobytes()
+                session_id=session_id, audio_data=test_audio.tobytes()
             )
 
             session_info = client.get_session_info(session_id)
@@ -304,7 +291,9 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_receive_segments(self):
         """Test client can receive segments from Whisper"""
         try:
-            WHISPER_SRC = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            WHISPER_SRC = (
+                Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            )
             sys.path.insert(0, str(WHISPER_SRC))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
@@ -315,10 +304,7 @@ class TestWebSocketWhisperClientIntegration:
         await asyncio.sleep(0.5)
 
         try:
-            client = WebSocketWhisperClient(
-                whisper_host="localhost",
-                whisper_port=5023
-            )
+            client = WebSocketWhisperClient(whisper_host="localhost", whisper_port=5023)
 
             # Track received segments
             received_segments = []
@@ -331,15 +317,13 @@ class TestWebSocketWhisperClientIntegration:
             await client.connect()
 
             session_id = await client.start_stream(
-                session_id="segment-test-session",
-                config={"model": "base"}
+                session_id="segment-test-session", config={"model": "base"}
             )
 
             # Send audio that should produce segments
             test_audio = np.random.randn(16000).astype(np.float32)
             await client.send_audio_chunk(
-                session_id=session_id,
-                audio_data=test_audio.tobytes()
+                session_id=session_id, audio_data=test_audio.tobytes()
             )
 
             # Wait for potential segments
@@ -360,7 +344,9 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_connection_callbacks(self):
         """Test connection state change callbacks"""
         try:
-            WHISPER_SRC = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            WHISPER_SRC = (
+                Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            )
             sys.path.insert(0, str(WHISPER_SRC))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
@@ -372,9 +358,7 @@ class TestWebSocketWhisperClientIntegration:
 
         try:
             client = WebSocketWhisperClient(
-                whisper_host="localhost",
-                whisper_port=5024,
-                auto_reconnect=False
+                whisper_host="localhost", whisper_port=5024, auto_reconnect=False
             )
 
             # Track connection states

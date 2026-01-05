@@ -85,8 +85,8 @@ class SegmentDeduplicator:
         merged = []
 
         for segment in segments:
-            abs_start = segment.get('absolute_start_time')
-            text = segment.get('text', '').strip()
+            abs_start = segment.get("absolute_start_time")
+            text = segment.get("text", "").strip()
 
             # Skip segments without absolute_start_time
             if not abs_start:
@@ -103,11 +103,13 @@ class SegmentDeduplicator:
 
             if existing:
                 # Both have updated_at → keep newer
-                if existing.get('updated_at') and segment.get('updated_at'):
-                    if self._is_newer(segment['updated_at'], existing['updated_at']):
+                if existing.get("updated_at") and segment.get("updated_at"):
+                    if self._is_newer(segment["updated_at"], existing["updated_at"]):
                         self.segments_by_abs_start[abs_start] = segment
                         merged.append(segment)
-                        logger.debug(f"Updated segment at {abs_start} (newer updated_at)")
+                        logger.debug(
+                            f"Updated segment at {abs_start} (newer updated_at)"
+                        )
                     else:
                         logger.debug(f"Kept existing segment at {abs_start} (newer)")
                 else:
@@ -121,7 +123,9 @@ class SegmentDeduplicator:
                 merged.append(segment)
                 logger.debug(f"Added new segment at {abs_start}")
 
-        logger.info(f"Merged {len(merged)} segments, total: {len(self.segments_by_abs_start)}")
+        logger.info(
+            f"Merged {len(merged)} segments, total: {len(self.segments_by_abs_start)}"
+        )
         return merged
 
     def get_all_segments(self, sorted: bool = True) -> List[Dict[str, Any]]:
@@ -142,7 +146,7 @@ class SegmentDeduplicator:
         segments = list(self.segments_by_abs_start.values())
 
         if sorted:
-            segments.sort(key=lambda s: s['absolute_start_time'])
+            segments.sort(key=lambda s: s["absolute_start_time"])
 
         return segments
 
@@ -176,8 +180,8 @@ class SegmentDeduplicator:
             bool: True if timestamp1 > timestamp2
         """
         try:
-            dt1 = datetime.fromisoformat(timestamp1.replace('Z', '+00:00'))
-            dt2 = datetime.fromisoformat(timestamp2.replace('Z', '+00:00'))
+            dt1 = datetime.fromisoformat(timestamp1.replace("Z", "+00:00"))
+            dt2 = datetime.fromisoformat(timestamp2.replace("Z", "+00:00"))
             return dt1 > dt2
         except Exception as e:
             logger.warning(f"Error comparing timestamps: {e}")
@@ -197,21 +201,17 @@ class SegmentDeduplicator:
         segments = self.get_all_segments()
 
         if not segments:
-            return {
-                "total_segments": 0,
-                "speakers": [],
-                "time_range": None
-            }
+            return {"total_segments": 0, "speakers": [], "time_range": None}
 
-        speakers = list(set(s.get('speaker', 'Unknown') for s in segments))
+        speakers = list(set(s.get("speaker", "Unknown") for s in segments))
 
         return {
             "total_segments": len(segments),
             "speakers": speakers,
             "time_range": {
-                "start": segments[0]['absolute_start_time'],
-                "end": segments[-1]['absolute_end_time']
-            }
+                "start": segments[0]["absolute_start_time"],
+                "end": segments[-1]["absolute_end_time"],
+            },
         }
 
 
@@ -229,14 +229,14 @@ if __name__ == "__main__":
             "text": "Hello",
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:00Z",
-            "absolute_end_time": "2025-01-15T10:30:01Z"
+            "absolute_end_time": "2025-01-15T10:30:01Z",
         },
         {
             "text": "World",
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:02Z",
-            "absolute_end_time": "2025-01-15T10:30:03Z"
-        }
+            "absolute_end_time": "2025-01-15T10:30:03Z",
+        },
     ]
 
     deduplicator.merge_segments(initial_segments)
@@ -251,13 +251,15 @@ if __name__ == "__main__":
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:00Z",  # Same key!
             "absolute_end_time": "2025-01-15T10:30:01Z",
-            "updated_at": "2025-01-15T10:30:05Z"
+            "updated_at": "2025-01-15T10:30:05Z",
         }
     ]
 
     deduplicator.merge_segments(updated_segments)
     all_segments = deduplicator.get_all_segments()
-    print(f"  Total: {deduplicator.get_segment_count()} unique segments (should still be 2)")
+    print(
+        f"  Total: {deduplicator.get_segment_count()} unique segments (should still be 2)"
+    )
     print(f"  First segment text: '{all_segments[0]['text']}' (should be updated)")
 
     # Test 3: Add new segment + skip empty
@@ -267,30 +269,34 @@ if __name__ == "__main__":
             "text": "Nice to meet you",
             "speaker": "Jane",
             "absolute_start_time": "2025-01-15T10:30:04Z",
-            "absolute_end_time": "2025-01-15T10:30:05Z"
+            "absolute_end_time": "2025-01-15T10:30:05Z",
         },
         {
             "text": "",  # Empty - should be skipped
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:06Z",
-            "absolute_end_time": "2025-01-15T10:30:07Z"
-        }
+            "absolute_end_time": "2025-01-15T10:30:07Z",
+        },
     ]
 
     deduplicator.merge_segments(new_segments)
-    print(f"  Total: {deduplicator.get_segment_count()} unique segments (added 1, skipped 1)")
+    print(
+        f"  Total: {deduplicator.get_segment_count()} unique segments (added 1, skipped 1)"
+    )
 
     # Test 4: Get statistics
     print("\n[TEST 4] Statistics:")
     stats = deduplicator.get_statistics()
     print(f"  Total segments: {stats['total_segments']}")
     print(f"  Speakers: {', '.join(stats['speakers'])}")
-    print(f"  Time range: {stats['time_range']['start']} to {stats['time_range']['end']}")
+    print(
+        f"  Time range: {stats['time_range']['start']} to {stats['time_range']['end']}"
+    )
 
     # Test 5: Display all segments
     print("\n[TEST 5] All segments (sorted):")
     for i, segment in enumerate(deduplicator.get_all_segments(), 1):
-        start = segment['absolute_start_time'][11:19]  # Extract time part
+        start = segment["absolute_start_time"][11:19]  # Extract time part
         print(f"  {i}. [{start}] {segment['speaker']}: {segment['text']}")
 
     print("\n" + "=" * 50)

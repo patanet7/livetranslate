@@ -31,6 +31,7 @@ from httpx import AsyncClient
 # SMPTE Timecode for precise audio overlap handling
 try:
     from timecode import Timecode
+
     SMPTE_AVAILABLE = True
 except ImportError:
     SMPTE_AVAILABLE = False
@@ -58,6 +59,7 @@ TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "sqlite:///./test_orchestration.db"
 # =============================================================================
 # TEST DATABASE SETUP
 # =============================================================================
+
 
 @pytest.fixture(scope="session")
 def test_database():
@@ -106,6 +108,7 @@ async def bot_repository(test_database):
     Create UnifiedBotSessionRepository with test database.
     """
     from config import DatabaseSettings
+
     db_config = DatabaseSettings(url=test_database["url"])
     db_manager = DatabaseManager(db_config)
     await db_manager.initialize()
@@ -122,12 +125,14 @@ async def bot_repository(test_database):
 # SERVICE RESPONSE FIXTURES (matching actual service contracts)
 # =============================================================================
 
+
 @pytest.fixture
 def whisper_transcription_response():
     """
     Fixture matching TranscriptionResponse from audio service.
     Based on actual Whisper service response format.
     """
+
     def _create(
         text: str = "Hello, this is a test transcription.",
         language: str = "en",
@@ -181,6 +186,7 @@ def translation_service_response():
     Fixture matching TranslationResponse from translation service.
     Based on actual translation service response format.
     """
+
     def _create(
         source_text: str = "Hello",
         translated_text: str = "Hola",
@@ -210,9 +216,11 @@ def translation_service_response():
 # AUDIO GENERATION UTILITIES
 # =============================================================================
 
+
 @pytest.fixture
 def generate_test_audio():
     """Generate realistic test audio data (sine wave)"""
+
     def _generate(
         duration_seconds: float = 1.0,
         frequency: int = 440,
@@ -240,6 +248,7 @@ def generate_test_audio():
 @pytest.fixture
 def create_wav_file(tmp_path, generate_test_audio):
     """Create WAV file from audio data"""
+
     def _create(
         duration: float = 1.0,
         frequency: int = 440,
@@ -250,7 +259,7 @@ def create_wav_file(tmp_path, generate_test_audio):
 
         wav_path = tmp_path / f"test_audio_{int(datetime.now().timestamp())}.wav"
 
-        with wave.open(str(wav_path), 'wb') as wav_file:
+        with wave.open(str(wav_path), "wb") as wav_file:
             wav_file.setnchannels(1)  # Mono
             wav_file.setsampwidth(2)  # 16-bit
             wav_file.setframerate(sample_rate)
@@ -264,6 +273,7 @@ def create_wav_file(tmp_path, generate_test_audio):
 @pytest.fixture
 def chunk_audio():
     """Split audio into chunks for streaming tests"""
+
     def _chunk(
         audio_data: bytes,
         chunk_size_ms: int = 100,
@@ -289,7 +299,7 @@ def chunk_audio():
         # Split into chunks
         chunks = []
         for i in range(0, len(audio_data), bytes_per_chunk):
-            chunk = audio_data[i:i + bytes_per_chunk]
+            chunk = audio_data[i : i + bytes_per_chunk]
             if len(chunk) > 0:
                 chunks.append(chunk)
 
@@ -306,13 +316,14 @@ def chunk_audio_with_overlap():
     Uses SMPTE timecode for industry-standard precise timecode generation
     to ensure proper reconstruction and overlap handling.
     """
+
     def _chunk_with_overlap(
         audio_data: bytes,
         chunk_size_ms: int = 100,
         overlap_ms: int = 20,  # 20ms overlap for context
         sample_rate: int = 16000,
         sample_width: int = 2,
-        framerate: str = '30',  # SMPTE framerate (24, 25, 30, etc.)
+        framerate: str = "30",  # SMPTE framerate (24, 25, 30, etc.)
     ) -> List[Dict[str, Any]]:
         """
         Split audio with overlap and SMPTE timecode metadata.
@@ -395,6 +406,7 @@ def chunk_audio_with_overlap():
 # INTEGRATION TESTS - DATABASE OPERATIONS
 # =============================================================================
 
+
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestDatabaseIntegration:
@@ -415,7 +427,7 @@ class TestDatabaseIntegration:
             "translation_config": {
                 "source_language": "en",
                 "target_language": "es",
-            }
+            },
         }
 
         # Create session
@@ -423,7 +435,7 @@ class TestDatabaseIntegration:
             session_id=session_id,
             meeting_url=meeting_url,
             bot_config=bot_config,
-            metadata={"test": True}
+            metadata={"test": True},
         )
 
         assert created_session is not None, "Session should be created"
@@ -450,7 +462,7 @@ class TestDatabaseIntegration:
         await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         # Generate test audio
@@ -464,7 +476,7 @@ class TestDatabaseIntegration:
                 "sample_rate": 16000,
                 "duration": 2.0,
                 "format": "pcm",
-            }
+            },
         )
 
         assert audio_file is not None, "Audio file should be created"
@@ -480,7 +492,9 @@ class TestDatabaseIntegration:
         assert retrieved_audio.audio_id == audio_file.audio_id
         assert retrieved_audio.file_size == len(audio_data)
 
-    async def test_transcript_storage(self, bot_repository, whisper_transcription_response):
+    async def test_transcript_storage(
+        self, bot_repository, whisper_transcription_response
+    ):
         """
         TEST: Store transcription results in database
         VERIFY: Transcripts persisted with segments and speakers
@@ -490,13 +504,13 @@ class TestDatabaseIntegration:
         await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         audio_file = await bot_repository.audio_create(
             session_id=session_id,
             audio_data=b"fake_audio_data",
-            metadata={"sample_rate": 16000}
+            metadata={"sample_rate": 16000},
         )
 
         # Create transcription response
@@ -524,7 +538,9 @@ class TestDatabaseIntegration:
         assert len(transcript_record.segments) > 0
         assert len(transcript_record.speakers) > 0
 
-    async def test_translation_storage(self, bot_repository, translation_service_response):
+    async def test_translation_storage(
+        self, bot_repository, translation_service_response
+    ):
         """
         TEST: Store translation results in database
         VERIFY: Translations linked to transcripts correctly
@@ -534,13 +550,11 @@ class TestDatabaseIntegration:
         await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         audio_file = await bot_repository.audio_create(
-            session_id=session_id,
-            audio_data=b"fake_audio",
-            metadata={}
+            session_id=session_id, audio_data=b"fake_audio", metadata={}
         )
 
         transcript = await bot_repository.transcript_create(
@@ -578,6 +592,7 @@ class TestDatabaseIntegration:
 # INTEGRATION TESTS - AUDIO CHUNKING
 # =============================================================================
 
+
 @pytest.mark.asyncio
 @pytest.mark.integration
 class TestAudioChunking:
@@ -600,11 +615,15 @@ class TestAudioChunking:
         # Verify chunk sizes (16kHz * 0.1s * 2 bytes/sample = 3200 bytes)
         expected_chunk_size = 3200
         for i, chunk in enumerate(chunks):
-            assert len(chunk) == expected_chunk_size, f"Chunk {i} should be {expected_chunk_size} bytes"
+            assert len(chunk) == expected_chunk_size, (
+                f"Chunk {i} should be {expected_chunk_size} bytes"
+            )
 
         # Verify total data preserved
-        total_reconstructed = b''.join(chunks)
-        assert len(total_reconstructed) == len(audio_data), "All audio data should be preserved"
+        total_reconstructed = b"".join(chunks)
+        assert len(total_reconstructed) == len(audio_data), (
+            "All audio data should be preserved"
+        )
 
     async def test_chunk_streaming_to_database(
         self,
@@ -621,7 +640,7 @@ class TestAudioChunking:
         await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         # Generate and chunk audio
@@ -639,7 +658,7 @@ class TestAudioChunking:
                     "total_chunks": len(chunks),
                     "chunk_duration_ms": 200,
                     "sample_rate": 16000,
-                }
+                },
             )
             audio_files.append(audio_file)
 
@@ -671,7 +690,7 @@ class TestAudioChunking:
         await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         # Generate chunks
@@ -685,7 +704,7 @@ class TestAudioChunking:
             audio_file = await bot_repository.audio_create(
                 session_id=session_id,
                 audio_data=chunk_data,
-                metadata={"chunk_index": chunk_index}
+                metadata={"chunk_index": chunk_index},
             )
 
             # Simulate transcription
@@ -709,10 +728,7 @@ class TestAudioChunking:
             }
 
         # Process all chunks concurrently
-        tasks = [
-            process_chunk(i, chunk)
-            for i, chunk in enumerate(chunks)
-        ]
+        tasks = [process_chunk(i, chunk) for i, chunk in enumerate(chunks)]
         results = await asyncio.gather(*tasks)
 
         # Verify all processed
@@ -741,19 +757,21 @@ class TestAudioChunking:
         await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         # Generate audio (10 seconds for clear timecode testing)
-        audio_data = generate_test_audio(duration_seconds=10.0, sample_rate=16000, frequency=440)
+        audio_data = generate_test_audio(
+            duration_seconds=10.0, sample_rate=16000, frequency=440
+        )
 
         # Create overlapping chunks with SMPTE timecode
         chunks = chunk_audio_with_overlap(
             audio_data,
             chunk_size_ms=500,  # 500ms chunks
-            overlap_ms=100,     # 100ms overlap (20% overlap)
+            overlap_ms=100,  # 100ms overlap (20% overlap)
             sample_rate=16000,
-            framerate='30',     # 30fps SMPTE timecode
+            framerate="30",  # 30fps SMPTE timecode
         )
 
         print(f"\n📊 Overlapping Chunk Analysis:")
@@ -771,19 +789,25 @@ class TestAudioChunking:
             previous_chunk = chunks[i - 1]
 
             # Current chunk should start before previous chunk ends (overlap)
-            assert current_chunk["start_time_seconds"] < previous_chunk["end_time_seconds"], \
-                f"Chunk {i} should overlap with previous chunk"
+            assert (
+                current_chunk["start_time_seconds"] < previous_chunk["end_time_seconds"]
+            ), f"Chunk {i} should overlap with previous chunk"
 
             # Verify overlap amount (approximately 100ms)
-            overlap_time = previous_chunk["end_time_seconds"] - current_chunk["start_time_seconds"]
+            overlap_time = (
+                previous_chunk["end_time_seconds"] - current_chunk["start_time_seconds"]
+            )
             overlap_ms = overlap_time * 1000
-            assert 95 <= overlap_ms <= 105, \
+            assert 95 <= overlap_ms <= 105, (
                 f"Overlap should be ~100ms, got {overlap_ms:.1f}ms"
+            )
 
             # Verify SMPTE timecodes
             if current_chunk.get("smpte_timecode"):
-                print(f"   Chunk {i}: {current_chunk['smpte_timecode']['start']} -> {current_chunk['smpte_timecode']['end']} " +
-                      f"({current_chunk['start_time_seconds']:.3f}s - {current_chunk['end_time_seconds']:.3f}s)")
+                print(
+                    f"   Chunk {i}: {current_chunk['smpte_timecode']['start']} -> {current_chunk['smpte_timecode']['end']} "
+                    + f"({current_chunk['start_time_seconds']:.3f}s - {current_chunk['end_time_seconds']:.3f}s)"
+                )
 
         # Store chunks in database with timecode metadata
         stored_chunks = []
@@ -799,7 +823,7 @@ class TestAudioChunking:
                     "overlap_ms": chunk["overlap_ms"],
                     "smpte_timecode": chunk.get("smpte_timecode"),
                     "frame_number": chunk["frame_number"],
-                }
+                },
             )
             stored_chunks.append(audio_file)
 
@@ -809,12 +833,14 @@ class TestAudioChunking:
         # Verify we can reconstruct timeline from database
         retrieved_chunks = []
         for audio_file in stored_chunks:
-            retrieved_chunks.append({
-                "index": audio_file.metadata["chunk_index"],
-                "start": audio_file.metadata["start_time_seconds"],
-                "end": audio_file.metadata["end_time_seconds"],
-                "timecode": audio_file.metadata.get("ltc_timecode"),
-            })
+            retrieved_chunks.append(
+                {
+                    "index": audio_file.metadata["chunk_index"],
+                    "start": audio_file.metadata["start_time_seconds"],
+                    "end": audio_file.metadata["end_time_seconds"],
+                    "timecode": audio_file.metadata.get("ltc_timecode"),
+                }
+            )
 
         # Sort by index
         retrieved_chunks.sort(key=lambda x: x["index"])
@@ -822,19 +848,26 @@ class TestAudioChunking:
         # Verify timeline continuity
         for i in range(1, len(retrieved_chunks)):
             # Each chunk should connect to or overlap with the previous
-            gap = retrieved_chunks[i]["start"] - retrieved_chunks[i-1]["end"]
+            gap = retrieved_chunks[i]["start"] - retrieved_chunks[i - 1]["end"]
             assert gap <= 0, f"No gaps allowed between chunks (gap: {gap:.3f}s)"
 
-        print(f"\n   ✅ All {len(chunks)} chunks stored with proper SMPTE timecode metadata")
-        print(f"   ✅ Overlaps verified: {chunks[1]['overlap_ms']}ms between consecutive chunks")
+        print(
+            f"\n   ✅ All {len(chunks)} chunks stored with proper SMPTE timecode metadata"
+        )
+        print(
+            f"   ✅ Overlaps verified: {chunks[1]['overlap_ms']}ms between consecutive chunks"
+        )
         print(f"   ✅ Timeline reconstructed from database successfully")
         if chunks[0].get("smpte_timecode"):
-            print(f"   ✅ SMPTE framerate: {chunks[0]['smpte_timecode']['framerate']} fps")
+            print(
+                f"   ✅ SMPTE framerate: {chunks[0]['smpte_timecode']['framerate']} fps"
+            )
 
 
 # =============================================================================
 # INTEGRATION TESTS - METRICS AND SESSION TRACKING
 # =============================================================================
+
 
 @pytest.mark.asyncio
 @pytest.mark.integration
@@ -852,7 +885,7 @@ class TestSessionMetrics:
         session = await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         assert session.status == "initializing"
@@ -898,7 +931,7 @@ class TestSessionMetrics:
         await bot_repository.session_create(
             session_id=session_id,
             meeting_url="https://meet.google.com/test",
-            bot_config={}
+            bot_config={},
         )
 
         # Process multiple chunks and track metrics
@@ -921,7 +954,7 @@ class TestSessionMetrics:
             audio_file = await bot_repository.audio_create(
                 session_id=session_id,
                 audio_data=audio_data,
-                metadata={"chunk_index": i}
+                metadata={"chunk_index": i},
             )
 
             # Simulate transcription
@@ -962,13 +995,15 @@ class TestSessionMetrics:
             metrics["total_processing_time"] += processing_time
 
         # Calculate final metrics
-        metrics["average_confidence"] = sum(
+        metrics["average_confidence"] = sum(metrics["transcription_times"]) / len(
             metrics["transcription_times"]
-        ) / len(metrics["transcription_times"])
+        )
 
         metrics["average_transcription_time"] = np.mean(metrics["transcription_times"])
         metrics["average_translation_time"] = np.mean(metrics["translation_times"])
-        metrics["throughput"] = metrics["total_audio_duration"] / metrics["total_processing_time"]
+        metrics["throughput"] = (
+            metrics["total_audio_duration"] / metrics["total_processing_time"]
+        )
 
         # Verify metrics
         assert metrics["chunks_processed"] == num_chunks
@@ -980,7 +1015,9 @@ class TestSessionMetrics:
         print(f"\n📊 Processing Metrics:")
         print(f"   Chunks processed: {metrics['chunks_processed']}")
         print(f"   Total duration: {metrics['total_audio_duration']:.2f}s")
-        print(f"   Avg transcription time: {metrics['average_transcription_time']:.3f}s")
+        print(
+            f"   Avg transcription time: {metrics['average_transcription_time']:.3f}s"
+        )
         print(f"   Avg translation time: {metrics['average_translation_time']:.3f}s")
         print(f"   Throughput: {metrics['throughput']:.2f}x realtime")
 

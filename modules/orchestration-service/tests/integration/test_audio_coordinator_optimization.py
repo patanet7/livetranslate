@@ -26,7 +26,9 @@ from typing import Dict, List
 
 # Test configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/1")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/livetranslate")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/livetranslate"
+)
 TEST_SESSION_ID = "test_coordinator_opt"
 
 
@@ -49,18 +51,18 @@ class TestAudioCoordinatorCacheIntegration:
             database_url=DATABASE_URL,
             service_urls={
                 "whisper_service": "http://localhost:5001",
-                "translation_service": "http://localhost:5003"
+                "translation_service": "http://localhost:5003",
             },
-            audio_config_file=None
+            audio_config_file=None,
         )
 
         await coordinator.initialize()
 
         # Should have cache attribute
-        assert hasattr(coordinator, 'translation_cache')
+        assert hasattr(coordinator, "translation_cache")
 
         # Should have optimization adapter if database available
-        assert hasattr(coordinator, 'translation_opt_adapter')
+        assert hasattr(coordinator, "translation_opt_adapter")
 
         # Cache should be initialized if Redis available
         if coordinator.translation_cache:
@@ -91,8 +93,8 @@ class TestAudioCoordinatorCacheIntegration:
             database_url=DATABASE_URL,
             service_urls={
                 "whisper_service": "http://localhost:5001",
-                "translation_service": "http://localhost:5003"
-            }
+                "translation_service": "http://localhost:5003",
+            },
         )
 
         await coordinator.initialize()
@@ -108,8 +110,7 @@ class TestAudioCoordinatorCacheIntegration:
 
         # Create session
         await coordinator.create_audio_session(
-            bot_session_id=session_id,
-            target_languages=target_languages
+            bot_session_id=session_id, target_languages=target_languages
         )
 
         # Mock transcript result (same text twice)
@@ -119,7 +120,7 @@ class TestAudioCoordinatorCacheIntegration:
             "confidence": 0.95,
             "start_timestamp": 0.0,
             "end_timestamp": 2.0,
-            "speaker_info": {}
+            "speaker_info": {},
         }
 
         # First request (cache miss expected)
@@ -128,7 +129,7 @@ class TestAudioCoordinatorCacheIntegration:
             session_id=session_id,
             transcript_id="transcript_001",
             transcript_result=transcript_result,
-            target_languages=target_languages
+            target_languages=target_languages,
         )
         duration_first = time.time() - start_first
 
@@ -138,7 +139,7 @@ class TestAudioCoordinatorCacheIntegration:
             session_id=session_id,
             transcript_id="transcript_002",
             transcript_result=transcript_result,
-            target_languages=target_languages
+            target_languages=target_languages,
         )
         duration_second = time.time() - start_second
 
@@ -146,11 +147,15 @@ class TestAudioCoordinatorCacheIntegration:
         stats = coordinator.translation_cache.get_stats()
 
         # Should have cache hits
-        assert stats['hits'] > 0, "Expected cache hits for duplicate translation"
+        assert stats["hits"] > 0, "Expected cache hits for duplicate translation"
 
         # Second request should be significantly faster
-        print(f"First request: {duration_first*1000:.2f}ms, Second (cached): {duration_second*1000:.2f}ms")
-        assert duration_second < duration_first * 0.5, "Cached request should be at least 50% faster"
+        print(
+            f"First request: {duration_first * 1000:.2f}ms, Second (cached): {duration_second * 1000:.2f}ms"
+        )
+        assert duration_second < duration_first * 0.5, (
+            "Cached request should be at least 50% faster"
+        )
 
         await coordinator.cleanup()
 
@@ -170,8 +175,8 @@ class TestAudioCoordinatorCacheIntegration:
             database_url=DATABASE_URL,
             service_urls={
                 "whisper_service": "http://localhost:5001",
-                "translation_service": "http://localhost:5003"
-            }
+                "translation_service": "http://localhost:5003",
+            },
         )
 
         await coordinator.initialize()
@@ -180,8 +185,7 @@ class TestAudioCoordinatorCacheIntegration:
         target_languages = ["es", "fr", "de"]  # 3 languages
 
         await coordinator.create_audio_session(
-            bot_session_id=session_id,
-            target_languages=target_languages
+            bot_session_id=session_id, target_languages=target_languages
         )
 
         transcript_result = {
@@ -190,7 +194,7 @@ class TestAudioCoordinatorCacheIntegration:
             "confidence": 0.95,
             "start_timestamp": 0.0,
             "end_timestamp": 2.0,
-            "speaker_info": {}
+            "speaker_info": {},
         }
 
         # Time the translation
@@ -199,20 +203,24 @@ class TestAudioCoordinatorCacheIntegration:
             session_id=session_id,
             transcript_id="transcript_batch_001",
             transcript_result=transcript_result,
-            target_languages=target_languages
+            target_languages=target_languages,
         )
         duration = time.time() - start_time
 
         # Should be faster than 3 sequential requests
         # (Each request ~150ms, so 3 × 150ms = 450ms)
         # Batch should be < 300ms
-        print(f"Batch translation time: {duration*1000:.2f}ms for {len(target_languages)} languages")
-        assert duration < 0.5, f"Batch translation too slow: {duration*1000:.2f}ms"
+        print(
+            f"Batch translation time: {duration * 1000:.2f}ms for {len(target_languages)} languages"
+        )
+        assert duration < 0.5, f"Batch translation too slow: {duration * 1000:.2f}ms"
 
         # Check if batch was recorded in database
         if coordinator.translation_opt_adapter:
-            batch_stats = await coordinator.translation_opt_adapter.get_batch_efficiency(
-                session_id=session_id
+            batch_stats = (
+                await coordinator.translation_opt_adapter.get_batch_efficiency(
+                    session_id=session_id
+                )
             )
             assert len(batch_stats) > 0, "Batch should be recorded in database"
 
@@ -235,8 +243,8 @@ class TestAudioCoordinatorCacheIntegration:
             database_url=DATABASE_URL,
             service_urls={
                 "whisper_service": "http://localhost:5001",
-                "translation_service": "http://localhost:5003"
-            }
+                "translation_service": "http://localhost:5003",
+            },
         )
 
         await coordinator.initialize()
@@ -250,8 +258,7 @@ class TestAudioCoordinatorCacheIntegration:
         target_languages = ["es"]  # Single language for simplicity
 
         await coordinator.create_audio_session(
-            bot_session_id=session_id,
-            target_languages=target_languages
+            bot_session_id=session_id, target_languages=target_languages
         )
 
         # 10 unique phrases
@@ -265,7 +272,7 @@ class TestAudioCoordinatorCacheIntegration:
             "Nice to meet you",
             "Excuse me",
             "I understand",
-            "No problem"
+            "No problem",
         ]
 
         # Repeat each phrase 5 times
@@ -278,14 +285,14 @@ class TestAudioCoordinatorCacheIntegration:
                     "confidence": 0.95,
                     "start_timestamp": total_requests * 2.0,
                     "end_timestamp": (total_requests + 1) * 2.0,
-                    "speaker_info": {}
+                    "speaker_info": {},
                 }
 
                 await coordinator._request_translations(
                     session_id=session_id,
                     transcript_id=f"transcript_{total_requests:03d}",
                     transcript_result=transcript_result,
-                    target_languages=target_languages
+                    target_languages=target_languages,
                 )
 
                 total_requests += 1
@@ -295,11 +302,15 @@ class TestAudioCoordinatorCacheIntegration:
 
         print(f"Cache stats: {stats}")
         print(f"Total requests: {total_requests}")
-        print(f"Expected: ~{((total_requests - len(phrases)) / total_requests) * 100:.0f}% hit rate")
+        print(
+            f"Expected: ~{((total_requests - len(phrases)) / total_requests) * 100:.0f}% hit rate"
+        )
 
         # Expected: 10 misses (first occurrence), 40 hits (4 repetitions × 10 phrases)
         # Hit rate: 40/50 = 80%
-        assert stats['hit_rate'] > 0.5, f"Cache hit rate too low: {stats['hit_rate']:.1%}"
+        assert stats["hit_rate"] > 0.5, (
+            f"Cache hit rate too low: {stats['hit_rate']:.1%}"
+        )
 
         await coordinator.cleanup()
 
@@ -319,8 +330,8 @@ class TestAudioCoordinatorCacheIntegration:
             database_url=DATABASE_URL,
             service_urls={
                 "whisper_service": "http://localhost:5001",
-                "translation_service": "http://localhost:5003"
-            }
+                "translation_service": "http://localhost:5003",
+            },
         )
 
         await coordinator.initialize()
@@ -332,8 +343,7 @@ class TestAudioCoordinatorCacheIntegration:
         target_languages = ["es", "fr"]
 
         await coordinator.create_audio_session(
-            bot_session_id=session_id,
-            target_languages=target_languages
+            bot_session_id=session_id, target_languages=target_languages
         )
 
         # Process a translation
@@ -343,14 +353,14 @@ class TestAudioCoordinatorCacheIntegration:
             "confidence": 0.95,
             "start_timestamp": 0.0,
             "end_timestamp": 2.0,
-            "speaker_info": {}
+            "speaker_info": {},
         }
 
         await coordinator._request_translations(
             session_id=session_id,
             transcript_id="transcript_db_001",
             transcript_result=transcript_result,
-            target_languages=target_languages
+            target_languages=target_languages,
         )
 
         # Wait for async database writes to complete
@@ -392,8 +402,8 @@ class TestAudioCoordinatorCacheIntegration:
             database_url=DATABASE_URL,
             service_urls={
                 "whisper_service": "http://localhost:5001",
-                "translation_service": "http://localhost:5003"
-            }
+                "translation_service": "http://localhost:5003",
+            },
         )
 
         await coordinator.initialize()
@@ -404,8 +414,7 @@ class TestAudioCoordinatorCacheIntegration:
         session_id = TEST_SESSION_ID
 
         await coordinator.create_audio_session(
-            bot_session_id=session_id,
-            target_languages=["es", "fr", "de"]
+            bot_session_id=session_id, target_languages=["es", "fr", "de"]
         )
 
         transcript_result = {
@@ -414,7 +423,7 @@ class TestAudioCoordinatorCacheIntegration:
             "confidence": 0.95,
             "start_timestamp": 0.0,
             "end_timestamp": 1.0,
-            "speaker_info": {}
+            "speaker_info": {},
         }
 
         # Translate to Spanish
@@ -422,7 +431,7 @@ class TestAudioCoordinatorCacheIntegration:
             session_id=session_id,
             transcript_id="transcript_lang_001",
             transcript_result=transcript_result,
-            target_languages=["es"]
+            target_languages=["es"],
         )
 
         # Translate to French
@@ -430,7 +439,7 @@ class TestAudioCoordinatorCacheIntegration:
             session_id=session_id,
             transcript_id="transcript_lang_002",
             transcript_result=transcript_result,
-            target_languages=["fr"]
+            target_languages=["fr"],
         )
 
         # Translate to Spanish again (should be cached)
@@ -438,12 +447,12 @@ class TestAudioCoordinatorCacheIntegration:
             session_id=session_id,
             transcript_id="transcript_lang_003",
             transcript_result=transcript_result,
-            target_languages=["es"]
+            target_languages=["es"],
         )
 
         # Check that we have cache hits
         stats = coordinator.translation_cache.get_stats()
-        assert stats['hits'] > 0, "Should have cache hits for repeated language pair"
+        assert stats["hits"] > 0, "Should have cache hits for repeated language pair"
 
         await coordinator.cleanup()
 
@@ -480,6 +489,7 @@ async def cleanup_test_data():
     # Cleanup Redis
     try:
         import redis.asyncio as redis
+
         r = redis.from_url(REDIS_URL)
         async for key in r.scan_iter(match="trans:v1:*"):
             await r.delete(key)
@@ -497,7 +507,7 @@ async def cleanup_test_data():
         async with db.get_connection() as conn:
             await conn.execute(
                 "DELETE FROM bot_sessions.sessions WHERE session_id = $1",
-                TEST_SESSION_ID
+                TEST_SESSION_ID,
             )
 
         await db.close()

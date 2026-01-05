@@ -75,12 +75,13 @@ def __init__(self, ...):
 # STEP 3: REPLACE _request_translations METHOD
 # =============================================================================
 
+
 async def _request_translations_optimized(
     self,
     session_id: str,
     transcript_id: str,
     transcript_result: Dict[str, Any],
-    target_languages: List[str]
+    target_languages: List[str],
 ):
     """
     OPTIMIZED: Request translations with caching and multi-language batching.
@@ -120,9 +121,7 @@ async def _request_translations_optimized(
 
             # Multi-get from cache
             cache_results = await self.translation_cache.get_multi(
-                text=text,
-                source_lang=source_language,
-                target_langs=target_langs
+                text=text, source_lang=source_language, target_langs=target_langs
             )
 
             # Separate cached vs needs translation
@@ -135,7 +134,9 @@ async def _request_translations_optimized(
                     logger.debug(f"Cache MISS: {source_language}→{lang}")
 
         except Exception as cache_error:
-            logger.error(f"Cache lookup failed: {cache_error}, proceeding without cache")
+            logger.error(
+                f"Cache lookup failed: {cache_error}, proceeding without cache"
+            )
             needs_translation = target_langs
     else:
         # No cache, translate all
@@ -152,31 +153,35 @@ async def _request_translations_optimized(
         try:
             # Use optimized multi-language endpoint via translation client
             if self.translation_client:
-                translation_results = await self.translation_client.translate_to_multiple_languages(
-                    text=text,
-                    source_language=source_language,
-                    target_languages=needs_translation,
-                    session_id=session_id
+                translation_results = (
+                    await self.translation_client.translate_to_multiple_languages(
+                        text=text,
+                        source_language=source_language,
+                        target_languages=needs_translation,
+                        session_id=session_id,
+                    )
                 )
 
                 # Convert TranslationResponse objects to dict format
                 for lang, response in translation_results.items():
-                    if response and hasattr(response, 'translated_text'):
+                    if response and hasattr(response, "translated_text"):
                         new_translations[lang] = {
                             "translated_text": response.translated_text,
                             "confidence": response.confidence,
                             "metadata": {
                                 "backend_used": response.backend_used,
                                 "model_used": response.model_used,
-                                "processing_time": response.processing_time
-                            }
+                                "processing_time": response.processing_time,
+                            },
                         }
             else:
                 # Fallback to service client pool
                 logger.warning("Translation client not available, using service pool")
                 for lang in needs_translation:
-                    translation_result = await self.service_client.send_to_translation_service(
-                        session_id, transcript_result, lang
+                    translation_result = (
+                        await self.service_client.send_to_translation_service(
+                            session_id, transcript_result, lang
+                        )
                     )
                     if translation_result:
                         new_translations[lang] = translation_result
@@ -187,7 +192,7 @@ async def _request_translations_optimized(
                     await self.translation_cache.set_multi(
                         text=text,
                         source_lang=source_language,
-                        translations=new_translations
+                        translations=new_translations,
                     )
                     logger.debug(f"Cached {len(new_translations)} new translations")
                 except Exception as cache_error:
@@ -230,7 +235,7 @@ async def _request_translations_optimized(
                 success_count=len(all_translations),
                 error_count=len(target_langs) - len(all_translations),
                 results=all_translations,
-                batch_id=batch_id
+                batch_id=batch_id,
             )
         except Exception as db_error:
             logger.error(f"Failed to record batch in database: {db_error}")
@@ -244,7 +249,7 @@ async def _request_translations_optimized(
                 transcript_result=transcript_result,
                 target_language=target_lang,
                 translation_data=translation_data,
-                was_cached=(target_lang in cached_results)
+                was_cached=(target_lang in cached_results),
             )
         except Exception as store_error:
             logger.error(f"Failed to store translation {target_lang}: {store_error}")
@@ -257,7 +262,7 @@ async def _store_and_emit_translation(
     transcript_result: Dict[str, Any],
     target_language: str,
     translation_data: Dict[str, Any],
-    was_cached: bool
+    was_cached: bool,
 ):
     """
     Store translation in database and emit event.
@@ -282,13 +287,19 @@ async def _store_and_emit_translation(
                 "source_language": transcript_result.get("language", "auto"),
                 "target_language": target_language,
                 "confidence": translation_data.get("confidence", 0.0),
-                "translation_service": translation_data.get("metadata", {}).get("backend_used", "unknown"),
-                "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
-                "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
+                "translation_service": translation_data.get("metadata", {}).get(
+                    "backend_used", "unknown"
+                ),
+                "speaker_id": transcript_result.get("speaker_info", {}).get(
+                    "speaker_id"
+                ),
+                "speaker_name": transcript_result.get("speaker_info", {}).get(
+                    "speaker_name"
+                ),
                 "start_timestamp": transcript_result.get("start_timestamp", 0.0),
                 "end_timestamp": transcript_result.get("end_timestamp", 0.0),
                 "metadata": translation_data.get("metadata", {}),
-            }
+            },
         )
 
         # Update translation with optimization metadata
@@ -297,12 +308,16 @@ async def _store_and_emit_translation(
                 await self.translation_opt_adapter.update_translation_optimization_metadata(
                     translation_id=translation_id,
                     model_name=translation_data.get("metadata", {}).get("model_used"),
-                    model_backend=translation_data.get("metadata", {}).get("backend_used"),
+                    model_backend=translation_data.get("metadata", {}).get(
+                        "backend_used"
+                    ),
                     was_cached=was_cached,
                     optimization_metadata={
                         "was_cached": was_cached,
-                        "processing_time_ms": translation_data.get("metadata", {}).get("processing_time"),
-                    }
+                        "processing_time_ms": translation_data.get("metadata", {}).get(
+                            "processing_time"
+                        ),
+                    },
                 )
             except Exception as opt_error:
                 logger.error(f"Failed to update optimization metadata: {opt_error}")
@@ -315,20 +330,22 @@ async def _store_and_emit_translation(
 
         # Emit translation ready event
         if self.on_translation_ready:
-            self.on_translation_ready({
-                "session_id": session_id,
-                "translation_id": translation_id,
-                "transcript_id": transcript_id,
-                "original_text": transcript_result["text"],
-                "translated_text": translation_data.get("translated_text", ""),
-                "source_language": transcript_result.get("language", "auto"),
-                "target_language": target_language,
-                "speaker_info": transcript_result.get("speaker_info", {}),
-                "confidence": translation_data.get("confidence", 0.0),
-                "start_timestamp": transcript_result.get("start_timestamp", 0.0),
-                "end_timestamp": transcript_result.get("end_timestamp", 0.0),
-                "was_cached": was_cached,
-            })
+            self.on_translation_ready(
+                {
+                    "session_id": session_id,
+                    "translation_id": translation_id,
+                    "transcript_id": transcript_id,
+                    "original_text": transcript_result["text"],
+                    "translated_text": translation_data.get("translated_text", ""),
+                    "source_language": transcript_result.get("language", "auto"),
+                    "target_language": target_language,
+                    "speaker_info": transcript_result.get("speaker_info", {}),
+                    "confidence": translation_data.get("confidence", 0.0),
+                    "start_timestamp": transcript_result.get("start_timestamp", 0.0),
+                    "end_timestamp": transcript_result.get("end_timestamp", 0.0),
+                    "was_cached": was_cached,
+                }
+            )
     else:
         logger.warning(f"Failed to store translation for transcript {transcript_id}")
 
@@ -336,6 +353,7 @@ async def _store_and_emit_translation(
 # =============================================================================
 # STEP 4: ADD CLEANUP METHOD
 # =============================================================================
+
 
 async def cleanup_cache(self):
     """

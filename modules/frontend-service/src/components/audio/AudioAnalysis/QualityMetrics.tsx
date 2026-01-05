@@ -8,7 +8,6 @@ import {
   LinearProgress,
   Chip,
   IconButton,
-  Tooltip,
   Alert,
   Accordion,
   AccordionSummary,
@@ -31,14 +30,12 @@ import {
 import {
   Assessment,
   Download,
-  Refresh,
   TrendingUp,
   TrendingDown,
   TrendingFlat,
   Warning,
   CheckCircle,
   Error,
-  Info,
   ExpandMore,
   Star,
   Speed,
@@ -49,7 +46,7 @@ import {
   Analytics,
 } from '@mui/icons-material';
 
-interface QualityMetricsProps {
+export interface QualityMetricsProps {
   audioData?: {
     quality_analysis: {
       overall_score: number;
@@ -117,10 +114,16 @@ interface QualityMetrics {
   trend: 'improving' | 'stable' | 'declining';
 }
 
-type QualityCategory = 'overall' | 'clarity' | 'noise' | 'dynamics' | 'frequency' | 'artifacts' | 'loudness';
 type MetricView = 'scores' | 'technical' | 'recommendations' | 'trends';
 
-const QUALITY_CATEGORIES = {
+const QUALITY_CATEGORIES: Record<string, {
+  name: string;
+  description: string;
+  icon: React.ComponentType;
+  color: string;
+  threshold: { good: number; fair: number };
+  inverted?: boolean;
+}> = {
   clarity: {
     name: 'Clarity',
     description: 'Voice intelligibility and definition',
@@ -179,11 +182,9 @@ export const QualityMetrics: React.FC<QualityMetricsProps> = ({
   isRealTime = false,
   showComparison = false,
   onQualityUpdate,
-  height = 600,
   targetQuality = 8.0,
 }) => {
   const [metricView, setMetricView] = useState<MetricView>('scores');
-  const [selectedCategory, setSelectedCategory] = useState<QualityCategory>('overall');
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
   const [qualityHistory, setQualityHistory] = useState<QualityMetrics[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(isRealTime);
@@ -347,15 +348,15 @@ export const QualityMetrics: React.FC<QualityMetricsProps> = ({
           </Typography>
           
           <Box display="flex" alignItems="center" gap={1}>
-            <Chip 
-              label={`Score: ${currentMetrics?.overall_score.toFixed(1)}/10.0`}
-              size="small" 
-              color={currentMetrics?.overall_score >= targetQuality ? 'success' : 'warning'}
+            <Chip
+              label={`Score: ${(currentMetrics?.overall_score ?? 0).toFixed(1)}/10.0`}
+              size="small"
+              color={(currentMetrics?.overall_score ?? 0) >= targetQuality ? 'success' : 'warning'}
               variant="filled"
             />
-            <Chip 
+            <Chip
               label={getQualityGrade(currentMetrics?.overall_score || 0)}
-              size="small" 
+              size="small"
               color="primary"
               variant="outlined"
             />
@@ -488,7 +489,9 @@ export const QualityMetrics: React.FC<QualityMetricsProps> = ({
                         
                         return (
                           <Box key={key} display="flex" alignItems="center" gap={1}>
-                            <category.icon sx={{ fontSize: 16, color: category.color }} />
+                            {React.createElement(category.icon as any, {
+                              style: { fontSize: 16, color: category.color }
+                            })}
                             <Typography variant="body2" sx={{ minWidth: 120 }}>
                               {category.name}
                             </Typography>
@@ -500,7 +503,7 @@ export const QualityMetrics: React.FC<QualityMetricsProps> = ({
                                   height: 4,
                                   backgroundColor: 'rgba(0,0,0,0.1)',
                                   '& .MuiLinearProgress-bar': {
-                                    backgroundColor: getScoreColor(score, category.inverted)
+                                    backgroundColor: getScoreColor(score, category.inverted || false)
                                   }
                                 }}
                               />

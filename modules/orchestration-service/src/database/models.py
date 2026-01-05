@@ -421,4 +421,3 @@ class SessionStatistics(Base):
         Index("idx_session_statistics_session_id", "session_id"),
         Index("idx_session_statistics_calculated_at", "calculated_at"),
     )
-

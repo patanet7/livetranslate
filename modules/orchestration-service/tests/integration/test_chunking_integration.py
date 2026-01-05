@@ -22,7 +22,9 @@ BASE_URL = "http://localhost:3000"
 WS_BASE_URL = "ws://localhost:3000"
 
 
-def generate_test_audio(duration_seconds: float = 1.0, frequency: int = 440, sample_rate: int = 16000) -> bytes:
+def generate_test_audio(
+    duration_seconds: float = 1.0, frequency: int = 440, sample_rate: int = 16000
+) -> bytes:
     """Generate sine wave audio for testing"""
     num_samples = int(duration_seconds * sample_rate)
     t = np.linspace(0, duration_seconds, num_samples, False)
@@ -41,43 +43,50 @@ class TestActualChunking:
         REAL INTEGRATION TEST: Send audio chunks via WebSocket to orchestration service
         VERIFY: Service receives, processes, and tracks chunks correctly
         """
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("🔴 REAL INTEGRATION TEST - Audio Chunking via WebSocket")
-        print("="*70)
+        print("=" * 70)
 
         # 1. Create session
         print("\n1️⃣ Creating real-time session...")
         async with AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
-            response = await client.post("/api/pipeline/realtime/start", json={
-                "pipeline_config": {
-                    "pipeline_id": "test-chunking",
-                    "name": "Chunking Test Pipeline",
-                    "stages": {
-                        "vad": {
-                            "enabled": True,
-                            "gain_in": 0.0,
-                            "gain_out": 0.0,
-                            "parameters": {"aggressiveness": 2}
-                        }
-                    },
-                    "connections": []
-                }
-            })
+            response = await client.post(
+                "/api/pipeline/realtime/start",
+                json={
+                    "pipeline_config": {
+                        "pipeline_id": "test-chunking",
+                        "name": "Chunking Test Pipeline",
+                        "stages": {
+                            "vad": {
+                                "enabled": True,
+                                "gain_in": 0.0,
+                                "gain_out": 0.0,
+                                "parameters": {"aggressiveness": 2},
+                            }
+                        },
+                        "connections": [],
+                    }
+                },
+            )
 
-            assert response.status_code == 200, f"Failed to create session: {response.text}"
+            assert response.status_code == 200, (
+                f"Failed to create session: {response.text}"
+            )
             session = response.json()
             session_id = session.get("session_id")
             print(f"   ✅ Session created: {session_id}")
 
         # 2. Generate test audio (5 seconds)
         print("\n2️⃣ Generating 5 seconds of test audio...")
-        audio_data = generate_test_audio(duration_seconds=5.0, sample_rate=16000, frequency=440)
+        audio_data = generate_test_audio(
+            duration_seconds=5.0, sample_rate=16000, frequency=440
+        )
         print(f"   ✅ Generated {len(audio_data)} bytes of audio data")
 
         # 3. Chunk audio with SMPTE timecode
         print("\n3️⃣ Chunking audio with SMPTE timecode...")
         chunk_size_ms = 500  # 500ms chunks
-        overlap_ms = 100     # 100ms overlap
+        overlap_ms = 100  # 100ms overlap
         sample_rate = 16000
         sample_width = 2
 
@@ -100,18 +109,20 @@ class TestActualChunking:
                 fps = 30
                 start_frame = max(1, int(start_time_seconds * fps))
                 end_frame = max(1, int(end_time_seconds * fps))
-                start_tc = Timecode('30', frames=start_frame)
-                end_tc = Timecode('30', frames=end_frame)
+                start_tc = Timecode("30", frames=start_frame)
+                end_tc = Timecode("30", frames=end_frame)
 
-                chunks.append({
-                    "data": chunk,
-                    "index": len(chunks),
-                    "start_time": start_time_seconds,
-                    "end_time": end_time_seconds,
-                    "smpte_start": str(start_tc),
-                    "smpte_end": str(end_tc),
-                    "has_overlap": len(chunks) > 0,
-                })
+                chunks.append(
+                    {
+                        "data": chunk,
+                        "index": len(chunks),
+                        "start_time": start_time_seconds,
+                        "end_time": end_time_seconds,
+                        "smpte_start": str(start_tc),
+                        "smpte_end": str(end_tc),
+                        "has_overlap": len(chunks) > 0,
+                    }
+                )
 
         print(f"   ✅ Created {len(chunks)} chunks with SMPTE timecode")
         print(f"   ✅ Chunk 0: {chunks[0]['smpte_start']} -> {chunks[0]['smpte_end']}")
@@ -131,7 +142,7 @@ class TestActualChunking:
             # Send each chunk
             for chunk in chunks:
                 # Encode to base64
-                audio_b64 = base64.b64encode(chunk["data"]).decode('utf-8')
+                audio_b64 = base64.b64encode(chunk["data"]).decode("utf-8")
 
                 # Send chunk with metadata
                 message = {
@@ -144,7 +155,7 @@ class TestActualChunking:
                         "smpte_end": chunk["smpte_end"],
                         "has_overlap": chunk["has_overlap"],
                         "overlap_ms": overlap_ms if chunk["has_overlap"] else 0,
-                    }
+                    },
                 }
 
                 await websocket.send(json.dumps(message))
@@ -157,7 +168,9 @@ class TestActualChunking:
                     responses_received += 1
 
                     if chunk["index"] < 3:  # Show first few responses
-                        print(f"   📥 Response for chunk {chunk['index']}: {response_data.get('type')}")
+                        print(
+                            f"   📥 Response for chunk {chunk['index']}: {response_data.get('type')}"
+                        )
 
                 except asyncio.TimeoutError:
                     pass  # No response yet, continue
@@ -176,8 +189,10 @@ class TestActualChunking:
                     response_data = json.loads(response)
                     responses_received += 1
 
-                    if response_data.get('type') == 'metrics':
-                        print(f"   📊 Metrics: {response_data.get('metrics', {}).get('chunks_processed', 0)} chunks processed")
+                    if response_data.get("type") == "metrics":
+                        print(
+                            f"   📊 Metrics: {response_data.get('metrics', {}).get('chunks_processed', 0)} chunks processed"
+                        )
 
                 except asyncio.TimeoutError:
                     break
@@ -191,15 +206,17 @@ class TestActualChunking:
             print(f"   ✅ Session deleted")
 
         # 7. Verify results
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("📊 INTEGRATION TEST RESULTS")
-        print("="*70)
+        print("=" * 70)
         print(f"   Chunks generated:     {len(chunks)}")
         print(f"   Chunks sent:          {chunks_sent}")
         print(f"   Responses received:   {responses_received}")
-        print(f"   SMPTE timecode:       ✅ {chunks[0]['smpte_start']} -> {chunks[-1]['smpte_end']}")
+        print(
+            f"   SMPTE timecode:       ✅ {chunks[0]['smpte_start']} -> {chunks[-1]['smpte_end']}"
+        )
         print(f"   Overlap handling:     ✅ {overlap_ms}ms between chunks")
-        print("="*70)
+        print("=" * 70)
 
         # Assertions
         assert chunks_sent == len(chunks), "All chunks should be sent"
@@ -208,9 +225,11 @@ class TestActualChunking:
 
         # Verify overlap
         for i in range(1, len(chunks)):
-            overlap_time = chunks[i-1]["end_time"] - chunks[i]["start_time"]
+            overlap_time = chunks[i - 1]["end_time"] - chunks[i]["start_time"]
             overlap_ms_actual = overlap_time * 1000
-            assert 90 <= overlap_ms_actual <= 110, f"Overlap should be ~100ms, got {overlap_ms_actual:.1f}ms"
+            assert 90 <= overlap_ms_actual <= 110, (
+                f"Overlap should be ~100ms, got {overlap_ms_actual:.1f}ms"
+            )
 
         print("\n✅ REAL INTEGRATION TEST PASSED!")
         print("   - Audio chunked with SMPTE timecode")
@@ -221,4 +240,5 @@ class TestActualChunking:
 
 if __name__ == "__main__":
     import sys
+
     pytest.main([__file__, "-v", "-s"] + sys.argv[1:])

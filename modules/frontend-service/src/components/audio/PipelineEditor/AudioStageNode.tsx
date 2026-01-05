@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -9,9 +9,7 @@ import {
   Chip,
   LinearProgress,
   Tooltip,
-  Badge,
   Divider,
-  CircularProgress,
 } from '@mui/material';
 import {
   Handle,
@@ -30,10 +28,7 @@ import {
   Warning,
   CheckCircle,
   Error,
-  Sync,
-  SyncDisabled,
 } from '@mui/icons-material';
-import { usePipelineCallbacks } from './PipelineCallbacksContext';
 
 interface AudioStageNodeData {
   label: string;
@@ -79,83 +74,23 @@ interface StageParameter {
 
 interface AudioStageNodeProps extends NodeProps {
   data: AudioStageNodeData;
+  onSettingsOpen: (nodeId: string) => void;
+  onGainChange: (nodeId: string, type: 'in' | 'out', value: number) => void;
+  onParameterChange: (nodeId: string, paramName: string, value: number) => void;
+  onToggleEnabled: (nodeId: string, enabled: boolean) => void;
 }
 
-const AudioStageNode: React.FC<AudioStageNodeProps> = ({
-  id,
-  data,
-  selected,
+const AudioStageNode: React.FC<AudioStageNodeProps> = ({ 
+  id, 
+  data, 
+  selected, 
+  onSettingsOpen,
+  onGainChange,
+  onParameterChange,
+  onToggleEnabled,
 }) => {
-  // Get callbacks from context instead of props
-  const {
-    onNodeSettingsOpen: onSettingsOpen,
-    onGainChange,
-    onParameterChange,
-    onToggleEnabled,
-    websocket,
-    isRealtimeActive,
-  } = usePipelineCallbacks();
   const [showParameters, setShowParameters] = useState(false);
   const [hovering, setHovering] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<number>(0);
-
-  // Debounce timers for parameter changes
-  const debounceTimers = useRef<Map<string, NodeJS.Timeout>>(new Map());
-
-  // Send parameter update to backend via WebSocket
-  const sendParameterUpdate = useCallback((paramName: string, value: number) => {
-    if (!websocket || !isRealtimeActive || websocket.readyState !== WebSocket.OPEN) {
-      return;
-    }
-
-    try {
-      setIsSyncing(true);
-      websocket.send(JSON.stringify({
-        type: 'update_stage',
-        stage_id: id,
-        parameters: {
-          [paramName]: value
-        }
-      }));
-
-      setLastSyncTime(Date.now());
-
-      // Reset syncing indicator after a short delay
-      setTimeout(() => setIsSyncing(false), 500);
-    } catch (error) {
-      console.error('Failed to send parameter update:', error);
-      setIsSyncing(false);
-    }
-  }, [websocket, isRealtimeActive, id]);
-
-  // Debounced parameter change handler
-  const handleParameterChangeDebounced = useCallback((paramName: string, value: number) => {
-    // Clear existing timer for this parameter
-    const existingTimer = debounceTimers.current.get(paramName);
-    if (existingTimer) {
-      clearTimeout(existingTimer);
-    }
-
-    // Update local state immediately
-    onParameterChange(id, paramName, value);
-
-    // Set new timer to send to backend after 300ms
-    const timer = setTimeout(() => {
-      sendParameterUpdate(paramName, value);
-      debounceTimers.current.delete(paramName);
-    }, 300);
-
-    debounceTimers.current.set(paramName, timer);
-  }, [id, onParameterChange, sendParameterUpdate]);
-
-  // Cleanup timers on unmount
-  useEffect(() => {
-    return () => {
-      debounceTimers.current.forEach(timer => clearTimeout(timer));
-      debounceTimers.current.clear();
-    };
-  }, []);
 
   const getStageColor = () => {
     switch (data.stageType) {
@@ -223,33 +158,12 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
   const colors = getStageColor();
   const latencyStatus = getLatencyStatus();
 
-  // Get border color based on state
-  const getBorderColor = () => {
-    if (selected) return colors.primary;
-    if (isRealtimeActive && data.enabled) return '#4caf50'; // Green when processing
-    if (hovering) return colors.secondary;
-    return 'transparent';
-  };
-
-  const getBorderAnimation = () => {
-    if (isRealtimeActive && data.enabled && data.isProcessing) {
-      return {
-        animation: 'pulse 2s ease-in-out infinite',
-        '@keyframes pulse': {
-          '0%, 100%': { borderColor: '#4caf50' },
-          '50%': { borderColor: '#81c784' },
-        },
-      };
-    }
-    return {};
-  };
-
   return (
     <Card
       sx={{
         minWidth: 280,
         maxWidth: 320,
-        border: `2px solid ${getBorderColor()}`,
+        border: `2px solid ${selected ? colors.primary : hovering ? colors.secondary : 'transparent'}`,
         borderRadius: 2,
         backgroundColor: colors.background,
         cursor: 'pointer',
@@ -257,7 +171,6 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
         transform: selected ? 'scale(1.02)' : 'scale(1)',
         boxShadow: selected ? 4 : hovering ? 2 : 1,
         opacity: data.enabled ? 1 : 0.6,
-        ...getBorderAnimation(),
       }}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => setHovering(false)}
@@ -292,7 +205,7 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
               }}
             >
               {data.icon && typeof data.icon === 'function' ? (
-                React.createElement(data.icon, { sx: { fontSize: 16 } })
+                React.createElement(data.icon as any, { style: { fontSize: 16 } })
               ) : (
                 <Settings sx={{ fontSize: 16 }} />
               )}
@@ -304,21 +217,6 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
           
           <Box display="flex" alignItems="center" gap={0.5}>
             {getStatusIcon()}
-            {/* Sync Status Indicator */}
-            {isRealtimeActive && (
-              <Tooltip title={isSyncing ? 'Syncing parameters...' : 'Connected to backend'}>
-                {isSyncing ? (
-                  <CircularProgress size={14} thickness={5} />
-                ) : (
-                  <Sync sx={{ fontSize: 14, color: '#4caf50' }} />
-                )}
-              </Tooltip>
-            )}
-            {!isRealtimeActive && websocket && (
-              <Tooltip title="Not connected to backend">
-                <SyncDisabled sx={{ fontSize: 14, color: '#9e9e9e' }} />
-              </Tooltip>
-            )}
             <IconButton
               size="small"
               onClick={(e) => {
@@ -355,17 +253,7 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
             />
           </Box>
           
-          <Box
-            className="nodrag nowheel"
-            display="flex"
-            gap={1}
-            onMouseDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            onTouchStart={(e) => e.stopPropagation()}
-            sx={{ cursor: 'default' }}
-          >
+          <Box display="flex" gap={1}>
             {/* Input Gain */}
             <Box flex={1}>
               <Box display="flex" alignItems="center" gap={0.5} mb={0.5}>
@@ -382,6 +270,8 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
                 step={0.5}
                 size="small"
                 onChange={(_, value) => onGainChange(id, 'in', value as number)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 sx={{
                   color: colors.primary,
                   '& .MuiSlider-thumb': {
@@ -411,6 +301,8 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
                 step={0.5}
                 size="small"
                 onChange={(_, value) => onGainChange(id, 'out', value as number)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 sx={{
                   color: colors.primary,
                   '& .MuiSlider-thumb': {
@@ -517,52 +409,38 @@ const AudioStageNode: React.FC<AudioStageNodeProps> = ({
             </Box>
             
             {showParameters && (
-              <Box
-                className="nodrag nowheel"
-                mt={1}
-                onMouseDown={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-                onDoubleClick={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                sx={{ cursor: 'default' }}
-              >
+              <Box mt={1}>
                 <Divider sx={{ mb: 1 }} />
-                {data.parameters.slice(0, 3).map((param) => {
-                  // Only render numeric parameters as sliders
-                  if (typeof param.value !== 'number') return null;
-
-                  return (
-                    <Box key={param.name} mb={1}>
-                      <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
-                        <Tooltip title={param.description} arrow>
-                          <Typography variant="caption">{param.name}:</Typography>
-                        </Tooltip>
-                        <Typography variant="caption" fontWeight="bold">
-                          {param.value.toFixed(param.step < 1 ? 1 : 0)}{param.unit}
-                        </Typography>
-                      </Box>
-                      <Slider
-                        value={param.value}
-                        min={param.min}
-                        max={param.max}
-                        step={param.step}
-                        size="small"
-                        onChange={(_, value) => handleParameterChangeDebounced(param.name, value as number)}
-                        sx={{
-                          color: colors.primary,
-                          '& .MuiSlider-thumb': {
-                            width: 10,
-                            height: 10,
-                          },
-                          '& .MuiSlider-track': {
-                            height: 2,
-                          },
-                        }}
-                      />
+                {data.parameters.slice(0, 3).map((param) => (
+                  <Box key={param.name} mb={1}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
+                      <Tooltip title={param.description} arrow>
+                        <Typography variant="caption">{param.name}:</Typography>
+                      </Tooltip>
+                      <Typography variant="caption" fontWeight="bold">
+                        {param.value.toFixed(param.step < 1 ? 1 : 0)}{param.unit}
+                      </Typography>
                     </Box>
-                  );
-                })}
+                    <Slider
+                      value={param.value}
+                      min={param.min}
+                      max={param.max}
+                      step={param.step}
+                      size="small"
+                      onChange={(_, value) => onParameterChange(id, param.name, value as number)}
+                      sx={{
+                        color: colors.primary,
+                        '& .MuiSlider-thumb': {
+                          width: 10,
+                          height: 10,
+                        },
+                        '& .MuiSlider-track': {
+                          height: 2,
+                        },
+                      }}
+                    />
+                  </Box>
+                ))}
                 {data.parameters.length > 3 && (
                   <Typography variant="caption" color="text.secondary">
                     +{data.parameters.length - 3} more in settings

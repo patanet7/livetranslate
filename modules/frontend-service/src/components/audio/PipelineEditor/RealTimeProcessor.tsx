@@ -18,13 +18,7 @@ import {
   Divider,
   Alert,
   Tooltip,
-  Switch,
-  FormControlLabel,
   Slider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -33,22 +27,10 @@ import {
 import {
   Mic,
   MicOff,
-  PlayArrow,
-  Stop,
   Settings,
-  Analytics,
   VolumeUp,
   VolumeDown,
-  GraphicEq,
-  Timeline,
-  Speed,
-  Memory,
-  NetworkCheck,
-  Warning,
-  CheckCircle,
   Upload,
-  Download,
-  Refresh,
 } from '@mui/icons-material';
 import { usePipelineProcessing } from '@/hooks/usePipelineProcessing';
 import { PipelineData } from './PipelineCanvas';
@@ -56,92 +38,11 @@ import { PipelineData } from './PipelineCanvas';
 interface RealTimeProcessorProps {
   currentPipeline: PipelineData | null;
   onMetricsUpdate?: (metrics: any) => void;
-  onProcessedAudio?: (audio: string) => void;
-  onWebSocketChange?: (websocket: WebSocket | null, isActive: boolean) => void;
 }
-
-interface AudioVisualizerProps {
-  audioData?: number[];
-  isActive: boolean;
-  label: string;
-}
-
-const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioData, isActive, label }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  
-  useEffect(() => {
-    if (!canvasRef.current || !audioData) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d')!;
-    const width = canvas.width;
-    const height = canvas.height;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
-    
-    if (!isActive) {
-      ctx.fillStyle = '#424242';
-      ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = '#ffffff';
-      ctx.font = '12px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('No Signal', width / 2, height / 2);
-      return;
-    }
-    
-    // Draw waveform
-    ctx.strokeStyle = '#4caf50';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    
-    const sliceWidth = width / audioData.length;
-    let x = 0;
-    
-    for (let i = 0; i < audioData.length; i++) {
-      const v = audioData[i] * height / 2;
-      const y = height / 2 + v;
-      
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-      
-      x += sliceWidth;
-    }
-    
-    ctx.stroke();
-    
-    // Draw label
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(5, 5, 60, 20);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(label, 8, 18);
-  }, [audioData, isActive, label]);
-  
-  return (
-    <canvas
-      ref={canvasRef}
-      width={200}
-      height={80}
-      style={{
-        width: '100%',
-        height: '80px',
-        backgroundColor: '#f5f5f5',
-        borderRadius: '4px',
-      }}
-    />
-  );
-};
 
 const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
   currentPipeline,
   onMetricsUpdate,
-  onProcessedAudio,
-  onWebSocketChange,
 }) => {
   const {
     isProcessing,
@@ -150,11 +51,9 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
     error,
     realtimeSession,
     isRealtimeActive,
-    websocket,
     startRealtimeProcessing,
     startMicrophoneCapture,
     stopRealtimeProcessing,
-    updateRealtimeConfig,
     processPipeline,
     analyzeFFT,
     analyzeLUFS,
@@ -174,7 +73,6 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
 
   // Audio level monitoring
-  const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>();
 
@@ -217,71 +115,34 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
     }
   }, [metrics, onMetricsUpdate]);
 
-  // Notify parent of WebSocket changes
-  useEffect(() => {
-    if (onWebSocketChange) {
-      onWebSocketChange(websocket, isRealtimeActive);
-    }
-  }, [websocket, isRealtimeActive, onWebSocketChange]);
-
   const handleStartRealtime = async () => {
     if (!currentPipeline) {
       alert('Please create a pipeline first');
       return;
     }
 
-    // Find microphone input node to get capture settings
-    const micNode = currentPipeline.nodes.find(
-      node => node.data.stageType === 'input' &&
-              (node.data.label.toLowerCase().includes('microphone') ||
-               node.id.includes('microphone_input'))
-    );
-
-    // Extract mic settings from the node parameters
-    const micSettings = {
-      sampleRate: 16000, // default
-      channels: 1, // default
-    };
-
-    if (micNode?.data?.parameters) {
-      const sampleRateParam = micNode.data.parameters.find((p: any) => p.name === 'sampleRate');
-      const channelsParam = micNode.data.parameters.find((p: any) => p.name === 'channels');
-
-      if (sampleRateParam) micSettings.sampleRate = sampleRateParam.value;
-      if (channelsParam) micSettings.channels = channelsParam.value;
-    }
-
-    // Convert pipeline to processing format (backend expects dict for stages, not list)
-    // Use componentId (like "microphone_input", "vad_stage") as key, not the React Flow node ID
-
-    // Build mapping from React Flow node ID to component ID
-    const nodeIdToComponentId = new Map();
-    const stagesDict = currentPipeline.nodes.reduce((dict: any, node: any) => {
-      const stageKey = node.data.componentId || node.id; // Fallback to node.id if componentId not set
-      nodeIdToComponentId.set(node.id, stageKey); // Store mapping for connections
-
-      dict[stageKey] = {
-        enabled: node.data.enabled !== undefined ? node.data.enabled : true,
-        gain_in: node.data.gainIn || 0,
-        gain_out: node.data.gainOut || 0,
-        parameters: node.data.stageConfig || {},
-      };
-      return dict;
-    }, {});
-
+    // Convert pipeline to processing format
     const pipelineConfig = {
-      pipeline_id: currentPipeline.id,
+      id: currentPipeline.id,
       name: currentPipeline.name,
-      stages: stagesDict,
-      connections: currentPipeline.edges.map((edge: any) => ({
+      stages: currentPipeline.nodes.map(node => ({
+        id: node.id,
+        type: node.data.label.toLowerCase().replace(/\s+/g, '_'),
+        enabled: node.data.enabled,
+        gainIn: node.data.gainIn || 0,
+        gainOut: node.data.gainOut || 0,
+        parameters: node.data.stageConfig || {},
+        position: node.position,
+      })),
+      connections: currentPipeline.edges.map(edge => ({
         id: edge.id,
-        source_stage_id: nodeIdToComponentId.get(edge.source) || edge.source,
-        target_stage_id: nodeIdToComponentId.get(edge.target) || edge.target,
+        sourceStageId: edge.source,
+        targetStageId: edge.target,
       })),
     };
 
     await startRealtimeProcessing(pipelineConfig);
-    await startMicrophoneCapture(micSettings);
+    await startMicrophoneCapture();
   };
 
   const handleStopRealtime = () => {
@@ -418,7 +279,7 @@ const RealTimeProcessor: React.FC<RealTimeProcessorProps> = ({
                   }
                   size="small"
                 />
-                {realtimeSession?.sessionId && (
+                {realtimeSession && (
                   <Chip
                     label={`Session: ${realtimeSession.sessionId.slice(0, 8)}`}
                     size="small"

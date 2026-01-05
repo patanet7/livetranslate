@@ -20,14 +20,16 @@ import numpy as np
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from socketio_whisper_client import SocketIOWhisperClient
 
 # Configuration
 WHISPER_HOST = "localhost"
 WHISPER_PORT = 5001
-JFK_AUDIO_PATH = "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+JFK_AUDIO_PATH = (
+    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+)
 CHUNK_DURATION = 2.0  # 2-second chunks
 
 
@@ -38,12 +40,12 @@ async def test_socketio_whisper_client():
     This validates that the fixed client matches the working
     test_jfk_domain_prompts.py behavior.
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("SOCKETIO WHISPER CLIENT TEST - JFK AUDIO STREAMING")
-    print("="*80)
+    print("=" * 80)
     print(f"Testing: SocketIOWhisperClient → Whisper Service")
     print(f"Whisper: {WHISPER_HOST}:{WHISPER_PORT}")
-    print("="*80)
+    print("=" * 80)
 
     # Load JFK audio
     print(f"\n📁 Loading JFK audio from: {JFK_AUDIO_PATH}")
@@ -51,7 +53,7 @@ async def test_socketio_whisper_client():
         print(f"❌ JFK file not found: {JFK_AUDIO_PATH}")
         return {"passed": False, "error": "Audio file not found"}
 
-    with wave.open(JFK_AUDIO_PATH, 'rb') as wav_file:
+    with wave.open(JFK_AUDIO_PATH, "rb") as wav_file:
         sample_rate = wav_file.getframerate()
         n_frames = wav_file.getnframes()
         n_channels = wav_file.getnchannels()
@@ -73,7 +75,7 @@ async def test_socketio_whisper_client():
     chunk_samples = int(sample_rate * CHUNK_DURATION)
     chunks = []
     for i in range(0, len(audio), chunk_samples):
-        chunk = audio[i:i + chunk_samples]
+        chunk = audio[i : i + chunk_samples]
         if len(chunk) > 0:
             chunks.append(chunk)
 
@@ -82,9 +84,7 @@ async def test_socketio_whisper_client():
     # Create client
     print(f"\n🔌 Creating SocketIOWhisperClient...")
     client = SocketIOWhisperClient(
-        whisper_host=WHISPER_HOST,
-        whisper_port=WHISPER_PORT,
-        auto_reconnect=True
+        whisper_host=WHISPER_HOST, whisper_port=WHISPER_PORT, auto_reconnect=True
     )
 
     # Track results
@@ -93,11 +93,11 @@ async def test_socketio_whisper_client():
     def on_segment(data):
         """Handle transcription segments"""
         results.append(data)
-        text = data.get('text', '')
-        is_draft = data.get('is_draft', False)
-        is_final = data.get('is_final', False)
-        stable_text = data.get('stable_text', '')
-        unstable_text = data.get('unstable_text', '')
+        text = data.get("text", "")
+        is_draft = data.get("is_draft", False)
+        is_final = data.get("is_final", False)
+        stable_text = data.get("stable_text", "")
+        unstable_text = data.get("unstable_text", "")
 
         status = "✅ FINAL" if is_final else ("✏️  DRAFT" if is_draft else "📝 UPDATE")
         print(f"\n{status} Result #{len(results)}:")
@@ -141,25 +141,25 @@ async def test_socketio_whisper_client():
 
         # Build configuration matching test_jfk_domain_prompts.py
         config = {
-            'model_name': 'large-v3-turbo',
-            'language': 'en',
-            'beam_size': 5,
-            'sample_rate': sample_rate,
-            'task': 'transcribe',
-            'target_language': 'en',
-            'enable_vad': True,
+            "model_name": "large-v3-turbo",
+            "language": "en",
+            "beam_size": 5,
+            "sample_rate": sample_rate,
+            "task": "transcribe",
+            "target_language": "en",
+            "enable_vad": True,
             # Domain prompts (optional)
-            'domain': 'political',
-            'custom_terms': [
-                'Americans',
-                'fellow citizens',
-                'country',
-                'nation',
-                'freedom',
-                'liberty',
-                'democracy'
+            "domain": "political",
+            "custom_terms": [
+                "Americans",
+                "fellow citizens",
+                "country",
+                "nation",
+                "freedom",
+                "liberty",
+                "democracy",
             ],
-            'initial_prompt': 'Presidential inaugural speech about American values and civic responsibility'
+            "initial_prompt": "Presidential inaugural speech about American values and civic responsibility",
         }
 
         print(f"\n🎬 Starting stream session: {session_id}")
@@ -175,11 +175,13 @@ async def test_socketio_whisper_client():
 
         # Stream chunks
         print(f"\n🎙️  Streaming {len(chunks)} chunks...")
-        print("="*80)
+        print("=" * 80)
 
         for i, chunk in enumerate(chunks):
             chunk_bytes = chunk.tobytes()
-            print(f"\n📤 Sending chunk {i+1}/{len(chunks)} ({len(chunk_bytes)} bytes)")
+            print(
+                f"\n📤 Sending chunk {i + 1}/{len(chunks)} ({len(chunk_bytes)} bytes)"
+            )
 
             await client.send_audio_chunk(session_id, chunk_bytes)
 
@@ -198,17 +200,16 @@ async def test_socketio_whisper_client():
         await client.disconnect()
 
         # Analyze results
-        print(f"\n" + "="*80)
+        print(f"\n" + "=" * 80)
         print("TEST RESULTS")
-        print("="*80)
+        print("=" * 80)
         print(f"Total results received: {len(results)}")
 
         if results:
             # Combine all text
-            full_text = ' '.join([
-                r.get('stable_text') or r.get('text', '')
-                for r in results
-            ])
+            full_text = " ".join(
+                [r.get("stable_text") or r.get("text", "") for r in results]
+            )
 
             print(f"\n📄 Full transcription:")
             print(f"   '{full_text}'")
@@ -225,8 +226,8 @@ async def test_socketio_whisper_client():
                     found_count += 1
 
             # Check streaming markers
-            draft_count = sum(1 for r in results if r.get('is_draft', False))
-            final_count = sum(1 for r in results if r.get('is_final', False))
+            draft_count = sum(1 for r in results if r.get("is_draft", False))
+            final_count = sum(1 for r in results if r.get("is_final", False))
 
             print(f"\n📊 Streaming statistics:")
             print(f"   Total results: {len(results)}")
@@ -236,29 +237,31 @@ async def test_socketio_whisper_client():
 
             # Success criteria
             passed = (
-                len(results) > 0 and
-                found_count >= 2 and
-                (draft_count > 0 or final_count > 0)
+                len(results) > 0
+                and found_count >= 2
+                and (draft_count > 0 or final_count > 0)
             )
 
-            print(f"\n" + "="*80)
+            print(f"\n" + "=" * 80)
             if passed:
                 print("✅ TEST PASSED - SocketIOWhisperClient working correctly!")
                 print(f"   ✓ Received {len(results)} results")
                 print(f"   ✓ Found {found_count}/{len(keywords)} JFK keywords")
-                print(f"   ✓ Streaming markers present (draft={draft_count}, final={final_count})")
+                print(
+                    f"   ✓ Streaming markers present (draft={draft_count}, final={final_count})"
+                )
             else:
                 print("❌ TEST FAILED - SocketIOWhisperClient incomplete")
                 print(f"   Results: {len(results)}")
                 print(f"   Keywords: {found_count}/{len(keywords)}")
-            print("="*80 + "\n")
+            print("=" * 80 + "\n")
 
             return {
                 "passed": passed,
                 "results": results,
                 "total_results": len(results),
                 "keywords_found": found_count,
-                "full_text": full_text
+                "full_text": full_text,
             }
         else:
             print("❌ No results received")
@@ -266,12 +269,13 @@ async def test_socketio_whisper_client():
             print("   - Whisper service not running")
             print("   - SocketIOWhisperClient missing parameters")
             print("   - Audio format issue")
-            print("="*80 + "\n")
+            print("=" * 80 + "\n")
             return {"passed": False, "error": "No results received"}
 
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return {"passed": False, "error": str(e)}
 

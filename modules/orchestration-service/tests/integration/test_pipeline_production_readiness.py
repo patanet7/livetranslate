@@ -53,9 +53,7 @@ DB_CONFIG = {
     "password": os.getenv("POSTGRES_PASSWORD", "livetranslate"),
 }
 
-AUDIO_STORAGE_PATH = os.getenv(
-    "TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/audio"
-)
+AUDIO_STORAGE_PATH = os.getenv("TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/audio")
 
 
 # ============================================================================
@@ -342,8 +340,10 @@ async def test_transaction_success_real_database(pipeline, test_session):
     )
     assert len(transcripts) == 1
 
-    translations_db = await pipeline.db_manager.translation_manager.get_session_translations(
-        test_session
+    translations_db = (
+        await pipeline.db_manager.translation_manager.get_session_translations(
+            test_session
+        )
     )
     assert len(translations_db) == 1
 
@@ -372,20 +372,20 @@ async def test_rate_limiting_concurrent_operations():
     session_id = f"rate_limit_test_{uuid.uuid4().hex[:8]}"
 
     # Create session
-    await manager.database_manager.create_bot_session({
-        "session_id": session_id,
-        "bot_id": "test_bot",
-        "meeting_id": "test_meeting",
-        "status": "active",
-    })
+    await manager.database_manager.create_bot_session(
+        {
+            "session_id": session_id,
+            "bot_id": "test_bot",
+            "meeting_id": "test_meeting",
+            "status": "active",
+        }
+    )
 
     # Create many concurrent save operations
     async def save_operation(i):
         metadata = AudioChunkMetadata(duration_seconds=1.0)
         audio_data = b"test" * 100
-        return await manager.save_audio_chunk(
-            session_id, audio_data, {"chunk_id": i}
-        )
+        return await manager.save_audio_chunk(session_id, audio_data, {"chunk_id": i})
 
     # Launch 20 concurrent operations (more than limit of 5)
     tasks = [save_operation(i) for i in range(20)]
@@ -428,9 +428,7 @@ async def test_rate_limit_backpressure():
 
     tasks = []
     for i in range(10):
-        task = manager._rate_limited_db_operation(
-            slow_operation, f"slow_op_{i}"
-        )
+        task = manager._rate_limited_db_operation(slow_operation, f"slow_op_{i}")
         tasks.append(task)
 
     results = await asyncio.gather(*tasks)
@@ -466,9 +464,7 @@ async def test_production_load_scenario(pipeline, test_session):
             chunk_start_time=i * 2.0,
             chunk_end_time=(i + 1) * 2.0,
         )
-        task = pipeline.process_audio_chunk(
-            test_session, audio_data, "wav", metadata
-        )
+        task = pipeline.process_audio_chunk(test_session, audio_data, "wav", metadata)
         tasks.append(task)
 
     # Create transcriptions
@@ -481,9 +477,7 @@ async def test_production_load_scenario(pipeline, test_session):
             speaker=f"SPEAKER_{i % 3}",
             confidence=0.95,
         )
-        task = pipeline.process_transcription_result(
-            test_session, None, transcription
-        )
+        task = pipeline.process_transcription_result(test_session, None, transcription)
         tasks.append(task)
 
     # Execute all concurrently

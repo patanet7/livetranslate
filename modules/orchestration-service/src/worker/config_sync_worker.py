@@ -32,7 +32,13 @@ async def handle_config_event(event: Dict[str, str]) -> None:
     elif event_type == "ServiceSettingsUpdateRequested":
         service_name = payload.get("service_name", "")
         updates = payload.get("settings", {})
-        component = "translation" if "translation" in service_name else "whisper" if "whisper" in service_name else "orchestration"
+        component = (
+            "translation"
+            if "translation" in service_name
+            else "whisper"
+            if "whisper" in service_name
+            else "orchestration"
+        )
         if updates:
             await manager.update_configuration(component, updates)
             logger.info(

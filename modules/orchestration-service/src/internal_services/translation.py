@@ -35,9 +35,7 @@ try:
     repo_root = Path(__file__).resolve()
     for _ in range(5):
         repo_root = repo_root.parent
-    translation_src = (
-        repo_root / "modules" / "translation-service" / "src"
-    ).resolve()
+    translation_src = (repo_root / "modules" / "translation-service" / "src").resolve()
     if translation_src.exists():
         if str(translation_src) not in sys.path:
             sys.path.insert(0, str(translation_src))
@@ -146,10 +144,15 @@ class UnifiedTranslationService:
                 service = await _create_translation_service()
                 self._service = service
                 self._last_error = None
-                logger.info("Embedded translation service ready (fallback=%s)", getattr(service, "fallback_mode", False))
+                logger.info(
+                    "Embedded translation service ready (fallback=%s)",
+                    getattr(service, "fallback_mode", False),
+                )
             except Exception as exc:  # pragma: no cover - highly environment dependent
                 self._last_error = str(exc)
-                logger.warning("Embedded translation initialization failed: %s", exc, exc_info=True)
+                logger.warning(
+                    "Embedded translation initialization failed: %s", exc, exc_info=True
+                )
                 self._service = None
 
         return self._service
@@ -193,9 +196,15 @@ class UnifiedTranslationService:
             backend_used = getattr(result, "backend_used", None)
 
             # Update basic metrics for analytics-style queries
-            self._metrics["total_translations"] = self._metrics.get("total_translations", 0) + 1
-            self._metrics["successful_translations"] = self._metrics.get("successful_translations", 0) + 1
-            self._metrics["total_processing_time"] = self._metrics.get("total_processing_time", 0.0) + getattr(result, "processing_time", 0.0)
+            self._metrics["total_translations"] = (
+                self._metrics.get("total_translations", 0) + 1
+            )
+            self._metrics["successful_translations"] = (
+                self._metrics.get("successful_translations", 0) + 1
+            )
+            self._metrics["total_processing_time"] = self._metrics.get(
+                "total_processing_time", 0.0
+            ) + getattr(result, "processing_time", 0.0)
 
             pair_key = f"{(result.source_language or source_language or 'auto').lower()}->{(result.target_language or target_language).lower()}"
             pair_stats = self._metrics.setdefault("language_pairs_processed", {})
@@ -220,12 +229,18 @@ class UnifiedTranslationService:
                 "backend_used": backend_used or (model or "embedded"),
                 "model_used": model or backend_used or "embedded",
                 "session_id": getattr(result, "session_id", session_id),
-                "timestamp": getattr(result, "timestamp", datetime.utcnow().isoformat()),
+                "timestamp": getattr(
+                    result, "timestamp", datetime.utcnow().isoformat()
+                ),
             }
         except Exception as exc:
             self._last_error = str(exc)
-            self._metrics["total_translations"] = self._metrics.get("total_translations", 0) + 1
-            self._metrics["failed_translations"] = self._metrics.get("failed_translations", 0) + 1
+            self._metrics["total_translations"] = (
+                self._metrics.get("total_translations", 0) + 1
+            )
+            self._metrics["failed_translations"] = (
+                self._metrics.get("failed_translations", 0) + 1
+            )
             logger.warning("Embedded translation failed: %s", exc, exc_info=True)
             raise UnifiedTranslationError(str(exc)) from exc
 
@@ -241,8 +256,12 @@ class UnifiedTranslationService:
             "status": "healthy" if service else "degraded",
             "embedded": True,
             "module_available": available,
-            "source_path": _TRANSLATION_SOURCE_PATH.as_posix() if _TRANSLATION_SOURCE_PATH else None,
-            "fallback_mode": bool(getattr(service, "fallback_mode", False)) if service else True,
+            "source_path": _TRANSLATION_SOURCE_PATH.as_posix()
+            if _TRANSLATION_SOURCE_PATH
+            else None,
+            "fallback_mode": bool(getattr(service, "fallback_mode", False))
+            if service
+            else True,
             "last_error": self._last_error,
         }
         return status
@@ -311,8 +330,7 @@ class UnifiedTranslationService:
             return {"status": "not_found", "session_id": session_id}
 
         duration = (
-            datetime.utcnow()
-            - datetime.fromisoformat(session["created_at"])
+            datetime.utcnow() - datetime.fromisoformat(session["created_at"])
         ).total_seconds()
 
         return {
@@ -391,7 +409,9 @@ class UnifiedTranslationService:
             "details": {
                 "module_imported": TRANSLATION_MODULE_AVAILABLE,
                 "fallback_mode": bool(
-                    getattr(self._service, "fallback_mode", False) if self._service else True
+                    getattr(self._service, "fallback_mode", False)
+                    if self._service
+                    else True
                 ),
             },
         }

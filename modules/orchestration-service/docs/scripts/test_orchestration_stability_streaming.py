@@ -32,6 +32,7 @@ from datetime import datetime
 ORCHESTRATION_URL = "http://localhost:3000"
 WHISPER_DIRECT_URL = "http://localhost:5001"
 
+
 def create_speech_audio(duration=3.0, sample_rate=16000):
     """Create realistic speech-like audio for testing"""
     t = np.linspace(0, duration, int(sample_rate * duration))
@@ -55,10 +56,10 @@ def create_speech_audio(duration=3.0, sample_rate=16000):
 async def test_orchestration_streaming():
     """Test streaming through orchestration with Phase 3C stability tracking"""
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("ORCHESTRATION STABILITY STREAMING TEST - Phase 3C")
     print("Testing: Complete flow through orchestration → whisper → orchestration")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Create test audio
     sample_rate = 16000
@@ -68,12 +69,12 @@ async def test_orchestration_streaming():
     chunk_size = int(sample_rate * 0.5)
     chunks = []
     for i in range(0, len(audio), chunk_size):
-        chunk = audio[i:i+chunk_size]
+        chunk = audio[i : i + chunk_size]
         if len(chunk) == chunk_size:
             chunks.append(chunk)
 
     print(f"✅ Created {len(chunks)} audio chunks (500ms each)")
-    print(f"   Total duration: {len(audio)/sample_rate:.1f}s")
+    print(f"   Total duration: {len(audio) / sample_rate:.1f}s")
     print(f"   Sample rate: {sample_rate}Hz\n")
 
     # Try Socket.IO connection to orchestration
@@ -84,11 +85,11 @@ async def test_orchestration_streaming():
     results = []
     stability_data_received = False
 
-    @sio.on('connect')
+    @sio.on("connect")
     def on_connect():
         print("✅ Connected to Orchestration Service via Socket.IO")
 
-    @sio.on('transcription_result')
+    @sio.on("transcription_result")
     def on_transcription(data):
         nonlocal stability_data_received
 
@@ -96,12 +97,12 @@ async def test_orchestration_streaming():
         print(f"   Text: '{data.get('text', 'N/A')[:60]}'")
 
         # Check for Phase 3C stability fields
-        has_stable = 'stable_text' in data
-        has_unstable = 'unstable_text' in data
-        has_draft = 'is_draft' in data
-        has_final = 'is_final' in data
-        has_should_translate = 'should_translate' in data
-        has_stability_score = 'stability_score' in data
+        has_stable = "stable_text" in data
+        has_unstable = "unstable_text" in data
+        has_draft = "is_draft" in data
+        has_final = "is_final" in data
+        has_should_translate = "should_translate" in data
+        has_stability_score = "stability_score" in data
 
         if has_stable or has_unstable or has_draft or has_final:
             stability_data_received = True
@@ -119,11 +120,11 @@ async def test_orchestration_streaming():
 
         results.append(data)
 
-    @sio.on('error')
+    @sio.on("error")
     def on_error(data):
         print(f"❌ Error from orchestration: {data.get('message', 'Unknown')}")
 
-    @sio.on('disconnect')
+    @sio.on("disconnect")
     def on_disconnect():
         print("🔌 Disconnected from Orchestration Service")
 
@@ -139,11 +140,11 @@ async def test_orchestration_streaming():
         whisper_sio = socketio.Client()
         whisper_results = []
 
-        @whisper_sio.on('connect')
+        @whisper_sio.on("connect")
         def on_whisper_connect():
             print("✅ Connected to Whisper Service")
 
-        @whisper_sio.on('transcription_result')
+        @whisper_sio.on("transcription_result")
         def on_whisper_transcription(data):
             nonlocal stability_data_received
 
@@ -151,7 +152,10 @@ async def test_orchestration_streaming():
             print(f"   Text: '{data.get('text', 'N/A')[:60]}'")
 
             # Check for Phase 3C stability fields
-            has_stability = any(k in data for k in ['stable_text', 'unstable_text', 'is_draft', 'is_final'])
+            has_stability = any(
+                k in data
+                for k in ["stable_text", "unstable_text", "is_draft", "is_final"]
+            )
 
             if has_stability:
                 stability_data_received = True
@@ -168,7 +172,7 @@ async def test_orchestration_streaming():
 
             whisper_results.append(data)
 
-        @whisper_sio.on('error')
+        @whisper_sio.on("error")
         def on_whisper_error(data):
             print(f"❌ Error from Whisper: {data.get('message', 'Unknown')}")
 
@@ -177,7 +181,7 @@ async def test_orchestration_streaming():
 
         # Create session
         session_id = f"test-orchestration-stability-{int(time.time())}"
-        whisper_sio.emit('join_session', {'session_id': session_id})
+        whisper_sio.emit("join_session", {"session_id": session_id})
         time.sleep(0.5)
         print(f"✅ Joined Whisper session: {session_id}\n")
 
@@ -186,55 +190,60 @@ async def test_orchestration_streaming():
 
         for i, chunk in enumerate(chunks):
             chunk_bytes = chunk.tobytes()
-            chunk_b64 = base64.b64encode(chunk_bytes).decode('utf-8')
+            chunk_b64 = base64.b64encode(chunk_bytes).decode("utf-8")
 
-            whisper_sio.emit('transcribe_stream', {
-                "session_id": session_id,
-                "audio_data": chunk_b64,
-                "model_name": "large-v3-turbo",
-                "language": "en",
-                "beam_size": 5,
-                "sample_rate": sample_rate,
-                "streaming": True,
-                "task": "transcribe",
-                "target_language": "en"
-            })
+            whisper_sio.emit(
+                "transcribe_stream",
+                {
+                    "session_id": session_id,
+                    "audio_data": chunk_b64,
+                    "model_name": "large-v3-turbo",
+                    "language": "en",
+                    "beam_size": 5,
+                    "sample_rate": sample_rate,
+                    "streaming": True,
+                    "task": "transcribe",
+                    "target_language": "en",
+                },
+            )
 
-            print(f"   Chunk {i+1}/{len(chunks)} sent", end='\r')
+            print(f"   Chunk {i + 1}/{len(chunks)} sent", end="\r")
             time.sleep(0.8)  # Wait for processing
 
         print(f"\n\n⏳ Waiting for final results...")
         time.sleep(2.0)
 
         # Leave session
-        whisper_sio.emit('leave_session', {'session_id': session_id})
+        whisper_sio.emit("leave_session", {"session_id": session_id})
         time.sleep(0.3)
         whisper_sio.disconnect()
 
         # Summary
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("TEST RESULTS SUMMARY")
-        print("="*80)
+        print("=" * 80)
 
         print(f"\n📊 Statistics:")
         print(f"   Chunks sent: {len(chunks)}")
         print(f"   Results received: {len(whisper_results)}")
-        print(f"   Stability data detected: {'✅ YES' if stability_data_received else '❌ NO'}")
+        print(
+            f"   Stability data detected: {'✅ YES' if stability_data_received else '❌ NO'}"
+        )
 
         if whisper_results:
             print(f"\n📝 Sample Results:")
             for i, result in enumerate(whisper_results[:3], 1):
                 print(f"\n   Result {i}:")
                 print(f"      Text: '{result.get('text', 'N/A')[:50]}'")
-                if 'stable_text' in result:
+                if "stable_text" in result:
                     print(f"      Stable: '{result.get('stable_text', '')[:30]}'")
-                if 'unstable_text' in result:
+                if "unstable_text" in result:
                     print(f"      Unstable: '{result.get('unstable_text', '')[:20]}'")
                 print(f"      Is Draft: {result.get('is_draft', 'N/A')}")
                 print(f"      Is Final: {result.get('is_final', 'N/A')}")
 
         # Verdict
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         if stability_data_received:
             print("✅ TEST PASSED: Phase 3C stability tracking working!")
             print("   All stability fields present and flowing through the system.")
@@ -248,13 +257,14 @@ async def test_orchestration_streaming():
         print("   3. ⏳ Create frontend UI to display stable vs unstable text")
         print("   4. ⏳ Implement translation routing based on should_translate flag")
 
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         return stability_data_received
 
     except Exception as e:
         print(f"\n❌ Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

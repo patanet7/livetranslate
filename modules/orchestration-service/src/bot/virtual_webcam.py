@@ -16,19 +16,17 @@ Features:
 """
 
 import os
-import sys
 import time
 import logging
 import asyncio
 import threading
 import uuid
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from typing import Dict, Optional, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 from enum import Enum
 import json
 import numpy as np
-import cv2
 from PIL import Image, ImageDraw, ImageFont
 import io
 import base64
@@ -291,7 +289,7 @@ class VirtualWebcamManager:
             duration = time.time() - self.start_time if self.start_time else 0
             fps = self.frames_generated / duration if duration > 0 else 0
 
-            logger.info(f"Stopped virtual webcam stream")
+            logger.info("Stopped virtual webcam stream")
             logger.info(f"  Duration: {duration:.1f}s")
             logger.info(f"  Frames generated: {self.frames_generated}")
             logger.info(f"  Average FPS: {fps:.1f}")
@@ -310,11 +308,11 @@ class VirtualWebcamManager:
             # Determine display text and type
             is_original = translation_data.get("is_original_transcription", False)
             display_text = translation_data["translated_text"]
-            
+
             # Format speaker name with diarization info if available
             speaker_name = translation_data.get("speaker_name")
             speaker_id = translation_data.get("speaker_id")
-            
+
             # Enhanced speaker name formatting
             if speaker_name and speaker_id:
                 # Check if speaker_id contains diarization info (e.g., "SPEAKER_00", "diarized_speaker_1")
@@ -338,7 +336,9 @@ class VirtualWebcamManager:
                 source_language=translation_data.get("source_language", "auto"),
                 target_language=translation_data.get("target_language", "en"),
                 speaker_name=formatted_speaker,
-                confidence=translation_data.get("translation_confidence", 0.0),  # Default to 0.0 instead of 1.0
+                confidence=translation_data.get(
+                    "translation_confidence", 0.0
+                ),  # Default to 0.0 instead of 1.0
                 timestamp=datetime.now(),
                 expires_at=datetime.now()
                 + timedelta(seconds=self.config.translation_duration_seconds),
@@ -360,7 +360,9 @@ class VirtualWebcamManager:
             # Log with appropriate prefix
             prefix = "TRANSCRIPTION" if is_original else "TRANSLATION"
             lang_info = f"[{translation_data.get('source_language', 'auto')} → {translation_data.get('target_language', 'en')}]"
-            logger.info(f"{prefix} {lang_info} {formatted_speaker}: {display_text[:100]}...")
+            logger.info(
+                f"{prefix} {lang_info} {formatted_speaker}: {display_text[:100]}..."
+            )
 
         except Exception as e:
             logger.error(f"Error adding translation: {e}")
@@ -500,14 +502,16 @@ class VirtualWebcamManager:
         for translation in self.current_translations:
             if not (translation.expires_at and datetime.now() > translation.expires_at):
                 active_translations.append(translation)
-        
+
         # Sort by timestamp (newest first)
         active_translations.sort(key=lambda t: t.timestamp, reverse=True)
 
         # Render each translation with improved spacing
         y_offset = 30
-        max_display = min(len(active_translations), self.config.max_translations_displayed)
-        
+        max_display = min(
+            len(active_translations), self.config.max_translations_displayed
+        )
+
         for i, translation in enumerate(active_translations[:max_display]):
             self._draw_translation_box(draw, translation, y_offset, colors)
             y_offset += 100  # Increased space for enhanced boxes
@@ -622,7 +626,7 @@ class VirtualWebcamManager:
 
         # Determine if this is original transcription or translation
         is_original = translation.source_language == translation.target_language
-        
+
         # Choose border color based on type
         border_color = colors["accent"] if is_original else colors["border"]
         border_width = 2 if is_original else 1
@@ -652,7 +656,7 @@ class VirtualWebcamManager:
             speaker_text = f"👤 {translation.speaker_name}"
             # Use speaker color if available
             speaker_color = colors["text_primary"]
-            
+
             draw.text(
                 (x + 10, y + 25),
                 speaker_text,
@@ -666,7 +670,7 @@ class VirtualWebcamManager:
             words = main_text.split()
             lines = []
             current_line = ""
-            
+
             for word in words:
                 test_line = current_line + " " + word if current_line else word
                 if len(test_line) > 60:
@@ -677,10 +681,10 @@ class VirtualWebcamManager:
                         lines.append(word)
                 else:
                     current_line = test_line
-            
+
             if current_line:
                 lines.append(current_line)
-            
+
             # Display up to 2 lines
             for i, line in enumerate(lines[:2]):
                 draw.text(
@@ -714,7 +718,9 @@ class VirtualWebcamManager:
 
         # Language indicator (bottom right)
         if not is_original:
-            lang_text = f"🔄 {translation.source_language} → {translation.target_language}"
+            lang_text = (
+                f"🔄 {translation.source_language} → {translation.target_language}"
+            )
             draw.text(
                 (x + box_width - 120, y + box_height - 20),
                 lang_text,
@@ -834,14 +840,16 @@ class VirtualWebcamManager:
         x = (self.config.width - text_width) // 2
         draw.text((x, y), translation.text, fill=colors["text_primary"], font=font)
 
-    def _draw_session_header(self, draw: ImageDraw.Draw, colors: Dict[str, Tuple[int, int, int]]):
+    def _draw_session_header(
+        self, draw: ImageDraw.Draw, colors: Dict[str, Tuple[int, int, int]]
+    ):
         """Draw session information header."""
         try:
             session_id = getattr(self, "session_id", "Unknown")
             active_speakers = len(self.speakers)
-            
+
             header_text = f"📹 LiveTranslate Virtual Webcam | Session: {session_id[:8]}... | 👥 {active_speakers} speakers"
-            
+
             # Header background
             header_height = 25
             draw.rectangle(
@@ -850,7 +858,7 @@ class VirtualWebcamManager:
                 outline=colors["border"],
                 width=1,
             )
-            
+
             # Header text
             draw.text(
                 (10, 5),
@@ -858,7 +866,7 @@ class VirtualWebcamManager:
                 fill=colors["text_primary"],
                 font=self.fonts.get("small", ImageFont.load_default()),
             )
-            
+
         except Exception as e:
             logger.error(f"Error drawing session header: {e}")
 
@@ -979,7 +987,7 @@ async def main():
         for i, translation in enumerate(test_translations):
             await asyncio.sleep(2)
             webcam.add_translation(translation)
-            print(f"Added translation {i+1}")
+            print(f"Added translation {i + 1}")
 
         # Run for 20 seconds
         await asyncio.sleep(20)

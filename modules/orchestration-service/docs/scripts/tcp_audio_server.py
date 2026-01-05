@@ -22,12 +22,14 @@ import sys
 from datetime import datetime
 
 # Add src to path
-sys.path.insert(0, '/Users/thomaspatane/Documents/GitHub/livetranslate/modules/orchestration-service/src')
+sys.path.insert(
+    0,
+    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/orchestration-service/src",
+)
 from socketio_whisper_client import SocketIOWhisperClient
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class TCPAudioServer:
         whisper_port: int = 5001,
         chunk_size: int = 3200,  # 100ms at 16kHz mono
         model: str = "large-v3-turbo",
-        language: str = "en"
+        language: str = "en",
     ):
         self.port = port
         self.chunk_size = chunk_size
@@ -49,9 +51,7 @@ class TCPAudioServer:
 
         # Create Whisper client
         self.whisper_client = SocketIOWhisperClient(
-            whisper_host=whisper_host,
-            whisper_port=whisper_port,
-            auto_reconnect=True
+            whisper_host=whisper_host, whisper_port=whisper_port, auto_reconnect=True
         )
 
         # Stats
@@ -64,11 +64,11 @@ class TCPAudioServer:
         self.total_segments += 1
 
         # Extract segment info
-        text = segment.get('text', '')
-        speaker = segment.get('speaker', 'UNKNOWN')
-        language = segment.get('language', 'unknown').upper()
-        confidence = segment.get('confidence', 0.0) * 100
-        is_final = segment.get('is_final', False)
+        text = segment.get("text", "")
+        speaker = segment.get("speaker", "UNKNOWN")
+        language = segment.get("language", "unknown").upper()
+        confidence = segment.get("confidence", 0.0) * 100
+        is_final = segment.get("is_final", False)
 
         # Print segment
         status = "✅ FINAL" if is_final else "⏳ PARTIAL"
@@ -77,9 +77,11 @@ class TCPAudioServer:
         print(f"📝 {text}")
         print("=" * 80)
 
-    async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+    async def handle_client(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ):
         """Handle incoming TCP connection"""
-        addr = writer.get_extra_info('peername')
+        addr = writer.get_extra_info("peername")
         session_id = f"tcp-{int(datetime.utcnow().timestamp())}"
 
         logger.info(f"✅ Client connected from {addr}")
@@ -99,13 +101,13 @@ class TCPAudioServer:
             await self.whisper_client.start_stream(
                 session_id=session_id,
                 config={
-                    'model': self.model,
-                    'language': self.language,
-                    'enable_vad': True,
-                    'enable_diarization': True,
-                    'enable_cif': True,
-                    'enable_rolling_context': True
-                }
+                    "model": self.model,
+                    "language": self.language,
+                    "enable_vad": True,
+                    "enable_diarization": True,
+                    "enable_cif": True,
+                    "enable_rolling_context": True,
+                },
             )
 
             logger.info("🎵 Streaming audio... (Ctrl+C to stop)")
@@ -125,13 +127,15 @@ class TCPAudioServer:
                 await self.whisper_client.send_audio_chunk(
                     session_id=session_id,
                     audio_data=chunk,
-                    timestamp=datetime.utcnow().isoformat()
+                    timestamp=datetime.utcnow().isoformat(),
                 )
 
                 # Log progress every 100 chunks (10 seconds)
                 if self.total_chunks % 100 == 0:
                     elapsed = (datetime.utcnow() - self.start_time).total_seconds()
-                    logger.info(f"📊 Sent {self.total_chunks} chunks ({elapsed:.1f}s, {self.total_segments} segments)")
+                    logger.info(
+                        f"📊 Sent {self.total_chunks} chunks ({elapsed:.1f}s, {self.total_segments} segments)"
+                    )
 
         except Exception as e:
             logger.error(f"❌ Error handling client: {e}", exc_info=True)
@@ -153,7 +157,9 @@ class TCPAudioServer:
                 print(f"Chunks sent:       {self.total_chunks}")
                 print(f"Segments received: {self.total_segments}")
                 if elapsed > 0:
-                    print(f"Chunk rate:        {self.total_chunks / elapsed:.1f} chunks/sec")
+                    print(
+                        f"Chunk rate:        {self.total_chunks / elapsed:.1f} chunks/sec"
+                    )
                 print("=" * 80 + "\n")
 
             writer.close()
@@ -162,29 +168,40 @@ class TCPAudioServer:
 
     async def start(self):
         """Start TCP server"""
-        server = await asyncio.start_server(
-            self.handle_client,
-            '0.0.0.0',
-            self.port
-        )
+        server = await asyncio.start_server(self.handle_client, "0.0.0.0", self.port)
 
         addr = server.sockets[0].getsockname()
         logger.info(f"🚀 TCP Audio Server listening on {addr[0]}:{addr[1]}")
         logger.info(f"📡 Model: {self.model} | Language: {self.language}")
-        logger.info(f"💡 Test with: ffmpeg -f avfoundation -i \":0\" -ac 1 -ar 16000 -f s16le - | nc 127.0.0.1 {self.port}")
+        logger.info(
+            f'💡 Test with: ffmpeg -f avfoundation -i ":0" -ac 1 -ar 16000 -f s16le - | nc 127.0.0.1 {self.port}'
+        )
 
         async with server:
             await server.serve_forever()
 
 
 async def main():
-    parser = argparse.ArgumentParser(description='TCP Audio Streaming Server')
-    parser.add_argument('--port', type=int, default=43001, help='TCP port to listen on (default: 43001)')
-    parser.add_argument('--whisper-host', type=str, default='localhost', help='Whisper service host')
-    parser.add_argument('--whisper-port', type=int, default=5001, help='Whisper service port')
-    parser.add_argument('--chunk-size', type=int, default=3200, help='Chunk size in bytes (default: 3200 = 100ms)')
-    parser.add_argument('--model', type=str, default='large-v3-turbo', help='Whisper model')
-    parser.add_argument('--language', type=str, default='en', help='Source language')
+    parser = argparse.ArgumentParser(description="TCP Audio Streaming Server")
+    parser.add_argument(
+        "--port", type=int, default=43001, help="TCP port to listen on (default: 43001)"
+    )
+    parser.add_argument(
+        "--whisper-host", type=str, default="localhost", help="Whisper service host"
+    )
+    parser.add_argument(
+        "--whisper-port", type=int, default=5001, help="Whisper service port"
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=3200,
+        help="Chunk size in bytes (default: 3200 = 100ms)",
+    )
+    parser.add_argument(
+        "--model", type=str, default="large-v3-turbo", help="Whisper model"
+    )
+    parser.add_argument("--language", type=str, default="en", help="Source language")
     args = parser.parse_args()
 
     server = TCPAudioServer(
@@ -193,7 +210,7 @@ async def main():
         whisper_port=args.whisper_port,
         chunk_size=args.chunk_size,
         model=args.model,
-        language=args.language
+        language=args.language,
     )
 
     try:
@@ -203,5 +220,5 @@ async def main():
         sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

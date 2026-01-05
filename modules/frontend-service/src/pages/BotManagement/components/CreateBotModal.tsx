@@ -33,6 +33,7 @@ import {
   ArrowForward as ArrowForwardIcon,
 } from '@mui/icons-material';
 import { MeetingRequest } from '@/types';
+import { SUPPORTED_LANGUAGES, getLanguageName } from '@/constants/languages';
 
 interface CreateBotModalProps {
   open: boolean;
@@ -41,18 +42,7 @@ interface CreateBotModalProps {
   onError: (error: string) => void;
 }
 
-const availableLanguages = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'it', name: 'Italian' },
-  { code: 'pt', name: 'Portuguese' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'ko', name: 'Korean' },
-  { code: 'zh', name: 'Chinese' },
-  { code: 'ru', name: 'Russian' },
-];
+const availableLanguages = SUPPORTED_LANGUAGES;
 
 const steps = [
   {
@@ -130,8 +120,9 @@ export const CreateBotModal: React.FC<CreateBotModalProps> = ({
         }
         break;
       case 1:
-        if (formData.targetLanguages.length === 0) {
-          newErrors.targetLanguages = 'At least one target language must be selected';
+        // Only require languages when translation is enabled
+        if (formData.autoTranslation && formData.targetLanguages.length === 0) {
+          newErrors.targetLanguages = 'At least one target language must be selected for translation';
         }
         break;
       case 2:
@@ -186,10 +177,6 @@ export const CreateBotModal: React.FC<CreateBotModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
-
-  const getLanguageName = (code: string) => {
-    return availableLanguages.find(lang => lang.code === code)?.name || code;
   };
 
   const renderStepContent = (step: number) => {

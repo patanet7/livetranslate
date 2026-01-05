@@ -48,7 +48,9 @@ class RedisStreamConsumer:
 
         self.config = config
         self.handler = handler
-        resolved_url = redis_url or os.getenv("EVENT_BUS_REDIS_URL", "redis://localhost:6379/0")
+        resolved_url = redis_url or os.getenv(
+            "EVENT_BUS_REDIS_URL", "redis://localhost:6379/0"
+        )
         if not resolved_url:
             resolved_url = "redis://localhost:6379/0"
         elif "://" not in resolved_url:
@@ -59,10 +61,16 @@ class RedisStreamConsumer:
         self._shutdown = asyncio.Event()
 
     async def setup(self) -> None:
-        self.client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+        self.client = redis.from_url(
+            self.redis_url, encoding="utf-8", decode_responses=True
+        )
         try:
-            await self.client.xgroup_create(self.config.stream, self.config.group, id="$", mkstream=True)
-            logger.info("Created consumer group %s on %s", self.config.group, self.config.stream)
+            await self.client.xgroup_create(
+                self.config.stream, self.config.group, id="$", mkstream=True
+            )
+            logger.info(
+                "Created consumer group %s on %s", self.config.group, self.config.stream
+            )
         except redis.ResponseError as exc:  # type: ignore[attr-defined]
             if "BUSYGROUP" in str(exc):
                 logger.debug("Consumer group %s already exists", self.config.group)
@@ -74,7 +82,11 @@ class RedisStreamConsumer:
             await self.setup()
         assert self.client is not None
 
-        logger.info("Starting Redis consumer %s on stream %s", self.config.consumer_name, self.config.stream)
+        logger.info(
+            "Starting Redis consumer %s on stream %s",
+            self.config.consumer_name,
+            self.config.stream,
+        )
         while not self._shutdown.is_set():
             messages = await self.client.xreadgroup(
                 self.config.group,
@@ -91,7 +103,9 @@ class RedisStreamConsumer:
                     payload = self._decode_payload(data)
                     try:
                         await self.handler(payload)
-                        await self.client.xack(stream_name, self.config.group, message_id)
+                        await self.client.xack(
+                            stream_name, self.config.group, message_id
+                        )
                     except Exception as exc:  # pragma: no cover - handler failure
                         logger.exception("Handler failure for %s: %s", message_id, exc)
 

@@ -24,7 +24,7 @@ import {
   createMockSystemStats,
   MOCK_MEETING_REQUEST,
 } from '@/test/utils';
-import { AudioQualityMetrics, Translation } from '@/types';
+import { AudioQualityMetrics } from '@/types';
 
 describe('botSlice', () => {
   const initialState = botSlice.getInitialState();
@@ -126,12 +126,14 @@ describe('botSlice', () => {
 
       const state = botSlice.reducer(
         stateWithBot,
-        updateBotStatus({ botId: bot.botId, status: 'error', data: { errorCount: 5 } })
+        updateBotStatus({ botId: bot.botId, status: 'error', data: { performance: { errorCount: 5 } } })
       );
 
       expect(state.bots[bot.botId].status).toBe('error');
       expect(state.bots[bot.botId].performance.errorCount).toBe(5);
-      expect(state.bots[bot.botId].lastActiveAt).toBeGreaterThan(bot.lastActiveAt);
+      expect(new Date(state.bots[bot.botId].lastActiveAt).getTime()).toBeGreaterThan(
+        new Date(bot.lastActiveAt).getTime()
+      );
     });
 
     it('should terminate bot', () => {
@@ -298,8 +300,13 @@ describe('botSlice', () => {
         addTranslation({ botId: bot.botId, translation })
       );
 
-      expect(state.bots[bot.botId].virtualWebcam.currentTranslations).toContain(translation);
-      expect(state.realtimeData.translations[bot.botId]).toContain(translation);
+      // virtualWebcam stores simplified { language, text } objects
+      expect(state.bots[bot.botId].virtualWebcam.currentTranslations).toContainEqual({
+        language: translation.targetLanguage,
+        text: translation.translatedText,
+      });
+      // realtimeData stores full Translation objects
+      expect(state.realtimeData.translations[bot.botId]).toContainEqual(translation);
     });
 
     it('should limit current translations to 3 for display', () => {
@@ -307,9 +314,9 @@ describe('botSlice', () => {
         virtualWebcam: {
           ...createMockBotInstance().virtualWebcam,
           currentTranslations: [
-            createMockTranslation({ translationId: '1' }),
-            createMockTranslation({ translationId: '2' }),
-            createMockTranslation({ translationId: '3' }),
+            { language: 'es', text: 'Translation 1' },
+            { language: 'fr', text: 'Translation 2' },
+            { language: 'de', text: 'Translation 3' },
           ],
         },
       });
@@ -319,16 +326,16 @@ describe('botSlice', () => {
         bots: { [bot.botId]: bot },
       };
 
-      const newTranslation = createMockTranslation({ translationId: '4' });
+      const newTranslation = createMockTranslation();
       const state = botSlice.reducer(
         stateWithBot,
         addTranslation({ botId: bot.botId, translation: newTranslation })
       );
 
       expect(state.bots[bot.botId].virtualWebcam.currentTranslations).toHaveLength(3);
-      expect(state.bots[bot.botId].virtualWebcam.currentTranslations[2]).toEqual(newTranslation);
+      expect(state.bots[bot.botId].virtualWebcam.currentTranslations[2].text).toContain('mock translation');
       expect(
-        state.bots[bot.botId].virtualWebcam.currentTranslations.find(t => t.translationId === '1')
+        state.bots[bot.botId].virtualWebcam.currentTranslations.find(t => t.text === 'Translation 1')
       ).toBeUndefined(); // First translation should be removed
     });
 

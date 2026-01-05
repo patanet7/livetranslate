@@ -116,7 +116,7 @@ class SystemStatus(ResponseMixin, TimestampMixin):
     active_sessions: int = Field(description="Active user sessions", example=75)
 
     @field_validator("status")
-    def determine_overall_status(cls, v, values):
+    def determine_overall_status(cls, v, info):
         """Determine overall status based on service statuses"""
         services = (info.data if info else {}).get("services", {})
 

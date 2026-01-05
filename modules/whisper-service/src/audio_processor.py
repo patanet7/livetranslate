@@ -19,9 +19,7 @@ import os
 import io
 import tempfile
 import logging
-import time
-from typing import Tuple, Optional, Dict, Any, Union, BinaryIO
-from pathlib import Path
+from typing import Tuple, Optional, Dict, Any
 from contextlib import contextmanager
 import numpy as np
 
@@ -45,8 +43,8 @@ except ImportError:
     PYDUB_AVAILABLE = False
 
 try:
-    import ffmpeg
-    FFMPEG_PYTHON_AVAILABLE = True
+    import importlib.util
+    FFMPEG_PYTHON_AVAILABLE = importlib.util.find_spec("ffmpeg") is not None
 except ImportError:
     FFMPEG_PYTHON_AVAILABLE = False
 
@@ -115,7 +113,7 @@ class AudioProcessor:
             'aiff': ['.aiff', '.aif']
         }
         
-        logger.info(f"AudioProcessor initialized:")
+        logger.info("AudioProcessor initialized:")
         logger.info(f"  Default sample rate: {default_sample_rate}Hz")
         logger.info(f"  Enhancement enabled: {enable_enhancement}")
         logger.info(f"  Librosa available: {LIBROSA_AVAILABLE}")
@@ -285,7 +283,7 @@ class AudioProcessor:
             
             return audio.astype(np.float32), sr
             
-        except Exception as e:
+        except Exception:
             # Fallback to temporary file
             with self._temp_audio_file(audio_data, format_hint) as temp_path:
                 audio, sr = sf.read(temp_path)
@@ -355,7 +353,7 @@ class AudioProcessor:
             audio_16 = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
             if len(audio_16) > 100:  # Reasonable length
                 return audio_16, target_sr
-        except:
+        except (ValueError, TypeError):
             pass
         
         try:
@@ -363,7 +361,7 @@ class AudioProcessor:
             audio_32f = np.frombuffer(audio_data, dtype=np.float32)
             if len(audio_32f) > 100 and np.max(np.abs(audio_32f)) <= 1.0:
                 return audio_32f, target_sr
-        except:
+        except (ValueError, TypeError):
             pass
         
         raise AudioConversionError("Could not interpret as raw audio data")

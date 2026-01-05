@@ -8,11 +8,13 @@ between original and enhanced implementations at runtime.
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import numpy as np
 from audio.config import AudioProcessingConfig
 from audio.audio_processor import AudioPipelineProcessor
+
 
 def test_original_stages():
     """Test that original stages are used when flag is False."""
@@ -27,7 +29,9 @@ def test_original_stages():
     processor = AudioPipelineProcessor(config, sample_rate=16000)
 
     # Generate test audio
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(np.float32)
+    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(
+        np.float32
+    )
 
     # Process
     processed, metadata = processor.process_audio_chunk(audio)
@@ -59,7 +63,9 @@ def test_enhanced_stages():
     processor = AudioPipelineProcessor(config, sample_rate=16000)
 
     # Generate test audio
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(np.float32)
+    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(
+        np.float32
+    )
 
     # Process
     processed, metadata = processor.process_audio_chunk(audio)
@@ -79,7 +85,9 @@ def test_enhanced_stages():
             if "Enhanced" in class_name:
                 print(f"      ✓ Using enhanced implementation")
             else:
-                print(f"      ⚠ Using original implementation (enhanced not available?)")
+                print(
+                    f"      ⚠ Using original implementation (enhanced not available?)"
+                )
 
     print()
     return True
@@ -97,7 +105,9 @@ def test_runtime_switching():
     config.enabled_stages = ["lufs_normalization", "compression", "limiter"]
 
     processor = AudioPipelineProcessor(config, sample_rate=16000)
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(np.float32)
+    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(
+        np.float32
+    )
 
     # Process with original
     processed1, metadata1 = processor.process_audio_chunk(audio)
@@ -132,6 +142,7 @@ def main():
     except Exception as e:
         print(f"✗ Original stages test failed: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Original stages", False))
 
@@ -140,6 +151,7 @@ def main():
     except Exception as e:
         print(f"✗ Enhanced stages test failed: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Enhanced stages", False))
 
@@ -148,6 +160,7 @@ def main():
     except Exception as e:
         print(f"✗ Runtime switching test failed: {e}")
         import traceback
+
         traceback.print_exc()
         results.append(("Runtime switching", False))
 

@@ -1,17 +1,21 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { 
-  BotInstance, 
-  MeetingRequest, 
-  BotStatus, 
-  SystemStats, 
+import {
+  BotInstance,
+  MeetingRequest,
+  BotStatus,
+  SystemStats,
   BotConfig,
   BotHealthMetrics,
-  BotError,
   Translation,
   WebcamConfig,
   AudioQualityMetrics,
-  CaptionSegment
+  CaptionSegment,
+  WebcamDisplayMode,
+  WebcamTheme,
+  MeetingPlatform,
+  BotPriority
 } from '@/types';
+import { getCurrentISOTimestamp } from '@/utils/dateTimeUtils';
 
 interface BotState {
   // Bot instances
@@ -89,9 +93,11 @@ const defaultBotConfig: BotConfig = {
     width: 1280,
     height: 720,
     fps: 30,
-    displayMode: 'overlay',
-    theme: 'dark',
+    displayMode: WebcamDisplayMode.OVERLAY,
+    theme: WebcamTheme.DARK,
     maxTranslationsDisplayed: 3,
+    fontSize: 16,
+    backgroundOpacity: 0.8,
   },
 };
 
@@ -161,47 +167,92 @@ const botSlice = createSlice({
         
         // Create bot instance
         const newBot: BotInstance = {
+          id: botId,
           botId,
           status: 'spawning',
-          meetingInfo: {
-            meetingId: request.meetingId,
-            meetingTitle: request.meetingTitle,
-            organizerEmail: request.organizerEmail,
-            participantCount: 0,
+          config: {
+            meetingInfo: {
+              meetingId: request.meetingId,
+              meetingTitle: request.meetingTitle,
+              platform: MeetingPlatform.GOOGLE_MEET,
+              organizerEmail: request.organizerEmail,
+              participantCount: 0,
+            },
+            audioCapture: {
+              sampleRate: 16000,
+              channels: 1,
+              chunkSize: 1024,
+              enableNoiseSuppression: true,
+              enableEchoCancellation: false,
+              enableAutoGain: false,
+            },
+            translation: {
+              targetLanguages: request.targetLanguages || ['en'],
+              enableAutoTranslation: request.autoTranslation ?? true,
+              translationQuality: 'balanced',
+              realTimeTranslation: true,
+            },
+            webcam: state.spawnerConfig.defaultBotConfig.webcamConfig,
+            priority: (request.priority === 'high' ? BotPriority.HIGH :
+                      request.priority === 'low' ? BotPriority.LOW :
+                      BotPriority.MEDIUM),
+            enableRecording: true,
+            enableTranscription: true,
+            enableSpeakerDiarization: true,
+            enableVirtualWebcam: true,
           },
+          updatedAt: getCurrentISOTimestamp(),
           audioCapture: {
             isCapturing: false,
             totalChunksCaptured: 0,
+            averageChunkSizeBytes: 0,
+            totalAudioDurationS: 0,
             averageQualityScore: 0,
-            lastCaptureTimestamp: 0,
+            lastCaptureTimestamp: getCurrentISOTimestamp(),
             deviceInfo: '',
+            sampleRateActual: 16000,
+            channelsActual: 1,
           },
           captionProcessor: {
             totalCaptionsProcessed: 0,
             totalSpeakers: 0,
             speakerTimeline: [],
-            lastCaptionTimestamp: 0,
+            averageConfidence: 0,
+            lastCaptionTimestamp: getCurrentISOTimestamp(),
+            processingLatencyMs: 0,
           },
           virtualWebcam: {
             isStreaming: false,
             framesGenerated: 0,
             currentTranslations: [],
-            webcamConfig: state.spawnerConfig.defaultBotConfig.webcamConfig,
+            averageFps: 0,
+            webcamConfig: {
+              ...state.spawnerConfig.defaultBotConfig.webcamConfig,
+              fontSize: state.spawnerConfig.defaultBotConfig.webcamConfig.fontSize || 16,
+              backgroundOpacity: state.spawnerConfig.defaultBotConfig.webcamConfig.backgroundOpacity || 0.8,
+            },
+            lastFrameTimestamp: getCurrentISOTimestamp(),
           },
           timeCorrelation: {
             totalCorrelations: 0,
             successRate: 0,
-            averageTimingOffset: 0,
-            lastCorrelationTimestamp: 0,
+            averageTimingOffsetMs: 0,
+            lastCorrelationTimestamp: getCurrentISOTimestamp(),
+            correlationAccuracy: 0,
           },
           performance: {
-            sessionDuration: 0,
-            totalProcessingTime: 0,
-            averageLatency: 0,
+            sessionDurationS: 0,
+            totalProcessingTimeS: 0,
+            cpuUsagePercent: 0,
+            memoryUsageMb: 0,
+            networkBytesSent: 0,
+            networkBytesReceived: 0,
+            averageLatencyMs: 0,
             errorCount: 0,
           },
-          createdAt: Date.now(),
-          lastActiveAt: Date.now(),
+          errorMessages: [],
+          createdAt: getCurrentISOTimestamp(),
+          lastActiveAt: getCurrentISOTimestamp(),
           ...botData,
         };
         
@@ -229,33 +280,35 @@ const botSlice = createSlice({
     updateBotStatus: (state, action: PayloadAction<{ botId: string; status: BotStatus; data?: any }>) => {
       const { botId, status, data } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         bot.status = status;
-        bot.lastActiveAt = Date.now();
-        
+        bot.lastActiveAt = getCurrentISOTimestamp();
+
         if (data) {
           Object.assign(bot, data);
         }
-        
-        // Update session duration
-        bot.performance.sessionDuration = Date.now() - bot.createdAt;
+
+        // Update session duration in seconds
+        const createdTime = new Date(bot.createdAt).getTime();
+        bot.performance.sessionDurationS = (Date.now() - createdTime) / 1000;
       }
     },
     
     terminateBot: (state, action: PayloadAction<string>) => {
       const botId = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         bot.status = 'terminated';
         state.activeBotIds = state.activeBotIds.filter(id => id !== botId);
         state.systemStats.activeBots = Math.max(0, state.systemStats.activeBots - 1);
         state.systemStats.completedSessions += 1;
-        
-        // Calculate final session duration
-        bot.performance.sessionDuration = Date.now() - bot.createdAt;
-        
+
+        // Calculate final session duration in seconds
+        const createdTime = new Date(bot.createdAt).getTime();
+        bot.performance.sessionDurationS = (Date.now() - createdTime) / 1000;
+
         // Clean up realtime data
         delete state.realtimeData.audioCapture[botId];
         delete state.realtimeData.captions[botId];
@@ -279,14 +332,14 @@ const botSlice = createSlice({
     updateAudioCapture: (state, action: PayloadAction<{ botId: string; metrics: AudioQualityMetrics }>) => {
       const { botId, metrics } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         bot.audioCapture.totalChunksCaptured += 1;
-        bot.audioCapture.averageQualityScore = 
+        bot.audioCapture.averageQualityScore =
           (bot.audioCapture.averageQualityScore + (metrics.qualityScore || 0)) / 2;
-        bot.audioCapture.lastCaptureTimestamp = Date.now();
-        bot.lastActiveAt = Date.now();
-        
+        bot.audioCapture.lastCaptureTimestamp = getCurrentISOTimestamp();
+        bot.lastActiveAt = getCurrentISOTimestamp();
+
         // Store realtime metrics
         state.realtimeData.audioCapture[botId] = metrics;
       }
@@ -308,23 +361,23 @@ const botSlice = createSlice({
     addCaption: (state, action: PayloadAction<{ botId: string; caption: CaptionSegment }>) => {
       const { botId, caption } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         bot.captionProcessor.totalCaptionsProcessed += 1;
-        bot.captionProcessor.lastCaptionTimestamp = caption.timestamp;
-        bot.lastActiveAt = Date.now();
-        
+        bot.captionProcessor.lastCaptionTimestamp = new Date(caption.timestamp).toISOString();
+        bot.lastActiveAt = getCurrentISOTimestamp();
+
         // Store in realtime data
         if (!state.realtimeData.captions[botId]) {
           state.realtimeData.captions[botId] = [];
         }
         state.realtimeData.captions[botId].push(caption);
-        
+
         // Keep only last 50 captions
         if (state.realtimeData.captions[botId].length > 50) {
           state.realtimeData.captions[botId].shift();
         }
-        
+
         // Update speaker count
         const speakerIds = new Set(state.realtimeData.captions[botId].map(c => c.speakerId));
         bot.captionProcessor.totalSpeakers = speakerIds.size;
@@ -335,28 +388,32 @@ const botSlice = createSlice({
     addTranslation: (state, action: PayloadAction<{ botId: string; translation: Translation }>) => {
       const { botId, translation } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
-        // Add to virtual webcam current translations
-        bot.virtualWebcam.currentTranslations.push(translation);
-        
+        // Add to virtual webcam current translations (store as simple { language, text })
+        const simpleTranslation = {
+          language: translation.targetLanguage,
+          text: translation.translatedText
+        };
+        bot.virtualWebcam.currentTranslations.push(simpleTranslation);
+
         // Keep only last 3 translations for display
         if (bot.virtualWebcam.currentTranslations.length > 3) {
           bot.virtualWebcam.currentTranslations.shift();
         }
-        
+
         // Store in realtime data
         if (!state.realtimeData.translations[botId]) {
           state.realtimeData.translations[botId] = [];
         }
         state.realtimeData.translations[botId].push(translation);
-        
+
         // Keep only last 100 translations
         if (state.realtimeData.translations[botId].length > 100) {
           state.realtimeData.translations[botId].shift();
         }
-        
-        bot.lastActiveAt = Date.now();
+
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
     
@@ -376,20 +433,20 @@ const botSlice = createSlice({
     updateWebcamFrame: (state, action: PayloadAction<{ botId: string; frameBase64: string }>) => {
       const { botId, frameBase64 } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         bot.virtualWebcam.framesGenerated += 1;
         state.realtimeData.webcamFrames[botId] = frameBase64;
-        bot.lastActiveAt = Date.now();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
     
     updateWebcamConfig: (state, action: PayloadAction<{ botId: string; config: Partial<WebcamConfig> }>) => {
       const { botId, config } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
-        bot.virtualWebcam.webcamConfig = { ...bot.virtualWebcam.webcamConfig, ...config };
+        Object.assign(bot.virtualWebcam.webcamConfig, config);
       }
     },
     
@@ -397,13 +454,13 @@ const botSlice = createSlice({
     updateHealthMetrics: (state, action: PayloadAction<{ botId: string; metrics: BotHealthMetrics }>) => {
       const { botId, metrics } = action.payload;
       state.healthMetrics[botId] = metrics;
-      
+
       const bot = state.bots[botId];
       if (bot) {
-        bot.lastActiveAt = Date.now();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
-    
+
     // Performance metrics
     updatePerformanceMetrics: (state, action: PayloadAction<{ 
       botId: string; 
@@ -414,10 +471,10 @@ const botSlice = createSlice({
       
       if (bot) {
         Object.assign(bot.performance, metrics);
-        bot.lastActiveAt = Date.now();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
-    
+
     // Time correlation updates
     updateTimeCorrelation: (state, action: PayloadAction<{
       botId: string;
@@ -428,7 +485,7 @@ const botSlice = createSlice({
       
       if (bot) {
         Object.assign(bot.timeCorrelation, metrics);
-        bot.lastActiveAt = Date.now();
+        bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
     

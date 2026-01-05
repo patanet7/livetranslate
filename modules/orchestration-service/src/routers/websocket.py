@@ -5,7 +5,6 @@ Enhanced WebSocket endpoints with FastAPI for real-time audio processing,
 bot management, and system notifications.
 """
 
-import asyncio
 import json
 import logging
 from typing import Dict, List, Optional, Any
@@ -28,11 +27,9 @@ from models.websocket import (
     SessionInfo,
     ConnectionStats,
     MessageType,
-    ConnectionStatus,
     BroadcastMessage,
 )
-from models.system import ErrorResponse
-from dependencies import get_websocket_manager, get_config_manager, get_bot_manager
+from dependencies import get_websocket_manager
 from utils.rate_limiting import RateLimiter
 
 logger = logging.getLogger(__name__)

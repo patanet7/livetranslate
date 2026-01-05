@@ -16,8 +16,6 @@ import threading
 from datetime import datetime
 import traceback
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import urllib.parse
-from typing import Dict, Optional
 import uuid
 
 # Direct vLLM imports
@@ -261,7 +259,7 @@ class SimpleVLLMTranslationServer:
         self.health_thread.daemon = True
         self.health_thread.start()
         
-        logger.info(f"Starting vLLM Translation Server")
+        logger.info("Starting vLLM Translation Server")
         logger.info(f"Model: {model_name}")
         logger.info(f"WebSocket: ws://{host}:{port}")
         logger.info(f"REST API: http://{host}:{port}")
@@ -275,12 +273,12 @@ class SimpleVLLMTranslationServer:
             
             httpd = HTTPServer((self.host, self.port), handler)
             logger.info(f"REST API server running on http://{self.host}:{self.port}")
-            logger.info(f"Available endpoints:")
-            logger.info(f"  GET  /health - Service health check")
-            logger.info(f"  GET  /languages - Supported languages")
-            logger.info(f"  GET  /stats - Usage statistics")
-            logger.info(f"  POST /translate - Single translation")
-            logger.info(f"  POST /translate/batch - Batch translation")
+            logger.info("Available endpoints:")
+            logger.info("  GET  /health - Service health check")
+            logger.info("  GET  /languages - Supported languages")
+            logger.info("  GET  /stats - Usage statistics")
+            logger.info("  POST /translate - Single translation")
+            logger.info("  POST /translate/batch - Batch translation")
             httpd.serve_forever()
         except Exception as e:
             logger.error(f"Failed to start HTTP server: {e}")
@@ -407,7 +405,7 @@ class SimpleVLLMTranslationServer:
                     tokenize=False,
                     add_generation_prompt=True
                 )
-            except:
+            except Exception:
                 # Fallback if chat template fails
                 return f"{system}\n\nTranslate: {text}\n\nTranslation:"
     

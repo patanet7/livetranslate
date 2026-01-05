@@ -94,7 +94,9 @@ class TestTranslationPersistence:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_translation_with_session_persistence(self, test_session_id, db_connection):
+    async def test_translation_with_session_persistence(
+        self, test_session_id, db_connection
+    ):
         """Test translation with session ID persists to database"""
         test_text = "Good morning, how are you today?"
         target_lang = "es"
@@ -139,7 +141,17 @@ class TestTranslationPersistence:
         # Verify translation was persisted
         assert row is not None, "Translation was not persisted to database!"
 
-        translation_id, original, translated, source_lang, target_lang_db, confidence, word_count, char_count, metadata = row
+        (
+            translation_id,
+            original,
+            translated,
+            source_lang,
+            target_lang_db,
+            confidence,
+            word_count,
+            char_count,
+            metadata,
+        ) = row
 
         assert original == test_text
         assert source_lang == "en"
@@ -196,8 +208,12 @@ class TestTranslationPersistence:
 
         count, unique_languages = cursor.fetchone()
 
-        assert count == len(test_cases), f"Expected {len(test_cases)} translations, found {count}"
-        assert unique_languages == len(test_cases), f"Expected {len(test_cases)} languages, found {unique_languages}"
+        assert count == len(test_cases), (
+            f"Expected {len(test_cases)} translations, found {count}"
+        )
+        assert unique_languages == len(test_cases), (
+            f"Expected {len(test_cases)} languages, found {unique_languages}"
+        )
 
         # Get details of all translations
         cursor.execute(
@@ -215,7 +231,9 @@ class TestTranslationPersistence:
 
         print(f"\n✅ Stored {count} translations in {unique_languages} languages:")
         for target_lang, original, translated, confidence in translations:
-            print(f"   [{target_lang}] {original[:30]}... → {translated[:50]}... (conf: {confidence})")
+            print(
+                f"   [{target_lang}] {original[:30]}... → {translated[:50]}... (conf: {confidence})"
+            )
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -292,7 +310,9 @@ class TestTranslationPersistence:
             assert response.status_code == 200
             result = response.json()
             assert "translated_text" in result
-            print(f"✅ API handles invalid session gracefully: {result['translated_text']}")
+            print(
+                f"✅ API handles invalid session gracefully: {result['translated_text']}"
+            )
 
         # Verify nothing was persisted for invalid session
         cursor = db_connection.cursor()

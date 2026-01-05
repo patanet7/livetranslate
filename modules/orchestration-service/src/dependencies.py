@@ -41,7 +41,9 @@ try:
 except ImportError:
     TranscriptionDataPipeline = None
     create_data_pipeline = None
-    logger.warning("TranscriptionDataPipeline not available - using legacy database adapter")
+    logger.warning(
+        "TranscriptionDataPipeline not available - using legacy database adapter"
+    )
 
 # Utility imports
 from utils.rate_limiting import RateLimiter
@@ -68,12 +70,13 @@ _audio_config_manager: Optional[AudioConfigurationManager] = None
 _rate_limiter: Optional[RateLimiter] = None
 _security_utils: Optional[SecurityUtils] = None
 _event_publisher: Optional[EventPublisher] = None
-_data_pipeline: Optional['TranscriptionDataPipeline'] = None
+_data_pipeline: Optional["TranscriptionDataPipeline"] = None
 
 
 # ============================================================================
 # Configuration Management
 # ============================================================================
+
 
 @lru_cache()
 def get_config_manager() -> ConfigManager:
@@ -118,20 +121,29 @@ def get_event_publisher() -> EventPublisher:
     """Get singleton EventPublisher instance."""
     global _event_publisher
     if _event_publisher is None:
-        redis_url = os.getenv("EVENT_BUS_REDIS_URL", os.getenv("REDIS_URL", "redis://localhost:6379/0"))
-        enabled = os.getenv("EVENT_BUS_ENABLED", "true").lower() not in {"0", "false", "off"}
+        redis_url = os.getenv(
+            "EVENT_BUS_REDIS_URL", os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        )
+        enabled = os.getenv("EVENT_BUS_ENABLED", "true").lower() not in {
+            "0",
+            "false",
+            "off",
+        }
         _event_publisher = EventPublisher(
             redis_url=redis_url,
             streams={**DEFAULT_STREAMS},
             enabled=enabled,
         )
-        logger.info("EventPublisher initialized (enabled=%s, redis_url=%s)", enabled, redis_url)
+        logger.info(
+            "EventPublisher initialized (enabled=%s, redis_url=%s)", enabled, redis_url
+        )
     return _event_publisher
 
 
 # ============================================================================
 # Database Management
 # ============================================================================
+
 
 @lru_cache()
 def get_database_manager() -> DatabaseManager:
@@ -148,13 +160,15 @@ def get_database_manager() -> DatabaseManager:
             if hasattr(db_cfg, "url"):
                 database_url = db_cfg.url
             else:
-                    host = getattr(db_cfg, "host", "localhost")
-                    port = getattr(db_cfg, "port", 5432)
-                    name = getattr(db_cfg, "database", "livetranslate")
-                    user = getattr(db_cfg, "username", "postgres")
-                    password = getattr(db_cfg, "password", "")
-                    database_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
-        db_settings = DatabaseSettings(url=database_url) if database_url else DatabaseSettings()
+                host = getattr(db_cfg, "host", "localhost")
+                port = getattr(db_cfg, "port", 5432)
+                name = getattr(db_cfg, "database", "livetranslate")
+                user = getattr(db_cfg, "username", "postgres")
+                password = getattr(db_cfg, "password", "")
+                database_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
+        db_settings = (
+            DatabaseSettings(url=database_url) if database_url else DatabaseSettings()
+        )
         _database_manager = DatabaseManager(db_settings)
         logger.info("DatabaseManager initialized successfully")
     return _database_manager
@@ -176,8 +190,9 @@ def get_unified_repository() -> UnifiedBotSessionRepository:
 # Data Pipeline (Production-Ready Database Operations)
 # ============================================================================
 
+
 @lru_cache()
-def get_data_pipeline() -> Optional['TranscriptionDataPipeline']:
+def get_data_pipeline() -> Optional["TranscriptionDataPipeline"]:
     """
     Get singleton TranscriptionDataPipeline instance.
 
@@ -194,7 +209,9 @@ def get_data_pipeline() -> Optional['TranscriptionDataPipeline']:
     global _data_pipeline
 
     if not create_data_pipeline:
-        logger.warning("TranscriptionDataPipeline not available - pipeline module not imported")
+        logger.warning(
+            "TranscriptionDataPipeline not available - pipeline module not imported"
+        )
         return None
 
     if _data_pipeline is None:
@@ -203,7 +220,7 @@ def get_data_pipeline() -> Optional['TranscriptionDataPipeline']:
         # Get bot manager's database manager (already initialized with bot sessions)
         bot_manager = get_bot_manager()
 
-        if hasattr(bot_manager, 'database_manager') and bot_manager.database_manager:
+        if hasattr(bot_manager, "database_manager") and bot_manager.database_manager:
             logger.info("Using bot_manager's database_manager for pipeline")
             _data_pipeline = create_data_pipeline(
                 database_manager=bot_manager.database_manager,
@@ -211,9 +228,13 @@ def get_data_pipeline() -> Optional['TranscriptionDataPipeline']:
                 enable_speaker_tracking=True,
                 enable_segment_continuity=True,
             )
-            logger.info("TranscriptionDataPipeline initialized successfully with production fixes")
+            logger.info(
+                "TranscriptionDataPipeline initialized successfully with production fixes"
+            )
         else:
-            logger.warning("Bot manager database not available - pipeline not initialized")
+            logger.warning(
+                "Bot manager database not available - pipeline not initialized"
+            )
             return None
 
     return _data_pipeline
@@ -223,6 +244,7 @@ def get_data_pipeline() -> Optional['TranscriptionDataPipeline']:
 # Service Clients
 # ============================================================================
 
+
 @lru_cache()
 def get_audio_service_client() -> AudioServiceClient:
     """Get singleton AudioServiceClient instance."""
@@ -230,17 +252,18 @@ def get_audio_service_client() -> AudioServiceClient:
     if _audio_service_client is None:
         logger.info("Initializing AudioServiceClient singleton")
         config_manager = get_config_manager()
-        service_config = config_manager.get_service_config("audio-service") if hasattr(config_manager, 'get_service_config') else None
+        service_config = (
+            config_manager.get_service_config("audio-service")
+            if hasattr(config_manager, "get_service_config")
+            else None
+        )
         base_url = os.getenv("AUDIO_SERVICE_URL")
         if not base_url and service_config:
             base_url = service_config.url
         if not base_url:
             base_url = "http://localhost:5001"
         timeout = int(os.getenv("AUDIO_SERVICE_TIMEOUT", 30))
-        _audio_service_client = AudioServiceClient(
-            base_url=base_url,
-            timeout=timeout
-        )
+        _audio_service_client = AudioServiceClient(base_url=base_url, timeout=timeout)
         logger.info("AudioServiceClient initialized successfully")
     return _audio_service_client
 
@@ -252,7 +275,11 @@ def get_translation_service_client() -> TranslationServiceClient:
     if _translation_service_client is None:
         logger.info("Initializing TranslationServiceClient singleton")
         config_manager = get_config_manager()
-        service_config = config_manager.get_service_config("translation-service") if hasattr(config_manager, 'get_service_config') else None
+        service_config = (
+            config_manager.get_service_config("translation-service")
+            if hasattr(config_manager, "get_service_config")
+            else None
+        )
         base_url = os.getenv("TRANSLATION_SERVICE_URL")
         if not base_url and service_config:
             base_url = service_config.url
@@ -260,8 +287,7 @@ def get_translation_service_client() -> TranslationServiceClient:
             base_url = "http://localhost:5003"
         timeout = int(os.getenv("TRANSLATION_SERVICE_TIMEOUT", 30))
         _translation_service_client = TranslationServiceClient(
-            base_url=base_url,
-            timeout=timeout
+            base_url=base_url, timeout=timeout
         )
         logger.info("TranslationServiceClient initialized successfully")
     return _translation_service_client
@@ -270,6 +296,7 @@ def get_translation_service_client() -> TranslationServiceClient:
 # ============================================================================
 # Manager Components
 # ============================================================================
+
 
 @lru_cache()
 def get_websocket_manager() -> WebSocketManager:
@@ -292,14 +319,29 @@ def get_health_monitor() -> HealthMonitor:
         _health_monitor = HealthMonitor(settings=None)
 
         # Override service URLs from environment or defaults
-        audio_url = os.getenv("AUDIO_SERVICE_URL") or _health_monitor.service_configs.get("whisper", {}).get("url", "http://localhost:5001")
-        translation_url = os.getenv("TRANSLATION_SERVICE_URL") or _health_monitor.service_configs.get("translation", {}).get("url", "http://localhost:5003")
-        orchestration_url = os.getenv("ORCHESTRATION_URL") or _health_monitor.service_configs.get("orchestration", {}).get("url", "http://localhost:3000")
+        audio_url = os.getenv(
+            "AUDIO_SERVICE_URL"
+        ) or _health_monitor.service_configs.get("whisper", {}).get(
+            "url", "http://localhost:5001"
+        )
+        translation_url = os.getenv(
+            "TRANSLATION_SERVICE_URL"
+        ) or _health_monitor.service_configs.get("translation", {}).get(
+            "url", "http://localhost:5003"
+        )
+        orchestration_url = os.getenv(
+            "ORCHESTRATION_URL"
+        ) or _health_monitor.service_configs.get("orchestration", {}).get(
+            "url", "http://localhost:3000"
+        )
 
         _health_monitor.service_configs = {
             "whisper": {"url": audio_url, "health_endpoint": "/health"},
             "translation": {"url": translation_url, "health_endpoint": "/api/health"},
-            "orchestration": {"url": orchestration_url, "health_endpoint": "/api/health"},
+            "orchestration": {
+                "url": orchestration_url,
+                "health_endpoint": "/api/health",
+            },
         }
         logger.info("HealthMonitor initialized successfully")
     return _health_monitor
@@ -325,10 +367,10 @@ def get_bot_manager() -> BotManager:
                 max_concurrent_bots=getattr(bot_cfg, "max_concurrent_bots", 10),
                 bot_timeout=getattr(bot_cfg, "bot_timeout", 3600),
                 audio_storage_path=getattr(bot_cfg, "audio_storage_path", "/tmp/audio"),
-                virtual_webcam_enabled=getattr(
-                    bot_cfg, "virtual_webcam_enabled", True
+                virtual_webcam_enabled=getattr(bot_cfg, "virtual_webcam_enabled", True),
+                virtual_webcam_device=getattr(
+                    bot_cfg, "virtual_webcam_device", "/dev/video0"
                 ),
-                virtual_webcam_device=getattr(bot_cfg, "virtual_webcam_device", "/dev/video0"),
                 google_meet_credentials_path=getattr(
                     bot_cfg, "google_meet_credentials_path", ""
                 ),
@@ -347,6 +389,7 @@ def get_bot_manager() -> BotManager:
 # ============================================================================
 # Audio Processing Components
 # ============================================================================
+
 
 @lru_cache()
 def get_audio_coordinator() -> AudioCoordinator:
@@ -371,7 +414,9 @@ def get_audio_coordinator() -> AudioCoordinator:
                         name = database_cfg.get("database", "livetranslate")
                         user = database_cfg.get("username", "postgres")
                         password = database_cfg.get("password", "")
-                        database_url = f"postgresql://{user}:{password}@{host}:{port}/{name}"
+                        database_url = (
+                            f"postgresql://{user}:{password}@{host}:{port}/{name}"
+                        )
                 elif database_cfg and hasattr(database_cfg, "url"):
                     database_url = database_cfg.url
             else:
@@ -382,8 +427,16 @@ def get_audio_coordinator() -> AudioCoordinator:
             database_url = os.getenv("DATABASE_URL")
 
         # Resolve downstream service URLs (fallback to environment/defaults)
-        whisper_service_cfg = config_manager.get_service_config("audio-service") if hasattr(config_manager, "get_service_config") else None
-        translation_service_cfg = config_manager.get_service_config("translation-service") if hasattr(config_manager, "get_service_config") else None
+        whisper_service_cfg = (
+            config_manager.get_service_config("audio-service")
+            if hasattr(config_manager, "get_service_config")
+            else None
+        )
+        translation_service_cfg = (
+            config_manager.get_service_config("translation-service")
+            if hasattr(config_manager, "get_service_config")
+            else None
+        )
 
         whisper_url = os.getenv("AUDIO_SERVICE_URL")
         if not whisper_url and whisper_service_cfg:
@@ -412,7 +465,9 @@ def get_audio_coordinator() -> AudioCoordinator:
         audio_config_file = os.getenv("AUDIO_CONFIG_FILE")
 
         _audio_coordinator = create_audio_coordinator(
-            database_url=database_url if not data_pipeline else None,  # Use database_url only if pipeline not available
+            database_url=database_url
+            if not data_pipeline
+            else None,  # Use database_url only if pipeline not available
             service_urls=service_urls,
             config=None,
             max_concurrent_sessions=max_sessions,
@@ -423,9 +478,13 @@ def get_audio_coordinator() -> AudioCoordinator:
         )
 
         if data_pipeline:
-            logger.info("AudioCoordinator instance created with TranscriptionDataPipeline (production-ready)")
+            logger.info(
+                "AudioCoordinator instance created with TranscriptionDataPipeline (production-ready)"
+            )
         elif database_url:
-            logger.warning("AudioCoordinator instance created with legacy AudioDatabaseAdapter (deprecated)")
+            logger.warning(
+                "AudioCoordinator instance created with legacy AudioDatabaseAdapter (deprecated)"
+            )
         else:
             logger.info("AudioCoordinator instance created without persistence")
 
@@ -435,6 +494,7 @@ def get_audio_coordinator() -> AudioCoordinator:
 # ============================================================================
 # Utility Components
 # ============================================================================
+
 
 @lru_cache()
 def get_rate_limiter() -> RateLimiter:
@@ -459,7 +519,9 @@ def get_security_utils() -> SecurityUtils:
             secret = getattr(security_cfg, "secret_key", None)
             expiry_minutes = getattr(security_cfg, "access_token_expire_minutes", 60)
         else:
-            security_cfg = settings.get("security") if isinstance(settings, dict) else {}
+            security_cfg = (
+                settings.get("security") if isinstance(settings, dict) else {}
+            )
             secret = None
             expiry_minutes = 60
             if isinstance(security_cfg, dict):
@@ -488,9 +550,12 @@ async def rate_limit_api(
         remaining = await rate_limiter.get_remaining(client_id, endpoint, limit, window)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail={"message": "Too many requests", "retry_after": window, "remaining": remaining},
+            detail={
+                "message": "Too many requests",
+                "retry_after": window,
+                "remaining": remaining,
+            },
         )
-
 
 
 async def get_current_user() -> Optional[Dict[str, Any]]:
@@ -507,32 +572,32 @@ async def get_current_user() -> Optional[Dict[str, Any]]:
 # Lifecycle Management
 # ============================================================================
 
+
 async def startup_dependencies():
     """Initialize all dependencies on application startup."""
     logger.info("Starting dependency initialization...")
-    
+
     try:
         # Initialize core managers first
-        config = get_config_manager()
+        _ = get_config_manager()
         logger.info(" ConfigManager initialized")
-        
+
         # Initialize database components
-        db_manager = get_database_manager()
-        repository = get_unified_repository()
+        _ = get_database_manager()
+        _ = get_unified_repository()
         logger.info(" Database components initialized")
-        
+
         # Initialize service clients
-        audio_client = get_audio_service_client()
-        translation_client = get_translation_service_client()
+        _ = get_audio_service_client()
+        _ = get_translation_service_client()
         logger.info(" Service clients initialized")
-        
+
         # Initialize system managers
-        websocket_manager = get_websocket_manager()
-        health_monitor = get_health_monitor()
-        bot_manager = get_bot_manager()
+        _ = get_websocket_manager()
+        _ = get_health_monitor()
+        _ = get_bot_manager()
         logger.info(" System managers initialized")
-        
-        
+
         # Initialize data pipeline (must be before audio coordinator)
         data_pipeline = get_data_pipeline()
         if data_pipeline:
@@ -541,18 +606,18 @@ async def startup_dependencies():
             logger.warning(" Data pipeline not available (using legacy adapter)")
 
         # Initialize audio processing
-        audio_coordinator = get_audio_coordinator()
-        config_sync = get_config_sync_manager()
-        audio_config = get_audio_config_manager()
+        _ = get_audio_coordinator()
+        _ = get_config_sync_manager()
+        _ = get_audio_config_manager()
         logger.info(" Audio processing components initialized")
-        
+
         # Initialize utilities
-        rate_limiter = get_rate_limiter()
-        security_utils = get_security_utils()
+        _ = get_rate_limiter()
+        _ = get_security_utils()
         logger.info(" Utility components initialized")
-        
+
         logger.info("All dependencies initialized successfully")
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize dependencies: {e}")
         raise
@@ -561,25 +626,25 @@ async def startup_dependencies():
 async def shutdown_dependencies():
     """Clean shutdown of all dependencies."""
     logger.info("Starting dependency shutdown...")
-    
+
     try:
         # Shutdown in reverse order
         if _bot_manager and hasattr(_bot_manager, "stop"):
             await _bot_manager.stop()
             logger.info(" BotManager shutdown")
-            
+
         if _websocket_manager and hasattr(_websocket_manager, "stop"):
             await _websocket_manager.stop()
             logger.info(" WebSocketManager shutdown")
-            
+
         if _health_monitor and hasattr(_health_monitor, "stop"):
             await _health_monitor.stop()
             logger.info(" HealthMonitor shutdown")
-            
+
         if _audio_coordinator:
             await _audio_coordinator.shutdown()
             logger.info(" AudioCoordinator shutdown")
-            
+
         if _database_manager:
             close_fn = getattr(_database_manager, "close", None)
             if close_fn:
@@ -587,9 +652,9 @@ async def shutdown_dependencies():
                 if asyncio.iscoroutine(maybe_coro):
                     await maybe_coro
             logger.info(" DatabaseManager shutdown")
-            
+
         logger.info("All dependencies shutdown successfully")
-        
+
     except Exception as e:
         logger.error(f"Error during dependency shutdown: {e}")
 
@@ -598,18 +663,16 @@ async def shutdown_dependencies():
 # Health Checks
 # ============================================================================
 
+
 async def health_check_dependencies() -> Dict[str, Any]:
     """Check health of all dependency components."""
-    health_status = {
-        "status": "healthy",
-        "components": {},
-        "timestamp": None
-    }
-    
+    health_status = {"status": "healthy", "components": {}, "timestamp": None}
+
     try:
         from datetime import datetime
+
         health_status["timestamp"] = datetime.utcnow().isoformat()
-        
+
         # Check each component
         components = [
             ("config_manager", _config_manager),
@@ -619,7 +682,7 @@ async def health_check_dependencies() -> Dict[str, Any]:
             ("bot_manager", _bot_manager),
             ("audio_coordinator", _audio_coordinator),
         ]
-        
+
         for name, component in components:
             if component and hasattr(component, "health_check"):
                 try:
@@ -628,24 +691,27 @@ async def health_check_dependencies() -> Dict[str, Any]:
                 except Exception as e:
                     health_status["components"][name] = {
                         "status": "unhealthy",
-                        "error": str(e)
+                        "error": str(e),
                     }
                     health_status["status"] = "degraded"
             else:
                 health_status["components"][name] = {
-                    "status": "not_initialized" if component is None else "no_health_check"
+                    "status": "not_initialized"
+                    if component is None
+                    else "no_health_check"
                 }
-        
+
     except Exception as e:
         health_status["status"] = "error"
         health_status["error"] = str(e)
-    
+
     return health_status
 
 
 # ============================================================================
 # Dependency Reset (for testing)
 # ============================================================================
+
 
 def reset_dependencies():
     """Reset all singleton instances (for testing only)."""

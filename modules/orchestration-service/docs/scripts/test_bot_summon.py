@@ -25,8 +25,7 @@ import sys
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -35,9 +34,7 @@ class BotSummonTest:
     """Test harness for summoning and monitoring Google Meet bots"""
 
     def __init__(
-        self,
-        orchestration_url: str = "http://localhost:3000",
-        timeout: int = 300
+        self, orchestration_url: str = "http://localhost:3000", timeout: int = 300
     ):
         self.orchestration_url = orchestration_url
         self.timeout = timeout
@@ -55,15 +52,21 @@ class BotSummonTest:
 
             if response.status_code == 200:
                 health = response.json()
-                logger.info(f"✅ Orchestration service is healthy: {health.get('status', 'unknown')}")
+                logger.info(
+                    f"✅ Orchestration service is healthy: {health.get('status', 'unknown')}"
+                )
                 return True
             else:
-                logger.error(f"❌ Orchestration service returned status {response.status_code}")
+                logger.error(
+                    f"❌ Orchestration service returned status {response.status_code}"
+                )
                 return False
 
         except Exception as e:
             logger.error(f"❌ Failed to connect to orchestration service: {e}")
-            logger.error(f"   Make sure the service is running at {self.orchestration_url}")
+            logger.error(
+                f"   Make sure the service is running at {self.orchestration_url}"
+            )
             return False
 
     async def check_bot_manager_status(self) -> Dict[str, Any]:
@@ -98,7 +101,9 @@ class BotSummonTest:
                 logger.info(f"📋 Found {len(bots)} existing bot(s)")
 
                 for bot in bots:
-                    logger.info(f"   - {bot['connection_id']}: {bot['status']} (user: {bot['user_id']})")
+                    logger.info(
+                        f"   - {bot['connection_id']}: {bot['status']} (user: {bot['user_id']})"
+                    )
 
                 return bots
             else:
@@ -116,7 +121,7 @@ class BotSummonTest:
         user_id: str = "test-user-456",
         language: str = "en",
         task: str = "transcribe",
-        enable_virtual_webcam: bool = False
+        enable_virtual_webcam: bool = False,
     ) -> Optional[str]:
         """
         Start a bot to join Google Meet
@@ -139,15 +144,11 @@ class BotSummonTest:
                 "language": language,
                 "task": task,
                 "enable_virtual_webcam": enable_virtual_webcam,
-                "metadata": {
-                    "test": True,
-                    "test_script": "test_bot_summon.py"
-                }
+                "metadata": {"test": True, "test_script": "test_bot_summon.py"},
             }
 
             response = await self.client.post(
-                f"{self.orchestration_url}/api/bots/start",
-                json=request_data
+                f"{self.orchestration_url}/api/bots/start", json=request_data
             )
 
             if response.status_code == 200:
@@ -192,10 +193,7 @@ class BotSummonTest:
             return None
 
     async def monitor_bot(
-        self,
-        connection_id: str,
-        duration: int = 60,
-        poll_interval: int = 5
+        self, connection_id: str, duration: int = 60, poll_interval: int = 5
     ) -> bool:
         """
         Monitor bot for specified duration
@@ -217,13 +215,17 @@ class BotSummonTest:
 
                 # Log status changes
                 if current_status != last_status:
-                    logger.info(f"📊 Bot status changed: {last_status} → {current_status}")
+                    logger.info(
+                        f"📊 Bot status changed: {last_status} → {current_status}"
+                    )
 
                     if current_status == "active":
                         logger.info("✅ Bot is now ACTIVE in the meeting!")
                         reached_active = True
                     elif current_status == "failed":
-                        logger.error(f"❌ Bot failed: {status.get('error_message', 'Unknown error')}")
+                        logger.error(
+                            f"❌ Bot failed: {status.get('error_message', 'Unknown error')}"
+                        )
                         return False
                     elif current_status == "completed":
                         logger.info("✅ Bot completed successfully")
@@ -254,7 +256,7 @@ class BotSummonTest:
         logger.info(f"   Container ID: {status.get('container_id', 'N/A')}")
         logger.info(f"   Container Name: {status.get('container_name', 'N/A')}")
 
-        if status.get('error_message'):
+        if status.get("error_message"):
             logger.error(f"   Error: {status.get('error_message')}")
 
     async def stop_bot(self, connection_id: str, timeout: int = 30) -> bool:
@@ -264,7 +266,7 @@ class BotSummonTest:
 
             response = await self.client.post(
                 f"{self.orchestration_url}/api/bots/stop/{connection_id}",
-                json={"timeout": timeout}
+                json={"timeout": timeout},
             )
 
             if response.status_code == 200:
@@ -286,7 +288,7 @@ class BotSummonTest:
         monitor_duration: int = 60,
         auto_stop: bool = False,
         language: str = "en",
-        enable_webcam: bool = False
+        enable_webcam: bool = False,
     ) -> bool:
         """
         Run full bot summon test
@@ -314,7 +316,7 @@ class BotSummonTest:
             connection_id = await self.start_bot(
                 meeting_url=meeting_url,
                 language=language,
-                enable_virtual_webcam=enable_webcam
+                enable_virtual_webcam=enable_webcam,
             )
 
             if not connection_id:
@@ -324,8 +326,7 @@ class BotSummonTest:
             # Step 5: Monitor bot
             logger.info("")
             reached_active = await self.monitor_bot(
-                connection_id,
-                duration=monitor_duration
+                connection_id, duration=monitor_duration
             )
 
             # Step 6: Get final status
@@ -346,7 +347,9 @@ class BotSummonTest:
                 # Check final status
                 stopped_status = await self.get_bot_status(connection_id)
                 if stopped_status:
-                    logger.info(f"📊 Bot status after stop: {stopped_status.get('status')}")
+                    logger.info(
+                        f"📊 Bot status after stop: {stopped_status.get('status')}"
+                    )
 
             # Test result
             logger.info("")
@@ -354,8 +357,12 @@ class BotSummonTest:
             if reached_active:
                 logger.info("✅ TEST PASSED: Bot successfully joined Google Meet!")
             else:
-                logger.warning("⚠️  TEST PARTIAL: Bot started but did not reach active state")
-                logger.warning("   This may be normal if the meeting URL requires manual approval")
+                logger.warning(
+                    "⚠️  TEST PARTIAL: Bot started but did not reach active state"
+                )
+                logger.warning(
+                    "   This may be normal if the meeting URL requires manual approval"
+                )
             logger.info("=" * 70)
 
             return reached_active
@@ -373,33 +380,29 @@ async def main():
     parser.add_argument(
         "--meeting-url",
         required=True,
-        help="Google Meet URL to join (e.g., https://meet.google.com/abc-defg-hij)"
+        help="Google Meet URL to join (e.g., https://meet.google.com/abc-defg-hij)",
     )
     parser.add_argument(
         "--orchestration-url",
         default="http://localhost:3000",
-        help="Orchestration service URL (default: http://localhost:3000)"
+        help="Orchestration service URL (default: http://localhost:3000)",
     )
     parser.add_argument(
         "--monitor-time",
         type=int,
         default=60,
-        help="How long to monitor the bot in seconds (default: 60)"
+        help="How long to monitor the bot in seconds (default: 60)",
     )
     parser.add_argument(
         "--auto-stop",
         action="store_true",
-        help="Automatically stop the bot after monitoring"
+        help="Automatically stop the bot after monitoring",
     )
     parser.add_argument(
-        "--language",
-        default="en",
-        help="Transcription language (default: en)"
+        "--language", default="en", help="Transcription language (default: en)"
     )
     parser.add_argument(
-        "--enable-webcam",
-        action="store_true",
-        help="Enable virtual webcam output"
+        "--enable-webcam", action="store_true", help="Enable virtual webcam output"
     )
 
     args = parser.parse_args()
@@ -414,7 +417,7 @@ async def main():
             monitor_duration=args.monitor_time,
             auto_stop=args.auto_stop,
             language=args.language,
-            enable_webcam=args.enable_webcam
+            enable_webcam=args.enable_webcam,
         )
 
         # Exit with appropriate code

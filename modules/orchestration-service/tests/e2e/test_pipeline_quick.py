@@ -48,7 +48,9 @@ async def main():
     audio_storage = os.getenv("AUDIO_STORAGE_PATH", "/tmp/livetranslate_test/audio")
 
     print(f"\n📊 Configuration:")
-    print(f"  Database: {db_config['username']}@{db_config['host']}:{db_config['port']}/{db_config['database']}")
+    print(
+        f"  Database: {db_config['username']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
+    )
     print(f"  Audio Storage: {audio_storage}")
 
     # Create database manager
@@ -266,9 +268,15 @@ async def main():
 
         if comprehensive:
             print(f"  ✅ Comprehensive data retrieved")
-            print(f"     Audio files: {comprehensive['statistics']['audio_files_count']}")
-            print(f"     Transcripts: {comprehensive['statistics']['transcripts_count']}")
-            print(f"     Translations: {comprehensive['statistics']['translations_count']}")
+            print(
+                f"     Audio files: {comprehensive['statistics']['audio_files_count']}"
+            )
+            print(
+                f"     Transcripts: {comprehensive['statistics']['transcripts_count']}"
+            )
+            print(
+                f"     Translations: {comprehensive['statistics']['translations_count']}"
+            )
         else:
             raise Exception("Comprehensive data retrieval failed")
 
@@ -295,7 +303,9 @@ async def main():
     print(f"=" * 70)
     print(f"\nThe data pipeline is working correctly!")
     print(f"\nNext steps:")
-    print(f"  1. Run full integration tests: pytest tests/test_data_pipeline_integration.py")
+    print(
+        f"  1. Run full integration tests: pytest tests/test_data_pipeline_integration.py"
+    )
     print(f"  2. Register API router in your FastAPI app")
     print(f"  3. Test API endpoints with curl or Postman")
     print(f"  4. Integrate with Whisper and Translation services")

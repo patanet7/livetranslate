@@ -65,7 +65,7 @@ async def test_integration():
             bot_id=bot_id,
             user_id=user_id,
             team_id="livetranslate-test",
-            timezone="America/Los_Angeles"
+            timezone="America/Los_Angeles",
         )
 
         print(f"   Success: {response.success}")
@@ -116,7 +116,7 @@ async def test_integration():
         print(f"   Success: {leave_result.get('success')}")
         print(f"   Message: {leave_result.get('message')}")
 
-        if leave_result.get('success'):
+        if leave_result.get("success"):
             print(f"   ✅ Bot left meeting successfully!")
         else:
             print(f"   ℹ️  Note: {leave_result.get('error')}")
@@ -157,6 +157,7 @@ async def test_integration():
         print()
 
         import traceback
+
         traceback.print_exc()
 
         return False

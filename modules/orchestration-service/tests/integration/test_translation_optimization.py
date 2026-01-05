@@ -34,11 +34,12 @@ class TestMultiLanguageTranslation:
         """Test that /api/models/available endpoint returns model information"""
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{TRANSLATION_SERVICE_URL}/api/models/available",
-                timeout=10.0
+                f"{TRANSLATION_SERVICE_URL}/api/models/available", timeout=10.0
             )
 
-            assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+            assert response.status_code == 200, (
+                f"Expected 200, got {response.status_code}"
+            )
 
             data = response.json()
 
@@ -67,10 +68,7 @@ class TestMultiLanguageTranslation:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{TRANSLATION_SERVICE_URL}/api/translate/multi",
-                json={
-                    "text": "Hello",
-                    "target_languages": ["es", "fr"]
-                }
+                json={"text": "Hello", "target_languages": ["es", "fr"]},
             )
             # Should not return 404
             assert response.status_code != 404, "Multi-language endpoint should exist"
@@ -81,14 +79,15 @@ class TestMultiLanguageTranslation:
         async with httpx.AsyncClient() as client:
             # First, get available models
             models_response = await client.get(
-                f"{TRANSLATION_SERVICE_URL}/api/models/available",
-                timeout=10.0
+                f"{TRANSLATION_SERVICE_URL}/api/models/available", timeout=10.0
             )
 
             assert models_response.status_code == 200
             models_data = models_response.json()
 
-            available_models = [m["name"] for m in models_data["models"] if m["available"]]
+            available_models = [
+                m["name"] for m in models_data["models"] if m["available"]
+            ]
 
             if len(available_models) == 0:
                 pytest.skip("No translation models available")
@@ -103,12 +102,14 @@ class TestMultiLanguageTranslation:
                         "text": "Hello world",
                         "source_language": "en",
                         "target_languages": ["es", "fr"],
-                        "model": model_name
+                        "model": model_name,
                     },
-                    timeout=30.0
+                    timeout=30.0,
                 )
 
-                assert response.status_code == 200, f"Model {model_name} failed with {response.status_code}"
+                assert response.status_code == 200, (
+                    f"Model {model_name} failed with {response.status_code}"
+                )
 
                 data = response.json()
 
@@ -132,12 +133,14 @@ class TestMultiLanguageTranslation:
                 json={
                     "text": "Hello world",
                     "source_language": "en",
-                    "target_languages": ["es", "fr", "de"]
+                    "target_languages": ["es", "fr", "de"],
                 },
-                timeout=30.0
+                timeout=30.0,
             )
 
-            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            assert response.status_code == 200, (
+                f"Expected 200, got {response.status_code}: {response.text}"
+            )
 
             data = response.json()
 
@@ -154,9 +157,13 @@ class TestMultiLanguageTranslation:
 
             # Verify each translation has required fields
             for lang, translation_data in translations.items():
-                assert "translated_text" in translation_data, f"{lang} missing translated_text"
+                assert "translated_text" in translation_data, (
+                    f"{lang} missing translated_text"
+                )
                 assert "confidence" in translation_data, f"{lang} missing confidence"
-                assert len(translation_data["translated_text"]) > 0, f"{lang} translation is empty"
+                assert len(translation_data["translated_text"]) > 0, (
+                    f"{lang} translation is empty"
+                )
 
     @pytest.mark.asyncio
     async def test_multi_language_performance(self):
@@ -172,9 +179,9 @@ class TestMultiLanguageTranslation:
                 json={
                     "text": test_text,
                     "source_language": "en",
-                    "target_languages": target_languages
+                    "target_languages": target_languages,
                 },
-                timeout=30.0
+                timeout=30.0,
             )
             duration_multi = time.time() - start_multi
 
@@ -188,17 +195,20 @@ class TestMultiLanguageTranslation:
                     json={
                         "text": test_text,
                         "source_language": "en",
-                        "target_language": lang
+                        "target_language": lang,
                     },
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 assert response.status_code == 200
             duration_sequential = time.time() - start_sequential
 
             # Multi-language should be faster (or at least not much slower)
-            print(f"Multi-language: {duration_multi:.2f}s, Sequential: {duration_sequential:.2f}s")
-            assert duration_multi < duration_sequential * 1.2, \
+            print(
+                f"Multi-language: {duration_multi:.2f}s, Sequential: {duration_sequential:.2f}s"
+            )
+            assert duration_multi < duration_sequential * 1.2, (
                 f"Multi-language ({duration_multi:.2f}s) should be faster than sequential ({duration_sequential:.2f}s)"
+            )
 
 
 class TestTranslationCaching:
@@ -218,9 +228,9 @@ class TestTranslationCaching:
                 json={
                     "text": test_text,
                     "source_language": "en",
-                    "target_language": target_lang
+                    "target_language": target_lang,
                 },
-                timeout=30.0
+                timeout=30.0,
             )
             duration_first = time.time() - start_first
 
@@ -234,9 +244,9 @@ class TestTranslationCaching:
                 json={
                     "text": test_text,
                     "source_language": "en",
-                    "target_language": target_lang
+                    "target_language": target_lang,
                 },
-                timeout=30.0
+                timeout=30.0,
             )
             duration_second = time.time() - start_second
 
@@ -247,17 +257,19 @@ class TestTranslationCaching:
             assert first_result["translated_text"] == second_result["translated_text"]
 
             # Cached request should be significantly faster
-            print(f"First request: {duration_first:.3f}s, Second (cached): {duration_second:.3f}s")
-            assert duration_second < duration_first * 0.5, \
+            print(
+                f"First request: {duration_first:.3f}s, Second (cached): {duration_second:.3f}s"
+            )
+            assert duration_second < duration_first * 0.5, (
                 f"Cached request ({duration_second:.3f}s) should be at least 50% faster than first ({duration_first:.3f}s)"
+            )
 
     @pytest.mark.asyncio
     async def test_cache_statistics_endpoint(self):
         """Test that cache statistics are exposed"""
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{ORCHESTRATION_SERVICE_URL}/api/translation/cache/stats",
-                timeout=10.0
+                f"{ORCHESTRATION_SERVICE_URL}/api/translation/cache/stats", timeout=10.0
             )
 
             if response.status_code == 200:
@@ -285,14 +297,15 @@ class TestOrchestrationIntegration:
         client = TranslationServiceClient(base_url=TRANSLATION_SERVICE_URL)
 
         # Test translate_to_multiple_languages method exists
-        assert hasattr(client, 'translate_to_multiple_languages'), \
+        assert hasattr(client, "translate_to_multiple_languages"), (
             "TranslationServiceClient should have translate_to_multiple_languages method"
+        )
 
         # Test the method works
         result = await client.translate_to_multiple_languages(
             text="Hello world",
             source_language="en",
-            target_languages=["es", "fr", "de"]
+            target_languages=["es", "fr", "de"],
         )
 
         assert isinstance(result, dict)
@@ -311,22 +324,26 @@ class TestOrchestrationIntegration:
         # Create coordinator with cache enabled
         service_urls = {
             "whisper_service": "http://localhost:5001",
-            "translation_service": TRANSLATION_SERVICE_URL
+            "translation_service": TRANSLATION_SERVICE_URL,
         }
 
         audio_client = AudioServiceClient(base_url=service_urls["whisper_service"])
-        translation_client = TranslationServiceClient(base_url=service_urls["translation_service"])
+        translation_client = TranslationServiceClient(
+            base_url=service_urls["translation_service"]
+        )
 
         coordinator = create_audio_coordinator(
             database_url=None,  # Optional for test
             service_urls=service_urls,
             audio_client=audio_client,
-            translation_client=translation_client
+            translation_client=translation_client,
         )
 
         # Check if cache is initialized
-        if hasattr(coordinator, 'translation_cache'):
-            assert coordinator.translation_cache is not None, "Translation cache should be initialized"
+        if hasattr(coordinator, "translation_cache"):
+            assert coordinator.translation_cache is not None, (
+                "Translation cache should be initialized"
+            )
 
             # Test cache stats
             stats = coordinator.translation_cache.get_stats()
@@ -345,9 +362,15 @@ class TestEndToEndOptimization:
 
         async with httpx.AsyncClient() as client:
             # Check all services are healthy
-            whisper_health = await client.get("http://localhost:5001/health", timeout=5.0)
-            translation_health = await client.get(f"{TRANSLATION_SERVICE_URL}/api/health", timeout=5.0)
-            orchestration_health = await client.get(f"{ORCHESTRATION_SERVICE_URL}/api/health", timeout=5.0)
+            whisper_health = await client.get(
+                "http://localhost:5001/health", timeout=5.0
+            )
+            translation_health = await client.get(
+                f"{TRANSLATION_SERVICE_URL}/api/health", timeout=5.0
+            )
+            orchestration_health = await client.get(
+                f"{ORCHESTRATION_SERVICE_URL}/api/health", timeout=5.0
+            )
 
             if whisper_health.status_code != 200:
                 pytest.skip("Whisper service not available")
@@ -389,9 +412,9 @@ class TestEndToEndOptimization:
                     json={
                         "text": text,
                         "source_language": "en",
-                        "target_languages": target_languages
+                        "target_languages": target_languages,
                     },
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 tasks.append(task)
 
@@ -400,16 +423,23 @@ class TestEndToEndOptimization:
             duration = time.time() - start_time
 
             # Count successful responses
-            successful = sum(1 for r in responses if not isinstance(r, Exception) and r.status_code == 200)
+            successful = sum(
+                1
+                for r in responses
+                if not isinstance(r, Exception) and r.status_code == 200
+            )
 
             print(f"Processed {successful}/{len(test_texts)} texts in {duration:.2f}s")
-            print(f"Average: {duration/len(test_texts):.3f}s per text")
+            print(f"Average: {duration / len(test_texts):.3f}s per text")
 
-            assert successful == len(test_texts), f"Expected all requests to succeed, got {successful}/{len(test_texts)}"
+            assert successful == len(test_texts), (
+                f"Expected all requests to succeed, got {successful}/{len(test_texts)}"
+            )
 
             # Performance assertion: should handle at least 2 texts per second
-            assert duration < len(test_texts) * 0.5, \
+            assert duration < len(test_texts) * 0.5, (
                 f"Should process at least 2 texts/second, took {duration:.2f}s for {len(test_texts)} texts"
+            )
 
 
 # Pytest configuration

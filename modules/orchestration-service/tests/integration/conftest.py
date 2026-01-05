@@ -17,12 +17,8 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "integration: mark test as integration test (real backend, no mocks)"
     )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "websocket: mark test as WebSocket-related"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "websocket: mark test as WebSocket-related")
 
 
 @pytest.fixture(scope="function")
@@ -52,7 +48,9 @@ def verify_backend_running():
                 return
         except:
             if attempt < max_retries - 1:
-                print(f"⏳ Waiting for backend... (attempt {attempt + 1}/{max_retries})")
+                print(
+                    f"⏳ Waiting for backend... (attempt {attempt + 1}/{max_retries})"
+                )
                 time.sleep(retry_delay)
             else:
                 pytest.exit(

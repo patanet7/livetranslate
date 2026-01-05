@@ -19,7 +19,9 @@ router = APIRouter()
 
 class CreateSessionRequest(BaseModel):
     bot_session_id: str = Field(..., description="Parent bot session identifier")
-    source_type: SourceType = Field(SourceType.BOT_AUDIO, description="Audio source type")
+    source_type: SourceType = Field(
+        SourceType.BOT_AUDIO, description="Audio source type"
+    )
     target_languages: Optional[List[str]] = Field(
         default=None, description="Languages to request translations for"
     )
@@ -61,7 +63,9 @@ def _session_to_dict(session: AudioStreamingSession) -> Dict[str, Any]:
 
 
 @router.get("/health")
-async def audio_coordination_health(coordinator=Depends(get_audio_coordinator)) -> Dict[str, Any]:
+async def audio_coordination_health(
+    coordinator=Depends(get_audio_coordinator),
+) -> Dict[str, Any]:
     """Return current status of the audio coordination subsystem."""
     running = getattr(coordinator, "is_running", False)
     if running:
@@ -75,7 +79,9 @@ async def audio_coordination_health(coordinator=Depends(get_audio_coordinator)) 
 
 
 @router.get("/sessions")
-async def list_audio_sessions(coordinator=Depends(get_audio_coordinator)) -> Dict[str, Any]:
+async def list_audio_sessions(
+    coordinator=Depends(get_audio_coordinator),
+) -> Dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     sessions = coordinator.session_manager.get_all_sessions()
     return {"sessions": [_session_to_dict(session) for session in sessions]}
@@ -107,27 +113,37 @@ async def create_audio_session(
 
 
 @router.post("/sessions/{session_id}/start", response_model=StartStopResponse)
-async def start_audio_session(session_id: str, coordinator=Depends(get_audio_coordinator)) -> StartStopResponse:
+async def start_audio_session(
+    session_id: str, coordinator=Depends(get_audio_coordinator)
+) -> StartStopResponse:
     await _ensure_coordinator_ready(coordinator)
     success = await coordinator.start_audio_session(session_id)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
     return StartStopResponse(session_id=session_id, success=True)
 
 
 @router.post("/sessions/{session_id}/stop", response_model=StartStopResponse)
-async def stop_audio_session(session_id: str, coordinator=Depends(get_audio_coordinator)) -> StartStopResponse:
+async def stop_audio_session(
+    session_id: str, coordinator=Depends(get_audio_coordinator)
+) -> StartStopResponse:
     await _ensure_coordinator_ready(coordinator)
     details = await coordinator.stop_audio_session(session_id)
     return StartStopResponse(session_id=session_id, success=True, details=details)
 
 
 @router.get("/sessions/{session_id}")
-async def get_audio_session(session_id: str, coordinator=Depends(get_audio_coordinator)) -> Dict[str, Any]:
+async def get_audio_session(
+    session_id: str, coordinator=Depends(get_audio_coordinator)
+) -> Dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     session = coordinator.session_manager.get_session(session_id)
     if not session:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
+        )
     return _session_to_dict(session)
 
 
@@ -138,7 +154,9 @@ async def add_audio_chunk(
     coordinator=Depends(get_audio_coordinator),
 ) -> Dict[str, Any]:
     if session_id != chunk.session_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session ID mismatch")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Session ID mismatch"
+        )
 
     await _ensure_coordinator_ready(coordinator)
 
@@ -146,35 +164,50 @@ async def add_audio_chunk(
         audio_bytes = base64.b64decode(chunk.audio_base64)
         audio_array = np.frombuffer(audio_bytes, dtype=np.float32)
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid audio payload: {exc}") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid audio payload: {exc}",
+        ) from exc
 
     if audio_array.size == 0:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty audio payload")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Empty audio payload"
+        )
 
     success = await coordinator.add_audio_data(session_id, audio_array)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found or inactive")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found or inactive",
+        )
 
     return {"session_id": session_id, "samples_processed": int(audio_array.size)}
 
 
 @router.get("/statistics")
-async def get_audio_statistics(coordinator=Depends(get_audio_coordinator)) -> Dict[str, Any]:
+async def get_audio_statistics(
+    coordinator=Depends(get_audio_coordinator),
+) -> Dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     return coordinator.session_manager.get_session_statistics()
 
 
 @router.get("/config/schema")
-async def get_audio_config_schema(coordinator=Depends(get_audio_coordinator)) -> Dict[str, Any]:
+async def get_audio_config_schema(
+    coordinator=Depends(get_audio_coordinator),
+) -> Dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     return coordinator.get_audio_config_schema()
 
 
 @router.post("/config/presets/{preset_name}")
-async def apply_audio_preset(preset_name: str, coordinator=Depends(get_audio_coordinator)) -> Dict[str, Any]:
+async def apply_audio_preset(
+    preset_name: str, coordinator=Depends(get_audio_coordinator)
+) -> Dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     success = await coordinator.apply_audio_preset(preset_name)
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preset not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Preset not found"
+        )
     return {"preset": preset_name, "applied": True}
-

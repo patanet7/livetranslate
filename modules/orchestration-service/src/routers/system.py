@@ -9,11 +9,9 @@ FastAPI router for system-wide management endpoints including:
 """
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import asyncio
 import psutil
 import time
 from datetime import datetime
@@ -21,15 +19,10 @@ from datetime import datetime
 from dependencies import (
     get_health_monitor,
     get_websocket_manager,
-    get_audio_service_client,
-    get_translation_service_client,
 )
 from models.system import (
-    SystemStatus,
     ServiceHealth,
-    SystemResources,
     SystemMetrics,
-    ErrorResponse,
 )
 
 router = APIRouter()
@@ -93,7 +86,7 @@ async def get_system_health(
 
         # Ensure JSON serializable by converting datetime objects
         from datetime import datetime
-        
+
         def convert_datetime(obj):
             if isinstance(obj, datetime):
                 return obj.timestamp()
@@ -102,7 +95,7 @@ async def get_system_health(
             elif isinstance(obj, list):
                 return [convert_datetime(item) for item in obj]
             return obj
-        
+
         safe_health_data = convert_datetime(health_data)
         return safe_health_data
 
@@ -306,7 +299,7 @@ async def get_system_metrics(
 
         # Ensure JSON serializable by converting datetime objects
         from datetime import datetime
-        
+
         def convert_datetime(obj):
             if isinstance(obj, datetime):
                 return obj.timestamp()
@@ -315,7 +308,7 @@ async def get_system_metrics(
             elif isinstance(obj, list):
                 return [convert_datetime(item) for item in obj]
             return obj
-        
+
         safe_metrics = convert_datetime(metrics_data)
         return safe_metrics
 

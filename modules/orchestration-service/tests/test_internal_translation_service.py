@@ -67,7 +67,10 @@ async def test_client_uses_embedded_service_when_available(monkeypatch):
             return DummyTranslationResult()
 
     monkeypatch.setattr(
-        translation_module, "_TranslationRequest", DummyTranslationRequest, raising=False
+        translation_module,
+        "_TranslationRequest",
+        DummyTranslationRequest,
+        raising=False,
     )
     monkeypatch.setattr(
         translation_module, "_TranslationResult", DummyTranslationResult, raising=False
@@ -98,6 +101,7 @@ async def test_client_uses_embedded_service_when_available(monkeypatch):
 @pytest.mark.asyncio
 async def test_client_raises_when_no_backend(monkeypatch):
     service = get_unified_translation_service()
+
     async def no_service():
         return None
 

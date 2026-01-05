@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 class JoinRequest(BaseModel):
     """Request to join a meeting"""
+
     meetingUrl: str
     botName: str
     botId: str
@@ -25,6 +26,7 @@ class JoinRequest(BaseModel):
 
 class JoinResponse(BaseModel):
     """Response from join request"""
+
     success: bool
     botId: str
     correlationId: str
@@ -34,6 +36,7 @@ class JoinResponse(BaseModel):
 
 class BotStatusResponse(BaseModel):
     """Response from status check"""
+
     success: bool
     botId: Optional[str] = None
     state: Optional[str] = None
@@ -48,11 +51,7 @@ class MeetingBotServiceClient:
     bypasses Google's bot detection.
     """
 
-    def __init__(
-        self,
-        base_url: str = "http://localhost:5005",
-        timeout: float = 30.0
-    ):
+    def __init__(self, base_url: str = "http://localhost:5005", timeout: float = 30.0):
         """
         Initialize the meeting bot service client.
 
@@ -73,7 +72,7 @@ class MeetingBotServiceClient:
         team_id: str = "livetranslate-team",
         timezone: str = "UTC",
         event_id: Optional[str] = None,
-        bearer_token: Optional[str] = None
+        bearer_token: Optional[str] = None,
     ) -> JoinResponse:
         """
         Request a bot to join a Google Meet meeting.
@@ -102,22 +101,18 @@ class MeetingBotServiceClient:
             teamId=team_id,
             timezone=timezone,
             eventId=event_id,
-            bearerToken=bearer_token
+            bearerToken=bearer_token,
         )
 
         self.logger.info(
             f"Requesting bot to join meeting: {meeting_url}",
-            extra={
-                "bot_id": bot_id,
-                "bot_name": bot_name,
-                "user_id": user_id
-            }
+            extra={"bot_id": bot_id, "bot_name": bot_name, "user_id": user_id},
         )
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.base_url}/api/bot/join",
-                json=request.model_dump(exclude_none=True)
+                json=request.model_dump(exclude_none=True),
             )
             response.raise_for_status()
 
@@ -127,12 +122,11 @@ class MeetingBotServiceClient:
             if result.success:
                 self.logger.info(
                     f"Bot join request successful: {result.correlationId}",
-                    extra={"bot_id": bot_id}
+                    extra={"bot_id": bot_id},
                 )
             else:
                 self.logger.error(
-                    f"Bot join request failed: {result.error}",
-                    extra={"bot_id": bot_id}
+                    f"Bot join request failed: {result.error}", extra={"bot_id": bot_id}
                 )
 
             return result
@@ -151,9 +145,7 @@ class MeetingBotServiceClient:
             httpx.HTTPError: If the HTTP request fails
         """
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/api/bot/status/{bot_id}"
-            )
+            response = await client.get(f"{self.base_url}/api/bot/status/{bot_id}")
             response.raise_for_status()
 
             data = response.json()
@@ -175,22 +167,19 @@ class MeetingBotServiceClient:
         self.logger.info(f"Requesting bot to leave meeting", extra={"bot_id": bot_id})
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.base_url}/api/bot/leave/{bot_id}"
-            )
+            response = await client.post(f"{self.base_url}/api/bot/leave/{bot_id}")
             response.raise_for_status()
 
             data = response.json()
 
             if data.get("success"):
                 self.logger.info(
-                    "Bot leave request successful",
-                    extra={"bot_id": bot_id}
+                    "Bot leave request successful", extra={"bot_id": bot_id}
                 )
             else:
                 self.logger.error(
                     f"Bot leave request failed: {data.get('error')}",
-                    extra={"bot_id": bot_id}
+                    extra={"bot_id": bot_id},
                 )
 
             return data

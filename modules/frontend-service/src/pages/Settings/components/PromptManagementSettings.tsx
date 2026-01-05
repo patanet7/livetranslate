@@ -32,29 +32,22 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  IconButton,
-  Tooltip,
   LinearProgress,
-  Fade,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Save as SaveIcon,
-  Cancel as CancelIcon,
   Code as CodeIcon,
-  Assessment as AssessmentIcon,
-  Visibility as VisibilityIcon,
   Download as DownloadIcon,
   Upload as UploadIcon,
   ContentCopy as CopyIcon,
   PlayArrow as TestIcon,
-  History as HistoryIcon,
   TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
 import { useApiClient } from '@/hooks/useApiClient';
+import { TabPanel } from '@/components/ui';
 
 interface PromptTemplate {
   id: string;
@@ -96,32 +89,6 @@ interface PromptVariable {
   defaultValue?: string;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`prompt-management-tabpanel-${index}`}
-      aria-labelledby={`prompt-management-tab-${index}`}
-      {...other}
-    >
-      {value === index && (
-        <Fade in={true} timeout={300}>
-          <Box sx={{ py: 3 }}>
-            {children}
-          </Box>
-        </Fade>
-      )}
-    </div>
-  );
-}
 
 export const PromptManagementSettings: React.FC = () => {
   const { apiRequest } = useApiClient();
@@ -269,9 +236,9 @@ export const PromptManagementSettings: React.FC = () => {
   const loadPrompts = useCallback(async () => {
     try {
       // Try to load from API first
-      const response = await apiRequest('/api/settings/prompts');
-      if (response && response.prompts) {
-        setPrompts(response.prompts);
+      const response = await apiRequest('/api/settings/prompts') as any;
+      if (response && response.data?.prompts) {
+        setPrompts(response.data.prompts);
       } else {
         // Fall back to default prompts
         setPrompts(defaultPrompts);
@@ -280,14 +247,14 @@ export const PromptManagementSettings: React.FC = () => {
       console.error('Failed to load prompts, using defaults:', error);
       setPrompts(defaultPrompts);
     }
-  }, [apiRequest]);
+  }, [apiRequest, defaultPrompts]);
 
   const savePrompts = useCallback(async (updatedPrompts: PromptTemplate[]) => {
     setSaveInProgress(true);
     try {
       await apiRequest('/api/settings/prompts', {
         method: 'POST',
-        data: { prompts: updatedPrompts }
+        body: JSON.stringify({ prompts: updatedPrompts })
       });
       setPrompts(updatedPrompts);
     } catch (error) {
@@ -352,22 +319,22 @@ export const PromptManagementSettings: React.FC = () => {
 
   const handleTestPrompt = useCallback(async () => {
     if (!selectedPrompt) return;
-    
+
     setTestInProgress(true);
     try {
       const response = await apiRequest('/api/translation/test', {
         method: 'POST',
-        data: {
+        body: JSON.stringify({
           text: testText,
           source_language: testSourceLang,
           target_language: testTargetLang,
           prompt_id: selectedPrompt.id,
           prompt_template: selectedPrompt.template,
           system_message: selectedPrompt.systemMessage
-        }
-      });
-      
-      setTestResults(response);
+        })
+      }) as any;
+
+      setTestResults(response.data || response);
     } catch (error) {
       console.error('Prompt test failed:', error);
       setTestResults({ error: 'Test failed. Please check your configuration.' });
@@ -414,11 +381,6 @@ export const PromptManagementSettings: React.FC = () => {
       }
     };
     reader.readAsText(file);
-  }, []);
-
-  const getLanguageName = useCallback((code: string) => {
-    const lang = supportedLanguages.find(l => l.code === code);
-    return lang ? `${lang.flag} ${lang.name}` : code;
   }, []);
 
   const getCategoryConfig = useCallback((category: string) => {
@@ -470,7 +432,7 @@ export const PromptManagementSettings: React.FC = () => {
           </Tabs>
         </Box>
 
-        <TabPanel value={tabValue} index={0}>
+        <TabPanel value={tabValue} index={0} idPrefix="prompt-management">
           <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
             <Button
               variant="contained"
@@ -723,7 +685,7 @@ export const PromptManagementSettings: React.FC = () => {
           </Grid>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={1}>
+        <TabPanel value={tabValue} index={1} idPrefix="prompt-management">
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -791,7 +753,7 @@ export const PromptManagementSettings: React.FC = () => {
           </Card>
         </TabPanel>
 
-        <TabPanel value={tabValue} index={2}>
+        <TabPanel value={tabValue} index={2} idPrefix="prompt-management">
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>

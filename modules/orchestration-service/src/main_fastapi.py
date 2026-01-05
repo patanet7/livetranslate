@@ -49,76 +49,145 @@ import_logger.info("[SEARCH] Starting detailed import analysis...")
 routers_status = {}
 try:
     import_logger.info("[FOLDER] Importing router modules...")
-    
+
     import_logger.debug("Importing audio_router...")
     from routers.audio import router as audio_router
+
     import_logger.info("[OK] audio_router imported successfully")
-    routers_status['audio_router'] = {'status': 'success', 'routes': len(audio_router.routes) if hasattr(audio_router, 'routes') else 0}
-    
+    routers_status["audio_router"] = {
+        "status": "success",
+        "routes": len(audio_router.routes) if hasattr(audio_router, "routes") else 0,
+    }
+
     import_logger.debug("Importing audio_coordination_router...")
     from routers.audio_coordination import router as audio_coordination_router
+
     import_logger.info("[OK] audio_coordination_router imported successfully")
-    routers_status['audio_coordination_router'] = {'status': 'success', 'routes': len(audio_coordination_router.routes) if hasattr(audio_coordination_router, 'routes') else 0}
-    
+    routers_status["audio_coordination_router"] = {
+        "status": "success",
+        "routes": len(audio_coordination_router.routes)
+        if hasattr(audio_coordination_router, "routes")
+        else 0,
+    }
+
     import_logger.debug("Importing bot_router...")
     from routers.bot import router as bot_router
+
     import_logger.info("[OK] bot_router imported successfully")
-    routers_status['bot_router'] = {'status': 'success', 'routes': len(bot_router.routes) if hasattr(bot_router, 'routes') else 0}
+    routers_status["bot_router"] = {
+        "status": "success",
+        "routes": len(bot_router.routes) if hasattr(bot_router, "routes") else 0,
+    }
 
     import_logger.debug("Importing bot_management_router...")
     from routers.bot_management import router as bot_management_router
+
     import_logger.info("[OK] bot_management_router imported successfully")
-    routers_status['bot_management_router'] = {'status': 'success', 'routes': len(bot_management_router.routes) if hasattr(bot_management_router, 'routes') else 0}
+    routers_status["bot_management_router"] = {
+        "status": "success",
+        "routes": len(bot_management_router.routes)
+        if hasattr(bot_management_router, "routes")
+        else 0,
+    }
 
     import_logger.debug("Importing bot_callbacks_router...")
     from routers.bot_callbacks import router as bot_callbacks_router
+
     import_logger.info("[OK] bot_callbacks_router imported successfully")
-    routers_status['bot_callbacks_router'] = {'status': 'success', 'routes': len(bot_callbacks_router.routes) if hasattr(bot_callbacks_router, 'routes') else 0}
+    routers_status["bot_callbacks_router"] = {
+        "status": "success",
+        "routes": len(bot_callbacks_router.routes)
+        if hasattr(bot_callbacks_router, "routes")
+        else 0,
+    }
 
     import_logger.debug("Importing websocket_router...")
     from routers.websocket import router as websocket_router
+
     import_logger.info("[OK] websocket_router imported successfully")
-    routers_status['websocket_router'] = {'status': 'success', 'routes': len(websocket_router.routes) if hasattr(websocket_router, 'routes') else 0}
-    
+    routers_status["websocket_router"] = {
+        "status": "success",
+        "routes": len(websocket_router.routes)
+        if hasattr(websocket_router, "routes")
+        else 0,
+    }
+
     import_logger.debug("Importing system_router...")
     from routers.system import router as system_router
+
     import_logger.info("[OK] system_router imported successfully")
-    routers_status['system_router'] = {'status': 'success', 'routes': len(system_router.routes) if hasattr(system_router, 'routes') else 0}
-    
+    routers_status["system_router"] = {
+        "status": "success",
+        "routes": len(system_router.routes) if hasattr(system_router, "routes") else 0,
+    }
+
     import_logger.debug("Importing settings_router...")
     from routers.settings import router as settings_router
+
     import_logger.info("[OK] settings_router imported successfully")
-    routers_status['settings_router'] = {'status': 'success', 'routes': len(settings_router.routes) if hasattr(settings_router, 'routes') else 0}
-    
+    routers_status["settings_router"] = {
+        "status": "success",
+        "routes": len(settings_router.routes)
+        if hasattr(settings_router, "routes")
+        else 0,
+    }
+
     import_logger.debug("Importing translation_router...")
     from routers.translation import router as translation_router
+
     import_logger.info("[OK] translation_router imported successfully")
-    routers_status['translation_router'] = {'status': 'success', 'routes': len(translation_router.routes) if hasattr(translation_router, 'routes') else 0}
-    
+    routers_status["translation_router"] = {
+        "status": "success",
+        "routes": len(translation_router.routes)
+        if hasattr(translation_router, "routes")
+        else 0,
+    }
+
     import_logger.debug("Importing analytics_router...")
     from routers.analytics import router as analytics_router
+
     import_logger.info("[OK] analytics_router imported successfully")
-    routers_status['analytics_router'] = {'status': 'success', 'routes': len(analytics_router.routes) if hasattr(analytics_router, 'routes') else 0}
+    routers_status["analytics_router"] = {
+        "status": "success",
+        "routes": len(analytics_router.routes)
+        if hasattr(analytics_router, "routes")
+        else 0,
+    }
 
     import_logger.debug("Importing chat_history_router...")
     from routers.chat_history import router as chat_history_router
+
     import_logger.info("[OK] chat_history_router imported successfully")
-    routers_status['chat_history_router'] = {'status': 'success', 'routes': len(chat_history_router.routes) if hasattr(chat_history_router, 'routes') else 0}
+    routers_status["chat_history_router"] = {
+        "status": "success",
+        "routes": len(chat_history_router.routes)
+        if hasattr(chat_history_router, "routes")
+        else 0,
+    }
 
     # Import websocket_audio_router
     import_logger.debug("Importing websocket_audio_router...")
     from routers.websocket_audio import router as websocket_audio_router
+
     import_logger.info("[OK] websocket_audio_router imported successfully")
-    routers_status['websocket_audio_router'] = {'status': 'success', 'routes': len(websocket_audio_router.routes) if hasattr(websocket_audio_router, 'routes') else 0}
+    routers_status["websocket_audio_router"] = {
+        "status": "success",
+        "routes": len(websocket_audio_router.routes)
+        if hasattr(websocket_audio_router, "routes")
+        else 0,
+    }
 
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
-        import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
+        import_logger.info(
+            f"  {router_name}: {status['status']} ({status['routes']} routes)"
+        )
 
 except ImportError as e:
     import_logger.error(f"[ERROR] Router import failed: {e}")
-    routers_status[str(e)] = {'status': 'failed', 'error': str(e)}
+    routers_status[str(e)] = {"status": "failed", "error": str(e)}
     import traceback
+
     import_logger.error("Full traceback:")
     import_logger.error(traceback.format_exc())
 
@@ -126,6 +195,7 @@ except ImportError as e:
 try:
     import_logger.debug("Importing models...")
     from models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
+
     import_logger.info("[OK] Models imported successfully")
 except ImportError as e:
     import_logger.error(f"[ERROR] Models import failed: {e}")
@@ -140,6 +210,7 @@ try:
         get_bot_manager,
         get_database_manager,
     )
+
     import_logger.info("[OK] Dependencies imported successfully")
 except ImportError as e:
     import_logger.error(f"[ERROR] Dependencies import failed: {e}")
@@ -152,6 +223,7 @@ try:
         LoggingMiddleware,
         ErrorHandlingMiddleware,
     )
+
     import_logger.info("[OK] Middleware imported successfully")
 except ImportError as e:
     import_logger.error(f"[ERROR] Middleware import failed: {e}")
@@ -160,12 +232,15 @@ except ImportError as e:
 try:
     import_logger.debug("Importing config...")
     from config import get_settings
+
     import_logger.info("[OK] Config imported successfully")
 except ImportError as e:
     import_logger.error(f"[ERROR] Config import failed: {e}")
 
 import_logger.info("[TARGET] Import analysis complete - checking for any failures...")
-failed_imports = [name for name, status in routers_status.items() if status['status'] == 'failed']
+failed_imports = [
+    name for name, status in routers_status.items() if status["status"] == "failed"
+]
 if failed_imports:
     import_logger.error(f"[CRITICAL] Failed imports detected: {failed_imports}")
     sys.exit(1)
@@ -174,20 +249,22 @@ else:
 
 # Continue with enhanced logging already configured at top
 
+
 # Custom JSON encoder to handle datetime objects
 class CustomJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects"""
-    
+
     def default(self, obj):
         if isinstance(obj, datetime):
             # Convert datetime to ISO format string for JSON serialization
             return obj.isoformat()
         return super().default(obj)
 
+
 # Custom JSONResponse class that uses our datetime-aware encoder
 class DateTimeJSONResponse(JSONResponse):
     """Custom JSONResponse that properly handles datetime objects"""
-    
+
     def render(self, content: Any) -> bytes:
         return json.dumps(
             content,
@@ -197,6 +274,7 @@ class DateTimeJSONResponse(JSONResponse):
             indent=None,
             separators=(",", ":"),
         ).encode("utf-8")
+
 
 # Security
 security = HTTPBearer(auto_error=False)
@@ -281,22 +359,28 @@ if static_path.exists():
 # Mount orchestration static files (favicon, etc.)
 orchestration_static_path = Path(__file__).parent.parent / "static"
 if orchestration_static_path.exists():
-    app.mount("/static", StaticFiles(directory=str(orchestration_static_path)), name="orchestration_static")
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(orchestration_static_path)),
+        name="orchestration_static",
+    )
 
 # Enhanced router registration with conflict detection and resolution
 router_logger.info("[LINK] Starting enhanced router registration process...")
 
+
 def log_router_details(router_name, router, prefix):
     """Log detailed information about a router before registration"""
-    route_count = len(router.routes) if hasattr(router, 'routes') else 0
+    route_count = len(router.routes) if hasattr(router, "routes") else 0
     router_logger.info(f"[LIST] {router_name} details:")
     router_logger.info(f"  Prefix: {prefix}")
     router_logger.info(f"  Route count: {route_count}")
-    if hasattr(router, 'routes') and router.routes:
+    if hasattr(router, "routes") and router.routes:
         for i, route in enumerate(router.routes):
-            methods = getattr(route, 'methods', [])
-            path = getattr(route, 'path', 'unknown')
-            router_logger.debug(f"    Route {i+1}: {methods} {prefix}{path}")
+            methods = getattr(route, "methods", [])
+            path = getattr(route, "path", "unknown")
+            router_logger.debug(f"    Route {i + 1}: {methods} {prefix}{path}")
+
 
 def check_route_conflicts(new_prefix, new_router_name, existing_routes):
     """Check for potential route conflicts"""
@@ -305,8 +389,11 @@ def check_route_conflicts(new_prefix, new_router_name, existing_routes):
         if new_prefix == existing_prefix:
             conflicts.append(f"{existing_name} (same prefix: {existing_prefix})")
     if conflicts:
-        route_logger.warning(f"[WARNING] CONFLICT DETECTED: {new_router_name} conflicts with: {', '.join(conflicts)}")
+        route_logger.warning(
+            f"[WARNING] CONFLICT DETECTED: {new_router_name} conflicts with: {', '.join(conflicts)}"
+        )
     return conflicts
+
 
 # Track registered routers for conflict detection
 registered_routes = []
@@ -322,11 +409,19 @@ router_logger.info("[OK] audio_router registered successfully")
 # Register audio_coordination_router with different prefix to resolve conflict
 router_logger.info("[2] Registering audio_coordination_router...")
 audio_coord_prefix = "/api/audio-coordination"  # Different prefix to avoid conflict
-log_router_details("audio_coordination_router", audio_coordination_router, audio_coord_prefix)
-conflicts = check_route_conflicts(audio_coord_prefix, "audio_coordination_router", registered_routes)
-app.include_router(audio_coordination_router, prefix=audio_coord_prefix, tags=["Audio Coordination"])
+log_router_details(
+    "audio_coordination_router", audio_coordination_router, audio_coord_prefix
+)
+conflicts = check_route_conflicts(
+    audio_coord_prefix, "audio_coordination_router", registered_routes
+)
+app.include_router(
+    audio_coordination_router, prefix=audio_coord_prefix, tags=["Audio Coordination"]
+)
 registered_routes.append((audio_coord_prefix, "audio_coordination_router"))
-router_logger.info(f"[OK] audio_coordination_router registered successfully with prefix {audio_coord_prefix}")
+router_logger.info(
+    f"[OK] audio_coordination_router registered successfully with prefix {audio_coord_prefix}"
+)
 
 # Register bot_router
 router_logger.info("[3] Registering bot_router...")
@@ -338,24 +433,36 @@ router_logger.info("[OK] bot_router registered successfully")
 
 # Register bot_management_router (new Docker-based management)
 router_logger.info("[3a] Registering bot_management_router...")
-log_router_details("bot_management_router", bot_management_router, "/api")  # Add /api prefix
+log_router_details(
+    "bot_management_router", bot_management_router, "/api"
+)  # Add /api prefix
 conflicts = check_route_conflicts("/api", "bot_management_router", registered_routes)
-app.include_router(bot_management_router, prefix="/api")  # Add /api prefix so routes become /api/bots/*
+app.include_router(
+    bot_management_router, prefix="/api"
+)  # Add /api prefix so routes become /api/bots/*
 registered_routes.append(("/api", "bot_management_router"))
 router_logger.info("[OK] bot_management_router registered successfully")
 
 # Register bot_callbacks_router (internal callbacks from bot containers)
 router_logger.info("[3b] Registering bot_callbacks_router...")
-log_router_details("bot_callbacks_router", bot_callbacks_router, "/api")  # Add /api prefix
-conflicts = check_route_conflicts("/api/bots/internal", "bot_callbacks_router", registered_routes)
-app.include_router(bot_callbacks_router, prefix="/api")  # Add /api prefix so routes become /api/bots/internal/*
+log_router_details(
+    "bot_callbacks_router", bot_callbacks_router, "/api"
+)  # Add /api prefix
+conflicts = check_route_conflicts(
+    "/api/bots/internal", "bot_callbacks_router", registered_routes
+)
+app.include_router(
+    bot_callbacks_router, prefix="/api"
+)  # Add /api prefix so routes become /api/bots/internal/*
 registered_routes.append(("/api/bots/internal", "bot_callbacks_router"))
 router_logger.info("[OK] bot_callbacks_router registered successfully")
 
 # Register websocket_router
 router_logger.info("[4] Registering websocket_router...")
 log_router_details("websocket_router", websocket_router, "/api/websocket")
-conflicts = check_route_conflicts("/api/websocket", "websocket_router", registered_routes)
+conflicts = check_route_conflicts(
+    "/api/websocket", "websocket_router", registered_routes
+)
 app.include_router(websocket_router, prefix="/api/websocket", tags=["WebSocket"])
 registered_routes.append(("/api/websocket", "websocket_router"))
 router_logger.info("[OK] websocket_router registered successfully")
@@ -381,9 +488,14 @@ router_logger.info(" settings_router registered successfully")
 router_logger.info("[7] Registering pipeline_router...")
 try:
     from routers.pipeline import router as pipeline_router
+
     log_router_details("pipeline_router", pipeline_router, "/api/pipeline")
-    conflicts = check_route_conflicts("/api/pipeline", "pipeline_router", registered_routes)
-    app.include_router(pipeline_router, prefix="/api/pipeline", tags=["Pipeline Processing"])
+    conflicts = check_route_conflicts(
+        "/api/pipeline", "pipeline_router", registered_routes
+    )
+    app.include_router(
+        pipeline_router, prefix="/api/pipeline", tags=["Pipeline Processing"]
+    )
     registered_routes.append(("/api/pipeline", "pipeline_router"))
     router_logger.info("pipeline_router registered successfully")
 except Exception as e:
@@ -391,7 +503,9 @@ except Exception as e:
 
 router_logger.info("[8] Registering translation_router...")
 log_router_details("translation_router", translation_router, "/api/translation")
-conflicts = check_route_conflicts("/api/translation", "translation_router", registered_routes)
+conflicts = check_route_conflicts(
+    "/api/translation", "translation_router", registered_routes
+)
 app.include_router(translation_router, prefix="/api/translation", tags=["Translation"])
 registered_routes.append(("/api/translation", "translation_router"))
 router_logger.info(" translation_router registered successfully")
@@ -399,15 +513,21 @@ router_logger.info(" translation_router registered successfully")
 # Also include translation router on /api/translate for direct compatibility
 router_logger.info("[8] Registering translation_router (compatibility alias)...")
 log_router_details("translation_router", translation_router, "/api/translate")
-conflicts = check_route_conflicts("/api/translate", "translation_router_alias", registered_routes)
-app.include_router(translation_router, prefix="/api/translate", tags=["Translation Direct"])
+conflicts = check_route_conflicts(
+    "/api/translate", "translation_router_alias", registered_routes
+)
+app.include_router(
+    translation_router, prefix="/api/translate", tags=["Translation Direct"]
+)
 registered_routes.append(("/api/translate", "translation_router_alias"))
 router_logger.info(" translation_router compatibility alias registered successfully")
 
 # Register analytics_router
 router_logger.info("[9] Registering analytics_router...")
 log_router_details("analytics_router", analytics_router, "/api/analytics")
-conflicts = check_route_conflicts("/api/analytics", "analytics_router", registered_routes)
+conflicts = check_route_conflicts(
+    "/api/analytics", "analytics_router", registered_routes
+)
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
 registered_routes.append(("/api/analytics", "analytics_router"))
 router_logger.info(" analytics_router registered successfully")
@@ -423,8 +543,12 @@ router_logger.info(" chat_history_router registered successfully")
 # Register websocket_audio_router (Real-time audio streaming)
 router_logger.info("[12] Registering websocket_audio_router...")
 log_router_details("websocket_audio_router", websocket_audio_router, "/api/audio")
-conflicts = check_route_conflicts("/api/audio", "websocket_audio_router", registered_routes)
-app.include_router(websocket_audio_router, prefix="/api/audio", tags=["WebSocket Audio"])
+conflicts = check_route_conflicts(
+    "/api/audio", "websocket_audio_router", registered_routes
+)
+app.include_router(
+    websocket_audio_router, prefix="/api/audio", tags=["WebSocket Audio"]
+)
 registered_routes.append(("/api/audio", "websocket_audio_router"))
 router_logger.info(" websocket_audio_router registered successfully")
 
@@ -434,9 +558,15 @@ total_routes = 0
 for prefix, name in registered_routes:
     router_logger.info(f"   {name}: {prefix}")
     if name == "audio_router":
-        total_routes += len(audio_router.routes) if hasattr(audio_router, 'routes') else 0
+        total_routes += (
+            len(audio_router.routes) if hasattr(audio_router, "routes") else 0
+        )
     elif name == "audio_coordination_router":
-        total_routes += len(audio_coordination_router.routes) if hasattr(audio_coordination_router, 'routes') else 0
+        total_routes += (
+            len(audio_coordination_router.routes)
+            if hasattr(audio_coordination_router, "routes")
+            else 0
+        )
     # Add other routers as needed
 
 router_logger.info(f"Total routers registered: {len(registered_routes)}")
@@ -446,31 +576,36 @@ router_logger.info(" Router registration process completed successfully!")
 # Debug and diagnostic endpoints
 startup_logger.info(" Adding diagnostic endpoints for debugging...")
 
+
 @app.get("/debug/routes")
 async def get_debug_routes():
     """Debug endpoint to inspect all registered routes"""
     global registered_routes
-    
+
     routes_info = []
-    
+
     try:
         for route in app.routes:
             route_info = {
-                "path": getattr(route, 'path', 'unknown'),
-                "methods": list(getattr(route, 'methods', [])),
-                "name": getattr(route, 'name', 'unknown'),
-                "tags": getattr(route, 'tags', [])
+                "path": getattr(route, "path", "unknown"),
+                "methods": list(getattr(route, "methods", [])),
+                "name": getattr(route, "name", "unknown"),
+                "tags": getattr(route, "tags", []),
             }
             routes_info.append(route_info)
-        
-        route_logger.info(f"Debug routes endpoint called - returning {len(routes_info)} routes")
-        
+
+        route_logger.info(
+            f"Debug routes endpoint called - returning {len(routes_info)} routes"
+        )
+
         return {
             "total_routes": len(routes_info),
             "routes": routes_info,
             "registered_routers": registered_routes if registered_routes else [],
-            "registered_routers_count": len(registered_routes) if registered_routes else 0,
-            "timestamp": datetime.utcnow().isoformat()
+            "registered_routers_count": len(registered_routes)
+            if registered_routes
+            else 0,
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         route_logger.error(f"Error in debug/routes endpoint: {e}")
@@ -479,29 +614,34 @@ async def get_debug_routes():
             "total_routes": 0,
             "routes": [],
             "registered_routers": [],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
+
 
 @app.get("/debug/routers")
 async def get_debug_routers():
     """Debug endpoint to show router registration status"""
     global registered_routes, routers_status
-    
+
     try:
         router_status = {}
-        
+
         # Check each imported router
         for router_name, status in routers_status.items():
             router_status[router_name] = status
-        
-        route_logger.info(f"Debug routers endpoint called - returning {len(router_status)} router statuses")
-        
+
+        route_logger.info(
+            f"Debug routers endpoint called - returning {len(router_status)} router statuses"
+        )
+
         return {
             "router_count": len(router_status),
             "router_status": router_status,
             "registered_routes": registered_routes if registered_routes else [],
-            "registered_routes_count": len(registered_routes) if registered_routes else 0,
-            "timestamp": datetime.utcnow().isoformat()
+            "registered_routes_count": len(registered_routes)
+            if registered_routes
+            else 0,
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         route_logger.error(f"Error in debug/routers endpoint: {e}")
@@ -510,66 +650,82 @@ async def get_debug_routers():
             "router_count": 0,
             "router_status": {},
             "registered_routes": [],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
+
 
 @app.get("/debug/conflicts")
 async def get_debug_conflicts():
     """Debug endpoint to detect route conflicts"""
     # Use global registered_routes variable
     global registered_routes
-    
+
     conflicts = []
     prefixes_seen = {}
-    
+
     # Check if registered_routes is populated
     if not registered_routes:
-        route_logger.warning("registered_routes is empty - router registration may not have completed")
+        route_logger.warning(
+            "registered_routes is empty - router registration may not have completed"
+        )
         return {
             "conflict_count": 0,
             "conflicts": [],
             "all_prefixes": {},
             "resolution_status": "ERROR",
             "error": "No registered routes found - service may not be fully initialized",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-    
+
     # Check for conflicts
     for prefix, name in registered_routes:
         if prefix in prefixes_seen:
-            conflicts.append({
-                "prefix": prefix,
-                "conflicting_routers": [prefixes_seen[prefix], name],
-                "severity": "HIGH"
-            })
+            conflicts.append(
+                {
+                    "prefix": prefix,
+                    "conflicting_routers": [prefixes_seen[prefix], name],
+                    "severity": "HIGH",
+                }
+            )
         else:
             prefixes_seen[prefix] = name
-    
-    route_logger.info(f"Debug conflicts endpoint called - found {len(conflicts)} conflicts")
-    
+
+    route_logger.info(
+        f"Debug conflicts endpoint called - found {len(conflicts)} conflicts"
+    )
+
     return {
         "conflict_count": len(conflicts),
         "conflicts": conflicts,
         "all_prefixes": prefixes_seen,
         "resolution_status": "RESOLVED" if len(conflicts) == 0 else "NEEDS_ATTENTION",
         "registered_routes_count": len(registered_routes),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat(),
     }
+
 
 @app.get("/debug/imports")
 async def get_debug_imports():
     """Debug endpoint to show import status"""
     global routers_status
-    
+
     try:
         import_logger.info("Debug imports endpoint called")
-        
+
         return {
             "import_count": len(routers_status),
             "import_status": routers_status,
-            "successful_imports": [name for name, status in routers_status.items() if status['status'] == 'success'],
-            "failed_imports": [name for name, status in routers_status.items() if status['status'] == 'failed'],
-            "timestamp": datetime.utcnow().isoformat()
+            "successful_imports": [
+                name
+                for name, status in routers_status.items()
+                if status["status"] == "success"
+            ],
+            "failed_imports": [
+                name
+                for name, status in routers_status.items()
+                if status["status"] == "failed"
+            ],
+            "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:
         import_logger.error(f"Error in debug/imports endpoint: {e}")
@@ -579,30 +735,43 @@ async def get_debug_imports():
             "import_status": {},
             "successful_imports": [],
             "failed_imports": [],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
+
 
 @app.get("/debug/health")
 async def get_debug_health():
     """Debug endpoint for comprehensive health check"""
     global registered_routes, routers_status
-    
+
     try:
         health_info = {
             "service_status": "operational",
             "router_registration": "completed",
             "total_routes": len(app.routes),
             "total_routers": len(registered_routes) if registered_routes else 0,
-            "import_status": "success" if all(status['status'] == 'success' for status in routers_status.values()) else "partial_failure",
-            "conflicts_detected": len([1 for prefix in [p for p, n in registered_routes] if [p for p, n in registered_routes].count(prefix) > 1]) if registered_routes else 0,
+            "import_status": "success"
+            if all(status["status"] == "success" for status in routers_status.values())
+            else "partial_failure",
+            "conflicts_detected": len(
+                [
+                    1
+                    for prefix in [p for p, n in registered_routes]
+                    if [p for p, n in registered_routes].count(prefix) > 1
+                ]
+            )
+            if registered_routes
+            else 0,
             "debug_session_id": startup_logger.name,
             "registered_routes_available": bool(registered_routes),
             "routers_status_available": bool(routers_status),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
-        
-        startup_logger.info(f"Debug health endpoint called - service status: {health_info['service_status']}")
-        
+
+        startup_logger.info(
+            f"Debug health endpoint called - service status: {health_info['service_status']}"
+        )
+
         return health_info
     except Exception as e:
         startup_logger.error(f"Error in debug/health endpoint: {e}")
@@ -615,10 +784,12 @@ async def get_debug_health():
             "import_status": "failed",
             "conflicts_detected": 0,
             "debug_session_id": startup_logger.name,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
+
 startup_logger.info(" Diagnostic endpoints added successfully")
+
 
 # Add direct WebSocket endpoint for frontend compatibility
 @app.websocket("/ws")
@@ -746,6 +917,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                         # Get health data and send it
                         try:
                             from dependencies import get_health_monitor
+
                             health_monitor = get_health_monitor()
                             health_data = await health_monitor.get_system_health()
 
@@ -772,7 +944,9 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                         session_id = message_data.get("session_id", connection_id)
                         config = message_data.get("config", {})
 
-                        logger.info(f"Starting session for {session_id} with config: {config}")
+                        logger.info(
+                            f"Starting session for {session_id} with config: {config}"
+                        )
 
                         session_response = {
                             "type": "session_started",
@@ -841,10 +1015,12 @@ async def favicon():
         # Return empty response to prevent 404 logging
         return Response(content="", media_type="image/x-icon")
 
+
 @app.get("/admin")
 async def admin_redirect():
     """Redirect /admin to API docs"""
-    return HTMLResponse(content="""
+    return HTMLResponse(
+        content="""
     <html>
         <head><title>Admin - LiveTranslate</title></head>
         <body>
@@ -857,7 +1033,10 @@ async def admin_redirect():
             </ul>
         </body>
     </html>
-    """, status_code=200)
+    """,
+        status_code=200,
+    )
+
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_react_app():
@@ -996,7 +1175,7 @@ async def get_service_health(
         if not service_health:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Service '{service_name}' not found. Available services: {', '.join(service_map.keys())}"
+                detail=f"Service '{service_name}' not found. Available services: {', '.join(service_map.keys())}",
             )
 
         return {
@@ -1016,7 +1195,7 @@ async def get_service_health(
         logger.error(f"Service health check failed for '{service_name}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to check health for service '{service_name}': {str(e)}"
+            detail=f"Failed to check health for service '{service_name}': {str(e)}",
         )
 
 

@@ -21,7 +21,7 @@ from audio.config import (
     LUFSNormalizationMode,
     CompressionConfig,
     CompressionMode,
-    LimiterConfig
+    LimiterConfig,
 )
 
 
@@ -32,9 +32,12 @@ class TestEnhancedStagesAvailability:
         """Test that the stages_enhanced module can be imported."""
         try:
             from audio import stages_enhanced
-            assert hasattr(stages_enhanced, 'AVAILABLE_FEATURES')
-            assert hasattr(stages_enhanced, '__version__')
-            print(f"✓ stages_enhanced module imported (version {stages_enhanced.__version__})")
+
+            assert hasattr(stages_enhanced, "AVAILABLE_FEATURES")
+            assert hasattr(stages_enhanced, "__version__")
+            print(
+                f"✓ stages_enhanced module imported (version {stages_enhanced.__version__})"
+            )
         except ImportError as e:
             pytest.fail(f"Could not import stages_enhanced module: {e}")
 
@@ -44,9 +47,9 @@ class TestEnhancedStagesAvailability:
 
         features = stages_enhanced.AVAILABLE_FEATURES
         assert isinstance(features, dict)
-        assert 'lufs_normalization' in features
-        assert 'compression' in features
-        assert 'limiter' in features
+        assert "lufs_normalization" in features
+        assert "compression" in features
+        assert "limiter" in features
 
         print(f"\nAvailable enhanced features:")
         for feature, available in features.items():
@@ -73,13 +76,14 @@ class TestLUFSNormalizationEnhanced:
             enabled=True,
             mode=LUFSNormalizationMode.STREAMING,
             target_lufs=-14.0,
-            true_peak_limiting=True
+            true_peak_limiting=True,
         )
 
     def test_lufs_import(self):
         """Test that LUFS stage can be imported if library is available."""
         try:
             from audio.stages_enhanced import LUFSNormalizationStageEnhanced
+
             print("✓ LUFSNormalizationStageEnhanced imported successfully")
             return True
         except ImportError as e:
@@ -91,6 +95,7 @@ class TestLUFSNormalizationEnhanced:
         """Test that LUFS stage can be initialized."""
         try:
             from audio.stages_enhanced import LUFSNormalizationStageEnhanced
+
             stage = LUFSNormalizationStageEnhanced(lufs_config, sample_rate=16000)
             assert stage.stage_name == "lufs_normalization_enhanced"
             assert stage.is_initialized
@@ -102,6 +107,7 @@ class TestLUFSNormalizationEnhanced:
         """Test basic LUFS processing."""
         try:
             from audio.stages_enhanced import LUFSNormalizationStageEnhanced
+
             stage = LUFSNormalizationStageEnhanced(lufs_config, sample_rate=16000)
 
             # Process audio
@@ -111,8 +117,8 @@ class TestLUFSNormalizationEnhanced:
             assert result.stage_name == "lufs_normalization_enhanced"
             assert result.processed_audio is not None
             assert len(result.processed_audio) == len(sample_audio)
-            assert 'output_lufs' in result.metadata
-            assert 'gain_applied_db' in result.metadata
+            assert "output_lufs" in result.metadata
+            assert "gain_applied_db" in result.metadata
 
             print(f"✓ LUFS processing successful")
             print(f"  Input LUFS: {result.metadata['input_lufs']:.1f}")
@@ -145,13 +151,14 @@ class TestCompressionEnhanced:
             threshold=-20,
             ratio=3.0,
             attack_time=5.0,
-            release_time=100.0
+            release_time=100.0,
         )
 
     def test_compression_import(self):
         """Test that compression stage can be imported."""
         try:
             from audio.stages_enhanced import CompressionStageEnhanced
+
             print("✓ CompressionStageEnhanced imported successfully")
             return True
         except ImportError as e:
@@ -163,6 +170,7 @@ class TestCompressionEnhanced:
         """Test that compression stage can be initialized."""
         try:
             from audio.stages_enhanced import CompressionStageEnhanced
+
             stage = CompressionStageEnhanced(comp_config, sample_rate=16000)
             assert stage.stage_name == "compression_enhanced"
             assert stage.is_initialized
@@ -174,6 +182,7 @@ class TestCompressionEnhanced:
         """Test basic compression processing."""
         try:
             from audio.stages_enhanced import CompressionStageEnhanced
+
             stage = CompressionStageEnhanced(comp_config, sample_rate=16000)
 
             # Process audio
@@ -183,8 +192,8 @@ class TestCompressionEnhanced:
             assert result.stage_name == "compression_enhanced"
             assert result.processed_audio is not None
             assert len(result.processed_audio) == len(sample_audio)
-            assert 'gain_reduction_db' in result.metadata
-            assert 'threshold_db' in result.metadata
+            assert "gain_reduction_db" in result.metadata
+            assert "threshold_db" in result.metadata
 
             print(f"✓ Compression processing successful")
             print(f"  Gain reduction: {result.metadata['gain_reduction_db']:.1f} dB")
@@ -214,16 +223,14 @@ class TestLimiterEnhanced:
     def limiter_config(self):
         """Create default limiter config."""
         return LimiterConfig(
-            enabled=True,
-            threshold=-1.0,
-            release_time=50.0,
-            soft_clip=True
+            enabled=True, threshold=-1.0, release_time=50.0, soft_clip=True
         )
 
     def test_limiter_import(self):
         """Test that limiter stage can be imported."""
         try:
             from audio.stages_enhanced import LimiterStageEnhanced
+
             print("✓ LimiterStageEnhanced imported successfully")
             return True
         except ImportError as e:
@@ -235,6 +242,7 @@ class TestLimiterEnhanced:
         """Test that limiter stage can be initialized."""
         try:
             from audio.stages_enhanced import LimiterStageEnhanced
+
             stage = LimiterStageEnhanced(limiter_config, sample_rate=16000)
             assert stage.stage_name == "limiter_enhanced"
             assert stage.is_initialized
@@ -246,6 +254,7 @@ class TestLimiterEnhanced:
         """Test basic limiter processing."""
         try:
             from audio.stages_enhanced import LimiterStageEnhanced
+
             stage = LimiterStageEnhanced(limiter_config, sample_rate=16000)
 
             # Process audio
@@ -255,8 +264,8 @@ class TestLimiterEnhanced:
             assert result.stage_name == "limiter_enhanced"
             assert result.processed_audio is not None
             assert len(result.processed_audio) == len(sample_audio)
-            assert 'output_peak_db' in result.metadata
-            assert 'limiting_engaged' in result.metadata
+            assert "output_peak_db" in result.metadata
+            assert "limiting_engaged" in result.metadata
 
             print(f"✓ Limiter processing successful")
             print(f"  Output peak: {result.metadata['output_peak_db']:.1f} dB")
@@ -289,21 +298,20 @@ class TestIntegration:
             from audio.stages_enhanced import (
                 LUFSNormalizationStageEnhanced,
                 CompressionStageEnhanced,
-                LimiterStageEnhanced
+                LimiterStageEnhanced,
             )
 
             # Create stages
             lufs_stage = LUFSNormalizationStageEnhanced(
                 LUFSNormalizationConfig(enabled=True, target_lufs=-16.0),
-                sample_rate=16000
+                sample_rate=16000,
             )
             comp_stage = CompressionStageEnhanced(
                 CompressionConfig(enabled=True, threshold=-20, ratio=3.0),
-                sample_rate=16000
+                sample_rate=16000,
             )
             limiter_stage = LimiterStageEnhanced(
-                LimiterConfig(enabled=True, threshold=-1.0),
-                sample_rate=16000
+                LimiterConfig(enabled=True, threshold=-1.0), sample_rate=16000
             )
 
             # Process through pipeline
@@ -316,7 +324,9 @@ class TestIntegration:
             assert len(result3.processed_audio) == len(sample_audio)
 
             print("✓ Full pipeline processing successful")
-            print(f"  Total latency: {result1.processing_time_ms + result2.processing_time_ms + result3.processing_time_ms:.1f} ms")
+            print(
+                f"  Total latency: {result1.processing_time_ms + result2.processing_time_ms + result3.processing_time_ms:.1f} ms"
+            )
 
         except ImportError:
             pytest.skip("Enhanced libraries not installed")

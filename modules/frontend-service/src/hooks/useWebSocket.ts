@@ -23,24 +23,26 @@ import {
 } from '@/store/slices/botSlice';
 import { updateSystemMetrics } from '@/store/slices/systemSlice';
 import { addNotification } from '@/store/slices/uiSlice';
-import { 
-  WebSocketMessage, 
-  WebSocketEventType, 
+import {
+  WebSocketMessage,
+  WebSocketEventType,
   WebSocketEventData,
-  BotError 
+  BotError
 } from '@/types';
 import { useApiClient } from './useApiClient';
+import { useNotifications } from './useNotifications';
 
 export const useWebSocket = () => {
   const dispatch = useAppDispatch();
   const { connection, config } = useAppSelector(state => state.websocket);
+  const { notifySuccess, notifyError, notifyInfo, notifyWarning } = useNotifications();
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
   const hasShownInitialConnectionRef = useRef(false);
-  
+
   // API fallback
   const apiClient = useApiClient();
   const [useApiMode, setUseApiMode] = useState(false);
@@ -72,12 +74,7 @@ export const useWebSocket = () => {
           status: spawnData.status,
           data: spawnData
         }));
-        dispatch(addNotification({
-          type: 'success',
-          title: 'Bot Spawned',
-          message: `Bot for meeting ${spawnData.meetingId} has been spawned successfully`,
-          autoHide: true
-        }));
+        notifySuccess('Bot Spawned', `Bot for meeting ${spawnData.meetingId} has been spawned successfully`);
         break;
       }
 
@@ -130,24 +127,14 @@ export const useWebSocket = () => {
       case 'bot:error':
         if ('botId' in message.data && 'error' in message.data) {
           const errorData = message.data as { botId: string; error: BotError };
-          dispatch(addNotification({
-            type: 'error',
-            title: 'Bot Error',
-            message: `Bot ${errorData.botId}: ${errorData.error.errorMessage}`,
-            autoHide: false
-          }));
+          notifyError('Bot Error', `Bot ${errorData.botId}: ${errorData.error.errorMessage}`);
         }
         break;
 
       case 'bot:terminated':
         if ('botId' in message.data && 'reason' in message.data) {
           const terminatedData = message.data as { botId: string; reason: string };
-          dispatch(addNotification({
-            type: 'info',
-            title: 'Bot Terminated',
-            message: `Bot ${terminatedData.botId} has been terminated: ${terminatedData.reason}`,
-            autoHide: true
-          }));
+          notifyInfo('Bot Terminated', `Bot ${terminatedData.botId} has been terminated: ${terminatedData.reason}`);
         }
         break;
 
@@ -186,13 +173,14 @@ export const useWebSocket = () => {
       case 'system:alert':
         if ('level' in message.data && 'message' in message.data) {
           const alertData = message.data as { level: 'info' | 'warning' | 'error'; message: string; timestamp: number };
-          dispatch(addNotification({
-            type: alertData.level === 'error' ? 'error' : 
-                  alertData.level === 'warning' ? 'warning' : 'info',
-            title: 'System Alert',
-            message: alertData.message,
-            autoHide: alertData.level === 'info'
-          }));
+          const autoHide = alertData.level === 'info';
+          if (alertData.level === 'error') {
+            notifyError('System Alert', alertData.message, autoHide);
+          } else if (alertData.level === 'warning') {
+            notifyWarning('System Alert', alertData.message, autoHide);
+          } else {
+            notifyInfo('System Alert', alertData.message, autoHide);
+          }
         }
         break;
 
@@ -271,12 +259,7 @@ export const useWebSocket = () => {
     if (wsFailureCount >= enhancedConfig.maxReconnectAttempts) {
       console.log('WebSocket failed 3+ times, switching to API mode');
       setUseApiMode(true);
-      dispatch(addNotification({
-        type: 'warning',
-        title: 'WebSocket Unavailable',
-        message: 'Switched to REST API mode for better stability',
-        autoHide: true
-      }));
+      notifyWarning('WebSocket Unavailable', 'Switched to REST API mode for better stability');
       return;
     }
     
@@ -313,30 +296,13 @@ export const useWebSocket = () => {
           if (websocketRef.current?.readyState === WebSocket.OPEN) {
             sendMessage('connection:ping', { timestamp: Date.now() });
             dispatch(updateHeartbeat());
-            
-            // Request health updates every few heartbeats
-            if (Math.random() < 0.3) { // 30% chance each heartbeat
-              sendMessage('system:health_request', { timestamp: Date.now() });
-            }
           }
         }, enhancedConfig.heartbeatInterval);
-        
-        // Request initial health data
-        setTimeout(() => {
-          if (websocketRef.current?.readyState === WebSocket.OPEN) {
-            sendMessage('system:health_request', { timestamp: Date.now() });
-          }
-        }, 1000);
         
         // Only show initial connection notification once per session
         if (!hasShownInitialConnectionRef.current) {
           hasShownInitialConnectionRef.current = true;
-          dispatch(addNotification({
-            type: 'success',
-            title: 'WebSocket Connected',
-            message: 'Real-time communication established',
-            autoHide: true
-          }));
+          notifySuccess('WebSocket Connected', 'Real-time communication established');
         }
       };
 

@@ -52,42 +52,33 @@ class PipelineStreamingIntegrationTest:
                     "enabled": True,
                     "gain_in": 0.0,
                     "gain_out": 0.0,
-                    "parameters": {
-                        "aggressiveness": 2,
-                        "frame_duration": 30
-                    }
+                    "parameters": {"aggressiveness": 2, "frame_duration": 30},
                 },
                 "noise_reduction": {
                     "enabled": True,
                     "gain_in": 0.0,
                     "gain_out": 0.0,
-                    "parameters": {
-                        "strength": 0.5,
-                        "smoothing": 0.3
-                    }
+                    "parameters": {"strength": 0.5, "smoothing": 0.3},
                 },
                 "voice_enhancement": {
                     "enabled": True,
                     "gain_in": 0.0,
                     "gain_out": 0.0,
-                    "parameters": {
-                        "clarity": 0.5,
-                        "warmth": 0.5
-                    }
-                }
+                    "parameters": {"clarity": 0.5, "warmth": 0.5},
+                },
             },
             "connections": [
                 {
                     "id": "conn1",
                     "source_stage_id": "vad",
-                    "target_stage_id": "noise_reduction"
+                    "target_stage_id": "noise_reduction",
                 },
                 {
                     "id": "conn2",
                     "source_stage_id": "noise_reduction",
-                    "target_stage_id": "voice_enhancement"
-                }
-            ]
+                    "target_stage_id": "voice_enhancement",
+                },
+            ],
         }
 
         # Start real-time session
@@ -100,9 +91,9 @@ class PipelineStreamingIntegrationTest:
                     "sample_rate": 16000,
                     "channels": 1,
                     "buffer_size": 4096,
-                    "latency_target": 100
-                }
-            }
+                    "latency_target": 100,
+                },
+            },
         )
 
         assert response.status_code == 200, f"Failed to start session: {response.text}"
@@ -122,7 +113,12 @@ class PipelineStreamingIntegrationTest:
     @pytest.fixture(scope="function")
     def generate_test_audio(self):
         """Generate real audio samples (sine wave)"""
-        def _generate(duration_seconds: float = 1.0, frequency: int = 440, sample_rate: int = 16000) -> bytes:
+
+        def _generate(
+            duration_seconds: float = 1.0,
+            frequency: int = 440,
+            sample_rate: int = 16000,
+        ) -> bytes:
             """Generate sine wave audio"""
             num_samples = int(duration_seconds * sample_rate)
             t = np.linspace(0, duration_seconds, num_samples, False)
@@ -141,11 +137,14 @@ class PipelineStreamingIntegrationTest:
     @pytest.fixture(scope="function")
     def create_wav_file(self, tmp_path):
         """Create real WAV file"""
-        def _create(audio_data: bytes, sample_rate: int = 16000, channels: int = 1) -> Path:
+
+        def _create(
+            audio_data: bytes, sample_rate: int = 16000, channels: int = 1
+        ) -> Path:
             """Create WAV file from audio data"""
             wav_path = tmp_path / f"test_audio_{int(time.time())}.wav"
 
-            with wave.open(str(wav_path), 'wb') as wav_file:
+            with wave.open(str(wav_path), "wb") as wav_file:
                 wav_file.setnchannels(channels)
                 wav_file.setsampwidth(2)  # 16-bit
                 wav_file.setframerate(sample_rate)
@@ -201,7 +200,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
             assert message["type"] == "pong", "Should receive pong response"
 
-    async def test_websocket_audio_chunk_processing(self, pipeline_session, generate_test_audio):
+    async def test_websocket_audio_chunk_processing(
+        self, pipeline_session, generate_test_audio
+    ):
         """
         TEST: Audio chunks are processed through pipeline
         VERIFY: Send audio chunk, receive processed audio + metrics
@@ -210,16 +211,22 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
         ws_url = f"{WS_BASE_URL}/api/pipeline/realtime/{session_id}"
 
         # Generate real audio (100ms @ 16kHz = 1600 samples)
-        audio_data = generate_test_audio(duration_seconds=0.1, frequency=440, sample_rate=16000)
-        audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+        audio_data = generate_test_audio(
+            duration_seconds=0.1, frequency=440, sample_rate=16000
+        )
+        audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
         async with websockets.connect(ws_url) as websocket:
             # Send audio chunk
-            await websocket.send(json.dumps({
-                "type": "audio_chunk",
-                "data": audio_b64,
-                "timestamp": int(time.time() * 1000)
-            }))
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "audio_chunk",
+                        "data": audio_b64,
+                        "timestamp": int(time.time() * 1000),
+                    }
+                )
+            )
 
             # Collect responses
             responses = []
@@ -232,7 +239,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                     response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
                     message = json.loads(response)
                     responses.append(message)
-                    print(f"Received message type: {message.get('type')}, keys: {message.keys()}")
+                    print(
+                        f"Received message type: {message.get('type')}, keys: {message.keys()}"
+                    )
 
                     if message["type"] == "processed_audio":
                         processed_audio_received = True
@@ -242,7 +251,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
                         # Verify can decode
                         processed_bytes = base64.b64decode(message["audio"])
-                        assert len(processed_bytes) > 0, "Processed audio should have content"
+                        assert len(processed_bytes) > 0, (
+                            "Processed audio should have content"
+                        )
 
                     elif message["type"] == "metrics":
                         metrics_received = True
@@ -251,13 +262,23 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                         metrics = message["metrics"]
 
                         assert "total_latency" in metrics, "Should have total_latency"
-                        assert "chunks_processed" in metrics, "Should have chunks_processed"
-                        assert "average_latency" in metrics, "Should have average_latency"
-                        assert "quality_metrics" in metrics, "Should have quality_metrics"
+                        assert "chunks_processed" in metrics, (
+                            "Should have chunks_processed"
+                        )
+                        assert "average_latency" in metrics, (
+                            "Should have average_latency"
+                        )
+                        assert "quality_metrics" in metrics, (
+                            "Should have quality_metrics"
+                        )
 
                         # Verify latency is reasonable (<500ms)
-                        assert metrics["total_latency"] < 500, f"Latency too high: {metrics['total_latency']}ms"
-                        assert metrics["chunks_processed"] >= 1, "Should have processed at least 1 chunk"
+                        assert metrics["total_latency"] < 500, (
+                            f"Latency too high: {metrics['total_latency']}ms"
+                        )
+                        assert metrics["chunks_processed"] >= 1, (
+                            "Should have processed at least 1 chunk"
+                        )
 
                     # Break if we got both
                     if processed_audio_received and metrics_received:
@@ -269,7 +290,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
             assert processed_audio_received, "Should receive processed audio"
             assert metrics_received, "Should receive metrics"
 
-    async def test_multiple_chunks_streaming(self, pipeline_session, generate_test_audio):
+    async def test_multiple_chunks_streaming(
+        self, pipeline_session, generate_test_audio
+    ):
         """
         TEST: Multiple audio chunks can be streamed continuously
         VERIFY: Process 10 consecutive chunks, verify metrics increase
@@ -286,15 +309,21 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
             for i in range(num_chunks):
                 # Generate unique audio (different frequency each time)
                 frequency = 440 + (i * 50)  # 440Hz, 490Hz, 540Hz, etc.
-                audio_data = generate_test_audio(duration_seconds=0.1, frequency=frequency)
-                audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+                audio_data = generate_test_audio(
+                    duration_seconds=0.1, frequency=frequency
+                )
+                audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
                 # Send chunk
-                await websocket.send(json.dumps({
-                    "type": "audio_chunk",
-                    "data": audio_b64,
-                    "timestamp": int(time.time() * 1000)
-                }))
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "audio_chunk",
+                            "data": audio_b64,
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
+                )
                 chunks_sent += 1
 
                 # Receive response
@@ -313,8 +342,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                     break
 
             # Verify all chunks were processed
-            assert chunks_processed_count >= num_chunks, \
+            assert chunks_processed_count >= num_chunks, (
                 f"Expected {num_chunks} chunks processed, got {chunks_processed_count}"
+            )
 
     async def test_live_parameter_update(self, pipeline_session):
         """
@@ -326,22 +356,27 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
         async with websockets.connect(ws_url) as websocket:
             # Update noise reduction strength
-            await websocket.send(json.dumps({
-                "type": "update_stage",
-                "stage_id": "noise_reduction",
-                "parameters": {
-                    "strength": 0.9,
-                    "smoothing": 0.5
-                }
-            }))
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "update_stage",
+                        "stage_id": "noise_reduction",
+                        "parameters": {"strength": 0.9, "smoothing": 0.5},
+                    }
+                )
+            )
 
             # Wait for confirmation
             response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
             message = json.loads(response)
 
-            assert message["type"] == "config_updated", "Should receive config update confirmation"
+            assert message["type"] == "config_updated", (
+                "Should receive config update confirmation"
+            )
             assert message["success"] is True, "Update should succeed"
-            assert message["stage_id"] == "noise_reduction", "Should confirm correct stage"
+            assert message["stage_id"] == "noise_reduction", (
+                "Should confirm correct stage"
+            )
 
     async def test_error_handling_invalid_chunk(self, pipeline_session):
         """
@@ -353,11 +388,15 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
         async with websockets.connect(ws_url) as websocket:
             # Send invalid base64 data
-            await websocket.send(json.dumps({
-                "type": "audio_chunk",
-                "data": "invalid_base64_!!!",
-                "timestamp": int(time.time() * 1000)
-            }))
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "audio_chunk",
+                        "data": "invalid_base64_!!!",
+                        "timestamp": int(time.time() * 1000),
+                    }
+                )
+            )
 
             # Should receive error
             response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
@@ -385,15 +424,15 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                             "enabled": True,
                             "gain_in": 0.0,
                             "gain_out": 0.0,
-                            "parameters": {"aggressiveness": 2}
+                            "parameters": {"aggressiveness": 2},
                         }
                     },
-                    "connections": []
+                    "connections": [],
                 }
 
                 response = await http_client.post(
                     "/api/pipeline/realtime/start",
-                    json={"pipeline_config": pipeline_config}
+                    json={"pipeline_config": pipeline_config},
                 )
                 assert response.status_code == 200
                 sessions.append(response.json())
@@ -406,14 +445,18 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
             # Send audio to all sessions
             audio_data = generate_test_audio(duration_seconds=0.1)
-            audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+            audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
             for ws in websockets_list:
-                await ws.send(json.dumps({
-                    "type": "audio_chunk",
-                    "data": audio_b64,
-                    "timestamp": int(time.time() * 1000)
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "audio_chunk",
+                            "data": audio_b64,
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
+                )
 
             # Verify all receive responses
             responses_received = [False] * 3
@@ -439,7 +482,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
             for session in sessions:
                 try:
-                    await http_client.delete(f"/api/pipeline/realtime/{session['session_id']}")
+                    await http_client.delete(
+                        f"/api/pipeline/realtime/{session['session_id']}"
+                    )
                 except:
                     pass
 
@@ -449,7 +494,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
     """Test batch pipeline processing"""
 
-    async def test_batch_pipeline_execution(self, http_client, generate_test_audio, create_wav_file):
+    async def test_batch_pipeline_execution(
+        self, http_client, generate_test_audio, create_wav_file
+    ):
         """
         TEST: Complete pipeline execution in batch mode
         VERIFY: Upload audio, process through pipeline, receive results
@@ -459,7 +506,7 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
         wav_file = create_wav_file(audio_data)
 
         # Read file
-        with open(wav_file, 'rb') as f:
+        with open(wav_file, "rb") as f:
             audio_content = f.read()
 
         # Pipeline configuration
@@ -471,22 +518,22 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
                     "enabled": True,
                     "gain_in": 0.0,
                     "gain_out": 0.0,
-                    "parameters": {"strength": 0.7}
+                    "parameters": {"strength": 0.7},
                 },
                 "lufs_normalization": {
                     "enabled": True,
                     "gain_in": 0.0,
                     "gain_out": 0.0,
-                    "parameters": {"target_lufs": -23.0}
-                }
+                    "parameters": {"target_lufs": -23.0},
+                },
             },
             "connections": [
                 {
                     "id": "conn1",
                     "source_stage_id": "noise_reduction",
-                    "target_stage_id": "lufs_normalization"
+                    "target_stage_id": "lufs_normalization",
                 }
-            ]
+            ],
         }
 
         # Process
@@ -495,11 +542,9 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
             data={
                 "pipeline_config": json.dumps(pipeline_config),
                 "processing_mode": "batch",
-                "output_format": "wav"
+                "output_format": "wav",
             },
-            files={
-                "audio_file": ("test.wav", audio_content, "audio/wav")
-            }
+            files={"audio_file": ("test.wav", audio_content, "audio/wav")},
         )
 
         assert response.status_code == 200, f"Processing failed: {response.text}"
@@ -508,7 +553,9 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
         # Verify response structure
         assert result["success"] is True, "Processing should succeed"
         assert "processed_audio" in result, "Should return processed audio"
-        assert result["processed_audio"] is not None, "Processed audio should not be None"
+        assert result["processed_audio"] is not None, (
+            "Processed audio should not be None"
+        )
         assert "metrics" in result, "Should return metrics"
 
         # Verify metrics
@@ -520,7 +567,9 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
         # Verify can decode processed audio
         processed_audio_bytes = base64.b64decode(result["processed_audio"])
         assert len(processed_audio_bytes) > 0, "Processed audio should have content"
-        assert len(processed_audio_bytes) > 1000, "Processed audio should be substantial"
+        assert len(processed_audio_bytes) > 1000, (
+            "Processed audio should be substantial"
+        )
 
     async def test_single_stage_processing(self, http_client, generate_test_audio):
         """
@@ -529,27 +578,23 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
         """
         # Generate test audio
         audio_data = generate_test_audio(duration_seconds=0.5, frequency=1000)
-        audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+        audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
         # Process through single stage
-        stage_config = {
-            "strength": 0.5,
-            "smoothing": 0.3
-        }
+        stage_config = {"strength": 0.5, "smoothing": 0.3}
 
         response = await http_client.post(
             "/api/audio/process/stage/noise_reduction",
-            data={
-                "audio_data": audio_b64,
-                "stage_config": json.dumps(stage_config)
-            }
+            data={"audio_data": audio_b64, "stage_config": json.dumps(stage_config)},
         )
 
         assert response.status_code == 200, f"Stage processing failed: {response.text}"
         result = response.json()
 
         # Verify result
-        assert "data" in result or "processed_audio" in result, "Should return processed audio"
+        assert "data" in result or "processed_audio" in result, (
+            "Should return processed audio"
+        )
 
 
 @pytest.mark.asyncio
@@ -571,16 +616,20 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
             for _ in range(20):  # Test 20 chunks
                 # Generate audio
                 audio_data = generate_test_audio(duration_seconds=0.1)
-                audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+                audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
                 # Measure round-trip time
                 start_time = time.perf_counter()
 
-                await websocket.send(json.dumps({
-                    "type": "audio_chunk",
-                    "data": audio_b64,
-                    "timestamp": int(time.time() * 1000)
-                }))
+                await websocket.send(
+                    json.dumps(
+                        {
+                            "type": "audio_chunk",
+                            "data": audio_b64,
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
+                )
 
                 # Wait for response
                 try:
@@ -609,7 +658,9 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
         assert avg_latency < 150, f"Average latency too high: {avg_latency:.1f}ms"
         assert p95_latency < 300, f"P95 latency too high: {p95_latency:.1f}ms"
 
-    async def test_sustained_streaming_1_minute(self, pipeline_session, generate_test_audio):
+    async def test_sustained_streaming_1_minute(
+        self, pipeline_session, generate_test_audio
+    ):
         """
         TEST: System can handle sustained streaming for 1 minute
         VERIFY: No crashes, consistent performance
@@ -632,18 +683,24 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
                 try:
                     # Send chunk
                     audio_data = generate_test_audio(duration_seconds=chunk_interval)
-                    audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+                    audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
-                    await websocket.send(json.dumps({
-                        "type": "audio_chunk",
-                        "data": audio_b64,
-                        "timestamp": int(time.time() * 1000)
-                    }))
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "audio_chunk",
+                                "data": audio_b64,
+                                "timestamp": int(time.time() * 1000),
+                            }
+                        )
+                    )
                     chunks_sent += 1
 
                     # Try to receive (non-blocking)
                     try:
-                        response = await asyncio.wait_for(websocket.recv(), timeout=0.01)
+                        response = await asyncio.wait_for(
+                            websocket.recv(), timeout=0.01
+                        )
                         message = json.loads(response)
                         if message["type"] == "metrics":
                             chunks_processed = message["metrics"]["chunks_processed"]
@@ -662,11 +719,13 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
         print(f"   Chunks sent: {chunks_sent}")
         print(f"   Chunks processed: {chunks_processed}")
         print(f"   Errors: {errors}")
-        print(f"   Success rate: {(chunks_processed/chunks_sent*100):.1f}%")
+        print(f"   Success rate: {(chunks_processed / chunks_sent * 100):.1f}%")
 
         # Assertions
         assert chunks_sent >= expected_chunks * 0.9, "Should send most expected chunks"
-        assert chunks_processed >= chunks_sent * 0.8, "Should process at least 80% of chunks"
+        assert chunks_processed >= chunks_sent * 0.8, (
+            "Should process at least 80% of chunks"
+        )
         assert errors < chunks_sent * 0.05, "Error rate should be under 5%"
 
 

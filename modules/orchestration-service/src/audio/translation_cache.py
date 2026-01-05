@@ -42,7 +42,7 @@ class TranslationResultCache:
         redis_url: str,
         ttl: int = 3600,
         db_adapter: Optional[Any] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ):
         """
         Initialize translation cache.
@@ -66,7 +66,9 @@ class TranslationResultCache:
         # Redis connection (lazy initialization)
         self._redis: Optional[redis.Redis] = None
 
-        logger.info(f"Translation cache initialized: TTL={ttl}s, DB tracking={'enabled' if db_adapter else 'disabled'}")
+        logger.info(
+            f"Translation cache initialized: TTL={ttl}s, DB tracking={'enabled' if db_adapter else 'disabled'}"
+        )
 
     async def _get_redis(self) -> redis.Redis:
         """Get or create Redis connection."""
@@ -74,7 +76,7 @@ class TranslationResultCache:
             self._redis = redis.from_url(
                 self.redis_url,
                 encoding="utf-8",
-                decode_responses=False  # We'll handle JSON encoding/decoding
+                decode_responses=False,  # We'll handle JSON encoding/decoding
             )
         return self._redis
 
@@ -132,10 +134,7 @@ class TranslationResultCache:
     # =========================================================================
 
     async def get(
-        self,
-        text: str,
-        source_lang: str,
-        target_lang: str
+        self, text: str, source_lang: str, target_lang: str
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached translation if exists.
@@ -174,8 +173,7 @@ class TranslationResultCache:
                 if self.db_adapter and self.session_id:
                     asyncio.create_task(
                         self._record_cache_hit(
-                            text, source_lang, target_lang,
-                            latency_ms, result
+                            text, source_lang, target_lang, latency_ms, result
                         )
                     )
 
@@ -212,7 +210,7 @@ class TranslationResultCache:
         target_lang: str,
         translation: str,
         confidence: float,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ):
         """
         Store translation in cache.
@@ -231,16 +229,12 @@ class TranslationResultCache:
             "translated_text": translation,
             "confidence": confidence,
             "metadata": metadata or {},
-            "cached_at": datetime.utcnow().isoformat()
+            "cached_at": datetime.utcnow().isoformat(),
         }
 
         try:
             r = await self._get_redis()
-            await r.setex(
-                cache_key,
-                self.ttl,
-                json.dumps(cache_data)
-            )
+            await r.setex(cache_key, self.ttl, json.dumps(cache_data))
 
             logger.debug(
                 f"Cache SET: {source_lang}→{target_lang} "
@@ -255,10 +249,7 @@ class TranslationResultCache:
     # =========================================================================
 
     async def get_multi(
-        self,
-        text: str,
-        source_lang: str,
-        target_langs: List[str]
+        self, text: str, source_lang: str, target_langs: List[str]
     ) -> Dict[str, Optional[Dict[str, Any]]]:
         """
         Get cached translations for multiple target languages at once.
@@ -274,8 +265,7 @@ class TranslationResultCache:
             Dict mapping language code to translation result (or None if not cached)
         """
         cache_keys = [
-            self._generate_cache_key(text, source_lang, lang)
-            for lang in target_langs
+            self._generate_cache_key(text, source_lang, lang) for lang in target_langs
         ]
 
         start_time = time.time()
@@ -323,10 +313,7 @@ class TranslationResultCache:
             return {lang: None for lang in target_langs}
 
     async def set_multi(
-        self,
-        text: str,
-        source_lang: str,
-        translations: Dict[str, Dict[str, Any]]
+        self, text: str, source_lang: str, translations: Dict[str, Dict[str, Any]]
     ):
         """
         Store multiple translations at once.
@@ -352,7 +339,7 @@ class TranslationResultCache:
                     "translated_text": translation_data.get("translated_text", ""),
                     "confidence": translation_data.get("confidence", 0.0),
                     "metadata": translation_data.get("metadata", {}),
-                    "cached_at": datetime.utcnow().isoformat()
+                    "cached_at": datetime.utcnow().isoformat(),
                 }
 
                 pipe.setex(cache_key, self.ttl, json.dumps(cache_data))
@@ -389,7 +376,7 @@ class TranslationResultCache:
             "total_requests": total,
             "hit_rate": hit_rate,
             "cache_hit_rate": hit_rate,  # Alias
-            "efficiency_gain": f"{hit_rate * 100:.1f}%"
+            "efficiency_gain": f"{hit_rate * 100:.1f}%",
         }
 
     def reset_stats(self):
@@ -408,7 +395,7 @@ class TranslationResultCache:
         source_lang: str,
         target_lang: str,
         latency_ms: float,
-        result: Dict[str, Any]
+        result: Dict[str, Any],
     ):
         """Record cache hit in database for analytics."""
         if not self.db_adapter or not self.session_id:
@@ -426,17 +413,13 @@ class TranslationResultCache:
                 model_used=result.get("metadata", {}).get("model_used"),
                 translation_service=result.get("metadata", {}).get("backend_used"),
                 confidence=result.get("confidence"),
-                quality=result.get("metadata", {}).get("quality_score")
+                quality=result.get("metadata", {}).get("quality_score"),
             )
         except Exception as e:
             logger.error(f"Failed to record cache hit in database: {e}")
 
     async def _record_cache_miss(
-        self,
-        text: str,
-        source_lang: str,
-        target_lang: str,
-        latency_ms: float
+        self, text: str, source_lang: str, target_lang: str, latency_ms: float
     ):
         """Record cache miss in database for analytics."""
         if not self.db_adapter or not self.session_id:
@@ -450,7 +433,7 @@ class TranslationResultCache:
                 target_language=target_lang,
                 was_cache_hit=False,
                 cache_latency_ms=latency_ms,
-                translation_latency_ms=None  # Will be filled when translation completes
+                translation_latency_ms=None,  # Will be filled when translation completes
             )
         except Exception as e:
             logger.error(f"Failed to record cache miss in database: {e}")
@@ -459,12 +442,7 @@ class TranslationResultCache:
     # UTILITY METHODS
     # =========================================================================
 
-    async def invalidate(
-        self,
-        text: str,
-        source_lang: str,
-        target_lang: str
-    ) -> bool:
+    async def invalidate(self, text: str, source_lang: str, target_lang: str) -> bool:
         """
         Invalidate (delete) a cached translation.
 
@@ -492,10 +470,7 @@ class TranslationResultCache:
             logger.error(f"Cache invalidate error: {e}")
             return False
 
-    async def invalidate_pattern(
-        self,
-        pattern: str
-    ) -> int:
+    async def invalidate_pattern(self, pattern: str) -> int:
         """
         Invalidate all keys matching a pattern.
 

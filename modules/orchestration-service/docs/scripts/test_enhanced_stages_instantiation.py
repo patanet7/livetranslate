@@ -5,9 +5,11 @@ This test actually loads the libraries and creates stage instances.
 """
 
 import sys
-sys.path.insert(0, 'src')
+
+sys.path.insert(0, "src")
 
 import numpy as np
+
 
 def test_lufs_stage():
     """Test LUFS normalization stage."""
@@ -24,7 +26,7 @@ def test_lufs_stage():
             enabled=True,
             mode=LUFSNormalizationMode.STREAMING,
             target_lufs=-14.0,
-            true_peak_limiting=True
+            true_peak_limiting=True,
         )
 
         # Create stage
@@ -45,6 +47,7 @@ def test_lufs_stage():
     except Exception as e:
         print(f"✗ LUFS stage failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -66,7 +69,7 @@ def test_compression_stage():
             threshold=-20.0,
             ratio=3.0,
             attack_time=5.0,
-            release_time=100.0
+            release_time=100.0,
         )
 
         # Create stage
@@ -87,6 +90,7 @@ def test_compression_stage():
     except Exception as e:
         print(f"✗ Compression stage failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -103,10 +107,7 @@ def test_limiter_stage():
 
         # Create config
         config = LimiterConfig(
-            enabled=True,
-            threshold=-1.0,
-            release_time=50.0,
-            soft_clip=True
+            enabled=True, threshold=-1.0, release_time=50.0, soft_clip=True
         )
 
         # Create stage
@@ -129,6 +130,7 @@ def test_limiter_stage():
     except Exception as e:
         print(f"✗ Limiter stage failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

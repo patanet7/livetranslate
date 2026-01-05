@@ -69,7 +69,11 @@ class TranslationServiceClient:
         self.config_manager = config_manager
         resolved_base_url = base_url or self._get_base_url()
         # Treat special markers as request to use embedded mode exclusively.
-        if resolved_base_url and resolved_base_url.lower() in {"embedded", "internal", "local"}:
+        if resolved_base_url and resolved_base_url.lower() in {
+            "embedded",
+            "internal",
+            "local",
+        }:
             resolved_base_url = None
 
         self.base_url = resolved_base_url
@@ -95,7 +99,9 @@ class TranslationServiceClient:
     def _remote_enabled(self) -> bool:
         return bool(self.base_url and self.base_url.startswith("http"))
 
-    async def _translate_embedded(self, request: TranslationRequest) -> Optional[TranslationResponse]:
+    async def _translate_embedded(
+        self, request: TranslationRequest
+    ) -> Optional[TranslationResponse]:
         if not self._embedded_enabled():
             return None
         try:
@@ -109,7 +115,9 @@ class TranslationServiceClient:
             )
             return TranslationResponse(
                 translated_text=result["translated_text"],
-                source_language=result.get("source_language", request.source_language or "auto"),
+                source_language=result.get(
+                    "source_language", request.source_language or "auto"
+                ),
                 target_language=result.get("target_language", request.target_language),
                 confidence=float(result.get("confidence", 0.0)),
                 processing_time=float(result.get("processing_time", 0.0)),
@@ -174,7 +182,9 @@ class TranslationServiceClient:
                 "status": "unavailable",
                 "service": "translation",
                 "mode": "embedded" if self._embedded_enabled() else "disabled",
-                "error": self._embedded_service.last_error if self._embedded_enabled() else "no backend configured",
+                "error": self._embedded_service.last_error
+                if self._embedded_enabled()
+                else "no backend configured",
             }
         try:
             session = await self._get_session()
@@ -439,7 +449,9 @@ class TranslationServiceClient:
             return await self._embedded_service.start_session(session_config)
 
         if not self._remote_enabled():
-            raise UnifiedTranslationError("Realtime translation session not available without backend")
+            raise UnifiedTranslationError(
+                "Realtime translation session not available without backend"
+            )
         try:
             session = await self._get_session()
 
@@ -584,7 +596,7 @@ class TranslationServiceClient:
         source_language: Optional[str],
         target_languages: List[str],
         quality: str = "balanced",
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ) -> Dict[str, TranslationResponse]:
         """
         OPTIMIZED: Translate text to multiple target languages using batched endpoint.
@@ -611,7 +623,9 @@ class TranslationServiceClient:
         # Use optimized multi-language endpoint
         if self._remote_enabled():
             try:
-                logger.info(f"Using optimized multi-language endpoint for {len(target_languages)} languages: {target_languages}")
+                logger.info(
+                    f"Using optimized multi-language endpoint for {len(target_languages)} languages: {target_languages}"
+                )
 
                 session = await self._get_session()
 
@@ -619,7 +633,7 @@ class TranslationServiceClient:
                     "text": text,
                     "source_language": source_language or "auto",
                     "target_languages": target_languages,
-                    "quality": quality
+                    "quality": quality,
                 }
 
                 # Add optional parameters
@@ -631,8 +645,7 @@ class TranslationServiceClient:
                 logger.info(f"Multi-language request: model={model}, quality={quality}")
 
                 response = await session.post(
-                    f"{self.base_url}/api/translate/multi",
-                    json=request_data
+                    f"{self.base_url}/api/translate/multi", json=request_data
                 )
 
                 if response.status == 200:
@@ -642,39 +655,57 @@ class TranslationServiceClient:
                     result_dict = {}
                     for lang, translation_data in data["translations"].items():
                         if "error" in translation_data:
-                            logger.error(f"Translation to {lang} had error: {translation_data['error']}")
+                            logger.error(
+                                f"Translation to {lang} had error: {translation_data['error']}"
+                            )
                             result_dict[lang] = TranslationResponse(
                                 translated_text=f"Error: {translation_data['error']}",
-                                source_language=data.get("source_language", source_language or "auto"),
+                                source_language=data.get(
+                                    "source_language", source_language or "auto"
+                                ),
                                 target_language=lang,
                                 confidence=0.0,
-                                processing_time=translation_data.get("processing_time", 0.0),
+                                processing_time=translation_data.get(
+                                    "processing_time", 0.0
+                                ),
                                 model_used="error",
-                                backend_used="error"
+                                backend_used="error",
                             )
                         else:
                             result_dict[lang] = TranslationResponse(
                                 translated_text=translation_data["translated_text"],
-                                source_language=data.get("source_language", source_language or "auto"),
+                                source_language=data.get(
+                                    "source_language", source_language or "auto"
+                                ),
                                 target_language=lang,
                                 confidence=translation_data.get("confidence", 0.0),
-                                processing_time=translation_data.get("processing_time", 0.0),
-                                model_used=translation_data.get("backend_used", "unknown"),
+                                processing_time=translation_data.get(
+                                    "processing_time", 0.0
+                                ),
+                                model_used=translation_data.get(
+                                    "backend_used", "unknown"
+                                ),
                                 backend_used=translation_data.get("backend_used"),
                                 session_id=session_id,
-                                timestamp=data.get("timestamp")
+                                timestamp=data.get("timestamp"),
                             )
 
-                    logger.info(f"Multi-language translation successful: {len(result_dict)}/{len(target_languages)} languages")
+                    logger.info(
+                        f"Multi-language translation successful: {len(result_dict)}/{len(target_languages)} languages"
+                    )
                     return result_dict
 
                 else:
                     error_text = await response.text()
-                    logger.error(f"Multi-language endpoint failed with status {response.status}: {error_text}")
+                    logger.error(
+                        f"Multi-language endpoint failed with status {response.status}: {error_text}"
+                    )
                     # Fall through to fallback
 
             except Exception as e:
-                logger.warning(f"Multi-language endpoint failed: {e}, falling back to individual translations")
+                logger.warning(
+                    f"Multi-language endpoint failed: {e}, falling back to individual translations"
+                )
 
         # Fallback: individual translations
         return await self._fallback_individual_translations(
@@ -686,7 +717,7 @@ class TranslationServiceClient:
         text: str,
         source_language: Optional[str],
         target_languages: List[str],
-        session_id: Optional[str]
+        session_id: Optional[str],
     ) -> Dict[str, TranslationResponse]:
         """Translate to multiple languages using embedded service (parallel)"""
         if not self._embedded_enabled():
@@ -694,13 +725,17 @@ class TranslationServiceClient:
 
         try:
             # Parallel translation to all languages
-            async def translate_one(target_lang: str) -> tuple[str, TranslationResponse]:
-                result = await self._translate_embedded(TranslationRequest(
-                    text=text,
-                    source_language=source_language,
-                    target_language=target_lang,
-                    session_id=session_id
-                ))
+            async def translate_one(
+                target_lang: str,
+            ) -> tuple[str, TranslationResponse]:
+                result = await self._translate_embedded(
+                    TranslationRequest(
+                        text=text,
+                        source_language=source_language,
+                        target_language=target_lang,
+                        session_id=session_id,
+                    )
+                )
                 return target_lang, result
 
             # Use semaphore to limit concurrency
@@ -712,7 +747,7 @@ class TranslationServiceClient:
 
             results = await asyncio.gather(
                 *[translate_with_limit(lang) for lang in target_languages],
-                return_exceptions=True
+                return_exceptions=True,
             )
 
             # Collect results
@@ -737,7 +772,7 @@ class TranslationServiceClient:
         source_language: Optional[str],
         target_languages: List[str],
         quality: str,
-        session_id: Optional[str]
+        session_id: Optional[str],
     ) -> Dict[str, TranslationResponse]:
         """Fallback: translate each language individually"""
         logger.warning("Using fallback: individual translation requests")
@@ -750,13 +785,15 @@ class TranslationServiceClient:
                     source_language=source_language,
                     target_language=target_lang,
                     quality=quality,
-                    session_id=session_id
+                    session_id=session_id,
                 )
                 translation_result = await self.translate(request)
                 result_dict[target_lang] = translation_result
 
             except Exception as individual_error:
-                logger.error(f"Individual translation to {target_lang} failed: {individual_error}")
+                logger.error(
+                    f"Individual translation to {target_lang} failed: {individual_error}"
+                )
                 result_dict[target_lang] = TranslationResponse(
                     translated_text=f"Translation failed: {str(individual_error)}",
                     source_language=source_language or "auto",
@@ -764,7 +801,7 @@ class TranslationServiceClient:
                     confidence=0.0,
                     processing_time=0.0,
                     model_used="error",
-                    backend_used="error"
+                    backend_used="error",
                 )
 
         return result_dict
@@ -778,11 +815,15 @@ class TranslationServiceClient:
                 "total_translations": stats.get("total_translations", 0),
                 "successful_translations": stats.get("successful_translations", 0),
                 "failed_translations": stats.get("failed_translations", 0),
-                "average_processing_time_ms": stats.get("average_processing_time", 0) * 1000,
-                "translation_quality_score": stats.get("translation_quality_score", 0.0),
+                "average_processing_time_ms": stats.get("average_processing_time", 0)
+                * 1000,
+                "translation_quality_score": stats.get(
+                    "translation_quality_score", 0.0
+                ),
                 "language_pairs_processed": stats.get("language_pairs_processed", {}),
                 "model_performance": stats.get("model_performance", {}),
-                "error_rate": stats.get("failed_translations", 0) / max(1, stats.get("total_translations", 1)),
+                "error_rate": stats.get("failed_translations", 0)
+                / max(1, stats.get("total_translations", 1)),
                 "throughput_per_minute": stats.get("throughput_per_minute", 0),
                 "active_sessions": stats.get("active_sessions", 0),
                 "supported_languages": len(supported_languages),

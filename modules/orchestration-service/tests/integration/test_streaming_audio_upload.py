@@ -39,7 +39,7 @@ def test_audio_wav(test_audio_data):
     """Generate test audio as WAV bytes."""
     audio, sample_rate = test_audio_data
     buffer = io.BytesIO()
-    sf.write(buffer, audio, sample_rate, format='WAV')
+    sf.write(buffer, audio, sample_rate, format="WAV")
     buffer.seek(0)
     return buffer.read()
 
@@ -55,16 +55,11 @@ def mock_whisper_response():
             {
                 "start": 0.0,
                 "end": 1.0,
-                "text": "This is a real transcription from the Whisper service."
+                "text": "This is a real transcription from the Whisper service.",
             }
         ],
-        "speaker_info": {
-            "speakers": ["SPEAKER_00"]
-        },
-        "metadata": {
-            "processing_time": 0.5,
-            "model": "whisper-base"
-        }
+        "speaker_info": {"speakers": ["SPEAKER_00"]},
+        "metadata": {"processing_time": 0.5, "model": "whisper-base"},
     }
 
 
@@ -75,10 +70,7 @@ def mock_translation_response():
         "translated_text": "Esta es una transcripción real del servicio Whisper.",
         "confidence": 0.92,
         "service": "vllm",
-        "metadata": {
-            "processing_time": 0.3,
-            "model": "llama-2-7b"
-        }
+        "metadata": {"processing_time": 0.3, "model": "llama-2-7b"},
     }
 
 
@@ -87,9 +79,7 @@ class TestStreamingAudioUpload:
 
     @pytest.mark.asyncio
     async def test_upload_returns_real_processing_not_placeholder(
-        self,
-        test_audio_wav,
-        mock_whisper_response
+        self, test_audio_wav, mock_whisper_response
     ):
         """
         CRITICAL TEST: Verify upload endpoint returns REAL processing results, not placeholders.
@@ -100,18 +90,20 @@ class TestStreamingAudioUpload:
         from src.audio.audio_coordinator import AudioCoordinator
 
         # Mock the AudioCoordinator to return realistic data
-        with patch('src.routers.audio.audio_core.AudioCoordinator') as MockCoordinator:
+        with patch("src.routers.audio.audio_core.AudioCoordinator") as MockCoordinator:
             mock_coordinator = AsyncMock()
-            mock_coordinator.process_audio_file = AsyncMock(return_value={
-                "status": "processed",
-                "transcription": mock_whisper_response["text"],
-                "language": mock_whisper_response["language"],
-                "confidence": mock_whisper_response["confidence"],
-                "segments": mock_whisper_response["segments"],
-                "speakers": mock_whisper_response["speaker_info"]["speakers"],
-                "processing_time": 0.5,
-                "duration": 1.0
-            })
+            mock_coordinator.process_audio_file = AsyncMock(
+                return_value={
+                    "status": "processed",
+                    "transcription": mock_whisper_response["text"],
+                    "language": mock_whisper_response["language"],
+                    "confidence": mock_whisper_response["confidence"],
+                    "segments": mock_whisper_response["segments"],
+                    "speakers": mock_whisper_response["speaker_info"]["speakers"],
+                    "processing_time": 0.5,
+                    "duration": 1.0,
+                }
+            )
             MockCoordinator.return_value = mock_coordinator
 
             client = TestClient(app)
@@ -125,8 +117,8 @@ class TestStreamingAudioUpload:
                     "enable_transcription": "true",
                     "enable_translation": "false",
                     "enable_diarization": "true",
-                    "whisper_model": "whisper-base"
-                }
+                    "whisper_model": "whisper-base",
+                },
             )
 
             assert response.status_code == 200, f"Upload failed: {response.text}"
@@ -136,14 +128,17 @@ class TestStreamingAudioUpload:
 
             # CRITICAL ASSERTIONS - Verify NO placeholder responses
             transcription = processing_result.get("transcription", "")
-            assert "placeholder" not in transcription.lower(), \
+            assert "placeholder" not in transcription.lower(), (
                 "FAILURE: Still getting placeholder responses! Implementation not active."
+            )
 
-            assert transcription != "", \
+            assert transcription != "", (
                 "FAILURE: Empty transcription - service may not be processing"
+            )
 
-            assert transcription == mock_whisper_response["text"], \
+            assert transcription == mock_whisper_response["text"], (
                 f"Expected real transcription, got: {transcription}"
+            )
 
             # Verify realistic response structure
             assert processing_result.get("language") == "en"
@@ -151,13 +146,13 @@ class TestStreamingAudioUpload:
             assert "processing_time" in processing_result
             assert processing_result.get("status") == "processed"
 
-            print("✅ VERIFIED: Upload endpoint returns REAL processing, not placeholders!")
+            print(
+                "✅ VERIFIED: Upload endpoint returns REAL processing, not placeholders!"
+            )
 
     @pytest.mark.asyncio
     async def test_audio_coordinator_process_audio_file_called(
-        self,
-        test_audio_wav,
-        mock_whisper_response
+        self, test_audio_wav, mock_whisper_response
     ):
         """
         Test that upload endpoint actually calls AudioCoordinator.process_audio_file().
@@ -166,13 +161,17 @@ class TestStreamingAudioUpload:
         """
         from src.main_fastapi import app
 
-        with patch('src.routers.audio.audio_core.get_audio_coordinator') as mock_get_coordinator:
+        with patch(
+            "src.routers.audio.audio_core.get_audio_coordinator"
+        ) as mock_get_coordinator:
             mock_coordinator = AsyncMock()
-            mock_coordinator.process_audio_file = AsyncMock(return_value={
-                "status": "processed",
-                "transcription": "Test transcription",
-                "processing_time": 0.5
-            })
+            mock_coordinator.process_audio_file = AsyncMock(
+                return_value={
+                    "status": "processed",
+                    "transcription": "Test transcription",
+                    "processing_time": 0.5,
+                }
+            )
             mock_get_coordinator.return_value = mock_coordinator
 
             client = TestClient(app)
@@ -182,15 +181,16 @@ class TestStreamingAudioUpload:
                 files={"audio": ("test.wav", test_audio_wav, "audio/wav")},
                 data={
                     "session_id": "test_coordinator_call",
-                    "enable_transcription": "true"
-                }
+                    "enable_transcription": "true",
+                },
             )
 
             assert response.status_code == 200
 
             # Verify AudioCoordinator.process_audio_file was called
-            assert mock_coordinator.process_audio_file.called, \
+            assert mock_coordinator.process_audio_file.called, (
                 "AudioCoordinator.process_audio_file() was NOT called!"
+            )
 
             # Verify it was called with correct parameters
             call_args = mock_coordinator.process_audio_file.call_args
@@ -205,13 +205,13 @@ class TestStreamingAudioUpload:
             assert config["enable_transcription"] == True
             assert config["session_id"] == "test_coordinator_call"
 
-            print("✅ VERIFIED: AudioCoordinator.process_audio_file() called correctly!")
+            print(
+                "✅ VERIFIED: AudioCoordinator.process_audio_file() called correctly!"
+            )
 
     @pytest.mark.asyncio
     async def test_streaming_multiple_chunks_sequential(
-        self,
-        test_audio_wav,
-        mock_whisper_response
+        self, test_audio_wav, mock_whisper_response
     ):
         """
         Test uploading multiple audio chunks in sequence (simulating streaming).
@@ -220,19 +220,23 @@ class TestStreamingAudioUpload:
         """
         from src.main_fastapi import app
 
-        with patch('src.routers.audio.audio_core.get_audio_coordinator') as mock_get_coordinator:
+        with patch(
+            "src.routers.audio.audio_core.get_audio_coordinator"
+        ) as mock_get_coordinator:
             mock_coordinator = AsyncMock()
 
             # Simulate different transcriptions for each chunk
             chunk_responses = [
                 {"status": "processed", "transcription": "Hello", "confidence": 0.95},
-                {"status": "processed", "transcription": "how are you", "confidence": 0.93},
+                {
+                    "status": "processed",
+                    "transcription": "how are you",
+                    "confidence": 0.93,
+                },
                 {"status": "processed", "transcription": "today?", "confidence": 0.94},
             ]
 
-            mock_coordinator.process_audio_file = AsyncMock(
-                side_effect=chunk_responses
-            )
+            mock_coordinator.process_audio_file = AsyncMock(side_effect=chunk_responses)
             mock_get_coordinator.return_value = mock_coordinator
 
             client = TestClient(app)
@@ -247,19 +251,24 @@ class TestStreamingAudioUpload:
                     data={
                         "session_id": session_id,
                         "chunk_id": f"chunk_{i}",
-                        "enable_transcription": "true"
-                    }
+                        "enable_transcription": "true",
+                    },
                 )
 
-                assert response.status_code == 200, \
+                assert response.status_code == 200, (
                     f"Chunk {i} upload failed: {response.text}"
+                )
 
                 result = response.json()
                 processing_result = result["processing_result"]
 
-                assert processing_result["transcription"] == expected_response["transcription"], \
-                    f"Chunk {i}: Expected '{expected_response['transcription']}', " \
+                assert (
+                    processing_result["transcription"]
+                    == expected_response["transcription"]
+                ), (
+                    f"Chunk {i}: Expected '{expected_response['transcription']}', "
                     f"got '{processing_result['transcription']}'"
+                )
 
                 results.append(processing_result)
 
@@ -271,13 +280,13 @@ class TestStreamingAudioUpload:
             full_transcription = " ".join(r["transcription"] for r in results)
             assert full_transcription == "Hello how are you today?"
 
-            print("✅ VERIFIED: Multiple chunks processed sequentially (streaming works)!")
+            print(
+                "✅ VERIFIED: Multiple chunks processed sequentially (streaming works)!"
+            )
 
     @pytest.mark.asyncio
     async def test_whisper_service_integration_via_coordinator(
-        self,
-        test_audio_wav,
-        mock_whisper_response
+        self, test_audio_wav, mock_whisper_response
     ):
         """
         Test that AudioCoordinator actually integrates with Whisper service.
@@ -286,7 +295,7 @@ class TestStreamingAudioUpload:
         """
         from src.main_fastapi import app
 
-        with patch('src.audio.audio_coordinator.ServiceClientPool') as MockServicePool:
+        with patch("src.audio.audio_coordinator.ServiceClientPool") as MockServicePool:
             mock_pool = AsyncMock()
             mock_pool.initialize = AsyncMock(return_value=True)
             mock_pool.send_to_whisper_service = AsyncMock(
@@ -303,15 +312,16 @@ class TestStreamingAudioUpload:
                 database_url=None,  # Skip database for this test
                 service_urls={
                     "whisper_service": "http://localhost:5001",
-                    "translation_service": "http://localhost:5003"
+                    "translation_service": "http://localhost:5003",
                 },
-                config=get_default_chunking_config()
+                config=get_default_chunking_config(),
             )
 
             await coordinator.initialize()
 
             # Process audio file through coordinator
             import tempfile
+
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 f.write(test_audio_wav)
                 temp_path = f.name
@@ -320,16 +330,14 @@ class TestStreamingAudioUpload:
                 result = await coordinator.process_audio_file(
                     session_id="test_whisper_integration",
                     audio_file_path=temp_path,
-                    config={
-                        "enable_transcription": True,
-                        "enable_translation": False
-                    },
-                    request_id="test_request_whisper"
+                    config={"enable_transcription": True, "enable_translation": False},
+                    request_id="test_request_whisper",
                 )
 
                 # Verify Whisper service was called
-                assert mock_pool.send_to_whisper_service.called, \
+                assert mock_pool.send_to_whisper_service.called, (
                     "Whisper service was NOT called by AudioCoordinator!"
+                )
 
                 # Verify result contains real transcription
                 assert result["transcription"] == mock_whisper_response["text"]
@@ -340,15 +348,13 @@ class TestStreamingAudioUpload:
 
             finally:
                 import os
+
                 os.unlink(temp_path)
                 await coordinator.shutdown()
 
     @pytest.mark.asyncio
     async def test_translation_integration_when_enabled(
-        self,
-        test_audio_wav,
-        mock_whisper_response,
-        mock_translation_response
+        self, test_audio_wav, mock_whisper_response, mock_translation_response
     ):
         """
         Test that translations are processed when enabled.
@@ -357,7 +363,7 @@ class TestStreamingAudioUpload:
         """
         from src.main_fastapi import app
 
-        with patch('src.audio.audio_coordinator.ServiceClientPool') as MockServicePool:
+        with patch("src.audio.audio_coordinator.ServiceClientPool") as MockServicePool:
             mock_pool = AsyncMock()
             mock_pool.initialize = AsyncMock(return_value=True)
             mock_pool.send_to_whisper_service = AsyncMock(
@@ -376,14 +382,15 @@ class TestStreamingAudioUpload:
                 database_url=None,
                 service_urls={
                     "whisper_service": "http://localhost:5001",
-                    "translation_service": "http://localhost:5003"
+                    "translation_service": "http://localhost:5003",
                 },
-                config=get_default_chunking_config()
+                config=get_default_chunking_config(),
             )
 
             await coordinator.initialize()
 
             import tempfile
+
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 f.write(test_audio_wav)
                 temp_path = f.name
@@ -395,36 +402,39 @@ class TestStreamingAudioUpload:
                     config={
                         "enable_transcription": True,
                         "enable_translation": True,
-                        "target_languages": ["es", "fr"]
+                        "target_languages": ["es", "fr"],
                     },
-                    request_id="test_request_translation"
+                    request_id="test_request_translation",
                 )
 
                 # Verify translation service was called
-                assert mock_pool.send_to_translation_service.called, \
+                assert mock_pool.send_to_translation_service.called, (
                     "Translation service was NOT called!"
+                )
 
                 # Verify translations in result
                 assert "translations" in result
                 assert "es" in result["translations"]
-                assert result["translations"]["es"]["text"] == mock_translation_response["translated_text"]
+                assert (
+                    result["translations"]["es"]["text"]
+                    == mock_translation_response["translated_text"]
+                )
 
                 # Verify it was called twice (for es and fr)
-                assert mock_pool.send_to_translation_service.call_count >= 2, \
+                assert mock_pool.send_to_translation_service.call_count >= 2, (
                     "Translation service should be called for each target language"
+                )
 
                 print("✅ VERIFIED: Translation service integration works!")
 
             finally:
                 import os
+
                 os.unlink(temp_path)
                 await coordinator.shutdown()
 
     @pytest.mark.asyncio
-    async def test_audio_processing_pipeline_applied(
-        self,
-        test_audio_wav
-    ):
+    async def test_audio_processing_pipeline_applied(self, test_audio_wav):
         """
         Test that audio processing pipeline is applied before transcription.
 
@@ -433,14 +443,16 @@ class TestStreamingAudioUpload:
         from src.audio.audio_coordinator import AudioCoordinator
         from src.audio.models import get_default_chunking_config
 
-        with patch('src.audio.audio_coordinator.ServiceClientPool') as MockServicePool:
+        with patch("src.audio.audio_coordinator.ServiceClientPool") as MockServicePool:
             mock_pool = AsyncMock()
             mock_pool.initialize = AsyncMock(return_value=True)
-            mock_pool.send_to_whisper_service = AsyncMock(return_value={
-                "text": "Processed audio transcription",
-                "language": "en",
-                "confidence": 0.95
-            })
+            mock_pool.send_to_whisper_service = AsyncMock(
+                return_value={
+                    "text": "Processed audio transcription",
+                    "language": "en",
+                    "confidence": 0.95,
+                }
+            )
             mock_pool.close = AsyncMock()
             MockServicePool.return_value = mock_pool
 
@@ -448,12 +460,13 @@ class TestStreamingAudioUpload:
                 config=get_default_chunking_config(),
                 database_url=None,
                 service_urls={"whisper_service": "http://localhost:5001"},
-                max_concurrent_sessions=5
+                max_concurrent_sessions=5,
             )
 
             await coordinator.initialize()
 
             import tempfile
+
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 f.write(test_audio_wav)
                 temp_path = f.name
@@ -466,12 +479,13 @@ class TestStreamingAudioUpload:
                     session_id=session_id,
                     audio_file_path=temp_path,
                     config={"enable_transcription": True},
-                    request_id="test_processing_pipeline"
+                    request_id="test_processing_pipeline",
                 )
 
                 # Verify audio processor was created for session
-                assert session_id in coordinator.audio_processors, \
+                assert session_id in coordinator.audio_processors, (
                     "AudioPipelineProcessor was NOT created for session!"
+                )
 
                 processor = coordinator.audio_processors[session_id]
                 assert processor is not None
@@ -484,14 +498,12 @@ class TestStreamingAudioUpload:
 
             finally:
                 import os
+
                 os.unlink(temp_path)
                 await coordinator.shutdown()
 
     @pytest.mark.asyncio
-    async def test_no_placeholder_in_any_response(
-        self,
-        test_audio_wav
-    ):
+    async def test_no_placeholder_in_any_response(self, test_audio_wav):
         """
         REGRESSION TEST: Ensure NO response ever contains placeholder text.
 
@@ -499,15 +511,19 @@ class TestStreamingAudioUpload:
         """
         from src.main_fastapi import app
 
-        with patch('src.routers.audio.audio_core.get_audio_coordinator') as mock_get_coordinator:
+        with patch(
+            "src.routers.audio.audio_core.get_audio_coordinator"
+        ) as mock_get_coordinator:
             mock_coordinator = AsyncMock()
-            mock_coordinator.process_audio_file = AsyncMock(return_value={
-                "status": "processed",
-                "transcription": "Real transcription text",
-                "language": "en",
-                "confidence": 0.95,
-                "processing_time": 1.2
-            })
+            mock_coordinator.process_audio_file = AsyncMock(
+                return_value={
+                    "status": "processed",
+                    "transcription": "Real transcription text",
+                    "language": "en",
+                    "confidence": 0.95,
+                    "processing_time": 1.2,
+                }
+            )
             mock_get_coordinator.return_value = mock_coordinator
 
             client = TestClient(app)
@@ -515,7 +531,11 @@ class TestStreamingAudioUpload:
             # Test multiple different scenarios
             test_scenarios = [
                 {"enable_transcription": "true", "enable_translation": "false"},
-                {"enable_transcription": "true", "enable_translation": "true", "target_languages": "[\"es\"]"},
+                {
+                    "enable_transcription": "true",
+                    "enable_translation": "true",
+                    "target_languages": '["es"]',
+                },
                 {"enable_transcription": "true", "enable_diarization": "true"},
             ]
 
@@ -525,30 +545,36 @@ class TestStreamingAudioUpload:
                 response = client.post(
                     "/api/audio/audio/upload",
                     files={"audio": (f"test_{i}.wav", test_audio_wav, "audio/wav")},
-                    data=scenario
+                    data=scenario,
                 )
 
-                assert response.status_code == 200, \
+                assert response.status_code == 200, (
                     f"Scenario {i} failed: {response.text}"
+                )
 
                 # Check entire response for placeholder text
                 response_text = response.text.lower()
-                assert "placeholder" not in response_text, \
+                assert "placeholder" not in response_text, (
                     f"REGRESSION: Placeholder found in scenario {i}! Response: {response.text}"
+                )
 
                 result = response.json()
                 processing_result = result.get("processing_result", {})
 
                 # Specifically check transcription field
                 transcription = processing_result.get("transcription", "")
-                assert "placeholder" not in transcription.lower(), \
+                assert "placeholder" not in transcription.lower(), (
                     f"REGRESSION: Placeholder in transcription for scenario {i}!"
+                )
 
                 # Verify it's actual processing result
-                assert transcription == "Real transcription text", \
+                assert transcription == "Real transcription text", (
                     f"Scenario {i}: Expected real text, got: {transcription}"
+                )
 
-            print("✅ VERIFIED: NO placeholders in ANY scenario - regression test passed!")
+            print(
+                "✅ VERIFIED: NO placeholders in ANY scenario - regression test passed!"
+            )
 
 
 if __name__ == "__main__":

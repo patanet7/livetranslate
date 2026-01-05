@@ -2,6 +2,7 @@
 """
 Simple WebSocket connection test to diagnose issues
 """
+
 import asyncio
 import httpx
 import websockets
@@ -11,6 +12,7 @@ import time
 BASE_URL = "http://localhost:3000"
 WS_BASE_URL = "ws://localhost:3000"
 
+
 async def test_connection():
     """Test basic WebSocket connection"""
     print("🔍 Testing WebSocket connection...")
@@ -18,25 +20,30 @@ async def test_connection():
     # 1. Start a session
     print("\n1. Creating realtime session...")
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
-        response = await client.post("/api/pipeline/realtime/start", json={
-            "pipeline_config": {
-                "pipeline_id": "test-pipeline",
-                "name": "Test Pipeline",
-                "stages": {
-                    "vad": {
-                        "enabled": True,
-                        "gain_in": 0.0,
-                        "gain_out": 0.0,
-                        "parameters": {"aggressiveness": 2}
-                    }
-                },
-                "connections": []
-            }
-        })
+        response = await client.post(
+            "/api/pipeline/realtime/start",
+            json={
+                "pipeline_config": {
+                    "pipeline_id": "test-pipeline",
+                    "name": "Test Pipeline",
+                    "stages": {
+                        "vad": {
+                            "enabled": True,
+                            "gain_in": 0.0,
+                            "gain_out": 0.0,
+                            "parameters": {"aggressiveness": 2},
+                        }
+                    },
+                    "connections": [],
+                }
+            },
+        )
         print(f"   Status: {response.status_code}")
         print(f"   Response: {response.json()}")
         session_data = response.json()
-        session_id = session_data.get("session_id") or session_data.get("data", {}).get("session_id")
+        session_id = session_data.get("session_id") or session_data.get("data", {}).get(
+            "session_id"
+        )
 
         if not session_id:
             print(f"❌ No session_id in response: {session_data}")
@@ -83,6 +90,7 @@ async def test_connection():
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
         response = await client.delete(f"/api/pipeline/realtime/{session_id}")
         print(f"   Status: {response.status_code}")
+
 
 if __name__ == "__main__":
     asyncio.run(test_connection())

@@ -29,16 +29,29 @@ import tempfile
 
 # Test audio segments with known content and timing
 TEST_SEGMENTS = [
-    {"start": 0.0, "duration": 2.0, "frequency": 440, "text": "440Hz tone at 0-2 seconds"},
-    {"start": 2.0, "duration": 2.0, "frequency": 880, "text": "880Hz tone at 2-4 seconds"},
-    {"start": 4.0, "duration": 2.0, "frequency": 1320, "text": "1320Hz tone at 4-6 seconds"},
+    {
+        "start": 0.0,
+        "duration": 2.0,
+        "frequency": 440,
+        "text": "440Hz tone at 0-2 seconds",
+    },
+    {
+        "start": 2.0,
+        "duration": 2.0,
+        "frequency": 880,
+        "text": "880Hz tone at 2-4 seconds",
+    },
+    {
+        "start": 4.0,
+        "duration": 2.0,
+        "frequency": 1320,
+        "text": "1320Hz tone at 4-6 seconds",
+    },
 ]
 
 
 def generate_timecoded_audio(
-    segments: List[Dict[str, Any]],
-    sample_rate: int = 16000,
-    output_format: str = "wav"
+    segments: List[Dict[str, Any]], sample_rate: int = 16000, output_format: str = "wav"
 ) -> bytes:
     """
     Generate time-coded test audio with known frequencies at specific times.
@@ -74,31 +87,36 @@ def generate_timecoded_audio(
     # Convert to bytes
     if output_format == "wav":
         buffer = io.BytesIO()
-        sf.write(buffer, audio, sample_rate, format='WAV')
+        sf.write(buffer, audio, sample_rate, format="WAV")
         buffer.seek(0)
         return buffer.read()
 
     elif output_format in ["webm", "mp3"]:
         # First write to WAV, then convert with ffmpeg
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
             sf.write(wav_file.name, audio, sample_rate)
             wav_path = wav_file.name
 
-        with tempfile.NamedTemporaryFile(suffix=f'.{output_format}', delete=False) as output_file:
+        with tempfile.NamedTemporaryFile(
+            suffix=f".{output_format}", delete=False
+        ) as output_file:
             output_path = output_file.name
 
         try:
             # Convert with ffmpeg
             cmd = [
-                'ffmpeg', '-y',
-                '-i', wav_path,
-                '-codec:a', 'libopus' if output_format == 'webm' else 'libmp3lame',
-                output_path
+                "ffmpeg",
+                "-y",
+                "-i",
+                wav_path,
+                "-codec:a",
+                "libopus" if output_format == "webm" else "libmp3lame",
+                output_path,
             ]
             subprocess.run(cmd, capture_output=True, check=True)
 
             # Read the converted file
-            with open(output_path, 'rb') as f:
+            with open(output_path, "rb") as f:
                 data = f.read()
 
             return data
@@ -111,9 +129,7 @@ def generate_timecoded_audio(
 
 
 def chunk_audio(
-    audio_data: bytes,
-    chunk_duration: float = 3.0,
-    format: str = "wav"
+    audio_data: bytes, chunk_duration: float = 3.0, format: str = "wav"
 ) -> List[bytes]:
     """
     Split audio into chunks (simulating frontend streaming).
@@ -132,15 +148,17 @@ def chunk_audio(
         audio, sample_rate = sf.read(buffer)
     else:
         # Use ffmpeg to convert to WAV first
-        with tempfile.NamedTemporaryFile(suffix=f'.{format}', delete=False) as input_file:
+        with tempfile.NamedTemporaryFile(
+            suffix=f".{format}", delete=False
+        ) as input_file:
             input_file.write(audio_data)
             input_path = input_file.name
 
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
             wav_path = wav_file.name
 
         try:
-            cmd = ['ffmpeg', '-y', '-i', input_path, wav_path]
+            cmd = ["ffmpeg", "-y", "-i", input_path, wav_path]
             subprocess.run(cmd, capture_output=True, check=True)
 
             audio, sample_rate = sf.read(wav_path)
@@ -160,18 +178,18 @@ def chunk_audio(
         # Convert chunk to bytes (WebM or WAV)
         if format == "webm":
             # Write to WAV first, then convert
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as wav_file:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
                 sf.write(wav_file.name, chunk, sample_rate)
                 wav_path = wav_file.name
 
-            with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as webm_file:
+            with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as webm_file:
                 webm_path = webm_file.name
 
             try:
-                cmd = ['ffmpeg', '-y', '-i', wav_path, '-codec:a', 'libopus', webm_path]
+                cmd = ["ffmpeg", "-y", "-i", wav_path, "-codec:a", "libopus", webm_path]
                 subprocess.run(cmd, capture_output=True, check=True)
 
-                with open(webm_path, 'rb') as f:
+                with open(webm_path, "rb") as f:
                     chunk_data = f.read()
             finally:
                 Path(wav_path).unlink(missing_ok=True)
@@ -179,7 +197,7 @@ def chunk_audio(
         else:
             # WAV format
             buffer = io.BytesIO()
-            sf.write(buffer, chunk, sample_rate, format='WAV')
+            sf.write(buffer, chunk, sample_rate, format="WAV")
             buffer.seek(0)
             chunk_data = buffer.read()
 
@@ -190,9 +208,9 @@ def chunk_audio(
 
 def test_audio_generation():
     """Test that we can generate timecoded audio correctly."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST 1: Audio Generation")
-    print("="*80)
+    print("=" * 80)
 
     # Generate WAV
     wav_data = generate_timecoded_audio(TEST_SEGMENTS, output_format="wav")
@@ -213,9 +231,9 @@ def test_audio_generation():
 
 def test_audio_chunking():
     """Test that chunking preserves audio integrity."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST 2: Audio Chunking")
-    print("="*80)
+    print("=" * 80)
 
     # Generate test audio
     audio_data = generate_timecoded_audio(TEST_SEGMENTS, output_format="wav")
@@ -228,23 +246,28 @@ def test_audio_chunking():
         buffer = io.BytesIO(chunk)
         audio, sample_rate = sf.read(buffer)
         duration = len(audio) / sample_rate
-        print(f"   Chunk {i}: {len(chunk)} bytes, {duration:.2f}s, {len(audio)} samples")
+        print(
+            f"   Chunk {i}: {len(chunk)} bytes, {duration:.2f}s, {len(audio)} samples"
+        )
 
     # Verify total duration matches
     total_duration = sum(len(sf.read(io.BytesIO(chunk))[0]) / 16000 for chunk in chunks)
     expected_duration = max(seg["start"] + seg["duration"] for seg in TEST_SEGMENTS)
-    print(f"✅ Total duration: {total_duration:.2f}s (expected: {expected_duration:.2f}s)")
+    print(
+        f"✅ Total duration: {total_duration:.2f}s (expected: {expected_duration:.2f}s)"
+    )
     assert abs(total_duration - expected_duration) < 0.1, "Duration mismatch!"
 
 
 def test_orchestration_upload_endpoint():
     """Test the orchestration service /api/audio/upload endpoint."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST 3: Orchestration Upload Endpoint")
-    print("="*80)
+    print("=" * 80)
 
     import sys
     from pathlib import Path
+
     # Add src to path
     src_path = Path(__file__).parent.parent.parent / "src"
     sys.path.insert(0, str(src_path))
@@ -269,8 +292,8 @@ def test_orchestration_upload_endpoint():
             "enable_translation": "false",
             "enable_diarization": "false",
             "whisper_model": "whisper-tiny",
-            "audio_processing": "false"  # Disable audio processing to test raw audio
-        }
+            "audio_processing": "false",  # Disable audio processing to test raw audio
+        },
     )
 
     print(f"Response status: {response.status_code}")
@@ -291,13 +314,15 @@ def test_orchestration_upload_endpoint():
         print(f"   Duration: {proc_result.get('duration', 'N/A')}")
 
         # Validate transcription exists and is not empty
-        transcription = proc_result.get('transcription', '')
+        transcription = proc_result.get("transcription", "")
         assert transcription, "❌ FAIL: No transcription returned!"
         assert len(transcription) > 0, "❌ FAIL: Empty transcription!"
         print(f"✅ Got transcription: '{transcription}'")
 
         # Check if it's placeholder/gibberish
-        if any(word in transcription.lower() for word in ['placeholder', 'mock', 'test']):
+        if any(
+            word in transcription.lower() for word in ["placeholder", "mock", "test"]
+        ):
             print(f"⚠️  WARNING: Transcription appears to be placeholder")
 
         # For tone-based audio, we expect it to be silent/minimal transcription
@@ -310,12 +335,13 @@ def test_orchestration_upload_endpoint():
 
 def test_full_streaming_pipeline():
     """Test the complete streaming pipeline with chunked upload."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST 4: Full Streaming Pipeline")
-    print("="*80)
+    print("=" * 80)
 
     import sys
     from pathlib import Path
+
     # Add src to path
     src_path = Path(__file__).parent.parent.parent / "src"
     sys.path.insert(0, str(src_path))
@@ -348,8 +374,8 @@ def test_full_streaming_pipeline():
                 "enable_translation": "false",
                 "enable_diarization": "false",
                 "whisper_model": "whisper-tiny",
-                "audio_processing": "false"  # Disable audio processing to test raw audio
-            }
+                "audio_processing": "false",  # Disable audio processing to test raw audio
+            },
         )
 
         assert response.status_code == 200, f"Chunk {i} upload failed: {response.text}"
@@ -385,15 +411,15 @@ def test_full_streaming_pipeline():
 
 
 if __name__ == "__main__":
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("INTEGRATED AUDIO INTEGRITY TEST SUITE")
-    print("="*80)
+    print("=" * 80)
     print("\nThis tests the complete audio pipeline:")
     print("1. Audio generation with time-coded content")
     print("2. Audio chunking (frontend simulation)")
     print("3. Orchestration service upload handling")
     print("4. Full streaming pipeline with multiple chunks")
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
 
     try:
         test_audio_generation()
@@ -401,9 +427,9 @@ if __name__ == "__main__":
         test_orchestration_upload_endpoint()
         test_full_streaming_pipeline()
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("✅ ALL TESTS PASSED")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
     except AssertionError as e:
         print(f"\n❌ TEST FAILED: {e}")
@@ -411,5 +437,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ ERROR: {e}")
         import traceback
+
         traceback.print_exc()
         raise

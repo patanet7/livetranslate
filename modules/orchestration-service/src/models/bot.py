@@ -3,7 +3,7 @@ Bot management-related Pydantic models
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import Field, field_validator
 
@@ -65,13 +65,13 @@ class MeetingInfo(BaseModel):
     meeting_id: str = Field(
         alias="meetingId",
         description="Meeting ID (e.g., Google Meet code)",
-        example="abc-defg-hij"
+        example="abc-defg-hij",
     )
     meeting_title: Optional[str] = Field(
         default=None,
         alias="meetingTitle",
         description="Meeting title",
-        example="Weekly Team Standup"
+        example="Weekly Team Standup",
     )
     meeting_url: Optional[str] = Field(
         default=None,
@@ -89,21 +89,19 @@ class MeetingInfo(BaseModel):
         example="organizer@example.com",
     )
     scheduled_start: Optional[datetime] = Field(
-        default=None,
-        alias="scheduledStart",
-        description="Scheduled meeting start time"
+        default=None, alias="scheduledStart", description="Scheduled meeting start time"
     )
     scheduled_duration_minutes: Optional[int] = Field(
         default=None,
         alias="scheduledDurationMinutes",
         description="Scheduled duration in minutes",
-        example=60
+        example=60,
     )
     participant_count: int = Field(
         default=0,
         alias="participantCount",
         description="Current participant count",
-        example=5
+        example=5,
     )
 
     @field_validator("meeting_id")
@@ -141,44 +139,33 @@ class AudioCaptureConfig(BaseModel):
     """Audio capture configuration"""
 
     device_id: Optional[str] = Field(
-        default=None,
-        alias="deviceId",
-        description="Audio device identifier"
+        default=None, alias="deviceId", description="Audio device identifier"
     )
     sample_rate: int = Field(
         default=16000,
         alias="sampleRate",
         description="Audio sample rate in Hz",
         ge=8000,
-        le=48000
+        le=48000,
     )
-    channels: int = Field(
-        default=1,
-        description="Number of audio channels",
-        ge=1,
-        le=2
-    )
+    channels: int = Field(default=1, description="Number of audio channels", ge=1, le=2)
     chunk_size: int = Field(
-        default=1024,
-        alias="chunkSize",
-        description="Audio chunk size",
-        ge=256,
-        le=4096
+        default=1024, alias="chunkSize", description="Audio chunk size", ge=256, le=4096
     )
     enable_noise_suppression: bool = Field(
         default=True,
         alias="enableNoiseSuppression",
-        description="Enable noise suppression"
+        description="Enable noise suppression",
     )
     enable_echo_cancellation: bool = Field(
         default=True,
         alias="enableEchoCancellation",
-        description="Enable echo cancellation"
+        description="Enable echo cancellation",
     )
     enable_auto_gain: bool = Field(
         default=True,
         alias="enableAutoGain",
-        description="Enable automatic gain control"
+        description="Enable automatic gain control",
     )
 
 
@@ -200,7 +187,7 @@ class TranslationConfig(BaseModel):
     enable_auto_translation: bool = Field(
         default=True,
         alias="enableAutoTranslation",
-        description="Enable automatic translation"
+        description="Enable automatic translation",
     )
     translation_quality: str = Field(
         default="balanced",
@@ -211,7 +198,7 @@ class TranslationConfig(BaseModel):
     real_time_translation: bool = Field(
         default=True,
         alias="realTimeTranslation",
-        description="Enable real-time translation"
+        description="Enable real-time translation",
     )
 
     @field_validator("target_languages")
@@ -323,18 +310,13 @@ class BotSpawnRequest(BaseModel):
 
     config: BotConfiguration = Field(description="Bot configuration")
     user_id: Optional[str] = Field(
-        default=None,
-        alias="userId",
-        description="User identifier"
+        default=None, alias="userId", description="User identifier"
     )
     session_id: Optional[str] = Field(
-        default=None,
-        alias="sessionId",
-        description="Session identifier"
+        default=None, alias="sessionId", description="Session identifier"
     )
     metadata: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional metadata"
+        default_factory=dict, description="Additional metadata"
     )
 
     class Config:

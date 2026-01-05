@@ -11,10 +11,9 @@ import logging
 import requests
 import threading
 from typing import Dict, Any, Optional, List, Callable
-from datetime import datetime, timedelta
-from collections import defaultdict, deque
+from datetime import datetime
+from collections import deque
 from enum import Enum
-import asyncio
 
 logger = logging.getLogger(__name__)
 

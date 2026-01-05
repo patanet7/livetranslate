@@ -49,20 +49,20 @@ class TestSpeakerGrouping:
                 "text": "Hello",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "everyone",  # Same speaker, consecutive
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:01Z",
-                "absolute_end_time": "2025-01-15T10:30:02Z"
+                "absolute_end_time": "2025-01-15T10:30:02Z",
             },
             {
                 "text": "how are you",  # Same speaker, consecutive
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:02Z",
-                "absolute_end_time": "2025-01-15T10:30:03Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:03Z",
+            },
         ]
 
         groups = grouper.group_by_speaker(segments)
@@ -94,26 +94,26 @@ class TestSpeakerGrouping:
                 "text": "Hello",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "everyone",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:01Z",
-                "absolute_end_time": "2025-01-15T10:30:02Z"
+                "absolute_end_time": "2025-01-15T10:30:02Z",
             },
             {
                 "text": "Hi John",  # Different speaker
                 "speaker": "Jane",
                 "absolute_start_time": "2025-01-15T10:30:03Z",
-                "absolute_end_time": "2025-01-15T10:30:04Z"
+                "absolute_end_time": "2025-01-15T10:30:04Z",
             },
             {
                 "text": "how are you",  # Different speaker again
                 "speaker": "Jane",
                 "absolute_start_time": "2025-01-15T10:30:04Z",
-                "absolute_end_time": "2025-01-15T10:30:05Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:05Z",
+            },
         ]
 
         groups = grouper.group_by_speaker(segments)
@@ -148,27 +148,29 @@ class TestSpeakerGrouping:
                 "text": "First",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "Second",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:01Z",
-                "absolute_end_time": "2025-01-15T10:30:02Z"
+                "absolute_end_time": "2025-01-15T10:30:02Z",
             },
             {
                 "text": "Third",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:02Z",
-                "absolute_end_time": "2025-01-15T10:30:03Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:03Z",
+            },
         ]
 
         groups = grouper.group_by_speaker(segments)
 
         assert len(groups) == 1
-        assert groups[0]["start_time"] == "2025-01-15T10:30:00Z"  # First segment's start
-        assert groups[0]["end_time"] == "2025-01-15T10:30:03Z"    # Last segment's end
+        assert (
+            groups[0]["start_time"] == "2025-01-15T10:30:00Z"
+        )  # First segment's start
+        assert groups[0]["end_time"] == "2025-01-15T10:30:03Z"  # Last segment's end
 
         print(f"   Start time: {groups[0]['start_time']} (from first segment)")
         print(f"   End time: {groups[0]['end_time']} (from last segment)")
@@ -190,20 +192,20 @@ class TestSpeakerGrouping:
                 "text": "Hello",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "",  # Empty - should be skipped
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:01Z",
-                "absolute_end_time": "2025-01-15T10:30:02Z"
+                "absolute_end_time": "2025-01-15T10:30:02Z",
             },
             {
                 "text": "World",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:02Z",
-                "absolute_end_time": "2025-01-15T10:30:03Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:03Z",
+            },
         ]
 
         groups = grouper.group_by_speaker(segments)
@@ -231,18 +233,30 @@ class TestSpeakerGrouping:
         grouper = SpeakerGrouper()
 
         segments = [
-            {"text": "Hello", "speaker": "John",
-             "absolute_start_time": "2025-01-15T10:30:00Z",
-             "absolute_end_time": "2025-01-15T10:30:01Z"},
-            {"text": "Hi", "speaker": "Jane",
-             "absolute_start_time": "2025-01-15T10:30:02Z",
-             "absolute_end_time": "2025-01-15T10:30:03Z"},
-            {"text": "How are you", "speaker": "John",
-             "absolute_start_time": "2025-01-15T10:30:04Z",
-             "absolute_end_time": "2025-01-15T10:30:05Z"},
-            {"text": "Good", "speaker": "Jane",
-             "absolute_start_time": "2025-01-15T10:30:06Z",
-             "absolute_end_time": "2025-01-15T10:30:07Z"}
+            {
+                "text": "Hello",
+                "speaker": "John",
+                "absolute_start_time": "2025-01-15T10:30:00Z",
+                "absolute_end_time": "2025-01-15T10:30:01Z",
+            },
+            {
+                "text": "Hi",
+                "speaker": "Jane",
+                "absolute_start_time": "2025-01-15T10:30:02Z",
+                "absolute_end_time": "2025-01-15T10:30:03Z",
+            },
+            {
+                "text": "How are you",
+                "speaker": "John",
+                "absolute_start_time": "2025-01-15T10:30:04Z",
+                "absolute_end_time": "2025-01-15T10:30:05Z",
+            },
+            {
+                "text": "Good",
+                "speaker": "Jane",
+                "absolute_start_time": "2025-01-15T10:30:06Z",
+                "absolute_end_time": "2025-01-15T10:30:07Z",
+            },
         ]
 
         groups = grouper.group_by_speaker(segments)
@@ -280,7 +294,7 @@ class TestDisplayFormatting:
             "speaker": "John Doe",
             "text": "Hello everyone, how are you today?",
             "start_time": "2025-01-15T10:30:00Z",
-            "end_time": "2025-01-15T10:30:05Z"
+            "end_time": "2025-01-15T10:30:05Z",
         }
 
         formatted = grouper.format_group_for_display(group)
@@ -314,44 +328,78 @@ class TestSpeakerGroupingWithRealData:
 
         # Realistic conversation: Interview
         segments = [
-            {"text": "Welcome", "speaker": "Interviewer",
-             "absolute_start_time": "2025-01-15T14:00:00Z",
-             "absolute_end_time": "2025-01-15T14:00:01Z"},
-            {"text": "to", "speaker": "Interviewer",
-             "absolute_start_time": "2025-01-15T14:00:01Z",
-             "absolute_end_time": "2025-01-15T14:00:02Z"},
-            {"text": "our", "speaker": "Interviewer",
-             "absolute_start_time": "2025-01-15T14:00:02Z",
-             "absolute_end_time": "2025-01-15T14:00:03Z"},
-            {"text": "show", "speaker": "Interviewer",
-             "absolute_start_time": "2025-01-15T14:00:03Z",
-             "absolute_end_time": "2025-01-15T14:00:04Z"},
-
-            {"text": "Thank", "speaker": "Guest",
-             "absolute_start_time": "2025-01-15T14:00:05Z",
-             "absolute_end_time": "2025-01-15T14:00:06Z"},
-            {"text": "you", "speaker": "Guest",
-             "absolute_start_time": "2025-01-15T14:00:06Z",
-             "absolute_end_time": "2025-01-15T14:00:07Z"},
-            {"text": "for", "speaker": "Guest",
-             "absolute_start_time": "2025-01-15T14:00:07Z",
-             "absolute_end_time": "2025-01-15T14:00:08Z"},
-            {"text": "having", "speaker": "Guest",
-             "absolute_start_time": "2025-01-15T14:00:08Z",
-             "absolute_end_time": "2025-01-15T14:00:09Z"},
-            {"text": "me", "speaker": "Guest",
-             "absolute_start_time": "2025-01-15T14:00:09Z",
-             "absolute_end_time": "2025-01-15T14:00:10Z"},
-
-            {"text": "Let's", "speaker": "Interviewer",
-             "absolute_start_time": "2025-01-15T14:00:11Z",
-             "absolute_end_time": "2025-01-15T14:00:12Z"},
-            {"text": "get", "speaker": "Interviewer",
-             "absolute_start_time": "2025-01-15T14:00:12Z",
-             "absolute_end_time": "2025-01-15T14:00:13Z"},
-            {"text": "started", "speaker": "Interviewer",
-             "absolute_start_time": "2025-01-15T14:00:13Z",
-             "absolute_end_time": "2025-01-15T14:00:14Z"}
+            {
+                "text": "Welcome",
+                "speaker": "Interviewer",
+                "absolute_start_time": "2025-01-15T14:00:00Z",
+                "absolute_end_time": "2025-01-15T14:00:01Z",
+            },
+            {
+                "text": "to",
+                "speaker": "Interviewer",
+                "absolute_start_time": "2025-01-15T14:00:01Z",
+                "absolute_end_time": "2025-01-15T14:00:02Z",
+            },
+            {
+                "text": "our",
+                "speaker": "Interviewer",
+                "absolute_start_time": "2025-01-15T14:00:02Z",
+                "absolute_end_time": "2025-01-15T14:00:03Z",
+            },
+            {
+                "text": "show",
+                "speaker": "Interviewer",
+                "absolute_start_time": "2025-01-15T14:00:03Z",
+                "absolute_end_time": "2025-01-15T14:00:04Z",
+            },
+            {
+                "text": "Thank",
+                "speaker": "Guest",
+                "absolute_start_time": "2025-01-15T14:00:05Z",
+                "absolute_end_time": "2025-01-15T14:00:06Z",
+            },
+            {
+                "text": "you",
+                "speaker": "Guest",
+                "absolute_start_time": "2025-01-15T14:00:06Z",
+                "absolute_end_time": "2025-01-15T14:00:07Z",
+            },
+            {
+                "text": "for",
+                "speaker": "Guest",
+                "absolute_start_time": "2025-01-15T14:00:07Z",
+                "absolute_end_time": "2025-01-15T14:00:08Z",
+            },
+            {
+                "text": "having",
+                "speaker": "Guest",
+                "absolute_start_time": "2025-01-15T14:00:08Z",
+                "absolute_end_time": "2025-01-15T14:00:09Z",
+            },
+            {
+                "text": "me",
+                "speaker": "Guest",
+                "absolute_start_time": "2025-01-15T14:00:09Z",
+                "absolute_end_time": "2025-01-15T14:00:10Z",
+            },
+            {
+                "text": "Let's",
+                "speaker": "Interviewer",
+                "absolute_start_time": "2025-01-15T14:00:11Z",
+                "absolute_end_time": "2025-01-15T14:00:12Z",
+            },
+            {
+                "text": "get",
+                "speaker": "Interviewer",
+                "absolute_start_time": "2025-01-15T14:00:12Z",
+                "absolute_end_time": "2025-01-15T14:00:13Z",
+            },
+            {
+                "text": "started",
+                "speaker": "Interviewer",
+                "absolute_start_time": "2025-01-15T14:00:13Z",
+                "absolute_end_time": "2025-01-15T14:00:14Z",
+            },
         ]
 
         groups = grouper.group_by_speaker(segments)

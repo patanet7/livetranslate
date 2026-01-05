@@ -10,12 +10,11 @@ import time
 import logging
 import requests
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
 from collections import defaultdict
 from enum import Enum
 import threading
 
-from flask import request, jsonify, Response
+from flask import jsonify, Response
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +273,7 @@ class APIGateway:
         request_data = {}
 
         # Debug incoming request details
-        logger.info(f"Gateway _prepare_request_data called:")
+        logger.info("Gateway _prepare_request_data called:")
         logger.info(f"  Method: {flask_request.method}")
         logger.info(f"  Content-Type: {flask_request.content_type}")
         logger.info(
@@ -401,7 +400,7 @@ class APIGateway:
         request_data["timeout"] = self.timeout
 
         # Debug logging for final request data
-        logger.info(f"Gateway prepared request data:")
+        logger.info("Gateway prepared request data:")
         logger.info(f"  Keys: {list(request_data.keys())}")
         if "files" in request_data:
             logger.info(f"  Files: {list(request_data['files'].keys())}")
@@ -475,7 +474,7 @@ class APIGateway:
                 if url.startswith("http://"):
                     request_data["verify"] = False
                     logger.debug(f"Using HTTP connection without SSL for {url}")
-                
+
                 response = requests.request(method, url, **request_data)
 
                 # Record timing
@@ -562,14 +561,16 @@ class APIGateway:
         """Perform health check on service instance"""
         try:
             health_url = f"{instance.url}/health"
-            
+
             # Configure session for HTTP endpoints - disable SSL verification
             session = requests.Session()
             if health_url.startswith("http://"):
                 # For HTTP URLs, ensure no SSL verification
                 session.verify = False
-                logger.debug(f"Using HTTP connection without SSL for {service_name} at {health_url}")
-            
+                logger.debug(
+                    f"Using HTTP connection without SSL for {service_name} at {health_url}"
+                )
+
             response = session.get(health_url, timeout=5)
 
             if response.status_code == 200:
@@ -579,7 +580,9 @@ class APIGateway:
                 return True
             else:
                 instance.status = ServiceStatus.UNHEALTHY
-                logger.warning(f"Health check failed for {service_name}: HTTP {response.status_code}")
+                logger.warning(
+                    f"Health check failed for {service_name}: HTTP {response.status_code}"
+                )
                 return False
 
         except Exception as e:

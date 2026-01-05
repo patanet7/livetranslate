@@ -174,9 +174,7 @@ def get_pipeline():
             "password": os.getenv("DB_PASSWORD", "livetranslate"),
         }
 
-        audio_storage_path = os.getenv(
-            "AUDIO_STORAGE_PATH", "/tmp/livetranslate/audio"
-        )
+        audio_storage_path = os.getenv("AUDIO_STORAGE_PATH", "/tmp/livetranslate/audio")
 
         # Create pipeline (synchronous initialization)
         _pipeline_instance = create_data_pipeline(
@@ -248,10 +246,8 @@ async def get_transcripts(
 
         # Get transcripts based on filters
         if start_time is not None and end_time is not None:
-            transcripts = (
-                await pipeline.db_manager.transcript_manager.get_transcript_by_timerange(
-                    session_id, start_time, end_time
-                )
+            transcripts = await pipeline.db_manager.transcript_manager.get_transcript_by_timerange(
+                session_id, start_time, end_time
             )
         else:
             transcripts = (
@@ -295,9 +291,7 @@ async def get_transcripts(
                 )
             )
 
-        logger.info(
-            f"Retrieved {len(responses)} transcripts for session {session_id}"
-        )
+        logger.info(f"Retrieved {len(responses)} transcripts for session {session_id}")
         return responses
 
     except Exception as e:
@@ -371,9 +365,7 @@ async def get_translations(
                 )
             )
 
-        logger.info(
-            f"Retrieved {len(responses)} translations for session {session_id}"
-        )
+        logger.info(f"Retrieved {len(responses)} translations for session {session_id}")
         return responses
 
     except Exception as e:
@@ -458,7 +450,9 @@ async def get_timeline(
             entries=entries,
         )
 
-        logger.info(f"Retrieved timeline for session {session_id}: {len(entries)} entries")
+        logger.info(
+            f"Retrieved timeline for session {session_id}: {len(entries)} entries"
+        )
         return response
 
     except Exception as e:
@@ -560,9 +554,7 @@ async def get_speaker_detail(
 
         # Get speaker statistics
         all_stats = await pipeline.get_speaker_statistics(session_id)
-        speaker_stats = next(
-            (s for s in all_stats if s.speaker_id == speaker_id), None
-        )
+        speaker_stats = next((s for s in all_stats if s.speaker_id == speaker_id), None)
 
         if not speaker_stats:
             raise HTTPException(
@@ -630,9 +622,7 @@ async def get_speaker_detail(
                 session_id
             )
         )
-        speaker_translations = [
-            t for t in translations if t.speaker_id == speaker_id
-        ]
+        speaker_translations = [t for t in translations if t.speaker_id == speaker_id]
         speaker_translations = sorted(
             speaker_translations, key=lambda x: x.created_at, reverse=True
         )[:limit_translations]
@@ -678,7 +668,9 @@ async def get_speaker_detail(
             recent_translations=recent_translations,
         )
 
-        logger.info(f"Retrieved details for speaker {speaker_id} in session {session_id}")
+        logger.info(
+            f"Retrieved details for speaker {speaker_id} in session {session_id}"
+        )
         return response
 
     except HTTPException:
@@ -698,9 +690,7 @@ async def search_transcripts(
     session_id: str = Path(..., description="Session identifier"),
     query: str = Query(..., description="Search query", min_length=1),
     language: Optional[str] = Query(None, description="Filter by language code"),
-    use_fuzzy: bool = Query(
-        True, description="Use fuzzy matching (similarity search)"
-    ),
+    use_fuzzy: bool = Query(True, description="Use fuzzy matching (similarity search)"),
     limit: int = Query(50, description="Maximum results to return", ge=1, le=200),
     pipeline=Depends(get_pipeline),
 ):

@@ -394,7 +394,7 @@ test.describe('Bot Management E2E', () => {
     // Mock WebSocket connection
     await page.addInitScript(() => {
       class MockWebSocket {
-        constructor(url: string) {
+        constructor(_url: string) {
           setTimeout(() => {
             if (this.onopen) this.onopen(new Event('open'));
           }, 100);

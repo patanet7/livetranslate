@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FrontendConnection:
     """Tracks state of a frontend WebSocket connection"""
+
     connection_id: str
     websocket: ServerConnection
     user_id: Optional[str] = None
@@ -68,9 +69,7 @@ class WebSocketFrontendHandler:
     """
 
     def __init__(
-        self,
-        require_authentication: bool = False,
-        heartbeat_interval: float = 30.0
+        self, require_authentication: bool = False, heartbeat_interval: float = 30.0
     ):
         """
         Initialize frontend WebSocket handler
@@ -84,11 +83,15 @@ class WebSocketFrontendHandler:
 
         # Connection tracking
         self.connections: Dict[str, FrontendConnection] = {}
-        self.session_to_connections: Dict[str, Set[str]] = {}  # session_id -> connection_ids
+        self.session_to_connections: Dict[
+            str, Set[str]
+        ] = {}  # session_id -> connection_ids
 
         # Callbacks
         self.audio_chunk_callbacks: Set[Callable[[str, bytes, datetime], None]] = set()
-        self.session_start_callbacks: Set[Callable[[str, str, Dict[str, Any]], None]] = set()
+        self.session_start_callbacks: Set[
+            Callable[[str, str, Dict[str, Any]], None]
+        ] = set()
         self.session_end_callbacks: Set[Callable[[str, str], None]] = set()
         self.connection_callbacks: Set[Callable[[str, bool], None]] = set()
 
@@ -106,8 +109,7 @@ class WebSocketFrontendHandler:
 
         # Create connection state
         connection = FrontendConnection(
-            connection_id=connection_id,
-            websocket=websocket
+            connection_id=connection_id, websocket=websocket
         )
         self.connections[connection_id] = connection
 
@@ -116,9 +118,7 @@ class WebSocketFrontendHandler:
 
         try:
             # Start heartbeat monitor
-            heartbeat_task = asyncio.create_task(
-                self._heartbeat_monitor(connection_id)
-            )
+            heartbeat_task = asyncio.create_task(self._heartbeat_monitor(connection_id))
 
             # Handle messages
             async for message in websocket:
@@ -188,11 +188,14 @@ class WebSocketFrontendHandler:
         logger.info(f"✅ Frontend {connection_id} authenticated (user: {user_id})")
 
         # Send acknowledgement
-        await self._send_message(connection_id, {
-            "type": "authenticated",
-            "connection_id": connection_id,
-            "user_id": user_id
-        })
+        await self._send_message(
+            connection_id,
+            {
+                "type": "authenticated",
+                "connection_id": connection_id,
+                "user_id": user_id,
+            },
+        )
 
     async def _handle_start_session(self, connection_id: str, data: Dict[str, Any]):
         """Handle session start message"""
@@ -222,11 +225,16 @@ class WebSocketFrontendHandler:
         self._notify_session_start(connection_id, session_id, config)
 
         # Send acknowledgement
-        await self._send_message(connection_id, {
-            "type": "session_started",
-            "session_id": session_id,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        })
+        await self._send_message(
+            connection_id,
+            {
+                "type": "session_started",
+                "session_id": session_id,
+                "timestamp": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            },
+        )
 
     async def _handle_audio_chunk(self, connection_id: str, data: Dict[str, Any]):
         """Handle audio chunk from frontend"""
@@ -252,7 +260,7 @@ class WebSocketFrontendHandler:
         # Parse timestamp
         if timestamp_str:
             try:
-                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
             except Exception:
                 timestamp = datetime.now(timezone.utc)
         else:
@@ -261,7 +269,9 @@ class WebSocketFrontendHandler:
         # Update stats
         connection.chunks_received += 1
 
-        logger.debug(f"🎵 Audio chunk from {connection_id} (chunk #{connection.chunks_received})")
+        logger.debug(
+            f"🎵 Audio chunk from {connection_id} (chunk #{connection.chunks_received})"
+        )
 
         # Notify callbacks
         self._notify_audio_chunk(connection_id, audio_data, timestamp)
@@ -290,10 +300,9 @@ class WebSocketFrontendHandler:
         connection.session_id = None
 
         # Send acknowledgement
-        await self._send_message(connection_id, {
-            "type": "session_ended",
-            "session_id": session_id
-        })
+        await self._send_message(
+            connection_id, {"type": "session_ended", "session_id": session_id}
+        )
 
     async def _heartbeat_monitor(self, connection_id: str):
         """Monitor connection health with periodic heartbeats"""
@@ -325,7 +334,9 @@ class WebSocketFrontendHandler:
 
             # Cleanup session mapping
             if connection.session_id in self.session_to_connections:
-                self.session_to_connections[connection.session_id].discard(connection_id)
+                self.session_to_connections[connection.session_id].discard(
+                    connection_id
+                )
                 if not self.session_to_connections[connection.session_id]:
                     del self.session_to_connections[connection.session_id]
 
@@ -343,7 +354,9 @@ class WebSocketFrontendHandler:
         """Send message to frontend connection"""
         connection = self.connections.get(connection_id)
         if not connection:
-            logger.warning(f"Cannot send message - connection not found: {connection_id}")
+            logger.warning(
+                f"Cannot send message - connection not found: {connection_id}"
+            )
             return
 
         try:
@@ -357,11 +370,16 @@ class WebSocketFrontendHandler:
 
     async def _send_error(self, connection_id: str, error: str):
         """Send error message to frontend"""
-        await self._send_message(connection_id, {
-            "type": "error",
-            "error": error,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-        })
+        await self._send_message(
+            connection_id,
+            {
+                "type": "error",
+                "error": error,
+                "timestamp": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+            },
+        )
 
     async def send_segment(self, connection_id: str, segment: Dict[str, Any]):
         """
@@ -371,10 +389,7 @@ class WebSocketFrontendHandler:
             connection_id: Frontend connection ID
             segment: Segment data
         """
-        await self._send_message(connection_id, {
-            "type": "segment",
-            **segment
-        })
+        await self._send_message(connection_id, {"type": "segment", **segment})
 
     async def send_translation(self, connection_id: str, translation: Dict[str, Any]):
         """
@@ -384,10 +399,7 @@ class WebSocketFrontendHandler:
             connection_id: Frontend connection ID
             translation: Translation data
         """
-        await self._send_message(connection_id, {
-            "type": "translation",
-            **translation
-        })
+        await self._send_message(connection_id, {"type": "translation", **translation})
 
     async def broadcast_to_session(self, session_id: str, data: Dict[str, Any]):
         """
@@ -440,7 +452,9 @@ class WebSocketFrontendHandler:
         """
         self.connection_callbacks.add(callback)
 
-    def _notify_audio_chunk(self, connection_id: str, audio_data: bytes, timestamp: datetime):
+    def _notify_audio_chunk(
+        self, connection_id: str, audio_data: bytes, timestamp: datetime
+    ):
         """Notify all audio chunk callbacks"""
         for callback in self.audio_chunk_callbacks:
             try:
@@ -448,7 +462,9 @@ class WebSocketFrontendHandler:
             except Exception as e:
                 logger.error(f"Error in audio chunk callback: {e}")
 
-    def _notify_session_start(self, connection_id: str, session_id: str, config: Dict[str, Any]):
+    def _notify_session_start(
+        self, connection_id: str, session_id: str, config: Dict[str, Any]
+    ):
         """Notify all session start callbacks"""
         for callback in self.session_start_callbacks:
             try:
@@ -496,14 +512,13 @@ class WebSocketFrontendHandler:
             "last_activity": connection.last_activity.isoformat(),
             "is_authenticated": connection.is_authenticated,
             "chunks_received": connection.chunks_received,
-            "messages_sent": connection.messages_sent
+            "messages_sent": connection.messages_sent,
         }
 
     def get_all_connections(self) -> Dict[str, Dict[str, Any]]:
         """Get all connection information"""
         return {
-            conn_id: self.get_connection_info(conn_id)
-            for conn_id in self.connections
+            conn_id: self.get_connection_info(conn_id) for conn_id in self.connections
         }
 
     def get_session_connections(self, session_id: str) -> Set[str]:
@@ -523,7 +538,7 @@ class WebSocketFrontendHandler:
             ),
             "total_messages_sent": sum(
                 c.messages_sent for c in self.connections.values()
-            )
+            ),
         }
 
 
@@ -548,11 +563,7 @@ async def example_usage():
     handler.on_session_end(on_session_end)
 
     # Start WebSocket server
-    async with websockets.serve(
-        handler.handle_connection,
-        "localhost",
-        8000
-    ):
+    async with websockets.serve(handler.handle_connection, "localhost", 8000):
         print("Frontend WebSocket server running on ws://localhost:8000")
         await asyncio.Future()  # Run forever
 

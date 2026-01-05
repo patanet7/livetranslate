@@ -145,9 +145,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                             )[: self.max_body_size]
                     elif response.body:
                         log_data["body_size"] = len(response.body)
-                        log_data[
-                            "body"
-                        ] = f"<body too large: {len(response.body)} bytes>"
+                        log_data["body"] = (
+                            f"<body too large: {len(response.body)} bytes>"
+                        )
                 except Exception as e:
                     log_data["body_error"] = str(e)
 

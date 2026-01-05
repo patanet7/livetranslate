@@ -3,7 +3,7 @@ WebSocket-related Pydantic models
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import Field, field_validator
 
@@ -285,10 +285,12 @@ class ConnectionStats(BaseModel):
 
     # Bandwidth statistics
     total_bytes_sent: int = Field(
-        description="Total bytes sent", example=52428800  # 50 MB
+        description="Total bytes sent",
+        example=52428800,  # 50 MB
     )
     total_bytes_received: int = Field(
-        description="Total bytes received", example=41943040  # 40 MB
+        description="Total bytes received",
+        example=41943040,  # 40 MB
     )
     bandwidth_usage_mbps: float = Field(
         description="Current bandwidth usage in Mbps", example=2.5

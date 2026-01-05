@@ -5,7 +5,6 @@ Provides security features including request validation, rate limiting, and secu
 """
 
 import logging
-import json
 from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -38,9 +37,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         try:
             # Skip security middleware for WebSocket connections
             is_websocket = (
-                request.url.path == "/ws" or 
-                request.url.path.startswith("/api/websocket/") or
-                request.headers.get("upgrade", "").lower() == "websocket"
+                request.url.path == "/ws"
+                or request.url.path.startswith("/api/websocket/")
+                or request.headers.get("upgrade", "").lower() == "websocket"
             )
             if is_websocket:
                 return await call_next(request)
@@ -67,9 +66,9 @@ class SecurityMiddleware(BaseHTTPMiddleware):
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["X-Frame-Options"] = "DENY"
             response.headers["X-XSS-Protection"] = "1; mode=block"
-            response.headers[
-                "Strict-Transport-Security"
-            ] = "max-age=31536000; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
             response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
             # Add timing header for monitoring
