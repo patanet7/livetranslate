@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Import database components
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from database import (
@@ -38,10 +39,26 @@ settings = get_settings()
 # Test configuration
 ORCHESTRATION_URL = "http://localhost:3000"
 TEST_TRANSLATIONS = [
-    {"text": "Hello, how are you today?", "target_lang": "es", "expected_lang": "Spanish"},
-    {"text": "Thank you very much for your help!", "target_lang": "fr", "expected_lang": "French"},
-    {"text": "Good morning, have a nice day!", "target_lang": "de", "expected_lang": "German"},
-    {"text": "Welcome to our translation service!", "target_lang": "zh", "expected_lang": "Chinese"},
+    {
+        "text": "Hello, how are you today?",
+        "target_lang": "es",
+        "expected_lang": "Spanish",
+    },
+    {
+        "text": "Thank you very much for your help!",
+        "target_lang": "fr",
+        "expected_lang": "French",
+    },
+    {
+        "text": "Good morning, have a nice day!",
+        "target_lang": "de",
+        "expected_lang": "German",
+    },
+    {
+        "text": "Welcome to our translation service!",
+        "target_lang": "zh",
+        "expected_lang": "Chinese",
+    },
 ]
 
 
@@ -68,7 +85,9 @@ async def create_test_session(db: AsyncSession) -> str:
     return str(session.session_id)
 
 
-async def test_translation_with_session(session_id: str, text: str, target_lang: str) -> dict:
+async def test_translation_with_session(
+    session_id: str, text: str, target_lang: str
+) -> dict:
     """Test translation API with session ID"""
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -97,7 +116,9 @@ async def test_translation_with_session(session_id: str, text: str, target_lang:
         return result
 
 
-async def verify_database_persistence(db: AsyncSession, session_id: str) -> List[Translation]:
+async def verify_database_persistence(
+    db: AsyncSession, session_id: str
+) -> List[Translation]:
     """Verify translations were persisted to database"""
     session_uuid = uuid.UUID(session_id)
 
@@ -241,7 +262,9 @@ async def run_integration_test():
     if stored_count == expected_count:
         print("\n🎉 SUCCESS: All translations were persisted to database!")
     else:
-        print(f"\n⚠️  WARNING: Expected {expected_count} translations but found {stored_count}")
+        print(
+            f"\n⚠️  WARNING: Expected {expected_count} translations but found {stored_count}"
+        )
 
     # Verify data integrity
     print(f"\n🔍 Data Integrity Checks:")
@@ -251,10 +274,14 @@ async def run_integration_test():
         has_confidence = trans.confidence is not None
         has_counts = trans.word_count > 0 and trans.character_count > 0
 
-        status = "✅" if all([has_text, has_languages, has_confidence, has_counts]) else "❌"
-        print(f"   {status} Translation {trans.translation_id}: "
-              f"text={has_text}, languages={has_languages}, "
-              f"confidence={has_confidence}, counts={has_counts}")
+        status = (
+            "✅" if all([has_text, has_languages, has_confidence, has_counts]) else "❌"
+        )
+        print(
+            f"   {status} Translation {trans.translation_id}: "
+            f"text={has_text}, languages={has_languages}, "
+            f"confidence={has_confidence}, counts={has_counts}"
+        )
 
     print("\n" + "=" * 80)
     print("🏁 Integration Test Complete!")

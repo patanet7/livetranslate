@@ -41,14 +41,16 @@ from bot.virtual_webcam import (
     WebcamConfig,
     DisplayMode,
     Theme,
-    TranslationDisplay
+    TranslationDisplay,
 )
 from audio.audio_coordinator import AudioCoordinator
 from pipeline.data_pipeline import TranscriptionDataPipeline, create_data_pipeline
 from database.bot_session_manager import create_bot_session_manager
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -60,7 +62,9 @@ class VirtualWebcamIntegrationTest:
     """
 
     def __init__(self):
-        self.test_dir = Path(__file__).parent.parent.parent / "test_output" / "virtual_webcam"
+        self.test_dir = (
+            Path(__file__).parent.parent.parent / "test_output" / "virtual_webcam"
+        )
         self.test_dir.mkdir(parents=True, exist_ok=True)
 
         self.webcam_manager = None
@@ -90,7 +94,7 @@ class VirtualWebcamIntegrationTest:
             font_size=28,
             show_speaker_names=True,
             show_confidence=True,
-            show_timestamps=True
+            show_timestamps=True,
         )
 
         # Initialize virtual webcam
@@ -142,7 +146,7 @@ class VirtualWebcamIntegrationTest:
                 "speaker_name": "John Doe",
                 "translation_confidence": 0.95,
                 "is_original_transcription": True,
-                "timestamp": datetime.now()
+                "timestamp": datetime.now(),
             },
             {
                 "translated_text": "Thank you John. Let's start with the quarterly results.",
@@ -152,7 +156,7 @@ class VirtualWebcamIntegrationTest:
                 "speaker_name": "Jane Smith",
                 "translation_confidence": 0.92,
                 "is_original_transcription": True,
-                "timestamp": datetime.now()
+                "timestamp": datetime.now(),
             },
             {
                 "translated_text": "Our revenue increased by 25% this quarter.",
@@ -162,7 +166,7 @@ class VirtualWebcamIntegrationTest:
                 "speaker_name": "John Doe",
                 "translation_confidence": 0.97,
                 "is_original_transcription": True,
-                "timestamp": datetime.now()
+                "timestamp": datetime.now(),
             },
         ]
 
@@ -178,7 +182,9 @@ class VirtualWebcamIntegrationTest:
             # Wait to let frames generate
             await asyncio.sleep(2.0)
 
-        logger.info(f"\n✅ Test 1 complete: {len(self.transcriptions_received)} transcriptions displayed")
+        logger.info(
+            f"\n✅ Test 1 complete: {len(self.transcriptions_received)} transcriptions displayed"
+        )
 
     async def test_transcription_and_translation(self):
         """Test 2: Display both original transcriptions AND translations."""
@@ -196,7 +202,7 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_02",
                     "speaker_name": "Alice Johnson",
                     "translation_confidence": 0.94,
-                    "is_original_transcription": True
+                    "is_original_transcription": True,
                 },
                 "translation": {
                     "translated_text": "Buenos días a todos. Hoy discutiremos nuestros planes de expansión.",
@@ -205,8 +211,8 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_02",
                     "speaker_name": "Alice Johnson",
                     "translation_confidence": 0.89,
-                    "is_original_transcription": False
-                }
+                    "is_original_transcription": False,
+                },
             },
             {
                 "transcription": {
@@ -216,7 +222,7 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_03",
                     "speaker_name": "Bob Williams",
                     "translation_confidence": 0.96,
-                    "is_original_transcription": True
+                    "is_original_transcription": True,
                 },
                 "translation": {
                     "translated_text": "Estamos abriendo tres nuevas oficinas en Europa.",
@@ -225,8 +231,8 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_03",
                     "speaker_name": "Bob Williams",
                     "translation_confidence": 0.91,
-                    "is_original_transcription": False
-                }
+                    "is_original_transcription": False,
+                },
             },
             {
                 "transcription": {
@@ -236,7 +242,7 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_02",
                     "speaker_name": "Alice Johnson",
                     "translation_confidence": 0.93,
-                    "is_original_transcription": True
+                    "is_original_transcription": True,
                 },
                 "translation": {
                     "translated_text": "¡Esas son noticias emocionantes! ¿Cuándo abrirán?",
@@ -245,14 +251,16 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_02",
                     "speaker_name": "Alice Johnson",
                     "translation_confidence": 0.87,
-                    "is_original_transcription": False
-                }
+                    "is_original_transcription": False,
+                },
             },
         ]
 
         # Display each transcription + translation pair
         for i, pair in enumerate(test_data, 1):
-            logger.info(f"\n📝 Adding transcription/translation pair {i}/{len(test_data)}")
+            logger.info(
+                f"\n📝 Adding transcription/translation pair {i}/{len(test_data)}"
+            )
 
             # Add original transcription first
             transcription = pair["transcription"]
@@ -298,7 +306,7 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_04",
                     "speaker_name": "Carol Martinez",
                     "translation_confidence": 0.95,
-                    "is_original_transcription": True
+                    "is_original_transcription": True,
                 },
                 "translations": [
                     {
@@ -308,7 +316,7 @@ class VirtualWebcamIntegrationTest:
                         "speaker_id": "SPEAKER_04",
                         "speaker_name": "Carol Martinez",
                         "translation_confidence": 0.90,
-                        "is_original_transcription": False
+                        "is_original_transcription": False,
                     },
                     {
                         "translated_text": "Écoutons nos équipes internationales.",
@@ -317,9 +325,9 @@ class VirtualWebcamIntegrationTest:
                         "speaker_id": "SPEAKER_04",
                         "speaker_name": "Carol Martinez",
                         "translation_confidence": 0.88,
-                        "is_original_transcription": False
-                    }
-                ]
+                        "is_original_transcription": False,
+                    },
+                ],
             },
             {
                 "transcription": {
@@ -329,7 +337,7 @@ class VirtualWebcamIntegrationTest:
                     "speaker_id": "SPEAKER_05",
                     "speaker_name": "Pierre Dubois",
                     "translation_confidence": 0.93,
-                    "is_original_transcription": True
+                    "is_original_transcription": True,
                 },
                 "translations": [
                     {
@@ -339,7 +347,7 @@ class VirtualWebcamIntegrationTest:
                         "speaker_id": "SPEAKER_05",
                         "speaker_name": "Pierre Dubois",
                         "translation_confidence": 0.91,
-                        "is_original_transcription": False
+                        "is_original_transcription": False,
                     },
                     {
                         "translated_text": "¡Hola! Nuestra oficina de París va muy bien.",
@@ -348,9 +356,9 @@ class VirtualWebcamIntegrationTest:
                         "speaker_id": "SPEAKER_05",
                         "speaker_name": "Pierre Dubois",
                         "translation_confidence": 0.87,
-                        "is_original_transcription": False
-                    }
-                ]
+                        "is_original_transcription": False,
+                    },
+                ],
             },
         ]
 
@@ -368,7 +376,9 @@ class VirtualWebcamIntegrationTest:
 
             # Add all translations
             for j, translation in enumerate(item["translations"], 1):
-                logger.info(f"   🌐 TRANSLATION {j} ({translation['target_language'].upper()})")
+                logger.info(
+                    f"   🌐 TRANSLATION {j} ({translation['target_language'].upper()})"
+                )
                 logger.info(f"      {translation['translated_text']}")
 
                 self.webcam_manager.add_translation(translation)
@@ -407,8 +417,14 @@ class VirtualWebcamIntegrationTest:
         logger.info(f"   Frames saved: {len(self.frames_saved)}")
 
         if self.webcam_manager:
-            logger.info(f"   Total frames generated: {self.webcam_manager.frames_generated}")
-            duration = time.time() - self.webcam_manager.start_time if self.webcam_manager.start_time else 0
+            logger.info(
+                f"   Total frames generated: {self.webcam_manager.frames_generated}"
+            )
+            duration = (
+                time.time() - self.webcam_manager.start_time
+                if self.webcam_manager.start_time
+                else 0
+            )
             fps = self.webcam_manager.frames_generated / duration if duration > 0 else 0
             logger.info(f"   Test duration: {duration:.1f}s")
             logger.info(f"   Average FPS: {fps:.1f}")
@@ -430,17 +446,30 @@ class VirtualWebcamIntegrationTest:
                 "transcriptions": len(self.transcriptions_received),
                 "translations": len(self.translations_received),
                 "frames_saved": len(self.frames_saved),
-                "frames_generated": self.webcam_manager.frames_generated if self.webcam_manager else 0
+                "frames_generated": self.webcam_manager.frames_generated
+                if self.webcam_manager
+                else 0,
             },
             "output_directory": str(self.test_dir),
             "test_results": {
-                "test_1_transcription_only": len([t for t in self.transcriptions_received if t.get("is_original_transcription")]) > 0,
+                "test_1_transcription_only": len(
+                    [
+                        t
+                        for t in self.transcriptions_received
+                        if t.get("is_original_transcription")
+                    ]
+                )
+                > 0,
                 "test_2_bilingual_display": len(self.translations_received) > 0,
-                "test_3_multilingual": len(set(t.get("target_language") for t in self.translations_received)) >= 2
-            }
+                "test_3_multilingual": len(
+                    set(t.get("target_language") for t in self.translations_received)
+                )
+                >= 2,
+            },
         }
 
         import json
+
         summary_path = self.test_dir / "test_summary.json"
         with open(summary_path, "w") as f:
             json.dump(summary, f, indent=2)
@@ -453,7 +482,9 @@ class VirtualWebcamIntegrationTest:
 
         logger.info("\n💡 Next steps:")
         logger.info(f"   1. View frames: open {self.test_dir}")
-        logger.info(f"   2. Create video: ffmpeg -framerate 30 -i {self.test_dir}/frame_%04d.png -c:v libx264 -pix_fmt yuv420p output.mp4")
+        logger.info(
+            f"   2. Create video: ffmpeg -framerate 30 -i {self.test_dir}/frame_%04d.png -c:v libx264 -pix_fmt yuv420p output.mp4"
+        )
         logger.info(f"   3. Review summary: cat {summary_path}")
 
 

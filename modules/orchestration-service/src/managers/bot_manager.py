@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from uuid import uuid4
 from pathlib import Path
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -301,7 +300,6 @@ class BotManager:
     async def _start_bot_processes(self, bot_id: str):
         """Start bot processes"""
         bot_instance = self.bots[bot_id]
-        meeting_request = bot_instance.meeting_request
 
         # This would start the actual bot processes
         # For now, simulate process startup
@@ -601,9 +599,11 @@ class BotManager:
             )
             * 100,
         }
-        
+
         logger.debug(f"Bot manager stats: {stats_result}")
-        logger.debug(f"Bot manager stats types: {[(k, type(v)) for k, v in stats_result.items()]}")
+        logger.debug(
+            f"Bot manager stats types: {[(k, type(v)) for k, v in stats_result.items()]}"
+        )
         return stats_result
 
     def set_service_clients(
@@ -632,14 +632,23 @@ class BotManager:
 
             # Calculate analytics from database data
             total_sessions = len(sessions)
-            active_sessions = len([s for s in sessions if s.get("status") in ["spawning", "active", "paused"]])
-            completed_sessions = len([s for s in sessions if s.get("status") == "ended"])
+            active_sessions = len(
+                [
+                    s
+                    for s in sessions
+                    if s.get("status") in ["spawning", "active", "paused"]
+                ]
+            )
+            completed_sessions = len(
+                [s for s in sessions if s.get("status") == "ended"]
+            )
             error_sessions = len([s for s in sessions if s.get("status") == "error"])
 
             # Calculate averages
             total_duration = sum(
-                (s.get("end_time", time.time()) - s.get("start_time", 0)) 
-                for s in sessions if s.get("start_time")
+                (s.get("end_time", time.time()) - s.get("start_time", 0))
+                for s in sessions
+                if s.get("start_time")
             )
             avg_session_duration = total_duration / max(1, total_sessions)
 
@@ -655,15 +664,25 @@ class BotManager:
                 session_id = session.get("session_id")
                 if session_id:
                     # Get session analytics from database
-                    session_data = await self.database_client.get_comprehensive_session_data(session_id)
+                    session_data = (
+                        await self.database_client.get_comprehensive_session_data(
+                            session_id
+                        )
+                    )
                     if session_data:
                         audio_files_count += len(session_data.get("audio_files", []))
-                        transcripts_count += len(session_data.get("transcripts", {}).get("inhouse", []))
-                        translations_count += session_data.get("translations", {}).get("total_count", 0)
+                        transcripts_count += len(
+                            session_data.get("transcripts", {}).get("inhouse", [])
+                        )
+                        translations_count += session_data.get("translations", {}).get(
+                            "total_count", 0
+                        )
                         correlations_count += len(session_data.get("correlations", []))
 
                         # Calculate confidence scores
-                        for transcript in session_data.get("transcripts", {}).get("inhouse", []):
+                        for transcript in session_data.get("transcripts", {}).get(
+                            "inhouse", []
+                        ):
                             if transcript.get("confidence_score"):
                                 total_confidence += transcript["confidence_score"]
                                 confidence_count += 1
@@ -684,26 +703,32 @@ class BotManager:
                 "quality_metrics": {
                     "transcription_accuracy": avg_confidence,
                     "translation_quality": avg_confidence * 0.9,  # Approximate
-                    "correlation_success_rate": correlations_count / max(1, transcripts_count) * 100,
-                    "average_processing_time": avg_session_duration / max(1, audio_files_count)
+                    "correlation_success_rate": correlations_count
+                    / max(1, transcripts_count)
+                    * 100,
+                    "average_processing_time": avg_session_duration
+                    / max(1, audio_files_count),
                 },
                 "performance_stats": {
-                    "uptime_percentage": (completed_sessions / max(1, total_sessions)) * 100,
+                    "uptime_percentage": (completed_sessions / max(1, total_sessions))
+                    * 100,
                     "error_rate": (error_sessions / max(1, total_sessions)) * 100,
-                    "success_rate": (completed_sessions / max(1, total_sessions)) * 100
+                    "success_rate": (completed_sessions / max(1, total_sessions)) * 100,
                 },
                 "usage_patterns": {
                     "most_active_hours": [],  # TODO: Calculate from session timestamps
                     "average_session_duration": avg_session_duration,
-                    "popular_languages": []  # TODO: Calculate from session language data
-                }
+                    "popular_languages": [],  # TODO: Calculate from session language data
+                },
             }
 
         except Exception as e:
             logger.error(f"Error getting bot analytics: {e}")
             return None
 
-    async def get_comprehensive_session_data(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_comprehensive_session_data(
+        self, session_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get comprehensive session data including all related records."""
         try:
             if not self.database_client:
@@ -721,7 +746,9 @@ class BotManager:
             if bot_id in self.bots:
                 bot_instance = self.bots[bot_id]
                 if bot_instance.session_id and self.database_client:
-                    return await self.database_client.get_comprehensive_session_data(bot_instance.session_id)
+                    return await self.database_client.get_comprehensive_session_data(
+                        bot_instance.session_id
+                    )
             return None
 
         except Exception as e:
@@ -729,11 +756,11 @@ class BotManager:
             return None
 
     async def list_bot_sessions(
-        self, 
-        bot_id: str, 
-        limit: int = 50, 
-        offset: int = 0, 
-        status_filter: Optional[str] = None
+        self,
+        bot_id: str,
+        limit: int = 50,
+        offset: int = 0,
+        status_filter: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """List sessions for a specific bot with pagination."""
         try:
@@ -749,25 +776,23 @@ class BotManager:
             return []
 
     async def get_bot_performance_metrics(
-        self, 
-        bot_id: str, 
-        timeframe: str
+        self, bot_id: str, timeframe: str
     ) -> Optional[Dict[str, Any]]:
         """Get performance metrics for a bot over specified timeframe."""
         try:
             if not self.database_client:
                 return None
 
-            return await self.database_client.get_bot_performance_metrics(bot_id, timeframe)
+            return await self.database_client.get_bot_performance_metrics(
+                bot_id, timeframe
+            )
 
         except Exception as e:
             logger.error(f"Error getting bot performance metrics: {e}")
             return None
 
     async def get_bot_quality_report(
-        self, 
-        bot_id: str, 
-        session_id: Optional[str] = None
+        self, bot_id: str, session_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """Get quality report for bot operations."""
         try:
@@ -793,9 +818,7 @@ class BotManager:
             return None
 
     async def get_session_analytics(
-        self, 
-        timeframe: str, 
-        group_by: str
+        self, timeframe: str, group_by: str
     ) -> Optional[Dict[str, Any]]:
         """Get session analytics with time-based grouping."""
         try:

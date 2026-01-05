@@ -309,7 +309,6 @@ Examples:
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # Create new loop in thread
-                import threading
                 import concurrent.futures
                 
                 def run_service():

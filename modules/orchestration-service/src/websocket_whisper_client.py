@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WhisperSessionState:
     """Tracks state of a Whisper streaming session"""
+
     session_id: str
     config: Dict[str, Any]
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -72,7 +73,7 @@ class WebSocketWhisperClient:
         whisper_port: int = 5001,
         auto_reconnect: bool = True,
         max_reconnect_attempts: int = 5,
-        reconnect_delay: float = 1.0
+        reconnect_delay: float = 1.0,
     ):
         """
         Initialize Whisper WebSocket client
@@ -122,9 +123,7 @@ class WebSocketWhisperClient:
             logger.info(f"🔌 Connecting to Whisper WebSocket at {self.whisper_url}")
 
             self.websocket = await websockets.connect(
-                self.whisper_url,
-                ping_interval=30,
-                ping_timeout=10
+                self.whisper_url, ping_interval=30, ping_timeout=10
             )
 
             self.connected = True
@@ -144,7 +143,10 @@ class WebSocketWhisperClient:
             self.connected = False
             self._notify_connection(False)
 
-            if self.auto_reconnect and self.reconnect_count < self.max_reconnect_attempts:
+            if (
+                self.auto_reconnect
+                and self.reconnect_count < self.max_reconnect_attempts
+            ):
                 await self._attempt_reconnect()
 
             return False
@@ -178,7 +180,10 @@ class WebSocketWhisperClient:
             self.connected = False
             self._notify_connection(False)
 
-            if self.auto_reconnect and self.reconnect_count < self.max_reconnect_attempts:
+            if (
+                self.auto_reconnect
+                and self.reconnect_count < self.max_reconnect_attempts
+            ):
                 await self._attempt_reconnect()
 
     async def _handle_message(self, data: Dict[str, Any]):
@@ -225,11 +230,7 @@ class WebSocketWhisperClient:
                 logger.error(f"Heartbeat error: {e}")
                 break
 
-    async def start_stream(
-        self,
-        session_id: str,
-        config: Dict[str, Any]
-    ) -> str:
+    async def start_stream(self, session_id: str, config: Dict[str, Any]) -> str:
         """
         Start a new streaming session on Whisper
 
@@ -247,18 +248,11 @@ class WebSocketWhisperClient:
             raise RuntimeError("Not connected to Whisper WebSocket server")
 
         # Create session state
-        session_state = WhisperSessionState(
-            session_id=session_id,
-            config=config
-        )
+        session_state = WhisperSessionState(session_id=session_id, config=config)
         self.sessions[session_id] = session_state
 
         # Send start_stream message
-        message = {
-            "action": "start_stream",
-            "session_id": session_id,
-            "config": config
-        }
+        message = {"action": "start_stream", "session_id": session_id, "config": config}
 
         await self.websocket.send(json.dumps(message))
         logger.info(f"🎬 Started stream for session: {session_id}")
@@ -266,10 +260,7 @@ class WebSocketWhisperClient:
         return session_id
 
     async def send_audio_chunk(
-        self,
-        session_id: str,
-        audio_data: bytes,
-        timestamp: Optional[datetime] = None
+        self, session_id: str, audio_data: bytes, timestamp: Optional[datetime] = None
     ):
         """
         Send audio chunk to Whisper for processing
@@ -289,21 +280,21 @@ class WebSocketWhisperClient:
             raise RuntimeError(f"Session not found: {session_id}")
 
         # Encode audio to base64
-        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
 
         # Use current timestamp if not provided
         if timestamp is None:
             timestamp = datetime.now(timezone.utc)
 
         # Format timestamp as ISO 8601 with 'Z' suffix
-        timestamp_str = timestamp.isoformat().replace('+00:00', 'Z')
+        timestamp_str = timestamp.isoformat().replace("+00:00", "Z")
 
         # Send audio chunk message
         message = {
             "type": "audio_chunk",
             "session_id": session_id,
             "audio": audio_base64,
-            "timestamp": timestamp_str
+            "timestamp": timestamp_str,
         }
 
         await self.websocket.send(json.dumps(message))
@@ -334,10 +325,7 @@ class WebSocketWhisperClient:
             return
 
         # Send close message
-        message = {
-            "action": "close_stream",
-            "session_id": session_id
-        }
+        message = {"action": "close_stream", "session_id": session_id}
 
         await self.websocket.send(json.dumps(message))
 
@@ -455,7 +443,7 @@ class WebSocketWhisperClient:
             "is_active": session.is_active,
             "chunks_sent": session.chunks_sent,
             "segments_received": session.segments_received,
-            "last_activity": session.last_activity.isoformat()
+            "last_activity": session.last_activity.isoformat(),
         }
 
     def get_all_sessions(self) -> Dict[str, Dict[str, Any]]:
@@ -488,7 +476,9 @@ class WebSocketWhisperClient:
             "active_sessions": sum(1 for s in self.sessions.values() if s.is_active),
             "total_sessions": len(self.sessions),
             "total_chunks_sent": sum(s.chunks_sent for s in self.sessions.values()),
-            "total_segments_received": sum(s.segments_received for s in self.sessions.values())
+            "total_segments_received": sum(
+                s.segments_received for s in self.sessions.values()
+            ),
         }
 
 
@@ -498,9 +488,7 @@ async def example_usage():
 
     # Create client
     client = WebSocketWhisperClient(
-        whisper_host="localhost",
-        whisper_port=5001,
-        auto_reconnect=True
+        whisper_host="localhost", whisper_port=5001, auto_reconnect=True
     )
 
     # Register callbacks
@@ -523,15 +511,12 @@ async def example_usage():
     # Start streaming session
     session_id = await client.start_stream(
         session_id="example-session",
-        config={
-            "model": "large-v3",
-            "language": "en",
-            "enable_vad": True
-        }
+        config={"model": "large-v3", "language": "en", "enable_vad": True},
     )
 
     # Send audio chunks
     import numpy as np
+
     for i in range(10):
         # Generate test audio (1 second)
         test_audio = np.random.randn(16000).astype(np.float32)

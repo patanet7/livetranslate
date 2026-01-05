@@ -33,9 +33,7 @@ def _reset_singleton():
 @pytest.fixture(autouse=True)
 def reset_audio_facade(monkeypatch):
     _reset_singleton()
-    monkeypatch.setattr(
-        audio_module, "AUDIO_MODULE_AVAILABLE", False, raising=False
-    )
+    monkeypatch.setattr(audio_module, "AUDIO_MODULE_AVAILABLE", False, raising=False)
     yield
     _reset_singleton()
 
@@ -134,7 +132,9 @@ async def test_service_client_pool_uses_embedded_audio_client():
     )
 
     class StubAudioClient:
-        async def transcribe_stream(self, audio_bytes: bytes, request: TranscriptionRequest):
+        async def transcribe_stream(
+            self, audio_bytes: bytes, request: TranscriptionRequest
+        ):
             assert isinstance(request, TranscriptionRequest)
             assert len(audio_bytes) > 0
             return TranscriptionResponse(
@@ -152,7 +152,9 @@ async def test_service_client_pool_uses_embedded_audio_client():
     )
 
     audio_chunk = np.zeros(1600, dtype=np.float32)
-    result = await pool.send_to_whisper_service("session-1", audio_metadata, audio_chunk)
+    result = await pool.send_to_whisper_service(
+        "session-1", audio_metadata, audio_chunk
+    )
 
     assert result is not None
     assert result["text"] == "hello there"

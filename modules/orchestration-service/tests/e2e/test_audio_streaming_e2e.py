@@ -21,7 +21,9 @@ from datetime import datetime
 # Test configuration
 MEETING_BOT_SERVICE_URL = "http://localhost:5005"
 ORCHESTRATION_SERVICE_URL = "http://localhost:3000"
-TEST_MEETING_URL = sys.argv[1] if len(sys.argv) > 1 else "https://meet.google.com/oss-kqzr-ztg"
+TEST_MEETING_URL = (
+    sys.argv[1] if len(sys.argv) > 1 else "https://meet.google.com/oss-kqzr-ztg"
+)
 
 
 async def check_service_health(service_name: str, url: str) -> bool:
@@ -52,7 +54,7 @@ async def join_meeting_with_audio_streaming(meeting_url: str) -> dict:
         "botId": bot_id,
         "userId": "test-user-001",
         "teamId": "livetranslate-team",
-        "orchestrationUrl": "ws://localhost:3000/api/audio/stream"  # Enable audio streaming
+        "orchestrationUrl": "ws://localhost:3000/api/audio/stream",  # Enable audio streaming
     }
 
     print(f"📤 Sending join request with audio streaming enabled...")
@@ -62,8 +64,7 @@ async def join_meeting_with_audio_streaming(meeting_url: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                f"{MEETING_BOT_SERVICE_URL}/api/bot/join",
-                json=request_data
+                f"{MEETING_BOT_SERVICE_URL}/api/bot/join", json=request_data
             )
 
             if response.status_code == 200:
@@ -87,15 +88,17 @@ async def check_bot_status(bot_id: str) -> dict:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{MEETING_BOT_SERVICE_URL}/api/bot/status/{bot_id}",
-                timeout=5.0
+                f"{MEETING_BOT_SERVICE_URL}/api/bot/status/{bot_id}", timeout=5.0
             )
 
             if response.status_code == 200:
                 status = response.json()
                 return {"success": True, "status": status}
             else:
-                return {"success": False, "error": f"Status code: {response.status_code}"}
+                return {
+                    "success": False,
+                    "error": f"Status code: {response.status_code}",
+                }
 
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -114,12 +117,14 @@ async def monitor_audio_streaming(bot_id: str, duration_seconds: int = 30):
         if status_result["success"]:
             bot_status = status_result["status"]
             state = bot_status.get("state", "unknown")
-            print(f"   [{i*5:2d}s] Bot state: {state}")
+            print(f"   [{i * 5:2d}s] Bot state: {state}")
 
             if state == "streaming":
                 print(f"      ✅ Audio streaming is ACTIVE!")
         else:
-            print(f"   [{i*5:2d}s] Could not get bot status: {status_result.get('error')}")
+            print(
+                f"   [{i * 5:2d}s] Could not get bot status: {status_result.get('error')}"
+            )
 
 
 async def leave_meeting(bot_id: str):
@@ -129,8 +134,7 @@ async def leave_meeting(bot_id: str):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{MEETING_BOT_SERVICE_URL}/api/bot/leave/{bot_id}",
-                timeout=10.0
+                f"{MEETING_BOT_SERVICE_URL}/api/bot/leave/{bot_id}", timeout=10.0
             )
 
             if response.status_code == 200:
@@ -154,8 +158,12 @@ async def main():
     # Step 1: Check services are running
     print("\n📡 Checking services...")
 
-    bot_service_ok = await check_service_health("Meeting Bot Service", MEETING_BOT_SERVICE_URL)
-    orch_service_ok = await check_service_health("Orchestration Service", ORCHESTRATION_SERVICE_URL)
+    bot_service_ok = await check_service_health(
+        "Meeting Bot Service", MEETING_BOT_SERVICE_URL
+    )
+    orch_service_ok = await check_service_health(
+        "Orchestration Service", ORCHESTRATION_SERVICE_URL
+    )
 
     if not bot_service_ok:
         print("\n❌ Meeting Bot Service is not running!")
@@ -165,7 +173,9 @@ async def main():
     if not orch_service_ok:
         print("\n⚠️  Orchestration Service is not running")
         print("   Audio will be streamed but may not be processed")
-        print("   You can start it with: cd modules/orchestration-service && poetry run python src/main_fastapi.py")
+        print(
+            "   You can start it with: cd modules/orchestration-service && poetry run python src/main_fastapi.py"
+        )
 
     # Step 2: Join meeting with audio streaming
     join_result = await join_meeting_with_audio_streaming(TEST_MEETING_URL)
@@ -192,7 +202,9 @@ async def main():
     print("\nWhat to check:")
     print("1. Bot should have joined the meeting")
     print("2. Bot state should show 'streaming' (indicates audio capture is active)")
-    print("3. Check meeting-bot-service logs for '[LiveTranslate] Audio streaming started successfully'")
+    print(
+        "3. Check meeting-bot-service logs for '[LiveTranslate] Audio streaming started successfully'"
+    )
     print("4. Check orchestration-service logs for incoming audio chunks")
     print("\nTo view logs:")
     print("  - Bot service: Check the terminal where 'npm run api' is running")

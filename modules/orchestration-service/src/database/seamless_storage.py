@@ -61,7 +61,14 @@ async def ensure_schema() -> None:
         await db.commit()
 
 
-async def open_session(session_id: str, created_at_iso: str, source_lang: str, target_lang: str, client_ip: Optional[str], user_agent: Optional[str]) -> None:
+async def open_session(
+    session_id: str,
+    created_at_iso: str,
+    source_lang: str,
+    target_lang: str,
+    client_ip: Optional[str],
+    user_agent: Optional[str],
+) -> None:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
         await db.execute(
@@ -69,7 +76,14 @@ async def open_session(session_id: str, created_at_iso: str, source_lang: str, t
             INSERT OR IGNORE INTO seamless_sessions (id, created_at, source_lang, target_lang, client_ip, user_agent)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (session_id, created_at_iso, source_lang, target_lang, client_ip, user_agent),
+            (
+                session_id,
+                created_at_iso,
+                source_lang,
+                target_lang,
+                client_ip,
+                user_agent,
+            ),
         )
         await db.commit()
 
@@ -86,7 +100,9 @@ async def close_session(session_id: str, ended_at_iso: str) -> None:
         await db.commit()
 
 
-async def add_event(session_id: str, event_type: str, payload: Dict[str, Any], timestamp_ms: int) -> None:
+async def add_event(
+    session_id: str, event_type: str, payload: Dict[str, Any], timestamp_ms: int
+) -> None:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
         await db.execute(
@@ -99,7 +115,9 @@ async def add_event(session_id: str, event_type: str, payload: Dict[str, Any], t
         await db.commit()
 
 
-async def add_transcript(session_id: str, lang: str, text: str, is_final: bool, created_at_iso: str) -> None:
+async def add_transcript(
+    session_id: str, lang: str, text: str, is_final: bool, created_at_iso: str
+) -> None:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
         await db.execute(
@@ -137,7 +155,14 @@ async def get_session(session_id: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
-async def get_events(session_id: str, from_ms: Optional[int] = None, to_ms: Optional[int] = None, types_csv: Optional[str] = None, limit: int = 500, offset: int = 0) -> List[Dict[str, Any]]:
+async def get_events(
+    session_id: str,
+    from_ms: Optional[int] = None,
+    to_ms: Optional[int] = None,
+    types_csv: Optional[str] = None,
+    limit: int = 500,
+    offset: int = 0,
+) -> List[Dict[str, Any]]:
     db_path = _resolve_db_path()
     query = "SELECT id, event_type, payload, timestamp_ms FROM seamless_events WHERE session_id = ?"
     params: List[Any] = [session_id]
@@ -148,7 +173,7 @@ async def get_events(session_id: str, from_ms: Optional[int] = None, to_ms: Opti
         query += " AND timestamp_ms <= ?"
         params.append(to_ms)
     if types_csv:
-        types = [t.strip() for t in types_csv.split(',') if t.strip()]
+        types = [t.strip() for t in types_csv.split(",") if t.strip()]
         if types:
             placeholders = ",".join(["?"] * len(types))
             query += f" AND event_type IN ({placeholders})"
@@ -173,5 +198,3 @@ async def get_transcripts(session_id: str) -> List[Dict[str, Any]]:
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
-
-

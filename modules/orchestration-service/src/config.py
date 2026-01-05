@@ -6,7 +6,6 @@ Centralized configuration using Pydantic Settings with environment variable supp
 and validation.
 """
 
-import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from functools import lru_cache
@@ -15,7 +14,13 @@ try:
     from pydantic_settings import BaseSettings
     from pydantic import Field, field_validator, ValidationInfo, ConfigDict
 except ImportError:
-    from pydantic import BaseSettings, Field, field_validator, ValidationInfo, ConfigDict
+    from pydantic import (
+        BaseSettings,
+        Field,
+        field_validator,
+        ValidationInfo,
+        ConfigDict,
+    )
 
 
 class DatabaseSettings(BaseSettings):
@@ -169,7 +174,7 @@ class SecuritySettings(BaseSettings):
         description="Allowed CORS origins",
     )
 
-    @field_validator("cors_origins", mode='before')
+    @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
@@ -236,85 +241,74 @@ class BotSettings(BaseSettings):
     docker_image: str = Field(
         default="livetranslate-bot:latest",
         env="BOT_DOCKER_IMAGE",
-        description="Docker image for bot containers"
+        description="Docker image for bot containers",
     )
     docker_network: str = Field(
         default="livetranslate_default",
         env="BOT_DOCKER_NETWORK",
-        description="Docker network for bot containers"
+        description="Docker network for bot containers",
     )
 
     # Database settings (optional)
     enable_database: bool = Field(
         default=False,
         env="BOT_ENABLE_DATABASE",
-        description="Enable database persistence for bots"
+        description="Enable database persistence for bots",
     )
     database_host: str = Field(
-        default="localhost",
-        env="BOT_DATABASE_HOST",
-        description="Bot database host"
+        default="localhost", env="BOT_DATABASE_HOST", description="Bot database host"
     )
     database_port: int = Field(
-        default=5432,
-        env="BOT_DATABASE_PORT",
-        description="Bot database port"
+        default=5432, env="BOT_DATABASE_PORT", description="Bot database port"
     )
     database_name: str = Field(
         default="livetranslate",
         env="BOT_DATABASE_NAME",
-        description="Bot database name"
+        description="Bot database name",
     )
     database_user: str = Field(
-        default="postgres",
-        env="BOT_DATABASE_USER",
-        description="Bot database username"
+        default="postgres", env="BOT_DATABASE_USER", description="Bot database username"
     )
     database_password: str = Field(
-        default="",
-        env="BOT_DATABASE_PASSWORD",
-        description="Bot database password"
+        default="", env="BOT_DATABASE_PASSWORD", description="Bot database password"
     )
 
     # Storage settings
     audio_storage_path: str = Field(
         default="/tmp/livetranslate/audio",
         env="BOT_AUDIO_STORAGE_PATH",
-        description="Path for bot audio file storage"
+        description="Path for bot audio file storage",
     )
 
     # Google Account Authentication (for restricted meetings)
     google_email: str = Field(
-        default="",
-        description="Google account email for bot authentication"
+        default="", description="Google account email for bot authentication"
     )
     google_password: str = Field(
         default="",
-        description="Google account password (use App Password if 2FA enabled)"
+        description="Google account password (use App Password if 2FA enabled)",
     )
 
     # Persistent Browser Profile (keeps bot logged in)
     user_data_dir: str = Field(
         default="/tmp/bot-browser-profile",
         env="BOT_USER_DATA_DIR",
-        description="Path to persistent browser profile (stores login state)"
+        description="Path to persistent browser profile (stores login state)",
     )
 
     # Browser Settings
     headless: bool = Field(
-        default=True,
-        env="BOT_HEADLESS",
-        description="Run browser in headless mode"
+        default=True, env="BOT_HEADLESS", description="Run browser in headless mode"
     )
     screenshots_enabled: bool = Field(
         default=True,
         env="BOT_SCREENSHOTS_ENABLED",
-        description="Enable screenshot debugging"
+        description="Enable screenshot debugging",
     )
     screenshots_path: str = Field(
         default="/tmp/bot-screenshots",
         env="BOT_SCREENSHOTS_PATH",
-        description="Path for bot screenshots"
+        description="Path for bot screenshots",
     )
 
     model_config = ConfigDict(env_prefix="BOT_", env_file=".env", extra="ignore")

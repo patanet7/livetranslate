@@ -63,9 +63,7 @@ DB_CONFIG = {
     "password": os.getenv("POSTGRES_PASSWORD", "livetranslate"),
 }
 
-AUDIO_STORAGE_PATH = os.getenv(
-    "TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/audio"
-)
+AUDIO_STORAGE_PATH = os.getenv("TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/audio")
 
 
 # ============================================================================
@@ -593,9 +591,15 @@ async def test_timeline_reconstruction(pipeline, test_session):
     """Test timeline reconstruction with transcripts and translations."""
     # Create test data
     transcriptions = [
-        TranscriptionResult("First segment", "en", 0.0, 2.0, "SPEAKER_00", confidence=0.95),
-        TranscriptionResult("Second segment", "en", 2.0, 4.0, "SPEAKER_01", confidence=0.93),
-        TranscriptionResult("Third segment", "en", 4.0, 6.0, "SPEAKER_00", confidence=0.94),
+        TranscriptionResult(
+            "First segment", "en", 0.0, 2.0, "SPEAKER_00", confidence=0.95
+        ),
+        TranscriptionResult(
+            "Second segment", "en", 2.0, 4.0, "SPEAKER_01", confidence=0.93
+        ),
+        TranscriptionResult(
+            "Third segment", "en", 4.0, 6.0, "SPEAKER_00", confidence=0.94
+        ),
     ]
 
     transcript_ids = []
@@ -651,7 +655,9 @@ async def test_timeline_filtering(pipeline, test_session):
         translation = TranslationResult(
             f"ES: {text}", lang, "es", speaker, confidence=0.90
         )
-        await pipeline.process_translation_result(test_session, tid, translation, start, end)
+        await pipeline.process_translation_result(
+            test_session, tid, translation, start, end
+        )
 
     # Test time range filter
     timeline_range = await pipeline.get_session_timeline(
@@ -687,8 +693,8 @@ async def test_speaker_statistics(pipeline, test_session):
     # Create test data with varying speaking times
     speakers_data = [
         ("SPEAKER_00", "Alice", 5),  # 5 segments
-        ("SPEAKER_01", "Bob", 3),    # 3 segments
-        ("SPEAKER_02", "Charlie", 2), # 2 segments
+        ("SPEAKER_01", "Bob", 3),  # 3 segments
+        ("SPEAKER_02", "Charlie", 2),  # 2 segments
     ]
 
     for speaker_id, speaker_name, num_segments in speakers_data:
@@ -717,7 +723,9 @@ async def test_speaker_statistics(pipeline, test_session):
                 speaker_name=speaker_name,
                 confidence=0.90,
             )
-            await pipeline.process_translation_result(test_session, tid, translation, start, end)
+            await pipeline.process_translation_result(
+                test_session, tid, translation, start, end
+            )
 
     # Get speaker statistics
     stats = await pipeline.get_speaker_statistics(test_session)
@@ -729,7 +737,9 @@ async def test_speaker_statistics(pipeline, test_session):
     for stat in stats:
         expected_segments = dict(speakers_data)[stat.speaker_id][1]
         assert stat.total_segments == expected_segments
-        assert stat.total_speaking_time == expected_segments * 2.0  # 2 seconds per segment
+        assert (
+            stat.total_speaking_time == expected_segments * 2.0
+        )  # 2 seconds per segment
         assert stat.total_translations > 0
 
 
@@ -818,7 +828,9 @@ async def test_edge_cases(pipeline, test_session):
         speaker="SPEAKER_00",
         confidence=0.95,
     )
-    transcript_id = await pipeline.process_transcription_result(test_session, None, trans)
+    transcript_id = await pipeline.process_transcription_result(
+        test_session, None, trans
+    )
     assert transcript_id is not None
 
     # Zero duration segment
@@ -844,7 +856,9 @@ async def test_segment_continuity(pipeline, test_session):
     """Test segment continuity tracking."""
     # Create sequential segments
     segments = [
-        TranscriptionResult(f"Segment {i}", "en", i * 2.0, (i + 1) * 2.0, "SPEAKER_00", confidence=0.95)
+        TranscriptionResult(
+            f"Segment {i}", "en", i * 2.0, (i + 1) * 2.0, "SPEAKER_00", confidence=0.95
+        )
         for i in range(3)
     ]
 
@@ -897,7 +911,12 @@ async def test_session_statistics_computation(pipeline, test_session):
 
         # Transcript
         trans = TranscriptionResult(
-            f"Transcript {i}", "en", i * 2.0, (i + 1) * 2.0, "SPEAKER_00", confidence=0.95
+            f"Transcript {i}",
+            "en",
+            i * 2.0,
+            (i + 1) * 2.0,
+            "SPEAKER_00",
+            confidence=0.95,
         )
         tid = await pipeline.process_transcription_result(test_session, None, trans)
 
@@ -905,7 +924,9 @@ async def test_session_statistics_computation(pipeline, test_session):
         translation = TranslationResult(
             f"Translation {i}", "en", "es", "SPEAKER_00", confidence=0.90
         )
-        await pipeline.process_translation_result(test_session, tid, translation, i * 2.0, (i + 1) * 2.0)
+        await pipeline.process_translation_result(
+            test_session, tid, translation, i * 2.0, (i + 1) * 2.0
+        )
 
     # Trigger statistics update
     await pipeline.db_manager.db_pool.execute(

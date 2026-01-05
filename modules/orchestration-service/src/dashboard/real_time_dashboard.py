@@ -11,8 +11,6 @@ import logging
 import threading
 from typing import Dict, Any, List, Optional
 from collections import deque, defaultdict
-from datetime import datetime, timedelta
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -267,8 +265,6 @@ class RealTimeDashboard:
     def update_metrics(self, orchestration_service):
         """Update metrics from orchestration service components"""
         try:
-            current_time = time.time()
-
             # WebSocket metrics
             if hasattr(orchestration_service, "websocket_manager"):
                 ws_stats = orchestration_service.websocket_manager.get_statistics()
@@ -300,7 +296,6 @@ class RealTimeDashboard:
 
             # Health Monitor metrics
             if hasattr(orchestration_service, "health_monitor"):
-                health_metrics = orchestration_service.health_monitor.get_metrics()
                 service_status = (
                     orchestration_service.health_monitor.get_all_service_status()
                 )
@@ -345,9 +340,9 @@ class RealTimeDashboard:
 
             # Service status
             if hasattr(orchestration_service, "health_monitor"):
-                self.dashboard_data[
-                    "service_status"
-                ] = orchestration_service.health_monitor.get_all_service_status()
+                self.dashboard_data["service_status"] = (
+                    orchestration_service.health_monitor.get_all_service_status()
+                )
 
             # Performance analysis
             analysis = self.performance_analyzer.analyze_performance()
@@ -356,9 +351,9 @@ class RealTimeDashboard:
             )
 
             # Trends
-            self.dashboard_data[
-                "trends"
-            ] = self.performance_analyzer.get_performance_trends()
+            self.dashboard_data["trends"] = (
+                self.performance_analyzer.get_performance_trends()
+            )
 
         except Exception as e:
             logger.error(f"Failed to update dashboard data: {e}")
@@ -387,18 +382,25 @@ class RealTimeDashboard:
         if self._websocket_manager and self.enable_real_time:
             try:
                 metrics_data = self.get_real_time_metrics()
-                
+
                 # Broadcast to all connected clients
-                for connection_id, connection in self._websocket_manager.connections.items():
+                for (
+                    connection_id,
+                    connection,
+                ) in self._websocket_manager.connections.items():
                     try:
-                        await connection.send_message({
-                            "type": "metrics:update",
-                            "data": metrics_data,
-                            "timestamp": int(time.time() * 1000),
-                        })
+                        await connection.send_message(
+                            {
+                                "type": "metrics:update",
+                                "data": metrics_data,
+                                "timestamp": int(time.time() * 1000),
+                            }
+                        )
                     except Exception as e:
-                        logger.error(f"Failed to send metrics update to {connection_id}: {e}")
-                        
+                        logger.error(
+                            f"Failed to send metrics update to {connection_id}: {e}"
+                        )
+
             except Exception as e:
                 logger.error(f"Failed to broadcast metrics update: {e}")
 

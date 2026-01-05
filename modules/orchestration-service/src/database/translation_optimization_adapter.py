@@ -85,7 +85,7 @@ class TranslationOptimizationAdapter:
         model_used: Optional[str] = None,
         translation_service: Optional[str] = None,
         confidence: Optional[float] = None,
-        quality: Optional[float] = None
+        quality: Optional[float] = None,
     ) -> Optional[int]:
         """
         Record a cache lookup statistic.
@@ -127,7 +127,7 @@ class TranslationOptimizationAdapter:
                     model_used,
                     translation_service,
                     confidence,
-                    quality
+                    quality,
                 )
 
                 logger.debug(
@@ -142,9 +142,7 @@ class TranslationOptimizationAdapter:
             return None
 
     async def get_cache_performance(
-        self,
-        session_id: Optional[str] = None,
-        model_used: Optional[str] = None
+        self, session_id: Optional[str] = None, model_used: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get cache performance statistics.
@@ -194,7 +192,7 @@ class TranslationOptimizationAdapter:
         success_count: int = 0,
         error_count: int = 0,
         results: Optional[Dict] = None,
-        batch_id: Optional[str] = None
+        batch_id: Optional[str] = None,
     ) -> Optional[str]:
         """
         Record a multi-language translation batch.
@@ -238,7 +236,7 @@ class TranslationOptimizationAdapter:
                     model_requested,
                     success_count,
                     error_count,
-                    json.dumps(results) if results else '{}'
+                    json.dumps(results) if results else "{}",
                 )
 
                 logger.info(
@@ -254,9 +252,7 @@ class TranslationOptimizationAdapter:
             return None
 
     async def get_batch_efficiency(
-        self,
-        session_id: Optional[str] = None,
-        model_requested: Optional[str] = None
+        self, session_id: Optional[str] = None, model_requested: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get batch translation efficiency metrics.
@@ -302,7 +298,7 @@ class TranslationOptimizationAdapter:
         latency_ms: float,
         success: bool,
         confidence: Optional[float] = None,
-        was_cached: bool = False
+        was_cached: bool = False,
     ) -> bool:
         """
         Update model performance metrics.
@@ -335,7 +331,7 @@ class TranslationOptimizationAdapter:
                     latency_ms,
                     success,
                     confidence,
-                    was_cached
+                    was_cached,
                 )
 
                 return result
@@ -347,7 +343,7 @@ class TranslationOptimizationAdapter:
     async def get_model_comparison(
         self,
         source_language: Optional[str] = None,
-        target_language: Optional[str] = None
+        target_language: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Get model performance comparison.
@@ -387,10 +383,7 @@ class TranslationOptimizationAdapter:
     # =========================================================================
 
     async def get_or_create_translation_context(
-        self,
-        session_id: str,
-        target_language: str,
-        context_window_size: int = 5
+        self, session_id: str, target_language: str, context_window_size: int = 5
     ) -> Optional[Dict[str, Any]]:
         """
         Get or create translation context for a session and language.
@@ -412,7 +405,7 @@ class TranslationOptimizationAdapter:
                     WHERE session_id = $1 AND target_language = $2
                     """,
                     session_id,
-                    target_language
+                    target_language,
                 )
 
                 if context:
@@ -428,7 +421,7 @@ class TranslationOptimizationAdapter:
                     """,
                     session_id,
                     target_language,
-                    context_window_size
+                    context_window_size,
                 )
 
                 logger.info(
@@ -446,7 +439,7 @@ class TranslationOptimizationAdapter:
         session_id: str,
         target_language: str,
         source_text: str,
-        translated_text: str
+        translated_text: str,
     ) -> bool:
         """
         Add a translation to the context history.
@@ -470,21 +463,23 @@ class TranslationOptimizationAdapter:
                     WHERE session_id = $1 AND target_language = $2
                     """,
                     session_id,
-                    target_language
+                    target_language,
                 )
 
                 if not context:
-                    logger.warning(f"No context found for {session_id}, {target_language}")
+                    logger.warning(
+                        f"No context found for {session_id}, {target_language}"
+                    )
                     return False
 
-                window_size = context['context_window_size']
-                recent_translations = context['recent_translations'] or []
+                window_size = context["context_window_size"]
+                recent_translations = context["recent_translations"] or []
 
                 # Add new translation
                 new_entry = {
                     "source": source_text,
                     "translation": translated_text,
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
                 }
 
                 recent_translations.append(new_entry)
@@ -502,7 +497,7 @@ class TranslationOptimizationAdapter:
                     """,
                     json.dumps(recent_translations),
                     session_id,
-                    target_language
+                    target_language,
                 )
 
                 return True
@@ -516,8 +511,7 @@ class TranslationOptimizationAdapter:
     # =========================================================================
 
     async def get_session_translation_summary(
-        self,
-        session_id: str
+        self, session_id: str
     ) -> Optional[Dict[str, Any]]:
         """
         Get translation summary for a session with optimization metrics.
@@ -535,7 +529,7 @@ class TranslationOptimizationAdapter:
                     SELECT * FROM bot_sessions.session_translation_summary
                     WHERE session_id = $1
                     """,
-                    session_id
+                    session_id,
                 )
 
                 return dict(summary) if summary else None
@@ -557,7 +551,7 @@ class TranslationOptimizationAdapter:
         was_cached: Optional[bool] = None,
         cache_latency_ms: Optional[float] = None,
         translation_latency_ms: Optional[float] = None,
-        optimization_metadata: Optional[Dict] = None
+        optimization_metadata: Optional[Dict] = None,
     ) -> bool:
         """
         Update optimization metadata for an existing translation record.
@@ -622,7 +616,7 @@ class TranslationOptimizationAdapter:
 
                 query = f"""
                     UPDATE bot_sessions.translations
-                    SET {', '.join(updates)}
+                    SET {", ".join(updates)}
                     WHERE translation_id = $1
                 """
 

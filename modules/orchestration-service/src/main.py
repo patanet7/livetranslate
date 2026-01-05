@@ -13,17 +13,14 @@ It handles:
 - Monitoring and health checks
 """
 
-import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -32,7 +29,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 # Import orchestration service components
 from main_fastapi import app as fastapi_app
-from config import get_settings
 
 # Configure logging
 logging.basicConfig(

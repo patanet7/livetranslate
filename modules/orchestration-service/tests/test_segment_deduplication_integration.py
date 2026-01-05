@@ -50,14 +50,14 @@ class TestSegmentDeduplication:
                 "text": "Hello",
                 "speaker": "SPEAKER_00",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "World",
                 "speaker": "SPEAKER_00",
                 "absolute_start_time": "2025-01-15T10:30:02Z",
-                "absolute_end_time": "2025-01-15T10:30:03Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:03Z",
+            },
         ]
 
         dedup.merge_segments(initial)
@@ -69,7 +69,7 @@ class TestSegmentDeduplication:
                 "text": "Hello everyone",  # Updated text
                 "speaker": "SPEAKER_00",
                 "absolute_start_time": "2025-01-15T10:30:00Z",  # SAME KEY
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             }
         ]
 
@@ -104,7 +104,7 @@ class TestSegmentDeduplication:
             "speaker": "SPEAKER_00",
             "absolute_start_time": "2025-01-15T10:30:00Z",
             "absolute_end_time": "2025-01-15T10:30:01Z",
-            "updated_at": "2025-01-15T10:30:01.000Z"
+            "updated_at": "2025-01-15T10:30:01.000Z",
         }
 
         dedup.merge_segments([older])
@@ -115,7 +115,7 @@ class TestSegmentDeduplication:
             "speaker": "SPEAKER_00",
             "absolute_start_time": "2025-01-15T10:30:00Z",
             "absolute_end_time": "2025-01-15T10:30:01Z",
-            "updated_at": "2025-01-15T10:30:00.500Z"  # Older!
+            "updated_at": "2025-01-15T10:30:00.500Z",  # Older!
         }
 
         dedup.merge_segments([even_older])
@@ -128,7 +128,7 @@ class TestSegmentDeduplication:
             "speaker": "SPEAKER_00",
             "absolute_start_time": "2025-01-15T10:30:00Z",
             "absolute_end_time": "2025-01-15T10:30:01Z",
-            "updated_at": "2025-01-15T10:30:02.000Z"  # Newer!
+            "updated_at": "2025-01-15T10:30:02.000Z",  # Newer!
         }
 
         dedup.merge_segments([newer])
@@ -156,23 +156,23 @@ class TestSegmentDeduplication:
             {
                 "text": "Hello",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "",  # Empty - should be discarded
                 "absolute_start_time": "2025-01-15T10:30:02Z",
-                "absolute_end_time": "2025-01-15T10:30:03Z"
+                "absolute_end_time": "2025-01-15T10:30:03Z",
             },
             {
                 "text": "   ",  # Whitespace only - should be discarded
                 "absolute_start_time": "2025-01-15T10:30:04Z",
-                "absolute_end_time": "2025-01-15T10:30:05Z"
+                "absolute_end_time": "2025-01-15T10:30:05Z",
             },
             {
                 "text": "World",
                 "absolute_start_time": "2025-01-15T10:30:06Z",
-                "absolute_end_time": "2025-01-15T10:30:07Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:07Z",
+            },
         ]
 
         dedup.merge_segments(segments)
@@ -203,18 +203,18 @@ class TestSegmentDeduplication:
             {
                 "text": "Third",
                 "absolute_start_time": "2025-01-15T10:30:06Z",
-                "absolute_end_time": "2025-01-15T10:30:07Z"
+                "absolute_end_time": "2025-01-15T10:30:07Z",
             },
             {
                 "text": "First",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "Second",
                 "absolute_start_time": "2025-01-15T10:30:03Z",
-                "absolute_end_time": "2025-01-15T10:30:04Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:04Z",
+            },
         ]
 
         dedup.merge_segments(segments)
@@ -226,7 +226,9 @@ class TestSegmentDeduplication:
         assert sorted_segments[2]["text"] == "Third"
 
         print(f"   Insertion order: Third, First, Second")
-        print(f"   Output order: {sorted_segments[0]['text']}, {sorted_segments[1]['text']}, {sorted_segments[2]['text']}")
+        print(
+            f"   Output order: {sorted_segments[0]['text']}, {sorted_segments[1]['text']}, {sorted_segments[2]['text']}"
+        )
         print(f"✅ Sorted output working")
 
 
@@ -258,14 +260,14 @@ class TestRESTBootstrapPattern:
                 "text": "Hello",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
-                "absolute_end_time": "2025-01-15T10:30:01Z"
+                "absolute_end_time": "2025-01-15T10:30:01Z",
             },
             {
                 "text": "World",
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:02Z",
-                "absolute_end_time": "2025-01-15T10:30:03Z"
-            }
+                "absolute_end_time": "2025-01-15T10:30:03Z",
+            },
         ]
 
         dedup.merge_segments(rest_response)
@@ -279,7 +281,7 @@ class TestRESTBootstrapPattern:
                 "speaker": "John",
                 "absolute_start_time": "2025-01-15T10:30:00Z",
                 "absolute_end_time": "2025-01-15T10:30:01Z",
-                "updated_at": "2025-01-15T10:30:05Z"
+                "updated_at": "2025-01-15T10:30:05Z",
             }
         ]
 
@@ -292,7 +294,7 @@ class TestRESTBootstrapPattern:
                 "text": "Nice to meet you",  # New segment
                 "speaker": "Jane",
                 "absolute_start_time": "2025-01-15T10:30:04Z",
-                "absolute_end_time": "2025-01-15T10:30:06Z"
+                "absolute_end_time": "2025-01-15T10:30:06Z",
             }
         ]
 
@@ -333,12 +335,14 @@ class TestDeduplicationPerformance:
         # Generate 1000 segments
         segments = []
         for i in range(1000):
-            segments.append({
-                "text": f"Segment {i}",
-                "speaker": f"SPEAKER_{i % 5}",
-                "absolute_start_time": f"2025-01-15T10:{(i // 60):02d}:{(i % 60):02d}Z",
-                "absolute_end_time": f"2025-01-15T10:{(i // 60):02d}:{((i % 60) + 1):02d}Z"
-            })
+            segments.append(
+                {
+                    "text": f"Segment {i}",
+                    "speaker": f"SPEAKER_{i % 5}",
+                    "absolute_start_time": f"2025-01-15T10:{(i // 60):02d}:{(i % 60):02d}Z",
+                    "absolute_end_time": f"2025-01-15T10:{(i // 60):02d}:{((i % 60) + 1):02d}Z",
+                }
+            )
 
         start_time = time.time()
         dedup.merge_segments(segments)
@@ -374,7 +378,7 @@ class TestDeduplicationPerformance:
             segment = {
                 "text": f"Segment {i}",
                 "absolute_start_time": f"2025-01-15T10:30:{i:02d}Z",
-                "absolute_end_time": f"2025-01-15T10:30:{i+1:02d}Z"
+                "absolute_end_time": f"2025-01-15T10:30:{i + 1:02d}Z",
             }
 
             start_time = time.time()

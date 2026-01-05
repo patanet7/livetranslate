@@ -24,10 +24,8 @@ import {
   Slider,
   Switch,
   FormControlLabel,
-  Button,
   Chip,
   IconButton,
-  Tooltip,
   Grid,
   Alert,
   useTheme,
@@ -39,16 +37,12 @@ import {
   PlayArrow,
   Pause,
   Stop,
-  Refresh,
   Download,
-  ZoomIn,
-  ZoomOut,
-  Fullscreen,
   Tune,
 } from '@mui/icons-material';
 
 // Import chart components
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 // Types
 interface FFTData {
@@ -86,7 +80,7 @@ interface FFTSpectralAnalyzerProps {
 }
 
 const FFTSpectralAnalyzer: React.FC<FFTSpectralAnalyzerProps> = ({
-  audioSource,
+  audioSource: _audioSource,
   height = 400,
   realTime = true,
   showControls = true,
@@ -94,11 +88,7 @@ const FFTSpectralAnalyzer: React.FC<FFTSpectralAnalyzerProps> = ({
   onDataExport,
 }) => {
   const theme = useTheme();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
-  const audioContextRef = useRef<AudioContext>();
-  const analyserRef = useRef<AnalyserNode>();
-  const sourceRef = useRef<MediaStreamAudioSourceNode | MediaElementAudioSourceNode>();
 
   // State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -118,47 +108,6 @@ const FFTSpectralAnalyzer: React.FC<FFTSpectralAnalyzerProps> = ({
     showPeaks: true,
     showHarmonics: false,
   });
-
-  // Initialize audio context and analyzer
-  const initializeAudio = useCallback(async () => {
-    try {
-      if (!audioSource) return;
-
-      // Create audio context
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-        sampleRate: 48000,
-        latencyHint: 'interactive',
-      });
-
-      // Create analyser node
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = settings.fftSize;
-      analyser.smoothingTimeConstant = settings.smoothing;
-      analyser.minDecibels = settings.magnitudeRange[0];
-      analyser.maxDecibels = settings.magnitudeRange[1];
-
-      // Connect audio source
-      let source: MediaStreamAudioSourceNode | MediaElementAudioSourceNode;
-      
-      if (audioSource instanceof MediaStream) {
-        source = audioContext.createMediaStreamSource(audioSource);
-      } else {
-        source = audioContext.createMediaElementSource(audioSource);
-      }
-
-      source.connect(analyser);
-
-      // Store references
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-      sourceRef.current = source;
-
-      return true;
-    } catch (error) {
-      console.error('Failed to initialize audio:', error);
-      return false;
-    }
-  }, [audioSource, settings.fftSize, settings.smoothing, settings.magnitudeRange]);
 
   // Generate mock FFT data for demonstration
   const generateMockFFTData = useCallback((): FFTData[] => {
@@ -516,9 +465,9 @@ const FFTSpectralAnalyzer: React.FC<FFTSpectralAnalyzerProps> = ({
                     stroke={theme.palette.text.secondary}
                     label={{ value: 'Magnitude (dB)', angle: -90, position: 'insideLeft' }}
                   />
-                  <RechartsTooltip 
-                    formatter={(value: number, name: string) => [
-                      `${value.toFixed(1)} dB`, 
+                  <RechartsTooltip
+                    formatter={(value: number, _name: string) => [
+                      `${value.toFixed(1)} dB`,
                       'Magnitude'
                     ]}
                     labelFormatter={(value) => `${formatFrequency(value)} Hz`}

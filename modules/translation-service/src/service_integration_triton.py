@@ -9,17 +9,16 @@ This module handles integration with other LiveTranslate services:
 - Session management and state synchronization
 """
 
-import asyncio
 import json
 import logging
 import time
 from typing import Dict, List, Optional, Any, AsyncGenerator
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import websockets
 import aiohttp
 from datetime import datetime
 
-from translation_service import TranslationService, TranslationRequest, TranslationResult
+from translation_service import TranslationService, TranslationRequest
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +107,6 @@ class TritonTranslationIntegration:
         try:
             # Extract transcription details
             text = transcription_data.get("text", "")
-            confidence = transcription_data.get("confidence", 0.0)
             timestamp = transcription_data.get("timestamp", time.time())
             speaker_id = transcription_data.get("speaker_id")
             
@@ -366,19 +364,8 @@ class TritonTranslationIntegration:
     
     async def _register_with_services(self):
         """Register this service with other LiveTranslate services"""
-        # Notify other services that translation service is available
-        registration_data = {
-            "service": "translation",
-            "backend": "triton",
-            "endpoints": {
-                "translate": "/translate",
-                "stream": "/translate/stream",
-                "health": "/api/health",
-                "status": "/api/status"
-            }
-        }
-        
         # This would typically involve service discovery registration
+        # with registration data containing service info and endpoints
         logger.info("Service registration prepared")
     
     async def _update_speaker_context(self, session_id: str, translation_data: Dict[str, Any]):

@@ -57,14 +57,12 @@ class TestTranslationCache:
             target_lang=target_lang,
             translation="Hola mundo",
             confidence=0.95,
-            metadata={"backend": "llama"}
+            metadata={"backend": "llama"},
         )
 
         # Get translation from cache
         result = await cache.get(
-            text=text,
-            source_lang=source_lang,
-            target_lang=target_lang
+            text=text, source_lang=source_lang, target_lang=target_lang
         )
 
         # Verify result
@@ -83,9 +81,7 @@ class TestTranslationCache:
 
         # Get non-existent translation
         result = await cache.get(
-            text="This text does not exist in cache",
-            source_lang="en",
-            target_lang="fr"
+            text="This text does not exist in cache", source_lang="en", target_lang="fr"
         )
 
         # Should return None
@@ -104,26 +100,20 @@ class TestTranslationCache:
             source_lang="en",
             target_lang="es",
             translation="Hola Mundo",
-            confidence=0.95
+            confidence=0.95,
         )
 
         # Get with different case and whitespace
         result1 = await cache.get(
-            text="hello world",
-            source_lang="en",
-            target_lang="es"
+            text="hello world", source_lang="en", target_lang="es"
         )
 
         result2 = await cache.get(
-            text="HELLO WORLD",
-            source_lang="en",
-            target_lang="es"
+            text="HELLO WORLD", source_lang="en", target_lang="es"
         )
 
         result3 = await cache.get(
-            text="  hello world  ",
-            source_lang="en",
-            target_lang="es"
+            text="  hello world  ", source_lang="en", target_lang="es"
         )
 
         # All should return the same cached result
@@ -153,7 +143,7 @@ class TestTranslationCache:
         results = await cache.get_multi(
             text=text,
             source_lang=source_lang,
-            target_langs=["es", "fr", "de", "it"]  # it is not cached
+            target_langs=["es", "fr", "de", "it"],  # it is not cached
         )
 
         # Verify results
@@ -180,7 +170,7 @@ class TestTranslationCache:
         translations = {
             "es": {"translated_text": "Gracias", "confidence": 0.96},
             "fr": {"translated_text": "Merci", "confidence": 0.95},
-            "de": {"translated_text": "Danke", "confidence": 0.94}
+            "de": {"translated_text": "Danke", "confidence": 0.94},
         }
 
         # Set all at once
@@ -288,7 +278,9 @@ class TestTranslationCache:
         # Check if database adapter is available
         try:
             from database.database import DatabaseManager
-            from database.translation_optimization_adapter import TranslationOptimizationAdapter
+            from database.translation_optimization_adapter import (
+                TranslationOptimizationAdapter,
+            )
 
             db_url = os.getenv("DATABASE_URL")
             if not db_url:
@@ -304,9 +296,7 @@ class TestTranslationCache:
 
             # Create cache with database tracking
             cache = TranslationResultCache(
-                redis_url=REDIS_URL,
-                ttl=3600,
-                db_adapter=opt_adapter
+                redis_url=REDIS_URL, ttl=3600, db_adapter=opt_adapter
             )
 
             # Generate cache activity
@@ -319,7 +309,9 @@ class TestTranslationCache:
             assert result1 is None
 
             # Set in cache
-            await cache.set(text, source_lang, target_lang, "Prueba de seguimiento", 0.95)
+            await cache.set(
+                text, source_lang, target_lang, "Prueba de seguimiento", 0.95
+            )
 
             # Cache hit (second time)
             result2 = await cache.get(text, source_lang, target_lang)
@@ -362,6 +354,7 @@ async def cleanup_redis():
     # Cleanup after test
     try:
         import redis.asyncio as redis
+
         r = redis.from_url(REDIS_URL)
         # Delete all keys with test prefix
         async for key in r.scan_iter(match="trans:v1:*"):

@@ -78,7 +78,6 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
   }, [timeRange]);
 
   const loadAnalyticsData = async () => {
-    setLoading(true);
     try {
       const response = await fetch(`/api/bot/analytics?timeRange=${timeRange}`);
       if (response.ok) {
@@ -88,30 +87,34 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
       }
     } catch (error) {
       console.error('Failed to load analytics:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
   const calculateTrend = (data: PerformanceMetric[], metric: keyof PerformanceMetric) => {
     if (data.length < 2) return 0;
-    
+
     const recent = data.slice(-5);
     const older = data.slice(-10, -5);
-    
+
     if (recent.length === 0 || older.length === 0) return 0;
-    
-    const recentAvg = recent.reduce((sum, item) => sum + Number(item[metric]), 0) / recent.length;
-    const olderAvg = older.reduce((sum, item) => sum + Number(item[metric]), 0) / older.length;
-    
+
+    const recentAvg = recent.reduce((sum, item) => {
+      const value = item[metric];
+      return sum + (typeof value === 'number' ? value : 0);
+    }, 0) / recent.length;
+    const olderAvg = older.reduce((sum, item) => {
+      const value = item[metric];
+      return sum + (typeof value === 'number' ? value : 0);
+    }, 0) / older.length;
+
     return ((recentAvg - olderAvg) / olderAvg) * 100;
   };
 
   const formatTrend = (trend: number) => {
     const isPositive = trend > 0;
-    const color = isPositive ? 'success' : 'error';
+    const color: 'success' | 'error' = isPositive ? 'success' : 'error';
     const icon = isPositive ? <TrendingUpIcon /> : <TrendingDownIcon />;
-    
+
     return (
       <Chip
         icon={icon}
@@ -123,13 +126,12 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
     );
   };
 
-  const activeBots = Object.values(bots).filter(bot => bot.status === 'active');
-  const totalTranslations = activeBots.reduce((sum, bot) => sum + bot.virtualWebcam.currentTranslations.length, 0);
-  const averageLatency = activeBots.length > 0 
-    ? activeBots.reduce((sum, bot) => sum + bot.performance.averageLatency, 0) / activeBots.length 
+  const activeBots = Object.values(bots).filter(bot => bot?.status === 'active');
+  const averageLatency = activeBots.length > 0
+    ? activeBots.reduce((sum, bot) => sum + (bot?.performance?.averageLatencyMs || 0), 0) / activeBots.length
     : 0;
   const averageQuality = activeBots.length > 0
-    ? activeBots.reduce((sum, bot) => sum + bot.audioCapture.averageQualityScore, 0) / activeBots.length
+    ? activeBots.reduce((sum, bot) => sum + (bot?.audioCapture?.averageQualityScore || 0), 0) / activeBots.length
     : 0;
 
   const latencyTrend = calculateTrend(performanceData, 'averageLatency');
@@ -410,12 +412,12 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                   {activeBots.slice(0, 3).map((bot) => (
                     <Box key={bot.botId} sx={{ display: 'flex', justifyContent: 'space-between' }}>
                       <Typography variant="body2" noWrap>
-                        {bot.meetingInfo.meetingTitle || bot.meetingInfo.meetingId}
+                        {bot?.config?.meetingInfo?.meetingTitle || bot?.config?.meetingInfo?.meetingId || bot.botId}
                       </Typography>
                       <Chip
-                        label={`${Math.round(bot.audioCapture.averageQualityScore * 100)}%`}
+                        label={`${Math.round((bot?.audioCapture?.averageQualityScore || 0) * 100)}%`}
                         size="small"
-                        color={bot.audioCapture.averageQualityScore > 0.8 ? 'success' : 'warning'}
+                        color={(bot?.audioCapture?.averageQualityScore || 0) > 0.8 ? 'success' : 'warning'}
                       />
                     </Box>
                   ))}

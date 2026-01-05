@@ -12,7 +12,6 @@ import {
   FormControlLabel,
   Chip,
   IconButton,
-  Tooltip,
   Alert,
   Slider,
   Grid,
@@ -21,16 +20,11 @@ import {
   Equalizer,
   PlayArrow,
   Pause,
-  Stop,
-  Settings,
-  Fullscreen,
   Download,
-  Refresh,
-  Timeline,
   ShowChart,
 } from '@mui/icons-material';
 
-interface FFTVisualizerProps {
+export interface FFTVisualizerProps {
   audioData?: {
     fftData: Float32Array;
     sampleRate: number;
@@ -77,7 +71,7 @@ export const FFTVisualizer: React.FC<FFTVisualizerProps> = ({
   const [isPlaying, setIsPlaying] = useState(isRealTime);
   const [smoothing, setSmoothing] = useState(0.8);
   const [gainAdjustment, setGainAdjustment] = useState(0);
-  const [frequencyRange, setFrequencyRange] = useState<[number, number]>([20, 8000]);
+  const [frequencyRange] = useState<[number, number]>([20, 8000]);
   const [showPeaks, setShowPeaks] = useState(true);
   const [showVoiceRegion, setShowVoiceRegion] = useState(true);
   const [currentAnalysis, setCurrentAnalysis] = useState<FrequencyAnalysis | null>(null);
@@ -94,7 +88,7 @@ export const FFTVisualizer: React.FC<FFTVisualizerProps> = ({
     if (!ctx) return;
 
     const { width, height: canvasHeight } = canvas;
-    const { fftData, sampleRate, windowSize } = audioData;
+    const { fftData, sampleRate } = audioData;
     
     // Clear canvas
     ctx.fillStyle = '#0a0a0a';
@@ -135,8 +129,6 @@ export const FFTVisualizer: React.FC<FFTVisualizerProps> = ({
           break;
         case 'mel_scale':
           // Simplified mel scale conversion
-          const freq = i * binWidth;
-          const mel = 2595 * Math.log10(1 + freq / 700);
           processedData[i - startBin] = value;
           break;
       }
@@ -269,8 +261,7 @@ export const FFTVisualizer: React.FC<FFTVisualizerProps> = ({
     // Calculate spectral features
     let spectralCentroid = 0;
     let totalMagnitude = 0;
-    let spectralSpread = 0;
-    
+
     for (let i = 1; i < fftData.length / 2; i++) {
       const frequency = i * binWidth;
       const magnitude = fftData[i];

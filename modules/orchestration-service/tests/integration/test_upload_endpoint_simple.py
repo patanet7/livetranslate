@@ -31,7 +31,7 @@ def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
     audio = 0.3 * np.sin(2 * np.pi * 440 * t).astype(np.float32)
 
     buffer = io.BytesIO()
-    sf.write(buffer, audio, sample_rate, format='WAV')
+    sf.write(buffer, audio, sample_rate, format="WAV")
     buffer.seek(0)
     test_audio_wav = buffer.read()
 
@@ -46,8 +46,8 @@ def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
             data={
                 "session_id": "test_simple",
                 "enable_transcription": "true",
-                "whisper_model": "whisper-tiny"
-            }
+                "whisper_model": "whisper-tiny",
+            },
         )
 
         # Verify response
@@ -58,16 +58,20 @@ def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
 
         # CRITICAL: Verify NO placeholder
         transcription = processing_result.get("transcription", "")
-        assert "placeholder" not in transcription.lower(), \
+        assert "placeholder" not in transcription.lower(), (
             "REGRESSION: Found placeholder in response!"
+        )
 
         # Verify we got real text (not empty, actual Whisper transcription)
-        assert transcription is not None and len(transcription) > 0, \
+        assert transcription is not None and len(transcription) > 0, (
             f"Expected real transcription, got empty or None"
+        )
 
         # Verify processing status
-        assert result.get("status") == "processed" or processing_result.get("status") == "processed", \
-            f"Expected status 'processed', got: {result.get('status')}"
+        assert (
+            result.get("status") == "processed"
+            or processing_result.get("status") == "processed"
+        ), f"Expected status 'processed', got: {result.get('status')}"
 
         print("✅ TEST PASSED: Upload endpoint works with real Whisper processing!")
         print(f"   Transcription: '{transcription}'")

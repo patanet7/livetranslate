@@ -16,9 +16,7 @@ import {
   LinearProgress,
   List,
   ListItem,
-  ListItemIcon,
   ListItemText,
-  Divider,
   Select,
   MenuItem,
   FormControl,
@@ -186,31 +184,6 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
     }
   };
 
-  // Update component configuration
-  const handleUpdateComponent = async (component: string, updates: any) => {
-    try {
-      const response = await fetch(`/api/settings/sync/update/${component}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          onSave(`Updated ${component} configuration`);
-          await loadConfiguration();
-        } else {
-          onSave(`Failed to update ${component}: ${result.errors?.join(', ') || 'Unknown error'}`, false);
-        }
-      } else {
-        onSave(`Failed to update ${component} configuration`, false);
-      }
-    } catch (error) {
-      console.error('Component update error:', error);
-      onSave('Failed to update component configuration', false);
-    }
-  };
 
   useEffect(() => {
     loadConfiguration();
@@ -364,7 +337,7 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
                   onChange={(e) => setSelectedPreset(e.target.value)}
                   label="Configuration Preset"
                 >
-                  {configuration?.presets && Object.entries(configuration.presets).map(([key, preset]) => (
+                  {configuration?.presets && Object.entries(configuration.presets).map(([key, _preset]) => (
                     <MenuItem key={key} value={key}>
                       {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </MenuItem>

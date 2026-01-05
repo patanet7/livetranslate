@@ -5,10 +5,8 @@ Pipeline Integration for Whisper Service
 Adds real-time pipeline integration endpoints to the Whisper service.
 """
 
-import asyncio
 import json
 import logging
-from typing import Dict, Any, Optional
 from datetime import datetime
 from flask import request, jsonify
 import tempfile

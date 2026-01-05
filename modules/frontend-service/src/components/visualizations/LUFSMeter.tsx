@@ -22,30 +22,23 @@ import {
   Alert,
   Grid,
   IconButton,
-  Tooltip,
   Switch,
   FormControlLabel,
-  Button,
   useTheme,
   alpha,
 } from '@mui/material';
 import {
-  VolumeUp,
-  VolumeDown,
-  Warning,
   CheckCircle,
   Error,
-  Refresh,
   PlayArrow,
   Pause,
   Stop,
   Settings,
-  TrendingUp,
-  Assessment,
+  Refresh,
 } from '@mui/icons-material';
 
 // Import chart components
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 // Types
 interface LUFSMeasurement {
@@ -76,7 +69,7 @@ interface LUFSMeterProps {
 }
 
 const LUFSMeter: React.FC<LUFSMeterProps> = ({
-  audioSource,
+  audioSource: _audioSource,
   height = 300,
   showControls = true,
   standard = 'ebu',
@@ -273,7 +266,7 @@ const LUFSMeter: React.FC<LUFSMeterProps> = ({
   };
 
   // Get LUFS color based on value and standard
-  const getLUFSColor = (value: number, type: 'integrated' | 'shortTerm' | 'momentary') => {
+  const getLUFSColor = (value: number, _type: 'integrated' | 'shortTerm' | 'momentary') => {
     const diff = Math.abs(value - currentStandard.target);
     if (diff <= currentStandard.tolerance) return 'success';
     if (diff <= currentStandard.tolerance * 2) return 'warning';

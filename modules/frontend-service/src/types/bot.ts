@@ -112,14 +112,7 @@ export interface BotConfig {
     confidenceThreshold: number;
     languageDetection: boolean;
   };
-  webcamConfig: {
-    width: number;
-    height: number;
-    fps: number;
-    displayMode: 'overlay' | 'sidebar' | 'fullscreen';
-    theme: 'light' | 'dark' | 'auto';
-    maxTranslationsDisplayed: number;
-  };
+  webcamConfig: WebcamConfig;
 }
 
 // Statistics interfaces matching backend structure

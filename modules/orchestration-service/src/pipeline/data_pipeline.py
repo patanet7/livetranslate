@@ -159,7 +159,9 @@ class TranscriptionDataPipeline:
         self.max_cache_size = max_cache_size
 
         # Cache for recent segments (for continuity tracking) with LRU eviction
-        self._segment_cache: OrderedDict[str, str] = OrderedDict()  # session_id -> last_transcript_id
+        self._segment_cache: OrderedDict[str, str] = (
+            OrderedDict()
+        )  # session_id -> last_transcript_id
 
         # Cache statistics for monitoring
         self._cache_hits: int = 0
@@ -403,10 +405,8 @@ class TranscriptionDataPipeline:
 
             # Get transcripts
             if start_time is not None and end_time is not None:
-                transcripts = (
-                    await self.db_manager.transcript_manager.get_transcript_by_timerange(
-                        session_id, start_time, end_time
-                    )
+                transcripts = await self.db_manager.transcript_manager.get_transcript_by_timerange(
+                    session_id, start_time, end_time
                 )
             else:
                 transcripts = (
@@ -459,7 +459,10 @@ class TranscriptionDataPipeline:
                     if speaker_filter and translation.speaker_id != speaker_filter:
                         continue
                     # NULL-safe timestamp comparisons - prevent TypeError on NULL timestamps
-                    if start_time is not None and translation.start_timestamp is not None:
+                    if (
+                        start_time is not None
+                        and translation.start_timestamp is not None
+                    ):
                         if translation.start_timestamp < start_time:
                             continue
                     if end_time is not None and translation.end_timestamp is not None:
@@ -467,8 +470,13 @@ class TranscriptionDataPipeline:
                             continue
 
                     # NULL-safe duration calculation
-                    if translation.start_timestamp is not None and translation.end_timestamp is not None:
-                        duration = translation.end_timestamp - translation.start_timestamp
+                    if (
+                        translation.start_timestamp is not None
+                        and translation.end_timestamp is not None
+                    ):
+                        duration = (
+                            translation.end_timestamp - translation.start_timestamp
+                        )
                         timestamp = translation.start_timestamp
                     else:
                         duration = 0.0
@@ -527,9 +535,7 @@ class TranscriptionDataPipeline:
             include_translations=include_translations,
         )
 
-    async def get_speaker_statistics(
-        self, session_id: str
-    ) -> List[SpeakerStatistics]:
+    async def get_speaker_statistics(self, session_id: str) -> List[SpeakerStatistics]:
         """
         Get statistics for all speakers in a session.
 
@@ -750,9 +756,7 @@ class TranscriptionDataPipeline:
             Dictionary with cache metrics (hits, misses, evictions, size, hit rate)
         """
         total_requests = self._cache_hits + self._cache_misses
-        hit_rate = (
-            self._cache_hits / total_requests if total_requests > 0 else 0.0
-        )
+        hit_rate = self._cache_hits / total_requests if total_requests > 0 else 0.0
 
         return {
             "cache_size": len(self._segment_cache),
@@ -935,7 +939,7 @@ class TranscriptionDataPipeline:
 
 # Factory function
 def create_data_pipeline(
-    database_manager: 'BotSessionDatabaseManager',
+    database_manager: "BotSessionDatabaseManager",
     audio_storage_path: str = None,
     enable_speaker_tracking: bool = True,
     enable_segment_continuity: bool = True,
@@ -1044,9 +1048,7 @@ async def main():
     timeline = await pipeline.get_session_timeline(session_id)
     print(f"\n📊 Timeline ({len(timeline)} entries):")
     for entry in timeline:
-        print(
-            f"  [{entry.timestamp:.1f}s] {entry.entry_type}: {entry.content[:50]}..."
-        )
+        print(f"  [{entry.timestamp:.1f}s] {entry.entry_type}: {entry.content[:50]}...")
 
     # Get speaker statistics
     stats = await pipeline.get_speaker_statistics(session_id)

@@ -45,8 +45,8 @@ from bot.virtual_webcam import (
 # Configure logging with colors
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class VirtualWebcamLiveDemo:
             font_size=32,
             show_speaker_names=True,
             show_confidence=True,
-            show_timestamps=False
+            show_timestamps=False,
         )
 
         # Initialize virtual webcam
@@ -138,7 +138,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_00",
             speaker_name="Sarah Chen",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(2.0)
@@ -149,7 +149,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_00",
             speaker_name="Sarah Chen",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(2.5)
@@ -163,7 +163,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_01",
             speaker_name="Michael Rodriguez",
             source_lang="en",
-            target_lang="fr"
+            target_lang="fr",
         )
 
         await asyncio.sleep(2.0)
@@ -174,7 +174,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_02",
             speaker_name="Emma Wilson",
             source_lang="en",
-            target_lang="fr"
+            target_lang="fr",
         )
 
         await asyncio.sleep(2.5)
@@ -188,7 +188,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_03",
             speaker_name="Jean Dupont",
             source_lang="en",
-            target_lang="fr"
+            target_lang="fr",
         )
 
         await asyncio.sleep(1.5)
@@ -199,7 +199,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_04",
             speaker_name="Carlos Martínez",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(1.5)
@@ -210,7 +210,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_05",
             speaker_name="Yuki Tanaka",
             source_lang="en",
-            target_lang="ja"
+            target_lang="ja",
         )
 
         await asyncio.sleep(2.5)
@@ -224,7 +224,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_00",
             speaker_name="Sarah Chen",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(1.0)
@@ -235,7 +235,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_01",
             speaker_name="Michael Rodriguez",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(1.0)
@@ -246,7 +246,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_00",
             speaker_name="Sarah Chen",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(1.0)
@@ -257,7 +257,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_02",
             speaker_name="Emma Wilson",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(3.0)
@@ -271,7 +271,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_00",
             speaker_name="Sarah Chen",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(2.0)
@@ -282,7 +282,7 @@ class VirtualWebcamLiveDemo:
             speaker_id="SPEAKER_00",
             speaker_name="Sarah Chen",
             source_lang="en",
-            target_lang="es"
+            target_lang="es",
         )
 
         await asyncio.sleep(3.0)
@@ -298,7 +298,7 @@ class VirtualWebcamLiveDemo:
         speaker_id: str,
         speaker_name: str,
         source_lang: str,
-        target_lang: str
+        target_lang: str,
     ):
         """Add a transcription/translation pair to display."""
 
@@ -311,7 +311,7 @@ class VirtualWebcamLiveDemo:
             "speaker_name": speaker_name,
             "translation_confidence": 0.95,
             "is_original_transcription": True,
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
         print(f"🎤 [{speaker_name}] ({source_lang.upper()})")
@@ -331,7 +331,7 @@ class VirtualWebcamLiveDemo:
             "speaker_name": speaker_name,
             "translation_confidence": 0.88,
             "is_original_transcription": False,
-            "timestamp": datetime.now()
+            "timestamp": datetime.now(),
         }
 
         print(f"🌐 [{speaker_name}] ({source_lang.upper()} → {target_lang.upper()})")
@@ -358,7 +358,11 @@ class VirtualWebcamLiveDemo:
         print(f"   Output directory: {self.output_dir}")
 
         if self.webcam_manager:
-            duration = time.time() - self.webcam_manager.start_time if self.webcam_manager.start_time else 0
+            duration = (
+                time.time() - self.webcam_manager.start_time
+                if self.webcam_manager.start_time
+                else 0
+            )
             fps = self.webcam_manager.frames_generated / duration if duration > 0 else 0
             print(f"   Total frames generated: {self.webcam_manager.frames_generated}")
             print(f"   Duration: {duration:.1f}s")
@@ -373,7 +377,9 @@ class VirtualWebcamLiveDemo:
 
         print("\n🎬 Create Video:")
         print(f"   cd {self.output_dir}")
-        print(f"   ffmpeg -framerate 30 -i frame_%04d.png -c:v libx264 -pix_fmt yuv420p -vf 'scale=1920:1080' demo_output.mp4")
+        print(
+            f"   ffmpeg -framerate 30 -i frame_%04d.png -c:v libx264 -pix_fmt yuv420p -vf 'scale=1920:1080' demo_output.mp4"
+        )
 
         print("\n💡 What You'll See:")
         print("   - Original transcriptions (🎤) in source language")
@@ -416,6 +422,7 @@ async def main():
     except Exception as e:
         print(f"\n\n❌ Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

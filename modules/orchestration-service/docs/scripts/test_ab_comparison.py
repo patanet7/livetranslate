@@ -22,14 +22,14 @@ from typing import Dict, Any, Tuple
 import numpy as np
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from audio.config import (
     LUFSNormalizationConfig,
     LUFSNormalizationMode,
     CompressionConfig,
     CompressionMode,
-    LimiterConfig
+    LimiterConfig,
 )
 
 # Import original stages
@@ -41,7 +41,7 @@ from audio.stages.limiter_stage import LimiterStage
 from audio.stages_enhanced import (
     LUFSNormalizationStageEnhanced,
     CompressionStageEnhanced,
-    LimiterStageEnhanced
+    LimiterStageEnhanced,
 )
 
 
@@ -52,7 +52,9 @@ class ABTester:
         self.sample_rate = sample_rate
         self.results = []
 
-    def generate_test_audio(self, duration: float = 1.0, frequency: float = 440.0, amplitude: float = 0.5) -> np.ndarray:
+    def generate_test_audio(
+        self, duration: float = 1.0, frequency: float = 440.0, amplitude: float = 0.5
+    ) -> np.ndarray:
         """Generate test audio (sine wave)."""
         num_samples = int(duration * self.sample_rate)
         t = np.linspace(0, duration, num_samples)
@@ -82,7 +84,9 @@ class ABTester:
 
         return audio.astype(np.float32)
 
-    def benchmark_performance(self, stage, audio: np.ndarray, runs: int = 100) -> Dict[str, float]:
+    def benchmark_performance(
+        self, stage, audio: np.ndarray, runs: int = 100
+    ) -> Dict[str, float]:
         """Benchmark processing performance."""
         times = []
 
@@ -99,11 +103,13 @@ class ABTester:
             "max_ms": np.max(times) * 1000,
         }
 
-    def calculate_quality_metrics(self, original: np.ndarray, processed: np.ndarray) -> Dict[str, float]:
+    def calculate_quality_metrics(
+        self, original: np.ndarray, processed: np.ndarray
+    ) -> Dict[str, float]:
         """Calculate quality metrics between original and processed audio."""
         # RMS levels
-        original_rms = np.sqrt(np.mean(original ** 2))
-        processed_rms = np.sqrt(np.mean(processed ** 2))
+        original_rms = np.sqrt(np.mean(original**2))
+        processed_rms = np.sqrt(np.mean(processed**2))
 
         # Peak levels
         original_peak = np.max(np.abs(original))
@@ -111,40 +117,50 @@ class ABTester:
 
         # Signal-to-noise ratio (simplified)
         difference = processed - original
-        noise_power = np.mean(difference ** 2)
-        signal_power = np.mean(processed ** 2)
+        noise_power = np.mean(difference**2)
+        signal_power = np.mean(processed**2)
         snr = 10 * np.log10(signal_power / max(noise_power, 1e-10))
 
         # Correlation
         correlation = np.corrcoef(original, processed)[0, 1]
 
         return {
-            "original_rms_db": 20 * np.log10(original_rms) if original_rms > 0 else -80.0,
-            "processed_rms_db": 20 * np.log10(processed_rms) if processed_rms > 0 else -80.0,
-            "original_peak_db": 20 * np.log10(original_peak) if original_peak > 0 else -80.0,
-            "processed_peak_db": 20 * np.log10(processed_peak) if processed_peak > 0 else -80.0,
+            "original_rms_db": 20 * np.log10(original_rms)
+            if original_rms > 0
+            else -80.0,
+            "processed_rms_db": 20 * np.log10(processed_rms)
+            if processed_rms > 0
+            else -80.0,
+            "original_peak_db": 20 * np.log10(original_peak)
+            if original_peak > 0
+            else -80.0,
+            "processed_peak_db": 20 * np.log10(processed_peak)
+            if processed_peak > 0
+            else -80.0,
             "gain_change_db": 20 * np.log10(processed_rms / max(original_rms, 1e-10)),
             "snr_db": float(snr),
-            "correlation": float(correlation)
+            "correlation": float(correlation),
         }
 
     def test_lufs_normalization(self) -> Dict[str, Any]:
         """Test LUFS normalization: original vs enhanced."""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("A/B TEST: LUFS Normalization")
-        print("="*80)
+        print("=" * 80)
 
         # Create config
         config = LUFSNormalizationConfig(
             enabled=True,
             mode=LUFSNormalizationMode.STREAMING,
             target_lufs=-14.0,
-            true_peak_limiting=True
+            true_peak_limiting=True,
         )
 
         # Generate test audio
         audio = self.generate_complex_test_audio(duration=5.0)
-        print(f"\nTest audio: {len(audio)} samples ({len(audio)/self.sample_rate:.1f}s)")
+        print(
+            f"\nTest audio: {len(audio)} samples ({len(audio) / self.sample_rate:.1f}s)"
+        )
         print(f"Input RMS: {20 * np.log10(np.sqrt(np.mean(audio**2))):.2f} dB")
 
         # Test original stage
@@ -154,7 +170,9 @@ class ABTester:
         perf_original = self.benchmark_performance(original_stage, audio, runs=50)
 
         print(f"Output LUFS: {result_original.metadata.get('output_lufs', 'N/A')}")
-        print(f"Performance: {perf_original['mean_ms']:.2f} ± {perf_original['std_ms']:.2f} ms")
+        print(
+            f"Performance: {perf_original['mean_ms']:.2f} ± {perf_original['std_ms']:.2f} ms"
+        )
 
         # Test enhanced stage
         print("\n--- Enhanced Stage ---")
@@ -163,11 +181,15 @@ class ABTester:
         perf_enhanced = self.benchmark_performance(enhanced_stage, audio, runs=50)
 
         print(f"Output LUFS: {result_enhanced.metadata.get('output_lufs', 'N/A')}")
-        print(f"Performance: {perf_enhanced['mean_ms']:.2f} ± {perf_enhanced['std_ms']:.2f} ms")
+        print(
+            f"Performance: {perf_enhanced['mean_ms']:.2f} ± {perf_enhanced['std_ms']:.2f} ms"
+        )
 
         # Quality comparison
         print("\n--- Quality Comparison ---")
-        quality = self.calculate_quality_metrics(result_original.processed_audio, result_enhanced.processed_audio)
+        quality = self.calculate_quality_metrics(
+            result_original.processed_audio, result_enhanced.processed_audio
+        )
         print(f"Correlation: {quality['correlation']:.4f}")
         print(f"SNR: {quality['snr_db']:.2f} dB")
         print(f"Gain difference: {quality['gain_change_db']:.2f} dB")
@@ -176,20 +198,20 @@ class ABTester:
             "stage": "lufs_normalization",
             "original": {
                 "metadata": result_original.metadata,
-                "performance": perf_original
+                "performance": perf_original,
             },
             "enhanced": {
                 "metadata": result_enhanced.metadata,
-                "performance": perf_enhanced
+                "performance": perf_enhanced,
             },
-            "quality_comparison": quality
+            "quality_comparison": quality,
         }
 
     def test_compression(self) -> Dict[str, Any]:
         """Test compression: original vs enhanced."""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("A/B TEST: Compression")
-        print("="*80)
+        print("=" * 80)
 
         # Create config
         config = CompressionConfig(
@@ -198,12 +220,14 @@ class ABTester:
             threshold=-20.0,
             ratio=3.0,
             attack_time=5.0,
-            release_time=100.0
+            release_time=100.0,
         )
 
         # Generate test audio with high dynamics
         audio = self.generate_complex_test_audio(duration=5.0)
-        print(f"\nTest audio: {len(audio)} samples ({len(audio)/self.sample_rate:.1f}s)")
+        print(
+            f"\nTest audio: {len(audio)} samples ({len(audio) / self.sample_rate:.1f}s)"
+        )
         print(f"Input peak: {20 * np.log10(np.max(np.abs(audio))):.2f} dB")
 
         # Test original stage
@@ -212,8 +236,12 @@ class ABTester:
         result_original = original_stage.process(audio)
         perf_original = self.benchmark_performance(original_stage, audio, runs=50)
 
-        print(f"Gain reduction: {result_original.metadata.get('gain_reduction_db', 'N/A')} dB")
-        print(f"Performance: {perf_original['mean_ms']:.2f} ± {perf_original['std_ms']:.2f} ms")
+        print(
+            f"Gain reduction: {result_original.metadata.get('gain_reduction_db', 'N/A')} dB"
+        )
+        print(
+            f"Performance: {perf_original['mean_ms']:.2f} ± {perf_original['std_ms']:.2f} ms"
+        )
 
         # Test enhanced stage
         print("\n--- Enhanced Stage ---")
@@ -221,12 +249,18 @@ class ABTester:
         result_enhanced = enhanced_stage.process(audio)
         perf_enhanced = self.benchmark_performance(enhanced_stage, audio, runs=50)
 
-        print(f"Gain reduction: {result_enhanced.metadata.get('gain_reduction_db', 'N/A')} dB")
-        print(f"Performance: {perf_enhanced['mean_ms']:.2f} ± {perf_enhanced['std_ms']:.2f} ms")
+        print(
+            f"Gain reduction: {result_enhanced.metadata.get('gain_reduction_db', 'N/A')} dB"
+        )
+        print(
+            f"Performance: {perf_enhanced['mean_ms']:.2f} ± {perf_enhanced['std_ms']:.2f} ms"
+        )
 
         # Quality comparison
         print("\n--- Quality Comparison ---")
-        quality = self.calculate_quality_metrics(result_original.processed_audio, result_enhanced.processed_audio)
+        quality = self.calculate_quality_metrics(
+            result_original.processed_audio, result_enhanced.processed_audio
+        )
         print(f"Correlation: {quality['correlation']:.4f}")
         print(f"SNR: {quality['snr_db']:.2f} dB")
         print(f"Gain difference: {quality['gain_change_db']:.2f} dB")
@@ -235,32 +269,31 @@ class ABTester:
             "stage": "compression",
             "original": {
                 "metadata": result_original.metadata,
-                "performance": perf_original
+                "performance": perf_original,
             },
             "enhanced": {
                 "metadata": result_enhanced.metadata,
-                "performance": perf_enhanced
+                "performance": perf_enhanced,
             },
-            "quality_comparison": quality
+            "quality_comparison": quality,
         }
 
     def test_limiter(self) -> Dict[str, Any]:
         """Test limiter: original vs enhanced."""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("A/B TEST: Limiter")
-        print("="*80)
+        print("=" * 80)
 
         # Create config
         config = LimiterConfig(
-            enabled=True,
-            threshold=-1.0,
-            release_time=50.0,
-            soft_clip=True
+            enabled=True, threshold=-1.0, release_time=50.0, soft_clip=True
         )
 
         # Generate test audio with peaks
         audio = self.generate_complex_test_audio(duration=5.0)
-        print(f"\nTest audio: {len(audio)} samples ({len(audio)/self.sample_rate:.1f}s)")
+        print(
+            f"\nTest audio: {len(audio)} samples ({len(audio) / self.sample_rate:.1f}s)"
+        )
         print(f"Input peak: {20 * np.log10(np.max(np.abs(audio))):.2f} dB")
 
         # Test original stage
@@ -269,9 +302,15 @@ class ABTester:
         result_original = original_stage.process(audio)
         perf_original = self.benchmark_performance(original_stage, audio, runs=50)
 
-        print(f"Output peak: {result_original.metadata.get('output_peak_db', 'N/A')} dB")
-        print(f"Gain reduction: {result_original.metadata.get('gain_reduction_db', 'N/A')} dB")
-        print(f"Performance: {perf_original['mean_ms']:.2f} ± {perf_original['std_ms']:.2f} ms")
+        print(
+            f"Output peak: {result_original.metadata.get('output_peak_db', 'N/A')} dB"
+        )
+        print(
+            f"Gain reduction: {result_original.metadata.get('gain_reduction_db', 'N/A')} dB"
+        )
+        print(
+            f"Performance: {perf_original['mean_ms']:.2f} ± {perf_original['std_ms']:.2f} ms"
+        )
 
         # Test enhanced stage
         print("\n--- Enhanced Stage ---")
@@ -279,13 +318,21 @@ class ABTester:
         result_enhanced = enhanced_stage.process(audio)
         perf_enhanced = self.benchmark_performance(enhanced_stage, audio, runs=50)
 
-        print(f"Output peak: {result_enhanced.metadata.get('output_peak_db', 'N/A')} dB")
-        print(f"Gain reduction: {result_enhanced.metadata.get('gain_reduction_db', 'N/A')} dB")
-        print(f"Performance: {perf_enhanced['mean_ms']:.2f} ± {perf_enhanced['std_ms']:.2f} ms")
+        print(
+            f"Output peak: {result_enhanced.metadata.get('output_peak_db', 'N/A')} dB"
+        )
+        print(
+            f"Gain reduction: {result_enhanced.metadata.get('gain_reduction_db', 'N/A')} dB"
+        )
+        print(
+            f"Performance: {perf_enhanced['mean_ms']:.2f} ± {perf_enhanced['std_ms']:.2f} ms"
+        )
 
         # Quality comparison
         print("\n--- Quality Comparison ---")
-        quality = self.calculate_quality_metrics(result_original.processed_audio, result_enhanced.processed_audio)
+        quality = self.calculate_quality_metrics(
+            result_original.processed_audio, result_enhanced.processed_audio
+        )
         print(f"Correlation: {quality['correlation']:.4f}")
         print(f"SNR: {quality['snr_db']:.2f} dB")
         print(f"Gain difference: {quality['gain_change_db']:.2f} dB")
@@ -294,20 +341,20 @@ class ABTester:
             "stage": "limiter",
             "original": {
                 "metadata": result_original.metadata,
-                "performance": perf_original
+                "performance": perf_original,
             },
             "enhanced": {
                 "metadata": result_enhanced.metadata,
-                "performance": perf_enhanced
+                "performance": perf_enhanced,
             },
-            "quality_comparison": quality
+            "quality_comparison": quality,
         }
 
     def print_summary(self, results: list):
         """Print summary of all A/B tests."""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("A/B COMPARISON SUMMARY")
-        print("="*80)
+        print("=" * 80)
 
         for result in results:
             stage = result["stage"]
@@ -334,29 +381,25 @@ def main():
     )
 
     parser.add_argument(
-        '--stage',
-        choices=['lufs_normalization', 'compression', 'limiter'],
-        help='Test specific stage'
+        "--stage",
+        choices=["lufs_normalization", "compression", "limiter"],
+        help="Test specific stage",
     )
 
-    parser.add_argument(
-        '--all',
-        action='store_true',
-        help='Test all stages'
-    )
+    parser.add_argument("--all", action="store_true", help="Test all stages")
 
     args = parser.parse_args()
 
     tester = ABTester(sample_rate=16000)
     results = []
 
-    if args.all or args.stage == 'lufs_normalization':
+    if args.all or args.stage == "lufs_normalization":
         results.append(tester.test_lufs_normalization())
 
-    if args.all or args.stage == 'compression':
+    if args.all or args.stage == "compression":
         results.append(tester.test_compression())
 
-    if args.all or args.stage == 'limiter':
+    if args.all or args.stage == "limiter":
         results.append(tester.test_limiter())
 
     if not args.all and not args.stage:

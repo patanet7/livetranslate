@@ -21,6 +21,7 @@ import numpy as np
 
 try:
     from pedalboard import Pedalboard, Limiter
+
     HAS_PEDALBOARD = True
 except ImportError:
     HAS_PEDALBOARD = False
@@ -71,7 +72,7 @@ class LimiterStageEnhanced(BaseAudioStage):
             "samples_processed": 0,
             "limiting_engaged_count": 0,
             "max_gain_reduction_db": 0.0,
-            "peak_over_threshold_count": 0
+            "peak_over_threshold_count": 0,
         }
 
         self.is_initialized = True
@@ -85,11 +86,12 @@ class LimiterStageEnhanced(BaseAudioStage):
         """Create Pedalboard limiter with current settings."""
         # Pedalboard's Limiter uses threshold in dB
         self.limiter = Limiter(
-            threshold_db=self.config.threshold,
-            release_ms=self.config.release_time
+            threshold_db=self.config.threshold, release_ms=self.config.release_time
         )
 
-    def _process_audio(self, audio_data: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(
+        self, audio_data: np.ndarray
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Process audio through limiting.
 
@@ -135,10 +137,7 @@ class LimiterStageEnhanced(BaseAudioStage):
 
         except Exception as e:
             logger.error(f"Pedalboard limiting failed: {e}")
-            return audio_data, {
-                "error": str(e),
-                "bypassed": True
-            }
+            return audio_data, {"error": str(e), "bypassed": True}
 
         # Optional soft clipping (additional processing)
         if self.config.soft_clip:
@@ -177,7 +176,7 @@ class LimiterStageEnhanced(BaseAudioStage):
             "limiting_engaged": will_limit,
             "threshold_db": float(self.config.threshold),
             "soft_clip_enabled": self.config.soft_clip,
-            "implementation": "Pedalboard (Spotify)"
+            "implementation": "Pedalboard (Spotify)",
         }
 
         return limited_audio.astype(audio_data.dtype), metadata
@@ -192,7 +191,7 @@ class LimiterStageEnhanced(BaseAudioStage):
             "gain_in": self.config.gain_in,
             "gain_out": self.config.gain_out,
             "sample_rate": self.sample_rate,
-            "implementation": "pedalboard (enhanced)"
+            "implementation": "pedalboard (enhanced)",
         }
 
     def update_config(self, new_config: LimiterConfig):
@@ -205,13 +204,15 @@ class LimiterStageEnhanced(BaseAudioStage):
         return {
             **self.quality_stats,
             "limiting_engagement_rate": (
-                self.quality_stats["limiting_engaged_count"] / self.total_chunks_processed
-                if self.total_chunks_processed > 0 else 0.0
+                self.quality_stats["limiting_engaged_count"]
+                / self.total_chunks_processed
+                if self.total_chunks_processed > 0
+                else 0.0
             ),
             "average_gain_reduction_db": (
-                self.quality_stats["max_gain_reduction_db"] /
-                max(self.quality_stats["limiting_engaged_count"], 1)
-            )
+                self.quality_stats["max_gain_reduction_db"]
+                / max(self.quality_stats["limiting_engaged_count"], 1)
+            ),
         }
 
     def reset_quality_stats(self):
@@ -220,7 +221,7 @@ class LimiterStageEnhanced(BaseAudioStage):
             "samples_processed": 0,
             "limiting_engaged_count": 0,
             "max_gain_reduction_db": 0.0,
-            "peak_over_threshold_count": 0
+            "peak_over_threshold_count": 0,
         }
         self.reset_statistics()
 
@@ -231,7 +232,7 @@ def create_limiter(
     release_ms: float = 50.0,
     soft_clip: bool = True,
     sample_rate: int = 16000,
-    **kwargs
+    **kwargs,
 ) -> LimiterStageEnhanced:
     """
     Create a limiter with simplified configuration.
@@ -251,6 +252,6 @@ def create_limiter(
         threshold=threshold_db,
         release_time=release_ms,
         soft_clip=soft_clip,
-        **kwargs
+        **kwargs,
     )
     return LimiterStageEnhanced(config, sample_rate)

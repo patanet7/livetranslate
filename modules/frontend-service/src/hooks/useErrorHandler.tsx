@@ -7,8 +7,7 @@
 
 import { useCallback, useEffect } from 'react';
 import { useSnackbar } from 'notistack';
-import { useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
+import { useNotifications } from './useNotifications';
 
 // Error types and classifications
 export interface AppError {
@@ -32,7 +31,7 @@ export interface ErrorHandlerOptions {
 
 export const useErrorHandler = () => {
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
-  const dispatch = useAppDispatch();
+  const { notifyError, notifyWarning } = useNotifications();
 
   // Error classification
   const classifyError = useCallback((error: any): AppError => {
@@ -209,7 +208,7 @@ export const useErrorHandler = () => {
         appError.type === 'validation' ? 'warning' :
         'error';
 
-      const snackbarKey = enqueueSnackbar(appError.userMessage || appError.message, {
+      enqueueSnackbar(appError.userMessage || appError.message, {
         variant: severity,
         persist: severity === 'error',
         action: showRetry && appError.recoverable ? (key) => (
@@ -233,17 +232,19 @@ export const useErrorHandler = () => {
       });
 
       // Add to global notifications store
-      dispatch(addNotification({
-        type: severity,
-        title: `${appError.type.charAt(0).toUpperCase() + appError.type.slice(1)} Error`,
-        message: appError.userMessage || appError.message,
-        autoHide: severity !== 'error',
-        timestamp: appError.timestamp.toISOString(),
-      }));
+      const title = `${appError.type.charAt(0).toUpperCase() + appError.type.slice(1)} Error`;
+      const message = appError.userMessage || appError.message;
+      const autoHide = severity !== 'error';
+
+      if (severity === 'error') {
+        notifyError(title, message, autoHide);
+      } else {
+        notifyWarning(title, message, autoHide);
+      }
     }
 
     return appError;
-  }, [classifyError, reportError, enqueueSnackbar, closeSnackbar, dispatch]);
+  }, [classifyError, reportError, enqueueSnackbar, closeSnackbar, notifyError, notifyWarning]);
 
   // Specialized error handlers
   const handleNetworkError = useCallback((error: any, source?: string) => {

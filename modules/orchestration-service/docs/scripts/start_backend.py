@@ -18,12 +18,12 @@ os.chdir(src_dir)
 if __name__ == "__main__":
     from main_fastapi import app
     import uvicorn
-    
+
     print("🚀 Starting LiveTranslate Orchestration Service Backend...")
     print("📍 WebSocket endpoint: ws://localhost:3000/ws")
     print("📍 API documentation: http://localhost:3000/docs")
     print("📍 Main dashboard: http://localhost:3000")
-    
+
     # Run the server
     uvicorn.run(
         "main_fastapi:app",
@@ -32,5 +32,5 @@ if __name__ == "__main__":
         reload=True,
         workers=1,
         log_level="info",
-        access_log=True
+        access_log=True,
     )

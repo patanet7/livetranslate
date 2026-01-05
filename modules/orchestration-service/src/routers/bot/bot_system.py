@@ -7,8 +7,13 @@ System-wide bot management endpoints including:
 - System cleanup (/system/cleanup)
 """
 
-from fastapi import BackgroundTasks
-from ._shared import *
+from datetime import datetime
+from typing import Dict, Any
+
+from fastapi import BackgroundTasks, Depends, status
+
+from ._shared import create_bot_router, SystemStatsResponse, logger, get_error_response
+from dependencies import get_bot_manager
 
 # Create router for system bot management
 router = create_bot_router()
@@ -24,7 +29,7 @@ async def get_bot_stats() -> SystemStatsResponse:
     """
     try:
         logger.info("Starting bot stats endpoint...")
-        
+
         # Simple JSON-safe response without any datetime objects
         stats = {
             "totalBotsSpawned": 0,
@@ -39,22 +44,18 @@ async def get_bot_stats() -> SystemStatsResponse:
             "recoveryRate": 0.0,
         }
 
-        return SystemStatsResponse(
-            stats=stats,
-            timestamp=datetime.utcnow().isoformat()
-        )
+        return SystemStatsResponse(stats=stats, timestamp=datetime.utcnow().isoformat())
 
     except Exception as e:
         logger.error(f"Failed to get bot stats: {e}")
         raise get_error_response(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot stats: {str(e)}"
+            status.HTTP_500_INTERNAL_SERVER_ERROR, f"Failed to get bot stats: {str(e)}"
         )
 
 
 @router.get("/system/stats")
 async def get_system_bot_stats(
-    bot_manager=Depends(get_bot_manager)
+    bot_manager=Depends(get_bot_manager),
 ) -> SystemStatsResponse:
     """
     Get system-wide bot statistics
@@ -65,23 +66,19 @@ async def get_system_bot_stats(
     try:
         stats = bot_manager.get_bot_stats()  # Not async, using get_bot_stats instead
 
-        return SystemStatsResponse(
-            stats=stats,
-            timestamp=datetime.utcnow().isoformat()
-        )
+        return SystemStatsResponse(stats=stats, timestamp=datetime.utcnow().isoformat())
 
     except Exception as e:
         logger.error(f"Failed to get system bot stats: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get system bot stats: {str(e)}"
+            f"Failed to get system bot stats: {str(e)}",
         )
 
 
 @router.post("/system/cleanup")
 async def cleanup_system_bots(
-    background_tasks: BackgroundTasks,
-    bot_manager=Depends(get_bot_manager)
+    background_tasks: BackgroundTasks, bot_manager=Depends(get_bot_manager)
 ) -> Dict[str, Any]:
     """
     Cleanup system bot resources
@@ -101,5 +98,5 @@ async def cleanup_system_bots(
         logger.error(f"Failed to start system cleanup: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to start system cleanup: {str(e)}"
+            f"Failed to start system cleanup: {str(e)}",
         )

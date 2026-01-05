@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class WhisperSessionState:
     """State tracking for a Whisper streaming session"""
+
     session_id: str
     config: Dict[str, Any]
     chunks_sent: int = 0
@@ -56,7 +57,7 @@ class SocketIOWhisperClient:
         self,
         whisper_host: str = "localhost",
         whisper_port: int = 5001,
-        auto_reconnect: bool = True
+        auto_reconnect: bool = True,
     ):
         """
         Initialize Socket.IO Whisper client
@@ -77,7 +78,7 @@ class SocketIOWhisperClient:
             reconnection_delay=1,
             reconnection_delay_max=5,
             logger=False,
-            engineio_logger=False
+            engineio_logger=False,
         )
 
         # Session tracking
@@ -117,13 +118,13 @@ class SocketIOWhisperClient:
             logger.error(f"❌ Connection error: {data}")
             self._notify_error(f"Connection error: {data}")
 
-        @self.sio.on('transcription_result')
+        @self.sio.on("transcription_result")
         async def on_transcription_result(data):
             """Handle transcription segment from Whisper"""
             logger.debug(f"📄 Received transcription result")
 
             # Update session activity
-            session_id = data.get('session_id')
+            session_id = data.get("session_id")
             if session_id and session_id in self.sessions:
                 self.sessions[session_id].segments_received += 1
                 self.sessions[session_id].update_activity()
@@ -131,20 +132,20 @@ class SocketIOWhisperClient:
             # Notify callbacks
             self._notify_segment(data)
 
-        @self.sio.on('error')
+        @self.sio.on("error")
         async def on_error(data):
             """Handle error from Whisper"""
-            error_msg = data.get('error', 'Unknown error')
+            error_msg = data.get("error", "Unknown error")
             logger.error(f"❌ Whisper error: {error_msg}")
             self._notify_error(error_msg)
 
-        @self.sio.on('session_started')
+        @self.sio.on("session_started")
         async def on_session_started(data):
             """Handle session started confirmation"""
-            session_id = data.get('session_id')
+            session_id = data.get("session_id")
             logger.info(f"✅ Session started: {session_id}")
 
-        @self.sio.on('pong')
+        @self.sio.on("pong")
         async def on_pong(data):
             """Handle pong response"""
             logger.debug("🏓 Received pong")
@@ -175,11 +176,7 @@ class SocketIOWhisperClient:
         self.connected = False
         logger.info("🔌 Disconnected from Whisper service")
 
-    async def start_stream(
-        self,
-        session_id: str,
-        config: Dict[str, Any]
-    ) -> str:
+    async def start_stream(self, session_id: str, config: Dict[str, Any]) -> str:
         """
         Start a streaming session
 
@@ -211,42 +208,48 @@ class SocketIOWhisperClient:
             session_id=session_id,
             config=config,
             # Extract Whisper parameters from config
-            model_name=config.get('model_name', 'large-v3-turbo'),
-            language=config.get('language', 'en'),
-            beam_size=config.get('beam_size', 5),
-            sample_rate=config.get('sample_rate', 16000),
-            task=config.get('task', 'transcribe'),
-            target_language=config.get('target_language', 'en'),
-            enable_vad=config.get('enable_vad', True),
+            model_name=config.get("model_name", "large-v3-turbo"),
+            language=config.get("language", "en"),
+            beam_size=config.get("beam_size", 5),
+            sample_rate=config.get("sample_rate", 16000),
+            task=config.get("task", "transcribe"),
+            target_language=config.get("target_language", "en"),
+            enable_vad=config.get("enable_vad", True),
             # Domain prompt fields (optional)
-            domain=config.get('domain'),
-            custom_terms=config.get('custom_terms'),
-            initial_prompt=config.get('initial_prompt')
+            domain=config.get("domain"),
+            custom_terms=config.get("custom_terms"),
+            initial_prompt=config.get("initial_prompt"),
         )
         self.sessions[session_id] = session_state
 
         # Send join_session event to Whisper
         logger.debug(f"📤 Sending join_session to Whisper with config: {config}")
-        await self.sio.emit('join_session', {
-            'session_id': session_id,
-            'config': config
-        })
+        await self.sio.emit(
+            "join_session", {"session_id": session_id, "config": config}
+        )
 
         logger.info(f"🎬 Started stream for session: {session_id}")
-        logger.info(f"   Model: {session_state.model_name}, Language: {session_state.language}")
-        logger.info(f"   Task: {session_state.task}, Target: {session_state.target_language}")
-        if session_state.domain or session_state.custom_terms or session_state.initial_prompt:
-            logger.info(f"   Domain prompts: domain={session_state.domain}, "
-                       f"terms={len(session_state.custom_terms) if session_state.custom_terms else 0}, "
-                       f"prompt={'yes' if session_state.initial_prompt else 'no'}")
+        logger.info(
+            f"   Model: {session_state.model_name}, Language: {session_state.language}"
+        )
+        logger.info(
+            f"   Task: {session_state.task}, Target: {session_state.target_language}"
+        )
+        if (
+            session_state.domain
+            or session_state.custom_terms
+            or session_state.initial_prompt
+        ):
+            logger.info(
+                f"   Domain prompts: domain={session_state.domain}, "
+                f"terms={len(session_state.custom_terms) if session_state.custom_terms else 0}, "
+                f"prompt={'yes' if session_state.initial_prompt else 'no'}"
+            )
 
         return session_id
 
     async def send_audio_chunk(
-        self,
-        session_id: str,
-        audio_data: bytes,
-        timestamp: Optional[str] = None
+        self, session_id: str, audio_data: bytes, timestamp: Optional[str] = None
     ):
         """
         Send audio chunk to Whisper for processing with full configuration
@@ -269,40 +272,42 @@ class SocketIOWhisperClient:
         session = self.sessions[session_id]
 
         # Encode audio to base64
-        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
 
         # Build complete transcribe_stream request matching whisper service expectations
         request_data = {
-            'session_id': session_id,
-            'audio_data': audio_base64,
+            "session_id": session_id,
+            "audio_data": audio_base64,
             # REQUIRED Whisper parameters (missing these causes empty results!)
-            'model_name': session.model_name,
-            'language': session.language,
-            'beam_size': session.beam_size,
-            'sample_rate': session.sample_rate,
-            'task': session.task,
-            'target_language': session.target_language,
-            'enable_vad': session.enable_vad,
+            "model_name": session.model_name,
+            "language": session.language,
+            "beam_size": session.beam_size,
+            "sample_rate": session.sample_rate,
+            "task": session.task,
+            "target_language": session.target_language,
+            "enable_vad": session.enable_vad,
         }
 
         # Add domain prompt fields if present (only on first chunk or when explicitly set)
         if session.chunks_sent == 0:  # First chunk - include domain prompts
             if session.domain:
-                request_data['domain'] = session.domain
+                request_data["domain"] = session.domain
             if session.custom_terms:
-                request_data['custom_terms'] = session.custom_terms
+                request_data["custom_terms"] = session.custom_terms
             if session.initial_prompt:
-                request_data['initial_prompt'] = session.initial_prompt
+                request_data["initial_prompt"] = session.initial_prompt
 
         # Send transcribe_stream event with complete configuration
-        await self.sio.emit('transcribe_stream', request_data)
+        await self.sio.emit("transcribe_stream", request_data)
 
         # Update session stats
         session.chunks_sent += 1
         session.update_activity()
 
-        logger.debug(f"🎵 Sent audio chunk {session.chunks_sent} for session {session_id} "
-                    f"({len(audio_data)} bytes, model={session.model_name})")
+        logger.debug(
+            f"🎵 Sent audio chunk {session.chunks_sent} for session {session_id} "
+            f"({len(audio_data)} bytes, model={session.model_name})"
+        )
 
     async def close_stream(self, session_id: str):
         """
@@ -313,9 +318,7 @@ class SocketIOWhisperClient:
         """
         if session_id in self.sessions:
             # Send leave_session event
-            await self.sio.emit('leave_session', {
-                'session_id': session_id
-            })
+            await self.sio.emit("leave_session", {"session_id": session_id})
 
             # Remove session
             del self.sessions[session_id]
@@ -387,11 +390,11 @@ class SocketIOWhisperClient:
 
         session = self.sessions[session_id]
         return {
-            'session_id': session.session_id,
-            'chunks_sent': session.chunks_sent,
-            'segments_received': session.segments_received,
-            'last_activity': session.last_activity.isoformat(),
-            'config': session.config
+            "session_id": session.session_id,
+            "chunks_sent": session.chunks_sent,
+            "segments_received": session.segments_received,
+            "last_activity": session.last_activity.isoformat(),
+            "config": session.config,
         }
 
     def get_all_sessions(self) -> Dict[str, Dict[str, Any]]:
@@ -401,7 +404,4 @@ class SocketIOWhisperClient:
         Returns:
             Dict mapping session_id to session info
         """
-        return {
-            sid: self.get_session_info(sid)
-            for sid in self.sessions.keys()
-        }
+        return {sid: self.get_session_info(sid) for sid in self.sessions.keys()}

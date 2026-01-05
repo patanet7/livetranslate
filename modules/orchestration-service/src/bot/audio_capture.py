@@ -14,16 +14,13 @@ Features:
 - Virtual audio device handling
 """
 
-import os
-import sys
 import time
 import logging
 import asyncio
 import threading
-import uuid
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import numpy as np
 import sounddevice as sd

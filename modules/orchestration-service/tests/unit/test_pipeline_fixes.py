@@ -536,9 +536,7 @@ async def test_rate_limited_operation_success():
         await asyncio.sleep(0.01)
         return "success"
 
-    result = await manager._rate_limited_db_operation(
-        mock_operation, "test_operation"
-    )
+    result = await manager._rate_limited_db_operation(mock_operation, "test_operation")
 
     assert result == "success"
     assert manager._db_operations_completed == 1
@@ -571,9 +569,7 @@ async def test_rate_limited_operation_timeout():
     await asyncio.sleep(0.05)
 
     # Start second operation (should timeout)
-    result2 = await manager._rate_limited_db_operation(
-        slow_operation, "timeout_op"
-    )
+    result2 = await manager._rate_limited_db_operation(slow_operation, "timeout_op")
 
     # Second operation should timeout and return None
     assert result2 is None

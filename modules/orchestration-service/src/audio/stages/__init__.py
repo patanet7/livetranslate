@@ -21,12 +21,12 @@ from .agc_stage import AGCStage
 # imported from stages_enhanced in audio_processor.py
 
 __all__ = [
-    'VADStage',
-    'VoiceFilterStage',
-    'NoiseReductionStage',
-    'VoiceEnhancementStage',
-    'EqualizerStage',
-    'SpectralDenoisingStage',
-    'ConventionalDenoisingStage',
-    'AGCStage',
+    "VADStage",
+    "VoiceFilterStage",
+    "NoiseReductionStage",
+    "VoiceEnhancementStage",
+    "EqualizerStage",
+    "SpectralDenoisingStage",
+    "ConventionalDenoisingStage",
+    "AGCStage",
 ]

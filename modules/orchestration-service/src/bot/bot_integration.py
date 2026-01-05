@@ -17,23 +17,19 @@ Features:
 - Database integration for persistent storage
 """
 
-import os
-import sys
 import time
 import logging
 import asyncio
 import threading
 from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
 import json
 import httpx
 import uuid
-from collections import deque
 
 # Import bot components (now integrated in orchestration service)
 from .audio_capture import GoogleMeetAudioCapture, AudioConfig, MeetingInfo
-from .browser_audio_capture import BrowserAudioCapture, BrowserAudioConfig, create_browser_audio_capture
+from .browser_audio_capture import BrowserAudioConfig, create_browser_audio_capture
 from .caption_processor import GoogleMeetCaptionProcessor
 from .time_correlation import (
     TimeCorrelationEngine,
@@ -41,12 +37,11 @@ from .time_correlation import (
     ExternalSpeakerEvent,
     InternalTranscriptionResult,
 )
-from .virtual_webcam import VirtualWebcamManager, WebcamConfig, DisplayMode, Theme
+from .virtual_webcam import VirtualWebcamManager, WebcamConfig
 from .google_meet_automation import (
-    GoogleMeetAutomation,
     GoogleMeetConfig,
     MeetingState,
-    create_google_meet_automation
+    create_google_meet_automation,
 )
 
 # Configure logging
@@ -302,7 +297,7 @@ class GoogleMeetBotIntegration:
         # Thread safety
         self.lock = threading.RLock()
 
-        logger.info(f"GoogleMeetBotIntegration initialized")
+        logger.info("GoogleMeetBotIntegration initialized")
         logger.info(f"  Bot ID: {bot_config.bot_id}")
         logger.info(f"  Target languages: {bot_config.target_languages}")
         logger.info(f"  Virtual webcam enabled: {bot_config.virtual_webcam_enabled}")
@@ -485,11 +480,10 @@ class GoogleMeetBotIntegration:
                 channels=1,
                 chunk_duration=2.0,
                 enable_noise_reduction=True,
-                enable_echo_cancellation=True
+                enable_echo_cancellation=True,
             )
             self.browser_audio_capture = create_browser_audio_capture(
-                browser_config, 
-                self.config.service_endpoints.orchestration_service
+                browser_config, self.config.service_endpoints.orchestration_service
             )
 
             # Set browser audio capture callbacks
@@ -547,15 +541,15 @@ class GoogleMeetBotIntegration:
                 audio_capture_enabled=True,
                 video_enabled=False,
                 microphone_enabled=False,
-                join_timeout=30
+                join_timeout=30,
             )
             self.meet_automation = create_google_meet_automation(meet_config)
-            
+
             # Set Google Meet automation callbacks
             self.meet_automation.on_state_change = self._handle_meeting_state_change
             self.meet_automation.on_caption_received = self._handle_live_caption
             self.meet_automation.on_participant_change = self._handle_participant_change
-            
+
             # Initialize the automation
             await self.meet_automation.initialize()
 
@@ -563,7 +557,7 @@ class GoogleMeetBotIntegration:
             await self.browser_audio_capture.initialize(
                 meeting_info.meeting_id,
                 session_id,
-                self.meet_automation.driver if self.meet_automation else None
+                self.meet_automation.driver if self.meet_automation else None,
             )
 
             return True
@@ -576,7 +570,7 @@ class GoogleMeetBotIntegration:
         """Handle Google Meet state changes"""
         try:
             logger.info(f"Meeting state changed to: {new_state}")
-            
+
             # Update session status based on meeting state
             if self.current_session_id:
                 session = self.active_sessions.get(self.current_session_id)
@@ -585,14 +579,16 @@ class GoogleMeetBotIntegration:
                         session.status = "active"
                         # Start actual meeting joining process
                         if self.meet_automation and self.meet_automation.meeting_url:
-                            await self.meet_automation.join_meeting(self.meet_automation.meeting_url)
+                            await self.meet_automation.join_meeting(
+                                self.meet_automation.meeting_url
+                            )
                     elif new_state == MeetingState.ERROR:
                         session.status = "error"
                         session.errors_count += 1
                     elif new_state == MeetingState.DISCONNECTED:
                         session.status = "ended"
                         session.end_time = time.time()
-            
+
             # Trigger session event callback
             if self.on_session_event:
                 self.on_session_event(
@@ -600,10 +596,10 @@ class GoogleMeetBotIntegration:
                     {
                         "session_id": self.current_session_id,
                         "new_state": new_state.value,
-                        "timestamp": time.time()
-                    }
+                        "timestamp": time.time(),
+                    },
                 )
-                
+
         except Exception as e:
             logger.error(f"Error handling meeting state change: {e}")
 
@@ -611,7 +607,7 @@ class GoogleMeetBotIntegration:
         """Handle live captions from Google Meet"""
         try:
             logger.debug(f"Live caption from {speaker}: {text}")
-            
+
             # Process caption through existing caption processor
             if self.caption_processor:
                 # Create a caption segment
@@ -620,18 +616,18 @@ class GoogleMeetBotIntegration:
                     "text": text,
                     "timestamp": timestamp,
                     "confidence": 0.9,  # Assume high confidence for live captions
-                    "source": "google_meet_live"
+                    "source": "google_meet_live",
                 }
-                
+
                 # Process through caption processor
                 await self.caption_processor._process_caption_segment(caption_segment)
-            
+
             # Update session statistics
             if self.current_session_id:
                 session = self.active_sessions.get(self.current_session_id)
                 if session:
                     session.messages_processed += 1
-                    
+
         except Exception as e:
             logger.error(f"Error handling live caption: {e}")
 
@@ -639,13 +635,13 @@ class GoogleMeetBotIntegration:
         """Handle participant changes in Google Meet"""
         try:
             logger.info(f"Participants changed: {len(participants)} participants")
-            
+
             # Update session participant count
             if self.current_session_id:
                 session = self.active_sessions.get(self.current_session_id)
                 if session:
                     session.participants_count = len(participants)
-            
+
             # Trigger session event callback
             if self.on_session_event:
                 self.on_session_event(
@@ -654,44 +650,48 @@ class GoogleMeetBotIntegration:
                         "session_id": self.current_session_id,
                         "participants": participants,
                         "count": len(participants),
-                        "timestamp": time.time()
-                    }
+                        "timestamp": time.time(),
+                    },
                 )
-                
+
         except Exception as e:
             logger.error(f"Error handling participant change: {e}")
 
-    async def _handle_browser_audio_chunk(self, audio_bytes: bytes, metadata: Dict[str, Any]):
+    async def _handle_browser_audio_chunk(
+        self, audio_bytes: bytes, metadata: Dict[str, Any]
+    ):
         """Handle audio chunk from browser audio capture"""
         try:
-            logger.debug(f"Browser audio chunk received: {metadata.get('chunk_id', 'unknown')}")
-            
+            logger.debug(
+                f"Browser audio chunk received: {metadata.get('chunk_id', 'unknown')}"
+            )
+
             # The browser audio capture already sends to orchestration service
             # This callback is mainly for monitoring and statistics
-            
+
             # Update session statistics
             if self.current_session_id:
                 session = self.active_sessions.get(self.current_session_id)
                 if session:
                     session.messages_processed += 1
-            
+
             # Log audio quality metrics if available
-            if 'quality_score' in metadata:
+            if "quality_score" in metadata:
                 logger.debug(f"Audio quality score: {metadata['quality_score']}")
-            
+
             # Trigger session event callback for monitoring
             if self.on_session_event:
                 self.on_session_event(
                     "browser_audio_chunk_sent",
                     {
                         "session_id": self.current_session_id,
-                        "chunk_id": metadata.get('chunk_id'),
-                        "duration": metadata.get('duration'),
-                        "timestamp": metadata.get('timestamp'),
-                        "source": "google_meet_browser"
-                    }
+                        "chunk_id": metadata.get("chunk_id"),
+                        "duration": metadata.get("duration"),
+                        "timestamp": metadata.get("timestamp"),
+                        "source": "google_meet_browser",
+                    },
                 )
-                
+
         except Exception as e:
             logger.error(f"Error handling browser audio chunk: {e}")
 
@@ -702,12 +702,12 @@ class GoogleMeetBotIntegration:
 
             # Join Google Meet meeting using automation
             if self.meet_automation:
-                meeting_url = getattr(session.meeting_info, 'meeting_url', None)
+                meeting_url = getattr(session.meeting_info, "meeting_url", None)
                 if not meeting_url:
                     # Construct meeting URL from meeting ID
                     meeting_id = session.meeting_info.meeting_id
                     meeting_url = f"https://meet.google.com/{meeting_id}"
-                
+
                 logger.info(f"Joining Google Meet: {meeting_url}")
                 success = await self.meet_automation.join_meeting(meeting_url)
                 if not success:
@@ -718,9 +718,13 @@ class GoogleMeetBotIntegration:
             if self.browser_audio_capture:
                 success = await self.browser_audio_capture.start_capture()
                 if not success:
-                    logger.warning("Browser audio capture failed, falling back to system audio")
+                    logger.warning(
+                        "Browser audio capture failed, falling back to system audio"
+                    )
                     # Fall back to system audio capture
-                    success = await self.audio_capture.start_capture(session.meeting_info)
+                    success = await self.audio_capture.start_capture(
+                        session.meeting_info
+                    )
                     if not success:
                         return False
             else:
@@ -763,7 +767,7 @@ class GoogleMeetBotIntegration:
             # Stop browser audio capture
             if self.browser_audio_capture:
                 await self.browser_audio_capture.stop_capture()
-            
+
             # Stop audio capture
             if self.audio_capture:
                 await self.audio_capture.stop_capture()
@@ -832,7 +836,9 @@ class GoogleMeetBotIntegration:
 
             # Store in database if manager available
             if self.database_manager and self.current_session_id:
-                asyncio.create_task(self._store_transcription_to_database(internal_result, result))
+                asyncio.create_task(
+                    self._store_transcription_to_database(internal_result, result)
+                )
 
             # Add to correlation engine for speaker attribution
             if self.correlation_engine:
@@ -843,7 +849,7 @@ class GoogleMeetBotIntegration:
                 # Extract speaker info from result or use fallback
                 speaker_id = result.get("speaker_id", "unknown_speaker")
                 speaker_name = result.get("speaker_name", "Unknown Speaker")
-                
+
                 # Check for diarization info in result
                 if "diarization" in result and result["diarization"]:
                     diarization_info = result["diarization"]
@@ -868,7 +874,7 @@ class GoogleMeetBotIntegration:
                     "timestamp": time.time(),
                     "is_original_transcription": True,
                 }
-                
+
                 self.virtual_webcam.add_translation(transcription_data)
 
             # Try to get correlations and process them for translation
@@ -876,14 +882,16 @@ class GoogleMeetBotIntegration:
 
             # Notify transcription callback
             if self.on_transcription_ready:
-                self.on_transcription_ready({
-                    "segment_id": internal_result.segment_id,
-                    "text": internal_result.text,
-                    "language": internal_result.language,
-                    "confidence": internal_result.confidence,
-                    "speaker_info": result.get("diarization", {}),
-                    "timestamp": internal_result.start_timestamp,
-                })
+                self.on_transcription_ready(
+                    {
+                        "segment_id": internal_result.segment_id,
+                        "text": internal_result.text,
+                        "language": internal_result.language,
+                        "confidence": internal_result.confidence,
+                        "speaker_info": result.get("diarization", {}),
+                        "timestamp": internal_result.start_timestamp,
+                    }
+                )
 
         except Exception as e:
             logger.error(f"Error handling transcription result: {e}")
@@ -951,13 +959,17 @@ class GoogleMeetBotIntegration:
                         "speaker_id": correlation["speaker_id"],
                         "speaker_name": correlation["speaker_name"],
                         "original_text": correlation["text"],
-                        "translated_text": correlation["text"],  # Same as original for transcription
+                        "translated_text": correlation[
+                            "text"
+                        ],  # Same as original for transcription
                         "source_language": correlation["language"],
                         "target_language": correlation["language"],
                         "start_timestamp": correlation["start_timestamp"],
                         "end_timestamp": correlation["end_timestamp"],
                         "correlation_confidence": correlation["correlation_confidence"],
-                        "translation_confidence": correlation["correlation_confidence"],  # Use actual correlation confidence (from Whisper)
+                        "translation_confidence": correlation[
+                            "correlation_confidence"
+                        ],  # Use actual correlation confidence (from Whisper)
                         "timestamp": time.time(),
                         "is_original_transcription": True,
                     }
@@ -1011,7 +1023,9 @@ class GoogleMeetBotIntegration:
 
                         # Store translation to database
                         if self.database_manager and self.current_session_id:
-                            asyncio.create_task(self._store_translation_to_database(correlated_data))
+                            asyncio.create_task(
+                                self._store_translation_to_database(correlated_data)
+                            )
 
                         # Update session statistics
                         with self.lock:
@@ -1026,13 +1040,15 @@ class GoogleMeetBotIntegration:
             if self.on_error:
                 self.on_error(f"Correlation processing error: {e}")
 
-    async def _store_transcription_to_database(self, internal_result: InternalTranscriptionResult, result: Dict):
+    async def _store_transcription_to_database(
+        self, internal_result: InternalTranscriptionResult, result: Dict
+    ):
         """Store transcription result to database."""
         try:
             # Extract speaker information
             speaker_info = {
                 "speaker_id": result.get("speaker_id", "unknown_speaker"),
-                "speaker_name": result.get("speaker_name", "Unknown Speaker")
+                "speaker_name": result.get("speaker_name", "Unknown Speaker"),
             }
 
             # Check for diarization info
@@ -1056,11 +1072,13 @@ class GoogleMeetBotIntegration:
                 processing_metadata={
                     "confidence_score": internal_result.confidence,
                     "segment_index": result.get("segment_index", 0),
-                    "processing_metadata": internal_result.processing_metadata
-                }
+                    "processing_metadata": internal_result.processing_metadata,
+                },
             )
 
-            logger.debug(f"Stored transcription to database: {internal_result.segment_id}")
+            logger.debug(
+                f"Stored transcription to database: {internal_result.segment_id}"
+            )
 
         except Exception as e:
             logger.error(f"Error storing transcription to database: {e}")
@@ -1071,19 +1089,21 @@ class GoogleMeetBotIntegration:
             # Extract speaker information
             speaker_info = {
                 "speaker_id": translation_data.get("speaker_id"),
-                "speaker_name": translation_data.get("speaker_name")
+                "speaker_name": translation_data.get("speaker_name"),
             }
 
             # Extract timing information
             timing_info = {
                 "start_timestamp": translation_data.get("start_timestamp"),
-                "end_timestamp": translation_data.get("end_timestamp")
+                "end_timestamp": translation_data.get("end_timestamp"),
             }
 
             # Store translation
             await self.database_manager.translation_manager.store_translation(
                 session_id=self.current_session_id,
-                source_transcript_id=translation_data.get("correlation_id"),  # Use correlation ID as source
+                source_transcript_id=translation_data.get(
+                    "correlation_id"
+                ),  # Use correlation ID as source
                 translated_text=translation_data["translated_text"],
                 source_language=translation_data["source_language"],
                 target_language=translation_data["target_language"],
@@ -1091,14 +1111,22 @@ class GoogleMeetBotIntegration:
                 speaker_info=speaker_info,
                 timing_info=timing_info,
                 processing_metadata={
-                    "translation_confidence": translation_data.get("translation_confidence"),
-                    "correlation_confidence": translation_data.get("correlation_confidence"),
+                    "translation_confidence": translation_data.get(
+                        "translation_confidence"
+                    ),
+                    "correlation_confidence": translation_data.get(
+                        "correlation_confidence"
+                    ),
                     "original_text": translation_data.get("original_text"),
-                    "is_original_transcription": translation_data.get("is_original_transcription", False)
-                }
+                    "is_original_transcription": translation_data.get(
+                        "is_original_transcription", False
+                    ),
+                },
             )
 
-            logger.debug(f"Stored translation to database: {translation_data.get('correlation_id')}")
+            logger.debug(
+                f"Stored translation to database: {translation_data.get('correlation_id')}"
+            )
 
         except Exception as e:
             logger.error(f"Error storing translation to database: {e}")
@@ -1112,7 +1140,7 @@ class GoogleMeetBotIntegration:
                     session_id=self.current_session_id,
                     audio_data=audio_bytes,
                     file_format=metadata.get("format", "wav"),
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
                 logger.debug(f"Stored audio chunk to database: {file_id}")

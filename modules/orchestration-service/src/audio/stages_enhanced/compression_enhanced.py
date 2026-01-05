@@ -21,6 +21,7 @@ import numpy as np
 
 try:
     from pedalboard import Pedalboard, Compressor
+
     HAS_PEDALBOARD = True
 except ImportError:
     HAS_PEDALBOARD = False
@@ -75,7 +76,7 @@ class CompressionStageEnhanced(BaseAudioStage):
             "samples_processed": 0,
             "gain_reduction_db_avg": 0.0,
             "gain_reduction_db_max": 0.0,
-            "compression_ratio_actual": 0.0
+            "compression_ratio_actual": 0.0,
         }
 
         self.is_initialized = True
@@ -108,10 +109,12 @@ class CompressionStageEnhanced(BaseAudioStage):
             threshold_db=self.config.threshold,
             ratio=self.config.ratio,
             attack_ms=self.config.attack_time,
-            release_ms=self.config.release_time
+            release_ms=self.config.release_time,
         )
 
-    def _process_audio(self, audio_data: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(
+        self, audio_data: np.ndarray
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Process audio through compression.
 
@@ -133,7 +136,7 @@ class CompressionStageEnhanced(BaseAudioStage):
             audio_float = audio_float * gain_linear
 
         # Measure input level
-        input_rms = np.sqrt(np.mean(audio_float ** 2))
+        input_rms = np.sqrt(np.mean(audio_float**2))
         input_peak = np.max(np.abs(audio_float))
 
         # Reshape for Pedalboard (expects 2D: channels x samples)
@@ -156,10 +159,7 @@ class CompressionStageEnhanced(BaseAudioStage):
 
         except Exception as e:
             logger.error(f"Pedalboard compression failed: {e}")
-            return audio_data, {
-                "error": str(e),
-                "bypassed": True
-            }
+            return audio_data, {"error": str(e), "bypassed": True}
 
         # Apply makeup gain
         if self.config.makeup_gain != 0.0:
@@ -172,7 +172,7 @@ class CompressionStageEnhanced(BaseAudioStage):
             compressed_audio = compressed_audio * gain_linear
 
         # Measure output level
-        output_rms = np.sqrt(np.mean(compressed_audio ** 2))
+        output_rms = np.sqrt(np.mean(compressed_audio**2))
         output_peak = np.max(np.abs(compressed_audio))
 
         # Calculate gain reduction
@@ -184,27 +184,34 @@ class CompressionStageEnhanced(BaseAudioStage):
         # Update quality statistics
         self.quality_stats["samples_processed"] += len(audio_data)
         self.quality_stats["gain_reduction_db_max"] = min(
-            gain_reduction_db,
-            self.quality_stats["gain_reduction_db_max"]
+            gain_reduction_db, self.quality_stats["gain_reduction_db_max"]
         )
 
         # Calculate actual compression ratio
         if input_peak > 0 and gain_reduction_db < -0.1:
             # Simplified ratio estimation
-            actual_ratio = abs(gain_reduction_db) / max(abs(20 * np.log10(input_peak) - self.config.threshold), 0.1)
+            actual_ratio = abs(gain_reduction_db) / max(
+                abs(20 * np.log10(input_peak) - self.config.threshold), 0.1
+            )
             self.quality_stats["compression_ratio_actual"] = actual_ratio
 
         # Prepare metadata
         metadata = {
             "input_rms_db": float(20 * np.log10(input_rms)) if input_rms > 0 else -80.0,
-            "output_rms_db": float(20 * np.log10(output_rms)) if output_rms > 0 else -80.0,
-            "input_peak_db": float(20 * np.log10(input_peak)) if input_peak > 0 else -80.0,
-            "output_peak_db": float(20 * np.log10(output_peak)) if output_peak > 0 else -80.0,
+            "output_rms_db": float(20 * np.log10(output_rms))
+            if output_rms > 0
+            else -80.0,
+            "input_peak_db": float(20 * np.log10(input_peak))
+            if input_peak > 0
+            else -80.0,
+            "output_peak_db": float(20 * np.log10(output_peak))
+            if output_peak > 0
+            else -80.0,
             "gain_reduction_db": float(gain_reduction_db),
             "threshold_db": float(self.config.threshold),
             "ratio": float(self.config.ratio),
             "mode": self.config.mode.value,
-            "implementation": "Pedalboard (Spotify)"
+            "implementation": "Pedalboard (Spotify)",
         }
 
         return compressed_audio.astype(audio_data.dtype), metadata
@@ -223,7 +230,7 @@ class CompressionStageEnhanced(BaseAudioStage):
             "gain_in": self.config.gain_in,
             "gain_out": self.config.gain_out,
             "sample_rate": self.sample_rate,
-            "implementation": "pedalboard (enhanced)"
+            "implementation": "pedalboard (enhanced)",
         }
 
     def update_config(self, new_config: CompressionConfig):
@@ -237,10 +244,11 @@ class CompressionStageEnhanced(BaseAudioStage):
         return {
             **self.quality_stats,
             "gain_reduction_rate": (
-                abs(self.quality_stats["gain_reduction_db_max"]) /
-                abs(self.config.threshold)
-                if self.config.threshold < 0 else 0.0
-            )
+                abs(self.quality_stats["gain_reduction_db_max"])
+                / abs(self.config.threshold)
+                if self.config.threshold < 0
+                else 0.0
+            ),
         }
 
 
@@ -253,7 +261,7 @@ def create_compressor(
     makeup_gain_db: float = 0.0,
     mode: CompressionMode = CompressionMode.SOFT_KNEE,
     sample_rate: int = 16000,
-    **kwargs
+    **kwargs,
 ) -> CompressionStageEnhanced:
     """
     Create a compressor with simplified configuration.
@@ -279,6 +287,6 @@ def create_compressor(
         release_time=release_ms,
         makeup_gain=makeup_gain_db,
         mode=mode,
-        **kwargs
+        **kwargs,
     )
     return CompressionStageEnhanced(config, sample_rate)

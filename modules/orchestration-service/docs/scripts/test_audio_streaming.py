@@ -32,8 +32,7 @@ import logging
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ class AudioStreamingTester:
         orchestration_url: str = "ws://localhost:3000/api/audio/stream",
         chunk_duration_ms: int = 100,
         session_id: Optional[str] = None,
-        config: Optional[dict] = None
+        config: Optional[dict] = None,
     ):
         """
         Initialize audio streaming tester
@@ -68,12 +67,12 @@ class AudioStreamingTester:
         self.chunk_duration_ms = chunk_duration_ms
         self.session_id = session_id or f"test-{int(time.time())}"
         self.config = config or {
-            'model': 'large-v3-turbo',
-            'language': 'en',
-            'enable_vad': True,
-            'enable_diarization': True,
-            'enable_cif': True,
-            'enable_rolling_context': True
+            "model": "large-v3-turbo",
+            "language": "en",
+            "enable_vad": True,
+            "enable_diarization": True,
+            "enable_cif": True,
+            "enable_rolling_context": True,
         }
 
         self.ws = None
@@ -110,11 +109,7 @@ class AudioStreamingTester:
         """Authenticate with orchestration service"""
         logger.info(f"🔐 Authenticating as {user_id}")
 
-        auth_msg = {
-            'type': 'authenticate',
-            'user_id': user_id,
-            'token': token
-        }
+        auth_msg = {"type": "authenticate", "user_id": user_id, "token": token}
 
         await self.ws.send(json.dumps(auth_msg))
 
@@ -122,7 +117,7 @@ class AudioStreamingTester:
         response = await self.ws.recv()
         response_msg = json.loads(response)
 
-        if response_msg.get('type') == 'authenticated':
+        if response_msg.get("type") == "authenticated":
             self.authenticated = True
             logger.info(f"✅ Authenticated: {response_msg}")
         else:
@@ -135,9 +130,9 @@ class AudioStreamingTester:
         logger.info(f"📝 Config: {self.config}")
 
         start_msg = {
-            'type': 'start_session',
-            'session_id': self.session_id,
-            'config': self.config
+            "type": "start_session",
+            "session_id": self.session_id,
+            "config": self.config,
         }
 
         await self.ws.send(json.dumps(start_msg))
@@ -146,7 +141,7 @@ class AudioStreamingTester:
         response = await self.ws.recv()
         response_msg = json.loads(response)
 
-        if response_msg.get('type') == 'session_started':
+        if response_msg.get("type") == "session_started":
             self.session_started = True
             self.start_time = time.time()
             logger.info(f"✅ Session started: {response_msg}")
@@ -165,12 +160,12 @@ class AudioStreamingTester:
             raise RuntimeError("Session not started")
 
         # Encode audio to base64 (same as frontend and bots)
-        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
 
         chunk_msg = {
-            'type': 'audio_chunk',
-            'audio': audio_base64,
-            'timestamp': datetime.utcnow().isoformat()
+            "type": "audio_chunk",
+            "audio": audio_base64,
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
         await self.ws.send(json.dumps(chunk_msg))
@@ -184,10 +179,7 @@ class AudioStreamingTester:
         """End streaming session"""
         logger.info(f"⏹️ Ending session: {self.session_id}")
 
-        end_msg = {
-            'type': 'end_session',
-            'session_id': self.session_id
-        }
+        end_msg = {"type": "end_session", "session_id": self.session_id}
 
         await self.ws.send(json.dumps(end_msg))
 
@@ -212,24 +204,24 @@ class AudioStreamingTester:
         try:
             async for message in self.ws:
                 msg = json.loads(message)
-                msg_type = msg.get('type')
+                msg_type = msg.get("type")
 
-                if msg_type == 'segment':
+                if msg_type == "segment":
                     self.segments_received += 1
                     self.last_segment_time = time.time()
                     self._print_segment(msg)
 
-                elif msg_type == 'translation':
+                elif msg_type == "translation":
                     self._print_translation(msg)
 
-                elif msg_type == 'error':
+                elif msg_type == "error":
                     logger.error(f"❌ Error from server: {msg.get('error')}")
 
-                elif msg_type == 'ping':
+                elif msg_type == "ping":
                     # Respond to ping
-                    await self.ws.send(json.dumps({'type': 'pong'}))
+                    await self.ws.send(json.dumps({"type": "pong"}))
 
-                elif msg_type == 'session_ended':
+                elif msg_type == "session_ended":
                     logger.info(f"✅ Session ended: {msg}")
 
                 else:
@@ -242,30 +234,32 @@ class AudioStreamingTester:
 
     def _print_segment(self, segment: dict):
         """Pretty print transcription segment"""
-        text = segment.get('text', '')
-        speaker = segment.get('speaker', 'Unknown')
-        confidence = segment.get('confidence', 0) * 100
-        is_final = segment.get('is_final', False)
-        language = segment.get('detected_language', 'unknown')
+        text = segment.get("text", "")
+        speaker = segment.get("speaker", "Unknown")
+        confidence = segment.get("confidence", 0) * 100
+        is_final = segment.get("is_final", False)
+        language = segment.get("detected_language", "unknown")
 
         status = "✅ FINAL" if is_final else "⏳ PARTIAL"
 
-        print(f"\n{'='*80}")
+        print(f"\n{'=' * 80}")
         print(f"{status} | 👤 {speaker} | 🌐 {language.upper()} | 📊 {confidence:.1f}%")
         print(f"📝 {text}")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
     def _print_translation(self, translation: dict):
         """Pretty print translation"""
-        text = translation.get('text', '')
-        source_lang = translation.get('source_lang', 'unknown')
-        target_lang = translation.get('target_lang', 'unknown')
-        confidence = translation.get('confidence', 0) * 100
+        text = translation.get("text", "")
+        source_lang = translation.get("source_lang", "unknown")
+        target_lang = translation.get("target_lang", "unknown")
+        confidence = translation.get("confidence", 0) * 100
 
-        print(f"\n{'='*80}")
-        print(f"🌐 TRANSLATION | {source_lang.upper()} → {target_lang.upper()} | 📊 {confidence:.1f}%")
+        print(f"\n{'=' * 80}")
+        print(
+            f"🌐 TRANSLATION | {source_lang.upper()} → {target_lang.upper()} | 📊 {confidence:.1f}%"
+        )
         print(f"📝 {text}")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
     def print_statistics(self):
         """Print streaming statistics"""
@@ -273,14 +267,14 @@ class AudioStreamingTester:
             elapsed = time.time() - self.start_time
             chunks_per_sec = self.chunks_sent / elapsed if elapsed > 0 else 0
 
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print(f"📊 STREAMING STATISTICS")
-            print(f"{'='*80}")
+            print(f"{'=' * 80}")
             print(f"Duration:          {elapsed:.1f}s")
             print(f"Chunks sent:       {self.chunks_sent}")
             print(f"Segments received: {self.segments_received}")
             print(f"Chunk rate:        {chunks_per_sec:.1f} chunks/sec")
-            print(f"{'='*80}\n")
+            print(f"{'=' * 80}\n")
 
 
 async def stream_from_microphone(tester: AudioStreamingTester):
@@ -295,40 +289,59 @@ async def stream_from_microphone(tester: AudioStreamingTester):
 
     # Detect platform and choose appropriate ffmpeg input
     import platform
+
     system = platform.system()
 
     if system == "Darwin":  # macOS
         ffmpeg_cmd = [
-            'ffmpeg',
-            '-f', 'avfoundation',
-            '-i', ':0',  # Default audio input
-            '-f', 's16le',
-            '-ar', '16000',
-            '-ac', '1',
-            '-loglevel', 'error',
-            '-'
+            "ffmpeg",
+            "-f",
+            "avfoundation",
+            "-i",
+            ":0",  # Default audio input
+            "-f",
+            "s16le",
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-loglevel",
+            "error",
+            "-",
         ]
     elif system == "Linux":
         ffmpeg_cmd = [
-            'ffmpeg',
-            '-f', 'alsa',
-            '-i', 'default',
-            '-f', 's16le',
-            '-ar', '16000',
-            '-ac', '1',
-            '-loglevel', 'error',
-            '-'
+            "ffmpeg",
+            "-f",
+            "alsa",
+            "-i",
+            "default",
+            "-f",
+            "s16le",
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-loglevel",
+            "error",
+            "-",
         ]
     elif system == "Windows":
         ffmpeg_cmd = [
-            'ffmpeg',
-            '-f', 'dshow',
-            '-i', 'audio=Microphone',
-            '-f', 's16le',
-            '-ar', '16000',
-            '-ac', '1',
-            '-loglevel', 'error',
-            '-'
+            "ffmpeg",
+            "-f",
+            "dshow",
+            "-i",
+            "audio=Microphone",
+            "-f",
+            "s16le",
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-loglevel",
+            "error",
+            "-",
         ]
     else:
         raise RuntimeError(f"Unsupported platform: {system}")
@@ -337,10 +350,7 @@ async def stream_from_microphone(tester: AudioStreamingTester):
 
     # Start ffmpeg process
     process = subprocess.Popen(
-        ffmpeg_cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        bufsize=0
+        ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0
     )
 
     # Calculate chunk size
@@ -349,7 +359,9 @@ async def stream_from_microphone(tester: AudioStreamingTester):
     sample_rate = 16000
     bytes_per_sample = 2  # S16LE
     channels = 1
-    chunk_size = int(sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000)
+    chunk_size = int(
+        sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000
+    )
 
     logger.info(f"📦 Chunk size: {chunk_size} bytes ({tester.chunk_duration_ms}ms)")
 
@@ -362,7 +374,7 @@ async def stream_from_microphone(tester: AudioStreamingTester):
 
             if len(audio_chunk) < chunk_size:
                 # Pad with zeros if incomplete chunk
-                audio_chunk += b'\x00' * (chunk_size - len(audio_chunk))
+                audio_chunk += b"\x00" * (chunk_size - len(audio_chunk))
 
             await tester.send_audio_chunk(audio_chunk)
 
@@ -386,30 +398,34 @@ async def stream_from_file(tester: AudioStreamingTester, audio_file: str):
     logger.info(f"📁 Streaming from file: {audio_file}")
 
     ffmpeg_cmd = [
-        'ffmpeg',
-        '-i', audio_file,
-        '-f', 's16le',
-        '-ar', '16000',
-        '-ac', '1',
-        '-loglevel', 'error',
-        '-'
+        "ffmpeg",
+        "-i",
+        audio_file,
+        "-f",
+        "s16le",
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-loglevel",
+        "error",
+        "-",
     ]
 
     logger.info(f"🎵 ffmpeg command: {' '.join(ffmpeg_cmd)}")
 
     # Start ffmpeg process
     process = subprocess.Popen(
-        ffmpeg_cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        bufsize=0
+        ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0
     )
 
     # Calculate chunk size
     sample_rate = 16000
     bytes_per_sample = 2  # S16LE
     channels = 1
-    chunk_size = int(sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000)
+    chunk_size = int(
+        sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000
+    )
 
     logger.info(f"📦 Chunk size: {chunk_size} bytes ({tester.chunk_duration_ms}ms)")
 
@@ -422,7 +438,7 @@ async def stream_from_file(tester: AudioStreamingTester, audio_file: str):
 
             if len(audio_chunk) < chunk_size:
                 # Pad with zeros if incomplete chunk
-                audio_chunk += b'\x00' * (chunk_size - len(audio_chunk))
+                audio_chunk += b"\x00" * (chunk_size - len(audio_chunk))
 
             await tester.send_audio_chunk(audio_chunk)
 
@@ -451,7 +467,9 @@ async def stream_from_stdin(tester: AudioStreamingTester):
     sample_rate = 16000
     bytes_per_sample = 2  # S16LE
     channels = 1
-    chunk_size = int(sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000)
+    chunk_size = int(
+        sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000
+    )
 
     logger.info(f"📦 Chunk size: {chunk_size} bytes ({tester.chunk_duration_ms}ms)")
 
@@ -464,7 +482,7 @@ async def stream_from_stdin(tester: AudioStreamingTester):
 
             if len(audio_chunk) < chunk_size:
                 # Pad with zeros if incomplete chunk
-                audio_chunk += b'\x00' * (chunk_size - len(audio_chunk))
+                audio_chunk += b"\x00" * (chunk_size - len(audio_chunk))
 
             await tester.send_audio_chunk(audio_chunk)
 
@@ -486,30 +504,50 @@ async def main():
 
     # Input source options
     input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument('--mic', action='store_true', help='Stream from microphone')
-    input_group.add_argument('--file', type=str, help='Stream from audio file')
-    input_group.add_argument('--stdin', action='store_true', help='Stream from stdin')
+    input_group.add_argument(
+        "--mic", action="store_true", help="Stream from microphone"
+    )
+    input_group.add_argument("--file", type=str, help="Stream from audio file")
+    input_group.add_argument("--stdin", action="store_true", help="Stream from stdin")
 
     # Configuration options
-    parser.add_argument('--url', default='ws://localhost:3000/api/audio/stream',
-                       help='Orchestration WebSocket URL')
-    parser.add_argument('--chunk-duration', type=int, default=100,
-                       help='Audio chunk duration in milliseconds')
-    parser.add_argument('--model', default='large-v3-turbo',
-                       help='Whisper model to use (default: large-v3-turbo)')
-    parser.add_argument('--language', default='en',
-                       help='Source language code')
-    parser.add_argument('--session-id', default=None,
-                       help='Session identifier (auto-generated if not provided)')
+    parser.add_argument(
+        "--url",
+        default="ws://localhost:3000/api/audio/stream",
+        help="Orchestration WebSocket URL",
+    )
+    parser.add_argument(
+        "--chunk-duration",
+        type=int,
+        default=100,
+        help="Audio chunk duration in milliseconds",
+    )
+    parser.add_argument(
+        "--model",
+        default="large-v3-turbo",
+        help="Whisper model to use (default: large-v3-turbo)",
+    )
+    parser.add_argument("--language", default="en", help="Source language code")
+    parser.add_argument(
+        "--session-id",
+        default=None,
+        help="Session identifier (auto-generated if not provided)",
+    )
 
     # Feature flags
-    parser.add_argument('--no-vad', action='store_true', help='Disable VAD')
-    parser.add_argument('--no-diarization', action='store_true', help='Disable speaker diarization')
-    parser.add_argument('--no-cif', action='store_true', help='Disable CIF')
-    parser.add_argument('--code-switching', action='store_true', help='Enable code-switching (multi-language detection)')
+    parser.add_argument("--no-vad", action="store_true", help="Disable VAD")
+    parser.add_argument(
+        "--no-diarization", action="store_true", help="Disable speaker diarization"
+    )
+    parser.add_argument("--no-cif", action="store_true", help="Disable CIF")
+    parser.add_argument(
+        "--code-switching",
+        action="store_true",
+        help="Enable code-switching (multi-language detection)",
+    )
 
     # Logging
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
     args = parser.parse_args()
 
@@ -519,26 +557,26 @@ async def main():
 
     # Create configuration
     config = {
-        'model': args.model,
-        'enable_vad': not args.no_vad,
-        'enable_diarization': not args.no_diarization,
-        'enable_cif': not args.no_cif,
-        'enable_rolling_context': True,
-        'enable_code_switching': args.code_switching,
+        "model": args.model,
+        "enable_vad": not args.no_vad,
+        "enable_diarization": not args.no_diarization,
+        "enable_cif": not args.no_cif,
+        "enable_rolling_context": True,
+        "enable_code_switching": args.code_switching,
     }
 
     # Code-switching requires language='auto' for proper detection
     if args.code_switching:
-        config['language'] = 'auto'
+        config["language"] = "auto"
     else:
-        config['language'] = args.language
+        config["language"] = args.language
 
     # Create tester
     tester = AudioStreamingTester(
         orchestration_url=args.url,
         chunk_duration_ms=args.chunk_duration,
         session_id=args.session_id,
-        config=config
+        config=config,
     )
 
     try:
@@ -582,7 +620,9 @@ async def main():
             if tester.last_segment_time is not None:
                 time_since_last_segment = time.time() - tester.last_segment_time
                 if time_since_last_segment > segment_timeout:
-                    logger.info(f"✅ No segments for {segment_timeout}s, processing complete")
+                    logger.info(
+                        f"✅ No segments for {segment_timeout}s, processing complete"
+                    )
                     break
 
             await asyncio.sleep(0.5)  # Check every 500ms
@@ -610,5 +650,5 @@ async def main():
         await tester.disconnect()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

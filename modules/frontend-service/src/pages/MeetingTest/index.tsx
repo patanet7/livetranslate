@@ -2,7 +2,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
   Grid,
   Button,
   Card,
@@ -30,8 +29,6 @@ import {
 import {
   Mic,
   MicOff,
-  PlayArrow,
-  Stop,
   Settings,
   Translate,
   RecordVoiceOver,
@@ -39,97 +36,45 @@ import {
   Tune,
 } from '@mui/icons-material';
 import { useAppSelector, useAppDispatch } from '@/store';
-import {
-  setAudioDevices,
-  setVisualizationData,
-  addProcessingLog,
-  setAudioQualityMetrics,
-  updateConfig,
-} from '@/store/slices/audioSlice';
+import { addProcessingLog } from '@/store/slices/audioSlice';
 import { AudioVisualizer } from '../AudioTesting/components/AudioVisualizer';
-import {
-  calculateMeetingAudioLevel,
-  getMeetingAudioQuality,
-  getDisplayLevel,
-} from '@/utils/audioLevelCalculation';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
-
-interface StreamingChunk {
-  id: string;
-  audio: Blob;
-  timestamp: number;
-  duration: number;
-}
-
-interface TranscriptionResult {
-  id: string;
-  chunkId: string;
-  text: string;
-  confidence: number;
-  language: string;
-  speakers?: Array<{
-    speaker_id: string;
-    speaker_name: string;
-    start_time: number;
-    end_time: number;
-  }>;
-  timestamp: number;
-  processing_time: number;
-}
-
-interface TranslationResult {
-  id: string;
-  transcriptionId: string;
-  sourceText: string;
-  translatedText: string;
-  sourceLanguage: string;
-  targetLanguage: string;
-  confidence: number;
-  timestamp: number;
-  processing_time: number;
-}
+import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
+import { useAudioDevices } from '@/hooks/useAudioDevices';
+import { useAudioVisualization } from '@/hooks/useAudioVisualization';
+import type { TranscriptionResult, TranslationResult, StreamingStats } from '@/types/streaming';
+import { DEFAULT_TARGET_LANGUAGES, DEFAULT_STREAMING_STATS, DEFAULT_PROCESSING_CONFIG } from '@/constants/defaultConfig';
+import { SUPPORTED_LANGUAGES } from '@/constants/languages';
+import { generateSessionId } from '@/utils/sessionUtils';
 
 const MeetingTest: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { devices, visualization, config } = useAppSelector(state => state.audio);
-  
+  const { devices, visualization } = useAppSelector(state => state.audio);
+
   // Load available models and device information dynamically
-  const { 
-    models: availableModels, 
-    loading: modelsLoading, 
-    error: modelsError, 
+  const {
+    models: availableModels,
+    loading: modelsLoading,
+    error: modelsError,
     status: modelsStatus,
     serviceMessage,
     deviceInfo,
-    refetch: refetchModels 
   } = useAvailableModels();
-  
+
+  // Use unified audio manager for proper abstraction
+  const { uploadAndProcessAudio } = useUnifiedAudio();
+
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingStats, setStreamingStats] = useState({
-    chunksStreamed: 0,
-    totalDuration: 0,
-    averageProcessingTime: 0,
-    errorCount: 0,
-  });
-  
+  const [streamingStats, setStreamingStats] = useState<StreamingStats>(DEFAULT_STREAMING_STATS);
+
   // Audio streaming
   const [chunkDuration, setChunkDuration] = useState(3); // 3 seconds default
-  const [targetLanguages, setTargetLanguages] = useState<string[]>(['en', 'zh']); // Default to English and Chinese
+  const [targetLanguages, setTargetLanguages] = useState<string[]>([...DEFAULT_TARGET_LANGUAGES]);
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  
+
   // Processing configuration
-  const [processingConfig, setProcessingConfig] = useState({
-    enableTranscription: true,
-    enableTranslation: true,
-    enableDiarization: true,
-    enableVAD: true,
-    whisperModel: 'whisper-tiny', // Default to whisper-tiny, will be updated when models load
-    translationQuality: 'balanced',
-    audioProcessing: false, // Disable to test raw audio first
-    noiseReduction: false,
-    speechEnhancement: false,
-  });
+  const [processingConfig, setProcessingConfig] = useState(DEFAULT_PROCESSING_CONFIG);
   
   // Results
   const [transcriptionResults, setTranscriptionResults] = useState<TranscriptionResult[]>([]);
@@ -139,177 +84,26 @@ const MeetingTest: React.FC = () => {
   // Audio refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
   const chunkIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
-  
-  // Initialize audio devices
-  useEffect(() => {
-    const initializeDevices = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioDevices = devices
-          .filter(device => device.kind === 'audioinput')
-          .map(device => ({
-            deviceId: device.deviceId,
-            label: device.label || `Microphone ${device.deviceId.substr(0, 8)}`,
-            kind: device.kind as 'audioinput',
-            groupId: device.groupId || ''
-          }));
-        
-        dispatch(setAudioDevices(audioDevices));
-        if (audioDevices.length > 0 && !selectedDevice) {
-          setSelectedDevice(audioDevices[0].deviceId);
-        }
-        
-        dispatch(addProcessingLog({
-          level: 'INFO',
-          message: `Found ${audioDevices.length} audio input devices`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to load audio devices: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
 
-    initializeDevices();
-  }, [dispatch, selectedDevice]);
+  // Initialize audio devices with auto-selection
+  useAudioDevices({
+    autoSelect: true,
+    selectedDevice,
+    onDeviceSelected: setSelectedDevice
+  });
 
-  // Update whisper model when available models are loaded
-  useEffect(() => {
-    if (!modelsLoading && availableModels.length > 0) {
-      const firstAvailableModel = availableModels[0].name;
-      // Only update if current model is not in available models
-      const isCurrentModelAvailable = availableModels.some(m => m.name === processingConfig.whisperModel);
-      if (!isCurrentModelAvailable) {
-        setProcessingConfig(prev => ({
-          ...prev,
-          whisperModel: firstAvailableModel
-        }));
-        console.log(`Auto-selected whisper model: ${firstAvailableModel}`);
-      }
-    }
-  }, [modelsLoading, availableModels, processingConfig.whisperModel]);
-
-  // Initialize audio visualization
-  useEffect(() => {
-    if (!selectedDevice) return;
-
-    const initializeAudioVisualization = async () => {
-      try {
-        const constraints = {
-          audio: {
-            deviceId: selectedDevice,
-            sampleRate: 16000,
-            channelCount: 1,
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          }
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        audioStreamRef.current = stream;
-        
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close();
-        }
-        
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 2048;
-        microphoneRef.current.connect(analyserRef.current);
-
-        startVisualization();
-        
-        dispatch(addProcessingLog({
-          level: 'SUCCESS',
-          message: `Audio visualization initialized with device: ${selectedDevice}`,
-          timestamp: Date.now()
-        }));
-      } catch (error) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to initialize audio visualization: ${error}`,
-          timestamp: Date.now()
-        }));
-      }
-    };
-
-    initializeAudioVisualization();
-
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close();
-      }
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [dispatch, selectedDevice]);
-
-  const startVisualization = useCallback(() => {
-    if (!analyserRef.current) return;
-
-    const updateVisualization = () => {
-      if (!analyserRef.current) return;
-
-      const bufferLength = analyserRef.current.frequencyBinCount;
-      const frequencyData = new Uint8Array(bufferLength);
-      analyserRef.current.getByteFrequencyData(frequencyData);
-
-      const timeData = new Uint8Array(analyserRef.current.fftSize);
-      analyserRef.current.getByteTimeDomainData(timeData);
-
-      // Calculate professional meeting-optimized audio metrics
-      const audioMetrics = calculateMeetingAudioLevel(timeData, frequencyData, 16000);
-      const qualityAssessment = getMeetingAudioQuality(audioMetrics);
-      const displayLevel = getDisplayLevel(audioMetrics);
-
-      // Update Redux store with enhanced visualization data
-      dispatch(setVisualizationData({
-        frequencyData: Array.from(frequencyData),
-        timeData: Array.from(timeData),
-        audioLevel: displayLevel
-      }));
-
-      // Update comprehensive audio quality metrics
-      dispatch(setAudioQualityMetrics({
-        rmsLevel: audioMetrics.rmsDb,
-        peakLevel: audioMetrics.peakDb,
-        signalToNoise: audioMetrics.signalToNoise,
-        frequency: 16000,
-        clipping: audioMetrics.clipping * 100,
-        voiceActivity: audioMetrics.voiceActivity,
-        spectralCentroid: audioMetrics.spectralCentroid,
-        dynamicRange: audioMetrics.dynamicRange,
-        speechClarity: audioMetrics.speechClarity,
-        backgroundNoise: audioMetrics.backgroundNoise,
-        qualityAssessment: qualityAssessment.quality,
-        qualityScore: qualityAssessment.score,
-        recommendations: qualityAssessment.recommendations,
-        issues: qualityAssessment.issues
-      }));
-
-      animationFrameRef.current = requestAnimationFrame(updateVisualization);
-    };
-
-    updateVisualization();
-  }, [dispatch]);
+  // Initialize audio visualization with shared hook
+  useAudioVisualization({
+    deviceId: selectedDevice,
+    sampleRate: 16000,
+    audioStreamRef: audioStreamRef,
+    enableLogging: true
+  });
 
   // Simple session management for testing
-  const [sessionId] = useState(() => `meeting_test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  const [sessionId] = useState(() => generateSessionId('meeting_test'));
   
   // Handle response from streaming endpoint directly (no WebSocket needed for simple testing)
   const handleStreamingResponse = useCallback((response: any, chunkId: string) => {
@@ -471,68 +265,59 @@ const MeetingTest: React.FC = () => {
   // Send audio chunk to orchestration service
   const sendAudioChunk = useCallback(async (chunkId: string, audioBlob: Blob) => {
     try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'chunk.webm');
-      formData.append('chunk_id', chunkId);
-      formData.append('session_id', sessionId);
-      console.log('🌐 Frontend: targetLanguages state:', targetLanguages);
-      console.log('🌐 Frontend: targetLanguages JSON:', JSON.stringify(targetLanguages));
-      formData.append('target_languages', JSON.stringify(targetLanguages));
-      formData.append('enable_transcription', processingConfig.enableTranscription.toString());
-      formData.append('enable_translation', processingConfig.enableTranslation.toString());
-      formData.append('enable_diarization', processingConfig.enableDiarization.toString());
-      formData.append('whisper_model', processingConfig.whisperModel);
-      formData.append('translation_quality', processingConfig.translationQuality);
-      formData.append('enable_vad', processingConfig.enableVAD.toString());
-      formData.append('audio_processing', processingConfig.audioProcessing.toString());
-      formData.append('noise_reduction', processingConfig.noiseReduction.toString());
-      formData.append('speech_enhancement', processingConfig.speechEnhancement.toString());
-      
-      const response = await fetch('/api/audio/upload', {
-        method: 'POST',
-        body: formData
+      // Build configuration object that backend expects as JSON
+      const config = {
+        chunk_id: chunkId,
+        target_languages: targetLanguages,
+        enable_transcription: processingConfig.enableTranscription,
+        enable_translation: processingConfig.enableTranslation,
+        enable_diarization: processingConfig.enableDiarization,
+        whisper_model: processingConfig.whisperModel,
+        translation_quality: processingConfig.translationQuality,
+        enable_vad: processingConfig.enableVAD,
+        audio_processing: processingConfig.audioProcessing,
+        noise_reduction: processingConfig.noiseReduction,
+        speech_enhancement: processingConfig.speechEnhancement,
+      };
+
+      console.log('🌐 Frontend: Sending config:', config);
+
+      // Use unified audio manager for proper abstraction (DRY principle)
+      const result = await uploadAndProcessAudio(audioBlob, {
+        sessionId,
+        ...config,
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
+
       // Handle the response directly
       handleStreamingResponse(result, chunkId);
-      
+
       // Remove from active chunks
       setActiveChunks(prev => {
         const newSet = new Set(prev);
         newSet.delete(chunkId);
         return newSet;
       });
-      
+
       dispatch(addProcessingLog({
         level: 'INFO',
         message: `Audio chunk ${chunkId} processed successfully`,
         timestamp: Date.now()
       }));
     } catch (error) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Failed to process audio chunk ${chunkId}: ${error}`,
-        timestamp: Date.now()
-      }));
-      
+      // Error handling is already done by uploadAndProcessAudio
+      // Just update local state
       setActiveChunks(prev => {
         const newSet = new Set(prev);
         newSet.delete(chunkId);
         return newSet;
       });
-      
+
       setStreamingStats(prev => ({
         ...prev,
         errorCount: prev.errorCount + 1
       }));
     }
-  }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, dispatch]);
+  }, [targetLanguages, processingConfig, sessionId, handleStreamingResponse, uploadAndProcessAudio, dispatch]);
 
   const handleLanguageToggle = useCallback((language: string) => {
     console.log('🌐 Frontend: Toggling language:', language);
@@ -554,12 +339,7 @@ const MeetingTest: React.FC = () => {
     setTranscriptionResults([]);
     setTranslationResults([]);
     setActiveChunks(new Set());
-    setStreamingStats({
-      chunksStreamed: 0,
-      totalDuration: 0,
-      averageProcessingTime: 0,
-      errorCount: 0,
-    });
+    setStreamingStats(DEFAULT_STREAMING_STATS);
   }, []);
 
   return (
@@ -709,9 +489,9 @@ const MeetingTest: React.FC = () => {
                             disabled={modelsLoading}
                           >
                             {modelsLoading ? (
-                              <MenuItem value="whisper-tiny">Loading models...</MenuItem>
+                              <MenuItem value="whisper-base">Loading models...</MenuItem>
                             ) : modelsError ? (
-                              <MenuItem value="whisper-tiny">Error loading models</MenuItem>
+                              <MenuItem value="whisper-base">Error loading models</MenuItem>
                             ) : availableModels.length > 0 ? (
                               availableModels.map((model) => (
                                 <MenuItem key={model.name} value={model.name}>
@@ -719,7 +499,7 @@ const MeetingTest: React.FC = () => {
                                 </MenuItem>
                               ))
                             ) : (
-                              <MenuItem value="whisper-tiny">No models available</MenuItem>
+                              <MenuItem value="whisper-base">No models available</MenuItem>
                             )}
                           </Select>
                         </FormControl>
@@ -834,16 +614,7 @@ const MeetingTest: React.FC = () => {
                 </Typography>
                 
                 <FormGroup>
-                  {[
-                    { code: 'es', name: 'Spanish' },
-                    { code: 'fr', name: 'French' },
-                    { code: 'de', name: 'German' },
-                    { code: 'it', name: 'Italian' },
-                    { code: 'pt', name: 'Portuguese' },
-                    { code: 'ja', name: 'Japanese' },
-                    { code: 'ko', name: 'Korean' },
-                    { code: 'zh', name: 'Chinese' },
-                  ].map((lang) => (
+                  {SUPPORTED_LANGUAGES.slice(1, 9).map((lang) => (
                     <FormControlLabel
                       key={lang.code}
                       control={
@@ -974,7 +745,6 @@ const MeetingTest: React.FC = () => {
                           <ListItem key={result.id} sx={{ px: 0 }}>
                             <ListItemText
                               primary={result.text}
-                              secondaryTypographyProps={{ component: 'div' }}
                               secondary={
                                 <Box>
                                   <Typography variant="caption">
@@ -1026,8 +796,6 @@ const MeetingTest: React.FC = () => {
                         {translationResults.slice(-15).reverse().map((result) => (
                           <ListItem key={result.id} sx={{ px: 0 }}>
                             <ListItemText
-                              primaryTypographyProps={{ component: 'div' }}
-                              secondaryTypographyProps={{ component: 'div' }}
                               primary={
                                 <Box>
                                   <Chip 

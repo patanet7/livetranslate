@@ -56,18 +56,24 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
             user_agent=websocket.headers.get("user-agent"),
         )
         # Connect to Seamless service
-        seamless_ws = await websockets.connect(upstream, max_size=2 ** 24)
+        seamless_ws = await websockets.connect(upstream, max_size=2**24)
 
         # Start forwarder from upstream to client
-        forward_task = asyncio.create_task(_forward_from_seamless_to_client(seamless_ws, websocket))
+        forward_task = asyncio.create_task(
+            _forward_from_seamless_to_client(seamless_ws, websocket)
+        )
 
         # Inform upstream of connection
-        await seamless_ws.send(json.dumps({
-            "type": "config",
-            "source": "cmn",
-            "target": "eng",
-            "emitPartials": True,
-        }))
+        await seamless_ws.send(
+            json.dumps(
+                {
+                    "type": "config",
+                    "source": "cmn",
+                    "target": "eng",
+                    "emitPartials": True,
+                }
+            )
+        )
 
         # Main loop: receive client messages and forward upstream
         while True:
@@ -81,14 +87,20 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
             # Persist event (throttle client audio chunks if needed)
             etype = msg.get("type", "unknown")
             if etype != "audio_chunk":
-                await add_event(session_id, etype, msg, int(datetime.utcnow().timestamp() * 1000))
+                await add_event(
+                    session_id, etype, msg, int(datetime.utcnow().timestamp() * 1000)
+                )
 
     except Exception as e:
         try:
-            await websocket.send_text(json.dumps({
-                "type": "error",
-                "message": f"Seamless proxy error: {e}",
-            }))
+            await websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "error",
+                        "message": f"Seamless proxy error: {e}",
+                    }
+                )
+            )
         except Exception:
             pass
     finally:
@@ -124,7 +136,14 @@ async def http_get_session(session_id: str):
 
 
 @router.get("/sessions/{session_id}/events")
-async def http_get_events(session_id: str, from_ms: int | None = None, to_ms: int | None = None, types: str | None = None, limit: int = 500, offset: int = 0):
+async def http_get_events(
+    session_id: str,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    types: str | None = None,
+    limit: int = 500,
+    offset: int = 0,
+):
     await ensure_schema()
     return await get_events(session_id, from_ms, to_ms, types, limit, offset)
 
@@ -133,5 +152,3 @@ async def http_get_events(session_id: str, from_ms: int | None = None, to_ms: in
 async def http_get_transcripts(session_id: str):
     await ensure_schema()
     return await get_transcripts(session_id)
-
-

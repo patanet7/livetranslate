@@ -20,13 +20,6 @@ import {
   LinearProgress,
   IconButton,
   Tooltip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Alert,
   Button,
   useTheme,
@@ -40,7 +33,6 @@ import {
   Error,
   Speed,
   Memory,
-  Storage,
   NetworkCheck,
   Refresh,
   Notifications,
@@ -48,14 +40,15 @@ import {
 } from '@mui/icons-material';
 
 // Import chart components (we'll use simple implementations for now)
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
 import { useAnalytics } from '@/hooks/useAnalytics';
-import { useAppDispatch, useAppSelector } from '@/store';
+import { useAppDispatch } from '@/store';
 import { addNotification } from '@/store/slices/uiSlice';
 
-interface ServiceHealth {
+// Component-specific service health interface
+interface ServiceHealthDisplay {
   name: string;
   status: 'healthy' | 'degraded' | 'down';
   responseTime: number;
@@ -87,15 +80,14 @@ interface ProcessingStats {
 const LiveAnalytics: React.FC = () => {
   const theme = useTheme();
   const dispatch = useAppDispatch();
-  const audioManager = useUnifiedAudio();
+  useUnifiedAudio();
 
   // State
-  const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [services, setServices] = useState<ServiceHealthDisplay[]>([]);
   const [metrics, setMetrics] = useState<SystemMetrics[]>([]);
   const [processingStats, setProcessingStats] = useState<ProcessingStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
 
@@ -122,7 +114,7 @@ const LiveAnalytics: React.FC = () => {
       errorRate: systemMetricsData?.performance?.errorRate || 0,
     };
 
-    const serviceHealth: ServiceHealth[] = serviceHealthData.map(service => ({
+    const serviceHealth: ServiceHealthDisplay[] = serviceHealthData.map(service => ({
       name: service.name,
       status: service.status === 'healthy' ? 'healthy' : 
              service.status === 'degraded' ? 'degraded' : 'down',
@@ -161,15 +153,16 @@ const LiveAnalytics: React.FC = () => {
       setLastUpdate(new Date());
       setHasError(false);
       setConnectionStatus(connectionStatusData?.isConnected ? 'connected' : 'disconnected');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load analytics data:', error);
       setHasError(true);
       setConnectionStatus('disconnected');
-      
+
+      const errorMessage = (error as Error)?.message || 'Unable to load system analytics data';
       dispatch(addNotification({
         type: 'error',
         title: 'Analytics Load Failed',
-        message: error instanceof Error ? error.message : 'Unable to load system analytics data',
+        message: errorMessage,
         autoHide: true,
       }));
       
@@ -198,7 +191,7 @@ const LiveAnalytics: React.FC = () => {
   }, [refreshAnalyticsData]);
 
   // Helper functions
-  const getStatusIcon = (status: ServiceHealth['status']) => {
+  const getStatusIcon = (status: ServiceHealthDisplay['status']) => {
     switch (status) {
       case 'healthy':
         return <CheckCircle color="success" />;
@@ -211,7 +204,7 @@ const LiveAnalytics: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: ServiceHealth['status']) => {
+  const getStatusColor = (status: ServiceHealthDisplay['status']) => {
     switch (status) {
       case 'healthy':
         return 'success';

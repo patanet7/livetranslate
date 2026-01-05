@@ -20,4 +20,4 @@ from sqlalchemy.orm import declarative_base
 # All database models should inherit from this Base
 Base = declarative_base()
 
-__all__ = ['Base']
+__all__ = ["Base"]

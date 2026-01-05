@@ -84,35 +84,37 @@ class SpeakerGrouper:
         current_group = None
 
         for segment in segments:
-            speaker = segment.get('speaker', 'Unknown')
-            text = segment.get('text', '').strip()
+            speaker = segment.get("speaker", "Unknown")
+            text = segment.get("text", "").strip()
 
             # Skip empty segments
             if not text:
                 continue
 
             # Check if we should merge with current group
-            if current_group and current_group['speaker'] == speaker:
+            if current_group and current_group["speaker"] == speaker:
                 # Same speaker - merge text and update end time
-                current_group['text'] += ' ' + text
-                current_group['end_time'] = segment['absolute_end_time']
+                current_group["text"] += " " + text
+                current_group["end_time"] = segment["absolute_end_time"]
             else:
                 # Different speaker - save current group and start new one
                 if current_group:
                     groups.append(current_group)
 
                 current_group = {
-                    'speaker': speaker,
-                    'text': text,
-                    'start_time': segment['absolute_start_time'],
-                    'end_time': segment['absolute_end_time']
+                    "speaker": speaker,
+                    "text": text,
+                    "start_time": segment["absolute_start_time"],
+                    "end_time": segment["absolute_end_time"],
                 }
 
         # Don't forget the last group!
         if current_group:
             groups.append(current_group)
 
-        logger.debug(f"Grouped {len(segments)} segments into {len(groups)} speaker groups")
+        logger.debug(
+            f"Grouped {len(segments)} segments into {len(groups)} speaker groups"
+        )
         return groups
 
     def format_group_for_display(self, group: Dict[str, Any]) -> str:
@@ -132,17 +134,18 @@ class SpeakerGrouper:
         Example:
             "[10:30:00 - 10:30:05] John: Hello everyone, how are you today?"
         """
-        speaker = group['speaker']
-        text = group['text']
+        speaker = group["speaker"]
+        text = group["text"]
 
         # Format timestamps (show only time part)
         try:
             from datetime import datetime
-            start = datetime.fromisoformat(group['start_time'].replace('Z', '+00:00'))
-            end = datetime.fromisoformat(group['end_time'].replace('Z', '+00:00'))
 
-            start_str = start.strftime('%H:%M:%S')
-            end_str = end.strftime('%H:%M:%S')
+            start = datetime.fromisoformat(group["start_time"].replace("Z", "+00:00"))
+            end = datetime.fromisoformat(group["end_time"].replace("Z", "+00:00"))
+
+            start_str = start.strftime("%H:%M:%S")
+            end_str = end.strftime("%H:%M:%S")
 
             return f"[{start_str} - {end_str}] {speaker}: {text}"
         except Exception as e:
@@ -161,32 +164,32 @@ if __name__ == "__main__":
             "text": "Hello",
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:00Z",
-            "absolute_end_time": "2025-01-15T10:30:01Z"
+            "absolute_end_time": "2025-01-15T10:30:01Z",
         },
         {
             "text": "everyone",
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:01Z",
-            "absolute_end_time": "2025-01-15T10:30:02Z"
+            "absolute_end_time": "2025-01-15T10:30:02Z",
         },
         {
             "text": "how",
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:02Z",
-            "absolute_end_time": "2025-01-15T10:30:03Z"
+            "absolute_end_time": "2025-01-15T10:30:03Z",
         },
         {
             "text": "Hi John",
             "speaker": "Jane",
             "absolute_start_time": "2025-01-15T10:30:04Z",
-            "absolute_end_time": "2025-01-15T10:30:05Z"
+            "absolute_end_time": "2025-01-15T10:30:05Z",
         },
         {
             "text": "Thanks",
             "speaker": "John",
             "absolute_start_time": "2025-01-15T10:30:06Z",
-            "absolute_end_time": "2025-01-15T10:30:07Z"
-        }
+            "absolute_end_time": "2025-01-15T10:30:07Z",
+        },
     ]
 
     grouper = SpeakerGrouper()

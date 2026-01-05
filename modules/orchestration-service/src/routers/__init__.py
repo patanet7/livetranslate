@@ -14,7 +14,7 @@ from .translation import router as translation_router
 
 __all__ = [
     "audio_router",
-    "audio_coordination_router", 
+    "audio_coordination_router",
     "bot_router",
     "websocket_router",
     "system_router",

@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StreamingSessionState:
     """State for an active streaming session"""
+
     session_id: str
     frontend_connection_id: str
     whisper_session_id: str
@@ -67,7 +68,7 @@ class StreamingSessionState:
         audio_chunks: int = 0,
         segments: int = 0,
         deduplicated: int = 0,
-        translations: int = 0
+        translations: int = 0,
     ):
         """Update session statistics"""
         self.audio_chunks_sent += audio_chunks
@@ -100,7 +101,7 @@ class StreamingCoordinator:
         frontend_host: str = "0.0.0.0",
         frontend_port: int = 8000,
         enable_translation: bool = False,
-        translation_service_url: Optional[str] = None
+        translation_service_url: Optional[str] = None,
     ):
         """
         Initialize streaming coordinator
@@ -123,14 +124,14 @@ class StreamingCoordinator:
         # Components
         self.frontend_handler = WebSocketFrontendHandler()
         self.whisper_client = WebSocketWhisperClient(
-            whisper_host=whisper_host,
-            whisper_port=whisper_port,
-            auto_reconnect=True
+            whisper_host=whisper_host, whisper_port=whisper_port, auto_reconnect=True
         )
 
         # Session tracking
         self.sessions: Dict[str, StreamingSessionState] = {}
-        self.connection_to_session: Dict[str, str] = {}  # frontend_connection_id -> session_id
+        self.connection_to_session: Dict[
+            str, str
+        ] = {}  # frontend_connection_id -> session_id
 
         # Setup callbacks
         self._setup_callbacks()
@@ -163,14 +164,19 @@ class StreamingCoordinator:
 
         # Start frontend WebSocket server
         import websockets
-        logger.info(f"Starting frontend WebSocket server on {self.frontend_host}:{self.frontend_port}")
+
+        logger.info(
+            f"Starting frontend WebSocket server on {self.frontend_host}:{self.frontend_port}"
+        )
 
         async with websockets.serve(
             self.frontend_handler.handle_connection,
             self.frontend_host,
-            self.frontend_port
+            self.frontend_port,
         ):
-            logger.info(f"✅ Frontend WebSocket server running on ws://{self.frontend_host}:{self.frontend_port}")
+            logger.info(
+                f"✅ Frontend WebSocket server running on ws://{self.frontend_host}:{self.frontend_port}"
+            )
             await asyncio.Future()  # Run forever
 
     async def stop(self):
@@ -189,21 +195,19 @@ class StreamingCoordinator:
     # Session Management
 
     async def _handle_session_start(
-        self,
-        frontend_connection_id: str,
-        session_id: str,
-        config: Dict[str, Any]
+        self, frontend_connection_id: str, session_id: str, config: Dict[str, Any]
     ):
         """Handle session start from frontend"""
-        logger.info(f"📝 Starting session: {session_id} (frontend: {frontend_connection_id})")
+        logger.info(
+            f"📝 Starting session: {session_id} (frontend: {frontend_connection_id})"
+        )
 
         # Create Whisper session ID (unique per frontend connection)
         whisper_session_id = f"whisper-{session_id}-{frontend_connection_id}"
 
         # Start Whisper streaming session
         await self.whisper_client.start_stream(
-            session_id=whisper_session_id,
-            config=config
+            session_id=whisper_session_id, config=config
         )
 
         # Create session state
@@ -211,7 +215,7 @@ class StreamingCoordinator:
             session_id=session_id,
             frontend_connection_id=frontend_connection_id,
             whisper_session_id=whisper_session_id,
-            config=config
+            config=config,
         )
 
         self.sessions[session_id] = session_state
@@ -220,10 +224,7 @@ class StreamingCoordinator:
         logger.info(f"✅ Session started: {session_id}")
 
     async def _handle_audio_chunk(
-        self,
-        frontend_connection_id: str,
-        audio_data: bytes,
-        timestamp: datetime
+        self, frontend_connection_id: str, audio_data: bytes, timestamp: datetime
     ):
         """Handle audio chunk from frontend"""
         # Get session for this connection
@@ -237,14 +238,16 @@ class StreamingCoordinator:
             logger.warning(f"Session not found: {session_id}")
             return
 
-        logger.debug(f"🎵 Audio chunk for session {session_id}: {len(audio_data)} bytes")
+        logger.debug(
+            f"🎵 Audio chunk for session {session_id}: {len(audio_data)} bytes"
+        )
 
         # Forward audio to Whisper
         try:
             await self.whisper_client.send_audio_chunk(
                 session_id=session.whisper_session_id,
                 audio_data=audio_data,
-                timestamp=timestamp
+                timestamp=timestamp,
             )
 
             # Update stats
@@ -254,30 +257,26 @@ class StreamingCoordinator:
             logger.error(f"Error sending audio to Whisper: {e}")
             await self.frontend_handler.send_segment(
                 frontend_connection_id,
-                {"type": "error", "error": f"Whisper error: {e}"}
+                {"type": "error", "error": f"Whisper error: {e}"},
             )
 
-    async def _handle_session_end(
-        self,
-        frontend_connection_id: str,
-        session_id: str
-    ):
+    async def _handle_session_end(self, frontend_connection_id: str, session_id: str):
         """Handle session end from frontend"""
         logger.info(f"⏹️ Ending session: {session_id}")
 
         await self._cleanup_session(session_id)
 
     async def _handle_connection_change(
-        self,
-        frontend_connection_id: str,
-        connected: bool
+        self, frontend_connection_id: str, connected: bool
     ):
         """Handle frontend connection state change"""
         if not connected:
             # Connection closed - cleanup any active session
             session_id = self.connection_to_session.get(frontend_connection_id)
             if session_id:
-                logger.info(f"Connection {frontend_connection_id} closed - cleaning up session {session_id}")
+                logger.info(
+                    f"Connection {frontend_connection_id} closed - cleaning up session {session_id}"
+                )
                 await self._cleanup_session(session_id)
 
     # Segment Processing
@@ -298,10 +297,14 @@ class StreamingCoordinator:
                 break
 
         if not session:
-            logger.warning(f"Session not found for Whisper session: {whisper_session_id}")
+            logger.warning(
+                f"Session not found for Whisper session: {whisper_session_id}"
+            )
             return
 
-        logger.debug(f"📄 Segment for session {session.session_id}: {segment.get('text', '')[:50]}")
+        logger.debug(
+            f"📄 Segment for session {session.session_id}: {segment.get('text', '')[:50]}"
+        )
 
         # Update stats
         session.update_stats(segments=1)
@@ -311,13 +314,14 @@ class StreamingCoordinator:
         session.update_stats(deduplicated=len(deduplicated_segments))
 
         # Step 2: Group by speaker
-        grouped_segments = session.speaker_grouper.group_by_speaker(deduplicated_segments)
+        grouped_segments = session.speaker_grouper.group_by_speaker(
+            deduplicated_segments
+        )
 
         # Step 3: Send segments to frontend
         for grouped_segment in grouped_segments:
             await self.frontend_handler.send_segment(
-                session.frontend_connection_id,
-                grouped_segment
+                session.frontend_connection_id, grouped_segment
             )
 
         # Step 4: Translate if enabled
@@ -327,11 +331,12 @@ class StreamingCoordinator:
                 if translation:
                     session.update_stats(translations=1)
                     await self.frontend_handler.send_translation(
-                        session.frontend_connection_id,
-                        translation
+                        session.frontend_connection_id, translation
                     )
 
-    async def _translate_segment(self, segment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def _translate_segment(
+        self, segment: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """
         Translate a segment
 
@@ -358,8 +363,10 @@ class StreamingCoordinator:
                 {
                     "type": "error",
                     "error": f"Whisper service error: {error}",
-                    "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-                }
+                    "timestamp": datetime.now(timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                },
             )
 
     # Cleanup
@@ -411,8 +418,8 @@ class StreamingCoordinator:
                 "audio_chunks_sent": session.audio_chunks_sent,
                 "segments_received": session.segments_received,
                 "segments_deduplicated": session.segments_deduplicated,
-                "translations_generated": session.translations_generated
-            }
+                "translations_generated": session.translations_generated,
+            },
         }
 
     def get_all_sessions(self) -> Dict[str, Dict[str, Any]]:
@@ -431,9 +438,13 @@ class StreamingCoordinator:
             "active_sessions": len(self.sessions),
             "frontend": frontend_stats,
             "whisper": whisper_stats,
-            "total_audio_chunks": sum(s.audio_chunks_sent for s in self.sessions.values()),
+            "total_audio_chunks": sum(
+                s.audio_chunks_sent for s in self.sessions.values()
+            ),
             "total_segments": sum(s.segments_received for s in self.sessions.values()),
-            "total_translations": sum(s.translations_generated for s in self.sessions.values())
+            "total_translations": sum(
+                s.translations_generated for s in self.sessions.values()
+            ),
         }
 
 
@@ -453,7 +464,7 @@ async def main():
         whisper_host=whisper_host,
         whisper_port=whisper_port,
         frontend_host=frontend_host,
-        frontend_port=frontend_port
+        frontend_port=frontend_port,
     )
 
     try:
@@ -468,6 +479,6 @@ async def main():
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     asyncio.run(main())

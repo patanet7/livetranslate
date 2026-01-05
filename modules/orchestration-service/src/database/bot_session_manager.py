@@ -16,16 +16,14 @@ Features:
 - File cleanup and archival management
 """
 
-import os
-import sys
 import time
 import logging
 import asyncio
 import json
 import uuid
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 import asyncpg
 import aiofiles
 from pathlib import Path
@@ -159,9 +157,12 @@ class DatabaseConfig:
         self.connection_timeout = kwargs.get("connection_timeout", 30.0)
         self.command_timeout = kwargs.get("command_timeout", 60.0)
         # Pool behavior
-        self.max_queries = kwargs.get("max_queries", 50000)  # Recycle connection after N queries
+        self.max_queries = kwargs.get(
+            "max_queries", 50000
+        )  # Recycle connection after N queries
         self.max_inactive_connection_lifetime = kwargs.get(
-            "max_inactive_connection_lifetime", 300.0  # 5 minutes
+            "max_inactive_connection_lifetime",
+            300.0,  # 5 minutes
         )
 
 
@@ -853,7 +854,7 @@ class BotSessionDatabaseManager:
 
             query = f"""
                 UPDATE bot_sessions.sessions 
-                SET {', '.join(set_clauses)}
+                SET {", ".join(set_clauses)}
                 WHERE session_id = ${param_count + 1}
             """
 

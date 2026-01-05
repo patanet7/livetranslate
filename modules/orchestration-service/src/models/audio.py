@@ -2,12 +2,11 @@
 Audio processing-related Pydantic models
 """
 
-from datetime import datetime
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import Field, field_validator, model_validator
 
-from .base import BaseModel, ResponseMixin, TimestampMixin, IDMixin
+from .base import BaseModel, ResponseMixin, TimestampMixin
 
 
 class AudioFormat(str, Enum):
@@ -205,7 +204,7 @@ class AudioProcessingRequest(BaseModel):
         default_factory=dict, description="Additional metadata"
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_audio_source(self):
         """Ensure at least one audio source is provided"""
         audio_sources = [

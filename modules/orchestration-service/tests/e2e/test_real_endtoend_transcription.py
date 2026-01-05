@@ -56,8 +56,7 @@ from bot.audio_capture import MeetingInfo
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -85,9 +84,9 @@ class RealEndToEndTest:
 
     async def run(self):
         """Run the complete REAL end-to-end test."""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("🎯 REAL END-TO-END TRANSCRIPTION TEST")
-        print("="*80)
+        print("=" * 80)
         print()
 
         try:
@@ -96,8 +95,12 @@ class RealEndToEndTest:
             if not await self._check_prerequisites():
                 print("\n❌ Prerequisites check failed!")
                 print("\nPlease start the required services:")
-                print("  Orchestration: cd modules/orchestration-service && python src/main_fastapi.py")
-                print("  Whisper: cd modules/whisper-service && python src/main.py --device=cpu")
+                print(
+                    "  Orchestration: cd modules/orchestration-service && python src/main_fastapi.py"
+                )
+                print(
+                    "  Whisper: cd modules/whisper-service && python src/main.py --device=cpu"
+                )
                 return False
 
             # Step 2: Create output directory
@@ -154,7 +157,9 @@ class RealEndToEndTest:
                 if response.status_code == 200:
                     print(f"  ✅ Orchestration service: Running ({ORCHESTRATION_URL})")
                 else:
-                    print(f"  ❌ Orchestration service: Unhealthy (status {response.status_code})")
+                    print(
+                        f"  ❌ Orchestration service: Unhealthy (status {response.status_code})"
+                    )
                     services_ok = False
         except Exception as e:
             print(f"  ❌ Orchestration service: Not running ({ORCHESTRATION_URL})")
@@ -168,7 +173,9 @@ class RealEndToEndTest:
                 if response.status_code == 200:
                     print(f"  ✅ Whisper service: Running ({WHISPER_URL})")
                 else:
-                    print(f"  ❌ Whisper service: Unhealthy (status {response.status_code})")
+                    print(
+                        f"  ❌ Whisper service: Unhealthy (status {response.status_code})"
+                    )
                     services_ok = False
         except Exception as e:
             print(f"  ❌ Whisper service: Not running ({WHISPER_URL})")
@@ -224,12 +231,16 @@ class RealEndToEndTest:
                 theme=Theme.DARK,
                 resolution=(1920, 1080),
             )
-            webcam_config.translation_duration_seconds = 5.0  # Shorter duration for test
+            webcam_config.translation_duration_seconds = (
+                5.0  # Shorter duration for test
+            )
             webcam_config.show_speaker_names = True
             webcam_config.show_confidence = True
             webcam_config.show_timestamps = True
 
-            self.webcam = create_virtual_webcam(webcam_config, bot_manager=self.bot_manager)
+            self.webcam = create_virtual_webcam(
+                webcam_config, bot_manager=self.bot_manager
+            )
 
             # Set up frame capture callback
             def on_frame(frame: np.ndarray):
@@ -261,9 +272,9 @@ class RealEndToEndTest:
 
             # Convert numpy array to PIL Image and save
             if frame.shape[2] == 4:  # RGBA
-                img = Image.fromarray(frame, mode='RGBA')
+                img = Image.fromarray(frame, mode="RGBA")
             else:  # RGB
-                img = Image.fromarray(frame, mode='RGB')
+                img = Image.fromarray(frame, mode="RGB")
 
             img.save(frame_path)
             self.frames_saved.append(frame_path)
@@ -280,7 +291,7 @@ class RealEndToEndTest:
         print("\n🎤 Scenario 1: Single Transcription")
 
         text = "Hello, this is a test transcription"
-        print(f"  ▶ Generating audio: \"{text}\"")
+        print(f'  ▶ Generating audio: "{text}"')
 
         audio_bytes = self._generate_speech_audio(text, duration=3.0)
 
@@ -295,12 +306,14 @@ class RealEndToEndTest:
             transcription = processing_result.get("transcription")
 
             if transcription:
-                print(f"  ✅ Received transcription: \"{transcription}\"")
-                self.transcriptions_received.append({
-                    "chunk": "chunk_1",
-                    "text": transcription,
-                    "timestamp": time.time(),
-                })
+                print(f'  ✅ Received transcription: "{transcription}"')
+                self.transcriptions_received.append(
+                    {
+                        "chunk": "chunk_1",
+                        "text": transcription,
+                        "timestamp": time.time(),
+                    }
+                )
             else:
                 print(f"  ⏳ Transcription pending (async processing)")
         else:
@@ -323,8 +336,8 @@ class RealEndToEndTest:
         ]
 
         for i, text in enumerate(texts):
-            chunk_id = f"chunk_2_{i+1}"
-            print(f"  ▶ Chunk {i+1}: \"{text}\"")
+            chunk_id = f"chunk_2_{i + 1}"
+            print(f'  ▶ Chunk {i + 1}: "{text}"')
 
             audio_bytes = self._generate_speech_audio(text, duration=2.0)
             result = await self._upload_audio_chunk(audio_bytes, chunk_id)
@@ -335,11 +348,13 @@ class RealEndToEndTest:
                 transcription = processing_result.get("transcription")
 
                 if transcription:
-                    self.transcriptions_received.append({
-                        "chunk": chunk_id,
-                        "text": transcription,
-                        "timestamp": time.time(),
-                    })
+                    self.transcriptions_received.append(
+                        {
+                            "chunk": chunk_id,
+                            "text": transcription,
+                            "timestamp": time.time(),
+                        }
+                    )
 
             # Small delay between chunks
             await asyncio.sleep(1)
@@ -362,8 +377,8 @@ class RealEndToEndTest:
         # Upload all chunks rapidly without waiting
         tasks = []
         for i, text in enumerate(texts):
-            chunk_id = f"chunk_3_{i+1}"
-            print(f"  ▶ Chunk {i+1}: \"{text}\"")
+            chunk_id = f"chunk_3_{i + 1}"
+            print(f'  ▶ Chunk {i + 1}: "{text}"')
 
             audio_bytes = self._generate_speech_audio(text, duration=1.5)
             task = self._upload_audio_chunk(audio_bytes, chunk_id)
@@ -372,7 +387,11 @@ class RealEndToEndTest:
         # Wait for all uploads
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        successful = sum(1 for r in results if isinstance(r, dict) and r.get("status") == "uploaded_and_processed")
+        successful = sum(
+            1
+            for r in results
+            if isinstance(r, dict) and r.get("status") == "uploaded_and_processed"
+        )
         print(f"  ✅ {successful}/{len(texts)} chunks uploaded successfully")
 
         # Wait for rendering
@@ -430,7 +449,7 @@ class RealEndToEndTest:
             import wave
 
             wav_buffer = io.BytesIO()
-            with wave.open(wav_buffer, 'wb') as wav_file:
+            with wave.open(wav_buffer, "wb") as wav_file:
                 wav_file.setnchannels(1)  # Mono
                 wav_file.setsampwidth(2)  # 16-bit
                 wav_file.setframerate(sample_rate)
@@ -445,7 +464,9 @@ class RealEndToEndTest:
             logger.error(f"Error generating audio: {e}", exc_info=True)
             raise
 
-    async def _upload_audio_chunk(self, audio_bytes: bytes, chunk_id: str) -> Optional[Dict[str, Any]]:
+    async def _upload_audio_chunk(
+        self, audio_bytes: bytes, chunk_id: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Upload audio chunk to REAL orchestration service.
 
@@ -454,24 +475,22 @@ class RealEndToEndTest:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 # Prepare multipart form data
-                files = {
-                    'audio': (f'{chunk_id}.wav', audio_bytes, 'audio/wav')
-                }
+                files = {"audio": (f"{chunk_id}.wav", audio_bytes, "audio/wav")}
 
                 data = {
-                    'session_id': self.session_id,
-                    'chunk_id': chunk_id,
-                    'enable_transcription': 'true',
-                    'enable_translation': 'false',  # Transcription only!
-                    'enable_diarization': 'true',
-                    'whisper_model': 'whisper-base',  # Use base model
-                    'audio_processing': 'false',  # Disable extra processing for speed
-                    'noise_reduction': 'false',
-                    'speech_enhancement': 'false',
+                    "session_id": self.session_id,
+                    "chunk_id": chunk_id,
+                    "enable_transcription": "true",
+                    "enable_translation": "false",  # Transcription only!
+                    "enable_diarization": "true",
+                    "whisper_model": "whisper-base",  # Use base model
+                    "audio_processing": "false",  # Disable extra processing for speed
+                    "noise_reduction": "false",
+                    "speech_enhancement": "false",
                 }
 
                 response = await client.post(
-                    f'{ORCHESTRATION_URL}/api/audio/upload',
+                    f"{ORCHESTRATION_URL}/api/audio/upload",
                     files=files,
                     data=data,
                 )
@@ -481,7 +500,9 @@ class RealEndToEndTest:
                     logger.debug(f"Upload successful: {chunk_id}")
                     return result
                 else:
-                    logger.error(f"Upload failed: {response.status_code} - {response.text}")
+                    logger.error(
+                        f"Upload failed: {response.status_code} - {response.text}"
+                    )
                     return {"status": "failed", "error": response.text}
 
         except Exception as e:
@@ -506,8 +527,8 @@ class RealEndToEndTest:
         if self.transcriptions_received:
             print(f"\n  Transcriptions received:")
             for trans in self.transcriptions_received:
-                elapsed = trans['timestamp'] - self.test_start_time
-                print(f"    [{elapsed:6.2f}s] {trans['chunk']}: \"{trans['text']}\"")
+                elapsed = trans["timestamp"] - self.test_start_time
+                print(f'    [{elapsed:6.2f}s] {trans["chunk"]}: "{trans["text"]}"')
 
         # Provide ffmpeg command
         if self.frames_saved:
@@ -518,9 +539,9 @@ class RealEndToEndTest:
             print(f"         output.mp4")
 
         print()
-        print("="*80)
+        print("=" * 80)
         print("✅ REAL END-TO-END TEST COMPLETE!")
-        print("="*80)
+        print("=" * 80)
 
     async def _cleanup(self):
         """Clean up resources."""

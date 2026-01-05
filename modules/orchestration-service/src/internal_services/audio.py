@@ -85,7 +85,11 @@ class UnifiedAudioService:
                 logger.info("Embedded Whisper service ready")
             except Exception as exc:  # pragma: no cover - depends on environment
                 self._last_error = str(exc)
-                logger.warning("Embedded Whisper service initialization failed: %s", exc, exc_info=True)
+                logger.warning(
+                    "Embedded Whisper service initialization failed: %s",
+                    exc,
+                    exc_info=True,
+                )
                 self._service = None
 
         return self._service
@@ -103,7 +107,9 @@ class UnifiedAudioService:
         """Transcribe raw audio bytes using the embedded service."""
         service = await self._ensure_service()
         if service is None:
-            raise UnifiedAudioError(self._last_error or "Embedded audio service unavailable")
+            raise UnifiedAudioError(
+                self._last_error or "Embedded audio service unavailable"
+            )
 
         request = _TranscriptionRequest(
             audio_data=audio_bytes,
@@ -149,7 +155,9 @@ class UnifiedAudioService:
             "status": status,
             "embedded": True,
             "module_available": available,
-            "source_path": _AUDIO_SOURCE_PATH.as_posix() if _AUDIO_SOURCE_PATH else None,
+            "source_path": _AUDIO_SOURCE_PATH.as_posix()
+            if _AUDIO_SOURCE_PATH
+            else None,
             "last_error": self._last_error,
         }
 

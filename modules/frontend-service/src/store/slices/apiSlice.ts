@@ -16,7 +16,7 @@ import {
 const baseQuery = fetchBaseQuery({
   baseUrl: '/api',
   timeout: 30000, // 30 second timeout
-  prepareHeaders: (headers, { getState }) => {
+  prepareHeaders: (headers) => {
     // Add any authentication headers here if needed
     headers.set('Content-Type', 'application/json');
     return headers;
@@ -98,15 +98,20 @@ export const apiSlice = createApi({
       },
     }),
     
-    uploadAudioFile: builder.mutation<ApiResponse<{ fileId: string }>, {
-      file: File;
-      metadata?: Record<string, any>;
+    uploadAudioFile: builder.mutation<ApiResponse<any>, {
+      audio: Blob | File;
+      config?: Record<string, any>;
+      sessionId?: string;
     }>({
-      query: ({ file, metadata }) => {
+      query: ({ audio, config, sessionId }) => {
         const formData = new FormData();
-        formData.append('file', file);
-        if (metadata) formData.append('metadata', JSON.stringify(metadata));
-        
+        // Backend expects 'audio' field name (not 'file')
+        const audioFile = audio instanceof File ? audio : new File([audio], 'audio.webm', { type: 'audio/webm' });
+        formData.append('audio', audioFile);
+        // Backend expects 'config' field name (not 'metadata') as JSON string
+        if (config) formData.append('config', JSON.stringify(config));
+        if (sessionId) formData.append('session_id', sessionId);
+
         return {
           url: 'audio/upload',
           method: 'POST',
@@ -129,7 +134,7 @@ export const apiSlice = createApi({
     
     getBot: builder.query<ApiResponse<BotInstance>, string>({
       query: (botId) => `bot/${botId}`,
-      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+      providesTags: (_result, _error, botId) => [{ type: 'Bot', id: botId }],
     }),
     
     spawnBot: builder.mutation<ApiResponse<{ botId: string }>, MeetingRequest>({
@@ -151,7 +156,7 @@ export const apiSlice = createApi({
     
     getBotStatus: builder.query<ApiResponse<BotInstance>, string>({
       query: (botId) => `bot/${botId}/status`,
-      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+      providesTags: (_result, _error, botId) => [{ type: 'Bot', id: botId }],
     }),
     
     getBotSessions: builder.query<ApiResponse<PaginatedResponse<BotSession>>, {
@@ -169,7 +174,7 @@ export const apiSlice = createApi({
     
     getBotSession: builder.query<ApiResponse<BotSession>, string>({
       query: (sessionId) => `bot/sessions/${sessionId}`,
-      providesTags: (result, error, sessionId) => [{ type: 'BotSession', id: sessionId }],
+      providesTags: (_result, _error, sessionId) => [{ type: 'BotSession', id: sessionId }],
     }),
     
     // Virtual Webcam API endpoints

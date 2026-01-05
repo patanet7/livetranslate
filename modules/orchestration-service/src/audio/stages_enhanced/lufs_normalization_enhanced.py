@@ -21,6 +21,7 @@ import numpy as np
 
 try:
     import pyloudnorm as pyln
+
     HAS_PYLOUDNORM = True
 except ImportError:
     HAS_PYLOUDNORM = False
@@ -76,11 +77,13 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
             "samples_processed": 0,
             "average_lufs": 0.0,
             "peak_exceeded_count": 0,
-            "target_achieved_count": 0
+            "target_achieved_count": 0,
         }
 
         self.is_initialized = True
-        logger.info(f"Initialized enhanced LUFS normalization (target: {self.config.target_lufs} LUFS)")
+        logger.info(
+            f"Initialized enhanced LUFS normalization (target: {self.config.target_lufs} LUFS)"
+        )
 
     def _apply_mode_settings(self):
         """Apply preset target LUFS based on mode."""
@@ -91,16 +94,18 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
             LUFSNormalizationMode.PODCAST: -19.0,  # Common podcast target
             LUFSNormalizationMode.YOUTUBE: -14.0,
             LUFSNormalizationMode.NETFLIX: -27.0,  # Cinema-style
-            LUFSNormalizationMode.CUSTOM: self.config.target_lufs
+            LUFSNormalizationMode.CUSTOM: self.config.target_lufs,
         }
 
         if self.config.mode != LUFSNormalizationMode.CUSTOM:
             self.config.target_lufs = mode_targets.get(
                 self.config.mode,
-                -14.0  # Default to streaming
+                -14.0,  # Default to streaming
             )
 
-    def _process_audio(self, audio_data: np.ndarray) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(
+        self, audio_data: np.ndarray
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Process audio through LUFS normalization.
 
@@ -124,7 +129,11 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
         # Measure current loudness
         try:
             # pyloudnorm expects audio in range -1.0 to 1.0
-            audio_normalized = audio_float / np.max(np.abs(audio_float)) if np.max(np.abs(audio_float)) > 0 else audio_float
+            audio_normalized = (
+                audio_float / np.max(np.abs(audio_float))
+                if np.max(np.abs(audio_float)) > 0
+                else audio_float
+            )
 
             current_lufs = self.meter.integrated_loudness(audio_normalized)
 
@@ -135,10 +144,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
 
         except Exception as e:
             logger.warning(f"LUFS measurement failed: {e}, bypassing normalization")
-            return audio_data, {
-                "error": str(e),
-                "bypassed": True
-            }
+            return audio_data, {"error": str(e), "bypassed": True}
 
         # Calculate required gain adjustment
         lufs_delta = self.config.target_lufs - current_lufs
@@ -161,7 +167,11 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
 
         # True peak limiting
         if self.config.true_peak_limiting:
-            peak_db = 20 * np.log10(np.max(np.abs(normalized_audio))) if np.max(np.abs(normalized_audio)) > 0 else -80.0
+            peak_db = (
+                20 * np.log10(np.max(np.abs(normalized_audio)))
+                if np.max(np.abs(normalized_audio)) > 0
+                else -80.0
+            )
 
             if peak_db > self.config.max_peak_db:
                 # Apply limiting
@@ -175,7 +185,11 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
                 peak_limited = False
         else:
             peak_limited = False
-            peak_db = 20 * np.log10(np.max(np.abs(normalized_audio))) if np.max(np.abs(normalized_audio)) > 0 else -80.0
+            peak_db = (
+                20 * np.log10(np.max(np.abs(normalized_audio)))
+                if np.max(np.abs(normalized_audio)) > 0
+                else -80.0
+            )
 
         # Apply output gain
         if self.config.gain_out != 0.0:
@@ -189,7 +203,11 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
 
         # Measure final loudness (for verification)
         try:
-            final_normalized = normalized_audio / np.max(np.abs(normalized_audio)) if np.max(np.abs(normalized_audio)) > 0 else normalized_audio
+            final_normalized = (
+                normalized_audio / np.max(np.abs(normalized_audio))
+                if np.max(np.abs(normalized_audio)) > 0
+                else normalized_audio
+            )
             final_lufs = self.meter.integrated_loudness(final_normalized)
         except:
             final_lufs = current_lufs + gain_db
@@ -206,7 +224,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
             "peak_db": float(peak_db),
             "mode": self.config.mode.value,
             "average_lufs_history": float(self.quality_stats["average_lufs"]),
-            "measurement_method": "ITU-R BS.1770-4 (pyloudnorm)"
+            "measurement_method": "ITU-R BS.1770-4 (pyloudnorm)",
         }
 
         return normalized_audio.astype(audio_data.dtype), metadata
@@ -224,7 +242,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
             "true_peak_limiting": self.config.true_peak_limiting,
             "lufs_tolerance": self.config.lufs_tolerance,
             "sample_rate": self.sample_rate,
-            "implementation": "pyloudnorm (enhanced)"
+            "implementation": "pyloudnorm (enhanced)",
         }
 
     def get_quality_metrics(self) -> Dict[str, Any]:
@@ -234,12 +252,15 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
             "loudness_history_length": len(self.loudness_history),
             "peak_limiting_rate": (
                 self.quality_stats["peak_exceeded_count"] / self.total_chunks_processed
-                if self.total_chunks_processed > 0 else 0.0
+                if self.total_chunks_processed > 0
+                else 0.0
             ),
             "target_achievement_rate": (
-                self.quality_stats["target_achieved_count"] / self.total_chunks_processed
-                if self.total_chunks_processed > 0 else 0.0
-            )
+                self.quality_stats["target_achieved_count"]
+                / self.total_chunks_processed
+                if self.total_chunks_processed > 0
+                else 0.0
+            ),
         }
 
     def reset_quality_stats(self):
@@ -248,7 +269,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
             "samples_processed": 0,
             "average_lufs": 0.0,
             "peak_exceeded_count": 0,
-            "target_achieved_count": 0
+            "target_achieved_count": 0,
         }
         self.loudness_history.clear()
         self.reset_statistics()
@@ -259,7 +280,7 @@ def create_lufs_normalizer(
     target_lufs: float = -14.0,
     mode: LUFSNormalizationMode = LUFSNormalizationMode.STREAMING,
     sample_rate: int = 16000,
-    **kwargs
+    **kwargs,
 ) -> LUFSNormalizationStageEnhanced:
     """
     Create a LUFS normalizer with simplified configuration.
@@ -274,9 +295,6 @@ def create_lufs_normalizer(
         Configured LUFSNormalizationStageEnhanced instance
     """
     config = LUFSNormalizationConfig(
-        enabled=True,
-        mode=mode,
-        target_lufs=target_lufs,
-        **kwargs
+        enabled=True, mode=mode, target_lufs=target_lufs, **kwargs
     )
     return LUFSNormalizationStageEnhanced(config, sample_rate)

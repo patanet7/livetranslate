@@ -28,6 +28,7 @@ import json
 try:
     import docker
     from docker.models.containers import Container
+
     DOCKER_AVAILABLE = True
 except ImportError:
     DOCKER_AVAILABLE = False
@@ -37,6 +38,7 @@ except ImportError:
 
 try:
     import redis.asyncio as aioredis
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -49,19 +51,21 @@ logger = logging.getLogger(__name__)
 
 class BotStatus(Enum):
     """Bot container status"""
-    SPAWNING = "spawning"          # Container starting
-    STARTING = "starting"          # Container sent 'started' callback
-    JOINING = "joining"            # Container joining meeting
-    ACTIVE = "active"              # Container active in meeting
-    STOPPING = "stopping"          # Stop command sent
-    COMPLETED = "completed"        # Clean exit
-    FAILED = "failed"              # Error exit
-    UNKNOWN = "unknown"            # Status unknown
+
+    SPAWNING = "spawning"  # Container starting
+    STARTING = "starting"  # Container sent 'started' callback
+    JOINING = "joining"  # Container joining meeting
+    ACTIVE = "active"  # Container active in meeting
+    STOPPING = "stopping"  # Stop command sent
+    COMPLETED = "completed"  # Clean exit
+    FAILED = "failed"  # Error exit
+    UNKNOWN = "unknown"  # Status unknown
 
 
 @dataclass
 class BotConfig:
     """Bot container configuration"""
+
     # Required
     meeting_url: str
     connection_id: str
@@ -121,6 +125,7 @@ class BotConfig:
 @dataclass
 class BotInstance:
     """Represents a bot container instance"""
+
     # Identity
     connection_id: str
     user_id: str
@@ -150,7 +155,11 @@ class BotInstance:
         """Convert to dictionary with JSON-safe types"""
         data = asdict(self)
         # Ensure status is a string
-        data["status"] = self.status.value if isinstance(self.status, BotStatus) else str(self.status)
+        data["status"] = (
+            self.status.value
+            if isinstance(self.status, BotStatus)
+            else str(self.status)
+        )
         # Add computed properties
         data["uptime_seconds"] = self.uptime_seconds
         data["is_healthy"] = self.is_healthy
@@ -226,7 +235,7 @@ class DockerBotManager:
         user_data_dir: Optional[str] = None,
         headless: bool = True,
         screenshots_enabled: bool = True,
-        screenshots_path: str = "/tmp/bot-screenshots"
+        screenshots_path: str = "/tmp/bot-screenshots",
     ):
         self.orchestration_url = orchestration_url
         self.redis_url = redis_url
@@ -243,7 +252,9 @@ class DockerBotManager:
         self.screenshots_path = screenshots_path
 
         # Debug logging
-        logger.info(f"🔧 DockerBotManager initialized with Google credentials: email={google_email}, password={'***' + google_password[-4:] if google_password else None}, user_data_dir={user_data_dir}")
+        logger.info(
+            f"🔧 DockerBotManager initialized with Google credentials: email={google_email}, password={'***' + google_password[-4:] if google_password else None}, user_data_dir={user_data_dir}"
+        )
 
         # Bot tracking
         self.bots: Dict[str, BotInstance] = {}
@@ -281,9 +292,7 @@ class DockerBotManager:
         if REDIS_AVAILABLE and self.redis_url:
             try:
                 self.redis_client = await aioredis.from_url(
-                    self.redis_url,
-                    encoding="utf-8",
-                    decode_responses=True
+                    self.redis_url, encoding="utf-8", decode_responses=True
                 )
                 await self.redis_client.ping()
                 logger.info("✅ Redis client initialized")
@@ -305,11 +314,13 @@ class DockerBotManager:
                     "port": settings.bot.database_port,
                     "database": settings.bot.database_name,
                     "username": settings.bot.database_user,
-                    "password": settings.bot.database_password
+                    "password": settings.bot.database_password,
                 }
                 audio_storage_path = settings.bot.audio_storage_path
 
-                self.db_manager = await create_bot_session_manager(database_config, audio_storage_path)
+                self.db_manager = await create_bot_session_manager(
+                    database_config, audio_storage_path
+                )
                 logger.info("✅ Database manager initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize database: {e}")
@@ -343,7 +354,7 @@ class DockerBotManager:
         language: str = "en",
         task: str = "transcribe",
         enable_virtual_webcam: bool = False,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Start a bot container
@@ -365,15 +376,24 @@ class DockerBotManager:
 
         # Create bot config
         # For Docker containers, replace localhost with host.docker.internal to reach host machine
-        orchestration_url_for_container = self.orchestration_url.replace("localhost", "host.docker.internal")
-        redis_url_for_container = self.redis_url.replace("localhost", "host.docker.internal") if self.redis_url else None
+        orchestration_url_for_container = self.orchestration_url.replace(
+            "localhost", "host.docker.internal"
+        )
+        redis_url_for_container = (
+            self.redis_url.replace("localhost", "host.docker.internal")
+            if self.redis_url
+            else None
+        )
 
         config = BotConfig(
             meeting_url=meeting_url,
             connection_id=connection_id,
             user_token=user_token,
             user_id=user_id,
-            orchestration_ws_url=orchestration_url_for_container.replace("http://", "ws://").replace("https://", "wss://") + "/ws",
+            orchestration_ws_url=orchestration_url_for_container.replace(
+                "http://", "ws://"
+            ).replace("https://", "wss://")
+            + "/ws",
             redis_url=redis_url_for_container,
             bot_manager_url=orchestration_url_for_container,
             language=language,
@@ -388,7 +408,7 @@ class DockerBotManager:
             screenshots_path=self.screenshots_path,
             # Docker
             docker_image=self.docker_image,
-            docker_network=self.docker_network
+            docker_network=self.docker_network,
         )
 
         # Create bot instance
@@ -397,7 +417,7 @@ class DockerBotManager:
             user_id=user_id,
             meeting_url=meeting_url,
             config=asdict(config),
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
         # Track bot
@@ -412,7 +432,9 @@ class DockerBotManager:
                 container = await self._start_container(config)
                 bot.container_id = container.id
                 bot.container_name = container.name
-                logger.info(f"✅ Bot container started: {container.name} ({container.short_id})")
+                logger.info(
+                    f"✅ Bot container started: {container.name} ({container.short_id})"
+                )
             else:
                 # Mock mode
                 bot.container_id = f"mock-{connection_id}"
@@ -437,7 +459,7 @@ class DockerBotManager:
                     language=language,
                     task=task,
                     status=bot.status.value,
-                    container_id=bot.container_id
+                    container_id=bot.container_id,
                 )
             except Exception as e:
                 logger.error(f"Failed to save bot to database: {e}")
@@ -460,8 +482,8 @@ class DockerBotManager:
             "labels": {
                 "livetranslate.bot": "true",
                 "livetranslate.connection_id": config.connection_id,
-                "livetranslate.user_id": config.user_id
-            }
+                "livetranslate.user_id": config.user_id,
+            },
         }
 
         # Start container
@@ -511,17 +533,13 @@ class DockerBotManager:
         if self.db_manager:
             try:
                 await self.db_manager.update_bot_status(
-                    connection_id,
-                    BotStatus.COMPLETED.value
+                    connection_id, BotStatus.COMPLETED.value
                 )
             except Exception as e:
                 logger.error(f"Failed to update bot status in database: {e}")
 
     async def handle_bot_callback(
-        self,
-        connection_id: str,
-        status: str,
-        data: Dict[str, Any]
+        self, connection_id: str, status: str, data: Dict[str, Any]
     ):
         """
         Handle HTTP callback from bot container
@@ -571,9 +589,7 @@ class DockerBotManager:
         if self.db_manager:
             try:
                 await self.db_manager.update_bot_status(
-                    connection_id,
-                    bot.status.value,
-                    error_message=bot.error_message
+                    connection_id, bot.status.value, error_message=bot.error_message
                 )
             except Exception as e:
                 logger.error(f"Failed to update bot status in database: {e}")
@@ -623,9 +639,7 @@ class DockerBotManager:
         return self.bots.get(connection_id)
 
     def list_bots(
-        self,
-        status: Optional[BotStatus] = None,
-        user_id: Optional[str] = None
+        self, status: Optional[BotStatus] = None, user_id: Optional[str] = None
     ) -> List[BotInstance]:
         """List bots with optional filters"""
         bots = list(self.bots.values())
@@ -640,7 +654,9 @@ class DockerBotManager:
 
     def get_stats(self) -> Dict[str, Any]:
         """Get manager statistics"""
-        active_bots = len([b for b in self.bots.values() if b.status == BotStatus.ACTIVE])
+        active_bots = len(
+            [b for b in self.bots.values() if b.status == BotStatus.ACTIVE]
+        )
 
         return {
             "total_bots": len(self.bots),
@@ -652,7 +668,7 @@ class DockerBotManager:
             "bots_by_status": {
                 status.value: len([b for b in self.bots.values() if b.status == status])
                 for status in BotStatus
-            }
+            },
         }
 
 
@@ -665,6 +681,7 @@ async def get_bot_manager() -> DockerBotManager:
     global _manager
     if _manager is None:
         from config import get_settings
+
         settings = get_settings()
 
         _manager = DockerBotManager(
@@ -679,7 +696,7 @@ async def get_bot_manager() -> DockerBotManager:
             user_data_dir=settings.bot.user_data_dir,
             headless=settings.bot.headless,
             screenshots_enabled=settings.bot.screenshots_enabled,
-            screenshots_path=settings.bot.screenshots_path
+            screenshots_path=settings.bot.screenshots_path,
         )
         await _manager.initialize()
     return _manager
@@ -689,8 +706,7 @@ async def get_bot_manager() -> DockerBotManager:
 async def example_usage():
     """Example of using Docker bot manager"""
     manager = DockerBotManager(
-        orchestration_url="http://localhost:3000",
-        redis_url="redis://localhost:6379"
+        orchestration_url="http://localhost:3000", redis_url="redis://localhost:6379"
     )
 
     await manager.initialize()
@@ -702,7 +718,7 @@ async def example_usage():
             user_token="user-token-123",
             user_id="user-456",
             language="en",
-            task="transcribe"
+            task="transcribe",
         )
 
         print(f"Started bot: {bot_id}")
@@ -733,5 +749,6 @@ async def example_usage():
 
 if __name__ == "__main__":
     import logging
+
     logging.basicConfig(level=logging.INFO)
     asyncio.run(example_usage())

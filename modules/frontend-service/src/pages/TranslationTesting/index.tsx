@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -15,8 +15,6 @@ import {
   FormGroup,
   FormControlLabel,
   Checkbox,
-  Divider,
-  Stack,
   TextField,
   Select,
   MenuItem,
@@ -29,13 +27,12 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  IconButton,
-  Tooltip,
   Switch,
   AccordionSummary,
   AccordionDetails,
   Accordion,
   CircularProgress,
+  IconButton,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -43,15 +40,12 @@ import {
   Stop as StopIcon,
   Clear as ClearIcon,
   Download as DownloadIcon,
-  Upload as UploadIcon,
   Compare as CompareIcon,
   Assessment as AssessmentIcon,
   Translate as TranslateIcon,
   Settings as SettingsIcon,
-  History as HistoryIcon,
   Analytics as AnalyticsIcon,
 } from '@mui/icons-material';
-import { useAppSelector, useAppDispatch } from '@/store';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useApiClient } from '@/hooks/useApiClient';
 
@@ -114,10 +108,8 @@ interface PromptTemplate {
 }
 
 const TranslationTesting: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { webSocketConnected } = useAppSelector(state => state.websocket);
+  const { isConnected, sendMessage: wsSendMessage } = useWebSocket();
   const { translateText } = useApiClient();
-  const { socket } = useWebSocket('/ws/translation');
   
   const [tabValue, setTabValue] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -324,41 +316,35 @@ const TranslationTesting: React.FC = () => {
   }, [batchTestTexts, sourceLanguage, targetLanguages, selectedPrompt, translateText]);
 
   const handleStreamingTranslationTest = useCallback(() => {
-    if (!socket || !streamingText.trim()) return;
-    
+    if (!isConnected || !streamingText.trim()) return;
+
     setIsStreaming(true);
     setStreamingResults([]);
-    
-    socket.send(JSON.stringify({
-      type: 'start_streaming_translation',
-      data: {
-        source_language: sourceLanguage,
-        target_languages: targetLanguages,
-        prompt_id: selectedPrompt
-      }
-    }));
-    
+
+    (wsSendMessage as any)('translation:start_streaming', {
+      source_language: sourceLanguage,
+      target_languages: targetLanguages,
+      prompt_id: selectedPrompt
+    });
+
     // Simulate streaming text by sending chunks
     const words = streamingText.split(' ');
     let currentText = '';
-    
+
     words.forEach((word, index) => {
       setTimeout(() => {
         currentText += (index > 0 ? ' ' : '') + word;
-        socket.send(JSON.stringify({
-          type: 'streaming_text_chunk',
-          data: {
-            text_chunk: currentText,
-            is_final: index === words.length - 1
-          }
-        }));
+        (wsSendMessage as any)('translation:text_chunk', {
+          text_chunk: currentText,
+          is_final: index === words.length - 1
+        });
       }, index * 500); // Send a word every 500ms
     });
-    
+
     setTimeout(() => {
       setIsStreaming(false);
     }, words.length * 500 + 1000);
-  }, [socket, streamingText, sourceLanguage, targetLanguages, selectedPrompt]);
+  }, [isConnected, wsSendMessage, streamingText, sourceLanguage, targetLanguages, selectedPrompt]);
 
   const handlePromptComparison = useCallback(async () => {
     if (!testText.trim() || targetLanguages.length === 0 || prompts.length < 2) return;
@@ -468,33 +454,8 @@ const TranslationTesting: React.FC = () => {
     URL.revokeObjectURL(url);
   }, []);
 
-  // WebSocket event listeners
-  useEffect(() => {
-    if (!socket) return;
-    
-    const handleMessage = (event: MessageEvent) => {
-      const message = JSON.parse(event.data);
-      
-      if (message.type === 'streaming_translation_result') {
-        const result: TranslationTest = {
-          id: `stream-${Date.now()}`,
-          sourceText: message.data.source_text,
-          sourceLanguage: message.data.source_language,
-          targetLanguage: message.data.target_language,
-          translatedText: message.data.translated_text,
-          confidence: message.data.confidence,
-          processingTime: message.data.processing_time,
-          timestamp: Date.now(),
-          promptId: message.data.prompt_id
-        };
-        
-        setStreamingResults(prev => [...prev, result]);
-      }
-    };
-    
-    socket.addEventListener('message', handleMessage);
-    return () => socket.removeEventListener('message', handleMessage);
-  }, [socket]);
+  // Note: WebSocket message handling is now managed by the useWebSocket hook
+  // and Redux store. Streaming results would be handled through Redux actions.
 
   return (
     <Box>
@@ -505,9 +466,9 @@ const TranslationTesting: React.FC = () => {
         Comprehensive translation testing suite with real-time streaming, batch processing, and advanced prompt management
       </Typography>
 
-      <Alert severity={webSocketConnected ? "success" : "warning"} sx={{ mb: 3 }}>
+      <Alert severity={isConnected ? "success" : "warning"} sx={{ mb: 3 }}>
         <Typography variant="body2">
-          WebSocket Status: {webSocketConnected ? "Connected - Real-time features available" : "Disconnected - Using REST API fallback"}
+          WebSocket Status: {isConnected ? "Connected - Real-time features available" : "Disconnected - Using REST API fallback"}
         </Typography>
       </Alert>
 
@@ -674,7 +635,7 @@ const TranslationTesting: React.FC = () => {
                   
                   {singleResults.length > 0 ? (
                     <Box>
-                      {singleResults.map((result, index) => (
+                      {singleResults.map((result) => (
                         <Paper key={result.id} sx={{ p: 2, mb: 2, backgroundColor: 'primary.50' }}>
                           <Typography variant="body1" sx={{ mb: 1 }}>
                             {result.translatedText}
@@ -871,12 +832,12 @@ const TranslationTesting: React.FC = () => {
                 <Button
                   variant="contained"
                   onClick={handleStreamingTranslationTest}
-                  disabled={!streamingText.trim() || !webSocketConnected || isStreaming}
+                  disabled={!streamingText.trim() || !isConnected || isStreaming}
                   startIcon={isStreaming ? <CircularProgress size={20} /> : <PlayIcon />}
                 >
                   {isStreaming ? 'Streaming...' : 'Start Streaming Test'}
                 </Button>
-                
+
                 {isStreaming && (
                   <Button
                     variant="outlined"
@@ -887,10 +848,10 @@ const TranslationTesting: React.FC = () => {
                   </Button>
                 )}
               </Box>
-              
-              {!webSocketConnected && (
+
+              {!isConnected && (
                 <Alert severity="warning" sx={{ mb: 2 }}>
-                  WebSocket connection required for streaming translation testing. 
+                  WebSocket connection required for streaming translation testing.
                   Please check your connection to the translation service.
                 </Alert>
               )}

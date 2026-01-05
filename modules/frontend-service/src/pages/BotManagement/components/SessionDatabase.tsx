@@ -48,6 +48,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker as MuiDatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format, parseISO } from 'date-fns';
+import { TabPanel } from '@/components/ui';
 
 interface SessionDatabaseProps {
   onError: (error: string) => void;
@@ -98,20 +99,6 @@ interface SpeakerActivity {
   duration?: number;
 }
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
-  return (
-    <div role="tabpanel" hidden={value !== index}>
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
-    </div>
-  );
-};
-
 export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => {
   const [tabValue, setTabValue] = useState(0);
   const [sessions, setSessions] = useState<BotSession[]>([]);
@@ -119,7 +106,19 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
   const [speakers, setSpeakers] = useState<SpeakerActivity[]>([]);
   const [selectedSession, setSelectedSession] = useState<BotSession | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  // Helper function to safely format dates
+  const safeFormatDate = (dateString: string, formatString: string): string => {
+    try {
+      const date = parseISO(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Invalid date';
+      }
+      return format(date, formatString);
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
   
   // Pagination
   const [page, setPage] = useState(0);
@@ -141,7 +140,6 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
   }, []);
 
   const loadSessions = async () => {
-    setLoading(true);
     try {
       const response = await fetch('/api/bot/sessions');
       if (!response.ok) {
@@ -155,8 +153,6 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
       console.error('Error loading sessions:', error);
       setSessions([]);
       onError('Failed to load session data');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -437,7 +433,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
                               {session.meetingTitle || 'Untitled Meeting'}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {session.meetingId} • {format(parseISO(session.startTime), 'MMM dd, yyyy HH:mm')}
+                              {session.meetingId} • {safeFormatDate(session.startTime, 'MMM dd, yyyy HH:mm')}
                             </Typography>
                           </Box>
                         </TableCell>
@@ -553,7 +549,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
                         </TableCell>
                         <TableCell>
                           <Typography variant="caption">
-                            {format(parseISO(translation.timestamp), 'HH:mm:ss')}
+                            {safeFormatDate(translation.timestamp, 'HH:mm:ss')}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -621,7 +617,7 @@ export const SessionDatabase: React.FC<SessionDatabaseProps> = ({ onError }) => 
                         </TableCell>
                         <TableCell>
                           <Typography variant="caption">
-                            {format(parseISO(speaker.timestamp), 'MMM dd, HH:mm:ss')}
+                            {safeFormatDate(speaker.timestamp, 'MMM dd, HH:mm:ss')}
                           </Typography>
                         </TableCell>
                       </TableRow>

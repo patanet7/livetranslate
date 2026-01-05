@@ -43,19 +43,21 @@ import numpy as np
 import soundfile as sf
 
 # Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from audio.audio_processor import create_audio_pipeline_processor, AudioPipelineProcessor
+from audio.audio_processor import (
+    create_audio_pipeline_processor,
+    AudioPipelineProcessor,
+)
 from audio.config import (
     AudioProcessingConfig,
     create_audio_config_manager,
-    get_default_audio_processing_config
+    get_default_audio_processing_config,
 )
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,12 @@ logger = logging.getLogger(__name__)
 class AudioPipelineTester:
     """Test runner for audio processing pipeline"""
 
-    def __init__(self, config_path: str = None, input_dir: str = "./input", output_dir: str = "./output"):
+    def __init__(
+        self,
+        config_path: str = None,
+        input_dir: str = "./input",
+        output_dir: str = "./output",
+    ):
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.config_path = config_path
@@ -91,14 +98,14 @@ class AudioPipelineTester:
 
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from JSON file"""
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             config_data = json.load(f)
 
         # Convert to AudioProcessingConfig
-        if 'preset_name' in config_data:
+        if "preset_name" in config_data:
             # Use preset
             config_manager = create_audio_config_manager()
-            return config_manager.get_preset_config(config_data['preset_name'])
+            return config_manager.get_preset_config(config_data["preset_name"])
         else:
             # Custom config
             return AudioProcessingConfig(**config_data)
@@ -109,10 +116,10 @@ class AudioPipelineTester:
 
     def list_available_files(self) -> List[Path]:
         """List all audio files in input directory"""
-        audio_extensions = ['.wav', '.mp3', '.ogg', '.flac', '.webm', '.m4a']
+        audio_extensions = [".wav", ".mp3", ".ogg", ".flac", ".webm", ".m4a"]
         files = []
         for ext in audio_extensions:
-            files.extend(self.input_dir.glob(f'*{ext}'))
+            files.extend(self.input_dir.glob(f"*{ext}"))
         return sorted(files)
 
     def load_audio(self, file_path: Path) -> tuple[np.ndarray, int]:
@@ -122,22 +129,25 @@ class AudioPipelineTester:
         # Check if we need to convert format
         file_ext = file_path.suffix.lower()
 
-        if file_ext in ['.webm', '.mp4', '.m4a', '.mp3']:
+        if file_ext in [".webm", ".mp4", ".m4a", ".mp3"]:
             # Convert using ffmpeg
             import subprocess
             import tempfile
 
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_wav:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
                 temp_wav_path = temp_wav.name
 
             try:
                 ffmpeg_cmd = [
-                    'ffmpeg',
-                    '-i', str(file_path),
-                    '-ac', '1',  # Mono
-                    '-ar', '16000',  # 16kHz
-                    '-y',
-                    temp_wav_path
+                    "ffmpeg",
+                    "-i",
+                    str(file_path),
+                    "-ac",
+                    "1",  # Mono
+                    "-ar",
+                    "16000",  # 16kHz
+                    "-y",
+                    temp_wav_path,
                 ]
 
                 subprocess.run(ffmpeg_cmd, capture_output=True, check=True)
@@ -175,16 +185,16 @@ class AudioPipelineTester:
     def save_metadata(self, metadata: Dict[str, Any], filename: str):
         """Save processing metadata to JSON"""
         output_path = self.run_output_dir / filename
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(metadata, f, indent=2)
         logger.info(f"Saved metadata: {output_path}")
         return output_path
 
     def run_test(self, input_file: Path = None):
         """Run complete audio processing test"""
-        logger.info("="*80)
+        logger.info("=" * 80)
         logger.info("AUDIO PIPELINE TEST")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         # Find input file
         if input_file is None:
@@ -217,19 +227,22 @@ class AudioPipelineTester:
         else:
             config_dict = self.config
 
-        self.save_metadata({
-            "input_file": str(input_file),
-            "sample_rate": sample_rate,
-            "duration_seconds": len(audio_data) / sample_rate,
-            "num_samples": len(audio_data),
-            "config": config_dict,
-            "timestamp": self.timestamp
-        }, "test_info.json")
+        self.save_metadata(
+            {
+                "input_file": str(input_file),
+                "sample_rate": sample_rate,
+                "duration_seconds": len(audio_data) / sample_rate,
+                "num_samples": len(audio_data),
+                "config": config_dict,
+                "timestamp": self.timestamp,
+            },
+            "test_info.json",
+        )
 
         # Create processor
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("CREATING AUDIO PROCESSOR")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         processor = create_audio_pipeline_processor(self.config, sample_rate)
 
@@ -237,9 +250,9 @@ class AudioPipelineTester:
         logger.info(f"Preset: {self.config.preset_name}")
 
         # Process audio with stage-by-stage output
-        logger.info("\n" + "="*80)
+        logger.info("\n" + "=" * 80)
         logger.info("PROCESSING AUDIO (STAGE BY STAGE)")
-        logger.info("="*80)
+        logger.info("=" * 80)
 
         try:
             # Get the processor to run stage-by-stage
@@ -256,7 +269,9 @@ class AudioPipelineTester:
                 )
 
                 # Calculate metrics
-                metrics = self._calculate_metrics(current_audio, stage_audio, sample_rate)
+                metrics = self._calculate_metrics(
+                    current_audio, stage_audio, sample_rate
+                )
 
                 # Log results
                 logger.info(f"  Input RMS:  {metrics['input_rms']:.4f}")
@@ -266,9 +281,7 @@ class AudioPipelineTester:
 
                 # Save output
                 self.save_audio(
-                    stage_audio,
-                    sample_rate,
-                    f"{stage_idx:02d}_{stage_name}.wav"
+                    stage_audio, sample_rate, f"{stage_idx:02d}_{stage_name}.wav"
                 )
 
                 # Save stage metadata
@@ -276,7 +289,7 @@ class AudioPipelineTester:
                     "stage_name": stage_name,
                     "stage_index": stage_idx,
                     "metrics": metrics,
-                    "metadata": stage_metadata
+                    "metadata": stage_metadata,
                 }
                 stage_results.append(stage_info)
 
@@ -284,43 +297,46 @@ class AudioPipelineTester:
                 current_audio = stage_audio
 
             # Final output
-            logger.info("\n" + "="*80)
+            logger.info("\n" + "=" * 80)
             logger.info("FINAL PROCESSING COMPLETE")
-            logger.info("="*80)
+            logger.info("=" * 80)
 
-            final_metrics = self._calculate_metrics(audio_data, current_audio, sample_rate)
+            final_metrics = self._calculate_metrics(
+                audio_data, current_audio, sample_rate
+            )
             logger.info(f"Overall RMS change: {final_metrics['gain_change_db']:.2f} dB")
-            logger.info(f"Overall peak change: {final_metrics['peak_change_db']:.2f} dB")
+            logger.info(
+                f"Overall peak change: {final_metrics['peak_change_db']:.2f} dB"
+            )
 
             self.save_audio(current_audio, sample_rate, "99_final_output.wav")
 
             # Save complete results
-            self.save_metadata({
-                "stage_results": stage_results,
-                "final_metrics": final_metrics,
-                "success": True
-            }, "processing_results.json")
+            self.save_metadata(
+                {
+                    "stage_results": stage_results,
+                    "final_metrics": final_metrics,
+                    "success": True,
+                },
+                "processing_results.json",
+            )
 
             logger.info(f"\n✓ Test complete! Results saved to: {self.run_output_dir}")
             return True
 
         except Exception as e:
             logger.error(f"Processing failed: {e}", exc_info=True)
-            self.save_metadata({
-                "error": str(e),
-                "success": False
-            }, "processing_results.json")
+            self.save_metadata(
+                {"error": str(e), "success": False}, "processing_results.json"
+            )
             return False
 
     def _process_single_stage(
-        self,
-        processor: AudioPipelineProcessor,
-        audio_data: np.ndarray,
-        stage_name: str
+        self, processor: AudioPipelineProcessor, audio_data: np.ndarray, stage_name: str
     ) -> tuple[np.ndarray, Dict[str, Any]]:
         """Process audio through a single stage"""
         # Get the stage processor method
-        stage_method = getattr(processor, f'_apply_{stage_name}', None)
+        stage_method = getattr(processor, f"_apply_{stage_name}", None)
 
         if stage_method is None:
             logger.warning(f"Stage {stage_name} not found, skipping")
@@ -336,10 +352,7 @@ class AudioPipelineTester:
             return audio_data, {"error": str(e)}
 
     def _calculate_metrics(
-        self,
-        input_audio: np.ndarray,
-        output_audio: np.ndarray,
-        sample_rate: int
+        self, input_audio: np.ndarray, output_audio: np.ndarray, sample_rate: int
     ) -> Dict[str, Any]:
         """Calculate audio metrics"""
         input_rms = np.sqrt(np.mean(input_audio**2))
@@ -359,7 +372,7 @@ class AudioPipelineTester:
             "output_peak": float(output_peak),
             "gain_change_db": float(gain_change_db),
             "peak_change_db": float(peak_change_db),
-            "sample_rate": sample_rate
+            "sample_rate": sample_rate,
         }
 
 
@@ -368,9 +381,9 @@ def list_presets():
     config_manager = create_audio_config_manager()
     presets = config_manager.get_available_presets()
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("AVAILABLE AUDIO PROCESSING PRESETS")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     for preset in presets:
         print(f"  • {preset}")
@@ -393,14 +406,14 @@ def create_example_config():
             "lufs_normalization",
             "agc",
             "compression",
-            "limiter"
+            "limiter",
         ],
         "sample_rate": 16000,
-        "quality": "high"
+        "quality": "high",
     }
 
     config_path = Path("./test_config.json")
-    with open(config_path, 'w') as f:
+    with open(config_path, "w") as f:
         json.dump(example_config, f, indent=2)
 
     print(f"Created example config: {config_path}")
@@ -410,43 +423,38 @@ def create_example_config():
 def main():
     parser = argparse.ArgumentParser(
         description="Test audio processing pipeline with configurable stages",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument(
-        '--config', '-c',
-        help='Path to configuration JSON file',
-        default=None
+        "--config", "-c", help="Path to configuration JSON file", default=None
     )
 
     parser.add_argument(
-        '--input', '-i',
-        help='Path to input audio file (default: first file in ./input)',
-        default=None
+        "--input",
+        "-i",
+        help="Path to input audio file (default: first file in ./input)",
+        default=None,
     )
 
     parser.add_argument(
-        '--input-dir',
-        help='Input directory (default: ./input)',
-        default='./input'
+        "--input-dir", help="Input directory (default: ./input)", default="./input"
     )
 
     parser.add_argument(
-        '--output-dir',
-        help='Output directory (default: ./output)',
-        default='./output'
+        "--output-dir", help="Output directory (default: ./output)", default="./output"
     )
 
     parser.add_argument(
-        '--list-presets',
-        action='store_true',
-        help='List available audio processing presets'
+        "--list-presets",
+        action="store_true",
+        help="List available audio processing presets",
     )
 
     parser.add_argument(
-        '--create-example',
-        action='store_true',
-        help='Create example configuration file'
+        "--create-example",
+        action="store_true",
+        help="Create example configuration file",
     )
 
     args = parser.parse_args()
@@ -462,9 +470,7 @@ def main():
 
     # Run test
     tester = AudioPipelineTester(
-        config_path=args.config,
-        input_dir=args.input_dir,
-        output_dir=args.output_dir
+        config_path=args.config, input_dir=args.input_dir, output_dir=args.output_dir
     )
 
     success = tester.run_test(input_file=args.input)

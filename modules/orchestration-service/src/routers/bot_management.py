@@ -24,17 +24,25 @@ router = APIRouter(prefix="/bots", tags=["bot-management"])
 
 class StartBotRequest(BaseModel):
     """Request to start a bot"""
+
     meeting_url: HttpUrl = Field(..., description="Google Meet URL")
     user_token: str = Field(..., description="User API token for orchestration auth")
     user_id: str = Field(..., description="User ID")
-    language: str = Field("en", description="Transcription language (en, es, fr, de, zh, etc.)")
+    language: str = Field(
+        "en", description="Transcription language (en, es, fr, de, zh, etc.)"
+    )
     task: str = Field("transcribe", description="Task: transcribe or translate")
-    enable_virtual_webcam: bool = Field(False, description="Enable virtual webcam output")
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional metadata")
+    enable_virtual_webcam: bool = Field(
+        False, description="Enable virtual webcam output"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
 
 class StartBotResponse(BaseModel):
     """Response from starting a bot"""
+
     connection_id: str = Field(..., description="Bot connection ID")
     status: str = Field(..., description="Bot status")
     message: str = Field(..., description="Status message")
@@ -42,11 +50,13 @@ class StartBotResponse(BaseModel):
 
 class StopBotRequest(BaseModel):
     """Request to stop a bot"""
+
     timeout: int = Field(30, description="Timeout in seconds")
 
 
 class BotStatusResponse(BaseModel):
     """Bot status response"""
+
     connection_id: str
     user_id: str
     meeting_url: str
@@ -65,20 +75,23 @@ class BotStatusResponse(BaseModel):
 
 class BotListResponse(BaseModel):
     """List of bots response"""
+
     bots: List[BotStatusResponse]
     total: int
 
 
 class BotCommandRequest(BaseModel):
     """Request to send command to bot"""
+
     action: str = Field(..., description="Command action (leave, reconfigure, status)")
-    data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Command data")
+    data: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Command data"
+    )
 
 
 @router.post("/start", response_model=StartBotResponse)
 async def start_bot(
-    request: StartBotRequest,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    request: StartBotRequest, manager: DockerBotManager = Depends(get_bot_manager)
 ):
     """
     Start a bot to join Google Meet
@@ -102,13 +115,13 @@ async def start_bot(
             language=request.language,
             task=request.task,
             enable_virtual_webcam=request.enable_virtual_webcam,
-            metadata=request.metadata
+            metadata=request.metadata,
         )
 
         return StartBotResponse(
             connection_id=connection_id,
             status="spawning",
-            message=f"Bot {connection_id} is starting. It will send callbacks as it progresses."
+            message=f"Bot {connection_id} is starting. It will send callbacks as it progresses.",
         )
 
     except Exception as e:
@@ -120,7 +133,7 @@ async def start_bot(
 async def stop_bot(
     connection_id: str,
     request: StopBotRequest = StopBotRequest(),
-    manager: DockerBotManager = Depends(get_bot_manager)
+    manager: DockerBotManager = Depends(get_bot_manager),
 ):
     """
     Stop a bot (leave meeting)
@@ -139,7 +152,7 @@ async def stop_bot(
 
         return {
             "status": "success",
-            "message": f"Stop command sent to bot {connection_id}"
+            "message": f"Stop command sent to bot {connection_id}",
         }
 
     except ValueError as e:
@@ -151,8 +164,7 @@ async def stop_bot(
 
 @router.get("/status/{connection_id}", response_model=BotStatusResponse)
 async def get_bot_status(
-    connection_id: str,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    connection_id: str, manager: DockerBotManager = Depends(get_bot_manager)
 ):
     """
     Get bot status
@@ -172,7 +184,7 @@ async def get_bot_status(
 async def list_bots(
     status: Optional[str] = Query(None, description="Filter by status"),
     user_id: Optional[str] = Query(None, description="Filter by user ID"),
-    manager: DockerBotManager = Depends(get_bot_manager)
+    manager: DockerBotManager = Depends(get_bot_manager),
 ):
     """
     List bots with optional filters
@@ -189,15 +201,14 @@ async def list_bots(
         except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid status: {status}. Valid values: {[s.value for s in BotStatus]}"
+                detail=f"Invalid status: {status}. Valid values: {[s.value for s in BotStatus]}",
             )
 
     # List bots
     bots = manager.list_bots(status=status_enum, user_id=user_id)
 
     return BotListResponse(
-        bots=[BotStatusResponse(**bot.to_dict()) for bot in bots],
-        total=len(bots)
+        bots=[BotStatusResponse(**bot.to_dict()) for bot in bots], total=len(bots)
     )
 
 
@@ -205,7 +216,7 @@ async def list_bots(
 async def send_bot_command(
     connection_id: str,
     request: BotCommandRequest,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    manager: DockerBotManager = Depends(get_bot_manager),
 ):
     """
     Send command to bot via Redis
@@ -234,7 +245,7 @@ async def send_bot_command(
 
         return {
             "status": "success",
-            "message": f"Command '{request.action}' sent to bot {connection_id}"
+            "message": f"Command '{request.action}' sent to bot {connection_id}",
         }
 
     except ValueError as e:
@@ -247,9 +258,7 @@ async def send_bot_command(
 
 
 @router.get("/stats")
-async def get_manager_stats(
-    manager: DockerBotManager = Depends(get_bot_manager)
-):
+async def get_manager_stats(manager: DockerBotManager = Depends(get_bot_manager)):
     """
     Get bot manager statistics
 

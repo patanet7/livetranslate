@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 import pytest
 
 # Ensure orchestration src is importable
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from clients.audio_service_client import AudioServiceClient  # noqa: E402
 from clients.translation_service_client import (  # noqa: E402
@@ -38,12 +38,16 @@ class MockResponse:
 class MockRequest:
     def __init__(self, response):
         self._response = response
+
     def __await__(self):
         async def _():
             return self._response
+
         return _().__await__()
+
     async def __aenter__(self):
         return self._response
+
     async def __aexit__(self, exc_type, exc, tb):
         return False
 
@@ -65,25 +69,47 @@ class MockSession:
         if url.endswith("/api/realtime/stop"):
             return MockRequest(MockResponse(payload={"status": "streaming_stopped"}))
         if url.endswith("/api/analyze"):
-            return MockRequest(MockResponse(payload={"status": "success", "metrics": {"duration_seconds": 1.0}}))
+            return MockRequest(
+                MockResponse(
+                    payload={"status": "success", "metrics": {"duration_seconds": 1.0}}
+                )
+            )
         if url.endswith("/api/process-pipeline"):
-            return MockRequest(MockResponse(payload={"status": "success", "transcription": {"text": "hello"}}))
+            return MockRequest(
+                MockResponse(
+                    payload={"status": "success", "transcription": {"text": "hello"}}
+                )
+            )
         if url.endswith("/api/translate"):
-            return MockRequest(MockResponse(payload={"translated_text": "hola", "target_language": "es"}))
+            return MockRequest(
+                MockResponse(
+                    payload={"translated_text": "hola", "target_language": "es"}
+                )
+            )
         if url.endswith("/api/detect"):
-            return MockRequest(MockResponse(payload={"language": "en", "confidence": 0.9}))
+            return MockRequest(
+                MockResponse(payload={"language": "en", "confidence": 0.9})
+            )
         raise AssertionError(f"Unexpected POST URL {url}")
 
     def get(self, url: str, **kwargs):
         self.calls.append(("GET", url, kwargs))
         if url.endswith("/api/realtime/status/session_123"):
-            return MockRequest(MockResponse(payload={"session_id": "session_123", "streaming_active": True}))
+            return MockRequest(
+                MockResponse(
+                    payload={"session_id": "session_123", "streaming_active": True}
+                )
+            )
         if url.endswith("/api/stream-results/session_123"):
-            return MockRequest(MockResponse(payload={"results": ["segment"], "count": 1}))
+            return MockRequest(
+                MockResponse(payload={"results": ["segment"], "count": 1})
+            )
         if url.endswith("/api/processing-stats"):
             return MockRequest(MockResponse(payload={"active_sessions": 1}))
         if url.endswith("/api/languages"):
-            return MockRequest(MockResponse(payload={"languages": [{"code": "en", "name": "English"}]}))
+            return MockRequest(
+                MockResponse(payload={"languages": [{"code": "en", "name": "English"}]})
+            )
         if url.endswith("/api/performance"):
             return MockRequest(MockResponse(payload={"active_sessions": 0}))
         if url.endswith("/api/status"):

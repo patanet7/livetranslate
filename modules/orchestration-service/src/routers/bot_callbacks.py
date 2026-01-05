@@ -26,17 +26,19 @@ router = APIRouter(prefix="/bots/internal/callback", tags=["bot-callbacks"])
 
 class BotCallbackPayload(BaseModel):
     """Payload from bot container callback"""
+
     connection_id: str = Field(..., description="Bot connection ID")
     container_id: str = Field(..., description="Docker container ID")
     error: Optional[str] = Field(None, description="Error message (for failed status)")
     exit_code: Optional[int] = Field(None, description="Exit code (for failed status)")
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional metadata")
+    metadata: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
 
 @router.post("/started")
 async def bot_started_callback(
-    payload: BotCallbackPayload,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    payload: BotCallbackPayload, manager: DockerBotManager = Depends(get_bot_manager)
 ):
     """
     Handle bot 'started' callback
@@ -47,21 +49,20 @@ async def bot_started_callback(
 
     Next: Bot will send 'joining' callback
     """
-    logger.info(f"Bot {payload.connection_id} started (container: {payload.container_id})")
+    logger.info(
+        f"Bot {payload.connection_id} started (container: {payload.container_id})"
+    )
 
     try:
         await manager.handle_bot_callback(
             connection_id=payload.connection_id,
             status="started",
-            data={
-                "container_id": payload.container_id,
-                **payload.metadata
-            }
+            data={"container_id": payload.container_id, **payload.metadata},
         )
 
         return {
             "status": "success",
-            "message": f"Bot {payload.connection_id} started callback received"
+            "message": f"Bot {payload.connection_id} started callback received",
         }
 
     except Exception as e:
@@ -71,8 +72,7 @@ async def bot_started_callback(
 
 @router.post("/joining")
 async def bot_joining_callback(
-    payload: BotCallbackPayload,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    payload: BotCallbackPayload, manager: DockerBotManager = Depends(get_bot_manager)
 ):
     """
     Handle bot 'joining' callback
@@ -88,15 +88,12 @@ async def bot_joining_callback(
         await manager.handle_bot_callback(
             connection_id=payload.connection_id,
             status="joining",
-            data={
-                "container_id": payload.container_id,
-                **payload.metadata
-            }
+            data={"container_id": payload.container_id, **payload.metadata},
         )
 
         return {
             "status": "success",
-            "message": f"Bot {payload.connection_id} joining callback received"
+            "message": f"Bot {payload.connection_id} joining callback received",
         }
 
     except Exception as e:
@@ -106,8 +103,7 @@ async def bot_joining_callback(
 
 @router.post("/active")
 async def bot_active_callback(
-    payload: BotCallbackPayload,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    payload: BotCallbackPayload, manager: DockerBotManager = Depends(get_bot_manager)
 ):
     """
     Handle bot 'active' callback
@@ -124,15 +120,12 @@ async def bot_active_callback(
         await manager.handle_bot_callback(
             connection_id=payload.connection_id,
             status="active",
-            data={
-                "container_id": payload.container_id,
-                **payload.metadata
-            }
+            data={"container_id": payload.container_id, **payload.metadata},
         )
 
         return {
             "status": "success",
-            "message": f"Bot {payload.connection_id} active callback received"
+            "message": f"Bot {payload.connection_id} active callback received",
         }
 
     except Exception as e:
@@ -142,8 +135,7 @@ async def bot_active_callback(
 
 @router.post("/completed")
 async def bot_completed_callback(
-    payload: BotCallbackPayload,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    payload: BotCallbackPayload, manager: DockerBotManager = Depends(get_bot_manager)
 ):
     """
     Handle bot 'completed' callback
@@ -159,15 +151,12 @@ async def bot_completed_callback(
         await manager.handle_bot_callback(
             connection_id=payload.connection_id,
             status="completed",
-            data={
-                "container_id": payload.container_id,
-                **payload.metadata
-            }
+            data={"container_id": payload.container_id, **payload.metadata},
         )
 
         return {
             "status": "success",
-            "message": f"Bot {payload.connection_id} completed callback received"
+            "message": f"Bot {payload.connection_id} completed callback received",
         }
 
     except Exception as e:
@@ -177,8 +166,7 @@ async def bot_completed_callback(
 
 @router.post("/failed")
 async def bot_failed_callback(
-    payload: BotCallbackPayload,
-    manager: DockerBotManager = Depends(get_bot_manager)
+    payload: BotCallbackPayload, manager: DockerBotManager = Depends(get_bot_manager)
 ):
     """
     Handle bot 'failed' callback
@@ -199,13 +187,13 @@ async def bot_failed_callback(
                 "container_id": payload.container_id,
                 "error": payload.error,
                 "exit_code": payload.exit_code,
-                **payload.metadata
-            }
+                **payload.metadata,
+            },
         )
 
         return {
             "status": "success",
-            "message": f"Bot {payload.connection_id} failed callback received"
+            "message": f"Bot {payload.connection_id} failed callback received",
         }
 
     except Exception as e:

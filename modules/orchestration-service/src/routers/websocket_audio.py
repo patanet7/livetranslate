@@ -32,7 +32,7 @@ router = APIRouter()
 whisper_client = SocketIOWhisperClient(
     whisper_host="localhost",  # Use localhost for dev (or "whisper" for Docker)
     whisper_port=5001,
-    auto_reconnect=True
+    auto_reconnect=True,
 )
 
 
@@ -71,11 +71,13 @@ async def websocket_audio_stream(websocket: WebSocket):
         user_id = None
 
         # Send welcome message
-        await websocket.send_json({
-            "type": "connected",
-            "connection_id": connection_id,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+        await websocket.send_json(
+            {
+                "type": "connected",
+                "connection_id": connection_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
 
         # Message handling loop
         while True:
@@ -93,11 +95,13 @@ async def websocket_audio_stream(websocket: WebSocket):
                 # TODO: Implement actual authentication
                 logger.info(f"✅ Authenticated user: {user_id}")
 
-                await websocket.send_json({
-                    "type": "authenticated",
-                    "connection_id": connection_id,
-                    "user_id": user_id
-                })
+                await websocket.send_json(
+                    {
+                        "type": "authenticated",
+                        "connection_id": connection_id,
+                        "user_id": user_id,
+                    }
+                )
 
             # Handle start_session
             elif msg_type == "start_session":
@@ -116,76 +120,87 @@ async def websocket_audio_stream(websocket: WebSocket):
                     # Set up callback to forward segments to frontend
                     def segment_callback(segment: dict):
                         """Forward segments from Whisper to frontend"""
-                        asyncio.create_task(websocket.send_json({
-                            "type": "segment",
-                            **segment
-                        }))
+                        asyncio.create_task(
+                            websocket.send_json({"type": "segment", **segment})
+                        )
 
                     whisper_client.on_segment(segment_callback)
 
                     await whisper_client.start_stream(
-                        session_id=session_id,
-                        config=config
+                        session_id=session_id, config=config
                     )
 
                     logger.info(f"✅ Whisper session started: {session_id}")
 
-                    await websocket.send_json({
-                        "type": "session_started",
-                        "session_id": session_id,
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "session_started",
+                            "session_id": session_id,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
 
                 except Exception as e:
                     logger.error(f"❌ Failed to start Whisper session: {e}")
-                    await websocket.send_json({
-                        "type": "error",
-                        "error": f"Failed to start session: {e}",
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "error": f"Failed to start session: {e}",
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
 
             # Handle audio_chunk
             elif msg_type == "audio_chunk":
                 if not session_id:
-                    await websocket.send_json({
-                        "type": "error",
-                        "error": "No active session. Please send start_session first.",
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "error": "No active session. Please send start_session first.",
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
                     continue
 
                 audio_base64 = message.get("audio")
                 timestamp_str = message.get("timestamp")
 
                 if not audio_base64:
-                    await websocket.send_json({
-                        "type": "error",
-                        "error": "Missing audio data",
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "error": "Missing audio data",
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
                     continue
 
                 # Decode base64 audio
                 import base64
+
                 try:
                     audio_data = base64.b64decode(audio_base64)
-                    logger.info(f"🎵 Received audio chunk: {len(audio_data)} bytes, forwarding to Whisper")
+                    logger.info(
+                        f"🎵 Received audio chunk: {len(audio_data)} bytes, forwarding to Whisper"
+                    )
 
                     # Forward to Whisper service
                     # Segments will come back via the callback registered in start_session
                     await whisper_client.send_audio_chunk(
                         session_id=session_id,
                         audio_data=audio_data,
-                        timestamp=timestamp_str
+                        timestamp=timestamp_str,
                     )
 
                 except Exception as e:
                     logger.error(f"❌ Error processing audio chunk: {e}")
-                    await websocket.send_json({
-                        "type": "error",
-                        "error": f"Audio processing failed: {e}",
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "error": f"Audio processing failed: {e}",
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
 
             # Handle end_session
             elif msg_type == "end_session":
@@ -199,26 +214,29 @@ async def websocket_audio_stream(websocket: WebSocket):
 
                 session_id = None
 
-                await websocket.send_json({
-                    "type": "session_ended",
-                    "session_id": end_session_id,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket.send_json(
+                    {
+                        "type": "session_ended",
+                        "session_id": end_session_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
 
             # Handle ping
             elif msg_type == "ping":
-                await websocket.send_json({
-                    "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket.send_json(
+                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
+                )
 
             else:
                 logger.warning(f"⚠️ Unknown message type: {msg_type}")
-                await websocket.send_json({
-                    "type": "error",
-                    "error": f"Unknown message type: {msg_type}",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "error": f"Unknown message type: {msg_type}",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
 
     except WebSocketDisconnect:
         logger.info(f"🔌 Frontend disconnected: {connection_id}")
@@ -249,6 +267,8 @@ async def websocket_audio_health():
     return {
         "status": "healthy",
         "active_connections": len(frontend_handler.connections),
-        "whisper_connected": whisper_client.is_connected() if hasattr(whisper_client, 'is_connected') else False,
-        "sessions": list(frontend_handler.session_to_connections.keys())
+        "whisper_connected": whisper_client.is_connected()
+        if hasattr(whisper_client, "is_connected")
+        else False,
+        "sessions": list(frontend_handler.session_to_connections.keys()),
     }

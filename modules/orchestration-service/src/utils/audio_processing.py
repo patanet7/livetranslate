@@ -4,9 +4,8 @@ Audio Processing Utilities
 Provides audio validation and processing utilities.
 """
 
-import io
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -61,7 +60,7 @@ class AudioProcessor:
             if not format_info["detected"]:
                 return {
                     "valid": False,
-                    "error": f'Unsupported audio format: {format_info.get("error", "Unknown format")}',
+                    "error": f"Unsupported audio format: {format_info.get('error', 'Unknown format')}",
                 }
 
             # Basic header validation
@@ -69,7 +68,7 @@ class AudioProcessor:
             if not header_valid:
                 return {
                     "valid": False,
-                    "error": f'Invalid {format_info["format"]} header',
+                    "error": f"Invalid {format_info['format']} header",
                 }
 
             return {

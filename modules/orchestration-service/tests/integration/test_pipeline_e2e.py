@@ -24,6 +24,7 @@ import time
 def client():
     """Create FastAPI test client"""
     from src.main_fastapi import app
+
     return TestClient(app)
 
 
@@ -44,7 +45,7 @@ def test_audio_file(tmp_path):
     audio_data = audio_data + noise
     audio_data = (audio_data * 32767 / np.max(np.abs(audio_data))).astype(np.int16)
 
-    with wave.open(str(file_path), 'w') as wav_file:
+    with wave.open(str(file_path), "w") as wav_file:
         wav_file.setnchannels(1)
         wav_file.setsampwidth(2)
         wav_file.setframerate(sample_rate)
@@ -64,10 +65,7 @@ def multi_stage_pipeline():
                 "enabled": True,
                 "gain_in": 0.0,
                 "gain_out": 0.0,
-                "parameters": {
-                    "sampleRate": 16000,
-                    "channels": 1
-                }
+                "parameters": {"sampleRate": 16000, "channels": 1},
             },
             "noise_reduction": {
                 "enabled": True,
@@ -76,31 +74,27 @@ def multi_stage_pipeline():
                 "parameters": {
                     "strength": 0.5,
                     "voiceProtection": True,
-                    "adaptationRate": 0.1
-                }
+                    "adaptationRate": 0.1,
+                },
             },
             "voice_enhancement": {
                 "enabled": True,
                 "gain_in": 0.0,
                 "gain_out": 0.0,
-                "parameters": {
-                    "clarity": 0.6,
-                    "warmth": 0.4,
-                    "presence": 0.5
-                }
+                "parameters": {"clarity": 0.6, "warmth": 0.4, "presence": 0.5},
             },
             "output": {
                 "enabled": True,
                 "gain_in": 0.0,
                 "gain_out": 0.0,
-                "parameters": {}
-            }
+                "parameters": {},
+            },
         },
         "connections": [
             {"source": "input", "target": "noise_reduction"},
             {"source": "noise_reduction", "target": "voice_enhancement"},
-            {"source": "voice_enhancement", "target": "output"}
-        ]
+            {"source": "voice_enhancement", "target": "output"},
+        ],
     }
 
 
@@ -120,14 +114,16 @@ class TestCompleteE2EFlow:
     """End-to-end tests for complete pipeline workflows"""
 
     @pytest.mark.e2e
-    def test_complete_pipeline_with_parameter_changes(self, client, test_audio_file, multi_stage_pipeline):
+    def test_complete_pipeline_with_parameter_changes(
+        self, client, test_audio_file, multi_stage_pipeline
+    ):
         """
         Complete E2E test: Create pipeline, start processing, change parameters, verify output
         """
         # Step 1: Start real-time session
         start_response = client.post(
             "/api/pipeline/realtime/start",
-            json={"pipeline_config": multi_stage_pipeline}
+            json={"pipeline_config": multi_stage_pipeline},
         )
         assert start_response.status_code == 200
         session_id = start_response.json()["session_id"]
@@ -137,7 +133,7 @@ class TestCompleteE2EFlow:
             with open(test_audio_file, "rb") as audio_file:
                 chunk1_response = client.post(
                     f"/api/pipeline/realtime/{session_id}/process",
-                    files={"audio_chunk": ("chunk1.wav", audio_file, "audio/wav")}
+                    files={"audio_chunk": ("chunk1.wav", audio_file, "audio/wav")},
                 )
 
             # Verify first chunk processed successfully
@@ -153,8 +149,8 @@ class TestCompleteE2EFlow:
                     "stage_id": "noise_reduction",
                     "parameters": {
                         "strength": 0.8  # Changed from 0.5 to 0.8
-                    }
-                }
+                    },
+                },
             )
             assert update_response.status_code in [200, 204]
 
@@ -162,7 +158,7 @@ class TestCompleteE2EFlow:
             with open(test_audio_file, "rb") as audio_file:
                 chunk2_response = client.post(
                     f"/api/pipeline/realtime/{session_id}/process",
-                    files={"audio_chunk": ("chunk2.wav", audio_file, "audio/wav")}
+                    files={"audio_chunk": ("chunk2.wav", audio_file, "audio/wav")},
                 )
 
             # Verify second chunk processed with updated parameters
@@ -173,7 +169,9 @@ class TestCompleteE2EFlow:
                 # Metrics should show parameter change took effect
                 updated_metrics = chunk2_data.get("metrics", {})
                 if "stage_metrics" in updated_metrics:
-                    noise_reduction_metrics = updated_metrics["stage_metrics"].get("noise_reduction", {})
+                    noise_reduction_metrics = updated_metrics["stage_metrics"].get(
+                        "noise_reduction", {}
+                    )
                     # Verify stronger noise reduction was applied
 
         finally:
@@ -192,16 +190,13 @@ class TestCompleteE2EFlow:
             "name": "Simple Pipeline",
             "stages": {
                 "input": {"enabled": True, "parameters": {}},
-                "output": {"enabled": True, "parameters": {}}
+                "output": {"enabled": True, "parameters": {}},
             },
-            "connections": [
-                {"source": "input", "target": "output"}
-            ]
+            "connections": [{"source": "input", "target": "output"}],
         }
 
         start_response = client.post(
-            "/api/pipeline/realtime/start",
-            json={"pipeline_config": simple_pipeline}
+            "/api/pipeline/realtime/start", json={"pipeline_config": simple_pipeline}
         )
         assert start_response.status_code == 200
         session_id = start_response.json()["session_id"]
@@ -211,9 +206,12 @@ class TestCompleteE2EFlow:
             with open(test_audio_file, "rb") as audio_file:
                 simple_response = client.post(
                     f"/api/pipeline/realtime/{session_id}/process",
-                    files={"audio_chunk": ("chunk1.wav", audio_file, "audio/wav")}
+                    files={"audio_chunk": ("chunk1.wav", audio_file, "audio/wav")},
                 )
-            assert simple_response.status_code in [200, 404]  # 404 if endpoint doesn't exist
+            assert simple_response.status_code in [
+                200,
+                404,
+            ]  # 404 if endpoint doesn't exist
 
             # Step 3: Add noise reduction stage in middle
             add_stage_response = client.post(
@@ -222,8 +220,8 @@ class TestCompleteE2EFlow:
                     "stage_id": "noise_reduction",
                     "stage_type": "noise_reduction",
                     "parameters": {"strength": 0.7},
-                    "position": {"after": "input", "before": "output"}
-                }
+                    "position": {"after": "input", "before": "output"},
+                },
             )
 
             # May or may not be implemented
@@ -232,7 +230,7 @@ class TestCompleteE2EFlow:
                 with open(test_audio_file, "rb") as audio_file:
                     enhanced_response = client.post(
                         f"/api/pipeline/realtime/{session_id}/process",
-                        files={"audio_chunk": ("chunk2.wav", audio_file, "audio/wav")}
+                        files={"audio_chunk": ("chunk2.wav", audio_file, "audio/wav")},
                     )
                 assert enhanced_response.status_code == 200
 
@@ -246,7 +244,7 @@ class TestCompleteE2EFlow:
                 with open(test_audio_file, "rb") as audio_file:
                     final_response = client.post(
                         f"/api/pipeline/realtime/{session_id}/process",
-                        files={"audio_chunk": ("chunk3.wav", audio_file, "audio/wav")}
+                        files={"audio_chunk": ("chunk3.wav", audio_file, "audio/wav")},
                     )
                 assert final_response.status_code == 200
 
@@ -268,20 +266,27 @@ class TestCompleteE2EFlow:
             if len(presets) > 0:
                 # Step 2: Load "Voice Clarity Pro" or first available preset
                 preset = next(
-                    (p for p in presets if "voice" in p.get("name", "").lower() or "clarity" in p.get("name", "").lower()),
-                    presets[0]
+                    (
+                        p
+                        for p in presets
+                        if "voice" in p.get("name", "").lower()
+                        or "clarity" in p.get("name", "").lower()
+                    ),
+                    presets[0],
                 )
                 preset_id = preset.get("id", preset.get("name"))
 
                 load_response = client.get(f"/api/pipeline/presets/{preset_id}")
                 assert load_response.status_code == 200
 
-                preset_config = load_response.json().get("pipeline_config") or load_response.json().get("config")
+                preset_config = load_response.json().get(
+                    "pipeline_config"
+                ) or load_response.json().get("config")
 
                 # Step 3: Start real-time processing with preset
                 start_response = client.post(
                     "/api/pipeline/realtime/start",
-                    json={"pipeline_config": preset_config}
+                    json={"pipeline_config": preset_config},
                 )
                 assert start_response.status_code == 200
                 session_id = start_response.json()["session_id"]
@@ -292,7 +297,13 @@ class TestCompleteE2EFlow:
                         with open(test_audio_file, "rb") as audio_file:
                             chunk_response = client.post(
                                 f"/api/pipeline/realtime/{session_id}/process",
-                                files={"audio_chunk": (f"chunk{i}.wav", audio_file, "audio/wav")}
+                                files={
+                                    "audio_chunk": (
+                                        f"chunk{i}.wav",
+                                        audio_file,
+                                        "audio/wav",
+                                    )
+                                },
                             )
 
                         if chunk_response.status_code == 200:
@@ -323,15 +334,14 @@ class TestCompleteE2EFlow:
             "stages": {
                 "input": {"enabled": True, "parameters": {}},
                 "processing": {"enabled": True, "parameters": {}},
-                "output": {"enabled": True, "parameters": {}}
+                "output": {"enabled": True, "parameters": {}},
             },
-            "connections": []
+            "connections": [],
         }
 
         # Step 1: Start processing
         start_response = client.post(
-            "/api/pipeline/realtime/start",
-            json={"pipeline_config": pipeline_config}
+            "/api/pipeline/realtime/start", json={"pipeline_config": pipeline_config}
         )
         assert start_response.status_code == 200
         session_id = start_response.json()["session_id"]
@@ -341,7 +351,7 @@ class TestCompleteE2EFlow:
             with open(test_audio_file, "rb") as audio_file:
                 valid_response = client.post(
                     f"/api/pipeline/realtime/{session_id}/process",
-                    files={"audio_chunk": ("valid.wav", audio_file, "audio/wav")}
+                    files={"audio_chunk": ("valid.wav", audio_file, "audio/wav")},
                 )
 
             # Should process successfully
@@ -354,7 +364,7 @@ class TestCompleteE2EFlow:
             with open(invalid_file, "rb") as audio_file:
                 error_response = client.post(
                     f"/api/pipeline/realtime/{session_id}/process",
-                    files={"audio_chunk": ("invalid.wav", audio_file, "audio/wav")}
+                    files={"audio_chunk": ("invalid.wav", audio_file, "audio/wav")},
                 )
 
             # Should return error
@@ -364,7 +374,7 @@ class TestCompleteE2EFlow:
             with open(test_audio_file, "rb") as audio_file:
                 recovery_response = client.post(
                     f"/api/pipeline/realtime/{session_id}/process",
-                    files={"audio_chunk": ("recovery.wav", audio_file, "audio/wav")}
+                    files={"audio_chunk": ("recovery.wav", audio_file, "audio/wav")},
                 )
 
             # Should recover and process successfully
@@ -380,7 +390,9 @@ class TestWebSocketE2E:
     """End-to-end WebSocket integration tests"""
 
     @pytest.mark.e2e
-    @pytest.mark.skipif(True, reason="WebSocket endpoint may not be available in test environment")
+    @pytest.mark.skipif(
+        True, reason="WebSocket endpoint may not be available in test environment"
+    )
     def test_websocket_parameter_update(self, client):
         """Test parameter updates via WebSocket"""
         # Step 1: Start real-time session
@@ -388,17 +400,13 @@ class TestWebSocketE2E:
             "pipeline_id": "ws-test",
             "name": "WebSocket Test",
             "stages": {
-                "noise_reduction": {
-                    "enabled": True,
-                    "parameters": {"strength": 0.5}
-                }
+                "noise_reduction": {"enabled": True, "parameters": {"strength": 0.5}}
             },
-            "connections": []
+            "connections": [],
         }
 
         session_response = client.post(
-            "/api/pipeline/realtime/start",
-            json={"pipeline_config": pipeline_config}
+            "/api/pipeline/realtime/start", json={"pipeline_config": pipeline_config}
         )
         assert session_response.status_code == 200
         session_id = session_response.json()["session_id"]
@@ -409,11 +417,13 @@ class TestWebSocketE2E:
 
             with websocket_connection(ws_url) as ws:
                 # Step 3: Send parameter update
-                update_message = json.dumps({
-                    "type": "update_stage",
-                    "stage_id": "noise_reduction",
-                    "parameters": {"strength": 0.8}
-                })
+                update_message = json.dumps(
+                    {
+                        "type": "update_stage",
+                        "stage_id": "noise_reduction",
+                        "parameters": {"strength": 0.8},
+                    }
+                )
                 ws.send(update_message)
 
                 # Step 4: Wait for confirmation
@@ -429,7 +439,9 @@ class TestWebSocketE2E:
             client.post(f"/api/pipeline/realtime/stop/{session_id}")
 
     @pytest.mark.e2e
-    @pytest.mark.skipif(True, reason="WebSocket endpoint may not be available in test environment")
+    @pytest.mark.skipif(
+        True, reason="WebSocket endpoint may not be available in test environment"
+    )
     def test_websocket_audio_chunk_processing(self, client, test_audio_file):
         """Test audio chunk processing via WebSocket"""
         pipeline_config = {
@@ -437,15 +449,14 @@ class TestWebSocketE2E:
             "name": "WebSocket Audio Test",
             "stages": {
                 "input": {"enabled": True, "parameters": {}},
-                "output": {"enabled": True, "parameters": {}}
+                "output": {"enabled": True, "parameters": {}},
             },
-            "connections": []
+            "connections": [],
         }
 
         # Start session
         session_response = client.post(
-            "/api/pipeline/realtime/start",
-            json={"pipeline_config": pipeline_config}
+            "/api/pipeline/realtime/start", json={"pipeline_config": pipeline_config}
         )
         assert session_response.status_code == 200
         session_id = session_response.json()["session_id"]
@@ -460,13 +471,11 @@ class TestWebSocketE2E:
 
                 # Encode as base64
                 import base64
-                audio_b64 = base64.b64encode(audio_data).decode('utf-8')
+
+                audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
                 # Send audio chunk
-                audio_message = json.dumps({
-                    "type": "audio_chunk",
-                    "data": audio_b64
-                })
+                audio_message = json.dumps({"type": "audio_chunk", "data": audio_b64})
                 ws.send(audio_message)
 
                 # Receive processed audio
@@ -495,7 +504,7 @@ class TestStressAndPerformance:
         # Start session
         start_response = client.post(
             "/api/pipeline/realtime/start",
-            json={"pipeline_config": multi_stage_pipeline}
+            json={"pipeline_config": multi_stage_pipeline},
         )
         assert start_response.status_code == 200
         session_id = start_response.json()["session_id"]
@@ -510,13 +519,17 @@ class TestStressAndPerformance:
 
                     response = client.post(
                         f"/api/pipeline/realtime/{session_id}/process",
-                        files={"audio_chunk": (f"chunk{i}.wav", audio_file, "audio/wav")}
+                        files={
+                            "audio_chunk": (f"chunk{i}.wav", audio_file, "audio/wav")
+                        },
                     )
 
                     end_time = time.time()
 
                     if response.status_code == 200:
-                        latencies.append((end_time - start_time) * 1000)  # Convert to ms
+                        latencies.append(
+                            (end_time - start_time) * 1000
+                        )  # Convert to ms
 
                 # Small delay to simulate realistic streaming
                 time.sleep(0.05)
@@ -540,7 +553,7 @@ class TestStressAndPerformance:
         """Test rapid parameter changes"""
         start_response = client.post(
             "/api/pipeline/realtime/start",
-            json={"pipeline_config": multi_stage_pipeline}
+            json={"pipeline_config": multi_stage_pipeline},
         )
         assert start_response.status_code == 200
         session_id = start_response.json()["session_id"]
@@ -554,12 +567,16 @@ class TestStressAndPerformance:
                     f"/api/pipeline/realtime/{session_id}/update",
                     json={
                         "stage_id": "noise_reduction",
-                        "parameters": {"strength": strength}
-                    }
+                        "parameters": {"strength": strength},
+                    },
                 )
 
                 # Should handle rapid updates
-                assert update_response.status_code in [200, 204, 429]  # 429 = Too Many Requests
+                assert update_response.status_code in [
+                    200,
+                    204,
+                    429,
+                ]  # 429 = Too Many Requests
 
                 time.sleep(0.05)
 

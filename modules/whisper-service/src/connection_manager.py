@@ -6,10 +6,8 @@ Enhanced connection management system for real-time audio streaming.
 Provides connection tracking, timeout handling, session management, and health monitoring.
 """
 
-import asyncio
 import logging
 import time
-import uuid
 from typing import Dict, Set, Optional, Any, List
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -438,9 +436,8 @@ class ConnectionManager:
     def cleanup_expired_connections(self) -> List[str]:
         """Clean up expired connections and return their IDs"""
         expired_sids = []
-        
+
         with self._lock:
-            current_time = datetime.now()
             for sid, connection in list(self.connections.items()):
                 if connection.is_expired(self.connection_timeout):
                     expired_sids.append(sid)

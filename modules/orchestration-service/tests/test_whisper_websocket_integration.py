@@ -102,8 +102,8 @@ class TestOrchestrationWhisperIntegration:
                     "config": {
                         "model": "large-v3",
                         "language": "en",
-                        "enable_vad": True
-                    }
+                        "enable_vad": True,
+                    },
                 }
 
                 await ws.send(json.dumps(start_message))
@@ -151,21 +151,23 @@ class TestOrchestrationWhisperIntegration:
                 start_message = {
                     "action": "start_stream",
                     "session_id": "audio-test-session",
-                    "config": {"model": "large-v3", "language": "en"}
+                    "config": {"model": "large-v3", "language": "en"},
                 }
                 await ws.send(json.dumps(start_message))
                 await ws.recv()  # Acknowledge
 
                 # Generate test audio (1 second of random audio)
                 test_audio = np.random.randn(16000).astype(np.float32)
-                audio_base64 = base64.b64encode(test_audio.tobytes()).decode('utf-8')
+                audio_base64 = base64.b64encode(test_audio.tobytes()).decode("utf-8")
 
                 # Send audio chunk
                 audio_message = {
                     "type": "audio_chunk",
                     "session_id": "audio-test-session",
                     "audio": audio_base64,
-                    "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+                    "timestamp": datetime.now(timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
                 }
 
                 await ws.send(json.dumps(audio_message))
@@ -214,23 +216,33 @@ class TestOrchestrationWhisperIntegration:
         try:
             async with websockets.connect("ws://localhost:5013/stream") as ws:
                 # Start session
-                await ws.send(json.dumps({
-                    "action": "start_stream",
-                    "session_id": "segment-test",
-                    "config": {"model": "large-v3"}
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "action": "start_stream",
+                            "session_id": "segment-test",
+                            "config": {"model": "large-v3"},
+                        }
+                    )
+                )
                 await ws.recv()
 
                 # Send enough audio to trigger processing (1+ seconds)
                 test_audio = np.random.randn(16000).astype(np.float32)
-                audio_base64 = base64.b64encode(test_audio.tobytes()).decode('utf-8')
+                audio_base64 = base64.b64encode(test_audio.tobytes()).decode("utf-8")
 
-                await ws.send(json.dumps({
-                    "type": "audio_chunk",
-                    "session_id": "segment-test",
-                    "audio": audio_base64,
-                    "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "audio_chunk",
+                            "session_id": "segment-test",
+                            "audio": audio_base64,
+                            "timestamp": datetime.now(timezone.utc)
+                            .isoformat()
+                            .replace("+00:00", "Z"),
+                        }
+                    )
+                )
 
                 # For now, just verify the flow is set up
                 # Real segments would come when model is integrated

@@ -12,24 +12,19 @@ import {
   FormControlLabel,
   Chip,
   IconButton,
-  Tooltip,
   Alert,
   Grid,
-  LinearProgress,
 } from '@mui/material';
 import {
   VolumeUp,
   Download,
-  Settings,
   Warning,
   CheckCircle,
   Error,
   Info,
-  Timeline,
-  RadioButtonChecked,
 } from '@mui/icons-material';
 
-interface LUFSMeterProps {
+export interface LUFSMeterProps {
   audioData?: {
     lufs_measurements: {
       integrated_lufs: number;
@@ -114,7 +109,7 @@ export const LUFSMeter: React.FC<LUFSMeterProps> = ({
   const [showMomentary, setShowMomentary] = useState(true);
   const [showShortTerm, setShowShortTerm] = useState(true);
   const [showTruePeak, setShowTruePeak] = useState(true);
-  const [historyLength, setHistoryLength] = useState(30); // seconds
+  const [historyLength] = useState(30); // seconds
   
   const [currentMeasurement, setCurrentMeasurement] = useState<LUFSMeasurement | null>(null);
   const [measurementHistory, setMeasurementHistory] = useState<LUFSMeasurement[]>([]);

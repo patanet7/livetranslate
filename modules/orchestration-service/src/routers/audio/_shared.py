@@ -41,12 +41,24 @@ from utils.audio_processing import AudioProcessor
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
 from utils.audio_errors import (
-    AudioProcessingBaseError, AudioFormatError, AudioCorruptionError, 
-    AudioProcessingError, ServiceUnavailableError, ValidationError, 
-    ConfigurationError, NetworkError, TimeoutError,
-    CircuitBreaker, RetryManager, RetryConfig,
-    FormatRecoveryStrategy, ServiceRecoveryStrategy,
-    ErrorLogger, error_boundary, default_circuit_breaker, default_retry_manager
+    AudioProcessingBaseError,
+    AudioFormatError,
+    AudioCorruptionError,
+    AudioProcessingError,
+    ServiceUnavailableError,
+    ValidationError,
+    ConfigurationError,
+    NetworkError,
+    TimeoutError,
+    CircuitBreaker,
+    RetryManager,
+    RetryConfig,
+    FormatRecoveryStrategy,
+    ServiceRecoveryStrategy,
+    ErrorLogger,
+    error_boundary,
+    default_circuit_breaker,
+    default_retry_manager,
 )
 
 # Shared logger
@@ -58,32 +70,32 @@ security_utils = SecurityUtils()
 
 # Shared error handling components
 audio_service_circuit_breaker = CircuitBreaker(
-    name="audio_service",
-    failure_threshold=5,
-    recovery_timeout=60,
-    success_threshold=2
+    name="audio_service", failure_threshold=5, recovery_timeout=60, success_threshold=2
 )
 
 translation_service_circuit_breaker = CircuitBreaker(
-    name="translation_service", 
+    name="translation_service",
     failure_threshold=3,
     recovery_timeout=30,
-    success_threshold=2
+    success_threshold=2,
 )
 
-retry_manager = RetryManager(RetryConfig(
-    max_attempts=3,
-    base_delay=1.0,
-    max_delay=30.0,
-    exponential_base=2.0,
-    jitter=True
-))
+retry_manager = RetryManager(
+    RetryConfig(
+        max_attempts=3,
+        base_delay=1.0,
+        max_delay=30.0,
+        exponential_base=2.0,
+        jitter=True,
+    )
+)
 
 error_logger = ErrorLogger("orchestration_audio")
 
 # Recovery strategies
 format_recovery = FormatRecoveryStrategy()
 service_recovery = ServiceRecoveryStrategy()
+
 
 # Shared utility functions
 def get_common_dependencies():
@@ -99,6 +111,7 @@ def get_common_dependencies():
         "service_recovery": service_recovery,
     }
 
+
 def create_audio_router(prefix: str = "") -> APIRouter:
     """Create a standardized audio router with common configuration."""
     return APIRouter(
@@ -107,6 +120,6 @@ def create_audio_router(prefix: str = "") -> APIRouter:
         responses={
             404: {"description": "Not found"},
             422: {"description": "Validation error"},
-            500: {"description": "Internal server error"}
-        }
+            500: {"description": "Internal server error"},
+        },
     )

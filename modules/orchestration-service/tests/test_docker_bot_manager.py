@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # Add src to path
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
@@ -29,7 +30,7 @@ class TestDockerBotManagerInitialization:
         manager = DockerBotManager(
             orchestration_url="http://localhost:3000",
             redis_url="redis://localhost:6379",
-            enable_database=False  # Disable for testing
+            enable_database=False,  # Disable for testing
         )
 
         assert manager.orchestration_url == "http://localhost:3000"
@@ -67,7 +68,7 @@ class TestDockerBotManagerStartBot:
             user_token="token-123",
             user_id="user-456",
             language="en",
-            task="transcribe"
+            task="transcribe",
         )
 
         # Verify bot created
@@ -90,13 +91,13 @@ class TestDockerBotManagerStartBot:
         id1 = await manager.start_bot(
             meeting_url="https://meet.google.com/test1",
             user_token="token",
-            user_id="user-1"
+            user_id="user-1",
         )
 
         id2 = await manager.start_bot(
             meeting_url="https://meet.google.com/test2",
             user_token="token",
-            user_id="user-2"
+            user_id="user-2",
         )
 
         # IDs should be unique
@@ -119,14 +120,12 @@ class TestDockerBotManagerCallbacks:
         connection_id = await manager.start_bot(
             meeting_url="https://meet.google.com/test",
             user_token="token",
-            user_id="user-123"
+            user_id="user-123",
         )
 
         # Handle started callback
         await manager.handle_bot_callback(
-            connection_id,
-            "started",
-            {"container_id": "abc123"}
+            connection_id, "started", {"container_id": "abc123"}
         )
 
         # Verify status updated
@@ -147,7 +146,7 @@ class TestDockerBotManagerCallbacks:
         connection_id = await manager.start_bot(
             meeting_url="https://meet.google.com/test",
             user_token="token",
-            user_id="user-123"
+            user_id="user-123",
         )
 
         # Simulate progression: started → joining → active
@@ -172,7 +171,7 @@ class TestDockerBotManagerCallbacks:
         connection_id = await manager.start_bot(
             meeting_url="https://meet.google.com/test",
             user_token="token",
-            user_id="user-123"
+            user_id="user-123",
         )
 
         # Simulate completion
@@ -198,17 +197,12 @@ class TestDockerBotManagerCallbacks:
         connection_id = await manager.start_bot(
             meeting_url="https://meet.google.com/test",
             user_token="token",
-            user_id="user-123"
+            user_id="user-123",
         )
 
         # Simulate failure
         await manager.handle_bot_callback(
-            connection_id,
-            "failed",
-            {
-                "error": "Failed to join meeting",
-                "exit_code": 1
-            }
+            connection_id, "failed", {"error": "Failed to join meeting", "exit_code": 1}
         )
 
         # Verify status
@@ -237,7 +231,7 @@ class TestDockerBotManagerStopBot:
         connection_id = await manager.start_bot(
             meeting_url="https://meet.google.com/test",
             user_token="token",
-            user_id="user-123"
+            user_id="user-123",
         )
 
         # Stop bot
@@ -252,6 +246,7 @@ class TestDockerBotManagerStopBot:
         # Verify command contains leave action
         command_json = call_args[0][1]
         import json
+
         command = json.loads(command_json)
         assert command["action"] == "leave"
 
@@ -284,17 +279,13 @@ class TestDockerBotManagerCommands:
         connection_id = await manager.start_bot(
             meeting_url="https://meet.google.com/test",
             user_token="token",
-            user_id="user-123"
+            user_id="user-123",
         )
 
         # Send reconfigure command
         await manager.send_command(
             connection_id,
-            {
-                "action": "reconfigure",
-                "language": "es",
-                "task": "translate"
-            }
+            {"action": "reconfigure", "language": "es", "task": "translate"},
         )
 
         # Verify Redis publish called
@@ -330,7 +321,7 @@ class TestDockerBotManagerQueries:
         connection_id = await manager.start_bot(
             meeting_url="https://meet.google.com/test",
             user_token="token",
-            user_id="user-123"
+            user_id="user-123",
         )
 
         # Get bot
@@ -376,9 +367,15 @@ class TestDockerBotManagerQueries:
         manager.docker_client = None
 
         # Start bots
-        id1 = await manager.start_bot("https://meet.google.com/test1", "token", "user-1")
-        id2 = await manager.start_bot("https://meet.google.com/test2", "token", "user-2")
-        id3 = await manager.start_bot("https://meet.google.com/test3", "token", "user-3")
+        id1 = await manager.start_bot(
+            "https://meet.google.com/test1", "token", "user-1"
+        )
+        id2 = await manager.start_bot(
+            "https://meet.google.com/test2", "token", "user-2"
+        )
+        id3 = await manager.start_bot(
+            "https://meet.google.com/test3", "token", "user-3"
+        )
 
         # Make some active
         await manager.handle_bot_callback(id1, "active", {})
@@ -426,9 +423,15 @@ class TestDockerBotManagerStatistics:
         manager.docker_client = None
 
         # Start bots
-        id1 = await manager.start_bot("https://meet.google.com/test1", "token", "user-1")
-        id2 = await manager.start_bot("https://meet.google.com/test2", "token", "user-2")
-        id3 = await manager.start_bot("https://meet.google.com/test3", "token", "user-3")
+        id1 = await manager.start_bot(
+            "https://meet.google.com/test1", "token", "user-1"
+        )
+        id2 = await manager.start_bot(
+            "https://meet.google.com/test2", "token", "user-2"
+        )
+        id3 = await manager.start_bot(
+            "https://meet.google.com/test3", "token", "user-3"
+        )
 
         # Simulate lifecycle
         await manager.handle_bot_callback(id1, "active", {})
@@ -444,7 +447,7 @@ class TestDockerBotManagerStatistics:
         assert stats["total_completed"] == 1
         assert stats["total_failed"] == 1
         assert stats["active_bots"] == 1  # Only id2 still active
-        assert stats["success_rate"] == 1/3  # 1 completed out of 3 started
+        assert stats["success_rate"] == 1 / 3  # 1 completed out of 3 started
 
 
 class TestBotInstanceHealthChecks:
@@ -460,9 +463,7 @@ class TestBotInstanceHealthChecks:
 
         # Start and activate bot
         connection_id = await manager.start_bot(
-            "https://meet.google.com/test",
-            "token",
-            "user-123"
+            "https://meet.google.com/test", "token", "user-123"
         )
         await manager.handle_bot_callback(connection_id, "active", {})
 
@@ -479,9 +480,7 @@ class TestBotInstanceHealthChecks:
 
         # Start and fail bot
         connection_id = await manager.start_bot(
-            "https://meet.google.com/test",
-            "token",
-            "user-123"
+            "https://meet.google.com/test", "token", "user-123"
         )
         await manager.handle_bot_callback(connection_id, "failed", {"error": "test"})
 
@@ -498,9 +497,7 @@ class TestBotInstanceHealthChecks:
 
         # Start bot
         connection_id = await manager.start_bot(
-            "https://meet.google.com/test",
-            "token",
-            "user-123"
+            "https://meet.google.com/test", "token", "user-123"
         )
 
         # Simulate started
