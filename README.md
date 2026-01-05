@@ -58,6 +58,18 @@ The system is organized into **4 core services** optimized for specific hardware
 - **Configuration Management**: Unified settings with real-time synchronization across all services
 - **Monitoring Stack**: Prometheus + Grafana + AlertManager + Loki for enterprise observability
 
+## 📚 Documentation
+
+Complete documentation organized using the **C4 Model**:
+
+- **[Documentation Index](./docs/README.md)** - Full documentation navigation
+- **[Quick Start Guide](./docs/guides/quick-start.md)** - 5-minute setup
+- **[System Context](./docs/01-context/README.md)** - What LiveTranslate does and who uses it
+- **[Container Architecture](./docs/02-containers/README.md)** - Services, technology stack, deployment
+- **[Component Details](./docs/03-components/README.md)** - Individual component documentation
+- **[Translation Testing](./docs/guides/translation-testing.md)** - Test translation pipeline
+- **[Database Setup](./docs/guides/database-setup.md)** - PostgreSQL configuration
+
 ## 🚀 Quick Start
 
 ### Prerequisites
