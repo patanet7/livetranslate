@@ -10,7 +10,7 @@ packages = [{include = "src"}]
 python = ">=3.12,<3.15"
 # Core web framework
 fastapi = "^0.121.0"
-uvicorn = {extras = ["standard"], version = "^0.24.0"}
+uvicorn = {extras = ["standard"], version = "^0.38.0"}
 
 # WebSocket support (FastAPI native)
 websockets = "^15.0.1"
@@ -19,8 +19,8 @@ websockets = "^15.0.1"
 requests = "^2.31.0"
 
 # FastAPI dependencies
-pydantic = "^2.4.2"
-pydantic-settings = "^2.0.3"
+pydantic = "^2.12.3"
+pydantic-settings = "^2.7.1"
 python-multipart = "^0.0.6"
 
 # Configuration
@@ -52,10 +52,10 @@ aiohttp = "^3.8.5"
 watchdog = "^3.0.0"
 
 # Audio processing (Windows-compatible versions)
-numpy = "^2.0.0"
-scipy = "^1.11.3"
-librosa = "^0.10.1"
-soundfile = "^0.12.1"
+numpy = "^2.3.4"
+scipy = "^1.16.2"
+librosa = "^0.11.0"
+soundfile = "^0.13.1"
 pydub = "^0.25.1"
 ffmpeg-python = "^0.2.0"
 
@@ -66,7 +66,7 @@ webrtcvad-wheels = "^2.0.11"
 pywavelets = "^1.4.1"
 
 # Redis for session management
-redis = "^5.0.0"
+redis = "^6.4.0"
 
 # Monitoring and logging
 prometheus-client = "^0.18.0"
@@ -84,9 +84,10 @@ pillow = "^12.0.0"
 opencv-python = "^4.12.0.88"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.4.2"
-pytest-asyncio = "^0.21.1"
-pytest-cov = "^4.1.0"
+pytest = "^8.4.2"
+pytest-asyncio = "^1.2.0"
+pytest-cov = "^7.0.0"
+pytest-xdist = "^3.8.0"
 black = "^23.9.1"
 isort = "^5.12.0"
 flake8 = "^6.0.0"
@@ -95,9 +96,10 @@ pre-commit = "^3.4.0"
 
 [tool.poetry.group.test.dependencies]
 httpx = "^0.28.1"
-pytest-mock = "^3.11.1"
-faker = "^19.6.2"
+pytest-mock = "^3.15.1"
+faker = "^37.11.0"
 timecode = "^1.4.1"  # SMPTE timecode for precise audio overlap handling in tests
+hypothesis = "^6.145.1"
 
 [tool.poetry.group.monitoring.dependencies]
 # Optional monitoring dependencies
@@ -150,10 +152,18 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v"
+markers = [
+    "e2e: marks tests as end-to-end tests (deselect with '-m \"not e2e\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "unit: marks tests as unit tests",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+addopts = "-v --strict-markers"
 # Temporarily disabled coverage for test collection debugging
 # addopts = "-v --cov=src --cov-report=html --cov-report=term-missing"
 asyncio_mode = "auto"
+# Allow absolute imports from src directory
+pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["src"]

@@ -30,11 +30,11 @@ import httpx
 import numpy as np
 from dataclasses import asdict
 
-from clients.audio_service_client import (
+from src.clients.audio_service_client import (
     AudioServiceClient,
     TranscriptionRequest as ClientTranscriptionRequest,
 )
-from clients.translation_service_client import (
+from src.clients.translation_service_client import (
     TranslationServiceClient,
     TranslationRequest as ClientTranslationRequest,
 )
@@ -58,7 +58,7 @@ from .chunk_manager import ChunkManager, create_chunk_manager
 
 # Import data pipeline for modern database operations
 try:
-    from pipeline.data_pipeline import (
+    from src.pipeline.data_pipeline import (
         TranscriptionDataPipeline,
         TranscriptionResult,
         TranslationResult,
@@ -83,7 +83,7 @@ from .translation_cache import TranslationResultCache
 
 # Optional import for database optimization tracking
 try:
-    from database.translation_optimization_adapter import TranslationOptimizationAdapter
+    from src.database.translation_optimization_adapter import TranslationOptimizationAdapter
 except ImportError:
     TranslationOptimizationAdapter = None
 

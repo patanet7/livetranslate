@@ -2,13 +2,13 @@
 # Additional dependencies for PostgreSQL database integration
 
 # PostgreSQL async driver
-asyncpg>=0.28.0
+asyncpg>=0.30.0
 
 # File I/O operations
-aiofiles>=23.0.0
+aiofiles>=24.1.0
 
 # Data processing
-numpy>=1.21.0
+numpy>=2.3.4
 
 # Path handling
 pathlib2>=2.3.0

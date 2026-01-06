@@ -41,7 +41,7 @@ from contextlib import asynccontextmanager
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database.bot_session_manager import (
+from src.database.bot_session_manager import (
     BotSessionDatabaseManager,
     DatabaseConfig,
     AudioFileRecord,

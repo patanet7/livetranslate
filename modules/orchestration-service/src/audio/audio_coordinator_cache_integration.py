@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 """
 from .translation_cache import TranslationResultCache
-from database.translation_optimization_adapter import TranslationOptimizationAdapter
+from src.database.translation_optimization_adapter import TranslationOptimizationAdapter
 """
 
 # =============================================================================
@@ -42,7 +42,7 @@ def __init__(self, ...):
     # Initialize translation optimization if database available
     if self.database_adapter:
         try:
-            from database.translation_optimization_adapter import TranslationOptimizationAdapter
+            from src.database.translation_optimization_adapter import TranslationOptimizationAdapter
             self.translation_opt_adapter = TranslationOptimizationAdapter(
                 self.database_adapter.db_manager
             )
@@ -391,7 +391,7 @@ class AudioCoordinator:
 
         if self.database_adapter:
             try:
-                from database.translation_optimization_adapter import TranslationOptimizationAdapter
+                from src.database.translation_optimization_adapter import TranslationOptimizationAdapter
                 self.translation_opt_adapter = TranslationOptimizationAdapter(
                     self.database_adapter.db_manager
                 )

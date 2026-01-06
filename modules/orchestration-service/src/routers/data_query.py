@@ -162,7 +162,7 @@ def get_pipeline():
     global _pipeline_instance
 
     if _pipeline_instance is None:
-        from pipeline.data_pipeline import create_data_pipeline
+        from src.pipeline.data_pipeline import create_data_pipeline
         import os
 
         # Load configuration from environment

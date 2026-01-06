@@ -25,12 +25,12 @@ import string
 
 # Add src and tests to path
 src_path = Path(__file__).parent.parent.parent / "src"
-tests_path = Path(__file__).parent.parent
+tests_path = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(tests_path))
 
 from session_restart import SessionRestartTranscriber
-from test_utils import (
+from tests.test_utils import (
     calculate_wer_detailed,
     calculate_cer,
     print_wer_results,

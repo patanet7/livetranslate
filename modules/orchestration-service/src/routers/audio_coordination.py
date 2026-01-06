@@ -10,8 +10,8 @@ import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from audio.models import AudioStreamingSession, SourceType
-from dependencies import get_audio_coordinator
+from src.audio.models import AudioStreamingSession, SourceType
+from src.dependencies import get_audio_coordinator
 
 
 router = APIRouter()

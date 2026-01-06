@@ -25,7 +25,7 @@ from sqlalchemy.sql import func
 import uuid
 
 # Import Base from existing models to ensure same metadata
-from database.models import Base
+from src.database.models import Base
 
 
 class User(Base):

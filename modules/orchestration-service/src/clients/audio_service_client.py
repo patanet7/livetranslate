@@ -16,7 +16,7 @@ from pathlib import Path
 import aiohttp
 import aiofiles
 from pydantic import BaseModel
-from utils.audio_errors import (
+from src.utils.audio_errors import (
     AudioFormatError,
     ServiceUnavailableError,
     NetworkError,

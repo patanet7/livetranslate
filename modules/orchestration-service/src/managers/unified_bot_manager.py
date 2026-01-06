@@ -17,7 +17,7 @@ from enum import Enum
 from dataclasses import dataclass
 
 from .bot_manager import BotManager, MeetingRequest as GenericMeetingRequest
-from bot.bot_manager import (
+from src.bot.bot_manager import (
     GoogleMeetBotManager,
     MeetingRequest as GoogleMeetMeetingRequest,
 )

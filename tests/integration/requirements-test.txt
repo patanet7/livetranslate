@@ -2,43 +2,44 @@
 # Phase 0: TDD Test Infrastructure
 
 # Core testing framework
-pytest==7.4.3
-pytest-asyncio==0.21.1
-pytest-cov==4.1.0
-pytest-mock==3.12.0
-pytest-timeout==2.2.0
-pytest-xdist==3.5.0          # Parallel test execution
+pytest==8.4.2
+pytest-asyncio==1.2.0
+pytest-cov==7.0.0
+pytest-mock==3.15.1
+pytest-timeout==2.4.0
+pytest-xdist==3.8.0          # Parallel test execution
 
 # Property-based and data generation
-hypothesis==6.92.0            # Property-based testing
-faker==20.1.0                 # Test data generation
-factory-boy==3.3.0            # Test object factories
+hypothesis==6.145.1           # Property-based testing
+faker==37.11.0                # Test data generation
+factory-boy==3.3.3            # Test object factories
 
 # Time and HTTP mocking
-freezegun==1.4.0              # Time mocking
-responses==0.24.1             # HTTP mocking
-aioresponses==0.7.6           # Async HTTP mocking
+freezegun==1.5.5              # Time mocking
+responses==0.25.8             # HTTP mocking
+aioresponses==0.7.8           # Async HTTP mocking
 
 # Database testing
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9        # PostgreSQL adapter
-alembic==1.13.0               # Database migrations
+sqlalchemy==2.0.44
+psycopg2-binary==2.9.11       # PostgreSQL adapter
+alembic==1.17.0               # Database migrations
 
 # Redis testing
-redis==5.0.1
-fakeredis==2.20.1             # In-memory Redis for tests
+redis==6.4.0
+fakeredis==2.32.0             # In-memory Redis for tests
 
 # Audio processing for tests
-numpy==1.26.2
-scipy==1.11.4
-librosa==0.10.1
-soundfile==0.12.1
+numpy==2.3.4
+scipy==1.16.2
+librosa==0.11.0
+soundfile==0.13.1
 
 # API testing
-httpx==0.25.2                 # Async HTTP client
-websockets==12.0              # WebSocket testing
-msgpack==1.0.7                # Binary serialization testing
+httpx==0.28.1                 # Async HTTP client
+websockets==15.0.1            # WebSocket testing
+msgpack==1.1.2                # Binary serialization testing
 
 # Additional utilities
-pydantic==2.5.2
-python-dotenv==1.0.0
+pydantic==2.12.3
+pydantic-settings==2.7.1
+python-dotenv==1.1.1

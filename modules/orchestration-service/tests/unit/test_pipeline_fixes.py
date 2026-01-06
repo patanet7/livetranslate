@@ -26,14 +26,14 @@ from collections import OrderedDict
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pipeline.data_pipeline import (
+from src.pipeline.data_pipeline import (
     TranscriptionDataPipeline,
     AudioChunkMetadata,
     TranscriptionResult,
     TranslationResult,
     create_data_pipeline,
 )
-from database.bot_session_manager import (
+from src.database.bot_session_manager import (
     BotSessionDatabaseManager,
     DatabaseConfig,
     TranslationRecord,
@@ -225,12 +225,15 @@ async def test_cache_lru_eviction():
         max_cache_size=3,  # Small cache for testing
     )
 
-    # Mock database connection
+    # Mock database connection with async context manager
     mock_conn = AsyncMock()
     mock_conn.execute = AsyncMock()
-    db_manager.db_pool.acquire = AsyncMock(return_value=mock_conn)
-    db_manager.db_pool.acquire().__aenter__ = AsyncMock(return_value=mock_conn)
-    db_manager.db_pool.acquire().__aexit__ = AsyncMock()
+
+    # Create async context manager mock
+    mock_acquire = AsyncMock()
+    mock_acquire.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_acquire.__aexit__ = AsyncMock(return_value=None)
+    db_manager.db_pool.acquire = Mock(return_value=mock_acquire)
 
     # Add entries to cache
     await pipeline._update_segment_continuity("session_1", "transcript_1")
@@ -263,12 +266,15 @@ async def test_cache_statistics():
         max_cache_size=10,
     )
 
-    # Mock database connection
+    # Mock database connection with async context manager
     mock_conn = AsyncMock()
     mock_conn.execute = AsyncMock()
-    db_manager.db_pool.acquire = AsyncMock(return_value=mock_conn)
-    db_manager.db_pool.acquire().__aenter__ = AsyncMock(return_value=mock_conn)
-    db_manager.db_pool.acquire().__aexit__ = AsyncMock()
+
+    # Create async context manager mock
+    mock_acquire = AsyncMock()
+    mock_acquire.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_acquire.__aexit__ = AsyncMock(return_value=None)
+    db_manager.db_pool.acquire = Mock(return_value=mock_acquire)
 
     # Add some entries
     await pipeline._update_segment_continuity("session_1", "transcript_1")
@@ -296,12 +302,15 @@ async def test_clear_session_cache():
         enable_segment_continuity=True,
     )
 
-    # Mock database connection
+    # Mock database connection with async context manager
     mock_conn = AsyncMock()
     mock_conn.execute = AsyncMock()
-    db_manager.db_pool.acquire = AsyncMock(return_value=mock_conn)
-    db_manager.db_pool.acquire().__aenter__ = AsyncMock(return_value=mock_conn)
-    db_manager.db_pool.acquire().__aexit__ = AsyncMock()
+
+    # Create async context manager mock
+    mock_acquire = AsyncMock()
+    mock_acquire.__aenter__ = AsyncMock(return_value=mock_conn)
+    mock_acquire.__aexit__ = AsyncMock(return_value=None)
+    db_manager.db_pool.acquire = Mock(return_value=mock_acquire)
 
     # Add entries
     await pipeline._update_segment_continuity("session_1", "transcript_1")

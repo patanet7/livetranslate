@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import ValidationError
 
 # Model imports
-from models.audio import (
+from src.models.audio import (
     AudioProcessingRequest,
     AudioProcessingResponse,
     AudioConfiguration,
@@ -26,7 +26,7 @@ from models.audio import (
 )
 
 # Dependency imports
-from dependencies import (
+from src.dependencies import (
     get_config_manager,
     get_health_monitor,
     get_audio_service_client,
@@ -37,10 +37,10 @@ from dependencies import (
 )
 
 # Utility imports
-from utils.audio_processing import AudioProcessor
-from utils.rate_limiting import RateLimiter
-from utils.security import SecurityUtils
-from utils.audio_errors import (
+from src.utils.audio_processing import AudioProcessor
+from src.utils.rate_limiting import RateLimiter
+from src.utils.security import SecurityUtils
+from src.utils.audio_errors import (
     AudioProcessingBaseError,
     AudioFormatError,
     AudioCorruptionError,

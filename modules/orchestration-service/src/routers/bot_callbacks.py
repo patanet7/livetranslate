@@ -17,7 +17,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
-from bot.docker_bot_manager import get_bot_manager, DockerBotManager
+from src.bot.docker_bot_manager import get_bot_manager, DockerBotManager
 
 logger = logging.getLogger(__name__)
 

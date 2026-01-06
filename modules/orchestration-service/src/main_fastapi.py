@@ -194,7 +194,7 @@ except ImportError as e:
 # Import models with logging
 try:
     import_logger.debug("Importing models...")
-    from models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
+    from src.models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
 
     import_logger.info("[OK] Models imported successfully")
 except ImportError as e:
@@ -203,7 +203,7 @@ except ImportError as e:
 # Import dependencies with logging
 try:
     import_logger.debug("Importing dependencies...")
-    from dependencies import (
+    from src.dependencies import (
         get_config_manager,
         get_websocket_manager,
         get_health_monitor,
@@ -231,7 +231,7 @@ except ImportError as e:
 # Import config with logging
 try:
     import_logger.debug("Importing config...")
-    from config import get_settings
+    from src.config import get_settings
 
     import_logger.info("[OK] Config imported successfully")
 except ImportError as e:
@@ -298,7 +298,7 @@ async def lifespan(app: FastAPI):
         settings = get_settings()
 
         # Initialize dependencies
-        from dependencies import startup_dependencies
+        from src.dependencies import startup_dependencies
 
         await startup_dependencies()
 
@@ -315,7 +315,7 @@ async def lifespan(app: FastAPI):
         logger.info("[STOP] Shutting down FastAPI Orchestration Service...")
 
         # Cleanup dependencies
-        from dependencies import shutdown_dependencies
+        from src.dependencies import shutdown_dependencies
 
         await shutdown_dependencies()
 
@@ -801,9 +801,9 @@ async def websocket_endpoint_direct(websocket: WebSocket):
     import json
     import logging
     from datetime import datetime
-    from dependencies import get_websocket_manager
-    from models.websocket import WebSocketResponse, MessageType
-    from utils.rate_limiting import RateLimiter
+    from src.dependencies import get_websocket_manager
+    from src.models.websocket import WebSocketResponse, MessageType
+    from src.utils.rate_limiting import RateLimiter
 
     logger = logging.getLogger(__name__)
     connection_id = None
@@ -826,7 +826,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
         import time
 
         # Import the proper ConnectionInfo class
-        from managers.websocket_manager import ConnectionInfo, ConnectionState
+        from src.managers.websocket_manager import ConnectionInfo, ConnectionState
 
         connection_id = str(uuid4())
 
@@ -916,7 +916,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                     elif message_type == "system:health_request":
                         # Get health data and send it
                         try:
-                            from dependencies import get_health_monitor
+                            from src.dependencies import get_health_monitor
 
                             health_monitor = get_health_monitor()
                             health_data = await health_monitor.get_system_health()

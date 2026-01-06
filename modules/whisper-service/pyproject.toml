@@ -4,7 +4,10 @@ version = "2.0.0"
 description = "PyTorch-based Whisper service with SimulStreaming innovations"
 authors = ["LiveTranslate Team"]
 readme = "README.md"
-packages = [{include = "src"}]
+packages = [
+    {include = "src"},
+    {include = "tests"}
+]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.15"
@@ -15,25 +18,25 @@ Flask-SocketIO = ">=5.0.0"
 Flask-CORS = ">=3.0.0"
 
 # Audio processing
-numpy = ">=1.21.0"
+numpy = "^2.3.4"
 sounddevice = ">=0.4.0"
-soundfile = ">=0.10.0"
-scipy = ">=1.7.0"
-librosa = ">=0.9.0"
-pydub = ">=0.25.0"
+soundfile = "^0.13.1"
+scipy = "^1.16.2"
+librosa = "^0.11.0"
+pydub = "^0.25.1"
 audioread = ">=3.0.0"
 
 # WebSocket and networking
 websockets = "^15.0.1"
-requests = ">=2.25.0"
+requests = "^2.31.0"
 python-socketio = {extras = ["client"], version = "^5.14.2"}
 
 # Async and utilities
-asyncio-mqtt = ">=0.11.0"
-python-dotenv = ">=0.19.0"
+asyncio-mqtt = "^0.16.2"
+python-dotenv = "^1.1.1"
 
 # Redis for caching
-redis = ">=4.0.0"
+redis = "^6.4.0"
 hiredis = ">=2.0.0"
 
 # Whisper and speech processing - Phase 2: PyTorch-based
@@ -67,19 +70,20 @@ python_speech_features = ">=0.6.0"
 
 # Additional dependencies for speaker diarization
 seaborn = ">=0.11.0"
-pandas = ">=1.3.0"
+pandas = "^2.0.0"
 uvicorn = "^0.38.0"
-fastapi = "^0.119.1"
+fastapi = "^0.121.0"
 
 [tool.poetry.group.dev.dependencies]
-pytest = ">=7.0.0"
-pytest-asyncio = ">=0.21.0"
-pytest-cov = ">=4.0.0"
-pytest-mock = ">=3.10.0"
+pytest = "^8.4.2"
+pytest-asyncio = "^1.2.0"
+pytest-cov = "^7.0.0"
+pytest-mock = "^3.15.1"
+pytest-xdist = "^3.8.0"
 black = ">=23.0.0"
 flake8 = ">=6.0.0"
 mypy = ">=1.0.0"
-psutil = ">=5.9.0"
+psutil = "^5.9.5"
 hypothesis = "^6.145.1"
 
 [build-system]
@@ -96,8 +100,12 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "openvino: requires OpenVINO (skip if not installed)",
     "gpu: requires GPU (skip if not available)",
+    "e2e: marks tests as end-to-end tests (deselect with '-m \"not e2e\"')",
+    "unit: marks tests as unit tests",
 ]
 addopts = "-v --strict-markers --tb=short"
+# Allow tests to import from tests module
+pythonpath = ["."]
 
 [tool.black]
 line-length = 100

@@ -42,7 +42,7 @@ from .stages_enhanced import (
 
 # Import with try/catch to handle missing database module gracefully
 try:
-    from database.processing_metrics import get_metrics_manager
+    from src.database.processing_metrics import get_metrics_manager
 except ImportError:
     # Fallback if database module not available
     def get_metrics_manager(database_url=None):

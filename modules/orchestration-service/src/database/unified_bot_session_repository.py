@@ -30,7 +30,7 @@ from .models import (
     Transcript,
     Translation,
 )
-from audio.models import SpeakerCorrelation  # Pydantic model
+from src.audio.models import SpeakerCorrelation  # Pydantic model
 from .processing_metrics import ProcessingMetrics
 
 logger = logging.getLogger(__name__)

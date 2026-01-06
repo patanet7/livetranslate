@@ -24,16 +24,17 @@ from ._shared import (
     audio_service_circuit_breaker,
     retry_manager,
 )
-from models.audio import AudioProcessingRequest, AudioProcessingResponse, AudioStats
-from dependencies import (
+from src.models.audio import AudioProcessingRequest, AudioProcessingResponse, AudioStats
+from src.dependencies import (
     get_config_manager,
     get_audio_service_client,
     get_audio_coordinator,
     get_config_sync_manager,
     get_health_monitor,
     get_event_publisher,
+    get_translation_service_client,
 )
-from utils.audio_errors import (
+from src.utils.audio_errors import (
     error_boundary,
     AudioProcessingError,
     AudioProcessingBaseError,
