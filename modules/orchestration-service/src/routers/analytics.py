@@ -22,7 +22,7 @@ import io
 import csv
 from enum import Enum
 
-from dependencies import (
+from src.dependencies import (
     get_health_monitor,
     get_websocket_manager,
     get_audio_service_client,

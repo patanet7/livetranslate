@@ -20,7 +20,7 @@ from ._shared import (
     get_error_response,
     validate_bot_exists,
 )
-from dependencies import get_bot_manager
+from src.dependencies import get_bot_manager
 
 # Create router for virtual webcam management
 router = create_bot_router()

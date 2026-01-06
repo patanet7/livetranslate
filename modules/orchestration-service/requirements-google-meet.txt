@@ -12,10 +12,10 @@ PyJWT>=2.0.0
 cryptography>=3.0.0
 
 # HTTP client for API calls
-httpx>=0.24.0
+httpx>=0.28.1
 
 # Data processing
-numpy>=1.21.0
+numpy>=2.3.4
 
 # Async support
-aiofiles>=0.8.0
+aiofiles>=24.1.0

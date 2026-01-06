@@ -34,18 +34,18 @@ from .google_meet_client import (
 )
 
 # Import database manager
-from database.bot_session_manager import (
+from src.database.bot_session_manager import (
     create_bot_session_manager,
 )
 
 # Import data pipeline
-from pipeline.data_pipeline import (
+from src.pipeline.data_pipeline import (
     TranscriptionDataPipeline,
     create_data_pipeline,
 )
 
 # Import enhanced lifecycle manager
-from bot.bot_lifecycle_manager import create_lifecycle_manager
+from src.bot.bot_lifecycle_manager import create_lifecycle_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

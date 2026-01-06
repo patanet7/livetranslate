@@ -14,18 +14,18 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dependencies import (
+from src.dependencies import (
     get_translation_service_client,
     rate_limit_api,
     get_current_user,
 )
-from clients.translation_service_client import (
+from src.clients.translation_service_client import (
     TranslationServiceClient,
     TranslationRequest,
     TranslationResponse,
     LanguageDetectionResponse,
 )
-from database import get_db_session, Translation, BotSession
+from src.database import get_db_session, Translation, BotSession
 
 logger = logging.getLogger(__name__)
 

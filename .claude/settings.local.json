@@ -18,7 +18,8 @@
       "Bash(poetry run pytest:*)",
       "Read(//private/tmp/**)",
       "Bash(git mv:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(poetry show:*)"
     ],
     "deny": []
   }
