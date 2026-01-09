@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -35,9 +34,17 @@ target_metadata = Base.metadata
 
 
 def get_database_url():
-    """Get database URL from settings"""
-    settings = get_settings()
-    return settings.database_url
+    """Get database URL from settings or env var, converted for asyncpg"""
+    import os
+    # Try DATABASE_URL env var directly first
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        settings = get_settings()
+        url = settings.get_database_url()
+    # Convert postgresql:// to postgresql+asyncpg:// for async driver
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
 
 
 def run_migrations_offline() -> None:
