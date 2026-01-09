@@ -5,7 +5,7 @@ SQLAlchemy models for the orchestration service database.
 """
 
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from sqlalchemy import (
     Column,
     Integer,
@@ -18,7 +18,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
 )
-from sqlalchemy.orm import declarative_base, relationship, Session
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
@@ -421,3 +421,150 @@ class SessionStatistics(Base):
         Index("idx_session_statistics_session_id", "session_id"),
         Index("idx_session_statistics_calculated_at", "calculated_at"),
     )
+
+
+# =============================================================================
+# Glossary Models (for Fireflies Integration)
+# =============================================================================
+
+
+class Glossary(Base):
+    """
+    Glossary collection for translation term consistency.
+
+    Used by Fireflies integration to ensure consistent translation of
+    domain-specific terms, proper nouns, and technical vocabulary.
+    """
+
+    __tablename__ = "glossaries"
+
+    glossary_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Glossary identification
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+
+    # Domain categorization
+    domain = Column(
+        String(100), nullable=True, index=True
+    )  # e.g., 'medical', 'legal', 'tech'
+
+    # Language settings
+    source_language = Column(String(10), nullable=False, default="en")
+    target_languages = Column(JSON, nullable=False)  # List of target language codes
+
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_default = Column(Boolean, nullable=False, default=False)
+
+    # Metadata
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    created_by = Column(String(255), nullable=True)
+
+    # Entry count (denormalized for performance)
+    entry_count = Column(Integer, nullable=False, default=0)
+
+    # Relationships
+    entries = relationship(
+        "GlossaryEntry", back_populates="glossary", cascade="all, delete-orphan"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_glossaries_name", "name"),
+        Index("idx_glossaries_domain", "domain"),
+        Index("idx_glossaries_is_active", "is_active"),
+        Index("idx_glossaries_source_language", "source_language"),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "glossary_id": str(self.glossary_id),
+            "name": self.name,
+            "description": self.description,
+            "domain": self.domain,
+            "source_language": self.source_language,
+            "target_languages": self.target_languages,
+            "is_active": self.is_active,
+            "is_default": self.is_default,
+            "entry_count": self.entry_count,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class GlossaryEntry(Base):
+    """
+    Individual glossary entry mapping source term to translations.
+
+    Supports multiple target language translations per source term.
+    """
+
+    __tablename__ = "glossary_entries"
+
+    entry_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    glossary_id = Column(
+        UUID(as_uuid=True), ForeignKey("glossaries.glossary_id"), nullable=False
+    )
+
+    # Source term
+    source_term = Column(String(500), nullable=False)
+    source_term_normalized = Column(
+        String(500), nullable=False, index=True
+    )  # Lowercase for matching
+
+    # Target language translations (JSON: {"es": "término", "fr": "terme"})
+    translations = Column(JSON, nullable=False)
+
+    # Context and notes
+    context = Column(Text, nullable=True)  # Usage context or example
+    notes = Column(Text, nullable=True)  # Internal notes
+
+    # Matching settings
+    case_sensitive = Column(Boolean, nullable=False, default=False)
+    match_whole_word = Column(Boolean, nullable=False, default=True)
+
+    # Priority (higher = more important, used when terms conflict)
+    priority = Column(Integer, nullable=False, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    # Relationships
+    glossary = relationship("Glossary", back_populates="entries")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_glossary_entries_glossary_id", "glossary_id"),
+        Index("idx_glossary_entries_source_term", "source_term_normalized"),
+        Index("idx_glossary_entries_priority", "priority"),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "entry_id": str(self.entry_id),
+            "glossary_id": str(self.glossary_id),
+            "source_term": self.source_term,
+            "translations": self.translations,
+            "context": self.context,
+            "notes": self.notes,
+            "case_sensitive": self.case_sensitive,
+            "match_whole_word": self.match_whole_word,
+            "priority": self.priority,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def get_translation(self, target_language: str) -> Optional[str]:
+        """Get translation for a specific target language"""
+        if self.translations and target_language in self.translations:
+            return self.translations[target_language]
+        return None
