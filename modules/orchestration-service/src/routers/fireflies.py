@@ -33,6 +33,15 @@ from clients.fireflies_client import (
     FirefliesAPIError,
 )
 from config import get_settings, FirefliesSettings
+from dependencies import get_data_pipeline
+
+# Pipeline imports (DRY coordinator)
+from services.pipeline import (
+    TranscriptionPipelineCoordinator,
+    PipelineConfig,
+    FirefliesChunkAdapter,
+)
+from services.caption_buffer import CaptionBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +68,9 @@ class FirefliesSessionManager:
         self._sessions: Dict[str, FirefliesSession] = {}
         self._clients: Dict[str, FirefliesClient] = {}
         self._transcript_handlers: Dict[str, Any] = {}
+        # Pipeline coordinators (DRY - same for all sources)
+        self._coordinators: Dict[str, TranscriptionPipelineCoordinator] = {}
+        self._caption_buffers: Dict[str, CaptionBuffer] = {}
 
     def get_session(self, session_id: str) -> Optional[FirefliesSession]:
         """Get session by ID"""
@@ -78,8 +90,14 @@ class FirefliesSessionManager:
         on_transcript=None,
         on_status_change=None,
         on_error=None,
+        # Optional service injections for pipeline
+        glossary_service=None,
+        translation_client=None,
+        simple_translation_client=None,
+        db_manager=None,
+        obs_output=None,
     ) -> FirefliesSession:
-        """Create and connect a new Fireflies session"""
+        """Create and connect a new Fireflies session with full pipeline"""
 
         session_id = f"ff_session_{uuid.uuid4().hex[:12]}"
 
@@ -98,7 +116,57 @@ class FirefliesSessionManager:
         self._sessions[session_id] = session
         self._clients[session_id] = client
 
+        # =====================================================================
+        # Pipeline Setup (DRY - shared coordinator for all sources)
+        # =====================================================================
+
+        # Create caption buffer for this session
+        caption_buffer = CaptionBuffer(
+            max_captions=5,
+            default_duration=4.0,
+        )
+        self._caption_buffers[session_id] = caption_buffer
+
+        # Create pipeline config from Fireflies config
+        pipeline_config = PipelineConfig(
+            session_id=session_id,
+            source_type="fireflies",
+            transcript_id=config.transcript_id,
+            target_languages=config.target_languages,
+            pause_threshold_ms=config.pause_threshold_ms,
+            max_words_per_sentence=config.max_buffer_words,
+            max_time_per_sentence_ms=config.max_buffer_seconds * 1000,
+            min_words_for_translation=config.min_words_for_translation,
+            use_nlp_boundary_detection=config.use_nlp_boundary_detection,
+            speaker_context_window=config.context_window_size,
+            include_cross_speaker_context=config.include_cross_speaker_context,
+            glossary_id=config.glossary_id,
+            domain=config.domain or "general",
+            source_metadata={"fireflies_transcript_id": config.transcript_id},
+        )
+
+        # Create coordinator with Fireflies adapter
+        coordinator = TranscriptionPipelineCoordinator(
+            config=pipeline_config,
+            adapter=FirefliesChunkAdapter(),
+            glossary_service=glossary_service,
+            translation_client=translation_client,
+            simple_translation_client=simple_translation_client,
+            caption_buffer=caption_buffer,
+            db_manager=db_manager,
+            obs_output=obs_output,
+        )
+
+        # Initialize the pipeline
+        await coordinator.initialize()
+        self._coordinators[session_id] = coordinator
+
+        logger.info(f"Pipeline coordinator initialized for session {session_id}")
+
+        # =====================================================================
         # Connect to realtime with callbacks
+        # =====================================================================
+
         async def handle_transcript(chunk: FirefliesChunk):
             session.chunks_received += 1
             session.last_chunk_time = datetime.now(timezone.utc)
@@ -108,7 +176,18 @@ class FirefliesSessionManager:
             if chunk.speaker_name not in session.speakers_detected:
                 session.speakers_detected.append(chunk.speaker_name)
 
-            # Call user callback
+            # Process through pipeline coordinator (DRY - handles all orchestration)
+            try:
+                await coordinator.process_raw_chunk(chunk)
+                # Update session stats from coordinator
+                stats = coordinator.get_stats()
+                session.sentences_produced = stats.get("sentences_produced", 0)
+                session.translations_completed = stats.get("translations_completed", 0)
+            except Exception as e:
+                logger.error(f"Pipeline error for session {session_id}: {e}")
+                session.error_count += 1
+
+            # Call user callback (after pipeline processing)
             if on_transcript:
                 await on_transcript(session_id, chunk)
 
@@ -152,6 +231,19 @@ class FirefliesSessionManager:
         if session_id not in self._sessions:
             return False
 
+        # Flush pipeline coordinator before disconnecting
+        if session_id in self._coordinators:
+            coordinator = self._coordinators.pop(session_id)
+            try:
+                await coordinator.flush()
+                logger.info(f"Flushed pipeline for session {session_id}")
+            except Exception as e:
+                logger.error(f"Error flushing pipeline: {e}")
+
+        # Clean up caption buffer
+        if session_id in self._caption_buffers:
+            self._caption_buffers.pop(session_id)
+
         # Disconnect client
         if session_id in self._clients:
             client = self._clients.pop(session_id)
@@ -163,6 +255,14 @@ class FirefliesSessionManager:
 
         logger.info(f"Disconnected Fireflies session: {session_id}")
         return True
+
+    def get_coordinator(self, session_id: str) -> Optional[TranscriptionPipelineCoordinator]:
+        """Get pipeline coordinator for session"""
+        return self._coordinators.get(session_id)
+
+    def get_caption_buffer(self, session_id: str) -> Optional[CaptionBuffer]:
+        """Get caption buffer for session"""
+        return self._caption_buffers.get(session_id)
 
 
 # Global session manager instance
@@ -301,9 +401,20 @@ async def connect_to_fireflies(
             or ff_config.context_window_size,
         )
 
-        # Create session with transcript handling
-        # Note: The actual translation pipeline will be connected here
-        session = await manager.create_session(config)
+        # Get database manager for transcript/translation storage
+        data_pipeline = get_data_pipeline()
+        db_manager = data_pipeline.db_manager if data_pipeline else None
+
+        if db_manager:
+            logger.info("Database manager connected - transcripts and translations will be stored")
+        else:
+            logger.warning("No database manager - transcripts and translations will NOT be persisted")
+
+        # Create session with transcript handling and database persistence
+        session = await manager.create_session(
+            config,
+            db_manager=db_manager,
+        )
 
         logger.info(
             f"Created Fireflies session: {session.session_id} "

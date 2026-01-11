@@ -358,10 +358,13 @@ class FirefliesMockServer:
 
     async def stop(self):
         """Stop the mock server."""
-        # Close all WebSocket connections
-        for transcript_id, clients in self._ws_clients.items():
-            for ws in clients:
-                await ws.close()
+        # Close all WebSocket connections (copy to avoid modification during iteration)
+        for transcript_id, clients in list(self._ws_clients.items()):
+            for ws in list(clients):
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
         self._ws_clients.clear()
 
         # Stop the server
@@ -450,13 +453,57 @@ class FirefliesMockServer:
         })
 
     async def _handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
-        """Handle WebSocket connections."""
+        """
+        Handle WebSocket connections.
+
+        Authentication follows the REAL Fireflies API contract:
+        - Token and transcript_id are passed as URL query parameters
+        - URL format: /realtime?token={api_key}&transcript_id={transcript_id}
+
+        Reference: https://docs.fireflies.ai/realtime-api/overview
+        """
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
         self._stats["websocket_connections"] += 1
-        transcript_id = None
-        authenticated = False
+
+        # Extract auth from URL query parameters (REAL Fireflies contract)
+        token = request.query.get("token", "")
+        transcript_id = request.query.get("transcript_id", "")
+
+        # Validate API key
+        if not self._validate_api_key(f"Bearer {token}"):
+            await ws.send_json({
+                "type": "auth.failed",
+                "message": "Invalid API key",
+            })
+            await ws.close()
+            return ws
+
+        # Validate transcript_id
+        if not transcript_id:
+            await ws.send_json({
+                "type": "auth.failed",
+                "message": "Missing transcript_id",
+            })
+            await ws.close()
+            return ws
+
+        # Authentication successful
+        await ws.send_json({"type": "auth.success"})
+        await ws.send_json({"type": "connection.established"})
+
+        # Register client
+        if transcript_id not in self._ws_clients:
+            self._ws_clients[transcript_id] = set()
+        self._ws_clients[transcript_id].add(ws)
+
+        logger.info(f"WebSocket client authenticated for transcript: {transcript_id}")
+
+        # Start streaming scenario if available
+        scenario = self._scenarios.get(transcript_id)
+        if scenario:
+            asyncio.create_task(self._stream_scenario(ws, scenario))
 
         try:
             async for msg in ws:
@@ -465,37 +512,8 @@ class FirefliesMockServer:
                         data = json.loads(msg.data)
                         msg_type = data.get("type", "")
 
-                        # Handle authentication
-                        if msg_type == "auth":
-                            api_key = data.get("api_key", "")
-                            transcript_id = data.get("transcript_id", "")
-
-                            if not self._validate_api_key(f"Bearer {api_key}"):
-                                await ws.send_json({
-                                    "type": "auth.failed",
-                                    "message": "Invalid API key",
-                                })
-                                break
-
-                            authenticated = True
-
-                            # Register client
-                            if transcript_id not in self._ws_clients:
-                                self._ws_clients[transcript_id] = set()
-                            self._ws_clients[transcript_id].add(ws)
-
-                            await ws.send_json({"type": "auth.success"})
-                            await ws.send_json({"type": "connection.established"})
-
-                            # Start streaming scenario if available
-                            scenario = self._scenarios.get(transcript_id)
-                            if scenario:
-                                asyncio.create_task(
-                                    self._stream_scenario(ws, scenario)
-                                )
-
-                        # Handle ping/pong
-                        elif msg_type == "ping":
+                        # Handle ping/pong for keepalive
+                        if msg_type == "ping":
                             await ws.send_json({"type": "pong"})
 
                     except json.JSONDecodeError:

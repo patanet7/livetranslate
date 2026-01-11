@@ -33,36 +33,17 @@ from clients.translation_service_client import (
     TranslationRequest,
     TranslationResponse,
 )
+from clients.simple_translation_client import (
+    SimpleTranslationClient,
+    PromptTranslationResult,
+)
+from services.translation_prompt_builder import (
+    TranslationPromptBuilder,
+    PromptContext,
+    create_prompt_builder,
+)
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# Constants
-# =============================================================================
-
-# Default translation prompt template
-TRANSLATION_PROMPT_TEMPLATE = """You are a professional real-time translator.
-
-Target Language: {target_language}
-
-{glossary_section}
-
-Previous context (DO NOT translate, only use for understanding references):
-{context_window}
-
----
-
-Translate ONLY the following sentence to {target_language}:
-{current_sentence}
-
-Translation:"""
-
-# Simple prompt for when there's no context
-SIMPLE_TRANSLATION_PROMPT = """Translate to {target_language}:
-{current_sentence}
-
-Translation:"""
 
 
 # =============================================================================
@@ -178,17 +159,21 @@ class RollingWindowTranslator:
         include_cross_speaker_context: bool = True,
         max_cross_speaker_sentences: int = 2,
         use_prompt_based_translation: bool = True,
+        simple_client: Optional[SimpleTranslationClient] = None,
+        prompt_builder: Optional[TranslationPromptBuilder] = None,
     ):
         """
         Initialize the rolling window translator.
 
         Args:
-            translation_client: Client for the translation service
+            translation_client: Client for the translation service (legacy)
             glossary_service: Optional GlossaryService for term injection
             window_size: Number of previous sentences to include in context
             include_cross_speaker_context: Include other speakers' sentences
             max_cross_speaker_sentences: Max other-speaker sentences to include
             use_prompt_based_translation: Use LLM prompt with context (vs direct)
+            simple_client: Optional SimpleTranslationClient for V3 API (recommended)
+            prompt_builder: Optional PromptBuilder for building prompts
         """
         self.translation_client = translation_client
         self.glossary_service = glossary_service
@@ -197,13 +182,18 @@ class RollingWindowTranslator:
         self.max_cross_speaker_sentences = max_cross_speaker_sentences
         self.use_prompt_based_translation = use_prompt_based_translation
 
+        # V3 API components (prompt-based translation)
+        self.simple_client = simple_client
+        self.prompt_builder = prompt_builder or create_prompt_builder()
+
         # Session state tracking
         self._sessions: Dict[str, SessionTranslationState] = {}
 
         logger.info(
             f"RollingWindowTranslator initialized: "
             f"window_size={window_size}, "
-            f"cross_speaker={include_cross_speaker_context}"
+            f"cross_speaker={include_cross_speaker_context}, "
+            f"v3_api={'enabled' if simple_client else 'disabled'}"
         )
 
     # =========================================================================
@@ -543,37 +533,50 @@ class RollingWindowTranslator:
         """
         Translate using LLM prompt with context.
 
+        Uses the V3 API if simple_client is available, otherwise falls back
+        to legacy API (which doesn't actually use the prompt).
+
         Returns:
             Tuple of (translated_text, confidence)
         """
-        # Build the prompt
-        if context.previous_sentences or context.glossary:
-            # Build glossary section
-            if context.glossary:
-                glossary_section = (
-                    "Glossary (use these exact translations):\n"
-                    + context.format_glossary()
+        # Build the prompt using PromptBuilder
+        prompt_context = PromptContext(
+            current_sentence=text,
+            target_language=context.target_language,
+            source_language=context.source_language,
+            previous_sentences=context.previous_sentences,
+            glossary_terms=context.glossary,
+        )
+
+        built_prompt = self.prompt_builder.build(prompt_context)
+
+        logger.debug(
+            f"Built prompt: template={built_prompt.template_used}, "
+            f"context_sentences={built_prompt.context_sentence_count}, "
+            f"glossary_terms={built_prompt.glossary_term_count}"
+        )
+
+        # Use V3 API if available (sends the actual prompt)
+        if self.simple_client:
+            try:
+                result = await self.simple_client.translate_prompt(
+                    prompt=built_prompt.prompt,
+                    backend="ollama",
                 )
-            else:
-                glossary_section = ""
+                # V3 API doesn't return confidence, estimate based on success
+                confidence = 0.9 if result.text else 0.5
+                return result.text, confidence
+            except Exception as e:
+                logger.warning(f"V3 API failed, falling back to legacy: {e}")
+                # Fall through to legacy API
 
-            prompt = TRANSLATION_PROMPT_TEMPLATE.format(
-                target_language=context.target_language,
-                glossary_section=glossary_section,
-                context_window=context.format_context_window(),
-                current_sentence=text,
-            )
-        else:
-            # Simple prompt without context
-            prompt = SIMPLE_TRANSLATION_PROMPT.format(
-                target_language=context.target_language,
-                current_sentence=text,
-            )
+        # Legacy fallback - NOTE: this still doesn't send the prompt!
+        # This is kept for backwards compatibility but the V3 API should be used
+        logger.warning(
+            "Using legacy translation API - prompt context/glossary will NOT be applied! "
+            "Configure simple_client to use V3 API for full functionality."
+        )
 
-        # Call translation service
-        # For now, we use the standard translate method and include context
-        # in the text field. A more sophisticated implementation would use
-        # a dedicated prompt-based endpoint.
         request = TranslationRequest(
             text=text,
             source_language=context.source_language,
@@ -651,21 +654,30 @@ def create_rolling_window_translator(
     translation_client: TranslationServiceClient,
     glossary_service=None,
     config: Optional[Dict] = None,
+    simple_client: Optional[SimpleTranslationClient] = None,
+    prompt_builder: Optional[TranslationPromptBuilder] = None,
 ) -> RollingWindowTranslator:
     """
     Factory function to create a RollingWindowTranslator with configuration.
 
     Args:
-        translation_client: TranslationServiceClient instance
+        translation_client: TranslationServiceClient instance (legacy, fallback)
         glossary_service: Optional GlossaryService instance
         config: Optional configuration dict with keys:
             - window_size: int (default: 3)
             - include_cross_speaker_context: bool (default: True)
             - max_cross_speaker_sentences: int (default: 2)
             - use_prompt_based_translation: bool (default: True)
+        simple_client: Optional SimpleTranslationClient for V3 API (recommended)
+        prompt_builder: Optional TranslationPromptBuilder for building prompts
 
     Returns:
         Configured RollingWindowTranslator instance
+
+    Note:
+        For full context/glossary support, provide a simple_client configured
+        to use the V3 translation API. Without it, prompts are built but not
+        actually sent to the LLM.
     """
     config = config or {}
 
@@ -676,4 +688,6 @@ def create_rolling_window_translator(
         include_cross_speaker_context=config.get("include_cross_speaker_context", True),
         max_cross_speaker_sentences=config.get("max_cross_speaker_sentences", 2),
         use_prompt_based_translation=config.get("use_prompt_based_translation", True),
+        simple_client=simple_client,
+        prompt_builder=prompt_builder,
     )
