@@ -21,12 +21,10 @@ Expected Flow:
 """
 
 import asyncio
-import json
 import base64
 import time
 import numpy as np
 import socketio
-from datetime import datetime
 
 # Service URLs
 ORCHESTRATION_URL = "http://localhost:3000"
@@ -93,7 +91,7 @@ async def test_orchestration_streaming():
     def on_transcription(data):
         nonlocal stability_data_received
 
-        print(f"\n📥 Transcription result received from orchestration:")
+        print("\n📥 Transcription result received from orchestration:")
         print(f"   Text: '{data.get('text', 'N/A')[:60]}'")
 
         # Check for Phase 3C stability fields
@@ -106,7 +104,7 @@ async def test_orchestration_streaming():
 
         if has_stable or has_unstable or has_draft or has_final:
             stability_data_received = True
-            print(f"\n   🎯 Phase 3C Stability Data:")
+            print("\n   🎯 Phase 3C Stability Data:")
             print(f"      Stable Text: '{data.get('stable_text', 'N/A')[:40]}'")
             print(f"      Unstable Text: '{data.get('unstable_text', 'N/A')[:20]}'")
             print(f"      Is Draft: {data.get('is_draft', 'N/A')}")
@@ -115,7 +113,7 @@ async def test_orchestration_streaming():
             print(f"      Stability Score: {data.get('stability_score', 'N/A')}")
             print(f"      Translation Mode: {data.get('translation_mode', 'N/A')}")
         else:
-            print(f"   ⚠️  No Phase 3C stability fields detected!")
+            print("   ⚠️  No Phase 3C stability fields detected!")
             print(f"   Available fields: {list(data.keys())}")
 
         results.append(data)
@@ -148,7 +146,7 @@ async def test_orchestration_streaming():
         def on_whisper_transcription(data):
             nonlocal stability_data_received
 
-            print(f"\n📥 Transcription result from Whisper:")
+            print("\n📥 Transcription result from Whisper:")
             print(f"   Text: '{data.get('text', 'N/A')[:60]}'")
 
             # Check for Phase 3C stability fields
@@ -159,7 +157,7 @@ async def test_orchestration_streaming():
 
             if has_stability:
                 stability_data_received = True
-                print(f"\n   🎯 Phase 3C Stability Data:")
+                print("\n   🎯 Phase 3C Stability Data:")
                 print(f"      Stable Text: '{data.get('stable_text', 'N/A')[:40]}'")
                 print(f"      Unstable Text: '{data.get('unstable_text', 'N/A')[:20]}'")
                 print(f"      Is Draft: {data.get('is_draft', 'N/A')}")
@@ -167,7 +165,7 @@ async def test_orchestration_streaming():
                 print(f"      Should Translate: {data.get('should_translate', 'N/A')}")
                 print(f"      Stability Score: {data.get('stability_score', 'N/A')}")
             else:
-                print(f"   ⚠️  No Phase 3C stability fields!")
+                print("   ⚠️  No Phase 3C stability fields!")
                 print(f"   Available fields: {list(data.keys())}")
 
             whisper_results.append(data)
@@ -210,7 +208,7 @@ async def test_orchestration_streaming():
             print(f"   Chunk {i + 1}/{len(chunks)} sent", end="\r")
             time.sleep(0.8)  # Wait for processing
 
-        print(f"\n\n⏳ Waiting for final results...")
+        print("\n\n⏳ Waiting for final results...")
         time.sleep(2.0)
 
         # Leave session
@@ -223,7 +221,7 @@ async def test_orchestration_streaming():
         print("TEST RESULTS SUMMARY")
         print("=" * 80)
 
-        print(f"\n📊 Statistics:")
+        print("\n📊 Statistics:")
         print(f"   Chunks sent: {len(chunks)}")
         print(f"   Results received: {len(whisper_results)}")
         print(
@@ -231,7 +229,7 @@ async def test_orchestration_streaming():
         )
 
         if whisper_results:
-            print(f"\n📝 Sample Results:")
+            print("\n📝 Sample Results:")
             for i, result in enumerate(whisper_results[:3], 1):
                 print(f"\n   Result {i}:")
                 print(f"      Text: '{result.get('text', 'N/A')[:50]}'")

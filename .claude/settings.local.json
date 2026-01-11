@@ -19,7 +19,8 @@
       "Read(//private/tmp/**)",
       "Bash(git mv:*)",
       "Bash(git rm:*)",
-      "Bash(poetry show:*)"
+      "Bash(poetry show:*)",
+      "Bash(PYTHONPATH=src SKIP_MAIN_FASTAPI_IMPORT=1 python -m pytest:*)"
     ],
     "deny": []
   }

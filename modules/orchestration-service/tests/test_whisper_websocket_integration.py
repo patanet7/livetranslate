@@ -62,7 +62,7 @@ class TestOrchestrationWhisperIntegration:
         try:
             # Connect from orchestration (as client)
             async with websockets.connect("ws://localhost:5010/stream") as ws:
-                print(f"   ✅ Orchestration connected to Whisper")
+                print("   ✅ Orchestration connected to Whisper")
 
                 # Verify connection is open
                 assert ws
@@ -71,7 +71,7 @@ class TestOrchestrationWhisperIntegration:
             await whisper_server.stop()
             server_task.cancel()
 
-        print(f"✅ Cross-service connection working")
+        print("✅ Cross-service connection working")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -117,13 +117,13 @@ class TestOrchestrationWhisperIntegration:
                 assert "timestamp" in response
 
                 print(f"   Session ID: {response['session_id']}")
-                print(f"   ✅ Session created on Whisper")
+                print("   ✅ Session created on Whisper")
 
         finally:
             await whisper_server.stop()
             server_task.cancel()
 
-        print(f"✅ Cross-service session creation working")
+        print("✅ Cross-service session creation working")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -182,13 +182,13 @@ class TestOrchestrationWhisperIntegration:
 
                 print(f"   Audio chunks received: {session.chunks_received}")
                 print(f"   Buffer size: {len(session.audio_buffer)} samples")
-                print(f"   ✅ Audio streaming to Whisper working")
+                print("   ✅ Audio streaming to Whisper working")
 
         finally:
             await whisper_server.stop()
             server_task.cancel()
 
-        print(f"✅ Cross-service audio streaming working")
+        print("✅ Cross-service audio streaming working")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -246,13 +246,13 @@ class TestOrchestrationWhisperIntegration:
 
                 # For now, just verify the flow is set up
                 # Real segments would come when model is integrated
-                print(f"   ✅ Segment streaming flow established")
+                print("   ✅ Segment streaming flow established")
 
         finally:
             await whisper_server.stop()
             server_task.cancel()
 
-        print(f"✅ Cross-service segment streaming ready")
+        print("✅ Cross-service segment streaming ready")
 
 
 class TestOrchestrationWebSocketClient:
@@ -278,7 +278,7 @@ class TestOrchestrationWebSocketClient:
         # This will be implemented when we create websocket_whisper_client.py
         # For now, placeholder test
 
-        print(f"   ⚪ Waiting for websocket_whisper_client.py implementation")
+        print("   ⚪ Waiting for websocket_whisper_client.py implementation")
         pytest.skip("Waiting for websocket_whisper_client.py")
 
     @pytest.mark.integration

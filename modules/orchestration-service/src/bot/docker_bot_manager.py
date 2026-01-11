@@ -304,8 +304,8 @@ class DockerBotManager:
         # Initialize database (if enabled)
         if self.enable_database:
             try:
-                from src.database.bot_session_manager import create_bot_session_manager
-                from src.config import get_settings
+                from database.bot_session_manager import create_bot_session_manager
+                from config import get_settings
 
                 # Get database config from settings
                 settings = get_settings()
@@ -680,7 +680,7 @@ async def get_bot_manager() -> DockerBotManager:
     """Get or create bot manager singleton with configuration from settings"""
     global _manager
     if _manager is None:
-        from src.config import get_settings
+        from config import get_settings
 
         settings = get_settings()
 

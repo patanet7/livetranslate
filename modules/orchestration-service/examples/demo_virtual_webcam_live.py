@@ -22,7 +22,6 @@ Output:
     - Can be converted to video with ffmpeg
 """
 
-import os
 import sys
 import asyncio
 import logging
@@ -378,7 +377,7 @@ class VirtualWebcamLiveDemo:
         print("\n🎬 Create Video:")
         print(f"   cd {self.output_dir}")
         print(
-            f"   ffmpeg -framerate 30 -i frame_%04d.png -c:v libx264 -pix_fmt yuv420p -vf 'scale=1920:1080' demo_output.mp4"
+            "   ffmpeg -framerate 30 -i frame_%04d.png -c:v libx264 -pix_fmt yuv420p -vf 'scale=1920:1080' demo_output.mp4"
         )
 
         print("\n💡 What You'll See:")

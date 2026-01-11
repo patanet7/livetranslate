@@ -17,7 +17,6 @@ import pytest
 import uuid
 import httpx
 import psycopg2
-from datetime import datetime
 
 
 # Test configuration
@@ -160,7 +159,7 @@ class TestTranslationPersistence:
         assert char_count == len(test_text)
         assert confidence is not None
 
-        print(f"✅ Database verification passed:")
+        print("✅ Database verification passed:")
         print(f"   ID: {translation_id}")
         print(f"   Original: {original}")
         print(f"   Translated: {translated}")
@@ -282,7 +281,7 @@ class TestTranslationPersistence:
         assert avg_conf is not None
         assert "es" in languages
 
-        print(f"\n✅ Session Statistics:")
+        print("\n✅ Session Statistics:")
         print(f"   Translations: {count}")
         print(f"   Total words: {total_words}")
         print(f"   Total characters: {total_chars}")

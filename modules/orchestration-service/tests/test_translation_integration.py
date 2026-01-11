@@ -11,7 +11,6 @@ Tests the complete flow:
 
 import asyncio
 import uuid
-from datetime import datetime
 from typing import List
 
 import httpx
@@ -29,7 +28,6 @@ from database import (
     DatabaseConfig,
     BotSession,
     Translation,
-    get_db_session,
 )
 from config import get_settings
 
@@ -106,7 +104,7 @@ async def test_translation_with_session(
             return None
 
         result = response.json()
-        print(f"✅ Translation successful:")
+        print("✅ Translation successful:")
         print(f"   Original: {text}")
         print(f"   Translated: {result['translated_text']}")
         print(f"   Confidence: {result['confidence']}")
@@ -130,7 +128,7 @@ async def verify_database_persistence(
     )
     translations = result.scalars().all()
 
-    print(f"\n📊 Database Verification:")
+    print("\n📊 Database Verification:")
     print(f"   Session ID: {session_id}")
     print(f"   Translations found: {len(translations)}")
 
@@ -168,7 +166,7 @@ async def verify_session_statistics(db: AsyncSession, session_id: str):
     # Get unique languages
     target_languages = set(t.target_language for t in translations)
 
-    print(f"\n📈 Session Statistics:")
+    print("\n📈 Session Statistics:")
     print(f"   Session: {session.meeting_title}")
     print(f"   Status: {session.status}")
     print(f"   Total translations: {len(translations)}")
@@ -253,7 +251,7 @@ async def run_integration_test():
     expected_count = len(TEST_TRANSLATIONS)
     stored_count = len(stored_translations)
 
-    print(f"\n✅ Validation Results:")
+    print("\n✅ Validation Results:")
     print(f"   Expected translations: {expected_count}")
     print(f"   Successful API calls: {success_count}")
     print(f"   Stored in database: {stored_count}")
@@ -267,7 +265,7 @@ async def run_integration_test():
         )
 
     # Verify data integrity
-    print(f"\n🔍 Data Integrity Checks:")
+    print("\n🔍 Data Integrity Checks:")
     for trans in stored_translations:
         has_text = bool(trans.original_text and trans.translated_text)
         has_languages = bool(trans.source_language and trans.target_language)

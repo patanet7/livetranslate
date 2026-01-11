@@ -23,9 +23,7 @@ import time
 import numpy as np
 import threading
 import tempfile
-import wave
-import io
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 
 # import sounddevice as sd  # Missing dependency - commented out
 # import soundfile as sf    # Missing dependency - commented out

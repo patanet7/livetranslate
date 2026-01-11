@@ -7,7 +7,6 @@ import asyncio
 import httpx
 import websockets
 import json
-import time
 
 BASE_URL = "http://localhost:3000"
 WS_BASE_URL = "ws://localhost:3000"
@@ -52,13 +51,13 @@ async def test_connection():
         print(f"   ✅ Session created: {session_id}")
 
     # 2. Connect WebSocket
-    print(f"\n2. Connecting to WebSocket...")
+    print("\n2. Connecting to WebSocket...")
     ws_url = f"{WS_BASE_URL}/api/pipeline/realtime/{session_id}"
     print(f"   URL: {ws_url}")
 
     try:
         async with websockets.connect(ws_url) as websocket:
-            print(f"   ✅ WebSocket connected!")
+            print("   ✅ WebSocket connected!")
 
             # 3. Send ping
             print("\n3. Sending ping...")
@@ -81,7 +80,7 @@ async def test_connection():
     except websockets.exceptions.ConnectionClosedOK as e:
         print(f"\n❌ Connection closed: {e}")
     except asyncio.TimeoutError:
-        print(f"\n❌ Timeout waiting for response")
+        print("\n❌ Timeout waiting for response")
     except Exception as e:
         print(f"\n❌ Error: {type(e).__name__}: {e}")
 

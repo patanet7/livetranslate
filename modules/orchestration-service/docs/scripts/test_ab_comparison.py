@@ -16,8 +16,7 @@ import os
 import sys
 import argparse
 import time
-from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any
 
 import numpy as np
 

@@ -14,16 +14,14 @@ from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from src.database import (
+from database import (
     get_db_session,
     User,
-    APIToken,
     ConversationSession,
     ChatMessage,
-    ConversationStatistics,
 )
 
 logger = logging.getLogger(__name__)

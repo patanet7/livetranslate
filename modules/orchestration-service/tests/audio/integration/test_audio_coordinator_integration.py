@@ -9,26 +9,16 @@ service communication, session management, and end-to-end audio processing workf
 import pytest
 import asyncio
 import numpy as np
-import json
-import tempfile
 import httpx
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, List, Any
-from datetime import datetime, timedelta
+from unittest.mock import patch
 
 # Note: AudioCoordinator implementation to be added - tests temporarily disabled for specific classes
 # from src.audio.audio_coordinator import AudioCoordinator, create_audio_coordinator
 from src.audio.models import (
     AudioChunkMetadata,
-    AudioChunkingConfig,
-    ProcessingResult,
-    ProcessingStatus,
     SourceType,
-    create_audio_chunk_metadata,
     get_default_chunking_config,
 )
-from src.audio.config import get_default_audio_processing_config
 
 
 class TestAudioCoordinatorIntegration:

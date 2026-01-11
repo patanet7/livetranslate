@@ -21,8 +21,8 @@ from ._shared import (
     format_recovery,
     service_recovery,
 )
-from src.dependencies import get_audio_service_client, get_config_manager
-from src.utils.audio_errors import (
+from dependencies import get_audio_service_client, get_config_manager
+from utils.audio_errors import (
     ValidationError,
     AudioProcessingError,
     AudioProcessingBaseError,

@@ -7,12 +7,12 @@ import logging
 import os
 from typing import Dict
 
-from src.audio.config_sync import (
+from audio.config_sync import (
     ConfigSyncModes,
     get_config_sync_manager,
     get_config_sync_mode,
 )
-from src.infrastructure.queue import DEFAULT_STREAMS
+from infrastructure.queue import DEFAULT_STREAMS
 from worker.redis_consumer import ConsumerConfig, RedisStreamConsumer
 
 logger = logging.getLogger(__name__)

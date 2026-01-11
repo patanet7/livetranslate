@@ -51,7 +51,7 @@ class TestEnhancedStagesAvailability:
         assert "compression" in features
         assert "limiter" in features
 
-        print(f"\nAvailable enhanced features:")
+        print("\nAvailable enhanced features:")
         for feature, available in features.items():
             status = "✓" if available else "✗"
             print(f"  {status} {feature}: {available}")
@@ -120,7 +120,7 @@ class TestLUFSNormalizationEnhanced:
             assert "output_lufs" in result.metadata
             assert "gain_applied_db" in result.metadata
 
-            print(f"✓ LUFS processing successful")
+            print("✓ LUFS processing successful")
             print(f"  Input LUFS: {result.metadata['input_lufs']:.1f}")
             print(f"  Output LUFS: {result.metadata['output_lufs']:.1f}")
             print(f"  Gain applied: {result.metadata['gain_applied_db']:.1f} dB")
@@ -195,7 +195,7 @@ class TestCompressionEnhanced:
             assert "gain_reduction_db" in result.metadata
             assert "threshold_db" in result.metadata
 
-            print(f"✓ Compression processing successful")
+            print("✓ Compression processing successful")
             print(f"  Gain reduction: {result.metadata['gain_reduction_db']:.1f} dB")
             print(f"  Threshold: {result.metadata['threshold_db']:.1f} dB")
 
@@ -267,7 +267,7 @@ class TestLimiterEnhanced:
             assert "output_peak_db" in result.metadata
             assert "limiting_engaged" in result.metadata
 
-            print(f"✓ Limiter processing successful")
+            print("✓ Limiter processing successful")
             print(f"  Output peak: {result.metadata['output_peak_db']:.1f} dB")
             print(f"  Limiting engaged: {result.metadata['limiting_engaged']}")
 

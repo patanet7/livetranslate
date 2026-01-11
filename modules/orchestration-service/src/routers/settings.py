@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import dependencies, fallback to basic functionality if not available
 try:
-    from src.audio.config_sync import (
+    from audio.config_sync import (
         get_config_sync_manager,
         get_unified_configuration,
         update_configuration,
@@ -58,7 +58,7 @@ except ImportError as e:
 
 
 try:
-    from src.dependencies import get_config_manager, get_event_publisher
+    from dependencies import get_config_manager, get_event_publisher
 except ImportError:
 
     def get_config_manager():
@@ -69,7 +69,7 @@ except ImportError:
 
 
 try:
-    from src.models.config import (
+    from models.config import (
         ConfigUpdate,
         ConfigResponse,
         ConfigValidation,
@@ -1941,7 +1941,7 @@ async def get_available_configuration_presets():
     """Get available configuration presets"""
     try:
         # Import presets from the compatibility layer
-        from src.audio.whisper_compatibility import CONFIGURATION_PRESETS
+        from audio.whisper_compatibility import CONFIGURATION_PRESETS
 
         return {
             "available_presets": list(CONFIGURATION_PRESETS.keys()),
@@ -2041,7 +2041,7 @@ async def apply_configuration_preset_by_name(preset_data: Dict[str, Any]):
         raise HTTPException(status_code=400, detail="preset_name is required")
 
     try:
-        from src.audio.config_sync import apply_configuration_preset
+        from audio.config_sync import apply_configuration_preset
 
         result = await apply_configuration_preset(preset_name)
 

@@ -17,7 +17,6 @@ Architecture:
 """
 
 import pytest
-from datetime import datetime, timezone
 import sys
 from pathlib import Path
 
@@ -71,10 +70,10 @@ class TestSpeakerGrouping:
         assert groups[0]["speaker"] == "John"
         assert groups[0]["text"] == "Hello everyone how are you"
 
-        print(f"   Input: 3 segments (all from John)")
+        print("   Input: 3 segments (all from John)")
         print(f"   Output: {len(groups)} group")
         print(f"   Merged text: '{groups[0]['text']}'")
-        print(f"✅ Consecutive speaker merging working")
+        print("✅ Consecutive speaker merging working")
 
     @pytest.mark.integration
     def test_speaker_change_creates_new_group(self):
@@ -124,11 +123,11 @@ class TestSpeakerGrouping:
         assert groups[1]["speaker"] == "Jane"
         assert groups[1]["text"] == "Hi John how are you"
 
-        print(f"   Input: 4 segments (2 John, 2 Jane)")
+        print("   Input: 4 segments (2 John, 2 Jane)")
         print(f"   Output: {len(groups)} groups")
         print(f"   Group 1: {groups[0]['speaker']}: '{groups[0]['text']}'")
         print(f"   Group 2: {groups[1]['speaker']}: '{groups[1]['text']}'")
-        print(f"✅ Speaker change handling working")
+        print("✅ Speaker change handling working")
 
     @pytest.mark.integration
     def test_timing_preservation(self):
@@ -174,7 +173,7 @@ class TestSpeakerGrouping:
 
         print(f"   Start time: {groups[0]['start_time']} (from first segment)")
         print(f"   End time: {groups[0]['end_time']} (from last segment)")
-        print(f"✅ Timing preservation working")
+        print("✅ Timing preservation working")
 
     @pytest.mark.integration
     def test_empty_segment_handling(self):
@@ -213,10 +212,10 @@ class TestSpeakerGrouping:
         assert len(groups) == 1
         assert groups[0]["text"] == "Hello World"  # Empty segment ignored
 
-        print(f"   Input: 3 segments (1 empty)")
-        print(f"   Output: 1 group with merged text")
+        print("   Input: 3 segments (1 empty)")
+        print("   Output: 1 group with merged text")
         print(f"   Merged: '{groups[0]['text']}'")
-        print(f"✅ Empty segment handling working")
+        print("✅ Empty segment handling working")
 
     @pytest.mark.integration
     def test_alternating_speakers(self):
@@ -267,9 +266,9 @@ class TestSpeakerGrouping:
         assert groups[2]["speaker"] == "John"
         assert groups[3]["speaker"] == "Jane"
 
-        print(f"   Input: 4 segments (alternating John/Jane)")
+        print("   Input: 4 segments (alternating John/Jane)")
         print(f"   Output: {len(groups)} groups (no cross-speaker merging)")
-        print(f"✅ Alternating speakers working")
+        print("✅ Alternating speakers working")
 
 
 class TestDisplayFormatting:
@@ -307,7 +306,7 @@ class TestDisplayFormatting:
         assert "10:30:00" in formatted or "[" in formatted
 
         print(f"   Formatted: {formatted}")
-        print(f"✅ Display formatting working")
+        print("✅ Display formatting working")
 
 
 class TestSpeakerGroupingWithRealData:
@@ -412,11 +411,11 @@ class TestSpeakerGroupingWithRealData:
         assert groups[2]["speaker"] == "Interviewer"
         assert groups[2]["text"] == "Let's get started"
 
-        print(f"   Input: 13 segments (conversation)")
+        print("   Input: 13 segments (conversation)")
         print(f"   Output: {len(groups)} groups")
         for i, group in enumerate(groups, 1):
             print(f"   {i}. {group['speaker']}: '{group['text']}'")
-        print(f"✅ Realistic conversation grouping working")
+        print("✅ Realistic conversation grouping working")
 
 
 # Run tests

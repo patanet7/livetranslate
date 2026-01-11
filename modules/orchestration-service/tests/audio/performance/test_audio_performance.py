@@ -11,14 +11,9 @@ import asyncio
 import time
 
 # import psutil  # Missing dependency - commented out
-import threading
 import numpy as np
-import gc
-from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
-from pathlib import Path
-from unittest.mock import AsyncMock, patch
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from unittest.mock import patch
 
 # Skip tests until audio processing components are implemented
 pytestmark = pytest.mark.skip(reason="Audio processing components not yet implemented")
@@ -139,7 +134,7 @@ class TestAudioProcessorPerformance:
                         voice_audio
                     )
                     assert len(processed_audio) == len(voice_audio)
-                except Exception as e:
+                except Exception:
                     errors += 1
 
             metrics = monitor.get_metrics(iterations, audio_duration * iterations)
@@ -628,7 +623,7 @@ class TestStressAndScalability:
                     # assert current_memory < 1024  # Less than 1GB
                     pass  # Skip memory check due to missing psutil
 
-                except Exception as e:
+                except Exception:
                     errors += 1
                     if errors > 10:  # Allow some errors but not too many
                         break

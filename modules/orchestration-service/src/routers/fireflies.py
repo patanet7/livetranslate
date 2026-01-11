@@ -15,7 +15,7 @@ with source_type='fireflies'.
 import logging
 import uuid
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
@@ -101,7 +101,7 @@ class FirefliesSessionManager:
         # Connect to realtime with callbacks
         async def handle_transcript(chunk: FirefliesChunk):
             session.chunks_received += 1
-            session.last_chunk_time = datetime.utcnow()
+            session.last_chunk_time = datetime.now(timezone.utc)
             session.last_chunk_id = chunk.chunk_id
 
             # Track unique speakers
@@ -117,7 +117,7 @@ class FirefliesSessionManager:
         ):
             session.connection_status = new_status
             if new_status == FirefliesConnectionStatus.CONNECTED:
-                session.connected_at = datetime.utcnow()
+                session.connected_at = datetime.now(timezone.utc)
             elif new_status == FirefliesConnectionStatus.ERROR:
                 session.error_count += 1
                 session.last_error = message
@@ -492,7 +492,7 @@ async def health_check(
         "sessions": [
             {
                 "session_id": s.session_id,
-                "status": s.connection_status.value,
+                "status": s.connection_status.value if hasattr(s.connection_status, 'value') else str(s.connection_status),
                 "chunks_received": s.chunks_received,
             }
             for s in sessions

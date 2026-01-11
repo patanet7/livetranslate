@@ -15,7 +15,6 @@ This validates:
 - Whisper service transcription
 """
 
-import pytest
 import numpy as np
 import io
 import json
@@ -300,13 +299,13 @@ def test_orchestration_upload_endpoint():
     assert response.status_code == 200, f"Upload failed: {response.text}"
 
     result = response.json()
-    print(f"✅ Upload successful")
+    print("✅ Upload successful")
     print(f"   Status: {result.get('status')}")
 
     # Check processing result
     if "processing_result" in result:
         proc_result = result["processing_result"]
-        print(f"\n📊 Processing Result:")
+        print("\n📊 Processing Result:")
         print(f"   Status: {proc_result.get('status')}")
         print(f"   Transcription: {proc_result.get('transcription', 'N/A')}")
         print(f"   Language: {proc_result.get('language', 'N/A')}")
@@ -323,11 +322,11 @@ def test_orchestration_upload_endpoint():
         if any(
             word in transcription.lower() for word in ["placeholder", "mock", "test"]
         ):
-            print(f"⚠️  WARNING: Transcription appears to be placeholder")
+            print("⚠️  WARNING: Transcription appears to be placeholder")
 
         # For tone-based audio, we expect it to be silent/minimal transcription
         # Real test would use actual speech
-        print(f"\n📝 Note: Tone-based test audio - minimal transcription expected")
+        print("\n📝 Note: Tone-based test audio - minimal transcription expected")
     else:
         print("❌ FAIL: No processing_result in response!")
         print(f"Response: {json.dumps(result, indent=2)}")
@@ -389,7 +388,7 @@ def test_full_streaming_pipeline():
             print(f"   ⚠️  Chunk {i}: No processing result")
 
     # Analyze results
-    print(f"\n📊 Pipeline Results Summary:")
+    print("\n📊 Pipeline Results Summary:")
     print(f"   Total chunks: {len(results)}")
 
     transcriptions = [
@@ -407,7 +406,7 @@ def test_full_streaming_pipeline():
     if empty_transcriptions > 0:
         print(f"   ⚠️  {empty_transcriptions} empty transcriptions")
 
-    print(f"\n✅ Full pipeline test complete")
+    print("\n✅ Full pipeline test complete")
 
 
 if __name__ == "__main__":

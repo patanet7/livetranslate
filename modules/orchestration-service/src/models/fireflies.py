@@ -13,7 +13,7 @@ Integrates with existing bot_sessions database schema:
 Reference: https://docs.fireflies.ai/realtime-api/event-schema
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import Field
@@ -125,7 +125,7 @@ class FirefliesEvent(BaseModel):
         default=None, description="Event payload data"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Event timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Event timestamp"
     )
 
     class Config:
@@ -368,7 +368,7 @@ class SpeakerBuffer(BaseModel):
             # Create a synthetic chunk for the remainder
             remainder_chunk = FirefliesChunk(
                 transcript_id=saved_transcript_id,
-                chunk_id=f"remainder_{datetime.utcnow().timestamp()}",
+                chunk_id=f"remainder_{datetime.now(timezone.utc).timestamp()}",
                 text=text.strip(),
                 speaker_name=self.speaker_name,
                 start_time=start_time,
@@ -416,7 +416,7 @@ class TranslationUnit(BaseModel):
         description="How boundary was detected: punctuation, pause, speaker_change, nlp, forced",
     )
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When this unit was created"
+        default_factory=lambda: datetime.now(timezone.utc), description="When this unit was created"
     )
 
     @property
@@ -539,7 +539,7 @@ class CaptionEntry(BaseModel):
     )
     target_language: str = Field(description="Target language code")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Caption timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Caption timestamp"
     )
     duration_seconds: float = Field(
         default=8.0, description="How long to display this caption"
@@ -567,7 +567,7 @@ class CaptionBroadcast(BaseModel):
     session_id: str = Field(description="Session ID")
     captions: List[CaptionEntry] = Field(description="Current captions to display")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Broadcast timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Broadcast timestamp"
     )
 
     class Config:

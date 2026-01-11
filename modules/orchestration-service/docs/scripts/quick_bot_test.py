@@ -165,8 +165,8 @@ async def main():
     if not await check_service(args.service):
         print(f"{RED}❌ Orchestration service not available at {args.service}{RESET}")
         print(f"{YELLOW}💡 Tip: Make sure the service is running with:{RESET}")
-        print(f"   cd modules/orchestration-service")
-        print(f"   python src/main.py")
+        print("   cd modules/orchestration-service")
+        print("   python src/main.py")
         sys.exit(1)
 
     print(f"{GREEN}✅ Orchestration service is running{RESET}\n")

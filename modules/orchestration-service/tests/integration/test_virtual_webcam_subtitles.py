@@ -19,18 +19,14 @@ Usage:
     python test_virtual_webcam_subtitles.py
 """
 
-import os
 import sys
 import asyncio
 import pytest
 import numpy as np
-import soundfile as sf
 import logging
 from pathlib import Path
-from typing import List, Dict, Any
 from datetime import datetime
 import time
-import cv2
 from PIL import Image
 
 # Add parent directory to path
@@ -41,11 +37,7 @@ from bot.virtual_webcam import (
     WebcamConfig,
     DisplayMode,
     Theme,
-    TranslationDisplay,
 )
-from audio.audio_coordinator import AudioCoordinator
-from pipeline.data_pipeline import TranscriptionDataPipeline, create_data_pipeline
-from database.bot_session_manager import create_bot_session_manager
 
 # Configure logging
 logging.basicConfig(
@@ -103,7 +95,7 @@ class VirtualWebcamIntegrationTest:
         # Set up frame callback to save frames
         self.webcam_manager.on_frame_generated = self._on_frame_generated
 
-        logger.info(f"✅ Virtual webcam manager initialized")
+        logger.info("✅ Virtual webcam manager initialized")
         logger.info(f"   Display mode: {webcam_config.display_mode.value}")
         logger.info(f"   Theme: {webcam_config.theme.value}")
         logger.info(f"   Resolution: {webcam_config.width}x{webcam_config.height}")
@@ -286,7 +278,7 @@ class VirtualWebcamIntegrationTest:
             # Wait to let frames generate
             await asyncio.sleep(2.5)
 
-        logger.info(f"\n✅ Test 2 complete:")
+        logger.info("\n✅ Test 2 complete:")
         logger.info(f"   Transcriptions: {len(self.transcriptions_received)}")
         logger.info(f"   Translations: {len(self.translations_received)}")
 
@@ -388,7 +380,7 @@ class VirtualWebcamIntegrationTest:
             # Wait to let frames generate
             await asyncio.sleep(2.0)
 
-        logger.info(f"\n✅ Test 3 complete: Multilingual display validated")
+        logger.info("\n✅ Test 3 complete: Multilingual display validated")
 
     async def cleanup(self):
         """Clean up resources."""
@@ -410,7 +402,7 @@ class VirtualWebcamIntegrationTest:
         logger.info("TEST SUMMARY")
         logger.info("=" * 80)
 
-        logger.info(f"\n📊 Statistics:")
+        logger.info("\n📊 Statistics:")
         logger.info(f"   Session ID: {self.session_id}")
         logger.info(f"   Transcriptions displayed: {len(self.transcriptions_received)}")
         logger.info(f"   Translations displayed: {len(self.translations_received)}")
@@ -429,9 +421,9 @@ class VirtualWebcamIntegrationTest:
             logger.info(f"   Test duration: {duration:.1f}s")
             logger.info(f"   Average FPS: {fps:.1f}")
 
-        logger.info(f"\n📁 Output:")
+        logger.info("\n📁 Output:")
         logger.info(f"   Directory: {self.test_dir}")
-        logger.info(f"   Sample frames:")
+        logger.info("   Sample frames:")
         for i, frame_path in enumerate(self.frames_saved[:5], 1):
             logger.info(f"      {i}. {frame_path.name}")
 

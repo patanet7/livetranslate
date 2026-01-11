@@ -21,24 +21,26 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import json
 import pytest
 
-# Add src to path for imports
+# Add src to path for imports - src must come BEFORE orchestration_root
+# to ensure models.fireflies resolves to src/models/fireflies.py
 orchestration_root = Path(__file__).parent.parent.parent.parent
 src_path = orchestration_root / "src"
-sys.path.insert(0, str(orchestration_root))
 sys.path.insert(0, str(src_path))
+sys.path.insert(0, str(orchestration_root))
 
 # FastAPI test imports
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
-from src.routers.fireflies import (
+# Import using same path as production code (without src. prefix)
+from routers.fireflies import (
     router,
     FirefliesSessionManager,
     get_session_manager,
     get_fireflies_config,
 )
 
-from src.models.fireflies import (
+from models.fireflies import (
     FirefliesChunk,
     FirefliesMeeting,
     FirefliesSession,
@@ -197,7 +199,7 @@ class TestFullConnectionFlow:
 
         manager = FirefliesSessionManager()
 
-        with patch("src.routers.fireflies.FirefliesClient") as MockClientClass:
+        with patch("routers.fireflies.FirefliesClient") as MockClientClass:
             mock_client = AsyncMock()
             MockClientClass.return_value = mock_client
 
@@ -275,7 +277,7 @@ class TestMultipleSessions:
         """Test creating multiple concurrent sessions."""
         manager = FirefliesSessionManager()
 
-        with patch("src.routers.fireflies.FirefliesClient") as MockClientClass:
+        with patch("routers.fireflies.FirefliesClient") as MockClientClass:
             mock_client1 = AsyncMock()
             mock_client2 = AsyncMock()
             MockClientClass.side_effect = [mock_client1, mock_client2]
@@ -303,7 +305,7 @@ class TestMultipleSessions:
         """Test disconnecting a specific session while others remain."""
         manager = FirefliesSessionManager()
 
-        with patch("src.routers.fireflies.FirefliesClient") as MockClientClass:
+        with patch("routers.fireflies.FirefliesClient") as MockClientClass:
             mock_client1 = AsyncMock()
             mock_client2 = AsyncMock()
             MockClientClass.side_effect = [mock_client1, mock_client2]
@@ -722,7 +724,7 @@ class TestMeetingDiscoveryIntegration:
             lambda: mock_fireflies_config
         )
 
-        with patch("src.routers.fireflies.FirefliesClient") as MockClient:
+        with patch("routers.fireflies.FirefliesClient") as MockClient:
             mock_client = AsyncMock()
             mock_client.get_active_meetings = AsyncMock(return_value=meetings)
             mock_client.close = AsyncMock()

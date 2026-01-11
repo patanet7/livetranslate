@@ -16,7 +16,6 @@ os.chdir(src_dir)
 
 # Now import and run the app
 if __name__ == "__main__":
-    from main_fastapi import app
     import uvicorn
 
     print("🚀 Starting LiveTranslate Orchestration Service Backend...")

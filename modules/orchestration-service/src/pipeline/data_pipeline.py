@@ -26,14 +26,12 @@ Author: LiveTranslate Team
 Version: 1.0
 """
 
-import os
 import sys
 import uuid
 import logging
 import asyncio
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, asdict
-from datetime import datetime
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
 from pathlib import Path
 from collections import OrderedDict
 from contextlib import asynccontextmanager
@@ -41,12 +39,9 @@ from contextlib import asynccontextmanager
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.database.bot_session_manager import (
+from database.bot_session_manager import (
     BotSessionDatabaseManager,
-    DatabaseConfig,
-    AudioFileRecord,
     TranscriptRecord,
-    TranslationRecord,
 )
 
 # Configure logging
@@ -1052,7 +1047,7 @@ async def main():
 
     # Get speaker statistics
     stats = await pipeline.get_speaker_statistics(session_id)
-    print(f"\n👥 Speaker Statistics:")
+    print("\n👥 Speaker Statistics:")
     for stat in stats:
         print(f"  {stat.speaker_name} ({stat.speaker_id}):")
         print(f"    - Speaking time: {stat.total_speaking_time:.1f}s")
@@ -1068,7 +1063,7 @@ async def main():
     # Cleanup
     await pipeline.db_manager.cleanup_session(session_id, remove_files=True)
     await pipeline.db_manager.close()
-    print(f"\n✅ Pipeline test completed!")
+    print("\n✅ Pipeline test completed!")
 
 
 if __name__ == "__main__":

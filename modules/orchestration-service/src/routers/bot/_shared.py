@@ -6,22 +6,16 @@ Common imports, utilities, and configurations used across all bot router compone
 
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status, Depends
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 # Dependencies
-from src.dependencies import get_bot_manager, get_event_publisher
 
 # Models
-from src.models.bot import (
-    BotSpawnRequest,
+from models.bot import (
     BotResponse,
     BotInstance,
-    BotStats,
-    BotConfiguration,
 )
 
 # Shared logger

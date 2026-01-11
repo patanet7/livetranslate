@@ -27,7 +27,7 @@ except ImportError:
     HAS_PYLOUDNORM = False
     pyln = None
 
-from ..stage_components import BaseAudioStage, StageStatus
+from ..stage_components import BaseAudioStage
 from ..config import LUFSNormalizationConfig, LUFSNormalizationMode
 
 logger = logging.getLogger(__name__)

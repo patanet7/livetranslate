@@ -39,7 +39,7 @@ mixed_audio = np.concatenate(
     [jfk_part1, chinese_part1, jfk_part2, chinese_part2, jfk_part3]
 )
 
-print(f"\nMixed audio pattern:")
+print("\nMixed audio pattern:")
 print(f"  0-{len(jfk_part1) / 16000:.2f}s: JFK (EN)")
 print(
     f"  {len(jfk_part1) / 16000:.2f}-{(len(jfk_part1) + len(chinese_part1)) / 16000:.2f}s: Chinese (ZH)"

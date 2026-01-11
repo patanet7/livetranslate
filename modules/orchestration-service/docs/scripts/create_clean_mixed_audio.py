@@ -63,7 +63,7 @@ t5 = t4 + len(jfk_audio) / 16000
 t6 = t5 + 1.0
 t7 = t6 + len(chinese_audio2) / 16000
 
-print(f"\nMixed audio pattern (COMPLETE utterances):")
+print("\nMixed audio pattern (COMPLETE utterances):")
 print(f"  0.00-{t1:.2f}s: JFK FULL (EN)")
 print(f"  {t1:.2f}-{t2:.2f}s: Silence")
 print(f"  {t2:.2f}-{t3:.2f}s: Chinese #1 FULL (ZH): '院子门口不远处就是一个地铁站'")
@@ -77,12 +77,12 @@ print(f"\nTotal: {len(mixed_audio) / 16000:.2f}s")
 output_file = "test_clean_mixed_en_zh.wav"
 sf.write(output_file, mixed_audio, 16000)
 print(f"\n✅ Created {output_file}")
-print(f"\nExpected transcription:")
+print("\nExpected transcription:")
 print(
-    f"  EN: 'And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.'"
+    "  EN: 'And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.'"
 )
-print(f"  ZH: '院子门口不远处就是一个地铁站'")
+print("  ZH: '院子门口不远处就是一个地铁站'")
 print(
-    f"  EN: 'And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.'"
+    "  EN: 'And so, my fellow Americans, ask not what your country can do for you, ask what you can do for your country.'"
 )
-print(f"  ZH: '这是一个美丽而神奇的景象'")
+print("  ZH: '这是一个美丽而神奇的景象'")

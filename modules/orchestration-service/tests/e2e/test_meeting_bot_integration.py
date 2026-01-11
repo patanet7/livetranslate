@@ -42,7 +42,7 @@ async def test_integration():
         print(f"   Status: {health['status']}")
         print(f"   Service: {health['service']}")
         print(f"   Active Bots: {health['activeBots']}")
-        print(f"   ✅ Meeting bot service is healthy!")
+        print("   ✅ Meeting bot service is healthy!")
         print()
 
         # Step 2: Join a meeting
@@ -74,7 +74,7 @@ async def test_integration():
         print(f"   Message: {response.message}")
 
         if response.success:
-            print(f"   ✅ Bot join request successful!")
+            print("   ✅ Bot join request successful!")
         else:
             print(f"   ❌ Bot join request failed: {response.error}")
             return False
@@ -92,7 +92,7 @@ async def test_integration():
         print(f"   State: {status.state}")
 
         if status.success:
-            print(f"   ✅ Bot status retrieved!")
+            print("   ✅ Bot status retrieved!")
         else:
             print(f"   ℹ️  Note: {status.error}")
 
@@ -117,7 +117,7 @@ async def test_integration():
         print(f"   Message: {leave_result.get('message')}")
 
         if leave_result.get("success"):
-            print(f"   ✅ Bot left meeting successfully!")
+            print("   ✅ Bot left meeting successfully!")
         else:
             print(f"   ℹ️  Note: {leave_result.get('error')}")
 

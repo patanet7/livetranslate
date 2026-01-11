@@ -16,7 +16,6 @@ These tests require:
 import asyncio
 import pytest
 import time
-from typing import Dict, List, Optional
 import httpx
 
 
@@ -317,7 +316,7 @@ class TestOrchestrationIntegration:
     async def test_audio_coordinator_cache_integration(self):
         """Test that AudioCoordinator integrates with translation cache"""
         # This requires the full AudioCoordinator with cache enabled
-        from audio.audio_coordinator import AudioCoordinator, create_audio_coordinator
+        from audio.audio_coordinator import create_audio_coordinator
         from clients.audio_service_client import AudioServiceClient
         from clients.translation_service_client import TranslationServiceClient
 

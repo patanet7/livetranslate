@@ -39,7 +39,6 @@ Output:
     - Can be converted to video with ffmpeg
 """
 
-import os
 import sys
 import asyncio
 import logging
@@ -48,14 +47,12 @@ from pathlib import Path
 from datetime import datetime
 import time
 import json
-import uuid
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 import httpx
 import numpy as np
 from PIL import Image
 import io
 import wave
-import struct
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -525,7 +522,7 @@ class StreamingIntegrationDemo:
         """
         self.print_banner("🚀 STREAMING INTEGRATION TEST")
 
-        logger.info(f"Test configuration:")
+        logger.info("Test configuration:")
         logger.info(f"  Mode: {self.mode}")
         logger.info(f"  Session: {self.session_id}")
         logger.info(f"  Chunks: {num_chunks}")
@@ -561,7 +558,7 @@ class StreamingIntegrationDemo:
         )
         failed_chunks = total_chunks - successful_chunks
 
-        print(f"📊 Processing Results:")
+        print("📊 Processing Results:")
         print(f"   Total chunks sent: {total_chunks}")
         print(f"   Successful: {successful_chunks}")
         print(f"   Failed: {failed_chunks}")
@@ -569,13 +566,13 @@ class StreamingIntegrationDemo:
             f"   Success rate: {(successful_chunks / total_chunks * 100) if total_chunks > 0 else 0:.1f}%"
         )
 
-        print(f"\n📸 Frame Capture:")
+        print("\n📸 Frame Capture:")
         print(f"   Frames saved: {len(self.frames_saved)}")
         print(f"   Output directory: {self.output_dir}")
 
         if self.webcam_manager:
             stats = self.webcam_manager.get_webcam_stats()
-            print(f"\n🎥 Webcam Statistics:")
+            print("\n🎥 Webcam Statistics:")
             print(f"   Frames generated: {stats['frames_generated']}")
             print(f"   Duration: {stats['duration_seconds']:.1f}s")
             print(f"   Average FPS: {stats['average_fps']:.1f}")
@@ -585,13 +582,13 @@ class StreamingIntegrationDemo:
         # Validation checks
         all_passed = True
 
-        print(f"\n🔍 Validation Checks:")
+        print("\n🔍 Validation Checks:")
 
         # Check 1: Audio chunks sent
         if total_chunks > 0:
-            print(f"   ✅ Audio chunks sent via HTTP POST")
+            print("   ✅ Audio chunks sent via HTTP POST")
         else:
-            print(f"   ❌ No audio chunks sent")
+            print("   ❌ No audio chunks sent")
             all_passed = False
 
         # Check 2: Processing success
@@ -600,7 +597,7 @@ class StreamingIntegrationDemo:
                 f"   ✅ Audio processing successful ({successful_chunks}/{total_chunks})"
             )
         else:
-            print(f"   ❌ All audio processing failed")
+            print("   ❌ All audio processing failed")
             all_passed = False
 
         # Check 3: Frames saved
@@ -611,9 +608,9 @@ class StreamingIntegrationDemo:
 
         # Check 4: Virtual webcam active
         if self.webcam_manager and self.webcam_manager.is_streaming:
-            print(f"   ✅ Virtual webcam streaming")
+            print("   ✅ Virtual webcam streaming")
         else:
-            print(f"   ❌ Virtual webcam not streaming")
+            print("   ❌ Virtual webcam not streaming")
             all_passed = False
 
         return all_passed
@@ -642,29 +639,29 @@ class StreamingIntegrationDemo:
         print(f"📄 Report saved: {report_path}")
 
         # Print summary
-        print(f"\n💡 What Was Tested:")
-        print(f"   ✅ STREAMING audio chunks (not fake data)")
-        print(f"   ✅ REAL HTTP POST /api/audio/upload")
-        print(f"   ✅ AudioCoordinator processing")
+        print("\n💡 What Was Tested:")
+        print("   ✅ STREAMING audio chunks (not fake data)")
+        print("   ✅ REAL HTTP POST /api/audio/upload")
+        print("   ✅ AudioCoordinator processing")
         print(
             f"   ✅ Whisper service integration ({'mocked' if self.mode != 'real' else 'real'})"
         )
         print(
             f"   ✅ Translation service integration ({'mocked' if self.mode != 'real' else 'real'})"
         )
-        print(f"   ✅ Virtual webcam rendering with REAL data")
-        print(f"   ✅ Complete integration flow validation")
+        print("   ✅ Virtual webcam rendering with REAL data")
+        print("   ✅ Complete integration flow validation")
 
-        print(f"\n🎬 Create Video:")
+        print("\n🎬 Create Video:")
         print(f"   cd {self.output_dir}")
-        print(f"   ffmpeg -framerate 1 -pattern_type glob -i 'frame_*.png' \\")
-        print(f"          -c:v libx264 -pix_fmt yuv420p -vf 'scale=1920:1080' \\")
-        print(f"          integration_test_output.mp4")
+        print("   ffmpeg -framerate 1 -pattern_type glob -i 'frame_*.png' \\")
+        print("          -c:v libx264 -pix_fmt yuv420p -vf 'scale=1920:1080' \\")
+        print("          integration_test_output.mp4")
 
-        print(f"\n🔍 Key Differences from Unit Test:")
-        print(f"   ❌ Unit test: webcam.add_translation(fake_data)")
+        print("\n🔍 Key Differences from Unit Test:")
+        print("   ❌ Unit test: webcam.add_translation(fake_data)")
         print(
-            f"   ✅ This test: HTTP POST → AudioCoordinator → Services → BotIntegration → Webcam"
+            "   ✅ This test: HTTP POST → AudioCoordinator → Services → BotIntegration → Webcam"
         )
 
         print("\n" + "=" * 100)

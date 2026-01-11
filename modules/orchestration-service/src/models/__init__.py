@@ -15,6 +15,36 @@ from .audio import (
 )
 from .bot import BotSpawnRequest, BotResponse, BotStatus, BotStats, BotConfiguration
 from .websocket import WebSocketMessage, WebSocketResponse, ConnectionStats
+from .fireflies import (
+    # Constants
+    FIREFLIES_SOURCE_TYPE,
+    TRANSCRIPT_SOURCE_TYPES,
+    # Enums
+    FirefliesEventType,
+    FirefliesConnectionStatus,
+    MeetingState,
+    # API Models
+    FirefliesChunk,
+    FirefliesEvent,
+    FirefliesMeeting,
+    # Session Models
+    FirefliesSessionConfig,
+    FirefliesSession,
+    # Sentence Aggregation
+    SpeakerBuffer,
+    TranslationUnit,
+    # Translation
+    TranslationContext,
+    TranslationResult,
+    # Caption Output
+    CaptionEntry,
+    CaptionBroadcast,
+    # API Request/Response
+    FirefliesConnectRequest,
+    FirefliesConnectResponse,
+    FirefliesStatusResponse,
+    ActiveMeetingsResponse,
+)
 
 __all__ = [
     # Base models
@@ -42,4 +72,25 @@ __all__ = [
     "WebSocketMessage",
     "WebSocketResponse",
     "ConnectionStats",
+    # Fireflies models
+    "FIREFLIES_SOURCE_TYPE",
+    "TRANSCRIPT_SOURCE_TYPES",
+    "FirefliesEventType",
+    "FirefliesConnectionStatus",
+    "MeetingState",
+    "FirefliesChunk",
+    "FirefliesEvent",
+    "FirefliesMeeting",
+    "FirefliesSessionConfig",
+    "FirefliesSession",
+    "SpeakerBuffer",
+    "TranslationUnit",
+    "TranslationContext",
+    "TranslationResult",
+    "CaptionEntry",
+    "CaptionBroadcast",
+    "FirefliesConnectRequest",
+    "FirefliesConnectResponse",
+    "FirefliesStatusResponse",
+    "ActiveMeetingsResponse",
 ]

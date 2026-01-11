@@ -7,27 +7,19 @@ through orchestration to whisper and translation services, ensuring all
 components work together seamlessly.
 """
 
-import asyncio
-import json
 import logging
 import time
-import tempfile
-import hashlib
 import io
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
-from datetime import datetime, timedelta
+from typing import Dict
+from unittest.mock import AsyncMock, Mock
 import wave
-import struct
 
 import pytest
-import pytest_asyncio
 import httpx
 import numpy as np
-from fastapi import FastAPI, UploadFile
+from fastapi import UploadFile
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
 
 # Import the application and dependencies
 import sys
@@ -42,12 +34,6 @@ from dependencies import (
     get_translation_service_client,
     get_audio_coordinator,
     get_config_sync_manager,
-)
-from models.audio import (
-    AudioProcessingRequest,
-    AudioProcessingResponse,
-    AudioConfiguration,
-    AudioStats,
 )
 
 # Configure logging for tests

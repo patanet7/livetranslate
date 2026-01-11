@@ -24,8 +24,8 @@ from ._shared import (
     audio_service_circuit_breaker,
     retry_manager,
 )
-from src.models.audio import AudioProcessingRequest, AudioProcessingResponse, AudioStats
-from src.dependencies import (
+from models.audio import AudioProcessingRequest, AudioProcessingResponse, AudioStats
+from dependencies import (
     get_config_manager,
     get_audio_service_client,
     get_audio_coordinator,
@@ -34,7 +34,7 @@ from src.dependencies import (
     get_event_publisher,
     get_translation_service_client,
 )
-from src.utils.audio_errors import (
+from utils.audio_errors import (
     error_boundary,
     AudioProcessingError,
     AudioProcessingBaseError,

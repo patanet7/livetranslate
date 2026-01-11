@@ -13,41 +13,43 @@ from typing import Optional, Dict, Any
 from functools import lru_cache
 
 # Manager imports
-from src.managers.config_manager import ConfigManager
-from src.managers.websocket_manager import WebSocketManager
-from src.managers.health_monitor import HealthMonitor
-from src.managers.bot_manager import BotManager
+from managers.config_manager import ConfigManager
+from managers.websocket_manager import WebSocketManager
+from managers.health_monitor import HealthMonitor
+from managers.bot_manager import BotManager
 
 # Infrastructure
-from src.infrastructure.queue import EventPublisher, DEFAULT_STREAMS
+from infrastructure.queue import EventPublisher, DEFAULT_STREAMS
 
 # Database imports
-from src.database.database import DatabaseManager
-from src.database.unified_bot_session_repository import UnifiedBotSessionRepository
-from src.config import DatabaseSettings
+from database.database import DatabaseManager
+from database.unified_bot_session_repository import UnifiedBotSessionRepository
+from config import DatabaseSettings
 
 # Client imports
-from src.clients.audio_service_client import AudioServiceClient
-from src.clients.translation_service_client import TranslationServiceClient
+from clients.audio_service_client import AudioServiceClient
+from clients.translation_service_client import TranslationServiceClient
 
 # Audio system imports
-from src.audio.audio_coordinator import AudioCoordinator, create_audio_coordinator
-from src.audio.config_sync import ConfigurationSyncManager
-from src.audio.config import AudioConfigurationManager
+from audio.audio_coordinator import AudioCoordinator, create_audio_coordinator
+from audio.config_sync import ConfigurationSyncManager
+from audio.config import AudioConfigurationManager
 
 # Data pipeline imports
 try:
-    from src.pipeline.data_pipeline import TranscriptionDataPipeline, create_data_pipeline
+    from pipeline.data_pipeline import (
+        TranscriptionDataPipeline,
+        create_data_pipeline,
+    )
+    _DATA_PIPELINE_AVAILABLE = True
 except ImportError:
     TranscriptionDataPipeline = None
     create_data_pipeline = None
-    logger.warning(
-        "TranscriptionDataPipeline not available - using legacy database adapter"
-    )
+    _DATA_PIPELINE_AVAILABLE = False
 
 # Utility imports
-from src.utils.rate_limiting import RateLimiter
-from src.utils.security import SecurityUtils
+from utils.rate_limiting import RateLimiter
+from utils.security import SecurityUtils
 from fastapi import Depends, Request, HTTPException, status
 
 logger = logging.getLogger(__name__)
@@ -361,7 +363,7 @@ def get_bot_manager() -> BotManager:
             bot_cfg = getattr(settings, "bot", None) if settings else None
 
         if bot_cfg is not None:
-            from src.managers.config_manager import BotConfig as ConfigBotSettings
+            from managers.config_manager import BotConfig as ConfigBotSettings
 
             bot_settings = ConfigBotSettings(
                 max_concurrent_bots=getattr(bot_cfg, "max_concurrent_bots", 10),

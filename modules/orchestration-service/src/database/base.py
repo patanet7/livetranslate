@@ -7,7 +7,7 @@ This ensures all models share the same metadata and can be properly
 related to each other.
 
 Usage:
-    from src.database.base import Base
+    from database.base import Base
 
     class MyModel(Base):
         __tablename__ = "my_table"

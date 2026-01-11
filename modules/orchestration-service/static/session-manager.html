@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LiveTranslate Session Manager</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #e0e0e0;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+      color: #fff;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 30px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: #64B5F6;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #fff;
+      font-size: 14px;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #64B5F6;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #4CAF50;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #45a049;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-danger {
+      background: #f44336;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #d32f2f;
+    }
+
+    .btn-small {
+      padding: 8px 16px;
+      font-size: 12px;
+    }
+
+    .session-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .session-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+
+    .session-info {
+      flex: 1;
+    }
+
+    .session-id {
+      font-family: monospace;
+      font-size: 16px;
+      color: #fff;
+    }
+
+    .session-meta {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+
+    .session-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .url-box {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 13px;
+      word-break: break-all;
+      margin-top: 12px;
+    }
+
+    .url-box a {
+      color: #64B5F6;
+      text-decoration: none;
+    }
+
+    .url-box a:hover {
+      text-decoration: underline;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .test-panel {
+      margin-top: 16px;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+
+    .test-panel h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #888;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #fff;
+      font-size: 14px;
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .speaker-select {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0;
+    }
+
+    .speaker-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      border: 2px solid transparent;
+    }
+
+    .speaker-btn.active {
+      border-color: currentColor;
+    }
+
+    .speaker-alice { background: #4CAF50; color: white; }
+    .speaker-bob { background: #2196F3; color: white; }
+    .speaker-charlie { background: #FF9800; color: white; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-connected { background: rgba(76, 175, 80, 0.2); color: #4CAF50; }
+    .status-disconnected { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+
+    .log-output {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 12px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 12px;
+    }
+
+    .log-entry {
+      margin: 4px 0;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .log-entry.sent { color: #4CAF50; }
+    .log-entry.received { color: #64B5F6; }
+    .log-entry.error { color: #f44336; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>LiveTranslate Session Manager</h1>
+    <p class="subtitle">Create and manage caption sessions for OBS overlay</p>
+
+    <!-- Create Session -->
+    <div class="card">
+      <h2>Create / Join Session</h2>
+      <div class="form-row">
+        <input type="text" id="sessionId" placeholder="Enter session ID (e.g., meeting-123)" />
+        <button class="btn-primary" onclick="createSession()">Create Session</button>
+        <button class="btn-secondary" onclick="generateId()">Generate ID</button>
+      </div>
+      <div id="sessionUrls" style="display: none;">
+        <div class="url-box">
+          <strong>Overlay URL (for OBS Browser Source):</strong><br>
+          <a id="overlayUrl" href="#" target="_blank"></a>
+        </div>
+        <div class="url-box" style="margin-top: 8px;">
+          <strong>API Endpoint:</strong><br>
+          <span id="apiUrl"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Sessions -->
+    <div class="card">
+      <h2>Active Sessions</h2>
+      <div id="sessionList" class="session-list">
+        <div class="empty-state">No active sessions</div>
+      </div>
+      <button class="btn-secondary" style="margin-top: 16px;" onclick="refreshSessions()">Refresh</button>
+    </div>
+
+    <!-- Test Caption Sender -->
+    <div class="card">
+      <h2>Test Caption Sender</h2>
+      <p style="font-size: 13px; color: #888; margin-bottom: 16px;">
+        Send test captions to verify the overlay is working
+      </p>
+
+      <div class="form-row">
+        <input type="text" id="testSessionId" placeholder="Session ID to send to" />
+        <span id="wsStatus" class="status-badge status-disconnected">Disconnected</span>
+      </div>
+
+      <button class="btn-secondary btn-small" onclick="connectWebSocket()">Connect WebSocket</button>
+
+      <div class="test-panel">
+        <h3>Speaker</h3>
+        <div class="speaker-select">
+          <button class="speaker-btn speaker-alice active" onclick="selectSpeaker('Alice', this)">Alice</button>
+          <button class="speaker-btn speaker-bob" onclick="selectSpeaker('Bob', this)">Bob</button>
+          <button class="speaker-btn speaker-charlie" onclick="selectSpeaker('Charlie', this)">Charlie</button>
+        </div>
+
+        <textarea id="captionText" placeholder="Type caption text here..."></textarea>
+
+        <div class="form-row" style="margin-top: 12px;">
+          <button class="btn-primary" onclick="sendCaption()">Send Caption</button>
+          <button class="btn-secondary" onclick="runDemo()">Run Demo</button>
+          <button class="btn-danger btn-small" onclick="clearSession()">Clear Session</button>
+        </div>
+      </div>
+
+      <div id="logOutput" class="log-output" style="display: none;"></div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================================================
+    // State
+    // ==========================================================================
+    let currentSpeaker = 'Alice';
+    let ws = null;
+    const baseUrl = window.location.origin;
+
+    // ==========================================================================
+    // Session Management
+    // ==========================================================================
+
+    function generateId() {
+      const id = 'session-' + Math.random().toString(36).substring(2, 10);
+      document.getElementById('sessionId').value = id;
+    }
+
+    function createSession() {
+      const sessionId = document.getElementById('sessionId').value.trim();
+      if (!sessionId) {
+        alert('Please enter a session ID');
+        return;
+      }
+
+      // Show URLs
+      const overlayUrl = `${baseUrl}/static/captions.html?session=${sessionId}&showStatus=true`;
+      const apiUrl = `${baseUrl}/api/captions/${sessionId}`;
+
+      document.getElementById('overlayUrl').href = overlayUrl;
+      document.getElementById('overlayUrl').textContent = overlayUrl;
+      document.getElementById('apiUrl').textContent = apiUrl;
+      document.getElementById('sessionUrls').style.display = 'block';
+
+      // Copy to test panel
+      document.getElementById('testSessionId').value = sessionId;
+
+      addLog(`Created session: ${sessionId}`, 'sent');
+      refreshSessions();
+    }
+
+    async function refreshSessions() {
+      // Note: We don't have a "list sessions" endpoint yet
+      // This would need to be implemented on the backend
+      const list = document.getElementById('sessionList');
+      list.innerHTML = '<div class="empty-state">Session listing not yet implemented.<br>Use a known session ID.</div>';
+    }
+
+    // ==========================================================================
+    // WebSocket
+    // ==========================================================================
+
+    function connectWebSocket() {
+      const sessionId = document.getElementById('testSessionId').value.trim();
+      if (!sessionId) {
+        alert('Please enter a session ID');
+        return;
+      }
+
+      if (ws) {
+        ws.close();
+      }
+
+      const wsUrl = `${baseUrl.replace('http', 'ws')}/api/captions/stream/${sessionId}`;
+      addLog(`Connecting to ${wsUrl}...`, 'sent');
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        document.getElementById('wsStatus').className = 'status-badge status-connected';
+        document.getElementById('wsStatus').textContent = 'Connected';
+        addLog('WebSocket connected', 'received');
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        addLog(`Received: ${data.event}`, 'received');
+      };
+
+      ws.onclose = () => {
+        document.getElementById('wsStatus').className = 'status-badge status-disconnected';
+        document.getElementById('wsStatus').textContent = 'Disconnected';
+        addLog('WebSocket disconnected', 'error');
+      };
+
+      ws.onerror = (error) => {
+        addLog(`WebSocket error: ${error}`, 'error');
+      };
+    }
+
+    // ==========================================================================
+    // Caption Sending
+    // ==========================================================================
+
+    function selectSpeaker(speaker, btn) {
+      currentSpeaker = speaker;
+      document.querySelectorAll('.speaker-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    async function sendCaption() {
+      const sessionId = document.getElementById('testSessionId').value.trim();
+      const text = document.getElementById('captionText').value.trim();
+
+      if (!sessionId || !text) {
+        alert('Please enter session ID and caption text');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${baseUrl}/api/captions/${sessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: text,
+            speaker_name: currentSpeaker,
+            target_language: 'es',
+          }),
+        });
+
+        const result = await response.json();
+        const status = result.was_aggregated ? 'aggregated' : 'new bubble';
+        addLog(`Sent [${currentSpeaker}]: "${text.substring(0, 30)}..." (${status})`, 'sent');
+
+        // Clear text
+        document.getElementById('captionText').value = '';
+      } catch (error) {
+        addLog(`Error sending caption: ${error}`, 'error');
+      }
+    }
+
+    async function clearSession() {
+      const sessionId = document.getElementById('testSessionId').value.trim();
+      if (!sessionId) return;
+
+      try {
+        await fetch(`${baseUrl}/api/captions/${sessionId}`, {
+          method: 'DELETE',
+        });
+        addLog(`Cleared session: ${sessionId}`, 'sent');
+      } catch (error) {
+        addLog(`Error clearing: ${error}`, 'error');
+      }
+    }
+
+    // ==========================================================================
+    // Demo
+    // ==========================================================================
+
+    async function runDemo() {
+      const sessionId = document.getElementById('testSessionId').value.trim();
+      if (!sessionId) {
+        alert('Please enter a session ID');
+        return;
+      }
+
+      const script = [
+        { speaker: 'Alice', text: 'Hello everyone, welcome to the demo', delay: 0 },
+        { speaker: 'Alice', text: 'Let me show you how captions work', delay: 2000 },
+        { speaker: 'Bob', text: 'Thanks Alice, this looks great', delay: 2500 },
+        { speaker: 'Bob', text: 'The aggregation is working perfectly', delay: 1500 },
+        { speaker: 'Charlie', text: 'Quick question about the timing', delay: 2000 },
+        { speaker: 'Alice', text: 'Sure, what would you like to know?', delay: 1500 },
+      ];
+
+      addLog('Starting demo...', 'sent');
+
+      for (const line of script) {
+        await new Promise(resolve => setTimeout(resolve, line.delay));
+
+        await fetch(`${baseUrl}/api/captions/${sessionId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: line.text,
+            speaker_name: line.speaker,
+          }),
+        });
+
+        addLog(`[${line.speaker}]: ${line.text}`, 'sent');
+      }
+
+      addLog('Demo complete!', 'received');
+    }
+
+    // ==========================================================================
+    // Logging
+    // ==========================================================================
+
+    function addLog(message, type = 'sent') {
+      const logOutput = document.getElementById('logOutput');
+      logOutput.style.display = 'block';
+
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logOutput.appendChild(entry);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    // ==========================================================================
+    // Init
+    // ==========================================================================
+
+    // Generate a default session ID
+    generateId();
+  </script>
+</body>
+</html>

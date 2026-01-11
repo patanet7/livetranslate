@@ -8,7 +8,6 @@ This replaces WebSocketWhisperClient with proper Socket.IO protocol support.
 
 import logging
 import socketio
-import asyncio
 import base64
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Callable
@@ -109,7 +108,7 @@ class SocketIOWhisperClient:
         async def disconnect():
             """Handle disconnection from Whisper service"""
             self.connected = False
-            logger.warning(f"🔌 Disconnected from Whisper service")
+            logger.warning("🔌 Disconnected from Whisper service")
             self._notify_connection(False)
 
         @self.sio.event
@@ -121,7 +120,7 @@ class SocketIOWhisperClient:
         @self.sio.on("transcription_result")
         async def on_transcription_result(data):
             """Handle transcription segment from Whisper"""
-            logger.debug(f"📄 Received transcription result")
+            logger.debug("📄 Received transcription result")
 
             # Update session activity
             session_id = data.get("session_id")

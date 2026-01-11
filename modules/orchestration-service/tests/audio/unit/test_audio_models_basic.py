@@ -9,7 +9,6 @@ These tests focus on what's actually available in the codebase.
 import unittest
 import sys
 from pathlib import Path
-from datetime import datetime
 
 # Add src to path for imports - go up 4 levels to get to orchestration-service root
 orchestration_root = Path(__file__).parent.parent.parent.parent
@@ -220,7 +219,7 @@ if __name__ == "__main__":
     result = runner.run(suite)
 
     # Print summary
-    print(f"\nTest Summary:")
+    print("\nTest Summary:")
     print(f"Tests run: {result.testsRun}")
     print(f"Failures: {len(result.failures)}")
     print(f"Errors: {len(result.errors)}")

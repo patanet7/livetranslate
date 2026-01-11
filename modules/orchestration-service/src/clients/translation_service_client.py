@@ -7,8 +7,6 @@ Provides methods for text translation, language detection, and quality assessmen
 
 import logging
 import asyncio
-import json
-import os
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 import aiohttp
@@ -16,7 +14,6 @@ from pydantic import BaseModel
 
 from internal_services.translation import (
     UnifiedTranslationError,
-    get_unified_translation_service,
 )
 
 logger = logging.getLogger(__name__)

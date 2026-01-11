@@ -15,7 +15,7 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field, HttpUrl
 
-from src.bot.docker_bot_manager import get_bot_manager, DockerBotManager, BotStatus
+from bot.docker_bot_manager import get_bot_manager, DockerBotManager, BotStatus
 
 logger = logging.getLogger(__name__)
 

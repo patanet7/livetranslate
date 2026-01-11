@@ -22,11 +22,11 @@ from fastapi import (
 )
 from pydantic import BaseModel, ValidationError
 
-from src.dependencies import (
+from dependencies import (
     get_audio_coordinator,
     get_config_manager,
 )
-from src.utils.logger import get_logger
+from utils.logger import get_logger
 
 logger = get_logger(__name__)
 

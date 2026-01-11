@@ -8,7 +8,6 @@ voice filtering, noise reduction, voice enhancement, compression, and limiting.
 
 import pytest
 import numpy as np
-from unittest.mock import patch, MagicMock
 
 # Audio processor tests - dependencies now available
 from src.audio.audio_processor import (
@@ -18,7 +17,6 @@ from src.audio.audio_processor import (
     VoiceEnhancer,
     DynamicCompressor,
     AudioLimiter,
-    AudioPipelineProcessor,
     create_audio_pipeline_processor,
 )
 from src.audio.config import (

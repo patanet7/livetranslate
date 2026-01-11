@@ -7,7 +7,6 @@ serialization, and factory functions.
 """
 
 import pytest
-import numpy as np
 from datetime import datetime
 from pydantic import ValidationError
 

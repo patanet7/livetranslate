@@ -22,20 +22,18 @@ import json
 import logging
 import os
 import threading
-import time
-from collections import defaultdict, deque
+from collections import deque
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional
 
 import aiohttp
 
 from .models import AudioChunkingConfig
 from .whisper_compatibility import (
     WhisperCompatibilityManager,
-    WhisperServiceConfig,
     get_frontend_compatible_config,
     CONFIGURATION_PRESETS,
 )

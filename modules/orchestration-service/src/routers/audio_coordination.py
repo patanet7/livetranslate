@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import base64
 from typing import Any, Dict, List, Optional
 
@@ -10,8 +9,8 @@ import numpy as np
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from src.audio.models import AudioStreamingSession, SourceType
-from src.dependencies import get_audio_coordinator
+from audio.models import AudioStreamingSession, SourceType
+from dependencies import get_audio_coordinator
 
 
 router = APIRouter()

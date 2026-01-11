@@ -12,11 +12,9 @@ INTEGRATION INSTRUCTIONS:
 5. Add cleanup method
 """
 
-import asyncio
 import logging
 import time
-import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +23,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 """
 from .translation_cache import TranslationResultCache
-from src.database.translation_optimization_adapter import TranslationOptimizationAdapter
+from database.translation_optimization_adapter import TranslationOptimizationAdapter
 """
 
 # =============================================================================
@@ -42,7 +40,7 @@ def __init__(self, ...):
     # Initialize translation optimization if database available
     if self.database_adapter:
         try:
-            from src.database.translation_optimization_adapter import TranslationOptimizationAdapter
+            from database.translation_optimization_adapter import TranslationOptimizationAdapter
             self.translation_opt_adapter = TranslationOptimizationAdapter(
                 self.database_adapter.db_manager
             )
@@ -391,7 +389,7 @@ class AudioCoordinator:
 
         if self.database_adapter:
             try:
-                from src.database.translation_optimization_adapter import TranslationOptimizationAdapter
+                from database.translation_optimization_adapter import TranslationOptimizationAdapter
                 self.translation_opt_adapter = TranslationOptimizationAdapter(
                     self.database_adapter.db_manager
                 )

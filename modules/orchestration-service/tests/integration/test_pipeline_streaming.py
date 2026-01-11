@@ -16,11 +16,8 @@ import base64
 import json
 import time
 import wave
-import struct
 from pathlib import Path
-from typing import Dict, Any, List
 import websockets
-from websockets.client import WebSocketClientProtocol
 from httpx import AsyncClient
 import numpy as np
 
@@ -172,7 +169,7 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
         print(f"   Session data: {pipeline_session}")
 
         async with websockets.connect(ws_url) as websocket:
-            print(f"   ✅ WebSocket connected")
+            print("   ✅ WebSocket connected")
             # Verify connection is open by sending a ping message
             await websocket.send(json.dumps({"type": "ping"}))
 
@@ -649,7 +646,7 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
         max_latency = max(latencies)
         p95_latency = sorted(latencies)[int(len(latencies) * 0.95)]
 
-        print(f"\n📊 Latency Stats:")
+        print("\n📊 Latency Stats:")
         print(f"   Average: {avg_latency:.1f}ms")
         print(f"   Max: {max_latency:.1f}ms")
         print(f"   P95: {p95_latency:.1f}ms")
@@ -714,7 +711,7 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
                     errors += 1
                     print(f"Error during streaming: {e}")
 
-        print(f"\n📊 Sustained Streaming Stats:")
+        print("\n📊 Sustained Streaming Stats:")
         print(f"   Duration: {duration_seconds}s")
         print(f"   Chunks sent: {chunks_sent}")
         print(f"   Chunks processed: {chunks_processed}")

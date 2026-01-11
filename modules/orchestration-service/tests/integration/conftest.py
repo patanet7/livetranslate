@@ -44,7 +44,7 @@ def verify_backend_running():
         try:
             response = httpx.get(backend_url, timeout=5.0)
             if response.status_code == 200:
-                print(f"\n✅ Backend is running at http://localhost:3000")
+                print("\n✅ Backend is running at http://localhost:3000")
                 return
         except:
             if attempt < max_retries - 1:

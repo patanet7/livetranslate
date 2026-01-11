@@ -186,7 +186,7 @@ class AudioStreamingTester:
         # Don't wait for response here - let receive_messages() handle it
         # to avoid WebSocket concurrency error
         self.session_started = False
-        logger.info(f"✅ Session end message sent")
+        logger.info("✅ Session end message sent")
 
     async def disconnect(self):
         """Disconnect from orchestration service"""
@@ -268,7 +268,7 @@ class AudioStreamingTester:
             chunks_per_sec = self.chunks_sent / elapsed if elapsed > 0 else 0
 
             print(f"\n{'=' * 80}")
-            print(f"📊 STREAMING STATISTICS")
+            print("📊 STREAMING STATISTICS")
             print(f"{'=' * 80}")
             print(f"Duration:          {elapsed:.1f}s")
             print(f"Chunks sent:       {self.chunks_sent}")

@@ -68,7 +68,7 @@ async def test_audio_upload():
             print(f"   File Size: {result.get('file_size', 'N/A')} bytes")
 
             processing_result = result.get("processing_result", {})
-            print(f"\n🔍 Processing Result:")
+            print("\n🔍 Processing Result:")
             print(f"   Status: {processing_result.get('status', 'N/A')}")
             print(f"   Transcription: {processing_result.get('transcription', 'N/A')}")
             print(f"   Language: {processing_result.get('language', 'N/A')}")
