@@ -1,12 +1,107 @@
 # Orchestration Service - Development Plan
 
 **Last Updated**: 2026-01-11
-**Current Status**: Generic Pipeline Coordinator Complete - 387 Tests Passing
+**Current Status**: Architecture Improvements Phase 2 - Dynamic Model Switching Complete
 **Module**: `modules/orchestration-service/`
 
 ---
 
-## 📋 Current Work: DRY Pipeline Refactoring
+## 📋 Current Work: Architecture Improvements
+
+### **Status**: 🔄 **IN PROGRESS** - Phase 2 Complete (2026-01-11)
+
+### Overview: Dynamic Model Switching for Translation Service
+
+Implementing **RuntimeModelManager** for the translation service to allow dynamic model switching without service restart. This addresses the user requirement: "want the translate server to be able to call ollama internally rather than on startup so that we can change model etc without restarting the server".
+
+### What Was Done (2026-01-11)
+
+**Phase 1: Safety Commit** ✅
+- Created checkpoint commit before architecture changes: `b2ee505`
+- All 61/61 E2E translations passing
+
+**Phase 2: Translation Dynamic Model Switching** ✅
+- Created `RuntimeModelManager` class (`modules/translation-service/src/model_manager.py`)
+- Added model management endpoints to translation service:
+  - `POST /api/models/switch` - Switch model at runtime
+  - `POST /api/models/preload` - Preload model for faster switching
+  - `POST /api/models/unload` - Unload cached model
+  - `GET /api/models/status` - Get current model status
+  - `GET /api/models/list/{backend}` - List available models
+
+**Phase 2.5: Orchestration Integration** ✅
+- Added orchestration proxy endpoints:
+  - `POST /api/settings/sync/translation/switch-model`
+  - `POST /api/settings/sync/translation/preload-model`
+  - `GET /api/settings/sync/translation/model-status`
+  - `GET /api/settings/sync/translation/available-models/{backend}`
+
+### Files Created
+| File | Purpose |
+|------|---------|
+| `translation-service/src/model_manager.py` | RuntimeModelManager for dynamic model switching |
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `translation-service/src/api_server_fastapi.py` | Added model management endpoints, Pydantic models |
+| `orchestration-service/src/routers/settings.py` | Added model switching proxy endpoints |
+
+### RuntimeModelManager Features
+- **Model Caching**: Previously loaded models cached for instant switching
+- **Backend Support**: Ollama, Groq, vLLM, OpenAI
+- **Preloading**: Load models in background for zero-switch-time
+- **Usage Tracking**: Request counts, load times, last used timestamps
+- **Thread-Safe**: Async locking for concurrent access
+
+### Usage Examples
+
+**Switch Model via Translation Service:**
+```bash
+curl -X POST http://localhost:5003/api/models/switch \
+  -H "Content-Type: application/json" \
+  -d '{"model": "llama2:7b", "backend": "ollama"}'
+```
+
+**Switch Model via Orchestration Service:**
+```bash
+curl -X POST http://localhost:3000/api/settings/sync/translation/switch-model \
+  -H "Content-Type: application/json" \
+  -d '{"model": "llama2:7b", "backend": "ollama"}'
+```
+
+**Get Model Status:**
+```bash
+curl http://localhost:5003/api/models/status
+```
+
+### Remaining Tasks
+
+**Phase 3: Safe Endpoint Consolidation** 🔜
+1. Remove `/api/translate/*` duplicate registration
+2. Remove `/api/translation/translate` duplicate
+3. Consolidate health endpoints
+4. Add deprecation logging
+5. **DO NOT touch bot routers** (preserve both systems)
+
+**Phase 4: Model Registry** 📋
+1. Create `shared/model_registry.py`
+2. Unified model aliases ("base" → "whisper-base")
+3. Validation in orchestration config
+
+**Phase 5: Whisper FastAPI Prep** 📋
+1. Create stateless FastAPI endpoints
+2. Keep Flask for SocketIO (interim)
+3. Run both backends in parallel
+
+**Phase 6: Whisper SocketIO Migration** 📋 (HIGH RISK)
+1. Migrate 30+ SocketIO events
+2. Preserve thread spawning pattern
+3. Extensive testing required
+
+---
+
+## 📋 Previous Work: DRY Pipeline Refactoring
 
 ### **Status**: ✅ **COMPLETE** - All Tests Passing (2026-01-11)
 

@@ -2628,3 +2628,218 @@ async def test_translation_with_prompt(translation_request: Dict[str, Any]):
         raise HTTPException(
             status_code=500, detail=f"Failed to test translation: {str(e)}"
         )
+
+
+# ============================================================================
+# Translation Model Management - Dynamic Model Switching
+# ============================================================================
+
+
+class ModelSwitchRequest(BaseModel):
+    """Request to switch translation model at runtime"""
+    model: str = Field(..., description="Model name (e.g., 'llama2:7b', 'mistral:latest')")
+    backend: str = Field("ollama", description="Backend to use: ollama, groq, vllm, openai")
+
+
+@router.post("/sync/translation/switch-model")
+async def switch_translation_model(request: ModelSwitchRequest):
+    """
+    Switch translation model at runtime via orchestration service.
+
+    This endpoint proxies the model switch request to the translation service's
+    RuntimeModelManager, allowing the orchestration service to control which
+    model the translation service uses without restarting either service.
+
+    **Usage:**
+    ```json
+    {
+      "model": "llama2:7b",
+      "backend": "ollama"
+    }
+    ```
+
+    **Supported Backends:**
+    - `ollama` - Local Ollama instance
+    - `groq` - Groq cloud API
+    - `vllm` - vLLM server
+    - `openai` - OpenAI API
+    """
+    try:
+        async with await get_translation_service_client() as client:
+            payload = {
+                "model": request.model,
+                "backend": request.backend,
+            }
+            async with client.post(
+                f"{TRANSLATION_SERVICE_URL}/api/models/switch",
+                json=payload,
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": result.get("success", False),
+                        "model": result.get("model"),
+                        "backend": result.get("backend"),
+                        "message": result.get("message"),
+                        "cached_models": result.get("cached_models", 0),
+                        "source": "orchestration_proxy",
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}",
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service for model switch: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable - cannot switch model",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error switching translation model: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to switch translation model: {str(e)}"
+        )
+
+
+@router.post("/sync/translation/preload-model")
+async def preload_translation_model(request: ModelSwitchRequest):
+    """
+    Preload a translation model for faster switching later.
+
+    Preloads the model in the translation service's cache without switching to it.
+    """
+    try:
+        async with await get_translation_service_client() as client:
+            payload = {
+                "model": request.model,
+                "backend": request.backend,
+            }
+            async with client.post(
+                f"{TRANSLATION_SERVICE_URL}/api/models/preload",
+                json=payload,
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": result.get("success", False),
+                        "model": result.get("model"),
+                        "backend": result.get("backend"),
+                        "message": result.get("message"),
+                        "cached_models": result.get("cached_models", 0),
+                        "source": "orchestration_proxy",
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}",
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service for model preload: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable - cannot preload model",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error preloading translation model: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to preload translation model: {str(e)}"
+        )
+
+
+@router.get("/sync/translation/model-status")
+async def get_translation_model_status():
+    """
+    Get current translation model manager status.
+
+    Returns information about the currently active model, cached models,
+    and supported backends.
+    """
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.get(
+                f"{TRANSLATION_SERVICE_URL}/api/models/status"
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": True,
+                        "current_model": result.get("current_model"),
+                        "current_backend": result.get("current_backend"),
+                        "is_ready": result.get("is_ready", False),
+                        "cached_models": result.get("cached_models", []),
+                        "cache_size": result.get("cache_size", 0),
+                        "supported_backends": result.get("supported_backends", []),
+                        "source": "orchestration_proxy",
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}",
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service for model status: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable - cannot get model status",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting translation model status: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get translation model status: {str(e)}"
+        )
+
+
+@router.get("/sync/translation/available-models/{backend}")
+async def get_available_translation_models(backend: str = "ollama"):
+    """
+    Get list of available models from a specific backend.
+
+    **Example:**
+    ```
+    GET /api/settings/sync/translation/available-models/ollama
+    ```
+    """
+    try:
+        async with await get_translation_service_client() as client:
+            async with client.get(
+                f"{TRANSLATION_SERVICE_URL}/api/models/list/{backend}"
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return {
+                        "success": True,
+                        "backend": result.get("backend"),
+                        "models": result.get("models", []),
+                        "count": result.get("count", 0),
+                        "timestamp": result.get("timestamp"),
+                        "source": "orchestration_proxy",
+                    }
+                else:
+                    error_text = await response.text()
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Translation service error: {error_text}",
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Failed to connect to translation service for available models: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Translation service unavailable - cannot list models",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting available translation models: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get available models: {str(e)}"
+        )

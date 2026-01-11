@@ -35,6 +35,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Import translation backends
 from openai_compatible_translator import OpenAICompatibleTranslator, OpenAICompatibleConfig
+from model_manager import RuntimeModelManager, get_model_manager, initialize_model_manager
 
 # ============================================================================
 # Pydantic Models
@@ -94,6 +95,47 @@ class HealthResponse(BaseModel):
     version: str
     timestamp: str
 
+
+# ============================================================================
+# Model Management Models
+# ============================================================================
+
+class ModelSwitchRequest(BaseModel):
+    """Request to switch the active model"""
+    model: str = Field(..., description="Model name (e.g., 'llama2:7b', 'mistral:latest')")
+    backend: str = Field("ollama", description="Backend to use: ollama, groq, vllm, openai")
+
+
+class ModelPreloadRequest(BaseModel):
+    """Request to preload a model for faster switching"""
+    model: str = Field(..., description="Model name to preload")
+    backend: str = Field("ollama", description="Backend to use")
+
+
+class ModelUnloadRequest(BaseModel):
+    """Request to unload a cached model"""
+    model: str = Field(..., description="Model name to unload")
+    backend: str = Field("ollama", description="Backend the model is loaded on")
+
+
+class ModelSwitchResponse(BaseModel):
+    """Response for model switch operation"""
+    success: bool
+    model: str
+    backend: str
+    message: str
+    cached_models: int
+
+
+class ModelStatusResponse(BaseModel):
+    """Response for model manager status"""
+    current_model: Optional[str]
+    current_backend: Optional[str]
+    is_ready: bool
+    cached_models: List[Dict[str, Any]]
+    cache_size: int
+    supported_backends: List[str]
+
 # ============================================================================
 # V3 API Models - Simplified "prompt-in, translation-out" contract
 # ============================================================================
@@ -131,6 +173,9 @@ class PromptTranslateResponse(BaseModel):
 ollama_translator: Optional[OpenAICompatibleTranslator] = None
 translator_backends: Dict[str, OpenAICompatibleTranslator] = {}
 
+# Runtime model manager for dynamic model switching
+model_manager: Optional[RuntimeModelManager] = None
+
 # ============================================================================
 # Initialize FastAPI App
 # ============================================================================
@@ -159,9 +204,13 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Initialize translation backends on startup"""
-    global ollama_translator, translator_backends
+    global ollama_translator, translator_backends, model_manager
 
     logger.info("🚀 Starting LiveTranslate Translation Service (FastAPI)")
+
+    # Initialize RuntimeModelManager for dynamic model switching
+    model_manager = get_model_manager()
+    logger.info("📦 Initializing RuntimeModelManager...")
 
     # Initialize Ollama backend
     ollama_enabled = os.getenv("OLLAMA_ENABLE", "true").lower() == "true"
@@ -212,6 +261,12 @@ async def startup_event():
                 logger.info("✅ Groq translator ready")
 
     logger.info(f"🎉 Initialized {len(translator_backends)} translator backend(s): {list(translator_backends.keys())}")
+
+    # Initialize RuntimeModelManager with default model
+    if await model_manager.initialize_default():
+        logger.info(f"✅ RuntimeModelManager ready with model: {model_manager.current_model}")
+    else:
+        logger.warning("⚠️ RuntimeModelManager initialization failed - will use legacy backends")
 
 # ============================================================================
 # Health & Info Endpoints
@@ -289,6 +344,209 @@ async def get_supported_languages():
         "languages": languages,
         "total": len(languages)
     }
+
+# ============================================================================
+# Model Management Endpoints - Dynamic Model Switching
+# ============================================================================
+
+@app.post("/api/models/switch", response_model=ModelSwitchResponse, tags=["Model Management"])
+async def switch_model_runtime(request: ModelSwitchRequest):
+    """
+    Switch to a different model at runtime (no restart required).
+
+    **Usage:**
+    Switch between Ollama models, or even different backends, without restarting the service.
+    Previously loaded models are cached for instant switching.
+
+    **Example:**
+    ```json
+    {
+      "model": "llama2:7b",
+      "backend": "ollama"
+    }
+    ```
+
+    **Supported Backends:**
+    - `ollama` - Local Ollama instance
+    - `groq` - Groq cloud API (requires GROQ_API_KEY)
+    - `vllm` - vLLM server
+    - `openai` - OpenAI API (requires OPENAI_API_KEY)
+    """
+    if model_manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model manager not initialized"
+        )
+
+    try:
+        success = await model_manager.switch_model(request.model, request.backend)
+
+        status_info = model_manager.get_status()
+
+        if success:
+            return ModelSwitchResponse(
+                success=True,
+                model=request.model,
+                backend=request.backend,
+                message=f"Successfully switched to {request.model} on {request.backend}",
+                cached_models=status_info["cache_size"]
+            )
+        else:
+            return ModelSwitchResponse(
+                success=False,
+                model=request.model,
+                backend=request.backend,
+                message=f"Failed to switch to {request.model} on {request.backend}",
+                cached_models=status_info["cache_size"]
+            )
+
+    except Exception as e:
+        logger.error(f"Error switching model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to switch model: {str(e)}"
+        )
+
+
+@app.post("/api/models/preload", tags=["Model Management"])
+async def preload_model(request: ModelPreloadRequest):
+    """
+    Pre-load a model for faster switching later.
+
+    **Usage:**
+    Preload models you'll need soon in the background.
+    This makes subsequent switches instant.
+
+    **Example:**
+    ```json
+    {
+      "model": "mistral:latest",
+      "backend": "ollama"
+    }
+    ```
+    """
+    if model_manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model manager not initialized"
+        )
+
+    try:
+        success = await model_manager.preload_model(request.model, request.backend)
+
+        return {
+            "success": success,
+            "model": request.model,
+            "backend": request.backend,
+            "message": f"{'Successfully preloaded' if success else 'Failed to preload'} {request.model}",
+            "cached_models": model_manager.get_status()["cache_size"]
+        }
+
+    except Exception as e:
+        logger.error(f"Error preloading model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to preload model: {str(e)}"
+        )
+
+
+@app.post("/api/models/unload", tags=["Model Management"])
+async def unload_model(request: ModelUnloadRequest):
+    """
+    Unload a cached model to free resources.
+
+    **Note:** Cannot unload the currently active model.
+    """
+    if model_manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model manager not initialized"
+        )
+
+    try:
+        success = await model_manager.unload_model(request.model, request.backend)
+
+        return {
+            "success": success,
+            "model": request.model,
+            "backend": request.backend,
+            "message": f"{'Successfully unloaded' if success else 'Failed to unload'} {request.model}",
+            "cached_models": model_manager.get_status()["cache_size"]
+        }
+
+    except Exception as e:
+        logger.error(f"Error unloading model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to unload model: {str(e)}"
+        )
+
+
+@app.get("/api/models/status", response_model=ModelStatusResponse, tags=["Model Management"])
+async def get_model_status():
+    """
+    Get current model manager status.
+
+    Returns information about:
+    - Currently active model
+    - Cached models
+    - Supported backends
+    - Usage statistics
+    """
+    if model_manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model manager not initialized"
+        )
+
+    status_info = model_manager.get_status()
+
+    return ModelStatusResponse(
+        current_model=status_info["current_model"],
+        current_backend=status_info["current_backend"],
+        is_ready=status_info["is_ready"],
+        cached_models=status_info["cached_models"],
+        cache_size=status_info["cache_size"],
+        supported_backends=status_info["supported_backends"]
+    )
+
+
+@app.get("/api/models/list/{backend}", tags=["Model Management"])
+async def list_backend_models(backend: str = "ollama"):
+    """
+    List available models from a specific backend.
+
+    **Usage:**
+    Query Ollama, Groq, or other backends for available models.
+
+    **Example:**
+    ```
+    GET /api/models/list/ollama
+    ```
+    """
+    if model_manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model manager not initialized"
+        )
+
+    try:
+        models = await model_manager.get_available_models(backend)
+
+        return {
+            "backend": backend,
+            "models": models,
+            "count": len(models),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error listing models from {backend}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list models: {str(e)}"
+        )
+
 
 # ============================================================================
 # Translation Endpoints
