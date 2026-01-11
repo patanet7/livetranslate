@@ -21,7 +21,7 @@ Version: 1.0
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Depends, Path
 
 # Configure logging
@@ -162,7 +162,7 @@ def get_pipeline():
     global _pipeline_instance
 
     if _pipeline_instance is None:
-        from src.pipeline.data_pipeline import create_data_pipeline
+        from pipeline.data_pipeline import create_data_pipeline
         import os
 
         # Load configuration from environment

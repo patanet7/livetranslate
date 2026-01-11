@@ -7,7 +7,7 @@ Tests the router, session manager, and API models.
 
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import pytest
 
 # Add src to path
@@ -135,7 +135,7 @@ class TestSessionResponse:
             sentences_produced=3,
             translations_completed=9,
             speakers_detected=["Alice", "Bob"],
-            connected_at=datetime.utcnow(),
+            connected_at=datetime.now(timezone.utc),
             error_count=0,
             last_error=None,
         )

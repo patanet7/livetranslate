@@ -9,8 +9,7 @@ Following TDD: Write tests FIRST, then implement!
 
 import pytest
 import asyncio
-import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 # Add src to path
 import sys
@@ -219,7 +218,7 @@ class TestDockerBotManagerStopBot:
     @pytest.mark.asyncio
     async def test_stop_bot_sends_redis_command(self):
         """Test stopping bot sends Redis leave command"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None
@@ -456,7 +455,7 @@ class TestBotInstanceHealthChecks:
     @pytest.mark.asyncio
     async def test_bot_is_healthy_when_active(self):
         """Test bot is healthy when active with recent callback"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None
@@ -473,7 +472,7 @@ class TestBotInstanceHealthChecks:
     @pytest.mark.asyncio
     async def test_bot_is_unhealthy_when_failed(self):
         """Test bot is unhealthy when in failed state"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None

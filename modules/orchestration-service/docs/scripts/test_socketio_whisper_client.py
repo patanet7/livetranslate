@@ -43,7 +43,7 @@ async def test_socketio_whisper_client():
     print("\n" + "=" * 80)
     print("SOCKETIO WHISPER CLIENT TEST - JFK AUDIO STREAMING")
     print("=" * 80)
-    print(f"Testing: SocketIOWhisperClient → Whisper Service")
+    print("Testing: SocketIOWhisperClient → Whisper Service")
     print(f"Whisper: {WHISPER_HOST}:{WHISPER_PORT}")
     print("=" * 80)
 
@@ -67,7 +67,7 @@ async def test_socketio_whisper_client():
             audio_float = audio.astype(np.float32) / 32768.0
             audio_float = audio_float.reshape(-1, 2).mean(axis=1)
             audio = (audio_float * 32768.0).astype(np.int16)
-            print(f"✅ Converted stereo to mono")
+            print("✅ Converted stereo to mono")
 
     print(f"✅ Loaded {duration:.2f}s of audio (sample_rate={sample_rate}Hz)")
 
@@ -82,7 +82,7 @@ async def test_socketio_whisper_client():
     print(f"📊 Split into {len(chunks)} chunks of {CHUNK_DURATION}s each")
 
     # Create client
-    print(f"\n🔌 Creating SocketIOWhisperClient...")
+    print("\n🔌 Creating SocketIOWhisperClient...")
     client = SocketIOWhisperClient(
         whisper_host=WHISPER_HOST, whisper_port=WHISPER_PORT, auto_reconnect=True
     )
@@ -125,7 +125,7 @@ async def test_socketio_whisper_client():
 
     try:
         # Connect to Whisper service
-        print(f"\n🔌 Connecting to Whisper service...")
+        print("\n🔌 Connecting to Whisper service...")
         connected = await client.connect()
         if not connected:
             print("❌ Failed to connect to Whisper service")
@@ -189,18 +189,18 @@ async def test_socketio_whisper_client():
             await asyncio.sleep(1.5)
 
         # Wait for final results
-        print(f"\n⏳ Waiting for final results...")
+        print("\n⏳ Waiting for final results...")
         await asyncio.sleep(10.0)
 
         # Close stream
-        print(f"\n⏹️  Closing stream...")
+        print("\n⏹️  Closing stream...")
         await client.close_stream(session_id)
 
         # Disconnect
         await client.disconnect()
 
         # Analyze results
-        print(f"\n" + "=" * 80)
+        print("\n" + "=" * 80)
         print("TEST RESULTS")
         print("=" * 80)
         print(f"Total results received: {len(results)}")
@@ -211,11 +211,11 @@ async def test_socketio_whisper_client():
                 [r.get("stable_text") or r.get("text", "") for r in results]
             )
 
-            print(f"\n📄 Full transcription:")
+            print("\n📄 Full transcription:")
             print(f"   '{full_text}'")
 
             # Check for JFK keywords
-            print(f"\n🔍 Keyword detection:")
+            print("\n🔍 Keyword detection:")
             keywords = ["Americans", "country", "fellow", "ask"]
             found_count = 0
             for keyword in keywords:
@@ -229,7 +229,7 @@ async def test_socketio_whisper_client():
             draft_count = sum(1 for r in results if r.get("is_draft", False))
             final_count = sum(1 for r in results if r.get("is_final", False))
 
-            print(f"\n📊 Streaming statistics:")
+            print("\n📊 Streaming statistics:")
             print(f"   Total results: {len(results)}")
             print(f"   Draft results: {draft_count}")
             print(f"   Final results: {final_count}")
@@ -242,7 +242,7 @@ async def test_socketio_whisper_client():
                 and (draft_count > 0 or final_count > 0)
             )
 
-            print(f"\n" + "=" * 80)
+            print("\n" + "=" * 80)
             if passed:
                 print("✅ TEST PASSED - SocketIOWhisperClient working correctly!")
                 print(f"   ✓ Received {len(results)} results")

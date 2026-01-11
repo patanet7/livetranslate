@@ -137,7 +137,7 @@ class TestActualChunking:
         responses_received = 0
 
         async with websockets.connect(ws_url) as websocket:
-            print(f"   ✅ WebSocket connected")
+            print("   ✅ WebSocket connected")
 
             # Send each chunk
             for chunk in chunks:
@@ -203,7 +203,7 @@ class TestActualChunking:
         print("\n6️⃣ Cleaning up session...")
         async with AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
             response = await client.delete(f"/api/pipeline/realtime/{session_id}")
-            print(f"   ✅ Session deleted")
+            print("   ✅ Session deleted")
 
         # 7. Verify results
         print("\n" + "=" * 70)

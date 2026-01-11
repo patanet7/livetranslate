@@ -133,7 +133,7 @@ class WebSocketWhisperClient:
             self.receiver_task = asyncio.create_task(self._receive_messages())
             self.heartbeat_task = asyncio.create_task(self._heartbeat_monitor())
 
-            logger.info(f"✅ Connected to Whisper WebSocket")
+            logger.info("✅ Connected to Whisper WebSocket")
             self._notify_connection(True)
 
             return True

@@ -13,14 +13,10 @@ This replaces the previous placeholder implementation tests.
 """
 
 import pytest
-import asyncio
 import io
-import json
 import numpy as np
 import soundfile as sf
-from pathlib import Path
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 
@@ -87,7 +83,6 @@ class TestStreamingAudioUpload:
         This test ensures we've successfully replaced the placeholder implementation.
         """
         from src.main_fastapi import app
-        from src.audio.audio_coordinator import AudioCoordinator
 
         # Mock the AudioCoordinator to return realistic data
         with patch("src.routers.audio.audio_core.AudioCoordinator") as MockCoordinator:
@@ -293,7 +288,6 @@ class TestStreamingAudioUpload:
 
         This verifies the ServiceClientPool.send_to_whisper_service() is called.
         """
-        from src.main_fastapi import app
 
         with patch("src.audio.audio_coordinator.ServiceClientPool") as MockServicePool:
             mock_pool = AsyncMock()
@@ -361,7 +355,6 @@ class TestStreamingAudioUpload:
 
         Verifies the translation service is called and results are included.
         """
-        from src.main_fastapi import app
 
         with patch("src.audio.audio_coordinator.ServiceClientPool") as MockServicePool:
             mock_pool = AsyncMock()

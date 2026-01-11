@@ -15,18 +15,14 @@ Service responses use fixtures that match actual response formats
 
 import pytest
 import asyncio
-import base64
-import json
 import os
-import tempfile
 import wave
 from pathlib import Path
 from typing import Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime
 import numpy as np
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
-from httpx import AsyncClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 # SMPTE Timecode for precise audio overlap handling
 try:
@@ -41,14 +37,8 @@ except ImportError:
 from src.database import (
     DatabaseManager,
     Base,
-    BotSession,
-    AudioFile,
-    Transcript,
-    Translation,
 )
 from src.database.unified_bot_session_repository import UnifiedBotSessionRepository
-from src.clients.audio_service_client import TranscriptionResponse
-from src.clients.translation_service_client import TranslationResponse
 
 
 # Test Configuration
@@ -774,10 +764,10 @@ class TestAudioChunking:
             framerate="30",  # 30fps SMPTE timecode
         )
 
-        print(f"\n📊 Overlapping Chunk Analysis:")
-        print(f"   Total audio duration: 10.0s")
-        print(f"   Chunk size: 500ms")
-        print(f"   Overlap: 100ms")
+        print("\n📊 Overlapping Chunk Analysis:")
+        print("   Total audio duration: 10.0s")
+        print("   Chunk size: 500ms")
+        print("   Overlap: 100ms")
         print(f"   Total chunks: {len(chunks)}")
 
         # Verify chunk properties
@@ -857,7 +847,7 @@ class TestAudioChunking:
         print(
             f"   ✅ Overlaps verified: {chunks[1]['overlap_ms']}ms between consecutive chunks"
         )
-        print(f"   ✅ Timeline reconstructed from database successfully")
+        print("   ✅ Timeline reconstructed from database successfully")
         if chunks[0].get("smpte_timecode"):
             print(
                 f"   ✅ SMPTE framerate: {chunks[0]['smpte_timecode']['framerate']} fps"
@@ -1012,7 +1002,7 @@ class TestSessionMetrics:
         assert metrics["average_translation_time"] > 0
         assert metrics["throughput"] > 0, "Should have positive throughput"
 
-        print(f"\n📊 Processing Metrics:")
+        print("\n📊 Processing Metrics:")
         print(f"   Chunks processed: {metrics['chunks_processed']}")
         print(f"   Total duration: {metrics['total_audio_duration']:.2f}s")
         print(

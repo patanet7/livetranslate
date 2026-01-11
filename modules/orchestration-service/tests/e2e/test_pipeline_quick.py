@@ -47,18 +47,18 @@ async def main():
 
     audio_storage = os.getenv("AUDIO_STORAGE_PATH", "/tmp/livetranslate_test/audio")
 
-    print(f"\n📊 Configuration:")
+    print("\n📊 Configuration:")
     print(
         f"  Database: {db_config['username']}@{db_config['host']}:{db_config['port']}/{db_config['database']}"
     )
     print(f"  Audio Storage: {audio_storage}")
 
     # Create database manager
-    print(f"\n🔧 Creating database manager...")
+    print("\n🔧 Creating database manager...")
     db_manager = create_bot_session_manager(db_config, audio_storage)
 
     # Initialize database
-    print(f"🔌 Initializing database connection...")
+    print("🔌 Initializing database connection...")
     try:
         success = await db_manager.initialize()
         if not success:
@@ -70,7 +70,7 @@ async def main():
         return 1
 
     # Create pipeline with initialized database manager
-    print(f"\n🔧 Creating data pipeline...")
+    print("\n🔧 Creating data pipeline...")
     pipeline = create_data_pipeline(
         database_manager=db_manager,
         audio_storage_path=audio_storage,
@@ -81,7 +81,7 @@ async def main():
     # Get database statistics
     try:
         stats = await pipeline.db_manager.get_database_statistics()
-        print(f"\n📈 Database Statistics:")
+        print("\n📈 Database Statistics:")
         print(f"  Total sessions: {stats.get('total_sessions', 0)}")
         print(f"  Total transcripts: {stats.get('total_transcripts', 0)}")
         print(f"  Total translations: {stats.get('total_translations', 0)}")
@@ -90,7 +90,7 @@ async def main():
         print(f"⚠️  Could not get statistics: {e}")
 
     # Create test session
-    print(f"\n🎬 Creating test session...")
+    print("\n🎬 Creating test session...")
     session_data = {
         "bot_id": "quick_test_bot",
         "meeting_id": "quick_test_meeting",
@@ -107,7 +107,7 @@ async def main():
         return 1
 
     # Test 1: Audio Storage
-    print(f"\n🎵 Test 1: Audio Storage")
+    print("\n🎵 Test 1: Audio Storage")
     try:
         audio_bytes = b"test_audio_data_" + os.urandom(1024)
         metadata = AudioChunkMetadata(
@@ -125,7 +125,7 @@ async def main():
         if file_id:
             print(f"  ✅ Audio stored: {file_id}")
         else:
-            print(f"  ❌ Audio storage failed")
+            print("  ❌ Audio storage failed")
             raise Exception("Audio storage failed")
 
     except Exception as e:
@@ -135,7 +135,7 @@ async def main():
         return 1
 
     # Test 2: Transcription Storage
-    print(f"\n📝 Test 2: Transcription Storage")
+    print("\n📝 Test 2: Transcription Storage")
     try:
         transcriptions = [
             TranscriptionResult(
@@ -178,7 +178,7 @@ async def main():
         return 1
 
     # Test 3: Translation Storage
-    print(f"\n🌐 Test 3: Translation Storage")
+    print("\n🌐 Test 3: Translation Storage")
     try:
         for i, tid in enumerate(transcript_ids):
             translation = TranslationResult(
@@ -210,7 +210,7 @@ async def main():
         return 1
 
     # Test 4: Timeline Query
-    print(f"\n📅 Test 4: Timeline Query")
+    print("\n📅 Test 4: Timeline Query")
     try:
         timeline = await pipeline.get_session_timeline(session_id)
         print(f"  ✅ Timeline retrieved: {len(timeline)} entries")
@@ -230,7 +230,7 @@ async def main():
         return 1
 
     # Test 5: Speaker Statistics
-    print(f"\n👥 Test 5: Speaker Statistics")
+    print("\n👥 Test 5: Speaker Statistics")
     try:
         stats = await pipeline.get_speaker_statistics(session_id)
         print(f"  ✅ Speaker statistics: {len(stats)} speakers")
@@ -248,7 +248,7 @@ async def main():
         return 1
 
     # Test 6: Full-Text Search
-    print(f"\n🔍 Test 6: Full-Text Search")
+    print("\n🔍 Test 6: Full-Text Search")
     try:
         results = await pipeline.search_transcripts(session_id, "test", use_fuzzy=True)
         print(f"  ✅ Search results: {len(results)} matches")
@@ -260,14 +260,14 @@ async def main():
         print(f"  ⚠️  Search error (optional feature): {e}")
 
     # Test 7: Comprehensive Session Data
-    print(f"\n📊 Test 7: Comprehensive Session Data")
+    print("\n📊 Test 7: Comprehensive Session Data")
     try:
         comprehensive = await pipeline.db_manager.get_comprehensive_session_data(
             session_id
         )
 
         if comprehensive:
-            print(f"  ✅ Comprehensive data retrieved")
+            print("  ✅ Comprehensive data retrieved")
             print(
                 f"     Audio files: {comprehensive['statistics']['audio_files_count']}"
             )
@@ -287,10 +287,10 @@ async def main():
         return 1
 
     # Cleanup
-    print(f"\n🧹 Cleaning up test session...")
+    print("\n🧹 Cleaning up test session...")
     try:
         await pipeline.db_manager.cleanup_session(session_id, remove_files=True)
-        print(f"  ✅ Session cleaned up")
+        print("  ✅ Session cleaned up")
     except Exception as e:
         print(f"  ⚠️  Cleanup warning: {e}")
 
@@ -298,18 +298,18 @@ async def main():
     await pipeline.db_manager.close()
 
     # Summary
-    print(f"\n" + "=" * 70)
-    print(f"✅ ALL TESTS PASSED!")
-    print(f"=" * 70)
-    print(f"\nThe data pipeline is working correctly!")
-    print(f"\nNext steps:")
+    print("\n" + "=" * 70)
+    print("✅ ALL TESTS PASSED!")
+    print("=" * 70)
+    print("\nThe data pipeline is working correctly!")
+    print("\nNext steps:")
     print(
-        f"  1. Run full integration tests: pytest tests/test_data_pipeline_integration.py"
+        "  1. Run full integration tests: pytest tests/test_data_pipeline_integration.py"
     )
-    print(f"  2. Register API router in your FastAPI app")
-    print(f"  3. Test API endpoints with curl or Postman")
-    print(f"  4. Integrate with Whisper and Translation services")
-    print(f"\n" + "=" * 70)
+    print("  2. Register API router in your FastAPI app")
+    print("  3. Test API endpoints with curl or Postman")
+    print("  4. Integrate with Whisper and Translation services")
+    print("\n" + "=" * 70)
 
     return 0
 

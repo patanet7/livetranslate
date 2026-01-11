@@ -211,7 +211,7 @@ class TestSMPTEChunking:
             f"Total duration should be ~3.0s, got {total_duration:.2f}s"
         )
 
-        print(f"\n✅ Timeline reconstruction successful")
+        print("\n✅ Timeline reconstruction successful")
         print(f"   Total chunks: {len(chunks)}")
         print(f"   Duration: {total_duration:.2f}s")
         print(f"   Start: {chunks[0]['smpte_timecode']['start']}")

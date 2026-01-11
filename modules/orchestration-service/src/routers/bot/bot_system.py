@@ -13,7 +13,7 @@ from typing import Dict, Any
 from fastapi import BackgroundTasks, Depends, status
 
 from ._shared import create_bot_router, SystemStatsResponse, logger, get_error_response
-from src.dependencies import get_bot_manager
+from dependencies import get_bot_manager
 
 # Create router for system bot management
 router = create_bot_router()

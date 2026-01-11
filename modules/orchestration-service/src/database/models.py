@@ -4,8 +4,10 @@ Database Models
 SQLAlchemy models for the orchestration service database.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
+
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -18,11 +20,17 @@ from sqlalchemy import (
     ForeignKey,
     Index,
 )
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 import uuid
 
-Base = declarative_base()
+# Import shared Base from base.py to ensure all models share the same MetaData
+from .base import Base
+
+
+def utc_now():
+    """Return current UTC time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 class BotSession(Base):
@@ -39,7 +47,7 @@ class BotSession(Base):
 
     # Session lifecycle
     status = Column(String(50), nullable=False, default="pending")
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
     started_at = Column(DateTime, nullable=True)
     ended_at = Column(DateTime, nullable=True)
 
@@ -129,7 +137,7 @@ class AudioFile(Base):
     bit_depth = Column(Integer, nullable=True)
 
     # Timestamps
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
     start_time = Column(DateTime, nullable=True)
     end_time = Column(DateTime, nullable=True)
 
@@ -342,7 +350,7 @@ class SessionEvent(Base):
     event_data = Column(JSON, nullable=True)
 
     # Timing
-    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
+    timestamp = Column(DateTime, nullable=False, default=utc_now)
 
     # Severity
     severity = Column(
@@ -411,7 +419,7 @@ class SessionStatistics(Base):
     correlation_accuracy = Column(Float, nullable=True)
 
     # Timestamps
-    calculated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    calculated_at = Column(DateTime, nullable=False, default=utc_now)
 
     # Relationships
     session = relationship("BotSession")
@@ -458,9 +466,9 @@ class Glossary(Base):
     is_default = Column(Boolean, nullable=False, default=False)
 
     # Metadata
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, nullable=False, default=utc_now, onupdate=utc_now
     )
     created_by = Column(String(255), nullable=True)
 
@@ -532,9 +540,9 @@ class GlossaryEntry(Base):
     priority = Column(Integer, nullable=False, default=0)
 
     # Timestamps
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=utc_now)
     updated_at = Column(
-        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, nullable=False, default=utc_now, onupdate=utc_now
     )
 
     # Relationships

@@ -26,14 +26,11 @@ Run with:
 """
 
 import sys
-import os
 import time
 import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from datetime import datetime
-import json
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -46,13 +43,11 @@ from PIL import Image
 from bot.bot_manager import GoogleMeetBotManager, MeetingRequest, create_bot_manager
 from bot.virtual_webcam import (
     VirtualWebcamManager,
-    WebcamConfig,
     DisplayMode,
     Theme,
     create_virtual_webcam,
     create_default_webcam_config,
 )
-from bot.audio_capture import MeetingInfo
 
 # Configure logging
 logging.basicConfig(
@@ -183,7 +178,7 @@ class RealEndToEndTest:
             services_ok = False
 
         # Database is optional
-        print(f"  ℹ️  Database: Optional (test will work without it)")
+        print("  ℹ️  Database: Optional (test will work without it)")
 
         return services_ok
 
@@ -254,7 +249,7 @@ class RealEndToEndTest:
                 logger.error("Failed to start virtual webcam")
                 return False
 
-            print(f"  ✅ Virtual webcam initialized")
+            print("  ✅ Virtual webcam initialized")
 
             self.test_start_time = time.time()
 
@@ -295,11 +290,11 @@ class RealEndToEndTest:
 
         audio_bytes = self._generate_speech_audio(text, duration=3.0)
 
-        print(f"  ▶ Uploading to orchestration service...")
+        print("  ▶ Uploading to orchestration service...")
         result = await self._upload_audio_chunk(audio_bytes, "chunk_1")
 
         if result and result.get("status") == "uploaded_and_processed":
-            print(f"  ✅ Upload successful")
+            print("  ✅ Upload successful")
 
             # Check if we got transcription
             processing_result = result.get("processing_result", {})
@@ -315,7 +310,7 @@ class RealEndToEndTest:
                     }
                 )
             else:
-                print(f"  ⏳ Transcription pending (async processing)")
+                print("  ⏳ Transcription pending (async processing)")
         else:
             print(f"  ❌ Upload failed: {result}")
 
@@ -361,7 +356,7 @@ class RealEndToEndTest:
 
         # Wait for all to render
         await asyncio.sleep(5)
-        print(f"  ✅ All 5 chunks uploaded")
+        print("  ✅ All 5 chunks uploaded")
         print(f"  ✅ Frames captured: {len(self.frames_saved)}")
 
     async def _run_scenario_3_rapid_fire(self):
@@ -525,18 +520,18 @@ class RealEndToEndTest:
             print(f"  Last frame: {self.frames_saved[-1].name}")
 
         if self.transcriptions_received:
-            print(f"\n  Transcriptions received:")
+            print("\n  Transcriptions received:")
             for trans in self.transcriptions_received:
                 elapsed = trans["timestamp"] - self.test_start_time
                 print(f'    [{elapsed:6.2f}s] {trans["chunk"]}: "{trans["text"]}"')
 
         # Provide ffmpeg command
         if self.frames_saved:
-            print(f"\n🎬 Create Video:")
+            print("\n🎬 Create Video:")
             print(f"  cd {OUTPUT_DIR.absolute()}")
-            print(f"  ffmpeg -framerate 30 -pattern_type glob -i '*.png' \\")
-            print(f"         -c:v libx264 -pix_fmt yuv420p \\")
-            print(f"         output.mp4")
+            print("  ffmpeg -framerate 30 -pattern_type glob -i '*.png' \\")
+            print("         -c:v libx264 -pix_fmt yuv420p \\")
+            print("         output.mp4")
 
         print()
         print("=" * 80)

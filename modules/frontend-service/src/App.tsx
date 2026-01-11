@@ -33,6 +33,7 @@ const Analytics = React.lazy(() => import('@/pages/Analytics'));
 const SystemAnalytics = React.lazy(() => import('@/pages/SystemAnalytics'));
 const Settings = React.lazy(() => import('@/pages/Settings'));
 const ChatHistory = React.lazy(() => import('@/pages/ChatHistory'));
+const CaptionOverlay = React.lazy(() => import('@/pages/CaptionOverlay'));
 
 // App initialization component
 const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -79,6 +80,25 @@ const App: React.FC = () => {
       <Provider store={store}>
         <AppInitializer>
           <Router>
+            <Routes>
+              {/* Caption Overlay - No AppLayout for OBS Browser Source */}
+              <Route
+                path="/caption-overlay"
+                element={
+                  <Suspense fallback={null}>
+                    <CaptionOverlay />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/captions"
+                element={
+                  <Suspense fallback={null}>
+                    <CaptionOverlay />
+                  </Suspense>
+                }
+              />
+            </Routes>
             <AppLayout>
               <Suspense fallback={<LoadingScreen />}>
                 <Routes>

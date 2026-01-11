@@ -11,16 +11,13 @@ import logging
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock, Mock
-import json
+from typing import Dict, List, Any
+from unittest.mock import AsyncMock, Mock
 import os
 import sys
 
 import pytest
-import pytest_asyncio
 import numpy as np
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import httpx
 
@@ -31,6 +28,31 @@ src_path = service_root / "src"
 
 if src_path.exists():
     sys.path.insert(0, str(src_path))
+
+# Create module aliases to prevent duplicate loading
+# Production code uses 'src.X' imports, tests use 'X' imports
+# We alias 'X' -> 'src.X' so both paths resolve to the same module
+def _setup_module_aliases():
+    """Setup module aliases so 'database' imports resolve to 'src.database'."""
+    import importlib
+
+    # List of top-level modules that need aliasing
+    module_names = [
+        'database', 'models', 'clients', 'services', 'routers',
+        'managers', 'bot', 'utils', 'audio', 'pipeline',
+        'middleware', 'internal_services', 'dependencies', 'config'
+    ]
+
+    for name in module_names:
+        try:
+            # Import with src. prefix (production path)
+            src_mod = importlib.import_module(f'src.{name}')
+            # Alias the non-prefixed name to the src. version
+            sys.modules[name] = src_mod
+        except ImportError:
+            pass
+
+_setup_module_aliases()
 
 # Import application components
 if os.getenv("SKIP_MAIN_FASTAPI_IMPORT") == "1":

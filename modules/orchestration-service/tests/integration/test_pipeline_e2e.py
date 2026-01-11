@@ -10,10 +10,8 @@ Comprehensive integration tests for complete pipeline workflows:
 
 import pytest
 import json
-import asyncio
 import wave
 import numpy as np
-from pathlib import Path
 from fastapi.testclient import TestClient
 from websockets.sync.client import connect as ws_connect
 from contextlib import contextmanager

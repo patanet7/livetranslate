@@ -164,7 +164,7 @@ class MeetingBotServiceClient:
         Raises:
             httpx.HTTPError: If the HTTP request fails
         """
-        self.logger.info(f"Requesting bot to leave meeting", extra={"bot_id": bot_id})
+        self.logger.info("Requesting bot to leave meeting", extra={"bot_id": bot_id})
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(f"{self.base_url}/api/bot/leave/{bot_id}")

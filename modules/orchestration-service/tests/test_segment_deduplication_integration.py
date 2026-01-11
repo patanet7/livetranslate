@@ -17,7 +17,6 @@ Architecture:
 """
 
 import pytest
-from datetime import datetime, timezone
 import sys
 from pathlib import Path
 
@@ -80,10 +79,10 @@ class TestSegmentDeduplication:
         assert len(all_segments) == 2
         assert all_segments[0]["text"] == "Hello everyone"
 
-        print(f"   Initial: 2 segments")
+        print("   Initial: 2 segments")
         print(f"   After update: {len(all_segments)} segments (deduplicated)")
         print(f"   Updated text: '{all_segments[0]['text']}'")
-        print(f"✅ Deduplication by absolute_start_time working")
+        print("✅ Deduplication by absolute_start_time working")
 
     @pytest.mark.integration
     def test_updated_at_precedence(self):
@@ -135,9 +134,9 @@ class TestSegmentDeduplication:
         all_segments = dedup.get_all_segments()
         assert all_segments[0]["text"] == "Version 2 (newest)"
 
-        print(f"   Kept version with newest updated_at")
+        print("   Kept version with newest updated_at")
         print(f"   Final text: '{all_segments[0]['text']}'")
-        print(f"✅ updated_at precedence working")
+        print("✅ updated_at precedence working")
 
     @pytest.mark.integration
     def test_empty_segment_filtering(self):
@@ -183,9 +182,9 @@ class TestSegmentDeduplication:
         assert all_segments[0]["text"] == "Hello"
         assert all_segments[1]["text"] == "World"
 
-        print(f"   Input: 4 segments (2 empty)")
+        print("   Input: 4 segments (2 empty)")
         print(f"   Output: {len(all_segments)} segments (filtered)")
-        print(f"✅ Empty segment filtering working")
+        print("✅ Empty segment filtering working")
 
     @pytest.mark.integration
     def test_sorted_output(self):
@@ -225,11 +224,11 @@ class TestSegmentDeduplication:
         assert sorted_segments[1]["text"] == "Second"
         assert sorted_segments[2]["text"] == "Third"
 
-        print(f"   Insertion order: Third, First, Second")
+        print("   Insertion order: Third, First, Second")
         print(
             f"   Output order: {sorted_segments[0]['text']}, {sorted_segments[1]['text']}, {sorted_segments[2]['text']}"
         )
-        print(f"✅ Sorted output working")
+        print("✅ Sorted output working")
 
 
 class TestRESTBootstrapPattern:
@@ -308,7 +307,7 @@ class TestRESTBootstrapPattern:
 
         print(f"   After WS update 1: {dedup.get_segment_count()} segments (1 updated)")
         print(f"   After WS update 2: {dedup.get_segment_count()} segments (1 new)")
-        print(f"✅ REST + WebSocket pattern working")
+        print("✅ REST + WebSocket pattern working")
 
 
 class TestDeduplicationPerformance:
@@ -353,10 +352,10 @@ class TestDeduplicationPerformance:
         assert dedup.get_segment_count() == 1000
         assert processing_time < 100  # Should be fast (<100ms)
 
-        print(f"   Segments: 1000")
+        print("   Segments: 1000")
         print(f"   Processing time: {processing_time:.2f}ms")
-        print(f"   Target: <100ms")
-        print(f"✅ Large segment set performance good")
+        print("   Target: <100ms")
+        print("✅ Large segment set performance good")
 
     @pytest.mark.integration
     def test_incremental_updates_performance(self):
@@ -392,10 +391,10 @@ class TestDeduplicationPerformance:
         assert dedup.get_segment_count() == 100
         assert avg_time < 1.0  # Each update should be <1ms
 
-        print(f"   Updates: 100")
+        print("   Updates: 100")
         print(f"   Average time per update: {avg_time:.3f}ms")
-        print(f"   Target: <1ms")
-        print(f"✅ Incremental updates performance excellent")
+        print("   Target: <1ms")
+        print("✅ Incremental updates performance excellent")
 
 
 # Run tests

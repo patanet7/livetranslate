@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LiveTranslate Captions</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: transparent;
+      overflow: hidden;
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #container {
+      position: absolute;
+      width: 100%;
+      padding: 0 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Position variants */
+    .position-bottom { bottom: 8%; }
+    .position-center { top: 50%; transform: translateY(-50%); }
+    .position-top { top: 8%; }
+
+    .caption-box {
+      background: rgba(0, 0, 0, 0.75);
+      border-radius: 12px;
+      padding: 16px 24px;
+      margin-bottom: 12px;
+      max-width: 90%;
+      max-height: 200px;  /* ~4 lines safety limit */
+      overflow: hidden;
+      animation: fadeIn 0.3s ease-out;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .caption-box.fading {
+      opacity: 0;
+    }
+
+    .speaker-name {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+    }
+
+    .original-text {
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.7);
+      font-style: italic;
+      margin-bottom: 8px;
+      text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+    }
+
+    .translated-text {
+      font-size: 32px;
+      color: #ffffff;
+      font-weight: 500;
+      line-height: 1.4;
+      text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.9);
+    }
+
+    .connection-status {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      box-shadow: 0 0 6px currentColor;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: white;
+      transition: all 0.3s ease;
+    }
+
+    /* Just a dot for connected/disconnected, show count only for reconnecting */
+    .status-connecting {
+      background: #FFC107;
+      box-shadow: 0 0 8px rgba(255, 193, 7, 0.8);
+      width: auto;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 4px;
+      border-radius: 7px;
+    }
+    .status-connected {
+      background: #4CAF50;
+      box-shadow: 0 0 8px rgba(76, 175, 80, 0.8);
+    }
+    .status-disconnected {
+      background: #F44336;
+      box-shadow: 0 0 8px rgba(244, 67, 54, 0.8);
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Setup help screen */
+    #setup-help {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 18px;
+      text-align: center;
+      padding: 40px;
+    }
+
+    #setup-help h2 { margin-bottom: 20px; font-size: 28px; }
+    #setup-help code { background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; }
+    #setup-help ul { list-style: none; text-align: left; margin-top: 20px; }
+    #setup-help li { margin: 10px 0; }
+    #setup-help .param { color: #64B5F6; }
+  </style>
+</head>
+<body>
+  <!-- Connection status indicator (colored dot: green=connected, yellow+count=reconnecting, red=disconnected) -->
+  <div id="status" class="connection-status status-connecting"></div>
+
+  <!-- Caption container -->
+  <div id="container" class="position-bottom"></div>
+
+  <!-- Setup help (shown when no session) -->
+  <div id="setup-help" style="display: none;">
+    <div>
+      <h2>LiveTranslate Caption Overlay</h2>
+      <p>Add <code>?session=YOUR_SESSION_ID</code> to the URL</p>
+      <p style="margin-top: 30px; font-size: 16px; opacity: 0.8;">
+        Example: <code>/static/captions.html?session=meeting-123</code>
+      </p>
+      <ul>
+        <li><span class="param">session</span> - Session ID (required)</li>
+        <li><span class="param">lang</span> - Target language filter</li>
+        <li><span class="param">showSpeaker</span> - Show speaker names (true/false)</li>
+        <li><span class="param">showOriginal</span> - Show original text (true/false)</li>
+        <li><span class="param">fontSize</span> - Font size in pixels (default: 32)</li>
+        <li><span class="param">position</span> - top, center, or bottom</li>
+        <li><span class="param">maxCaptions</span> - Max visible captions (default: 3)</li>
+        <li><span class="param">fadeTime</span> - Fade out time in seconds (default: 2)</li>
+        <li><span class="param">bg</span> - Background color (CSS rgba)</li>
+        <li><span class="param">showStatus</span> - Show connection status (true/false)</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================================================
+    // Configuration from URL parameters
+    // ==========================================================================
+    const params = new URLSearchParams(window.location.search);
+
+    const config = {
+      sessionId: params.get('session'),
+      targetLanguage: params.get('lang'),
+      showSpeaker: params.get('showSpeaker') !== 'false',
+      showOriginal: params.get('showOriginal') === 'true',
+      fontSize: parseInt(params.get('fontSize')) || 32,
+      position: params.get('position') || 'bottom',
+      maxCaptions: parseInt(params.get('maxCaptions')) || 3,
+      fadeTime: parseFloat(params.get('fadeTime')) || 2,
+      bgColor: params.get('bg') || 'rgba(0, 0, 0, 0.75)',
+      showStatus: params.get('showStatus') === 'true',
+    };
+
+    // Show setup help if no session
+    if (!config.sessionId) {
+      document.getElementById('setup-help').style.display = 'flex';
+      document.getElementById('status').style.display = 'none';
+    }
+
+    // Apply configuration
+    const container = document.getElementById('container');
+    const statusEl = document.getElementById('status');
+
+    container.className = `position-${config.position}`;
+    if (!config.showStatus) {
+      statusEl.style.display = 'none';
+    }
+
+    // ==========================================================================
+    // Caption Management
+    // ==========================================================================
+    const captions = new Map(); // id -> { element, timeout }
+
+    function createCaptionElement(caption) {
+      const box = document.createElement('div');
+      box.className = 'caption-box';
+      box.dataset.id = caption.id;
+      box.style.backgroundColor = config.bgColor;
+
+      // Speaker name
+      if (config.showSpeaker && caption.speaker_name) {
+        const speaker = document.createElement('div');
+        speaker.className = 'speaker-name';
+        speaker.textContent = caption.speaker_name;
+        speaker.style.color = caption.speaker_color || '#ffffff';
+        box.appendChild(speaker);
+      }
+
+      // Original text
+      if (config.showOriginal && caption.original_text) {
+        const original = document.createElement('div');
+        original.className = 'original-text';
+        original.textContent = caption.original_text;
+        box.appendChild(original);
+      }
+
+      // Translated text
+      const translated = document.createElement('div');
+      translated.className = 'translated-text';
+      translated.textContent = caption.translated_text;
+      translated.style.fontSize = `${config.fontSize}px`;
+      box.appendChild(translated);
+
+      return box;
+    }
+
+    function addCaption(caption) {
+      console.log('addCaption:', caption.speaker_name, caption.id?.substring(0,8), 'map size:', captions.size);
+
+      // Remove existing if same ID
+      if (captions.has(caption.id)) {
+        removeCaption(caption.id, false);
+      }
+
+      // Create element
+      const element = createCaptionElement(caption);
+      container.appendChild(element);
+
+      // Set fade timeout based on time_remaining_seconds from server
+      // This accounts for any time already elapsed since caption creation
+      const remaining = (caption.time_remaining_seconds || caption.duration_seconds || 8) * 1000;
+      const fadeDelay = remaining - (config.fadeTime * 1000);
+
+      const timeout = setTimeout(() => {
+        element.classList.add('fading');
+        setTimeout(() => removeCaption(caption.id, false), config.fadeTime * 1000);
+      }, Math.max(fadeDelay, 500));
+
+      captions.set(caption.id, { element, timeout });
+
+      // Enforce max captions
+      console.log('Before enforce:', container.querySelectorAll('.caption-box').length, 'boxes, max:', config.maxCaptions);
+      enforceMaxCaptions();
+      console.log('After enforce:', container.querySelectorAll('.caption-box').length, 'boxes');
+    }
+
+    function removeCaption(id, animate = true) {
+      const entry = captions.get(id);
+      if (!entry) return;
+
+      clearTimeout(entry.timeout);
+
+      if (animate) {
+        entry.element.classList.add('fading');
+        setTimeout(() => {
+          entry.element.remove();
+          captions.delete(id);
+        }, config.fadeTime * 1000);
+      } else {
+        entry.element.remove();
+        captions.delete(id);
+      }
+    }
+
+    function updateCaption(caption) {
+      const entry = captions.get(caption.id);
+      if (!entry) {
+        addCaption(caption);
+        return;
+      }
+
+      // Update text content
+      const translated = entry.element.querySelector('.translated-text');
+      if (translated) {
+        translated.textContent = caption.translated_text;
+      }
+
+      const original = entry.element.querySelector('.original-text');
+      if (original && caption.original_text) {
+        original.textContent = caption.original_text;
+      }
+
+      // RESET TIMER - critical for speaker aggregation
+      // When same speaker's text is appended, extend the display time
+      clearTimeout(entry.timeout);
+      const remaining = (caption.time_remaining_seconds || caption.duration_seconds || 8) * 1000;
+      const fadeDelay = remaining - (config.fadeTime * 1000);
+
+      entry.timeout = setTimeout(() => {
+        entry.element.classList.add('fading');
+        setTimeout(() => removeCaption(caption.id, false), config.fadeTime * 1000);
+      }, Math.max(fadeDelay, 500));
+    }
+
+    function enforceMaxCaptions() {
+      // Safety limit to prevent infinite loops
+      let iterations = 0;
+      const maxIterations = 20;
+
+      while (iterations < maxIterations) {
+        const boxes = container.querySelectorAll('.caption-box');
+        if (boxes.length <= config.maxCaptions) break;
+
+        const oldest = boxes[0];
+        if (!oldest) break;
+
+        const id = oldest.dataset.id;
+        if (id && captions.has(id)) {
+          removeCaption(id, false);
+        } else {
+          // Element exists in DOM but not in Map - remove directly
+          console.warn('Orphan caption element found, removing directly');
+          oldest.remove();
+        }
+
+        iterations++;
+      }
+
+      if (iterations >= maxIterations) {
+        console.error('enforceMaxCaptions hit iteration limit');
+      }
+    }
+
+    function clearAllCaptions() {
+      captions.forEach((_, id) => removeCaption(id, false));
+    }
+
+    // ==========================================================================
+    // WebSocket Connection
+    // ==========================================================================
+    let ws = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const reconnectDelay = 3000;
+
+    function setStatus(state, text) {
+      statusEl.className = `connection-status status-${state}`;
+      // Only show text for reconnecting (yellow), otherwise just colored dot
+      if (state === 'connecting' && reconnectAttempts > 0) {
+        statusEl.textContent = reconnectAttempts;
+      } else {
+        statusEl.textContent = '';
+      }
+    }
+
+    function buildWebSocketUrl() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let url = `${protocol}//${window.location.host}/api/captions/stream/${config.sessionId}`;
+      if (config.targetLanguage) {
+        url += `?target_language=${config.targetLanguage}`;
+      }
+      return url;
+    }
+
+    function connect() {
+      if (!config.sessionId) return;
+
+      setStatus('connecting', 'Connecting...');
+
+      const url = buildWebSocketUrl();
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        setStatus('connected', 'Connected');
+        reconnectAttempts = 0;
+        console.log('WebSocket connected');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleMessage(data);
+        } catch (e) {
+          console.error('Error parsing message:', e);
+        }
+      };
+
+      ws.onclose = () => {
+        setStatus('disconnected', 'Disconnected');
+        console.log('WebSocket closed');
+        attemptReconnect();
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    }
+
+    function attemptReconnect() {
+      reconnectAttempts++;
+
+      // After 10 failed attempts, do a full page refresh to reset state
+      if (reconnectAttempts >= maxReconnectAttempts) {
+        console.log('Max reconnect attempts reached, refreshing page...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        return;
+      }
+
+      setStatus('connecting', `Reconnecting (${reconnectAttempts})...`);
+
+      setTimeout(() => {
+        connect();
+      }, reconnectDelay);
+    }
+
+    function handleMessage(data) {
+      console.log('WS Event:', data.event, data.caption?.speaker_name || data.caption_id || '');
+
+      try {
+        switch (data.event) {
+          case 'connected':
+            // Load initial captions
+            if (data.current_captions && Array.isArray(data.current_captions)) {
+              data.current_captions.forEach(caption => addCaption(caption));
+            }
+            break;
+
+          case 'caption_added':
+            if (data.caption) {
+              addCaption(data.caption);
+            }
+            break;
+
+          case 'caption_expired':
+            if (data.caption_id) {
+              removeCaption(data.caption_id, true);
+            }
+            break;
+
+          case 'caption_updated':
+            if (data.caption) {
+              updateCaption(data.caption);
+            }
+            break;
+
+          case 'session_cleared':
+            clearAllCaptions();
+            break;
+
+          case 'ping':
+            ws.send(JSON.stringify({ event: 'pong' }));
+            break;
+
+          case 'pong':
+            // Heartbeat response
+            break;
+
+          default:
+            console.log('Unknown event:', data.event);
+        }
+      } catch (error) {
+        console.error('Error handling message:', error, data);
+      }
+    }
+
+    // Start connection
+    if (config.sessionId) {
+      connect();
+    }
+
+    // Heartbeat ping every 25 seconds
+    setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ event: 'ping' }));
+      }
+    }, 25000);
+  </script>
+</body>
+</html>

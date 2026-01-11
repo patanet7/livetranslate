@@ -6,19 +6,16 @@ This script runs the complete suite of audio processing tests including
 integration, performance, error handling, and regression testing.
 """
 
-import asyncio
 import logging
 import argparse
 import time
 import json
 import sys
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from typing import Dict, List, Any
+from datetime import datetime
 import subprocess
 import platform
 
-import pytest
 import psutil
 
 # Setup logging

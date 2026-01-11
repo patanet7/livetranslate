@@ -18,7 +18,6 @@ except ImportError:
         BaseSettings,
         Field,
         field_validator,
-        ValidationInfo,
         ConfigDict,
     )
 
@@ -314,6 +313,171 @@ class BotSettings(BaseSettings):
     model_config = ConfigDict(env_prefix="BOT_", env_file=".env", extra="ignore")
 
 
+class FirefliesSettings(BaseSettings):
+    """Fireflies.ai integration configuration"""
+
+    # API Configuration
+    api_key: str = Field(
+        default="",
+        env="FIREFLIES_API_KEY",
+        description="Fireflies API key for authentication",
+    )
+    graphql_endpoint: str = Field(
+        default="https://api.fireflies.ai/graphql",
+        env="FIREFLIES_GRAPHQL_ENDPOINT",
+        description="Fireflies GraphQL API endpoint",
+    )
+    websocket_endpoint: str = Field(
+        default="wss://api.fireflies.ai/realtime",
+        env="FIREFLIES_WEBSOCKET_ENDPOINT",
+        description="Fireflies WebSocket API endpoint",
+    )
+
+    # Sentence Aggregation Settings
+    pause_threshold_ms: float = Field(
+        default=800.0,
+        env="FIREFLIES_PAUSE_THRESHOLD_MS",
+        description="Pause duration (ms) indicating sentence boundary",
+    )
+    max_buffer_words: int = Field(
+        default=30,
+        env="FIREFLIES_MAX_BUFFER_WORDS",
+        description="Maximum words before forcing translation",
+    )
+    max_buffer_seconds: float = Field(
+        default=5.0,
+        env="FIREFLIES_MAX_BUFFER_SECONDS",
+        description="Maximum seconds before forcing translation",
+    )
+    min_words_for_translation: int = Field(
+        default=3,
+        env="FIREFLIES_MIN_WORDS",
+        description="Minimum words required for translation",
+    )
+    use_nlp_boundary_detection: bool = Field(
+        default=True,
+        env="FIREFLIES_USE_NLP",
+        description="Use spaCy for sentence boundary detection",
+    )
+
+    # Translation Context Settings
+    context_window_size: int = Field(
+        default=3,
+        env="FIREFLIES_CONTEXT_WINDOW",
+        description="Number of previous sentences for context",
+    )
+    include_cross_speaker_context: bool = Field(
+        default=True,
+        env="FIREFLIES_CROSS_SPEAKER_CONTEXT",
+        description="Include other speakers in context window",
+    )
+
+    # Default Target Languages
+    default_target_languages: List[str] = Field(
+        default=["es"],
+        env="FIREFLIES_TARGET_LANGUAGES",
+        description="Default target languages for translation",
+    )
+
+    # Connection Settings
+    auto_reconnect: bool = Field(
+        default=True,
+        env="FIREFLIES_AUTO_RECONNECT",
+        description="Auto-reconnect on disconnect",
+    )
+    max_reconnect_attempts: int = Field(
+        default=5,
+        env="FIREFLIES_MAX_RECONNECT",
+        description="Maximum reconnection attempts",
+    )
+
+    @field_validator("default_target_languages", mode="before")
+    @classmethod
+    def parse_target_languages(cls, v):
+        if isinstance(v, str):
+            return [lang.strip() for lang in v.split(",")]
+        return v
+
+    def has_api_key(self) -> bool:
+        """Check if API key is configured"""
+        return bool(self.api_key and self.api_key.strip())
+
+    model_config = ConfigDict(env_prefix="FIREFLIES_", env_file=".env", extra="ignore")
+
+
+class OBSSettings(BaseSettings):
+    """OBS WebSocket output configuration"""
+
+    # Connection Settings
+    host: str = Field(
+        default="localhost",
+        env="OBS_HOST",
+        description="OBS WebSocket server host",
+    )
+    port: int = Field(
+        default=4455,
+        env="OBS_PORT",
+        description="OBS WebSocket server port",
+    )
+    password: Optional[str] = Field(
+        default=None,
+        env="OBS_PASSWORD",
+        description="OBS WebSocket server password (optional)",
+    )
+
+    # Source Configuration
+    caption_source: str = Field(
+        default="LiveTranslate Caption",
+        env="OBS_CAPTION_SOURCE",
+        description="Name of text source for captions",
+    )
+    speaker_source: Optional[str] = Field(
+        default=None,
+        env="OBS_SPEAKER_SOURCE",
+        description="Name of text source for speaker names",
+    )
+
+    # Behavior Settings
+    auto_reconnect: bool = Field(
+        default=True,
+        env="OBS_AUTO_RECONNECT",
+        description="Auto-reconnect on disconnect",
+    )
+    reconnect_interval: float = Field(
+        default=5.0,
+        env="OBS_RECONNECT_INTERVAL",
+        description="Seconds between reconnection attempts",
+    )
+    max_reconnect_attempts: int = Field(
+        default=3,
+        env="OBS_MAX_RECONNECT",
+        description="Maximum reconnection attempts",
+    )
+    connection_timeout: float = Field(
+        default=10.0,
+        env="OBS_CONNECTION_TIMEOUT",
+        description="Connection timeout in seconds",
+    )
+
+    # Display Options
+    show_original: bool = Field(
+        default=False,
+        env="OBS_SHOW_ORIGINAL",
+        description="Show original text alongside translation",
+    )
+    create_sources: bool = Field(
+        default=False,
+        env="OBS_CREATE_SOURCES",
+        description="Create text sources if they don't exist",
+    )
+
+    def is_configured(self) -> bool:
+        """Check if OBS connection is configured"""
+        return bool(self.host and self.port)
+
+    model_config = ConfigDict(env_prefix="OBS_", env_file=".env", extra="ignore")
+
+
 class Settings(BaseSettings):
     """Main application settings"""
 
@@ -336,7 +500,7 @@ class Settings(BaseSettings):
     host: str = Field(default="0.0.0.0", env="HOST", description="Server host")
     port: int = Field(default=3000, env="PORT", description="Server port")
     workers: int = Field(
-        default=4, env="WORKERS", description="Number of worker processes"
+        default=1, env="WORKERS", description="Number of worker processes (use 1 for caption buffer consistency)"
     )
     debug: bool = Field(default=False, env="DEBUG", description="Enable debug mode")
 
@@ -356,6 +520,8 @@ class Settings(BaseSettings):
     logging: LoggingSettings = LoggingSettings()
     monitoring: MonitoringSettings = MonitoringSettings()
     bot: BotSettings = BotSettings()
+    fireflies: FirefliesSettings = FirefliesSettings()
+    obs: OBSSettings = OBSSettings()
 
     # Feature flags
     enable_audio_processing: bool = Field(

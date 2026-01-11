@@ -14,9 +14,7 @@ import pytest
 import json
 import wave
 import numpy as np
-from pathlib import Path
 from fastapi.testclient import TestClient
-from io import BytesIO
 
 
 @pytest.fixture

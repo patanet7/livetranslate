@@ -12,7 +12,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bot.docker_bot_manager import DockerBotManager, BotStatus, BotConfig
+from bot.docker_bot_manager import DockerBotManager, BotStatus
 
 
 async def test_manager_creation():

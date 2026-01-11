@@ -57,7 +57,7 @@ async def join_meeting_with_audio_streaming(meeting_url: str) -> dict:
         "orchestrationUrl": "ws://localhost:3000/api/audio/stream",  # Enable audio streaming
     }
 
-    print(f"📤 Sending join request with audio streaming enabled...")
+    print("📤 Sending join request with audio streaming enabled...")
     print(f"   Bot ID: {bot_id}")
     print(f"   Orchestration URL: {request_data['orchestrationUrl']}")
 
@@ -69,7 +69,7 @@ async def join_meeting_with_audio_streaming(meeting_url: str) -> dict:
 
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ Bot join request successful!")
+                print("✅ Bot join request successful!")
                 print(f"   Correlation ID: {result.get('correlationId')}")
                 print(f"   Message: {result.get('message')}")
                 return {"success": True, "botId": bot_id, "data": result}
@@ -120,7 +120,7 @@ async def monitor_audio_streaming(bot_id: str, duration_seconds: int = 30):
             print(f"   [{i * 5:2d}s] Bot state: {state}")
 
             if state == "streaming":
-                print(f"      ✅ Audio streaming is ACTIVE!")
+                print("      ✅ Audio streaming is ACTIVE!")
         else:
             print(
                 f"   [{i * 5:2d}s] Could not get bot status: {status_result.get('error')}"
@@ -129,7 +129,7 @@ async def monitor_audio_streaming(bot_id: str, duration_seconds: int = 30):
 
 async def leave_meeting(bot_id: str):
     """Tell the bot to leave the meeting"""
-    print(f"\n🚪 Leaving meeting...")
+    print("\n🚪 Leaving meeting...")
 
     try:
         async with httpx.AsyncClient() as client:
@@ -138,7 +138,7 @@ async def leave_meeting(bot_id: str):
             )
 
             if response.status_code == 200:
-                print(f"✅ Bot left successfully")
+                print("✅ Bot left successfully")
                 return True
             else:
                 print(f"❌ Leave failed with status {response.status_code}")

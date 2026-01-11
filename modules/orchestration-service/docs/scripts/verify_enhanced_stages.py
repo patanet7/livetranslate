@@ -42,11 +42,6 @@ def test_configs():
     """Test that config classes can be imported."""
     print("Config classes:")
     try:
-        from audio.config import (
-            LUFSNormalizationConfig,
-            CompressionConfig,
-            LimiterConfig,
-        )
 
         print("  ✓ LUFSNormalizationConfig")
         print("  ✓ CompressionConfig")

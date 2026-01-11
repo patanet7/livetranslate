@@ -13,28 +13,21 @@ Author: LiveTranslate Team
 Version: 1.0
 """
 
-import os
 import sys
 import pytest
 import asyncio
-import uuid
 from pathlib import Path
-from typing import Dict, Any
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
-from collections import OrderedDict
+from unittest.mock import Mock, AsyncMock
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from src.pipeline.data_pipeline import (
     TranscriptionDataPipeline,
-    AudioChunkMetadata,
     TranscriptionResult,
     TranslationResult,
-    create_data_pipeline,
 )
 from src.database.bot_session_manager import (
-    BotSessionDatabaseManager,
     DatabaseConfig,
     TranslationRecord,
 )

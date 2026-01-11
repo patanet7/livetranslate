@@ -6,9 +6,8 @@ Database schema and operations for storing audio processing
 performance metrics and statistics for long-term analysis.
 """
 
-import time
 import json
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from datetime import datetime, timedelta
 from sqlalchemy import (
     Column,

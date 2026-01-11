@@ -7,12 +7,10 @@ Tests the actual endpoint with minimal mocking to verify:
 3. Real processing flow is called
 """
 
-import pytest
 import io
 import numpy as np
 import soundfile as sf
 from fastapi.testclient import TestClient
-from unittest.mock import AsyncMock
 
 
 def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
@@ -22,7 +20,6 @@ def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
     This is a simple end-to-end test that verifies the basic flow works.
     """
     from src.main_fastapi import app
-    from src.dependencies import get_audio_coordinator
 
     # Create test audio
     sample_rate = 16000
@@ -64,7 +61,7 @@ def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
 
         # Verify we got real text (not empty, actual Whisper transcription)
         assert transcription is not None and len(transcription) > 0, (
-            f"Expected real transcription, got empty or None"
+            "Expected real transcription, got empty or None"
         )
 
         # Verify processing status

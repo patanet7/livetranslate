@@ -20,7 +20,7 @@ from fastapi import (
 )
 from fastapi.websockets import WebSocketState
 
-from src.models.websocket import (
+from models.websocket import (
     WebSocketMessage,
     WebSocketResponse,
     ConnectionInfo,
@@ -29,8 +29,8 @@ from src.models.websocket import (
     MessageType,
     BroadcastMessage,
 )
-from src.dependencies import get_websocket_manager
-from src.utils.rate_limiting import RateLimiter
+from dependencies import get_websocket_manager
+from utils.rate_limiting import RateLimiter
 
 logger = logging.getLogger(__name__)
 

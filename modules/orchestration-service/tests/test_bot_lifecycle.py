@@ -19,12 +19,10 @@ Test Categories:
 import pytest
 import asyncio
 import time
-import json
 import tempfile
 import numpy as np
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import threading
+from unittest.mock import Mock, AsyncMock, patch
+from datetime import datetime
 import os
 import sys
 

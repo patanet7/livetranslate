@@ -5,8 +5,7 @@ SQLAlchemy models for user conversation persistence and retrieval.
 Follows Vexa patterns with user-centric scoping and full-text search capabilities.
 """
 
-from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 from sqlalchemy import (
     Column,
     Integer,
@@ -24,8 +23,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 
-# Import Base from existing models to ensure same metadata
-from src.database.models import Base
+# Import shared Base from base.py to ensure all models share the same MetaData
+from .base import Base
 
 
 class User(Base):

@@ -5,10 +5,8 @@ Provides database operations for translation caching, batching, and performance 
 Uses the translation optimization schema (migration-translation-optimization.sql).
 """
 
-import asyncio
 import logging
 import hashlib
-import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import json

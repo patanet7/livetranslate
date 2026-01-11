@@ -9,14 +9,10 @@ audio buffering, and quality analysis with real I/O operations.
 import pytest
 import asyncio
 import numpy as np
-import tempfile
 
 # import soundfile as sf  # Missing dependency - commented out
 import os
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, List, Any
-from datetime import datetime, timedelta
+from unittest.mock import patch
 
 # Skip tests until ChunkManager is implemented
 pytestmark = pytest.mark.skip(reason="ChunkManager not yet implemented")
@@ -24,11 +20,7 @@ pytestmark = pytest.mark.skip(reason="ChunkManager not yet implemented")
 # from src.audio.chunk_manager import ChunkManager, create_chunk_manager
 from src.audio.models import (
     AudioChunkMetadata,
-    AudioChunkingConfig,
-    QualityMetrics,
-    ProcessingStatus,
     SourceType,
-    create_audio_chunk_metadata,
     get_default_chunking_config,
 )
 

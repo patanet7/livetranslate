@@ -8,10 +8,7 @@ WebSocket server.
 
 import pytest
 import asyncio
-import json
-import base64
 import numpy as np
-from datetime import datetime, timezone
 import sys
 from pathlib import Path
 

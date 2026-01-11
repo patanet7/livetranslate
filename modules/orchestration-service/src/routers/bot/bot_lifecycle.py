@@ -22,8 +22,8 @@ from ._shared import (
     get_error_response,
     validate_bot_exists,
 )
-from src.models.bot import BotSpawnRequest
-from src.dependencies import get_bot_manager, get_event_publisher
+from models.bot import BotSpawnRequest
+from dependencies import get_bot_manager, get_event_publisher
 
 # Create router for bot lifecycle management
 router = create_bot_router()

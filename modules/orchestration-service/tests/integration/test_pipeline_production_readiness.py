@@ -21,7 +21,6 @@ import pytest
 import asyncio
 import uuid
 from pathlib import Path
-from typing import Dict, Any
 from datetime import datetime
 
 # Add parent directories to path
@@ -34,8 +33,6 @@ from pipeline.data_pipeline import (
     TranslationResult,
 )
 from database.bot_session_manager import (
-    BotSessionDatabaseManager,
-    DatabaseConfig,
     create_bot_session_manager,
 )
 from bot.bot_manager import GoogleMeetBotManager

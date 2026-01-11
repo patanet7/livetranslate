@@ -23,10 +23,8 @@ from src.audio.speaker_correlator import (
     ManualSpeakerMapping,
     LoopbackSpeakerInfo,
     CorrelationMethod,
-    CorrelationResult,
     create_speaker_correlation_manager,
 )
-from src.audio.models import CorrelationType
 
 
 class TestManualSpeakerMapping(unittest.TestCase):

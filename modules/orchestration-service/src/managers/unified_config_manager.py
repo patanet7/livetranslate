@@ -20,8 +20,8 @@ from pathlib import Path
 
 # Import specialized configuration managers
 from .config_manager import ConfigManager
-from src.audio.config import AudioConfigurationManager
-from src.audio.config_sync import ConfigurationSyncManager
+from audio.config import AudioConfigurationManager
+from audio.config_sync import ConfigurationSyncManager
 
 logger = logging.getLogger(__name__)
 

@@ -45,9 +45,9 @@ def main():
             print(f"  • {stage_name}: {class_name}")
 
             if "Enhanced" in class_name:
-                print(f"    ✓ Using enhanced implementation")
+                print("    ✓ Using enhanced implementation")
             else:
-                print(f"    ⚠ Not using enhanced (unexpected)")
+                print("    ⚠ Not using enhanced (unexpected)")
 
     print("\n" + "=" * 80)
     print("✅ Enhanced stages are now the default!")

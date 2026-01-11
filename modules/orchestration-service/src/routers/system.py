@@ -16,11 +16,11 @@ import psutil
 import time
 from datetime import datetime
 
-from src.dependencies import (
+from dependencies import (
     get_health_monitor,
     get_websocket_manager,
 )
-from src.models.system import (
+from models.system import (
     ServiceHealth,
     SystemMetrics,
 )

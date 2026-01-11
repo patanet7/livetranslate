@@ -19,12 +19,10 @@ from sqlalchemy import (
     ARRAY,
     Index,
     ForeignKey,
-    JSON as JSONB,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB as PostgresJSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from datetime import datetime
 import uuid
 
 from .base import Base

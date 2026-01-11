@@ -2,17 +2,15 @@ import asyncio
 import json
 import os
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import websockets
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from datetime import datetime
 from ..database.seamless_storage import (
     ensure_schema,
     open_session,
     close_session,
     add_event,
-    add_transcript,
     list_sessions,
     get_session,
     get_events,

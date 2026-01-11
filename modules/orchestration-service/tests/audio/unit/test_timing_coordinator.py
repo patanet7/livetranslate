@@ -11,7 +11,6 @@ import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, timedelta
 
 # Add src to path for imports
 orchestration_root = Path(__file__).parent.parent.parent.parent
@@ -25,7 +24,6 @@ from src.audio.timing_coordinator import (
     TimingCorrelation,
     SynchronizationQuality,
     TimingAccuracy,
-    CorrelationScope,
     create_timing_coordinator,
 )
 

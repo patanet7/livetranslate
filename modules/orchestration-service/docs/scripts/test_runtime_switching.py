@@ -38,7 +38,7 @@ def test_original_stages():
 
     print(f"✓ Processed {len(processed)} samples")
     print(f"  Stages applied: {metadata.get('stages_processed', [])}")
-    print(f"  Stage types:")
+    print("  Stage types:")
 
     # Check stage names
     for stage_name in config.enabled_stages:
@@ -72,7 +72,7 @@ def test_enhanced_stages():
 
     print(f"✓ Processed {len(processed)} samples")
     print(f"  Stages applied: {metadata.get('stages_processed', [])}")
-    print(f"  Stage types:")
+    print("  Stage types:")
 
     # Check stage names
     for stage_name in config.enabled_stages:
@@ -83,10 +83,10 @@ def test_enhanced_stages():
 
             # Verify enhanced stages
             if "Enhanced" in class_name:
-                print(f"      ✓ Using enhanced implementation")
+                print("      ✓ Using enhanced implementation")
             else:
                 print(
-                    f"      ⚠ Using original implementation (enhanced not available?)"
+                    "      ⚠ Using original implementation (enhanced not available?)"
                 )
 
     print()

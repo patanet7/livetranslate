@@ -6,12 +6,10 @@ Modern async/await backend with enhanced API endpoints, automatic documentation,
 and improved performance over the legacy Flask implementation.
 """
 
-import os
 import logging
-import asyncio
 import json
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -24,7 +22,6 @@ from fastapi.security import HTTPBearer
 from fastapi.openapi.utils import get_openapi
 
 import sys
-from pathlib import Path
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -177,6 +174,30 @@ try:
         else 0,
     }
 
+    # Import glossary_router
+    import_logger.debug("Importing glossary_router...")
+    from routers.glossary import router as glossary_router
+
+    import_logger.info("[OK] glossary_router imported successfully")
+    routers_status["glossary_router"] = {
+        "status": "success",
+        "routes": len(glossary_router.routes)
+        if hasattr(glossary_router, "routes")
+        else 0,
+    }
+
+    # Import captions_router
+    import_logger.debug("Importing captions_router...")
+    from routers.captions import router as captions_router
+
+    import_logger.info("[OK] captions_router imported successfully")
+    routers_status["captions_router"] = {
+        "status": "success",
+        "routes": len(captions_router.routes)
+        if hasattr(captions_router, "routes")
+        else 0,
+    }
+
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(
@@ -194,7 +215,7 @@ except ImportError as e:
 # Import models with logging
 try:
     import_logger.debug("Importing models...")
-    from src.models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
+    from models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
 
     import_logger.info("[OK] Models imported successfully")
 except ImportError as e:
@@ -203,7 +224,7 @@ except ImportError as e:
 # Import dependencies with logging
 try:
     import_logger.debug("Importing dependencies...")
-    from src.dependencies import (
+    from dependencies import (
         get_config_manager,
         get_websocket_manager,
         get_health_monitor,
@@ -231,7 +252,7 @@ except ImportError as e:
 # Import config with logging
 try:
     import_logger.debug("Importing config...")
-    from src.config import get_settings
+    from config import get_settings
 
     import_logger.info("[OK] Config imported successfully")
 except ImportError as e:
@@ -298,7 +319,7 @@ async def lifespan(app: FastAPI):
         settings = get_settings()
 
         # Initialize dependencies
-        from src.dependencies import startup_dependencies
+        from dependencies import startup_dependencies
 
         await startup_dependencies()
 
@@ -315,7 +336,7 @@ async def lifespan(app: FastAPI):
         logger.info("[STOP] Shutting down FastAPI Orchestration Service...")
 
         # Cleanup dependencies
-        from src.dependencies import shutdown_dependencies
+        from dependencies import shutdown_dependencies
 
         await shutdown_dependencies()
 
@@ -551,6 +572,26 @@ app.include_router(
 )
 registered_routes.append(("/api/audio", "websocket_audio_router"))
 router_logger.info(" websocket_audio_router registered successfully")
+
+# Register glossary_router (Glossary management for translation)
+router_logger.info("[13] Registering glossary_router...")
+log_router_details("glossary_router", glossary_router, "/api/glossaries")
+conflicts = check_route_conflicts(
+    "/api/glossaries", "glossary_router", registered_routes
+)
+app.include_router(glossary_router, prefix="/api", tags=["Glossaries"])
+registered_routes.append(("/api/glossaries", "glossary_router"))
+router_logger.info(" glossary_router registered successfully")
+
+# Register captions_router (Real-time caption streaming)
+router_logger.info("[14] Registering captions_router...")
+log_router_details("captions_router", captions_router, "/api/captions")
+conflicts = check_route_conflicts(
+    "/api/captions", "captions_router", registered_routes
+)
+app.include_router(captions_router, prefix="/api", tags=["Captions"])
+registered_routes.append(("/api/captions", "captions_router"))
+router_logger.info(" captions_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
@@ -801,9 +842,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
     import json
     import logging
     from datetime import datetime
-    from src.dependencies import get_websocket_manager
-    from src.models.websocket import WebSocketResponse, MessageType
-    from src.utils.rate_limiting import RateLimiter
+    from dependencies import get_websocket_manager
+    from utils.rate_limiting import RateLimiter
 
     logger = logging.getLogger(__name__)
     connection_id = None
@@ -826,7 +866,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
         import time
 
         # Import the proper ConnectionInfo class
-        from src.managers.websocket_manager import ConnectionInfo, ConnectionState
+        from managers.websocket_manager import ConnectionInfo, ConnectionState
 
         connection_id = str(uuid4())
 
@@ -916,7 +956,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                     elif message_type == "system:health_request":
                         # Get health data and send it
                         try:
-                            from src.dependencies import get_health_monitor
+                            from dependencies import get_health_monitor
 
                             health_monitor = get_health_monitor()
                             health_data = await health_monitor.get_system_health()

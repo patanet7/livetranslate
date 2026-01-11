@@ -16,7 +16,6 @@ Usage:
 
 import asyncio
 import argparse
-import json
 import logging
 import time
 from typing import Optional, Dict, Any
@@ -77,7 +76,7 @@ class BotSummonTest:
 
             if response.status_code == 200:
                 stats = response.json()
-                logger.info(f"✅ Bot manager is available")
+                logger.info("✅ Bot manager is available")
                 logger.info(f"   Total bots: {stats.get('total_bots', 0)}")
                 logger.info(f"   Active bots: {stats.get('active_bots', 0)}")
                 logger.info(f"   Success rate: {stats.get('success_rate', 0):.2%}")
@@ -154,7 +153,7 @@ class BotSummonTest:
             if response.status_code == 200:
                 result = response.json()
                 connection_id = result.get("connection_id")
-                logger.info(f"✅ Bot started successfully!")
+                logger.info("✅ Bot started successfully!")
                 logger.info(f"   Connection ID: {connection_id}")
                 logger.info(f"   Status: {result.get('status')}")
                 logger.info(f"   Message: {result.get('message')}")
@@ -271,7 +270,7 @@ class BotSummonTest:
 
             if response.status_code == 200:
                 result = response.json()
-                logger.info(f"✅ Stop command sent successfully")
+                logger.info("✅ Stop command sent successfully")
                 logger.info(f"   Message: {result.get('message')}")
                 return True
             else:

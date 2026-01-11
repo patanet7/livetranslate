@@ -27,11 +27,8 @@ import os
 import sys
 import pytest
 import pytest_asyncio
-import asyncio
 import uuid
 from pathlib import Path
-from typing import Dict, Any
-from datetime import datetime
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -41,11 +38,8 @@ from pipeline.data_pipeline import (
     AudioChunkMetadata,
     TranscriptionResult,
     TranslationResult,
-    create_data_pipeline,
 )
 from database.bot_session_manager import (
-    BotSessionDatabaseManager,
-    DatabaseConfig,
     create_bot_session_manager,
 )
 

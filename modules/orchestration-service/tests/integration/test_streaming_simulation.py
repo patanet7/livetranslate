@@ -14,7 +14,6 @@ import asyncio
 import io
 import numpy as np
 import soundfile as sf
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
@@ -205,7 +204,7 @@ class TestStreamingSimulation:
             assert speakers[0] == "SPEAKER_00"
             assert speakers[3] == "SPEAKER_01"  # Speaker changed at chunk 3
 
-            print(f"\n✅ STREAMING SIMULATION PASSED!")
+            print("\n✅ STREAMING SIMULATION PASSED!")
             print(f"   Total chunks: {len(results)}")
             print(f"   Full transcription: '{full_text}'")
             print(f"   Total processing time: {total_processing_time:.2f}s")
@@ -284,9 +283,9 @@ class TestStreamingSimulation:
                     f"Concurrent chunk {i} failed: {response.text}"
                 )
 
-            print(f"\n✅ CONCURRENT PROCESSING PASSED!")
+            print("\n✅ CONCURRENT PROCESSING PASSED!")
             print(f"   Processed {len(responses)} chunks concurrently")
-            print(f"   All chunks completed successfully")
+            print("   All chunks completed successfully")
 
     @pytest.mark.asyncio
     async def test_streaming_with_translations(
@@ -396,7 +395,7 @@ class TestStreamingSimulation:
             assert full_es == expected_es
             assert full_fr == expected_fr
 
-            print(f"\n✅ STREAMING WITH TRANSLATIONS PASSED!")
+            print("\n✅ STREAMING WITH TRANSLATIONS PASSED!")
             print(f"   Spanish: '{full_es}'")
             print(f"   French: '{full_fr}'")
 
@@ -485,11 +484,11 @@ class TestStreamingSimulation:
 
             assert len(successful_transcripts) == 4  # 4 out of 5 succeeded
 
-            print(f"\n✅ ERROR RECOVERY PASSED!")
+            print("\n✅ ERROR RECOVERY PASSED!")
             print(f"   Total chunks: {len(results)}")
             print(f"   Successful: {len(successful_transcripts)}")
-            print(f"   Failed: 1 (chunk 2)")
-            print(f"   System continued streaming after failure")
+            print("   Failed: 1 (chunk 2)")
+            print("   System continued streaming after failure")
 
 
 if __name__ == "__main__":

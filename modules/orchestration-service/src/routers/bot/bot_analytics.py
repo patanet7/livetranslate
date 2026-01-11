@@ -23,7 +23,7 @@ from ._shared import (
     get_error_response,
     validate_bot_exists,
 )
-from src.dependencies import get_bot_manager
+from dependencies import get_bot_manager
 
 # Create router for bot analytics
 router = create_bot_router()

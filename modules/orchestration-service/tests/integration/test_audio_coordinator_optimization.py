@@ -21,7 +21,6 @@ import asyncio
 import pytest
 import time
 import os
-from typing import Dict, List
 
 
 # Test configuration

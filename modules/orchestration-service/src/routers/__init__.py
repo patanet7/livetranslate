@@ -11,6 +11,7 @@ from .websocket import router as websocket_router
 from .system import router as system_router
 from .settings import router as settings_router
 from .translation import router as translation_router
+from .fireflies import router as fireflies_router
 
 __all__ = [
     "audio_router",
@@ -20,4 +21,5 @@ __all__ = [
     "system_router",
     "settings_router",
     "translation_router",
+    "fireflies_router",
 ]
