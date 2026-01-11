@@ -95,6 +95,36 @@ class HealthResponse(BaseModel):
     timestamp: str
 
 # ============================================================================
+# V3 API Models - Simplified "prompt-in, translation-out" contract
+# ============================================================================
+
+class PromptTranslateRequest(BaseModel):
+    """
+    V3 Simplified translation request - accepts complete prompt directly.
+
+    The orchestration service builds the prompt with:
+    - Rolling context windows
+    - Glossary terms
+    - Speaker information
+    - Target language instructions
+
+    This service just sends it to the LLM and returns the result.
+    """
+    prompt: str = Field(..., description="Complete prompt to send to LLM (with context, glossary embedded)")
+    backend: str = Field("ollama", description="Backend to use: ollama, groq, vllm, openai")
+    max_tokens: int = Field(256, description="Maximum tokens to generate")
+    temperature: float = Field(0.3, description="Temperature for generation (0.0-1.0)")
+    system_prompt: Optional[str] = Field(None, description="Optional system prompt override")
+
+class PromptTranslateResponse(BaseModel):
+    """V3 Simplified translation response"""
+    text: str = Field(..., description="Generated text (the translation)")
+    processing_time_ms: float = Field(..., description="Processing time in milliseconds")
+    backend_used: str = Field(..., description="Backend that processed the request")
+    model_used: str = Field(..., description="Model that generated the response")
+    tokens_used: Optional[int] = Field(None, description="Tokens used for generation")
+
+# ============================================================================
 # Global state
 # ============================================================================
 
@@ -426,6 +456,135 @@ async def detect_language(request: LanguageDetectionRequest):
             confidence=0.5,
             alternatives=[{"en": 0.5}]
         )
+
+# ============================================================================
+# V3 API Endpoints - Simplified "prompt-in, translation-out" contract
+# ============================================================================
+
+@app.post("/api/v3/translate", response_model=PromptTranslateResponse, tags=["V3 Translation"])
+async def translate_prompt(request: PromptTranslateRequest):
+    """
+    V3 Simplified Translation - Send prompt directly to LLM.
+
+    **Design Philosophy:**
+    The translation service is DUMB. It receives a complete prompt
+    (with context, glossary, target language already embedded) and
+    returns the LLM's response.
+
+    All intelligence (context windows, glossary management, speaker tracking)
+    stays in the orchestration service.
+
+    **Example Request:**
+    ```json
+    {
+      "prompt": "You are a translator...\\n\\nGlossary:\\n- API = API\\n\\nTranslate to Spanish:\\nHello world\\n\\nTranslation:",
+      "backend": "ollama",
+      "max_tokens": 256,
+      "temperature": 0.3
+    }
+    ```
+
+    **Example Response:**
+    ```json
+    {
+      "text": "Hola mundo",
+      "processing_time_ms": 150.5,
+      "backend_used": "ollama-local",
+      "model_used": "gemma3:4b"
+    }
+    ```
+    """
+    backend_name = request.backend.lower()
+
+    if backend_name not in translator_backends:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+        )
+
+    translator = translator_backends[backend_name]
+
+    try:
+        result = await translator.generate_from_prompt(
+            prompt=request.prompt,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+            system_prompt=request.system_prompt
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Translation failed - no result from backend"
+            )
+
+        return PromptTranslateResponse(
+            text=result["text"],
+            processing_time_ms=result["processing_time_ms"],
+            backend_used=result["backend_used"],
+            model_used=result["model_used"],
+            tokens_used=result.get("tokens_used")
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"V3 Translation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Translation failed: {str(e)}"
+        )
+
+
+@app.post("/api/v3/translate/stream", tags=["V3 Translation"])
+async def translate_prompt_stream(request: PromptTranslateRequest):
+    """
+    V3 Streaming Translation - Stream response chunks via SSE.
+
+    Returns Server-Sent Events with chunks as they're generated.
+
+    **SSE Format:**
+    ```
+    data: {"chunk": "Hola", "done": false}
+    data: {"chunk": " mundo", "done": false}
+    data: {"done": true, "processing_time_ms": 150.5, "backend_used": "ollama-local", "model_used": "gemma3:4b"}
+    ```
+    """
+    from fastapi.responses import StreamingResponse
+    import json
+
+    backend_name = request.backend.lower()
+
+    if backend_name not in translator_backends:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+        )
+
+    translator = translator_backends[backend_name]
+
+    async def generate():
+        try:
+            async for chunk_data in translator.generate_from_prompt_stream(
+                prompt=request.prompt,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+                system_prompt=request.system_prompt
+            ):
+                yield f"data: {json.dumps(chunk_data)}\n\n"
+        except Exception as e:
+            logger.error(f"V3 Streaming translation failed: {e}")
+            yield f"data: {json.dumps({'error': str(e), 'done': True})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
 
 # ============================================================================
 # Test Endpoint

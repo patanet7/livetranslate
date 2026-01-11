@@ -351,6 +351,183 @@ class OpenAICompatibleTranslator:
             for result in results
         ]
 
+    async def generate_from_prompt(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        system_prompt: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate text from a raw prompt - NO prompt building, just send directly to LLM.
+
+        This is the simplified "dumb" interface where the caller (orchestration service)
+        is responsible for building the complete prompt with context, glossary, etc.
+
+        Args:
+            prompt: Complete prompt ready to send to LLM (with all context embedded)
+            max_tokens: Maximum tokens to generate (uses config default if None)
+            temperature: Temperature for generation (uses config default if None)
+            system_prompt: Optional system prompt override
+
+        Returns:
+            Dict with text, processing_time_ms, backend_used, model_used
+        """
+        if not self.is_ready or not self._http_client:
+            logger.error(f"{self.config.name} is not ready")
+            return None
+
+        start_time = datetime.now()
+
+        try:
+            # Build messages - use provided system prompt or default minimal one
+            messages = []
+
+            if system_prompt:
+                messages.append({
+                    "role": "system",
+                    "content": system_prompt
+                })
+
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
+
+            # Prepare the request payload
+            payload = {
+                "model": self.config.model,
+                "messages": messages,
+                "temperature": temperature if temperature is not None else self.config.temperature,
+                "max_tokens": max_tokens if max_tokens is not None else self.config.max_tokens,
+                "stream": False,
+            }
+
+            # Add extra parameters
+            payload.update(self.config.extra_params)
+
+            # Make the API request with retries
+            response_data = await self._make_request_with_retry(payload)
+
+            if not response_data:
+                return None
+
+            # Extract text from response
+            text = self._extract_translation(response_data)
+
+            if not text:
+                logger.error(f"Failed to extract text from response: {response_data}")
+                return None
+
+            # Calculate processing time in milliseconds
+            processing_time_ms = (datetime.now() - start_time).total_seconds() * 1000
+
+            return {
+                "text": text,
+                "processing_time_ms": round(processing_time_ms, 2),
+                "backend_used": self.config.name,
+                "model_used": self.config.model,
+                "tokens_used": response_data.get("usage", {}).get("completion_tokens", 0)
+            }
+
+        except Exception as e:
+            logger.error(f"Generation failed with {self.config.name}: {e}")
+            return None
+
+    async def generate_from_prompt_stream(
+        self,
+        prompt: str,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        system_prompt: Optional[str] = None
+    ):
+        """
+        Stream text generation from a raw prompt.
+
+        Yields chunks as they're generated.
+
+        Args:
+            prompt: Complete prompt ready to send to LLM
+            max_tokens: Maximum tokens to generate
+            temperature: Temperature for generation
+            system_prompt: Optional system prompt override
+
+        Yields:
+            Dict with chunk, done, and optionally processing_time_ms when done
+        """
+        if not self.is_ready or not self._http_client:
+            logger.error(f"{self.config.name} is not ready")
+            yield {"error": "Service not ready", "done": True}
+            return
+
+        start_time = datetime.now()
+
+        try:
+            # Build messages
+            messages = []
+
+            if system_prompt:
+                messages.append({
+                    "role": "system",
+                    "content": system_prompt
+                })
+
+            messages.append({
+                "role": "user",
+                "content": prompt
+            })
+
+            # Prepare the request payload with streaming enabled
+            payload = {
+                "model": self.config.model,
+                "messages": messages,
+                "temperature": temperature if temperature is not None else self.config.temperature,
+                "max_tokens": max_tokens if max_tokens is not None else self.config.max_tokens,
+                "stream": True,
+            }
+
+            # Add extra parameters
+            payload.update(self.config.extra_params)
+
+            # Make streaming request
+            async with self._http_client.stream(
+                "POST",
+                "/chat/completions",
+                json=payload,
+                timeout=httpx.Timeout(self.config.timeout * 2)  # Longer timeout for streaming
+            ) as response:
+                if response.status_code != 200:
+                    yield {"error": f"HTTP {response.status_code}", "done": True}
+                    return
+
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]  # Remove "data: " prefix
+
+                        if data_str.strip() == "[DONE]":
+                            processing_time_ms = (datetime.now() - start_time).total_seconds() * 1000
+                            yield {
+                                "done": True,
+                                "processing_time_ms": round(processing_time_ms, 2),
+                                "backend_used": self.config.name,
+                                "model_used": self.config.model
+                            }
+                            return
+
+                        try:
+                            data = json.loads(data_str)
+                            delta = data.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content", "")
+
+                            if content:
+                                yield {"chunk": content, "done": False}
+                        except json.JSONDecodeError:
+                            continue
+
+        except Exception as e:
+            logger.error(f"Streaming generation failed with {self.config.name}: {e}")
+            yield {"error": str(e), "done": True}
+
     async def _make_request_with_retry(self, payload: Dict) -> Optional[Dict]:
         """Make API request with exponential backoff retry"""
         for attempt in range(self.config.retry_count):

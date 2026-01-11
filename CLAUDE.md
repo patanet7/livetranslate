@@ -92,16 +92,18 @@ cd modules/orchestration-service && ./start-backend.ps1
 ```bash
 # Whisper Service (NPU/GPU optimized)
 cd modules/whisper-service
-python src/main.py --device=npu
+poetry install
+poetry run python src/main.py --device=npu
 
 # Translation Service (GPU optimized)
 cd modules/translation-service
-python src/translation_service.py --device=gpu
+poetry install
+poetry run python src/api_server.py
 
 # Orchestration Service with bot management
 cd modules/orchestration-service
-pip install -r requirements.txt -r requirements-google-meet.txt -r requirements-database.txt
-python src/orchestration_service.py
+poetry install
+poetry run python src/main_fastapi.py
 ```
 
 ## File Structure Conventions
