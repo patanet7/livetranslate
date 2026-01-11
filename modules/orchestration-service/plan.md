@@ -8,11 +8,11 @@
 
 ## 📋 Current Work: Architecture Improvements
 
-### **Status**: 🔄 **IN PROGRESS** - Phase 2 Complete (2026-01-11)
+### **Status**: ✅ **PHASE 2 COMPLETE** - Dynamic Model Switching Working (2026-01-11)
 
 ### Overview: Dynamic Model Switching for Translation Service
 
-Implementing **RuntimeModelManager** for the translation service to allow dynamic model switching without service restart. This addresses the user requirement: "want the translate server to be able to call ollama internally rather than on startup so that we can change model etc without restarting the server".
+Implemented **RuntimeModelManager** for the translation service to allow dynamic model switching without service restart. This addresses the user requirement: "want the translate server to be able to call ollama internally rather than on startup so that we can change model etc without restarting the server".
 
 ### What Was Done (2026-01-11)
 
@@ -20,7 +20,7 @@ Implementing **RuntimeModelManager** for the translation service to allow dynami
 - Created checkpoint commit before architecture changes: `b2ee505`
 - All 61/61 E2E translations passing
 
-**Phase 2: Translation Dynamic Model Switching** ✅
+**Phase 2: Translation Dynamic Model Switching** ✅ **COMPLETE**
 - Created `RuntimeModelManager` class (`modules/translation-service/src/model_manager.py`)
 - Added model management endpoints to translation service:
   - `POST /api/models/switch` - Switch model at runtime
@@ -28,6 +28,8 @@ Implementing **RuntimeModelManager** for the translation service to allow dynami
   - `POST /api/models/unload` - Unload cached model
   - `GET /api/models/status` - Get current model status
   - `GET /api/models/list/{backend}` - List available models
+- **Bug Fix**: Translation endpoints now use RuntimeModelManager (commit `77ecce1`)
+- **Integration Tests**: 11 pytest tests + quick test script - ALL PASSING
 
 **Phase 2.5: Orchestration Integration** ✅
 - Added orchestration proxy endpoints:
@@ -36,19 +38,44 @@ Implementing **RuntimeModelManager** for the translation service to allow dynami
   - `GET /api/settings/sync/translation/model-status`
   - `GET /api/settings/sync/translation/available-models/{backend}`
 
+### Test Results (2026-01-11)
+
+**Integration Tests: 11/11 PASSED** (66.64s)
+```
+✅ test_service_is_healthy
+✅ test_get_model_status
+✅ test_translate_simple_text
+✅ test_full_model_switch_workflow
+✅ test_switch_to_same_model
+✅ test_switch_to_invalid_model
+✅ test_preload_and_fast_switch
+✅ test_cache_grows_with_models
+✅ test_unload_non_current_model
+✅ test_cannot_unload_current_model
+✅ test_multiple_translations_same_model
+```
+
+**Quick Test Verification:**
+- qwen3:4b → "El servidor procesa solicitudes **asíncronamente**..."
+- gemma3:4b → "El servidor procesa **las solicitudes de forma asíncrona**..."
+- ✅ Translations DIFFER - confirming model switch works!
+
 ### Files Created
 | File | Purpose |
 |------|---------|
 | `translation-service/src/model_manager.py` | RuntimeModelManager for dynamic model switching |
+| `translation-service/tests/integration/test_model_switching_integration.py` | Comprehensive pytest integration tests |
+| `translation-service/tests/quick_model_switch_test.py` | Quick manual verification script |
+| `translation-service/tests/test_model_manager.py` | Unit tests (19 tests) |
 
 ### Files Modified
 | File | Change |
 |------|--------|
-| `translation-service/src/api_server_fastapi.py` | Added model management endpoints, Pydantic models |
+| `translation-service/src/api_server_fastapi.py` | Added model management endpoints, fixed translation endpoints to use RuntimeModelManager |
 | `orchestration-service/src/routers/settings.py` | Added model switching proxy endpoints |
 
 ### RuntimeModelManager Features
-- **Model Caching**: Previously loaded models cached for instant switching
+- **Model Caching**: Previously loaded models cached for instant switching (0.00s!)
 - **Backend Support**: Ollama, Groq, vLLM, OpenAI
 - **Preloading**: Load models in background for zero-switch-time
 - **Usage Tracking**: Request counts, load times, last used timestamps
@@ -60,20 +87,26 @@ Implementing **RuntimeModelManager** for the translation service to allow dynami
 ```bash
 curl -X POST http://localhost:5003/api/models/switch \
   -H "Content-Type: application/json" \
-  -d '{"model": "llama2:7b", "backend": "ollama"}'
+  -d '{"model": "gemma3:4b", "backend": "ollama"}'
 ```
 
 **Switch Model via Orchestration Service:**
 ```bash
 curl -X POST http://localhost:3000/api/settings/sync/translation/switch-model \
   -H "Content-Type: application/json" \
-  -d '{"model": "llama2:7b", "backend": "ollama"}'
+  -d '{"model": "gemma3:4b", "backend": "ollama"}'
 ```
 
 **Get Model Status:**
 ```bash
 curl http://localhost:5003/api/models/status
 ```
+
+### Git Commits (Phase 2)
+1. `b2ee505` - CHECKPOINT: Before architecture improvements
+2. `7560994` - FEAT: Dynamic model switching for translation service
+3. `2665d79` - TEST: Add real integration tests for dynamic model switching
+4. `77ecce1` - FIX: Translation endpoints now use RuntimeModelManager
 
 ### Remaining Tasks
 
