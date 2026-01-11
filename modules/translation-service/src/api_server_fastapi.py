@@ -561,16 +561,23 @@ async def translate_text(request: TranslateRequest):
     - Auto language detection if source_language not provided
     - Multiple backend support (Ollama, Groq, etc.)
     - Quality settings (fast, balanced, quality)
+    - Dynamic model switching via RuntimeModelManager
     """
     backend_name = request.model.lower()
 
-    if backend_name not in translator_backends:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
-        )
+    # Use RuntimeModelManager for dynamic model switching
+    translator = None
+    if backend_name == "ollama" and model_manager is not None:
+        translator = await model_manager.get_current_translator()
 
-    translator = translator_backends[backend_name]
+    # Fall back to static backends if RuntimeModelManager not available
+    if translator is None:
+        if backend_name not in translator_backends:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+            )
+        translator = translator_backends[backend_name]
 
     start_time = time.time()
 
@@ -732,6 +739,10 @@ async def translate_prompt(request: PromptTranslateRequest):
     All intelligence (context windows, glossary management, speaker tracking)
     stays in the orchestration service.
 
+    **Supports Dynamic Model Switching:**
+    Uses RuntimeModelManager for Ollama backend - model can be switched at
+    runtime via /api/models/switch without restarting the service.
+
     **Example Request:**
     ```json
     {
@@ -754,13 +765,21 @@ async def translate_prompt(request: PromptTranslateRequest):
     """
     backend_name = request.backend.lower()
 
-    if backend_name not in translator_backends:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
-        )
+    # Use RuntimeModelManager for dynamic model switching
+    translator = None
+    current_model = None
+    if backend_name == "ollama" and model_manager is not None:
+        translator = await model_manager.get_current_translator()
+        current_model = model_manager.current_model
 
-    translator = translator_backends[backend_name]
+    # Fall back to static backends if RuntimeModelManager not available
+    if translator is None:
+        if backend_name not in translator_backends:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+            )
+        translator = translator_backends[backend_name]
 
     try:
         result = await translator.generate_from_prompt(
@@ -780,7 +799,7 @@ async def translate_prompt(request: PromptTranslateRequest):
             text=result["text"],
             processing_time_ms=result["processing_time_ms"],
             backend_used=result["backend_used"],
-            model_used=result["model_used"],
+            model_used=current_model or result["model_used"],  # Use RuntimeModelManager's model
             tokens_used=result.get("tokens_used")
         )
 
@@ -813,13 +832,21 @@ async def translate_prompt_stream(request: PromptTranslateRequest):
 
     backend_name = request.backend.lower()
 
-    if backend_name not in translator_backends:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
-        )
+    # Use RuntimeModelManager for dynamic model switching
+    translator = None
+    current_model = None
+    if backend_name == "ollama" and model_manager is not None:
+        translator = await model_manager.get_current_translator()
+        current_model = model_manager.current_model
 
-    translator = translator_backends[backend_name]
+    # Fall back to static backends if RuntimeModelManager not available
+    if translator is None:
+        if backend_name not in translator_backends:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+            )
+        translator = translator_backends[backend_name]
 
     async def generate():
         try:
