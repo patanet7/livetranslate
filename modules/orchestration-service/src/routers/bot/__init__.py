@@ -1,7 +1,16 @@
 """
 Bot Management API Router - package entry point.
 
-Combines lifecycle, configuration, analytics, webcam, and system sub-routers.
+Combines lifecycle, configuration, analytics, webcam, system, and Docker management sub-routers.
+
+Modules:
+- bot_lifecycle: Bot spawning and termination (uses BotManager)
+- bot_configuration: Bot configuration management
+- bot_analytics: Bot analytics and metrics
+- bot_webcam: Virtual webcam control
+- bot_system: System-level bot operations
+- bot_docker_management: Docker container management (uses DockerBotManager)
+- bot_docker_callbacks: Callbacks from Docker containers
 """
 
 from fastapi import APIRouter
@@ -12,6 +21,8 @@ from . import (
     bot_lifecycle,
     bot_system,
     bot_webcam,
+    bot_docker_management,
+    bot_docker_callbacks,
 )
 
 router = APIRouter(
@@ -70,11 +81,23 @@ router.include_router(
     },
 )
 
+# Docker-based bot management router (separate from main router)
+# Mounted at /api/bots by main_fastapi.py
+docker_management_router = bot_docker_management.router
+
+# Docker callbacks router (for container status updates)
+# Mounted at /api/bots/internal/callback by main_fastapi.py
+docker_callbacks_router = bot_docker_callbacks.router
+
 __all__ = [
     "router",
+    "docker_management_router",
+    "docker_callbacks_router",
     "bot_analytics",
     "bot_configuration",
     "bot_lifecycle",
     "bot_system",
     "bot_webcam",
+    "bot_docker_management",
+    "bot_docker_callbacks",
 ]

@@ -4,7 +4,46 @@ Global test configuration and fixtures for comprehensive audio flow testing.
 
 This module provides shared fixtures, configuration, and utilities for all
 audio processing tests across the test suite.
+
+IMPORTANT: All tests should use REAL services and databases, not mocks.
+The environment variables below configure the real PostgreSQL database.
 """
+
+import os
+import sys
+
+# =============================================================================
+# ENVIRONMENT SETUP - Must be done BEFORE any other imports
+# Configure real database connection for all tests
+# =============================================================================
+
+# PostgreSQL on port 5433 (livetranslate-postgres container)
+if "DATABASE_URL" not in os.environ:
+    os.environ["DATABASE_URL"] = (
+        "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+    )
+
+if "TEST_DATABASE_URL" not in os.environ:
+    os.environ["TEST_DATABASE_URL"] = os.environ["DATABASE_URL"]
+
+# PostgreSQL individual settings for compatibility
+os.environ.setdefault("POSTGRES_HOST", "localhost")
+os.environ.setdefault("POSTGRES_PORT", "5433")
+os.environ.setdefault("POSTGRES_DB", "livetranslate_test")
+os.environ.setdefault("POSTGRES_USER", "livetranslate")
+os.environ.setdefault("POSTGRES_PASSWORD", "livetranslate_dev_password")
+os.environ.setdefault("DB_USER", "livetranslate")
+os.environ.setdefault("DB_PASSWORD", "livetranslate_dev_password")
+os.environ.setdefault("DB_HOST", "localhost")
+os.environ.setdefault("DB_PORT", "5433")
+os.environ.setdefault("DB_NAME", "livetranslate_test")
+
+# Redis (for caching tests)
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
+
+# =============================================================================
+# Standard imports
+# =============================================================================
 
 import asyncio
 import logging
@@ -13,8 +52,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Any
 from unittest.mock import AsyncMock, Mock
-import os
-import sys
 
 import pytest
 import numpy as np
@@ -521,6 +558,49 @@ def test_timeout():
     pytest.timeout = TEST_TIMEOUT
 
 
+@pytest.fixture(scope="function", autouse=True)
+def reset_dependency_singletons():
+    """
+    Reset all dependency singletons before and after each test.
+
+    This prevents asyncio event loop binding issues where singletons
+    (EventPublisher, RedisClient, DatabaseManager, etc.) created in one
+    test's event loop cause "Event loop is closed" errors in subsequent tests.
+
+    The issue occurs because:
+    1. Singletons are cached via @lru_cache()
+    2. Each async test function gets a fresh event loop
+    3. Redis clients and asyncio.Lock() objects bind to the loop they were created in
+    4. Using them from a different loop fails with "Event loop is closed"
+
+    Solution: Reset all singletons before each test so they get recreated
+    with the current test's event loop.
+    """
+    # Reset before test
+    try:
+        from src.dependencies import reset_dependencies
+        reset_dependencies()
+    except ImportError:
+        try:
+            from dependencies import reset_dependencies
+            reset_dependencies()
+        except ImportError:
+            pass  # Skip if dependencies not available
+
+    yield
+
+    # Reset after test (cleanup)
+    try:
+        from src.dependencies import reset_dependencies
+        reset_dependencies()
+    except ImportError:
+        try:
+            from dependencies import reset_dependencies
+            reset_dependencies()
+        except ImportError:
+            pass
+
+
 # Session-level fixtures for resource management
 @pytest.fixture(scope="session", autouse=True)
 def session_setup_teardown():
@@ -564,3 +644,97 @@ def assert_processing_time(actual_time: float, max_time: float, audio_duration: 
 
     real_time_factor = actual_time / audio_duration
     assert real_time_factor <= 5.0, f"Real-time factor {real_time_factor} too high"
+
+
+# =============================================================================
+# REAL DATABASE FIXTURES - For integrated testing
+# =============================================================================
+
+@pytest.fixture(scope="session")
+def database_url():
+    """Get the database URL from environment."""
+    return os.environ.get(
+        "DATABASE_URL",
+        "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+    )
+
+
+@pytest.fixture(scope="session")
+def db_engine(database_url):
+    """Create a real database engine for the test session."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(database_url, echo=False, pool_pre_ping=True)
+
+    # Verify connection
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info(f"Database connection verified: {database_url.split('@')[1]}")
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
+        pytest.skip(f"Database not available: {e}")
+
+    yield engine
+
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db_session(db_engine):
+    """Create a database session for each test."""
+    from sqlalchemy.orm import sessionmaker
+
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    session = SessionLocal()
+
+    try:
+        yield session
+    finally:
+        session.rollback()
+        session.close()
+
+
+@pytest.fixture(scope="session")
+def verify_database_connection(database_url):
+    """Verify database is accessible at session start using SQLAlchemy."""
+    from sqlalchemy import create_engine, text
+
+    try:
+        engine = create_engine(database_url, pool_pre_ping=True)
+
+        with engine.connect() as conn:
+            # Get PostgreSQL version
+            result = conn.execute(text("SELECT version()"))
+            version = result.scalar()
+            logger.info(f"PostgreSQL: {version[:50]}...")
+
+            # Count tables
+            result = conn.execute(text("""
+                SELECT COUNT(*) FROM information_schema.tables
+                WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+            """))
+            table_count = result.scalar()
+            logger.info(f"Database tables available: {table_count}")
+
+        engine.dispose()
+        return True
+    except Exception as e:
+        logger.warning(f"Database verification failed: {e}")
+        return False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_environment(verify_database_connection, database_url):
+    """Setup the test environment at the start of the session."""
+    logger.info("=" * 60)
+    logger.info("TEST ENVIRONMENT SETUP")
+    logger.info("=" * 60)
+    logger.info(f"DATABASE_URL: {database_url.split('@')[1]}")  # Hide credentials
+    logger.info(f"REDIS_URL: {os.environ.get('REDIS_URL', 'not set')}")
+    logger.info(f"Database connected: {verify_database_connection}")
+    logger.info("=" * 60)
+
+    yield
+
+    logger.info("Test session complete")

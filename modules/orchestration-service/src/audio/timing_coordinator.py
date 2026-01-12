@@ -18,7 +18,7 @@ Key Features:
 import asyncio
 import logging
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -101,7 +101,7 @@ class TimingCorrelation:
     accuracy_level: TimingAccuracy
     correlation_method: str
     correlation_metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -116,7 +116,7 @@ class SynchronizationQuality:
     max_drift_ms: float
     alignment_consistency: float
     quality_factors: Dict[str, float] = field(default_factory=dict)
-    assessment_timestamp: datetime = field(default_factory=datetime.utcnow)
+    assessment_timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class TimingCoordinator:

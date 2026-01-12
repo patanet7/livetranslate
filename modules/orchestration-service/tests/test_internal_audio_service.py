@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 import pytest
@@ -65,7 +65,7 @@ async def test_audio_client_uses_embedded(monkeypatch):
             self.confidence_score = 0.87
             self.processing_time = 0.05
             self.session_id = "session"
-            self.timestamp = datetime.utcnow().isoformat()
+            self.timestamp = datetime.now(timezone.utc).isoformat()
 
     class DummyWhisperService:
         async def transcribe(self, request):

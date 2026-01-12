@@ -18,7 +18,7 @@ These tests verify that glossary terms are properly:
 import sys
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from uuid import uuid4
 import re
@@ -67,8 +67,8 @@ class IntGlossary(IntegrationBase):
     target_languages = Column(JSON, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     is_default = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     created_by = Column(String(255), nullable=True)
     entry_count = Column(Integer, nullable=False, default=0)
 
@@ -90,8 +90,8 @@ class IntGlossaryEntry(IntegrationBase):
     case_sensitive = Column(Boolean, nullable=False, default=False)
     match_whole_word = Column(Boolean, nullable=False, default=True)
     priority = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     glossary = relationship("IntGlossary", back_populates="entries")
 

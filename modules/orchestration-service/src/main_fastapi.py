@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, HTTPException, status, Depends
+from fastapi import FastAPI, WebSocket, HTTPException, status, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
@@ -22,7 +22,7 @@ from fastapi.security import HTTPBearer
 from fastapi.openapi.utils import get_openapi
 
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 router_logger = logging.getLogger("router_registration")
@@ -57,7 +57,7 @@ try:
     }
 
     import_logger.debug("Importing audio_coordination_router...")
-    from routers.audio_coordination import router as audio_coordination_router
+    from routers.audio import coordination_router as audio_coordination_router
 
     import_logger.info("[OK] audio_coordination_router imported successfully")
     routers_status["audio_coordination_router"] = {
@@ -77,7 +77,7 @@ try:
     }
 
     import_logger.debug("Importing bot_management_router...")
-    from routers.bot_management import router as bot_management_router
+    from routers.bot import docker_management_router as bot_management_router
 
     import_logger.info("[OK] bot_management_router imported successfully")
     routers_status["bot_management_router"] = {
@@ -88,7 +88,7 @@ try:
     }
 
     import_logger.debug("Importing bot_callbacks_router...")
-    from routers.bot_callbacks import router as bot_callbacks_router
+    from routers.bot import docker_callbacks_router as bot_callbacks_router
 
     import_logger.info("[OK] bot_callbacks_router imported successfully")
     routers_status["bot_callbacks_router"] = {
@@ -164,7 +164,7 @@ try:
 
     # Import websocket_audio_router
     import_logger.debug("Importing websocket_audio_router...")
-    from routers.websocket_audio import router as websocket_audio_router
+    from routers.audio import websocket_router as websocket_audio_router
 
     import_logger.info("[OK] websocket_audio_router imported successfully")
     routers_status["websocket_audio_router"] = {
@@ -531,17 +531,9 @@ app.include_router(translation_router, prefix="/api/translation", tags=["Transla
 registered_routes.append(("/api/translation", "translation_router"))
 router_logger.info(" translation_router registered successfully")
 
-# Also include translation router on /api/translate for direct compatibility
-router_logger.info("[8] Registering translation_router (compatibility alias)...")
-log_router_details("translation_router", translation_router, "/api/translate")
-conflicts = check_route_conflicts(
-    "/api/translate", "translation_router_alias", registered_routes
-)
-app.include_router(
-    translation_router, prefix="/api/translate", tags=["Translation Direct"]
-)
-registered_routes.append(("/api/translate", "translation_router_alias"))
-router_logger.info(" translation_router compatibility alias registered successfully")
+# NOTE: Removed duplicate /api/translate mount (2026-01-11 - Phase 3 cleanup)
+# The translation_router is now only mounted at /api/translation
+# Frontend uses /api/translation/translate, internal services call translation-service directly (port 5003)
 
 # Register analytics_router
 router_logger.info("[9] Registering analytics_router...")
@@ -646,7 +638,7 @@ async def get_debug_routes():
             "registered_routers_count": len(registered_routes)
             if registered_routes
             else 0,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         route_logger.error(f"Error in debug/routes endpoint: {e}")
@@ -655,7 +647,7 @@ async def get_debug_routes():
             "total_routes": 0,
             "routes": [],
             "registered_routers": [],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -682,7 +674,7 @@ async def get_debug_routers():
             "registered_routes_count": len(registered_routes)
             if registered_routes
             else 0,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         route_logger.error(f"Error in debug/routers endpoint: {e}")
@@ -691,7 +683,7 @@ async def get_debug_routers():
             "router_count": 0,
             "router_status": {},
             "registered_routes": [],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -715,7 +707,7 @@ async def get_debug_conflicts():
             "all_prefixes": {},
             "resolution_status": "ERROR",
             "error": "No registered routes found - service may not be fully initialized",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # Check for conflicts
@@ -741,7 +733,7 @@ async def get_debug_conflicts():
         "all_prefixes": prefixes_seen,
         "resolution_status": "RESOLVED" if len(conflicts) == 0 else "NEEDS_ATTENTION",
         "registered_routes_count": len(registered_routes),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -766,7 +758,7 @@ async def get_debug_imports():
                 for name, status in routers_status.items()
                 if status["status"] == "failed"
             ],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         import_logger.error(f"Error in debug/imports endpoint: {e}")
@@ -776,7 +768,7 @@ async def get_debug_imports():
             "import_status": {},
             "successful_imports": [],
             "failed_imports": [],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -806,7 +798,7 @@ async def get_debug_health():
             "debug_session_id": startup_logger.name,
             "registered_routes_available": bool(registered_routes),
             "routers_status_available": bool(routers_status),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         startup_logger.info(
@@ -825,7 +817,7 @@ async def get_debug_health():
             "import_status": "failed",
             "conflicts_detected": 0,
             "debug_session_id": startup_logger.name,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -841,7 +833,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
     """
     import json
     import logging
-    from datetime import datetime
+    from datetime import datetime, timezone
     from dependencies import get_websocket_manager
     from utils.rate_limiting import RateLimiter
 
@@ -891,7 +883,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
         logger.info(f"WebSocket connection registered: {connection_id}")
 
         # Send welcome message in frontend-expected format
-        current_time = datetime.utcnow()
+        current_time = datetime.now(timezone.utc)
         welcome_message = {
             "type": "connection:established",
             "data": {
@@ -920,8 +912,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             "error": "Rate limit exceeded",
                             "error_code": "RATE_LIMIT",
                         },
-                        "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                        "messageId": f"rate-limit-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                        "messageId": f"rate-limit-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
                     }
                     await websocket.send_text(json.dumps(error_response))
                     continue
@@ -937,11 +929,11 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                         pong_response = {
                             "type": "connection:pong",
                             "data": {
-                                "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                                "server_time": datetime.utcnow().isoformat(),
+                                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                                "server_time": datetime.now(timezone.utc).isoformat(),
                             },
-                            "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                            "messageId": f"pong-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                            "messageId": f"pong-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
                             "correlationId": message_data.get("messageId"),
                         }
                         await websocket.send_text(json.dumps(pong_response))
@@ -949,8 +941,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                         # Handle basic ping/pong
                         pong_response = {
                             "type": "pong",
-                            "data": {"timestamp": datetime.utcnow().isoformat()},
-                            "timestamp": int(datetime.utcnow().timestamp() * 1000),
+                            "data": {"timestamp": datetime.now(timezone.utc).isoformat()},
+                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
                         }
                         await websocket.send_text(json.dumps(pong_response))
                     elif message_type == "system:health_request":
@@ -964,8 +956,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             health_response = {
                                 "type": "system:health_update",
                                 "data": health_data,
-                                "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                                "messageId": f"health-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                                "messageId": f"health-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
                                 "correlationId": message_data.get("messageId"),
                             }
                             await websocket.send_text(json.dumps(health_response))
@@ -974,8 +966,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             error_response = {
                                 "type": "error:health_data",
                                 "data": {"error": str(e)},
-                                "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                                "messageId": f"error-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                                "messageId": f"error-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
                                 "correlationId": message_data.get("messageId"),
                             }
                             await websocket.send_text(json.dumps(error_response))
@@ -993,8 +985,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             "session_id": session_id,
                             "connection_id": connection_id,
                             "config": config,
-                            "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                            "messageId": f"session-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                            "messageId": f"session-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
                             "correlationId": message_data.get("messageId"),
                         }
                         await websocket.send_text(json.dumps(session_response))
@@ -1006,8 +998,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                                 "original_message": message_data,
                                 "echo_from": "orchestration-service",
                             },
-                            "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                            "messageId": f"echo-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                            "messageId": f"echo-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
                             "correlationId": message_data.get("messageId"),
                         }
                         await websocket.send_text(json.dumps(echo_response))
@@ -1019,8 +1011,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             "error": f"Invalid message format: {e}",
                             "error_code": "INVALID_FORMAT",
                         },
-                        "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                        "messageId": f"error-{int(datetime.utcnow().timestamp() * 1000)}-{connection_id[:8]}",
+                        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                        "messageId": f"error-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
                     }
                     await websocket.send_text(json.dumps(error_response))
                     continue

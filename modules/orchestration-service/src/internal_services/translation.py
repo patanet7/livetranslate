@@ -13,7 +13,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from difflib import SequenceMatcher
@@ -230,7 +230,7 @@ class UnifiedTranslationService:
                 "model_used": model or backend_used or "embedded",
                 "session_id": getattr(result, "session_id", session_id),
                 "timestamp": getattr(
-                    result, "timestamp", datetime.utcnow().isoformat()
+                    result, "timestamp", datetime.now(timezone.utc).isoformat()
                 ),
             }
         except Exception as exc:
@@ -317,8 +317,8 @@ class UnifiedTranslationService:
         session_id = (config or {}).get("session_id") or uuid4().hex
         self._sessions[session_id] = {
             "config": config or {},
-            "created_at": datetime.utcnow().isoformat(),
-            "last_activity": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_activity": datetime.now(timezone.utc).isoformat(),
             "translations": 0,
         }
         return session_id
@@ -330,7 +330,7 @@ class UnifiedTranslationService:
             return {"status": "not_found", "session_id": session_id}
 
         duration = (
-            datetime.utcnow() - datetime.fromisoformat(session["created_at"])
+            datetime.now(timezone.utc) - datetime.fromisoformat(session["created_at"])
         ).total_seconds()
 
         return {
@@ -356,7 +356,7 @@ class UnifiedTranslationService:
 
         session = self._sessions[session_id]
         session["translations"] = session.get("translations", 0) + 1
-        session["last_activity"] = datetime.utcnow().isoformat()
+        session["last_activity"] = datetime.now(timezone.utc).isoformat()
 
         return result
 
@@ -370,7 +370,7 @@ class UnifiedTranslationService:
             **self._metrics,
             "average_processing_time": avg_time,
             "active_sessions": len(self._sessions),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     async def get_models(self) -> List[Dict[str, Any]]:
@@ -446,8 +446,15 @@ def get_unified_translation_service() -> UnifiedTranslationService:
     return _TRANSLATION_SINGLETON
 
 
+def reset_unified_translation_service() -> None:
+    """Reset the singleton (for testing only)"""
+    global _TRANSLATION_SINGLETON
+    _TRANSLATION_SINGLETON = None
+
+
 __all__ = [
     "UnifiedTranslationService",
     "UnifiedTranslationError",
     "get_unified_translation_service",
+    "reset_unified_translation_service",
 ]

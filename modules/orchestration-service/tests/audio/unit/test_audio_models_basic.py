@@ -189,7 +189,7 @@ class TestModelSerialization(unittest.TestCase):
         config = AudioChunkingConfig(chunk_duration=4.0, overlap_duration=0.8)
 
         # Convert to dictionary
-        config_dict = config.dict()
+        config_dict = config.model_dump()
         assert isinstance(config_dict, dict)
         assert config_dict["chunk_duration"] == 4.0
         assert config_dict["overlap_duration"] == 0.8

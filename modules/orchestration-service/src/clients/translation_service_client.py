@@ -7,7 +7,7 @@ Provides methods for text translation, language detection, and quality assessmen
 
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 import aiohttp
 from pydantic import BaseModel
@@ -77,6 +77,7 @@ class TranslationServiceClient:
         timeout_seconds = timeout or self._get_timeout()
         self.session: Optional[aiohttp.ClientSession] = None
         self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+        self._session_loop = None  # Track which event loop created the session
         # EMBEDDED SERVICE DISABLED - Use only remote translation service
         self._embedded_service = None
         self._prefer_embedded = False
@@ -147,11 +148,40 @@ class TranslationServiceClient:
         return 60
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session"""
+        """Get or create aiohttp session, handling event loop changes"""
         if not self._remote_enabled():
             raise RuntimeError("Remote translation service not configured")
-        if self.session is None or self.session.closed:
+
+        # Check if we need a new session:
+        # 1. No session exists
+        # 2. Session is closed
+        # 3. Session was created on a different event loop
+        need_new_session = False
+        try:
+            current_loop = asyncio.get_running_loop()
+            if self.session is None or self.session.closed:
+                need_new_session = True
+            elif self._session_loop is not None and self._session_loop is not current_loop:
+                # Session was created on a different event loop
+                logger.debug("Recreating translation session due to event loop change")
+                try:
+                    if not self.session.closed:
+                        await self.session.close()
+                except Exception:
+                    pass  # Ignore errors closing old session
+                need_new_session = True
+        except RuntimeError:
+            # No running event loop
+            need_new_session = True
+
+        if need_new_session:
             self.session = aiohttp.ClientSession(timeout=self.timeout)
+            # Store the current event loop for future comparisons
+            try:
+                self._session_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self._session_loop = None
+
         return self.session
 
     async def close(self):
@@ -546,7 +576,7 @@ class TranslationServiceClient:
         if not self._remote_enabled():
             return {
                 "error": "No translation backend available",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         try:
             session = await self._get_session()
@@ -824,7 +854,7 @@ class TranslationServiceClient:
                 "throughput_per_minute": stats.get("throughput_per_minute", 0),
                 "active_sessions": stats.get("active_sessions", 0),
                 "supported_languages": len(supported_languages),
-                "timestamp": stats.get("timestamp", datetime.utcnow().isoformat()),
+                "timestamp": stats.get("timestamp", datetime.now(timezone.utc).isoformat()),
             }
 
         return {
@@ -839,6 +869,6 @@ class TranslationServiceClient:
             "throughput_per_minute": 0,
             "active_sessions": 0,
             "supported_languages": len(await self.get_supported_languages()),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "error": stats.get("error", "statistics unavailable"),
         }

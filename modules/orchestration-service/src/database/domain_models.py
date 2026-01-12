@@ -86,7 +86,8 @@ class DomainTerminology(Base):
     )
 
     # Term details
-    term = Column(String(255), nullable=False, index=True)
+    # Note: index defined explicitly in __table_args__, not here
+    term = Column(String(255), nullable=False)
     normalized_term = Column(String(255), nullable=False)  # Lowercase, stripped
     phonetic = Column(
         String(255), nullable=True

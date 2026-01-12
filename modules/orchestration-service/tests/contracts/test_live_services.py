@@ -140,4 +140,3 @@ async def test_translation_live_endpoints():
 
         perf = await client.get(f"{base_url}/api/performance")
         assert perf.status_code == 200
-*** End Patch

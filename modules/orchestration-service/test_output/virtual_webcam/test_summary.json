@@ -1,0 +1,16 @@
+{
+  "session_id": "test_webcam_1768172782",
+  "test_date": "2026-01-11T15:06:46.630258",
+  "statistics": {
+    "transcriptions": 6,
+    "translations": 7,
+    "frames_saved": 1,
+    "frames_generated": 528
+  },
+  "output_directory": "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/orchestration-service/test_output/virtual_webcam",
+  "test_results": {
+    "test_1_transcription_only": true,
+    "test_2_bilingual_display": true,
+    "test_3_multilingual": true
+  }
+}

@@ -8,7 +8,7 @@ performance metrics and statistics for long-term analysis.
 
 import json
 from typing import Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import (
     Column,
     Integer,
@@ -34,7 +34,7 @@ class ProcessingMetrics(Base):
     __tablename__ = "processing_metrics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     session_id = Column(String(255), nullable=True)
     chunk_id = Column(String(255), nullable=True)
 
@@ -80,7 +80,7 @@ class StageMetrics(Base):
     __tablename__ = "stage_metrics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     session_id = Column(String(255), nullable=True)
     chunk_id = Column(String(255), nullable=True)
 
@@ -123,7 +123,7 @@ class ProcessingStatistics(Base):
     __tablename__ = "processing_statistics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Time window for aggregation
     time_window_minutes = Column(Integer, nullable=False)  # 1, 5, 15, 60, etc.
@@ -272,7 +272,7 @@ class ProcessingMetricsManager:
         try:
             with self.SessionLocal() as session:
                 # Calculate time window
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
                 start_time = end_time - timedelta(hours=hours)
 
                 # Query pipeline metrics
@@ -428,7 +428,7 @@ class ProcessingMetricsManager:
         """Remove old metrics to keep database size manageable."""
         try:
             with self.SessionLocal() as session:
-                cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
 
                 # Delete old processing metrics
                 deleted_pipeline = (
@@ -457,7 +457,7 @@ class ProcessingMetricsManager:
         """Get real-time metrics for the last few minutes."""
         try:
             with self.SessionLocal() as session:
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
                 start_time = end_time - timedelta(minutes=minutes)
 
                 recent_metrics = (

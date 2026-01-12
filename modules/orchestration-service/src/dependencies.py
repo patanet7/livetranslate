@@ -608,7 +608,10 @@ async def startup_dependencies():
             logger.warning(" Data pipeline not available (using legacy adapter)")
 
         # Initialize audio processing
-        _ = get_audio_coordinator()
+        audio_coordinator = get_audio_coordinator()
+        if audio_coordinator:
+            await audio_coordinator.initialize()
+            logger.info(" AudioCoordinator HTTP client pool initialized")
         _ = get_config_sync_manager()
         _ = get_audio_config_manager()
         logger.info(" Audio processing components initialized")
@@ -671,9 +674,9 @@ async def health_check_dependencies() -> Dict[str, Any]:
     health_status = {"status": "healthy", "components": {}, "timestamp": None}
 
     try:
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        health_status["timestamp"] = datetime.utcnow().isoformat()
+        health_status["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         # Check each component
         components = [
@@ -721,6 +724,7 @@ def reset_dependencies():
     global _database_manager, _unified_repository, _audio_service_client
     global _translation_service_client, _audio_coordinator, _config_sync_manager
     global _audio_config_manager, _rate_limiter, _security_utils, _data_pipeline
+    global _event_publisher
 
     logger.warning("Resetting all dependency singletons")
 
@@ -738,6 +742,7 @@ def reset_dependencies():
     _rate_limiter = None
     _security_utils = None
     _data_pipeline = None
+    _event_publisher = None
 
     # Clear LRU cache
     get_config_manager.cache_clear()
@@ -754,3 +759,19 @@ def reset_dependencies():
     get_audio_config_manager.cache_clear()
     get_rate_limiter.cache_clear()
     get_security_utils.cache_clear()
+    get_event_publisher.cache_clear()
+
+    # Reset internal service singletons (to handle event loop changes)
+    try:
+        from internal_services.audio import reset_unified_audio_service
+
+        reset_unified_audio_service()
+    except (ImportError, Exception):
+        pass
+
+    try:
+        from internal_services.translation import reset_unified_translation_service
+
+        reset_unified_translation_service()
+    except (ImportError, Exception):
+        pass

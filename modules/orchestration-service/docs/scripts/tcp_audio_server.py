@@ -19,7 +19,7 @@ import asyncio
 import logging
 import argparse
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add src to path
 sys.path.insert(
@@ -82,7 +82,7 @@ class TCPAudioServer:
     ):
         """Handle incoming TCP connection"""
         addr = writer.get_extra_info("peername")
-        session_id = f"tcp-{int(datetime.utcnow().timestamp())}"
+        session_id = f"tcp-{int(datetime.now(timezone.utc).timestamp())}"
 
         logger.info(f"✅ Client connected from {addr}")
         logger.info(f"📝 Session ID: {session_id}")
@@ -111,7 +111,7 @@ class TCPAudioServer:
             )
 
             logger.info("🎵 Streaming audio... (Ctrl+C to stop)")
-            self.start_time = datetime.utcnow()
+            self.start_time = datetime.now(timezone.utc)
 
             # Read audio chunks from TCP socket
             while True:
@@ -127,12 +127,12 @@ class TCPAudioServer:
                 await self.whisper_client.send_audio_chunk(
                     session_id=session_id,
                     audio_data=chunk,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                 )
 
                 # Log progress every 100 chunks (10 seconds)
                 if self.total_chunks % 100 == 0:
-                    elapsed = (datetime.utcnow() - self.start_time).total_seconds()
+                    elapsed = (datetime.now(timezone.utc) - self.start_time).total_seconds()
                     logger.info(
                         f"📊 Sent {self.total_chunks} chunks ({elapsed:.1f}s, {self.total_segments} segments)"
                     )
@@ -149,7 +149,7 @@ class TCPAudioServer:
 
             # Print stats
             if self.start_time:
-                elapsed = (datetime.utcnow() - self.start_time).total_seconds()
+                elapsed = (datetime.now(timezone.utc) - self.start_time).total_seconds()
                 print("\n" + "=" * 80)
                 print("📊 STREAMING STATISTICS")
                 print("=" * 80)

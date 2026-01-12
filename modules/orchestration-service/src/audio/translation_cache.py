@@ -19,7 +19,7 @@ import json
 import logging
 import time
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
@@ -229,7 +229,7 @@ class TranslationResultCache:
             "translated_text": translation,
             "confidence": confidence,
             "metadata": metadata or {},
-            "cached_at": datetime.utcnow().isoformat(),
+            "cached_at": datetime.now(timezone.utc).isoformat(),
         }
 
         try:
@@ -339,7 +339,7 @@ class TranslationResultCache:
                     "translated_text": translation_data.get("translated_text", ""),
                     "confidence": translation_data.get("confidence", 0.0),
                     "metadata": translation_data.get("metadata", {}),
-                    "cached_at": datetime.utcnow().isoformat(),
+                    "cached_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 pipe.setex(cache_key, self.ttl, json.dumps(cache_data))

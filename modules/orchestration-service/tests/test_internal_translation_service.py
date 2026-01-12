@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -57,7 +57,7 @@ async def test_client_uses_embedded_service_when_available(monkeypatch):
             self.processing_time = 0.12
             self.backend_used = "dummy"
             self.session_id = "test-session"
-            self.timestamp = datetime.utcnow().isoformat()
+            self.timestamp = datetime.now(timezone.utc).isoformat()
 
     class DummyService:
         async def translate(self, request):

@@ -52,7 +52,7 @@ aiohttp = "^3.8.5"
 watchdog = "^3.0.0"
 
 # Audio processing (Windows-compatible versions)
-numpy = "^2.3.4"
+numpy = "^2.2.0"  # opencv-python 4.12 requires numpy <2.3.0, using highest 2.2.x
 scipy = "^1.16.2"
 librosa = "^0.11.0"
 soundfile = "^0.13.1"
@@ -93,6 +93,7 @@ isort = "^5.12.0"
 flake8 = "^6.0.0"
 mypy = "^1.5.1"
 pre-commit = "^3.4.0"
+pytest-timeout = "^2.4.0"
 
 [tool.poetry.group.test.dependencies]
 httpx = "^0.28.1"

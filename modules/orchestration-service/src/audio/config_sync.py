@@ -24,7 +24,7 @@ import os
 import threading
 from collections import deque
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -90,12 +90,12 @@ class ConfigurationVersion:
     def __init__(self, config: Dict[str, Any], version: str = None):
         self.config = config
         self.version = version or self._generate_version()
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
         self.checksum = self._calculate_checksum()
 
     def _generate_version(self) -> str:
         """Generate version string based on timestamp"""
-        return f"v{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+        return f"v{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
     def _calculate_checksum(self) -> str:
         """Calculate configuration checksum for drift detection"""
@@ -315,7 +315,7 @@ class ConfigurationVersionManager:
             self.current_version += 1
             version_data = {
                 "version": self.current_version,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "description": description,
                 "configuration": config,
                 "checksum": self._calculate_checksum(config),
@@ -403,7 +403,7 @@ class ConfigurationDriftDetector:
         self.baseline_configs[service] = {
             "config": copy.deepcopy(config),
             "checksum": self._calculate_config_hash(config),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
         }
 
     def detect_drift(
@@ -597,7 +597,7 @@ class ConfigurationSyncManager:
 
             # Get orchestration configuration from compatibility manager
             self._orchestration_config = self.compatibility_manager.orchestration_config
-            self._last_sync_time = datetime.utcnow()
+            self._last_sync_time = datetime.now(timezone.utc)
 
         except Exception as e:
             logger.error(f"Failed to fetch configurations: {e}")
@@ -728,7 +728,7 @@ class ConfigurationSyncManager:
         }
 
         self._orchestration_config = AudioChunkingConfig()
-        self._last_sync_time = datetime.utcnow()
+        self._last_sync_time = datetime.now(timezone.utc)
 
         await self._save_configuration()
 
@@ -1171,7 +1171,7 @@ class ConfigurationSyncManager:
                 "last_sync": self._last_sync_time.isoformat()
                 if self._last_sync_time
                 else None,
-                "saved_at": datetime.utcnow().isoformat(),
+                "saved_at": datetime.now(timezone.utc).isoformat(),
                 "version": "1.1",
             }
 
@@ -1212,7 +1212,7 @@ class ConfigurationSyncManager:
         """Force synchronization with all services."""
         sync_result = {
             "success": True,
-            "sync_time": datetime.utcnow().isoformat(),
+            "sync_time": datetime.now(timezone.utc).isoformat(),
             "services_synced": [],
             "errors": [],
         }
@@ -1230,7 +1230,7 @@ class ConfigurationSyncManager:
                 sync_result["services_synced"].append("configuration_reconciliation")
 
             # Update sync time
-            self._last_sync_time = datetime.utcnow()
+            self._last_sync_time = datetime.now(timezone.utc)
             await self._save_configuration()
 
             sync_result["compatibility_status"] = compatibility
@@ -1500,7 +1500,7 @@ class ConfigurationSyncManager:
             self._rollback_stack.append(
                 {
                     "version": version,
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": datetime.now(timezone.utc),
                     "description": description,
                 }
             )
@@ -1509,7 +1509,7 @@ class ConfigurationSyncManager:
                 "success": True,
                 "version": version,
                 "description": description,
-                "checkpoint_time": datetime.utcnow().isoformat(),
+                "checkpoint_time": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -1565,7 +1565,7 @@ class ConfigurationSyncManager:
                     "success": True,
                     "version": target_version,
                     "description": rollback_result.get("rollback_description", ""),
-                    "rollback_time": datetime.utcnow().isoformat(),
+                    "rollback_time": datetime.now(timezone.utc).isoformat(),
                 }
             else:
                 return rollback_result

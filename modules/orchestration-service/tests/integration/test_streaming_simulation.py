@@ -149,7 +149,7 @@ class TestStreamingSimulation:
                     await asyncio.sleep(0.1)  # Small delay for test speed
 
                 response = client.post(
-                    "/api/audio/audio/upload",
+                    "/api/audio/upload",
                     files={"audio": (f"chunk_{i}.webm", chunk_audio, "audio/wav")},
                     data={
                         "session_id": session_id,
@@ -253,7 +253,7 @@ class TestStreamingSimulation:
 
             def send_chunk(i, chunk_audio):
                 response = client.post(
-                    "/api/audio/audio/upload",
+                    "/api/audio/upload",
                     files={"audio": (f"chunk_{i}.webm", chunk_audio, "audio/wav")},
                     data={
                         "session_id": session_id,
@@ -355,7 +355,7 @@ class TestStreamingSimulation:
             results = []
             for i, chunk_audio in enumerate(chunks):
                 response = client.post(
-                    "/api/audio/audio/upload",
+                    "/api/audio/upload",
                     files={"audio": (f"chunk_{i}.webm", chunk_audio, "audio/wav")},
                     data={
                         "session_id": session_id,
@@ -447,7 +447,7 @@ class TestStreamingSimulation:
             results = []
             for i, chunk_audio in enumerate(chunks):
                 response = client.post(
-                    "/api/audio/audio/upload",
+                    "/api/audio/upload",
                     files={"audio": (f"chunk_{i}.webm", chunk_audio, "audio/wav")},
                     data={
                         "session_id": session_id,

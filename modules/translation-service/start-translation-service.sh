@@ -13,6 +13,7 @@ PORT="${PORT:-5003}"
 LOG_LEVEL="${LOG_LEVEL:-INFO}"
 GPU_ENABLE="${GPU_ENABLE:-true}"
 MODEL="${MODEL:-auto}"
+API_SERVER="${API_SERVER:-fastapi}"  # fastapi (default) or flask
 
 # Color output functions
 RED='\033[0;31m'
@@ -70,12 +71,19 @@ if [[ "$current_dir" != "$expected_dir" ]]; then
     fi
 fi
 
-# Verify required files exist
-required_files=(
-    "src/api_server.py"
-    "src/translation_service.py"
-    "requirements.txt"
-)
+# Verify required files exist based on API server choice
+if [[ "$API_SERVER" == "fastapi" ]]; then
+    required_files=(
+        "src/api_server_fastapi.py"
+        "requirements.txt"
+    )
+else
+    required_files=(
+        "src/api_server.py"
+        "src/translation_service.py"
+        "requirements.txt"
+    )
+fi
 
 for file in "${required_files[@]}"; do
     if [[ ! -f "$file" ]]; then
@@ -84,7 +92,7 @@ for file in "${required_files[@]}"; do
     fi
 done
 
-log_info "✅ All required files found"
+log_info "✅ All required files found (API: $API_SERVER)"
 
 # Check Python installation
 if ! command -v python3 &> /dev/null && ! command -v python &> /dev/null; then
@@ -183,6 +191,7 @@ fi
 
 # Display configuration
 log_info "🔧 Service Configuration:"
+log_info "   API Server: $API_SERVER"
 log_info "   Backend: $BACKEND"
 log_info "   Port: $PORT"
 log_info "   Log Level: $LOG_LEVEL"
@@ -214,4 +223,10 @@ log_info "================================================"
 # Start the service
 trap 'log_info "\n🛑 Translation Service stopped\n================================================"' EXIT
 
-$PYTHON_CMD src/api_server.py
+if [[ "$API_SERVER" == "fastapi" ]]; then
+    log_info "🚀 Starting FastAPI server..."
+    $PYTHON_CMD src/api_server_fastapi.py
+else
+    log_info "🚀 Starting Flask server..."
+    $PYTHON_CMD src/api_server.py
+fi

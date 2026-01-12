@@ -15,13 +15,18 @@ Requirements:
 
 import pytest
 import uuid
+import os
 import httpx
 import psycopg2
 
 
 # Test configuration
 ORCHESTRATION_URL = "http://localhost:3000"
-DATABASE_URL = "postgresql://localhost:5432/livetranslate"
+# Port 5433 is the livetranslate-postgres container
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+)
 
 
 class TestTranslationPersistence:

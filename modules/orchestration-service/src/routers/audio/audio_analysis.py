@@ -9,7 +9,7 @@ Advanced audio analysis endpoints including:
 """
 
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from fastapi import Depends, HTTPException, status
@@ -46,7 +46,7 @@ async def analyze_audio_fft(
     - **overlap**: Window overlap percentage (default: 0.5)
     - **window_type**: Window function type (default: 'hann')
     """
-    correlation_id = f"fft_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"fft_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -109,7 +109,7 @@ async def analyze_audio_fft(
                     "window_type": window_type,
                 },
                 "result": analysis_result,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except AudioProcessingBaseError:
@@ -185,7 +185,7 @@ async def analyze_audio_lufs(
     - **measurement_type**: Type of LUFS measurement ('integrated', 'short_term', 'momentary')
     - **target_lufs**: Target LUFS level for comparison (default: -23.0)
     """
-    correlation_id = f"lufs_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"lufs_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -247,7 +247,7 @@ async def analyze_audio_lufs(
                     "target_lufs": target_lufs,
                 },
                 "result": analysis_result,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except AudioProcessingBaseError:
@@ -432,7 +432,7 @@ async def get_spectrum_analysis(
         return {
             "session_id": session_id,
             "spectrum_data": spectrum_data,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "analysis_type": "real_time_spectrum",
         }
 
@@ -451,7 +451,7 @@ async def analyze_audio_quality(
     """
     Comprehensive audio quality analysis including SNR, THD, and other metrics
     """
-    correlation_id = f"quality_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"quality_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
     try:
         audio_data = request.get("audio_data")
@@ -469,7 +469,7 @@ async def analyze_audio_quality(
             "analysis_id": correlation_id,
             "analysis_type": "comprehensive_quality",
             "metrics": quality_metrics,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:

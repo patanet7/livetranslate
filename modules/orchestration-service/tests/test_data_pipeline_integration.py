@@ -51,10 +51,10 @@ from database.bot_session_manager import (
 # Database configuration from environment
 DB_CONFIG = {
     "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", "5432")),
-    "database": os.getenv("POSTGRES_DB", "livetranslate"),
-    "username": os.getenv("POSTGRES_USER", "postgres"),
-    "password": os.getenv("POSTGRES_PASSWORD", "livetranslate"),
+    "port": int(os.getenv("POSTGRES_PORT", "5433")),  # livetranslate-postgres container
+    "database": os.getenv("POSTGRES_DB", "livetranslate_test"),
+    "username": os.getenv("POSTGRES_USER", "livetranslate"),
+    "password": os.getenv("POSTGRES_PASSWORD", "livetranslate_dev_password"),
 }
 
 AUDIO_STORAGE_PATH = os.getenv("TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/audio")

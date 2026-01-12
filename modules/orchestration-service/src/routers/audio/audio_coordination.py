@@ -1,4 +1,7 @@
-"""Audio coordination router providing access to the in-process AudioCoordinator."""
+"""Audio coordination router providing access to the in-process AudioCoordinator.
+
+Moved from standalone routers/audio_coordination.py for package consolidation.
+"""
 
 from __future__ import annotations
 
@@ -54,7 +57,7 @@ async def _ensure_coordinator_ready(coordinator) -> None:
 
 
 def _session_to_dict(session: AudioStreamingSession) -> Dict[str, Any]:
-    data = session.dict()
+    data = session.model_dump()
     for key, value in list(data.items()):
         if hasattr(value, "isoformat"):
             data[key] = value.isoformat()

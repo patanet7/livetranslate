@@ -23,7 +23,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Callable, AsyncGenerator
 import httpx
 import numpy as np
@@ -556,7 +556,7 @@ class SessionManager:
             if session_id in self.active_sessions:
                 session = self.active_sessions[session_id]
                 session.stream_status = "ended"
-                session.ended_at = datetime.utcnow()
+                session.ended_at = datetime.now(timezone.utc)
                 session.chunks_processed = stats.get("chunks_processed", 0)
                 session.total_duration = stats.get("total_audio_duration", 0.0)
                 session.average_processing_time = stats.get(
@@ -1275,7 +1275,7 @@ class AudioCoordinator:
                 # Update session activity
                 session = self.session_manager.get_session(session_id)
                 if session:
-                    session.last_activity_at = datetime.utcnow()
+                    session.last_activity_at = datetime.now(timezone.utc)
 
                 # Update global statistics
                 self.total_audio_processed += (

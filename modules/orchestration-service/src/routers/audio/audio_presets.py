@@ -206,7 +206,7 @@ async def get_preset_details(
         preset["usage_stats"] = {
             "times_used": np.random.randint(10, 1000),
             "last_used": (
-                datetime.utcnow() - timedelta(days=np.random.randint(1, 30))
+                datetime.now(timezone.utc) - timedelta(days=np.random.randint(1, 30))
             ).isoformat(),
             "average_rating": round(4.0 + np.random.random(), 1),
         }
@@ -237,7 +237,7 @@ async def apply_preset_to_audio(
     - **override_config**: Optional config overrides for the preset
     """
     correlation_id = (
-        f"preset_apply_{preset_name}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+        f"preset_apply_{preset_name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
     )
 
     async with error_boundary(
@@ -292,7 +292,7 @@ async def apply_preset_to_audio(
                 "preset_config": preset_config,
                 "override_applied": bool(override_config),
                 "result": result,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except AudioProcessingBaseError:
@@ -421,18 +421,18 @@ async def save_custom_preset(
             "characteristics": _analyze_preset_characteristics(config),
             "optimized_for": _determine_optimization_targets(config),
             "created_by": "user",
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
         # Save preset (placeholder - in real implementation, save to database)
-        preset_id = f"custom_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        preset_id = f"custom_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         return {
             "preset_id": preset_id,
             "preset_name": preset_name,
             "status": "saved",
             "preset_details": new_preset,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -542,7 +542,7 @@ async def delete_preset(
         return {
             "preset_name": preset_name,
             "status": "deleted",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -591,7 +591,7 @@ async def compare_presets(
             "recommendation": _generate_preset_recommendation(
                 preset1_data, preset2_data
             ),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:

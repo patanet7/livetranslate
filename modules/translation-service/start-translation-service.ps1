@@ -36,7 +36,8 @@ param(
     [int]$Port = 5003,
     [string]$LogLevel = "INFO",
     [bool]$GPU = $true,
-    [string]$Model = "auto"
+    [string]$Model = "auto",
+    [string]$ApiServer = "fastapi"  # fastapi (default) or flask
 )
 
 # Color output functions
@@ -92,12 +93,19 @@ if ($currentDir -ne $expectedDir) {
     }
 }
 
-# Verify required files exist
-$requiredFiles = @(
-    "src/api_server.py",
-    "src/translation_service.py",
-    "requirements.txt"
-)
+# Verify required files exist based on API server choice
+if ($ApiServer -eq "fastapi") {
+    $requiredFiles = @(
+        "src/api_server_fastapi.py",
+        "requirements.txt"
+    )
+} else {
+    $requiredFiles = @(
+        "src/api_server.py",
+        "src/translation_service.py",
+        "requirements.txt"
+    )
+}
 
 foreach ($file in $requiredFiles) {
     if (-not (Test-Path $file)) {
@@ -106,7 +114,7 @@ foreach ($file in $requiredFiles) {
     }
 }
 
-Write-Info "✅ All required files found"
+Write-Info "✅ All required files found (API: $ApiServer)"
 
 # Check Python installation
 try {
@@ -200,6 +208,7 @@ if ($GPU) {
 
 # Display configuration
 Write-Info "🔧 Service Configuration:"
+Write-Info "   API Server: $ApiServer"
 Write-Info "   Backend: $Backend"
 Write-Info "   Port: $Port"
 Write-Info "   Log Level: $LogLevel"
@@ -229,7 +238,13 @@ Write-Info "================================================"
 
 # Start the service
 try {
-    python src/api_server.py
+    if ($ApiServer -eq "fastapi") {
+        Write-Info "🚀 Starting FastAPI server..."
+        python src/api_server_fastapi.py
+    } else {
+        Write-Info "🚀 Starting Flask server..."
+        python src/api_server.py
+    }
 } catch {
     Write-Error "❌ Service failed to start: $_"
     exit 1

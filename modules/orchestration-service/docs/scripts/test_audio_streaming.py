@@ -26,7 +26,7 @@ import argparse
 import base64
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import logging
 
@@ -165,7 +165,7 @@ class AudioStreamingTester:
         chunk_msg = {
             "type": "audio_chunk",
             "audio": audio_base64,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         await self.ws.send(json.dumps(chunk_msg))

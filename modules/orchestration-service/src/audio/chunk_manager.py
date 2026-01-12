@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Dict, Optional, Any, Tuple, Callable
 import numpy as np
 import soundfile as sf
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .models import (
     AudioChunkMetadata,
@@ -335,7 +335,7 @@ class AudioQualityAnalyzer:
                 overall_quality_score=float(overall_quality),
                 quality_factors=quality_factors,
                 analysis_method="comprehensive",
-                analysis_timestamp=datetime.utcnow(),
+                analysis_timestamp=datetime.now(timezone.utc),
             )
 
         except Exception as e:
@@ -354,7 +354,7 @@ class AudioQualityAnalyzer:
                 overall_quality_score=0.0,
                 quality_factors={},
                 analysis_method="failed",
-                analysis_timestamp=datetime.utcnow(),
+                analysis_timestamp=datetime.now(timezone.utc),
             )
 
 

@@ -7,7 +7,7 @@ System-wide bot management endpoints including:
 - System cleanup (/system/cleanup)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from fastapi import BackgroundTasks, Depends, status
@@ -44,7 +44,7 @@ async def get_bot_stats() -> SystemStatsResponse:
             "recoveryRate": 0.0,
         }
 
-        return SystemStatsResponse(stats=stats, timestamp=datetime.utcnow().isoformat())
+        return SystemStatsResponse(stats=stats, timestamp=datetime.now(timezone.utc).isoformat())
 
     except Exception as e:
         logger.error(f"Failed to get bot stats: {e}")
@@ -66,7 +66,7 @@ async def get_system_bot_stats(
     try:
         stats = bot_manager.get_bot_stats()  # Not async, using get_bot_stats instead
 
-        return SystemStatsResponse(stats=stats, timestamp=datetime.utcnow().isoformat())
+        return SystemStatsResponse(stats=stats, timestamp=datetime.now(timezone.utc).isoformat())
 
     except Exception as e:
         logger.error(f"Failed to get system bot stats: {e}")

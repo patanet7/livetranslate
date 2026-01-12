@@ -105,7 +105,7 @@ class TestStreamingAudioUpload:
 
             # Upload audio file
             response = client.post(
-                "/api/audio/audio/upload",
+                "/api/audio/upload",
                 files={"audio": ("test.wav", test_audio_wav, "audio/wav")},
                 data={
                     "session_id": "test_session_streaming",
@@ -172,7 +172,7 @@ class TestStreamingAudioUpload:
             client = TestClient(app)
 
             response = client.post(
-                "/api/audio/audio/upload",
+                "/api/audio/upload",
                 files={"audio": ("test.wav", test_audio_wav, "audio/wav")},
                 data={
                     "session_id": "test_coordinator_call",
@@ -241,7 +241,7 @@ class TestStreamingAudioUpload:
             results = []
             for i, expected_response in enumerate(chunk_responses):
                 response = client.post(
-                    "/api/audio/audio/upload",
+                    "/api/audio/upload",
                     files={"audio": (f"chunk_{i}.wav", test_audio_wav, "audio/wav")},
                     data={
                         "session_id": session_id,
@@ -536,7 +536,7 @@ class TestStreamingAudioUpload:
                 scenario["session_id"] = f"no_placeholder_test_{i}"
 
                 response = client.post(
-                    "/api/audio/audio/upload",
+                    "/api/audio/upload",
                     files={"audio": (f"test_{i}.wav", test_audio_wav, "audio/wav")},
                     data=scenario,
                 )

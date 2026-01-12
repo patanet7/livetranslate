@@ -8,7 +8,7 @@ Uses the translation optimization schema (migration-translation-optimization.sql
 import logging
 import hashlib
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import uuid
 
@@ -477,7 +477,7 @@ class TranslationOptimizationAdapter:
                 new_entry = {
                     "source": source_text,
                     "translation": translated_text,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
                 recent_translations.append(new_entry)

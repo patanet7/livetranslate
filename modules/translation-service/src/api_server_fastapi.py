@@ -8,8 +8,10 @@ import os
 import time
 import asyncio
 import logging
+import uuid
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from pathlib import Path
 
 # Load .env file FIRST
@@ -176,6 +178,9 @@ translator_backends: Dict[str, OpenAICompatibleTranslator] = {}
 # Runtime model manager for dynamic model switching
 model_manager: Optional[RuntimeModelManager] = None
 
+# Active realtime translation sessions
+active_sessions: Dict[str, Dict[str, Any]] = {}
+
 # ============================================================================
 # Initialize FastAPI App
 # ============================================================================
@@ -285,7 +290,7 @@ async def health_check():
         service="translation",
         backend=",".join(translator_backends.keys()) if translator_backends else "none",
         version="2.0.0",
-        timestamp=datetime.utcnow().isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
 
 @app.get("/api/device-info", tags=["Info"])
@@ -298,6 +303,40 @@ async def get_device_info():
             backend: await translator.get_available_models()
             for backend, translator in translator_backends.items()
         }
+    }
+
+@app.get("/api/models", tags=["Info"])
+async def get_models():
+    """
+    Get list of available models (orchestration-compatible format)
+
+    Returns models in format expected by orchestration service client.
+    """
+    models = []
+    for backend_name, translator in translator_backends.items():
+        try:
+            backend_models = await translator.get_available_models()
+            for model in backend_models:
+                if isinstance(model, str):
+                    models.append({"name": model, "backend": backend_name})
+                elif isinstance(model, dict):
+                    models.append({**model, "backend": backend_name})
+        except Exception as e:
+            logger.error(f"Failed to get models from {backend_name}: {e}")
+
+    # Include RuntimeModelManager models if available
+    if model_manager is not None:
+        status = model_manager.get_status()
+        if status.get("current_model"):
+            models.append({
+                "name": status["current_model"],
+                "backend": status.get("current_backend", "ollama"),
+                "active": True
+            })
+
+    return {
+        "models": models,
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.get("/api/models/available", tags=["Info"])
@@ -318,7 +357,7 @@ async def get_available_models():
 
     return {
         "backends": models,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 @app.get("/api/languages", tags=["Info"])
@@ -537,7 +576,7 @@ async def list_backend_models(backend: str = "ollama"):
             "backend": backend,
             "models": models,
             "count": len(models),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
 
     except Exception as e:
@@ -686,7 +725,7 @@ async def translate_multi_language(request: MultiLanguageRequest):
         model_requested=request.model,
         quality=request.quality,
         total_processing_time=total_time,
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         translations=translations
     )
 
@@ -721,6 +760,444 @@ async def detect_language(request: LanguageDetectionRequest):
             confidence=0.5,
             alternatives=[{"en": 0.5}]
         )
+
+
+# ============================================================================
+# Batch Translation Endpoint
+# ============================================================================
+
+class BatchTranslateRequest(BaseModel):
+    """Batch translation request containing multiple translation requests"""
+    requests: List[TranslateRequest] = Field(..., min_length=1, max_length=100)
+
+
+class BatchTranslateResponse(BaseModel):
+    """Batch translation response with all results"""
+    translations: List[TranslationResponse]
+    total_processing_time: float
+
+
+@app.post("/api/translate/batch", response_model=BatchTranslateResponse, tags=["Translation"])
+async def translate_batch(request: BatchTranslateRequest):
+    """
+    Batch translate multiple texts in a single request.
+
+    **Features:**
+    - Process up to 100 translation requests in a batch
+    - Optimized for throughput
+    - Returns individual results for each translation
+
+    **Example:**
+    ```json
+    {
+        "requests": [
+            {"text": "Hello", "target_language": "es", "model": "ollama"},
+            {"text": "World", "target_language": "fr", "model": "ollama"}
+        ]
+    }
+    ```
+    """
+    start_time = time.time()
+    translations: List[TranslationResponse] = []
+
+    for req in request.requests:
+        backend_name = req.model.lower()
+
+        # Use RuntimeModelManager for dynamic model switching
+        translator = None
+        if backend_name == "ollama" and model_manager is not None:
+            translator = await model_manager.get_current_translator()
+
+        # Fall back to static backends if RuntimeModelManager not available
+        if translator is None:
+            if backend_name not in translator_backends:
+                # Add error response for this item
+                translations.append(TranslationResponse(
+                    translated_text=f"[ERROR: Backend '{backend_name}' not available]",
+                    source_language=req.source_language or "unknown",
+                    target_language=req.target_language,
+                    confidence=0.0,
+                    processing_time=0.0,
+                    model_used="none",
+                    backend_used="none"
+                ))
+                continue
+            translator = translator_backends[backend_name]
+
+        req_start = time.time()
+        try:
+            result = await translator.translate(
+                text=req.text,
+                source_language=req.source_language,
+                target_language=req.target_language,
+            )
+            req_time = time.time() - req_start
+
+            # Extract translated text from result dict
+            if isinstance(result, dict):
+                translated_text = result.get("translated_text", str(result))
+                confidence = result.get("confidence", 0.9)
+            else:
+                translated_text = str(result)
+                confidence = 0.9
+
+            translations.append(TranslationResponse(
+                translated_text=translated_text,
+                source_language=req.source_language or "auto",
+                target_language=req.target_language,
+                confidence=confidence,
+                processing_time=req_time,
+                model_used=translator.config.model,
+                backend_used=backend_name
+            ))
+
+        except Exception as e:
+            logger.error(f"Batch translation item failed: {e}")
+            translations.append(TranslationResponse(
+                translated_text=f"[ERROR: {str(e)}]",
+                source_language=req.source_language or "unknown",
+                target_language=req.target_language,
+                confidence=0.0,
+                processing_time=time.time() - req_start,
+                model_used="none",
+                backend_used=backend_name
+            ))
+
+    total_time = time.time() - start_time
+    logger.info(f"Batch translation completed: {len(translations)} items in {total_time:.3f}s")
+
+    return BatchTranslateResponse(
+        translations=translations,
+        total_processing_time=total_time
+    )
+
+
+# ============================================================================
+# Quality Assessment Endpoint
+# ============================================================================
+
+class QualityRequest(BaseModel):
+    """Quality assessment request"""
+    original: str = Field(..., description="Original text")
+    translated: str = Field(..., description="Translated text")
+    source_language: str = Field(..., description="Source language code")
+    target_language: str = Field(..., description="Target language code")
+
+
+class QualityResponse(BaseModel):
+    """Quality assessment response"""
+    score: float = Field(..., description="Quality score (0.0-1.0)")
+    method: str = Field(..., description="Scoring method used")
+    original_length: int = Field(..., description="Length of original text")
+    translated_length: int = Field(..., description="Length of translated text")
+    length_ratio: float = Field(..., description="Ratio of translated to original length")
+    timestamp: str = Field(..., description="Assessment timestamp")
+
+
+@app.post("/api/quality", response_model=QualityResponse, tags=["Translation"])
+async def assess_quality(request: QualityRequest):
+    """
+    Assess the quality of a translation.
+
+    **Scoring Method:**
+    Uses SequenceMatcher to compute similarity between original and translated text.
+    This is a basic heuristic - higher similarity may indicate under-translation,
+    while reasonable deviation indicates proper translation.
+
+    **Note:** This is a basic quality assessment. For production use, consider
+    integrating more sophisticated metrics like BLEU, METEOR, or neural quality estimation.
+
+    **Example:**
+    ```json
+    {
+        "original": "Hello world",
+        "translated": "Hola mundo",
+        "source_language": "en",
+        "target_language": "es"
+    }
+    ```
+    """
+    original = request.original.strip()
+    translated = request.translated.strip()
+
+    # Basic quality scoring using SequenceMatcher
+    # Note: For translations, high similarity might indicate under-translation
+    # This is inverted for the quality score
+    similarity = SequenceMatcher(None, original.lower(), translated.lower()).ratio()
+
+    # Length ratio analysis (translations often change length)
+    orig_len = len(original)
+    trans_len = len(translated)
+    length_ratio = trans_len / orig_len if orig_len > 0 else 0.0
+
+    # Quality heuristic: Good translations should have reasonable length ratio
+    # and not be too similar (which might indicate no translation happened)
+    if similarity > 0.95:
+        # Very similar - might be same language or copy
+        score = 0.3
+    elif similarity > 0.7:
+        # Somewhat similar - might be related languages or partial translation
+        score = 0.6
+    elif 0.2 <= length_ratio <= 3.0:
+        # Reasonable length ratio, different text - likely translated
+        score = 0.85 + (1.0 - abs(1.0 - length_ratio) * 0.1)
+        score = min(score, 1.0)
+    else:
+        # Unusual length ratio - might have issues
+        score = 0.5
+
+    return QualityResponse(
+        score=round(score, 3),
+        method="sequence_matcher_heuristic",
+        original_length=orig_len,
+        translated_length=trans_len,
+        length_ratio=round(length_ratio, 3),
+        timestamp=datetime.now(timezone.utc).isoformat()
+    )
+
+
+# ============================================================================
+# Realtime Translation Session Endpoints
+# ============================================================================
+
+class RealtimeSessionConfig(BaseModel):
+    """Configuration for a realtime translation session"""
+    source_language: Optional[str] = Field(None, description="Source language (auto-detect if None)")
+    target_language: str = Field("en", description="Default target language")
+    model: str = Field("ollama", description="Translation model/backend")
+    quality: str = Field("balanced", description="Translation quality: fast, balanced, quality")
+
+
+class RealtimeStartResponse(BaseModel):
+    """Response for starting a realtime session"""
+    session_id: str
+    status: str
+    created_at: str
+    config: Dict[str, Any]
+
+
+@app.post("/api/realtime/start", response_model=RealtimeStartResponse, tags=["Realtime"])
+async def start_realtime_session(config: Optional[RealtimeSessionConfig] = None):
+    """
+    Start a new realtime translation session.
+
+    **Usage:**
+    Creates a session that maintains context for streaming translations.
+    The session ID should be used for subsequent translation requests.
+
+    **Example:**
+    ```json
+    {
+        "source_language": "en",
+        "target_language": "es",
+        "model": "ollama",
+        "quality": "balanced"
+    }
+    ```
+    """
+    session_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc)
+
+    # Use default config if none provided
+    if config is None:
+        config = RealtimeSessionConfig()
+
+    session_data = {
+        "session_id": session_id,
+        "created_at": created_at.isoformat(),
+        "last_activity": created_at.isoformat(),
+        "config": {
+            "source_language": config.source_language,
+            "target_language": config.target_language,
+            "model": config.model,
+            "quality": config.quality,
+        },
+        "translation_count": 0,
+        "total_characters": 0,
+        "context": [],  # Rolling context for better translations
+    }
+
+    active_sessions[session_id] = session_data
+    logger.info(f"Started realtime session: {session_id}")
+
+    return RealtimeStartResponse(
+        session_id=session_id,
+        status="started",
+        created_at=created_at.isoformat(),
+        config=session_data["config"]
+    )
+
+
+class RealtimeTranslateRequest(BaseModel):
+    """Request for realtime translation within a session"""
+    session_id: str = Field(..., description="Session ID from /api/realtime/start")
+    text: str = Field(..., description="Text to translate")
+    target_language: Optional[str] = Field(None, description="Override target language for this request")
+
+
+class RealtimeTranslateResponse(BaseModel):
+    """Response for realtime translation"""
+    session_id: str
+    translated_text: str
+    source_language: str
+    target_language: str
+    confidence: float
+    processing_time: float
+    translation_count: int
+
+
+@app.post("/api/realtime/translate", response_model=RealtimeTranslateResponse, tags=["Realtime"])
+async def realtime_translate(request: RealtimeTranslateRequest):
+    """
+    Translate text within an active realtime session.
+
+    **Usage:**
+    Uses the session context for consistent translations.
+    The target language can be overridden per-request.
+
+    **Example:**
+    ```json
+    {
+        "session_id": "uuid-from-start",
+        "text": "Hello, how are you?",
+        "target_language": "es"
+    }
+    ```
+    """
+    session_id = request.session_id
+
+    if session_id not in active_sessions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found. Start a session with /api/realtime/start"
+        )
+
+    session = active_sessions[session_id]
+    session["last_activity"] = datetime.now(timezone.utc).isoformat()
+
+    # Use request target language or session default
+    target_language = request.target_language or session["config"]["target_language"]
+    source_language = session["config"]["source_language"]
+    backend_name = session["config"]["model"].lower()
+
+    # Use RuntimeModelManager for dynamic model switching
+    translator = None
+    if backend_name == "ollama" and model_manager is not None:
+        translator = await model_manager.get_current_translator()
+
+    # Fall back to static backends if RuntimeModelManager not available
+    if translator is None:
+        if backend_name not in translator_backends:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+            )
+        translator = translator_backends[backend_name]
+
+    start_time = time.time()
+
+    try:
+        result = await translator.translate(
+            text=request.text,
+            source_language=source_language,
+            target_language=target_language,
+        )
+        processing_time = time.time() - start_time
+
+        # Extract translated text from result dict
+        if isinstance(result, dict):
+            translated_text = result.get("translated_text", str(result))
+            confidence = result.get("confidence", 0.9)
+        else:
+            translated_text = str(result)
+            confidence = 0.9
+
+        # Update session statistics
+        session["translation_count"] += 1
+        session["total_characters"] += len(request.text)
+
+        # Add to rolling context (keep last 5 translations)
+        session["context"].append({
+            "original": request.text,
+            "translated": translated_text,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        if len(session["context"]) > 5:
+            session["context"] = session["context"][-5:]
+
+        return RealtimeTranslateResponse(
+            session_id=session_id,
+            translated_text=translated_text,
+            source_language=source_language or "auto",
+            target_language=target_language,
+            confidence=confidence,
+            processing_time=processing_time,
+            translation_count=session["translation_count"]
+        )
+
+    except Exception as e:
+        logger.error(f"Realtime translation failed for session {session_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Translation failed: {str(e)}"
+        )
+
+
+class RealtimeStopRequest(BaseModel):
+    """Request to stop a realtime session"""
+    session_id: str = Field(..., description="Session ID to stop")
+
+
+class RealtimeStopResponse(BaseModel):
+    """Response for stopping a realtime session"""
+    session_id: str
+    status: str
+    duration_seconds: float
+    translation_count: int
+    total_characters: int
+
+
+@app.post("/api/realtime/stop", response_model=RealtimeStopResponse, tags=["Realtime"])
+async def stop_realtime_session(request: RealtimeStopRequest):
+    """
+    Stop and clean up a realtime translation session.
+
+    **Usage:**
+    Ends the session and returns statistics about the session.
+
+    **Example:**
+    ```json
+    {
+        "session_id": "uuid-from-start"
+    }
+    ```
+    """
+    session_id = request.session_id
+
+    if session_id not in active_sessions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session '{session_id}' not found"
+        )
+
+    session = active_sessions.pop(session_id)
+
+    # Calculate session duration
+    created_at = datetime.fromisoformat(session["created_at"])
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    duration = (datetime.now(timezone.utc) - created_at).total_seconds()
+
+    logger.info(f"Stopped realtime session {session_id}: {session['translation_count']} translations, {duration:.1f}s duration")
+
+    return RealtimeStopResponse(
+        session_id=session_id,
+        status="stopped",
+        duration_seconds=round(duration, 2),
+        translation_count=session["translation_count"],
+        total_characters=session["total_characters"]
+    )
+
 
 # ============================================================================
 # V3 API Endpoints - Simplified "prompt-in, translation-out" contract
@@ -882,7 +1359,7 @@ async def api_test():
         "status": "ok",
         "service": "translation",
         "backends": list(translator_backends.keys()),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 # ============================================================================

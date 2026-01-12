@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -141,7 +141,7 @@ class UnifiedAudioService:
             "confidence": getattr(result, "confidence_score", 0.0),
             "processing_time": processing_time,
             "session_id": getattr(result, "session_id", session_id),
-            "timestamp": getattr(result, "timestamp", datetime.utcnow().isoformat()),
+            "timestamp": getattr(result, "timestamp", datetime.now(timezone.utc).isoformat()),
         }
 
     async def health(self) -> Dict[str, Any]:
@@ -194,7 +194,7 @@ class UnifiedAudioService:
         return {
             **self._metrics,
             "average_processing_time": avg_time,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -208,8 +208,15 @@ def get_unified_audio_service() -> UnifiedAudioService:
     return _AUDIO_SINGLETON
 
 
+def reset_unified_audio_service() -> None:
+    """Reset the singleton (for testing only)"""
+    global _AUDIO_SINGLETON
+    _AUDIO_SINGLETON = None
+
+
 __all__ = [
     "UnifiedAudioService",
     "UnifiedAudioError",
     "get_unified_audio_service",
+    "reset_unified_audio_service",
 ]
