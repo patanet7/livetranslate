@@ -10,7 +10,7 @@ Individual audio processing stage endpoints including:
 
 import asyncio
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 from fastapi import Depends, HTTPException, status
@@ -48,7 +48,7 @@ async def process_audio_stage(
     - **stage_config**: Stage-specific configuration parameters
     """
     correlation_id = (
-        f"stage_{stage_name}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+        f"stage_{stage_name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
     )
 
     async with error_boundary(
@@ -103,7 +103,7 @@ async def process_audio_stage(
                 "stage_name": stage_name,
                 "stage_config": merged_config,
                 "result": result,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except AudioProcessingBaseError:
@@ -516,7 +516,7 @@ async def get_stages_info() -> Dict[str, Any]:
                 "enhancement": ["voice_enhancement", "lufs_normalization"],
                 "analysis": ["vad"],
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -551,7 +551,7 @@ async def get_stage_config(stage_name: str) -> Dict[str, Any]:
             "input_format": stage_info["input_format"],
             "output_format": stage_info["output_format"],
             "processing_time": stage_info["processing_time"],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -574,7 +574,7 @@ async def create_custom_pipeline(
     - **audio_data**: Base64 encoded audio data
     - **pipeline**: List of stages with their configurations
     """
-    correlation_id = f"pipeline_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"pipeline_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
     try:
         audio_data = request.get("audio_data")
@@ -643,7 +643,7 @@ async def create_custom_pipeline(
             "total_processing_time": sum(
                 r["stage_result"]["processing_time"] for r in pipeline_results
             ),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import websockets
@@ -47,7 +47,7 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
         await ensure_schema()
         await open_session(
             session_id=session_id,
-            created_at_iso=datetime.utcnow().isoformat(),
+            created_at_iso=datetime.now(timezone.utc).isoformat(),
             source_lang="cmn",
             target_lang="eng",
             client_ip=str(websocket.client.host) if websocket.client else None,
@@ -86,7 +86,7 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
             etype = msg.get("type", "unknown")
             if etype != "audio_chunk":
                 await add_event(
-                    session_id, etype, msg, int(datetime.utcnow().timestamp() * 1000)
+                    session_id, etype, msg, int(datetime.now(timezone.utc).timestamp() * 1000)
                 )
 
     except Exception as e:
@@ -111,7 +111,7 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
                 pass
         # Close session
         try:
-            await close_session(session_id, datetime.utcnow().isoformat())
+            await close_session(session_id, datetime.now(timezone.utc).isoformat())
         except Exception:
             pass
         try:

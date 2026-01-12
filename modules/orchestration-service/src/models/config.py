@@ -2,9 +2,9 @@
 Configuration-related Pydantic models
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, ConfigDict
 
 from .base import BaseModel, ResponseMixin, TimestampMixin
 
@@ -14,16 +14,16 @@ class ConfigUpdate(BaseModel):
 
     updates: Dict[str, Any] = Field(
         description="Configuration updates as key-value pairs",
-        example={
+        json_schema_extra={"example": {
             "websocket.max_connections": 2000,
             "services.audio_service_timeout": 45,
             "logging.level": "DEBUG",
-        },
+        }},
     )
     merge_strategy: str = Field(
         default="deep_merge",
         description="How to merge the updates",
-        example="deep_merge",
+        json_schema_extra={"example": "deep_merge"},
     )
     validate_changes: bool = Field(
         default=True, description="Whether to validate changes before applying"
@@ -49,20 +49,19 @@ class ConfigUpdate(BaseModel):
             raise ValueError("Updates cannot be empty")
         return v
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "updates": {
-                    "websocket.max_connections": 2000,
-                    "services.audio_service_timeout": 45,
-                    "logging.level": "DEBUG",
-                    "features.enable_analytics": True,
-                },
-                "merge_strategy": "deep_merge",
-                "validate_changes": True,
-                "restart_required": False,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "updates": {
+                "websocket.max_connections": 2000,
+                "services.audio_service_timeout": 45,
+                "logging.level": "DEBUG",
+                "features.enable_analytics": True,
+            },
+            "merge_strategy": "deep_merge",
+            "validate_changes": True,
+            "restart_required": False,
         }
+    })
 
 
 class ConfigResponse(ResponseMixin, TimestampMixin):
@@ -70,7 +69,7 @@ class ConfigResponse(ResponseMixin, TimestampMixin):
 
     current_config: Dict[str, Any] = Field(description="Current configuration")
     schema_version: str = Field(
-        description="Configuration schema version", example="2.0.0"
+        description="Configuration schema version", json_schema_extra={"example": "2.0.0"}
     )
     last_modified: datetime = Field(description="Last modification timestamp")
     is_valid: bool = Field(description="Whether current configuration is valid")
@@ -78,25 +77,24 @@ class ConfigResponse(ResponseMixin, TimestampMixin):
         default=None, description="Configuration validation errors"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "Configuration retrieved successfully",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "current_config": {
-                    "app_name": "LiveTranslate Orchestration Service",
-                    "version": "2.0.0",
-                    "host": "0.0.0.0",
-                    "port": 3000,
-                    "websocket": {"max_connections": 1000, "heartbeat_interval": 30},
-                },
-                "schema_version": "2.0.0",
-                "last_modified": "2024-01-15T09:00:00Z",
-                "is_valid": True,
-                "validation_errors": None,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "Configuration retrieved successfully",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "current_config": {
+                "app_name": "LiveTranslate Orchestration Service",
+                "version": "2.0.0",
+                "host": "0.0.0.0",
+                "port": 3000,
+                "websocket": {"max_connections": 1000, "heartbeat_interval": 30},
+            },
+            "schema_version": "2.0.0",
+            "last_modified": "2024-01-15T09:00:00Z",
+            "is_valid": True,
+            "validation_errors": None,
         }
+    })
 
 
 class ConfigValidation(BaseModel):
@@ -113,61 +111,59 @@ class ConfigValidation(BaseModel):
         default_factory=list, description="Configuration improvement suggestions"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "is_valid": False,
-                "errors": [
-                    "Port must be between 1 and 65535",
-                    "Invalid log level: TRACE",
-                ],
-                "warnings": ["High worker count may impact memory usage"],
-                "suggestions": [
-                    "Consider enabling compression for better performance",
-                    "Set up SSL certificates for production",
-                ],
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "is_valid": False,
+            "errors": [
+                "Port must be between 1 and 65535",
+                "Invalid log level: TRACE",
+            ],
+            "warnings": ["High worker count may impact memory usage"],
+            "suggestions": [
+                "Consider enabling compression for better performance",
+                "Set up SSL certificates for production",
+            ],
         }
+    })
 
 
 class ConfigBackup(BaseModel):
     """Configuration backup"""
 
     backup_id: str = Field(
-        description="Backup identifier", example="backup_20240115_103000"
+        description="Backup identifier", json_schema_extra={"example": "backup_20240115_103000"}
     )
     config_data: Dict[str, Any] = Field(description="Backed up configuration data")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Backup creation timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Backup creation timestamp"
     )
     description: Optional[str] = Field(
         default=None,
         description="Backup description",
-        example="Pre-production deployment backup",
+        json_schema_extra={"example": "Pre-production deployment backup"},
     )
     tags: List[str] = Field(
         default_factory=list,
         description="Backup tags",
-        example=["production", "pre-deploy"],
+        json_schema_extra={"example": ["production", "pre-deploy"]},
     )
     file_size_bytes: Optional[int] = Field(
         default=None, description="Backup file size in bytes"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "backup_id": "backup_20240115_103000",
-                "config_data": {
-                    "app_name": "LiveTranslate Orchestration Service",
-                    "version": "2.0.0",
-                },
-                "created_at": "2024-01-15T10:30:00Z",
-                "description": "Pre-production deployment backup",
-                "tags": ["production", "pre-deploy"],
-                "file_size_bytes": 2048,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "backup_id": "backup_20240115_103000",
+            "config_data": {
+                "app_name": "LiveTranslate Orchestration Service",
+                "version": "2.0.0",
+            },
+            "created_at": "2024-01-15T10:30:00Z",
+            "description": "Pre-production deployment backup",
+            "tags": ["production", "pre-deploy"],
+            "file_size_bytes": 2048,
         }
+    })
 
 
 class ConfigDiff(BaseModel):
@@ -183,20 +179,19 @@ class ConfigDiff(BaseModel):
     removed: Dict[str, Any] = Field(
         default_factory=dict, description="Removed configuration keys"
     )
-    unchanged_count: int = Field(description="Number of unchanged keys", example=25)
+    unchanged_count: int = Field(description="Number of unchanged keys", json_schema_extra={"example": 25})
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "added": {"features.new_feature": True},
-                "modified": {
-                    "websocket.max_connections": {"old": 1000, "new": 2000},
-                    "logging.level": {"old": "INFO", "new": "DEBUG"},
-                },
-                "removed": {"deprecated.old_setting": "old_value"},
-                "unchanged_count": 25,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "added": {"features.new_feature": True},
+            "modified": {
+                "websocket.max_connections": {"old": 1000, "new": 2000},
+                "logging.level": {"old": "INFO", "new": "DEBUG"},
+            },
+            "removed": {"deprecated.old_setting": "old_value"},
+            "unchanged_count": 25,
         }
+    })
 
 
 class ConfigUpdateResponse(ResponseMixin, TimestampMixin):
@@ -215,48 +210,47 @@ class ConfigUpdateResponse(ResponseMixin, TimestampMixin):
     diff: ConfigDiff = Field(description="Configuration differences")
     rollback_available: bool = Field(description="Whether rollback is available")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "Configuration updated successfully",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "updated_keys": ["websocket.max_connections", "logging.level"],
-                "validation_result": {
-                    "is_valid": True,
-                    "errors": [],
-                    "warnings": [],
-                    "suggestions": [],
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "Configuration updated successfully",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "updated_keys": ["websocket.max_connections", "logging.level"],
+            "validation_result": {
+                "is_valid": True,
+                "errors": [],
+                "warnings": [],
+                "suggestions": [],
+            },
+            "restart_required": False,
+            "backup_id": "backup_20240115_103000",
+            "diff": {
+                "added": {},
+                "modified": {
+                    "websocket.max_connections": {"old": 1000, "new": 2000}
                 },
-                "restart_required": False,
-                "backup_id": "backup_20240115_103000",
-                "diff": {
-                    "added": {},
-                    "modified": {
-                        "websocket.max_connections": {"old": 1000, "new": 2000}
-                    },
-                    "removed": {},
-                    "unchanged_count": 25,
-                },
-                "rollback_available": True,
-            }
+                "removed": {},
+                "unchanged_count": 25,
+            },
+            "rollback_available": True,
         }
+    })
 
 
 class ConfigHistory(BaseModel):
     """Configuration change history"""
 
     change_id: str = Field(
-        description="Change identifier", example="change_20240115_103000"
+        description="Change identifier", json_schema_extra={"example": "change_20240115_103000"}
     )
     timestamp: datetime = Field(description="Change timestamp")
     user: Optional[str] = Field(
         default=None,
         description="User who made the change",
-        example="admin@example.com",
+        json_schema_extra={"example": "admin@example.com"},
     )
     description: str = Field(
-        description="Change description", example="Updated WebSocket configuration"
+        description="Change description", json_schema_extra={"example": "Updated WebSocket configuration"}
     )
     changes: ConfigDiff = Field(description="Configuration changes made")
     backup_id: Optional[str] = Field(default=None, description="Associated backup ID")
@@ -264,25 +258,24 @@ class ConfigHistory(BaseModel):
         default=None, description="Rollback change ID if this was a rollback"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "change_id": "change_20240115_103000",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "user": "admin@example.com",
-                "description": "Updated WebSocket configuration",
-                "changes": {
-                    "added": {},
-                    "modified": {
-                        "websocket.max_connections": {"old": 1000, "new": 2000}
-                    },
-                    "removed": {},
-                    "unchanged_count": 25,
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "change_id": "change_20240115_103000",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "user": "admin@example.com",
+            "description": "Updated WebSocket configuration",
+            "changes": {
+                "added": {},
+                "modified": {
+                    "websocket.max_connections": {"old": 1000, "new": 2000}
                 },
-                "backup_id": "backup_20240115_103000",
-                "rollback_id": None,
-            }
+                "removed": {},
+                "unchanged_count": 25,
+            },
+            "backup_id": "backup_20240115_103000",
+            "rollback_id": None,
         }
+    })
 
 
 class FeatureFlags(BaseModel):
@@ -305,14 +298,13 @@ class FeatureFlags(BaseModel):
         default=False, description="Enable debug/development endpoints"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "enable_audio_processing": True,
-                "enable_bot_management": True,
-                "enable_translation": True,
-                "enable_analytics": True,
-                "enable_metrics": True,
-                "enable_debug_endpoints": False,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "enable_audio_processing": True,
+            "enable_bot_management": True,
+            "enable_translation": True,
+            "enable_analytics": True,
+            "enable_metrics": True,
+            "enable_debug_endpoints": False,
         }
+    })

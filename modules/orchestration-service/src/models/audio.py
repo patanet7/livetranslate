@@ -4,7 +4,7 @@ Audio processing-related Pydantic models
 
 from typing import Dict, List, Optional, Any
 from enum import Enum
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator, ConfigDict
 
 from .base import BaseModel, ResponseMixin, TimestampMixin
 
@@ -50,14 +50,14 @@ class AudioConfiguration(BaseModel):
     sample_rate: int = Field(
         default=16000,
         description="Audio sample rate in Hz",
-        example=16000,
         ge=8000,
         le=48000,
+        json_schema_extra={"example": 16000},
     )
     channels: int = Field(
-        default=1, description="Number of audio channels", example=1, ge=1, le=2
+        default=1, description="Number of audio channels", ge=1, le=2, json_schema_extra={"example": 1}
     )
-    bit_depth: int = Field(default=16, description="Audio bit depth", example=16)
+    bit_depth: int = Field(default=16, description="Audio bit depth", json_schema_extra={"example": 16})
     format: AudioFormat = Field(default=AudioFormat.WAV, description="Audio format")
 
     # Processing stages
@@ -143,31 +143,30 @@ class AudioConfiguration(BaseModel):
 
         return v
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "sample_rate": 16000,
-                "channels": 1,
-                "bit_depth": 16,
-                "format": "wav",
-                "enabled_stages": [
-                    "vad",
-                    "voice_filter",
-                    "noise_reduction",
-                    "voice_enhancement",
-                ],
-                "quality": "balanced",
-                "vad_aggressiveness": 2,
-                "vad_energy_threshold": 0.01,
-                "voice_freq_min": 85.0,
-                "voice_freq_max": 300.0,
-                "noise_reduction_strength": 0.5,
-                "voice_protection": 0.8,
-                "compressor_threshold": -20.0,
-                "compressor_ratio": 4.0,
-                "clarity_enhancement": 0.3,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "sample_rate": 16000,
+            "channels": 1,
+            "bit_depth": 16,
+            "format": "wav",
+            "enabled_stages": [
+                "vad",
+                "voice_filter",
+                "noise_reduction",
+                "voice_enhancement",
+            ],
+            "quality": "balanced",
+            "vad_aggressiveness": 2,
+            "vad_energy_threshold": 0.01,
+            "voice_freq_min": 85.0,
+            "voice_freq_max": 300.0,
+            "noise_reduction_strength": 0.5,
+            "voice_protection": 0.8,
+            "compressor_threshold": -20.0,
+            "compressor_ratio": 4.0,
+            "clarity_enhancement": 0.3,
         }
+    })
 
 
 class AudioProcessingRequest(BaseModel):
@@ -223,24 +222,23 @@ class AudioProcessingRequest(BaseModel):
 
         return self
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "audio_data": "UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAEQr...",
-                "config": {
-                    "sample_rate": 16000,
-                    "format": "wav",
-                    "quality": "balanced",
-                },
-                "streaming": False,
-                "real_time": False,
-                "transcription": True,
-                "speaker_diarization": True,
-                "session_id": "session_abc123",
-                "user_id": "user_def456",
-                "metadata": {"source": "microphone", "device": "web_browser"},
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "audio_data": "UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAEQr...",
+            "config": {
+                "sample_rate": 16000,
+                "format": "wav",
+                "quality": "balanced",
+            },
+            "streaming": False,
+            "real_time": False,
+            "transcription": True,
+            "speaker_diarization": True,
+            "session_id": "session_abc123",
+            "user_id": "user_def456",
+            "metadata": {"source": "microphone", "device": "web_browser"},
         }
+    })
 
 
 class AudioProcessingResult(BaseModel):
@@ -265,96 +263,93 @@ class AudioProcessingResult(BaseModel):
         default_factory=dict, description="Stage-specific processing data"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "stage": "noise_reduction",
-                "success": True,
-                "processing_time_ms": 45.2,
-                "input_level_db": -18.5,
-                "output_level_db": -16.2,
-                "quality_score": 0.85,
-                "artifacts_detected": False,
-                "stage_specific_data": {
-                    "noise_reduction_db": 12.3,
-                    "speech_preservation": 0.92,
-                },
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "stage": "noise_reduction",
+            "success": True,
+            "processing_time_ms": 45.2,
+            "input_level_db": -18.5,
+            "output_level_db": -16.2,
+            "quality_score": 0.85,
+            "artifacts_detected": False,
+            "stage_specific_data": {
+                "noise_reduction_db": 12.3,
+                "speech_preservation": 0.92,
+            },
         }
+    })
 
 
 class SpeakerInfo(BaseModel):
     """Speaker information from diarization"""
 
-    speaker_id: str = Field(description="Speaker identifier", example="speaker_1")
-    start_time: float = Field(description="Start time in seconds", example=0.5)
-    end_time: float = Field(description="End time in seconds", example=3.2)
+    speaker_id: str = Field(description="Speaker identifier", json_schema_extra={"example": "speaker_1"})
+    start_time: float = Field(description="Start time in seconds", json_schema_extra={"example": 0.5})
+    end_time: float = Field(description="End time in seconds", json_schema_extra={"example": 3.2})
     confidence: float = Field(
-        description="Speaker confidence score (0-1)", example=0.95, ge=0.0, le=1.0
+        description="Speaker confidence score (0-1)", ge=0.0, le=1.0, json_schema_extra={"example": 0.95}
     )
     text: Optional[str] = Field(
         default=None,
         description="Transcribed text for this speaker segment",
-        example="Hello, this is a test.",
+        json_schema_extra={"example": "Hello, this is a test."},
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "speaker_id": "speaker_1",
-                "start_time": 0.5,
-                "end_time": 3.2,
-                "confidence": 0.95,
-                "text": "Hello, this is a test.",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "speaker_id": "speaker_1",
+            "start_time": 0.5,
+            "end_time": 3.2,
+            "confidence": 0.95,
+            "text": "Hello, this is a test.",
         }
+    })
 
 
 class TranscriptionResult(BaseModel):
     """Transcription result"""
 
     text: str = Field(
-        description="Transcribed text", example="Hello, this is a test transcription."
+        description="Transcribed text", json_schema_extra={"example": "Hello, this is a test transcription."}
     )
     confidence: float = Field(
         description="Overall transcription confidence (0-1)",
-        example=0.92,
         ge=0.0,
         le=1.0,
+        json_schema_extra={"example": 0.92},
     )
-    language: str = Field(description="Detected language code", example="en")
+    language: str = Field(description="Detected language code", json_schema_extra={"example": "en"})
     speakers: List[SpeakerInfo] = Field(
         default_factory=list, description="Speaker diarization results"
     )
     processing_time_ms: float = Field(
-        description="Transcription processing time in milliseconds", example=234.5
+        description="Transcription processing time in milliseconds", json_schema_extra={"example": 234.5}
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "text": "Hello, this is a test transcription.",
-                "confidence": 0.92,
-                "language": "en",
-                "speakers": [
-                    {
-                        "speaker_id": "speaker_1",
-                        "start_time": 0.0,
-                        "end_time": 5.5,
-                        "confidence": 0.95,
-                        "text": "Hello, this is a test transcription.",
-                    }
-                ],
-                "processing_time_ms": 234.5,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "text": "Hello, this is a test transcription.",
+            "confidence": 0.92,
+            "language": "en",
+            "speakers": [
+                {
+                    "speaker_id": "speaker_1",
+                    "start_time": 0.0,
+                    "end_time": 5.5,
+                    "confidence": 0.95,
+                    "text": "Hello, this is a test transcription.",
+                }
+            ],
+            "processing_time_ms": 234.5,
         }
+    })
 
 
 class AudioProcessingResponse(ResponseMixin, TimestampMixin):
     """Audio processing response"""
 
     request_id: str = Field(
-        description="Request identifier", example="req_abc123def456"
+        description="Request identifier", json_schema_extra={"example": "req_abc123def456"}
     )
     session_id: Optional[str] = Field(default=None, description="Session identifier")
 
@@ -363,21 +358,21 @@ class AudioProcessingResponse(ResponseMixin, TimestampMixin):
         description="Results from each processing stage"
     )
     overall_quality_score: float = Field(
-        description="Overall audio quality score (0-1)", example=0.87, ge=0.0, le=1.0
+        description="Overall audio quality score (0-1)", ge=0.0, le=1.0, json_schema_extra={"example": 0.87}
     )
     total_processing_time_ms: float = Field(
-        description="Total processing time in milliseconds", example=145.7
+        description="Total processing time in milliseconds", json_schema_extra={"example": 145.7}
     )
 
     # Audio metrics
     input_duration_s: float = Field(
-        description="Input audio duration in seconds", example=5.5
+        description="Input audio duration in seconds", json_schema_extra={"example": 5.5}
     )
     output_duration_s: float = Field(
-        description="Output audio duration in seconds", example=5.3
+        description="Output audio duration in seconds", json_schema_extra={"example": 5.3}
     )
     signal_to_noise_ratio: Optional[float] = Field(
-        default=None, description="Signal-to-noise ratio in dB", example=15.2
+        default=None, description="Signal-to-noise ratio in dB", json_schema_extra={"example": 15.2}
     )
 
     # Transcription
@@ -401,86 +396,84 @@ class AudioProcessingResponse(ResponseMixin, TimestampMixin):
         default=None, description="Streaming chunk identifier"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "Audio processed successfully",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "request_id": "req_abc123def456",
-                "session_id": "session_abc123",
-                "stage_results": [
-                    {
-                        "stage": "vad",
-                        "success": True,
-                        "processing_time_ms": 15.2,
-                        "quality_score": 0.92,
-                    },
-                    {
-                        "stage": "noise_reduction",
-                        "success": True,
-                        "processing_time_ms": 45.2,
-                        "quality_score": 0.85,
-                    },
-                ],
-                "overall_quality_score": 0.87,
-                "total_processing_time_ms": 145.7,
-                "input_duration_s": 5.5,
-                "output_duration_s": 5.3,
-                "signal_to_noise_ratio": 15.2,
-                "transcription": {
-                    "text": "Hello, this is a test transcription.",
-                    "confidence": 0.92,
-                    "language": "en",
-                    "speakers": [],
-                    "processing_time_ms": 234.5,
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "Audio processed successfully",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "request_id": "req_abc123def456",
+            "session_id": "session_abc123",
+            "stage_results": [
+                {
+                    "stage": "vad",
+                    "success": True,
+                    "processing_time_ms": 15.2,
+                    "quality_score": 0.92,
                 },
-                "output_audio_url": "/api/audio/processed/req_abc123def456.wav",
-                "is_streaming": False,
-            }
+                {
+                    "stage": "noise_reduction",
+                    "success": True,
+                    "processing_time_ms": 45.2,
+                    "quality_score": 0.85,
+                },
+            ],
+            "overall_quality_score": 0.87,
+            "total_processing_time_ms": 145.7,
+            "input_duration_s": 5.5,
+            "output_duration_s": 5.3,
+            "signal_to_noise_ratio": 15.2,
+            "transcription": {
+                "text": "Hello, this is a test transcription.",
+                "confidence": 0.92,
+                "language": "en",
+                "speakers": [],
+                "processing_time_ms": 234.5,
+            },
+            "output_audio_url": "/api/audio/processed/req_abc123def456.wav",
+            "is_streaming": False,
         }
+    })
 
 
 class AudioStats(BaseModel):
     """Audio processing statistics"""
 
-    total_requests: int = Field(description="Total processing requests", example=1250)
+    total_requests: int = Field(description="Total processing requests", json_schema_extra={"example": 1250})
     successful_requests: int = Field(
-        description="Successful processing requests", example=1200
+        description="Successful processing requests", json_schema_extra={"example": 1200}
     )
-    failed_requests: int = Field(description="Failed processing requests", example=50)
+    failed_requests: int = Field(description="Failed processing requests", json_schema_extra={"example": 50})
     average_processing_time_ms: float = Field(
-        description="Average processing time in milliseconds", example=156.7
+        description="Average processing time in milliseconds", json_schema_extra={"example": 156.7}
     )
     average_quality_score: float = Field(
-        description="Average quality score (0-1)", example=0.84, ge=0.0, le=1.0
+        description="Average quality score (0-1)", ge=0.0, le=1.0, json_schema_extra={"example": 0.84}
     )
     total_audio_duration_s: float = Field(
-        description="Total audio processed in seconds", example=12500.5
+        description="Total audio processed in seconds", json_schema_extra={"example": 12500.5}
     )
     popular_formats: Dict[str, int] = Field(
         description="Usage count by audio format",
-        example={"wav": 800, "mp3": 350, "webm": 100},
+        json_schema_extra={"example": {"wav": 800, "mp3": 350, "webm": 100}},
     )
     stage_performance: Dict[str, float] = Field(
         description="Average processing time by stage (ms)",
-        example={"vad": 15.2, "noise_reduction": 45.3, "voice_enhancement": 67.1},
+        json_schema_extra={"example": {"vad": 15.2, "noise_reduction": 45.3, "voice_enhancement": 67.1}},
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "total_requests": 1250,
-                "successful_requests": 1200,
-                "failed_requests": 50,
-                "average_processing_time_ms": 156.7,
-                "average_quality_score": 0.84,
-                "total_audio_duration_s": 12500.5,
-                "popular_formats": {"wav": 800, "mp3": 350, "webm": 100},
-                "stage_performance": {
-                    "vad": 15.2,
-                    "noise_reduction": 45.3,
-                    "voice_enhancement": 67.1,
-                },
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "total_requests": 1250,
+            "successful_requests": 1200,
+            "failed_requests": 50,
+            "average_processing_time_ms": 156.7,
+            "average_quality_score": 0.84,
+            "total_audio_duration_s": 12500.5,
+            "popular_formats": {"wav": 800, "mp3": 350, "webm": 100},
+            "stage_performance": {
+                "vad": 15.2,
+                "noise_reduction": 45.3,
+                "voice_enhancement": 67.1,
+            },
         }
+    })

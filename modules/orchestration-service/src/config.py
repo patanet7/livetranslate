@@ -27,36 +27,31 @@ class DatabaseSettings(BaseSettings):
 
     url: str = Field(
         default="postgresql://localhost:5432/livetranslate",
-        env="DATABASE_URL",
         description="Database connection URL",
     )
     pool_size: int = Field(
         default=10,
-        env="DATABASE_POOL_SIZE",
         description="Database connection pool size",
     )
     max_overflow: int = Field(
         default=20,
-        env="DATABASE_MAX_OVERFLOW",
         description="Database connection pool overflow",
     )
     pool_timeout: int = Field(
         default=30,
-        env="DATABASE_POOL_TIMEOUT",
         description="Database connection pool timeout in seconds",
     )
     pool_recycle: int = Field(
         default=3600,
-        env="DATABASE_POOL_RECYCLE",
         description="Database connection pool recycle time in seconds",
     )
     pool_pre_ping: bool = Field(
         default=True,
-        env="DATABASE_POOL_PRE_PING",
         description="Enable connection health checks",
     )
     echo: bool = Field(
-        default=False, env="DATABASE_ECHO", description="Enable SQL query logging"
+        default=False,
+        description="Enable SQL query logging",
     )
 
     model_config = ConfigDict(env_prefix="DATABASE_")
@@ -67,15 +62,14 @@ class RedisSettings(BaseSettings):
 
     url: str = Field(
         default="redis://localhost:6379/0",
-        env="REDIS_URL",
         description="Redis connection URL",
     )
     max_connections: int = Field(
-        default=10, env="REDIS_MAX_CONNECTIONS", description="Maximum Redis connections"
+        default=10,
+        description="Maximum Redis connections",
     )
     socket_timeout: int = Field(
         default=5,
-        env="REDIS_SOCKET_TIMEOUT",
         description="Redis socket timeout in seconds",
     )
 
@@ -87,22 +81,18 @@ class WebSocketSettings(BaseSettings):
 
     max_connections: int = Field(
         default=1000,
-        env="WEBSOCKET_MAX_CONNECTIONS",
         description="Maximum concurrent WebSocket connections",
     )
     heartbeat_interval: int = Field(
         default=30,
-        env="WEBSOCKET_HEARTBEAT_INTERVAL",
         description="WebSocket heartbeat interval in seconds",
     )
     message_buffer_size: int = Field(
         default=100,
-        env="WEBSOCKET_MESSAGE_BUFFER_SIZE",
         description="WebSocket message buffer size",
     )
     compression: bool = Field(
         default=True,
-        env="WEBSOCKET_COMPRESSION",
         description="Enable WebSocket compression",
     )
 
@@ -115,36 +105,30 @@ class ServiceSettings(BaseSettings):
     # Audio service
     audio_service_url: str = Field(
         default="http://localhost:5001",
-        env="AUDIO_SERVICE_URL",
         description="Audio service URL",
     )
     audio_service_timeout: int = Field(
         default=30,
-        env="AUDIO_SERVICE_TIMEOUT",
         description="Audio service request timeout",
     )
 
     # Translation service
     translation_service_url: str = Field(
         default="http://localhost:5003",
-        env="TRANSLATION_SERVICE_URL",
         description="Translation service URL",
     )
     translation_service_timeout: int = Field(
         default=30,
-        env="TRANSLATION_SERVICE_TIMEOUT",
         description="Translation service request timeout",
     )
 
     # Health check settings
     health_check_interval: int = Field(
         default=10,
-        env="HEALTH_CHECK_INTERVAL",
         description="Health check interval in seconds",
     )
     health_check_timeout: int = Field(
         default=5,
-        env="HEALTH_CHECK_TIMEOUT",
         description="Health check timeout in seconds",
     )
 
@@ -156,20 +140,18 @@ class SecuritySettings(BaseSettings):
 
     secret_key: str = Field(
         default="your-secret-key-change-in-production",
-        env="SECRET_KEY",
         description="Secret key for JWT tokens",
     )
     access_token_expire_minutes: int = Field(
         default=30,
-        env="ACCESS_TOKEN_EXPIRE_MINUTES",
         description="Access token expiration time in minutes",
     )
     algorithm: str = Field(
-        default="HS256", env="JWT_ALGORITHM", description="JWT algorithm"
+        default="HS256",
+        description="JWT algorithm",
     )
     cors_origins: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:5173"],
-        env="CORS_ORIGINS",
         description="Allowed CORS origins",
     )
 
@@ -186,22 +168,25 @@ class SecuritySettings(BaseSettings):
 class LoggingSettings(BaseSettings):
     """Logging configuration"""
 
-    level: str = Field(default="INFO", env="LOG_LEVEL", description="Logging level")
+    level: str = Field(
+        default="INFO",
+        description="Logging level",
+    )
     format: str = Field(
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        env="LOG_FORMAT",
         description="Log format string",
     )
     file_path: Optional[str] = Field(
-        default=None, env="LOG_FILE_PATH", description="Log file path (optional)"
+        default=None,
+        description="Log file path (optional)",
     )
     max_file_size_mb: int = Field(
         default=10,
-        env="LOG_MAX_FILE_SIZE_MB",
         description="Maximum log file size in MB",
     )
     backup_count: int = Field(
-        default=5, env="LOG_BACKUP_COUNT", description="Number of log file backups"
+        default=5,
+        description="Number of log file backups",
     )
 
     @field_validator("level")
@@ -219,14 +204,15 @@ class MonitoringSettings(BaseSettings):
     """Monitoring and metrics configuration"""
 
     enable_metrics: bool = Field(
-        default=True, env="ENABLE_METRICS", description="Enable Prometheus metrics"
+        default=True,
+        description="Enable Prometheus metrics",
     )
     metrics_port: int = Field(
-        default=8000, env="METRICS_PORT", description="Prometheus metrics server port"
+        default=8000,
+        description="Prometheus metrics server port",
     )
     health_check_endpoint: str = Field(
         default="/health",
-        env="HEALTH_CHECK_ENDPOINT",
         description="Health check endpoint path",
     )
 
@@ -239,49 +225,49 @@ class BotSettings(BaseSettings):
     # Docker settings
     docker_image: str = Field(
         default="livetranslate-bot:latest",
-        env="BOT_DOCKER_IMAGE",
         description="Docker image for bot containers",
     )
     docker_network: str = Field(
         default="livetranslate_default",
-        env="BOT_DOCKER_NETWORK",
         description="Docker network for bot containers",
     )
 
     # Database settings (optional)
     enable_database: bool = Field(
         default=False,
-        env="BOT_ENABLE_DATABASE",
         description="Enable database persistence for bots",
     )
     database_host: str = Field(
-        default="localhost", env="BOT_DATABASE_HOST", description="Bot database host"
+        default="localhost",
+        description="Bot database host",
     )
     database_port: int = Field(
-        default=5432, env="BOT_DATABASE_PORT", description="Bot database port"
+        default=5432,
+        description="Bot database port",
     )
     database_name: str = Field(
         default="livetranslate",
-        env="BOT_DATABASE_NAME",
         description="Bot database name",
     )
     database_user: str = Field(
-        default="postgres", env="BOT_DATABASE_USER", description="Bot database username"
+        default="postgres",
+        description="Bot database username",
     )
     database_password: str = Field(
-        default="", env="BOT_DATABASE_PASSWORD", description="Bot database password"
+        default="",
+        description="Bot database password",
     )
 
     # Storage settings
     audio_storage_path: str = Field(
         default="/tmp/livetranslate/audio",
-        env="BOT_AUDIO_STORAGE_PATH",
         description="Path for bot audio file storage",
     )
 
     # Google Account Authentication (for restricted meetings)
     google_email: str = Field(
-        default="", description="Google account email for bot authentication"
+        default="",
+        description="Google account email for bot authentication",
     )
     google_password: str = Field(
         default="",
@@ -291,22 +277,20 @@ class BotSettings(BaseSettings):
     # Persistent Browser Profile (keeps bot logged in)
     user_data_dir: str = Field(
         default="/tmp/bot-browser-profile",
-        env="BOT_USER_DATA_DIR",
         description="Path to persistent browser profile (stores login state)",
     )
 
     # Browser Settings
     headless: bool = Field(
-        default=True, env="BOT_HEADLESS", description="Run browser in headless mode"
+        default=True,
+        description="Run browser in headless mode",
     )
     screenshots_enabled: bool = Field(
         default=True,
-        env="BOT_SCREENSHOTS_ENABLED",
         description="Enable screenshot debugging",
     )
     screenshots_path: str = Field(
         default="/tmp/bot-screenshots",
-        env="BOT_SCREENSHOTS_PATH",
         description="Path for bot screenshots",
     )
 
@@ -319,75 +303,62 @@ class FirefliesSettings(BaseSettings):
     # API Configuration
     api_key: str = Field(
         default="",
-        env="FIREFLIES_API_KEY",
         description="Fireflies API key for authentication",
     )
     graphql_endpoint: str = Field(
         default="https://api.fireflies.ai/graphql",
-        env="FIREFLIES_GRAPHQL_ENDPOINT",
         description="Fireflies GraphQL API endpoint",
     )
     websocket_endpoint: str = Field(
         default="wss://api.fireflies.ai/realtime",
-        env="FIREFLIES_WEBSOCKET_ENDPOINT",
         description="Fireflies WebSocket API endpoint",
     )
 
     # Sentence Aggregation Settings
     pause_threshold_ms: float = Field(
         default=800.0,
-        env="FIREFLIES_PAUSE_THRESHOLD_MS",
         description="Pause duration (ms) indicating sentence boundary",
     )
     max_buffer_words: int = Field(
         default=30,
-        env="FIREFLIES_MAX_BUFFER_WORDS",
         description="Maximum words before forcing translation",
     )
     max_buffer_seconds: float = Field(
         default=5.0,
-        env="FIREFLIES_MAX_BUFFER_SECONDS",
         description="Maximum seconds before forcing translation",
     )
     min_words_for_translation: int = Field(
         default=3,
-        env="FIREFLIES_MIN_WORDS",
         description="Minimum words required for translation",
     )
     use_nlp_boundary_detection: bool = Field(
         default=True,
-        env="FIREFLIES_USE_NLP",
         description="Use spaCy for sentence boundary detection",
     )
 
     # Translation Context Settings
     context_window_size: int = Field(
         default=3,
-        env="FIREFLIES_CONTEXT_WINDOW",
         description="Number of previous sentences for context",
     )
     include_cross_speaker_context: bool = Field(
         default=True,
-        env="FIREFLIES_CROSS_SPEAKER_CONTEXT",
         description="Include other speakers in context window",
     )
 
     # Default Target Languages
     default_target_languages: List[str] = Field(
         default=["es"],
-        env="FIREFLIES_TARGET_LANGUAGES",
         description="Default target languages for translation",
     )
 
     # Connection Settings
     auto_reconnect: bool = Field(
         default=True,
-        env="FIREFLIES_AUTO_RECONNECT",
         description="Auto-reconnect on disconnect",
     )
     max_reconnect_attempts: int = Field(
         default=5,
-        env="FIREFLIES_MAX_RECONNECT",
         description="Maximum reconnection attempts",
     )
 
@@ -411,63 +382,52 @@ class OBSSettings(BaseSettings):
     # Connection Settings
     host: str = Field(
         default="localhost",
-        env="OBS_HOST",
         description="OBS WebSocket server host",
     )
     port: int = Field(
         default=4455,
-        env="OBS_PORT",
         description="OBS WebSocket server port",
     )
     password: Optional[str] = Field(
         default=None,
-        env="OBS_PASSWORD",
         description="OBS WebSocket server password (optional)",
     )
 
     # Source Configuration
     caption_source: str = Field(
         default="LiveTranslate Caption",
-        env="OBS_CAPTION_SOURCE",
         description="Name of text source for captions",
     )
     speaker_source: Optional[str] = Field(
         default=None,
-        env="OBS_SPEAKER_SOURCE",
         description="Name of text source for speaker names",
     )
 
     # Behavior Settings
     auto_reconnect: bool = Field(
         default=True,
-        env="OBS_AUTO_RECONNECT",
         description="Auto-reconnect on disconnect",
     )
     reconnect_interval: float = Field(
         default=5.0,
-        env="OBS_RECONNECT_INTERVAL",
         description="Seconds between reconnection attempts",
     )
     max_reconnect_attempts: int = Field(
         default=3,
-        env="OBS_MAX_RECONNECT",
         description="Maximum reconnection attempts",
     )
     connection_timeout: float = Field(
         default=10.0,
-        env="OBS_CONNECTION_TIMEOUT",
         description="Connection timeout in seconds",
     )
 
     # Display Options
     show_original: bool = Field(
         default=False,
-        env="OBS_SHOW_ORIGINAL",
         description="Show original text alongside translation",
     )
     create_sources: bool = Field(
         default=False,
-        env="OBS_CREATE_SOURCES",
         description="Create text sources if they don't exist",
     )
 
@@ -484,30 +444,38 @@ class Settings(BaseSettings):
     # Basic server settings
     app_name: str = Field(
         default="LiveTranslate Orchestration Service",
-        env="APP_NAME",
         description="Application name",
     )
     version: str = Field(
-        default="2.0.0", env="APP_VERSION", description="Application version"
+        default="2.0.0",
+        description="Application version",
     )
     description: str = Field(
         default="Modern FastAPI backend for LiveTranslate orchestration",
-        env="APP_DESCRIPTION",
         description="Application description",
     )
 
     # Server configuration
-    host: str = Field(default="0.0.0.0", env="HOST", description="Server host")
-    port: int = Field(default=3000, env="PORT", description="Server port")
-    workers: int = Field(
-        default=1, env="WORKERS", description="Number of worker processes (use 1 for caption buffer consistency)"
+    host: str = Field(
+        default="0.0.0.0",
+        description="Server host",
     )
-    debug: bool = Field(default=False, env="DEBUG", description="Enable debug mode")
+    port: int = Field(
+        default=3000,
+        description="Server port",
+    )
+    workers: int = Field(
+        default=1,
+        description="Number of worker processes (use 1 for caption buffer consistency)",
+    )
+    debug: bool = Field(
+        default=False,
+        description="Enable debug mode",
+    )
 
     # Environment
     environment: str = Field(
         default="development",
-        env="ENVIRONMENT",
         description="Environment (development, staging, production)",
     )
 
@@ -526,42 +494,38 @@ class Settings(BaseSettings):
     # Feature flags
     enable_audio_processing: bool = Field(
         default=True,
-        env="ENABLE_AUDIO_PROCESSING",
         description="Enable audio processing features",
     )
     enable_bot_management: bool = Field(
         default=True,
-        env="ENABLE_BOT_MANAGEMENT",
         description="Enable bot management features",
     )
     enable_translation: bool = Field(
         default=True,
-        env="ENABLE_TRANSLATION",
         description="Enable translation features",
     )
     enable_analytics: bool = Field(
-        default=True, env="ENABLE_ANALYTICS", description="Enable analytics features"
+        default=True,
+        description="Enable analytics features",
     )
 
     # File paths
     static_files_path: str = Field(
         default="frontend/dist",
-        env="STATIC_FILES_PATH",
         description="Path to static files",
     )
     upload_path: str = Field(
-        default="uploads", env="UPLOAD_PATH", description="Path for file uploads"
+        default="uploads",
+        description="Path for file uploads",
     )
 
     # Rate limiting
     rate_limit_requests: int = Field(
         default=100,
-        env="RATE_LIMIT_REQUESTS",
         description="Rate limit requests per minute",
     )
     rate_limit_websocket_connections: int = Field(
         default=10,
-        env="RATE_LIMIT_WEBSOCKET_CONNECTIONS",
         description="Rate limit WebSocket connections per IP",
     )
 

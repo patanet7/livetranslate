@@ -2,10 +2,10 @@
 System and health-related Pydantic models
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, ConfigDict
 
 from .base import BaseModel, ResponseMixin, TimestampMixin
 
@@ -25,75 +25,74 @@ class ServiceHealth(BaseModel):
     """Individual service health information"""
 
     service_name: str = Field(
-        description="Name of the service", example="audio-service"
+        description="Name of the service", json_schema_extra={"example": "audio-service"}
     )
     status: ServiceStatus = Field(description="Current service status")
-    url: str = Field(description="Service URL", example="http://localhost:5001")
+    url: str = Field(description="Service URL", json_schema_extra={"example": "http://localhost:5001"})
     last_check: datetime = Field(
-        default_factory=datetime.utcnow, description="Last health check timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Last health check timestamp"
     )
     response_time_ms: Optional[float] = Field(
-        default=None, description="Response time in milliseconds", example=45.2
+        default=None, description="Response time in milliseconds", json_schema_extra={"example": 45.2}
     )
     error_message: Optional[str] = Field(
         default=None,
         description="Error message if unhealthy",
-        example="Connection timeout",
+        json_schema_extra={"example": "Connection timeout"},
     )
     version: Optional[str] = Field(
-        default=None, description="Service version", example="1.2.3"
+        default=None, description="Service version", json_schema_extra={"example": "1.2.3"}
     )
     uptime_seconds: Optional[float] = Field(
-        default=None, description="Service uptime in seconds", example=3600.5
+        default=None, description="Service uptime in seconds", json_schema_extra={"example": 3600.5}
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "service_name": "audio-service",
-                "status": "healthy",
-                "url": "http://localhost:5001",
-                "last_check": "2024-01-15T10:30:00Z",
-                "response_time_ms": 45.2,
-                "error_message": None,
-                "version": "1.2.3",
-                "uptime_seconds": 3600.5,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "service_name": "audio-service",
+            "status": "healthy",
+            "url": "http://localhost:5001",
+            "last_check": "2024-01-15T10:30:00Z",
+            "response_time_ms": 45.2,
+            "error_message": None,
+            "version": "1.2.3",
+            "uptime_seconds": 3600.5,
         }
+    })
 
 
 class SystemResources(BaseModel):
     """System resource usage information"""
 
     cpu_percent: float = Field(
-        description="CPU usage percentage", example=25.5, ge=0, le=100
+        description="CPU usage percentage", ge=0, le=100, json_schema_extra={"example": 25.5}
     )
     memory_percent: float = Field(
-        description="Memory usage percentage", example=65.2, ge=0, le=100
+        description="Memory usage percentage", ge=0, le=100, json_schema_extra={"example": 65.2}
     )
-    memory_used_mb: float = Field(description="Memory used in MB", example=1024.5)
-    memory_total_mb: float = Field(description="Total memory in MB", example=8192.0)
+    memory_used_mb: float = Field(description="Memory used in MB", json_schema_extra={"example": 1024.5})
+    memory_total_mb: float = Field(description="Total memory in MB", json_schema_extra={"example": 8192.0})
     disk_percent: float = Field(
-        description="Disk usage percentage", example=45.8, ge=0, le=100
+        description="Disk usage percentage", ge=0, le=100, json_schema_extra={"example": 45.8}
     )
-    disk_used_gb: float = Field(description="Disk used in GB", example=125.6)
-    disk_total_gb: float = Field(description="Total disk in GB", example=256.0)
+    disk_used_gb: float = Field(description="Disk used in GB", json_schema_extra={"example": 125.6})
+    disk_total_gb: float = Field(description="Total disk in GB", json_schema_extra={"example": 256.0})
     load_average: Optional[List[float]] = Field(
         default=None,
         description="System load average (1m, 5m, 15m)",
-        example=[0.5, 0.7, 0.9],
+        json_schema_extra={"example": [0.5, 0.7, 0.9]},
     )
 
 
 class NetworkStats(BaseModel):
     """Network statistics"""
 
-    bytes_sent: int = Field(description="Total bytes sent", example=1024000)
-    bytes_received: int = Field(description="Total bytes received", example=2048000)
-    packets_sent: int = Field(description="Total packets sent", example=1500)
-    packets_received: int = Field(description="Total packets received", example=3000)
+    bytes_sent: int = Field(description="Total bytes sent", json_schema_extra={"example": 1024000})
+    bytes_received: int = Field(description="Total bytes received", json_schema_extra={"example": 2048000})
+    packets_sent: int = Field(description="Total packets sent", json_schema_extra={"example": 1500})
+    packets_received: int = Field(description="Total packets received", json_schema_extra={"example": 3000})
     connections_active: int = Field(
-        description="Active network connections", example=25
+        description="Active network connections", json_schema_extra={"example": 25}
     )
 
 
@@ -101,9 +100,9 @@ class SystemStatus(ResponseMixin, TimestampMixin):
     """Overall system status"""
 
     status: ServiceStatus = Field(description="Overall system status")
-    version: str = Field(description="Application version", example="2.0.0")
+    version: str = Field(description="Application version", json_schema_extra={"example": "2.0.0"})
     uptime_seconds: float = Field(
-        description="System uptime in seconds", example=86400.5
+        description="System uptime in seconds", json_schema_extra={"example": 86400.5}
     )
     services: Dict[str, ServiceHealth] = Field(
         description="Individual service health statuses"
@@ -111,9 +110,9 @@ class SystemStatus(ResponseMixin, TimestampMixin):
     resources: SystemResources = Field(description="System resource usage")
     network: NetworkStats = Field(description="Network statistics")
     websocket_connections: int = Field(
-        description="Active WebSocket connections", example=150
+        description="Active WebSocket connections", json_schema_extra={"example": 150}
     )
-    active_sessions: int = Field(description="Active user sessions", example=75)
+    active_sessions: int = Field(description="Active user sessions", json_schema_extra={"example": 75})
 
     @field_validator("status")
     def determine_overall_status(cls, v, info):
@@ -140,82 +139,80 @@ class SystemStatus(ResponseMixin, TimestampMixin):
         # Otherwise, status is unknown
         return ServiceStatus.UNKNOWN
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "System status retrieved successfully",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "status": "healthy",
-                "version": "2.0.0",
-                "uptime_seconds": 86400.5,
-                "services": {
-                    "audio-service": {
-                        "service_name": "audio-service",
-                        "status": "healthy",
-                        "url": "http://localhost:5001",
-                        "last_check": "2024-01-15T10:30:00Z",
-                        "response_time_ms": 45.2,
-                        "version": "1.2.3",
-                        "uptime_seconds": 3600.5,
-                    }
-                },
-                "resources": {
-                    "cpu_percent": 25.5,
-                    "memory_percent": 65.2,
-                    "memory_used_mb": 1024.5,
-                    "memory_total_mb": 8192.0,
-                    "disk_percent": 45.8,
-                    "disk_used_gb": 125.6,
-                    "disk_total_gb": 256.0,
-                    "load_average": [0.5, 0.7, 0.9],
-                },
-                "network": {
-                    "bytes_sent": 1024000,
-                    "bytes_received": 2048000,
-                    "packets_sent": 1500,
-                    "packets_received": 3000,
-                    "connections_active": 25,
-                },
-                "websocket_connections": 150,
-                "active_sessions": 75,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "System status retrieved successfully",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "status": "healthy",
+            "version": "2.0.0",
+            "uptime_seconds": 86400.5,
+            "services": {
+                "audio-service": {
+                    "service_name": "audio-service",
+                    "status": "healthy",
+                    "url": "http://localhost:5001",
+                    "last_check": "2024-01-15T10:30:00Z",
+                    "response_time_ms": 45.2,
+                    "version": "1.2.3",
+                    "uptime_seconds": 3600.5,
+                }
+            },
+            "resources": {
+                "cpu_percent": 25.5,
+                "memory_percent": 65.2,
+                "memory_used_mb": 1024.5,
+                "memory_total_mb": 8192.0,
+                "disk_percent": 45.8,
+                "disk_used_gb": 125.6,
+                "disk_total_gb": 256.0,
+                "load_average": [0.5, 0.7, 0.9],
+            },
+            "network": {
+                "bytes_sent": 1024000,
+                "bytes_received": 2048000,
+                "packets_sent": 1500,
+                "packets_received": 3000,
+                "connections_active": 25,
+            },
+            "websocket_connections": 150,
+            "active_sessions": 75,
         }
+    })
 
 
 class ErrorResponse(BaseModel):
     """Standard error response format"""
 
-    error: str = Field(description="Error message", example="Service unavailable")
+    error: str = Field(description="Error message", json_schema_extra={"example": "Service unavailable"})
     error_code: Optional[str] = Field(
-        default=None, description="Specific error code", example="SERVICE_UNAVAILABLE"
+        default=None, description="Specific error code", json_schema_extra={"example": "SERVICE_UNAVAILABLE"}
     )
-    status_code: int = Field(description="HTTP status code", example=503)
+    status_code: int = Field(description="HTTP status code", json_schema_extra={"example": 503})
     path: str = Field(
-        description="Request path that caused the error", example="/api/health"
+        description="Request path that caused the error", json_schema_extra={"example": "/api/health"}
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp"
     )
     details: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional error details"
     )
     request_id: Optional[str] = Field(
-        default=None, description="Request ID for tracking", example="req_abc123def456"
+        default=None, description="Request ID for tracking", json_schema_extra={"example": "req_abc123def456"}
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "error": "Service unavailable",
-                "error_code": "SERVICE_UNAVAILABLE",
-                "status_code": 503,
-                "path": "/api/health",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "details": {"service": "audio-service", "reason": "Connection timeout"},
-                "request_id": "req_abc123def456",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "error": "Service unavailable",
+            "error_code": "SERVICE_UNAVAILABLE",
+            "status_code": 503,
+            "path": "/api/health",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "details": {"service": "audio-service", "reason": "Connection timeout"},
+            "request_id": "req_abc123def456",
         }
+    })
 
 
 class ValidationErrorResponse(BaseModel):
@@ -223,54 +220,53 @@ class ValidationErrorResponse(BaseModel):
 
     error: str = Field(default="Validation error", description="Error message")
     status_code: int = Field(default=422, description="HTTP status code")
-    path: str = Field(description="Request path", example="/api/config/update")
+    path: str = Field(description="Request path", json_schema_extra={"example": "/api/config/update"})
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp"
     )
     validation_errors: List[Dict[str, Any]] = Field(
         description="Detailed validation errors"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "error": "Validation error",
-                "status_code": 422,
-                "path": "/api/config/update",
-                "timestamp": "2024-01-15T10:30:00Z",
-                "validation_errors": [
-                    {
-                        "loc": ["body", "port"],
-                        "msg": "ensure this value is greater than 0",
-                        "type": "value_error.number.not_gt",
-                        "ctx": {"limit_value": 0},
-                    }
-                ],
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "error": "Validation error",
+            "status_code": 422,
+            "path": "/api/config/update",
+            "timestamp": "2024-01-15T10:30:00Z",
+            "validation_errors": [
+                {
+                    "loc": ["body", "port"],
+                    "msg": "ensure this value is greater than 0",
+                    "type": "value_error.number.not_gt",
+                    "ctx": {"limit_value": 0},
+                }
+            ],
         }
+    })
 
 
 class ServiceMetrics(BaseModel):
     """Service-specific metrics"""
 
-    service_name: str = Field(description="Service name", example="audio-service")
-    requests_total: int = Field(description="Total requests processed", example=12500)
+    service_name: str = Field(description="Service name", json_schema_extra={"example": "audio-service"})
+    requests_total: int = Field(description="Total requests processed", json_schema_extra={"example": 12500})
     requests_per_second: float = Field(
-        description="Current requests per second", example=15.5
+        description="Current requests per second", json_schema_extra={"example": 15.5}
     )
     average_response_time_ms: float = Field(
-        description="Average response time in milliseconds", example=45.2
+        description="Average response time in milliseconds", json_schema_extra={"example": 45.2}
     )
     error_rate_percent: float = Field(
-        description="Error rate percentage", example=0.5, ge=0, le=100
+        description="Error rate percentage", ge=0, le=100, json_schema_extra={"example": 0.5}
     )
     uptime_percent: float = Field(
-        description="Uptime percentage (last 24h)", example=99.95, ge=0, le=100
+        description="Uptime percentage (last 24h)", ge=0, le=100, json_schema_extra={"example": 99.95}
     )
     last_error: Optional[str] = Field(
         default=None,
         description="Last error message",
-        example="Connection timeout after 30s",
+        json_schema_extra={"example": "Connection timeout after 30s"},
     )
     last_error_timestamp: Optional[datetime] = Field(
         default=None, description="Last error timestamp"
@@ -282,14 +278,14 @@ class SystemMetrics(BaseModel):
 
     overall_status: ServiceStatus = Field(description="Overall system status")
     services: List[ServiceMetrics] = Field(description="Per-service metrics")
-    total_requests: int = Field(description="Total system requests", example=50000)
-    total_errors: int = Field(description="Total system errors", example=25)
+    total_requests: int = Field(description="Total system requests", json_schema_extra={"example": 50000})
+    total_errors: int = Field(description="Total system errors", json_schema_extra={"example": 25})
     average_response_time_ms: float = Field(
-        description="System average response time", example=52.3
+        description="System average response time", json_schema_extra={"example": 52.3}
     )
     system_uptime_percent: float = Field(
-        description="System uptime percentage", example=99.9, ge=0, le=100
+        description="System uptime percentage", ge=0, le=100, json_schema_extra={"example": 99.9}
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Metrics timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Metrics timestamp"
     )

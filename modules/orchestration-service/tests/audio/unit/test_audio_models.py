@@ -7,7 +7,7 @@ serialization, and factory functions.
 """
 
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from src.audio.models import (
@@ -117,7 +117,7 @@ class TestAudioChunkMetadata:
         assert "test_session" in json_data
 
         # Test dict conversion
-        dict_data = metadata.dict()
+        dict_data = metadata.model_dump()
         assert dict_data["session_id"] == "test_session"
         assert dict_data["file_size"] == 64000
 
@@ -204,8 +204,8 @@ class TestProcessingResult:
                 session_id="test",
                 processing_stage="test",
                 status=ProcessingStatus.COMPLETED,
-                started_at=datetime.utcnow(),
-                completed_at=datetime(2020, 1, 1),  # Before start
+                started_at=datetime.now(timezone.utc),
+                completed_at=datetime(2020, 1, 1, tzinfo=timezone.utc),  # Before start
             )
 
 
@@ -374,6 +374,7 @@ class TestEnumValidation:
                 chunk_sequence=1,
                 chunk_start_time=0.0,
                 chunk_end_time=3.0,
+                source_type=SourceType.MANUAL_UPLOAD,
             )
             assert metadata.file_format == format_type
 

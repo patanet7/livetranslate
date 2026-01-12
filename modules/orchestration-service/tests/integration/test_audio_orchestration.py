@@ -3,13 +3,13 @@ Comprehensive Integration Tests for Orchestration Service
 =========================================================
 
 Tests the complete audio processing orchestration with:
-- Real database operations (PostgreSQL/SQLite)
+- Real database operations (PostgreSQL)
 - Proper audio chunking and streaming
 - Session tracking and metrics
 - Service response fixtures matching actual contracts
 - Audio coordinator integration
 
-NO MOCKS for database - uses real test database
+NO MOCKS for database - uses real PostgreSQL test database
 Service responses use fixtures that match actual response formats
 """
 
@@ -19,7 +19,7 @@ import os
 import wave
 from pathlib import Path
 from typing import Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 import numpy as np
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -43,7 +43,18 @@ from src.database.unified_bot_session_repository import UnifiedBotSessionReposit
 
 # Test Configuration
 BASE_URL = "http://localhost:3000"
-TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "sqlite:///./test_orchestration.db")
+# Use PostgreSQL for integration tests - SQLite doesn't support JSONB types
+# Port 5433 is the livetranslate-postgres container
+# Sync URL for SQLAlchemy create_engine (psycopg2)
+TEST_DB_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+)
+# Async URL for async operations (asyncpg)
+TEST_DB_URL_ASYNC = os.getenv(
+    "TEST_DATABASE_URL_ASYNC",
+    "postgresql+asyncpg://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+)
 
 
 # =============================================================================
@@ -55,13 +66,44 @@ TEST_DB_URL = os.getenv("TEST_DATABASE_URL", "sqlite:///./test_orchestration.db"
 def test_database():
     """
     Create a real test database for integration testing.
-    Uses SQLite for simplicity, but tests real database operations.
+    Uses PostgreSQL to match production and support JSONB types.
     """
+    from sqlalchemy import text
+
     # Create test database
     engine = create_engine(TEST_DB_URL, echo=False)
 
-    # Drop all tables and recreate
-    Base.metadata.drop_all(bind=engine)
+    # Use raw SQL to cleanly drop ALL objects in public schema
+    # This avoids issues with partial drops and index conflicts
+    with engine.connect() as conn:
+        # Drop all indexes first
+        conn.execute(text("""
+            DO $$ DECLARE
+                idx RECORD;
+            BEGIN
+                FOR idx IN (
+                    SELECT indexname FROM pg_indexes
+                    WHERE schemaname = 'public'
+                    AND indexname NOT LIKE 'pg_%'
+                ) LOOP
+                    EXECUTE 'DROP INDEX IF EXISTS public.' || quote_ident(idx.indexname) || ' CASCADE';
+                END LOOP;
+            END $$;
+        """))
+
+        # Then drop all tables
+        conn.execute(text("""
+            DO $$ DECLARE
+                r RECORD;
+            BEGIN
+                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+                    EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
+                END LOOP;
+            END $$;
+        """))
+        conn.commit()
+
+    # Now create all tables fresh
     Base.metadata.create_all(bind=engine)
 
     SessionLocal = sessionmaker(bind=engine)
@@ -72,8 +114,11 @@ def test_database():
         "url": TEST_DB_URL,
     }
 
-    # Cleanup after all tests
-    Base.metadata.drop_all(bind=engine)
+    # Cleanup after all tests - just drop tables, don't dispose engine yet
+    try:
+        Base.metadata.drop_all(bind=engine)
+    except Exception:
+        pass  # Ignore cleanup errors
     engine.dispose()
 
 
@@ -96,12 +141,14 @@ async def db_session(test_database):
 async def bot_repository(test_database):
     """
     Create UnifiedBotSessionRepository with test database.
+    Uses async URL for asyncpg driver.
     """
     from config import DatabaseSettings
 
-    db_config = DatabaseSettings(url=test_database["url"])
+    # Use async URL for asyncpg driver
+    db_config = DatabaseSettings(url=TEST_DB_URL_ASYNC)
     db_manager = DatabaseManager(db_config)
-    await db_manager.initialize()
+    db_manager.initialize()  # Sync method, not async
 
     repository = UnifiedBotSessionRepository(db_manager)
     await repository.initialize()
@@ -196,7 +243,7 @@ def translation_service_response():
             "model_used": "default",
             "backend_used": "embedded",
             "session_id": None,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     return _create

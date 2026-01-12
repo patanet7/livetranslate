@@ -11,7 +11,7 @@ Bot analytics and performance monitoring endpoints including:
 - Quality analytics (/analytics/quality)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from fastapi import Depends, HTTPException, status
@@ -75,7 +75,7 @@ async def get_bot_analytics(
             }
 
         return BotAnalyticsResponse(
-            bot_id=bot_id, analytics=analytics, timestamp=datetime.utcnow().isoformat()
+            bot_id=bot_id, analytics=analytics, timestamp=datetime.now(timezone.utc).isoformat()
         )
 
     except HTTPException:

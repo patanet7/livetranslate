@@ -22,7 +22,7 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any, AsyncGenerator
 import asyncpg
 
@@ -313,8 +313,8 @@ class AudioDatabaseAdapter:
                     transcript_data.get("segment_index", 0),
                     audio_file_id,
                     json.dumps(processing_metadata),
-                    datetime.utcnow(),
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                 )
 
                 # Log event
@@ -407,8 +407,8 @@ class AudioDatabaseAdapter:
                     translation_data["start_timestamp"],
                     translation_data["end_timestamp"],
                     json.dumps(processing_metadata),
-                    datetime.utcnow(),
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                 )
 
                 # Log event
@@ -618,18 +618,18 @@ class AudioDatabaseAdapter:
                     """,
                         status.value,
                         json.dumps(processing_metadata),
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                         chunk_id,
                     )
                 else:
                     await conn.execute(
                         """
-                        UPDATE bot_sessions.audio_files 
+                        UPDATE bot_sessions.audio_files
                         SET processing_status = $1, updated_at = $2
                         WHERE file_id = $3
                     """,
                         status.value,
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                         chunk_id,
                     )
 
@@ -700,7 +700,7 @@ class AudioDatabaseAdapter:
 
     async def cleanup_old_data(self, retention_days: int = 30) -> Dict[str, int]:
         """Clean up old audio data based on retention policy."""
-        cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
         cleanup_stats = {
             "audio_files": 0,
             "transcripts": 0,
@@ -752,7 +752,7 @@ class AudioDatabaseAdapter:
                 json.dumps(event_data),
                 "audio_coordinator",
                 severity,
-                datetime.utcnow(),
+                datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
             )
         except Exception as e:
             logger.warning(f"Failed to log event: {e}")

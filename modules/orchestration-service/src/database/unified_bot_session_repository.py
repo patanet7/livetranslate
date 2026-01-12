@@ -17,7 +17,7 @@ through a clean repository pattern with specialized method groups.
 
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import uuid
 
@@ -98,7 +98,7 @@ class UnifiedBotSessionRepository:
                 status="initializing",
                 bot_config=bot_config,
                 metadata=metadata or {},
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
 
             async with self.db.get_session() as db_session:
@@ -136,7 +136,7 @@ class UnifiedBotSessionRepository:
             async with self.db.get_session() as db_session:
                 await db_session.execute(
                     "UPDATE bot_sessions SET status = ?, updated_at = ? WHERE session_id = ?",
-                    (status, datetime.utcnow(), session_id),
+                    (status, datetime.now(timezone.utc), session_id),
                 )
                 await db_session.commit()
 
@@ -165,7 +165,7 @@ class UnifiedBotSessionRepository:
     async def session_cleanup_old(self, older_than_hours: int = 24) -> int:
         """Clean up old completed sessions."""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(hours=older_than_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
 
             async with self.db.get_session() as db_session:
                 result = await db_session.execute(
@@ -206,7 +206,7 @@ class UnifiedBotSessionRepository:
                 if Path(file_path).exists()
                 else 0,
                 metadata=metadata or {},
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
 
             async with self.db.get_session() as db_session:
@@ -295,10 +295,10 @@ class UnifiedBotSessionRepository:
                 session_id=session_id,
                 text=text,
                 speaker_id=speaker_id,
-                timestamp=timestamp or datetime.utcnow(),
+                timestamp=timestamp or datetime.now(timezone.utc),
                 confidence=confidence,
                 metadata=metadata or {},
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
 
             async with self.db.get_session() as db_session:
@@ -341,7 +341,7 @@ class UnifiedBotSessionRepository:
     ) -> List[Transcript]:
         """Get recent transcripts from the last N minutes."""
         try:
-            cutoff_time = datetime.utcnow() - timedelta(minutes=minutes)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
 
             async with self.db.get_session() as db_session:
                 result = await db_session.execute(
@@ -379,7 +379,7 @@ class UnifiedBotSessionRepository:
                 translated_text=translated_text,
                 confidence=confidence,
                 metadata=metadata or {},
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
 
             async with self.db.get_session() as db_session:
@@ -461,7 +461,7 @@ class UnifiedBotSessionRepository:
                 meet_speaker_name=meet_speaker_name,
                 confidence=confidence,
                 metadata=metadata or {},
-                created_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
             )
 
             async with self.db.get_session() as db_session:
@@ -583,7 +583,7 @@ class UnifiedBotSessionRepository:
                 "status": "healthy",
                 "database_connected": False,
                 "tables_accessible": False,
-                "last_check": datetime.utcnow().isoformat(),
+                "last_check": datetime.now(timezone.utc).isoformat(),
             }
 
             # Check database connection
@@ -610,7 +610,7 @@ class UnifiedBotSessionRepository:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "last_check": datetime.utcnow().isoformat(),
+                "last_check": datetime.now(timezone.utc).isoformat(),
             }
 
 

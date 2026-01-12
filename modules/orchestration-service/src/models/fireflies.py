@@ -16,7 +16,7 @@ Reference: https://docs.fireflies.ai/realtime-api/event-schema
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
-from pydantic import Field
+from pydantic import Field, ConfigDict
 
 from .base import BaseModel, TimestampMixin, ResponseMixin
 
@@ -104,17 +104,16 @@ class FirefliesChunk(BaseModel):
         """Approximate word count in this chunk"""
         return len(self.text.split())
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "transcript_id": "abc123",
-                "chunk_id": "chunk_001",
-                "text": "Hello, this is a test transcription.",
-                "speaker_name": "Alice",
-                "start_time": 0.0,
-                "end_time": 2.5,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "transcript_id": "abc123",
+            "chunk_id": "chunk_001",
+            "text": "Hello, this is a test transcription.",
+            "speaker_name": "Alice",
+            "start_time": 0.0,
+            "end_time": 2.5,
         }
+    })
 
 
 class FirefliesEvent(BaseModel):
@@ -128,21 +127,20 @@ class FirefliesEvent(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc), description="Event timestamp"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "event_type": "transcription.broadcast",
-                "data": {
-                    "transcript_id": "abc123",
-                    "chunk_id": "chunk_001",
-                    "text": "Hello world",
-                    "speaker_name": "Alice",
-                    "start_time": 0.0,
-                    "end_time": 1.25,
-                },
-                "timestamp": "2024-01-15T10:30:00Z",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "event_type": "transcription.broadcast",
+            "data": {
+                "transcript_id": "abc123",
+                "chunk_id": "chunk_001",
+                "text": "Hello world",
+                "speaker_name": "Alice",
+                "start_time": 0.0,
+                "end_time": 1.25,
+            },
+            "timestamp": "2024-01-15T10:30:00Z",
         }
+    })
 
 
 class FirefliesMeeting(BaseModel):
@@ -165,17 +163,16 @@ class FirefliesMeeting(BaseModel):
         default=MeetingState.ACTIVE, description="Meeting state"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "meeting-id-12345",
-                "title": "Team Standup",
-                "organizer_email": "user@example.com",
-                "meeting_link": "https://zoom.us/j/123456789",
-                "start_time": "2024-01-15T10:00:00Z",
-                "state": "active",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "id": "meeting-id-12345",
+            "title": "Team Standup",
+            "organizer_email": "user@example.com",
+            "meeting_link": "https://zoom.us/j/123456789",
+            "start_time": "2024-01-15T10:00:00Z",
+            "state": "active",
         }
+    })
 
 
 # =============================================================================
@@ -235,19 +232,18 @@ class FirefliesSessionConfig(BaseModel):
         description="Domain for glossary filtering (e.g., 'medical', 'legal')",
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "api_key": "ff-api-key-xxxxx",
-                "transcript_id": "abc123",
-                "target_languages": ["es", "fr", "de"],
-                "pause_threshold_ms": 800.0,
-                "max_buffer_words": 30,
-                "context_window_size": 3,
-                "glossary_id": "glossary-tech-001",
-                "domain": "technology",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "api_key": "ff-api-key-xxxxx",
+            "transcript_id": "abc123",
+            "target_languages": ["es", "fr", "de"],
+            "pause_threshold_ms": 800.0,
+            "max_buffer_words": 30,
+            "context_window_size": 3,
+            "glossary_id": "glossary-tech-001",
+            "domain": "technology",
         }
+    })
 
 
 class FirefliesSession(TimestampMixin):
@@ -298,19 +294,18 @@ class FirefliesSession(TimestampMixin):
     last_error: Optional[str] = Field(default=None, description="Last error message")
     reconnection_attempts: int = Field(default=0, description="Reconnection attempts")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "session_id": "session-uuid-12345",
-                "fireflies_transcript_id": "abc123",
-                "connection_status": "connected",
-                "connected_at": "2024-01-15T10:00:00Z",
-                "chunks_received": 150,
-                "sentences_produced": 45,
-                "translations_completed": 135,
-                "speakers_detected": ["Alice", "Bob", "Charlie"],
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "session_id": "session-uuid-12345",
+            "fireflies_transcript_id": "abc123",
+            "connection_status": "connected",
+            "connected_at": "2024-01-15T10:00:00Z",
+            "chunks_received": 150,
+            "sentences_produced": 45,
+            "translations_completed": 135,
+            "speakers_detected": ["Alice", "Bob", "Charlie"],
         }
+    })
 
 
 # =============================================================================
@@ -429,19 +424,18 @@ class TranslationUnit(BaseModel):
         """Duration in milliseconds"""
         return (self.end_time - self.start_time) * 1000
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "text": "I think we should move forward with the implementation.",
-                "speaker_name": "Alice",
-                "start_time": 10.5,
-                "end_time": 14.2,
-                "session_id": "session-uuid-12345",
-                "transcript_id": "abc123",
-                "chunk_ids": ["chunk_010", "chunk_011", "chunk_012"],
-                "boundary_type": "punctuation",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "text": "I think we should move forward with the implementation.",
+            "speaker_name": "Alice",
+            "start_time": 10.5,
+            "end_time": 14.2,
+            "session_id": "session-uuid-12345",
+            "transcript_id": "abc123",
+            "chunk_ids": ["chunk_010", "chunk_011", "chunk_012"],
+            "boundary_type": "punctuation",
         }
+    })
 
 
 # =============================================================================
@@ -504,20 +498,19 @@ class TranslationResult(TimestampMixin):
         default=None, description="Source translation unit ID"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "original": "I think we should move forward with the implementation.",
-                "translated": "Creo que deberíamos seguir adelante con la implementación.",
-                "speaker_name": "Alice",
-                "source_language": "en",
-                "target_language": "es",
-                "confidence": 0.95,
-                "context_sentences_used": 3,
-                "glossary_terms_applied": ["implementation"],
-                "translation_time_ms": 125.5,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "original": "I think we should move forward with the implementation.",
+            "translated": "Creo que deberíamos seguir adelante con la implementación.",
+            "speaker_name": "Alice",
+            "source_language": "en",
+            "target_language": "es",
+            "confidence": 0.95,
+            "context_sentences_used": 3,
+            "glossary_terms_applied": ["implementation"],
+            "translation_time_ms": 125.5,
         }
+    })
 
 
 # =============================================================================
@@ -546,19 +539,18 @@ class CaptionEntry(BaseModel):
     )
     confidence: float = Field(default=1.0, description="Translation confidence")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "caption-uuid-12345",
-                "original_text": "Hello, how are you?",
-                "translated_text": "Hola, ¿cómo estás?",
-                "speaker_name": "Alice",
-                "speaker_color": "#4CAF50",
-                "target_language": "es",
-                "duration_seconds": 8.0,
-                "confidence": 0.95,
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "id": "caption-uuid-12345",
+            "original_text": "Hello, how are you?",
+            "translated_text": "Hola, ¿cómo estás?",
+            "speaker_name": "Alice",
+            "speaker_color": "#4CAF50",
+            "target_language": "es",
+            "duration_seconds": 8.0,
+            "confidence": 0.95,
         }
+    })
 
 
 class CaptionBroadcast(BaseModel):
@@ -570,20 +562,19 @@ class CaptionBroadcast(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc), description="Broadcast timestamp"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "session_id": "session-uuid-12345",
-                "captions": [
-                    {
-                        "id": "caption-001",
-                        "translated_text": "Hola, ¿cómo estás?",
-                        "speaker_name": "Alice",
-                        "target_language": "es",
-                    }
-                ],
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "session_id": "session-uuid-12345",
+            "captions": [
+                {
+                    "id": "caption-001",
+                    "translated_text": "Hola, ¿cómo estás?",
+                    "speaker_name": "Alice",
+                    "target_language": "es",
+                }
+            ],
         }
+    })
 
 
 # =============================================================================
@@ -604,15 +595,14 @@ class FirefliesConnectRequest(BaseModel):
         default=None, description="Domain for glossary filtering"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "api_key": "ff-api-key-xxxxx",
-                "transcript_id": "abc123",
-                "target_languages": ["es", "fr"],
-                "glossary_id": "glossary-tech-001",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "api_key": "ff-api-key-xxxxx",
+            "transcript_id": "abc123",
+            "target_languages": ["es", "fr"],
+            "glossary_id": "glossary-tech-001",
         }
+    })
 
 
 class FirefliesConnectResponse(ResponseMixin):
@@ -627,16 +617,15 @@ class FirefliesConnectResponse(ResponseMixin):
         default=None, description="Meeting information if available"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "message": "Connected to Fireflies realtime API",
-                "session_id": "session-uuid-12345",
-                "connection_status": "connected",
-                "transcript_id": "abc123",
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "message": "Connected to Fireflies realtime API",
+            "session_id": "session-uuid-12345",
+            "connection_status": "connected",
+            "transcript_id": "abc123",
         }
+    })
 
 
 class FirefliesStatusResponse(ResponseMixin):
@@ -650,19 +639,18 @@ class FirefliesStatusResponse(ResponseMixin):
         default=None, description="Connection uptime"
     )
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "is_connected": True,
-                "uptime_seconds": 3600.5,
-                "session": {
-                    "session_id": "session-uuid-12345",
-                    "connection_status": "connected",
-                    "chunks_received": 150,
-                },
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "is_connected": True,
+            "uptime_seconds": 3600.5,
+            "session": {
+                "session_id": "session-uuid-12345",
+                "connection_status": "connected",
+                "chunks_received": 150,
+            },
         }
+    })
 
 
 class ActiveMeetingsResponse(ResponseMixin):
@@ -673,22 +661,21 @@ class ActiveMeetingsResponse(ResponseMixin):
     )
     count: int = Field(default=0, description="Number of meetings")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "success": True,
-                "count": 2,
-                "meetings": [
-                    {
-                        "id": "meeting-001",
-                        "title": "Team Standup",
-                        "state": "active",
-                    },
-                    {
-                        "id": "meeting-002",
-                        "title": "Planning Session",
-                        "state": "active",
-                    },
-                ],
-            }
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success": True,
+            "count": 2,
+            "meetings": [
+                {
+                    "id": "meeting-001",
+                    "title": "Team Standup",
+                    "state": "active",
+                },
+                {
+                    "id": "meeting-002",
+                    "title": "Planning Session",
+                    "state": "active",
+                },
+            ],
         }
+    })

@@ -422,7 +422,7 @@ class TestAudioCoordinatorPerformance:
         config_file = temp_dir / "perf_config.yaml"
 
         coordinator = create_audio_coordinator(
-            database_url="postgresql://test:test@localhost:5432/test",
+            database_url=None,  # Using mock adapter
             service_urls=mock_service_urls,
             config=get_default_chunking_config(),
             max_concurrent_sessions=20,

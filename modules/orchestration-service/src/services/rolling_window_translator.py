@@ -87,7 +87,7 @@ class SessionTranslationState:
     total_translations: int = 0
     total_errors: int = 0
     average_translation_time_ms: float = 0.0
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def get_speaker_context(self, speaker_name: str) -> SpeakerContext:
         """Get or create context for a speaker."""

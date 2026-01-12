@@ -2,36 +2,28 @@
 Base Pydantic models with common functionality
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from pydantic import BaseModel as PydanticBaseModel, Field, field_validator
+from pydantic import BaseModel as PydanticBaseModel, Field, field_validator, ConfigDict
 
 
 class BaseModel(PydanticBaseModel):
     """Enhanced base model with common configuration"""
 
-    class Config:
-        # Use enum values in serialization
-        use_enum_values = True
-
-        # Validate assignment
-        validate_assignment = True
-
-        # Allow population by field name
-        populate_by_name = True
-
-        # JSON schema extra
-        json_schema_extra = {"example": {}}
-
-        # Custom JSON encoders
-        json_encoders = {datetime: lambda v: v.isoformat() if v else None}
+    model_config = ConfigDict(
+        use_enum_values=True,
+        validate_assignment=True,
+        populate_by_name=True,
+        json_schema_extra={"example": {}},
+        ser_json_timedelta="iso8601",
+    )
 
 
 class TimestampMixin(BaseModel):
     """Mixin for models that need timestamp fields"""
 
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Creation timestamp"
     )
     updated_at: Optional[datetime] = Field(
         default=None, description="Last update timestamp"
@@ -39,13 +31,13 @@ class TimestampMixin(BaseModel):
 
     def update_timestamp(self):
         """Update the updated_at timestamp"""
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
 
 class IDMixin(BaseModel):
     """Mixin for models that need ID fields"""
 
-    id: str = Field(description="Unique identifier", example="uuid-1234-5678-9abc-def")
+    id: str = Field(description="Unique identifier", json_schema_extra={"example": "uuid-1234-5678-9abc-def"})
 
 
 class ResponseMixin(BaseModel):
@@ -56,7 +48,7 @@ class ResponseMixin(BaseModel):
     )
     message: Optional[str] = Field(default=None, description="Human-readable message")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Response timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp"
     )
 
 
@@ -85,10 +77,10 @@ class PaginationMixin(BaseModel):
 class ErrorDetails(BaseModel):
     """Detailed error information"""
 
-    code: str = Field(description="Error code", example="VALIDATION_ERROR")
-    message: str = Field(description="Error message", example="Invalid input data")
+    code: str = Field(description="Error code", json_schema_extra={"example": "VALIDATION_ERROR"})
+    message: str = Field(description="Error message", json_schema_extra={"example": "Invalid input data"})
     field: Optional[str] = Field(
-        default=None, description="Field that caused the error", example="email"
+        default=None, description="Field that caused the error", json_schema_extra={"example": "email"}
     )
     details: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional error details"
@@ -98,23 +90,23 @@ class ErrorDetails(BaseModel):
 class ValidationErrorDetail(BaseModel):
     """Pydantic validation error details"""
 
-    loc: list = Field(description="Error location", example=["body", "email"])
-    msg: str = Field(description="Error message", example="field required")
-    type: str = Field(description="Error type", example="value_error.missing")
+    loc: list = Field(description="Error location", json_schema_extra={"example": ["body", "email"]})
+    msg: str = Field(description="Error message", json_schema_extra={"example": "field required"})
+    type: str = Field(description="Error type", json_schema_extra={"example": "value_error.missing"})
     ctx: Optional[Dict[str, Any]] = Field(default=None, description="Error context")
 
 
 class HealthStatus(BaseModel):
     """Health status information"""
 
-    status: str = Field(description="Health status", example="healthy")
+    status: str = Field(description="Health status", json_schema_extra={"example": "healthy"})
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Health check timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Health check timestamp"
     )
     uptime_seconds: float = Field(
-        description="Service uptime in seconds", example=3600.5
+        description="Service uptime in seconds", json_schema_extra={"example": 3600.5}
     )
-    version: str = Field(description="Service version", example="2.0.0")
+    version: str = Field(description="Service version", json_schema_extra={"example": "2.0.0"})
 
     @field_validator("status")
     @classmethod
@@ -129,40 +121,40 @@ class HealthStatus(BaseModel):
 class MetricsData(BaseModel):
     """Metrics data structure"""
 
-    name: str = Field(description="Metric name", example="cpu_usage_percent")
-    value: float = Field(description="Metric value", example=45.2)
+    name: str = Field(description="Metric name", json_schema_extra={"example": "cpu_usage_percent"})
+    value: float = Field(description="Metric value", json_schema_extra={"example": 45.2})
     unit: Optional[str] = Field(
-        default=None, description="Metric unit", example="percent"
+        default=None, description="Metric unit", json_schema_extra={"example": "percent"}
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Metric timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Metric timestamp"
     )
     labels: Optional[Dict[str, str]] = Field(
-        default=None, description="Metric labels", example={"instance": "worker-1"}
+        default=None, description="Metric labels", json_schema_extra={"example": {"instance": "worker-1"}}
     )
 
 
 class LogEntry(BaseModel):
     """Log entry structure"""
 
-    level: str = Field(description="Log level", example="INFO")
+    level: str = Field(description="Log level", json_schema_extra={"example": "INFO"})
     message: str = Field(
-        description="Log message", example="Service started successfully"
+        description="Log message", json_schema_extra={"example": "Service started successfully"}
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Log timestamp"
+        default_factory=lambda: datetime.now(timezone.utc), description="Log timestamp"
     )
     logger: Optional[str] = Field(
-        default=None, description="Logger name", example="orchestration.service"
+        default=None, description="Logger name", json_schema_extra={"example": "orchestration.service"}
     )
     module: Optional[str] = Field(
-        default=None, description="Source module", example="main.py"
+        default=None, description="Source module", json_schema_extra={"example": "main.py"}
     )
     function: Optional[str] = Field(
-        default=None, description="Source function", example="startup"
+        default=None, description="Source function", json_schema_extra={"example": "startup"}
     )
     line_number: Optional[int] = Field(
-        default=None, description="Source line number", example=42
+        default=None, description="Source line number", json_schema_extra={"example": 42}
     )
     extra: Optional[Dict[str, Any]] = Field(
         default=None, description="Additional log data"

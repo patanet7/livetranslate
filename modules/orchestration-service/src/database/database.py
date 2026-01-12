@@ -185,7 +185,7 @@ class DatabaseUtils:
     async def create_test_data(session: AsyncSession):
         """Create test data for development"""
         from .models import BotSession, AudioFile, Transcript, Translation, Participant
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         # Create test session
         test_session = BotSession(
@@ -231,8 +231,8 @@ class DatabaseUtils:
             audio_file_id=test_audio.file_id,
             speaker_id="speaker_1",
             speaker_name="Test Speaker",
-            start_time=datetime.utcnow(),
-            end_time=datetime.utcnow(),
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
         )
 
         session.add(test_transcript)
@@ -249,8 +249,8 @@ class DatabaseUtils:
             confidence=0.92,
             speaker_id="speaker_1",
             speaker_name="Test Speaker",
-            start_time=datetime.utcnow(),
-            end_time=datetime.utcnow(),
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
             quality_score=0.88,
             word_count=6,
             character_count=25,
@@ -266,7 +266,7 @@ class DatabaseUtils:
             name="Test Speaker",
             email="test@example.com",
             speaker_id="speaker_1",
-            joined_at=datetime.utcnow(),
+            joined_at=datetime.now(timezone.utc),
             speaking_time=120.0,
             word_count=100,
         )
@@ -280,9 +280,9 @@ class DatabaseUtils:
     @staticmethod
     async def cleanup_old_sessions(session: AsyncSession, days: int = 30):
         """Clean up old session data"""
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Delete old sessions (cascade will handle related data)
         result = await session.execute(

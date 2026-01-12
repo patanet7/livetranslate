@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-Bot Management API Router
+Docker Bot Management API Router
 
-Public API for bot management operations:
+Public API for Docker-based bot management operations:
 - Start bot (join meeting)
 - Stop bot (leave meeting)
 - Get bot status
 - List bots
 - Send commands
+
+Moved from standalone routers/bot_management.py for package consolidation.
 """
 
 import logging
@@ -19,7 +21,7 @@ from bot.docker_bot_manager import get_bot_manager, DockerBotManager, BotStatus
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/bots", tags=["bot-management"])
+router = APIRouter(tags=["bot-docker-management"])
 
 
 class StartBotRequest(BaseModel):

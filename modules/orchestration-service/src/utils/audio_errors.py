@@ -8,7 +8,7 @@ circuit breaker patterns, retry mechanisms, and error recovery strategies.
 import asyncio
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, Any, Optional, List, Callable
 from dataclasses import dataclass
@@ -62,7 +62,7 @@ class AudioProcessingBaseError(Exception):
         self.severity = severity
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self.details = details or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
 
 class AudioFormatError(AudioProcessingBaseError):
@@ -233,7 +233,7 @@ class CircuitBreaker:
             return True
 
         if self.state.last_failure_time:
-            time_since_failure = datetime.utcnow() - self.state.last_failure_time
+            time_since_failure = datetime.now(timezone.utc) - self.state.last_failure_time
             if time_since_failure.total_seconds() >= self.recovery_timeout:
                 self.state.is_half_open = True
                 self.state.is_open = False
@@ -255,7 +255,7 @@ class CircuitBreaker:
     async def _on_failure(self, exception: Exception):
         """Handle failed call"""
         self.state.failure_count += 1
-        self.state.last_failure_time = datetime.utcnow()
+        self.state.last_failure_time = datetime.now(timezone.utc)
         self.state.success_count = 0
 
         if self.state.failure_count >= self.failure_threshold:
@@ -455,7 +455,7 @@ class ErrorLogger:
             "correlation_id": error.correlation_id,
             "error_code": error.error_code,
             "recovery_result": recovery_result,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         self.logger.info(

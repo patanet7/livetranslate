@@ -8,7 +8,7 @@ import hashlib
 import hmac
 import secrets
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 
 
@@ -31,8 +31,8 @@ class SecurityUtils:
         Returns:
             JWT token string
         """
-        payload["exp"] = datetime.utcnow() + timedelta(seconds=expires_in)
-        payload["iat"] = datetime.utcnow()
+        payload["exp"] = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        payload["iat"] = datetime.now(timezone.utc)
 
         return jwt.encode(payload, self.secret_key, algorithm="HS256")
 

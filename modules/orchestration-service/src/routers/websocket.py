@@ -8,7 +8,7 @@ bot management, and system notifications.
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import (
     APIRouter,
@@ -92,7 +92,7 @@ async def websocket_endpoint(
                 "session_id": session_id,
                 "user_id": user_id,
                 "authenticated": authenticated_user is not None,
-                "server_time": datetime.utcnow().isoformat(),
+                "server_time": datetime.now(timezone.utc).isoformat(),
             },
         )
 
@@ -317,7 +317,7 @@ async def broadcast_message(
             "message": "Broadcast sent successfully",
             "targets_reached": result.get("targets_reached", 0),
             "total_targets": result.get("total_targets", 0),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to broadcast message: {e}")
@@ -346,7 +346,7 @@ async def send_session_message(
             "status": "success",
             "message": "Session message sent successfully",
             "participants_reached": result.get("participants_reached", 0),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to send session message: {e}")
@@ -371,7 +371,7 @@ async def disconnect_connection(
                 "status": "success",
                 "message": f"Connection {connection_id} disconnected",
                 "reason": reason,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         else:
             raise HTTPException(
@@ -403,7 +403,7 @@ async def _handle_websocket_message(
         if message.type == MessageType.PING:
             # Handle ping/pong
             pong_response = WebSocketResponse(
-                type=MessageType.PONG, data={"timestamp": datetime.utcnow().isoformat()}
+                type=MessageType.PONG, data={"timestamp": datetime.now(timezone.utc).isoformat()}
             )
             await websocket.send_text(pong_response.json())
 
@@ -564,7 +564,7 @@ async def _handle_bot_spawn(
             return
 
         # This would integrate with bot manager
-        bot_id = f"bot_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        bot_id = f"bot_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         response = WebSocketResponse(
             type=MessageType.BOT_STATUS,
@@ -605,7 +605,7 @@ async def _send_error(websocket: WebSocket, error_message: str, error_code: str)
                 success=False,
                 message=error_message,
                 error_code=error_code,
-                data={"timestamp": datetime.utcnow().isoformat()},
+                data={"timestamp": datetime.now(timezone.utc).isoformat()},
             )
             await websocket.send_text(error_response.json())
     except Exception as e:

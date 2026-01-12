@@ -9,7 +9,7 @@ Bot lifecycle endpoints including:
 - Bot termination (/{bot_id}/terminate)
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from fastapi import Depends, HTTPException, status
@@ -306,7 +306,7 @@ async def terminate_bot(
             "status": "terminated",
             "message": "Bot terminated successfully",
             "reason": reason or "Manual termination",
-            "terminated_at": datetime.utcnow().isoformat(),
+            "terminated_at": datetime.now(timezone.utc).isoformat(),
             "termination_result": termination_result,
         }
 
@@ -347,7 +347,7 @@ async def get_bot_status(
             "meeting_connected": detailed_status.get("meeting_connected", False),
             "audio_active": detailed_status.get("audio_active", False),
             "processing_active": detailed_status.get("processing_active", False),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except HTTPException:
@@ -383,7 +383,7 @@ async def restart_bot(
             "bot_id": bot_id,
             "status": "restarted",
             "message": "Bot restarted successfully",
-            "restarted_at": datetime.utcnow().isoformat(),
+            "restarted_at": datetime.now(timezone.utc).isoformat(),
             "restart_result": restart_result,
         }
 

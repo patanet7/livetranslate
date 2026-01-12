@@ -8,7 +8,7 @@ Fireflies integration tests.
 
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from unittest.mock import AsyncMock, MagicMock
 import pytest
@@ -162,7 +162,7 @@ def sample_meeting():
         title="Team Standup",
         organizer_email="user@example.com",
         meeting_link="https://zoom.us/j/123456",
-        start_time=datetime.utcnow(),
+        start_time=datetime.now(timezone.utc),
         state=MeetingState.ACTIVE,
     )
 
@@ -193,7 +193,7 @@ def sample_session(transcript_id, session_id):
         session_id=session_id,
         fireflies_transcript_id=transcript_id,
         connection_status=FirefliesConnectionStatus.CONNECTED,
-        connected_at=datetime.utcnow(),
+        connected_at=datetime.now(timezone.utc),
         chunks_received=10,
         sentences_produced=3,
         translations_completed=9,

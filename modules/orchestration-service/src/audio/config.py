@@ -21,7 +21,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 import yaml
@@ -605,8 +605,8 @@ class ModularPipelineConfig:
     # Metadata
     preset_name: str = "default"
     version: str = "2.0"  # Modular version
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    last_modified: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_modified: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def add_stage(
         self,
@@ -725,7 +725,7 @@ class ModularPipelineConfig:
                 "cpu_usage_limit": self.cpu_usage_limit,
                 "processing_timeout": self.processing_timeout,
             },
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
         return preset_data
 
@@ -789,8 +789,8 @@ class AudioProcessingConfig:
     # Metadata
     preset_name: str = "default"
     version: str = "1.0"
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-    last_modified: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_modified: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def get_stage_config(self, stage_name: str) -> Optional[Any]:
         """Get configuration for a specific processing stage."""
@@ -806,7 +806,7 @@ class AudioProcessingConfig:
             self.enabled_stages.append(stage_name)
         elif not enabled and stage_name in self.enabled_stages:
             self.enabled_stages.remove(stage_name)
-        self.last_modified = datetime.utcnow().isoformat()
+        self.last_modified = datetime.now(timezone.utc).isoformat()
 
     def update_from_dict(self, config_dict: Dict[str, Any]):
         """Update configuration from dictionary."""
@@ -836,7 +836,7 @@ class AudioProcessingConfig:
                             setattr(current_config, nested_key, nested_value)
                 else:
                     setattr(self, key, value)
-        self.last_modified = datetime.utcnow().isoformat()
+        self.last_modified = datetime.now(timezone.utc).isoformat()
 
 
 class AudioConfigurationManager:
@@ -1141,7 +1141,7 @@ class AudioConfigurationManager:
     ):
         """Set the default configuration."""
         self.default_config = config
-        self.default_config.last_modified = datetime.utcnow().isoformat()
+        self.default_config.last_modified = datetime.now(timezone.utc).isoformat()
 
         if save_to_file:
             await self._save_config_to_file()
@@ -1154,7 +1154,7 @@ class AudioConfigurationManager:
     async def set_session_config(self, session_id: str, config: AudioProcessingConfig):
         """Set configuration for a specific session."""
         self.session_configs[session_id] = config
-        config.last_modified = datetime.utcnow().isoformat()
+        config.last_modified = datetime.now(timezone.utc).isoformat()
 
         if self.database_adapter:
             await self._save_config_to_database(config, f"session_{session_id}")

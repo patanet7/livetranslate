@@ -89,9 +89,9 @@ def multi_stage_pipeline():
             },
         },
         "connections": [
-            {"source": "input", "target": "noise_reduction"},
-            {"source": "noise_reduction", "target": "voice_enhancement"},
-            {"source": "voice_enhancement", "target": "output"},
+            {"id": "conn_1", "source_stage_id": "input", "target_stage_id": "noise_reduction"},
+            {"id": "conn_2", "source_stage_id": "noise_reduction", "target_stage_id": "voice_enhancement"},
+            {"id": "conn_3", "source_stage_id": "voice_enhancement", "target_stage_id": "output"},
         ],
     }
 

@@ -30,6 +30,32 @@ def event_loop():
     loop.close()
 
 
+@pytest.fixture(scope="function", autouse=True)
+def reset_singletons():
+    """
+    Reset all dependency singletons before each test.
+
+    This prevents event loop binding issues where singletons
+    (EventPublisher, RedisClient, etc.) created in one test's
+    event loop cause "Event loop is closed" errors in subsequent tests.
+    """
+    # Reset before test
+    try:
+        from src.dependencies import reset_dependencies
+        reset_dependencies()
+    except ImportError:
+        pass  # Not all tests may have src in path
+
+    yield
+
+    # Reset after test (cleanup)
+    try:
+        from src.dependencies import reset_dependencies
+        reset_dependencies()
+    except ImportError:
+        pass
+
+
 @pytest.fixture(scope="session", autouse=True)
 def verify_backend_running():
     """Verify backend is running before tests"""

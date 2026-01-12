@@ -11,7 +11,7 @@ Main audio processing endpoints including:
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from fastapi import Depends, UploadFile, File, Form, HTTPException, status
@@ -68,7 +68,7 @@ async def process_audio(
     - **transcription**: Enable transcription
     - **speaker_diarization**: Enable speaker diarization
     """
-    request_id = f"req_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+    request_id = f"req_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=request_id,
@@ -307,7 +307,7 @@ async def upload_audio_file(
     - **whisper_model**: Whisper model to use (default: whisper-tiny)
     - **translation_quality**: Translation quality setting (default: balanced)
     """
-    correlation_id = f"upload_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"upload_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -447,7 +447,7 @@ async def upload_audio_file(
                     "status": "uploaded_and_processed",
                     "file_size": len(content),
                     "processing_result": result,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             finally:
@@ -629,7 +629,7 @@ async def health_check(health_monitor=Depends(get_health_monitor)) -> Dict[str, 
 
         return {
             "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "service": "orchestration_audio",
             "version": "2.0.0",
             "components": health_status,
@@ -646,7 +646,7 @@ async def health_check(health_monitor=Depends(get_health_monitor)) -> Dict[str, 
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 

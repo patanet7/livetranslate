@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Bot Callback API Router
+Bot Docker Callback API Router
 
 Handles HTTP callbacks from bot containers.
 
 Bot containers send status updates via HTTP POST:
-- POST /bots/internal/callback/started
-- POST /bots/internal/callback/joining
-- POST /bots/internal/callback/active
-- POST /bots/internal/callback/completed
-- POST /bots/internal/callback/failed
+- POST /callback/started
+- POST /callback/joining
+- POST /callback/active
+- POST /callback/completed
+- POST /callback/failed
+
+Moved from standalone routers/bot_callbacks.py for package consolidation.
 """
 
 import logging
@@ -21,7 +23,7 @@ from bot.docker_bot_manager import get_bot_manager, DockerBotManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/bots/internal/callback", tags=["bot-callbacks"])
+router = APIRouter(tags=["bot-docker-callbacks"])
 
 
 class BotCallbackPayload(BaseModel):

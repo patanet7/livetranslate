@@ -16,7 +16,7 @@ Models:
 
 import uuid
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
 from enum import Enum
 
@@ -124,8 +124,8 @@ class AudioChunkMetadata(BaseModel):
     )
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("chunk_end_time")
     @classmethod
@@ -208,7 +208,7 @@ class SpeakerCorrelation(BaseModel):
     )
 
     # Timestamps
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("end_timestamp")
     @classmethod
@@ -265,7 +265,7 @@ class ProcessingResult(BaseModel):
     )
 
     # Timestamps
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: Optional[datetime] = Field(None)
 
     @field_validator("completed_at")
@@ -424,7 +424,7 @@ class ChunkLineage(BaseModel):
     lineage_metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Additional lineage information"
     )
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class QualityMetrics(BaseModel):
@@ -482,7 +482,7 @@ class QualityMetrics(BaseModel):
     analysis_method: str = Field(
         default="standard", description="Quality analysis method used"
     )
-    analysis_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    analysis_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class AudioStreamingSession(BaseModel):
@@ -530,8 +530,8 @@ class AudioStreamingSession(BaseModel):
     error_count: int = Field(default=0, description="Number of processing errors")
 
     # Timestamps
-    started_at: datetime = Field(default_factory=datetime.utcnow)
-    last_activity_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_activity_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     ended_at: Optional[datetime] = Field(None)
 
 

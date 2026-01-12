@@ -187,6 +187,7 @@ class AudioServiceClient:
         prefer_local = os.getenv("AUDIO_PREFER_EMBEDDED", "true")
         self._prefer_embedded = prefer_local.lower() not in {"0", "false", "off"}
         self._embedded_failure_logged = False
+        self._session_loop = None  # Track which event loop created the session
 
         # Create SSL context that doesn't verify certificates for localhost
         self.ssl_context = ssl.create_default_context()
@@ -245,10 +246,33 @@ class AudioServiceClient:
         return bool(self.base_url and self.base_url.startswith("http"))
 
     async def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create aiohttp session"""
+        """Get or create aiohttp session, handling event loop changes"""
         if not self._remote_enabled():
             raise RuntimeError("Remote audio service not configured")
-        if self.session is None or self.session.closed:
+
+        # Check if we need a new session:
+        # 1. No session exists
+        # 2. Session is closed
+        # 3. Session was created on a different event loop
+        need_new_session = False
+        try:
+            current_loop = asyncio.get_running_loop()
+            if self.session is None or self.session.closed:
+                need_new_session = True
+            elif self._session_loop is not None and self._session_loop is not current_loop:
+                # Session was created on a different event loop
+                logger.debug("Recreating session due to event loop change")
+                try:
+                    if not self.session.closed:
+                        await self.session.close()
+                except Exception:
+                    pass  # Ignore errors closing old session
+                need_new_session = True
+        except RuntimeError:
+            # No running event loop
+            need_new_session = True
+
+        if need_new_session:
             logger.debug(f"Creating new session for base_url: {self.base_url}")
 
             # For HTTP URLs, explicitly disable SSL
@@ -269,6 +293,12 @@ class AudioServiceClient:
                 self.session = aiohttp.ClientSession(
                     connector=connector, timeout=self.timeout
                 )
+            # Store the current event loop for future comparisons
+            try:
+                self._session_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self._session_loop = None
+
         return self.session
 
     async def close(self):

@@ -8,10 +8,10 @@ Provides comprehensive translation endpoints with proper error handling and vali
 import logging
 import uuid
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dependencies import (
@@ -72,8 +72,8 @@ async def persist_translation_to_db(
             source_language=source_language,
             target_language=target_language,
             confidence=confidence,
-            start_time=datetime.utcnow(),
-            end_time=datetime.utcnow(),
+            start_time=datetime.now(timezone.utc),
+            end_time=datetime.now(timezone.utc),
             word_count=len(original_text.split()),
             character_count=len(original_text),
             session_metadata={
@@ -132,14 +132,13 @@ class TranslateTextRequest(BaseModel):
         # Otherwise use service field
         return self.service
 
-    class Config:
-        extra = "ignore"  # Ignore extra fields from frontend
+    model_config = ConfigDict(extra="ignore")  # Ignore extra fields from frontend
 
 
 class BatchTranslateRequest(BaseModel):
     """Request model for batch translation"""
 
-    requests: List[TranslateTextRequest] = Field(..., min_items=1, max_items=100)
+    requests: List[TranslateTextRequest] = Field(..., min_length=1, max_length=100)
 
 
 class LanguageDetectRequest(BaseModel):
@@ -170,8 +169,7 @@ class TranslationApiResponse(BaseModel):
     session_id: Optional[str] = None
     timestamp: str  # Use string instead of datetime for JSON serialization
 
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
+    model_config = ConfigDict(ser_json_timedelta="iso8601")
 
 
 # ============================================================================
@@ -262,7 +260,7 @@ async def translate_text_root(
                 result, "backend_used", "unknown"
             ),  # Default if not available
             session_id=request.session_id,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
     except Exception as e:
@@ -352,7 +350,7 @@ async def translate_text(
                 result, "backend_used", "unknown"
             ),  # Default if not available
             session_id=request.session_id,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
     except Exception as e:
@@ -411,7 +409,7 @@ async def translate_batch(
                     model_used=result.model_used,
                     backend_used=result.backend_used,
                     session_id=request.requests[i].session_id,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=datetime.now(timezone.utc).isoformat(),
                 )
             )
 
@@ -593,7 +591,7 @@ async def translation_service_health(
             "service": "translation",
             "backend": health_data.get("backend", "unknown"),
             "device": device_info.get("device", "unknown"),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "details": {
                 "health": health_data,
                 "device": device_info,
@@ -606,7 +604,7 @@ async def translation_service_health(
             "status": "unhealthy",
             "service": "translation",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -630,7 +628,7 @@ async def get_translation_statistics(
 
         return {
             "statistics": stats,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -670,7 +668,7 @@ async def start_translation_session(
             "session_id": session_id,
             "status": "started",
             "config": config,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -705,7 +703,7 @@ async def stop_translation_session(
             "session_id": session_id,
             "status": "stopped",
             "result": result,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -751,7 +749,7 @@ async def assess_translation_quality(
 
         return {
             "quality_assessment": quality_data,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:

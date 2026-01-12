@@ -15,18 +15,28 @@ Message Flow:
 This matches the bot pattern:
 - Bot: Container → WebSocket → Orchestration → Whisper
 - Frontend: Browser → WebSocket → Orchestration → Whisper
+
+Moved from standalone routers/websocket_audio.py for package consolidation.
 """
 
 import logging
+import base64
+import asyncio
+from typing import Dict, Set
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from socketio_whisper_client import SocketIOWhisperClient
-from datetime import datetime
-import asyncio
+
 
 logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter()
+
+# Track active connections and sessions
+_active_connections: Set[str] = set()
+_session_to_connections: Dict[str, Set[str]] = {}
 
 # Create singleton Socket.IO Whisper client
 whisper_client = SocketIOWhisperClient(
@@ -56,26 +66,22 @@ async def websocket_audio_stream(websocket: WebSocket):
     4. translation: {"type": "translation", "text": "...", "source_lang": "...", "target_lang": "..."}
     5. error: {"type": "error", "error": "...", "timestamp": "..."}
     """
+    connection_id = f"frontend-{id(websocket)}"
+    session_id = None
+    user_id = None
+
     try:
         # Accept WebSocket connection
         await websocket.accept()
-        logger.info("✅ Frontend WebSocket connection accepted")
-
-        # Convert FastAPI WebSocket to websockets ServerConnection
-        # Note: This is a workaround since WebSocketFrontendHandler expects websockets.ServerConnection
-        # In production, we should refactor to use FastAPI's WebSocket directly
-
-        # For now, let's create a simple forwarding implementation
-        connection_id = f"frontend-{id(websocket)}"
-        session_id = None
-        user_id = None
+        _active_connections.add(connection_id)
+        logger.info(f"Frontend WebSocket connection accepted: {connection_id}")
 
         # Send welcome message
         await websocket.send_json(
             {
                 "type": "connected",
                 "connection_id": connection_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
 
@@ -85,7 +91,7 @@ async def websocket_audio_stream(websocket: WebSocket):
             message = await websocket.receive_json()
 
             msg_type = message.get("type")
-            logger.info(f"📨 Received message type: {msg_type}")
+            logger.debug(f"Received message type: {msg_type}")
 
             # Handle authenticate
             if msg_type == "authenticate":
@@ -93,7 +99,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 token = message.get("token")
 
                 # TODO: Implement actual authentication
-                logger.info(f"✅ Authenticated user: {user_id}")
+                logger.info(f"Authenticated user: {user_id}")
 
                 await websocket.send_json(
                     {
@@ -108,13 +114,18 @@ async def websocket_audio_stream(websocket: WebSocket):
                 session_id = message.get("session_id")
                 config = message.get("config", {})
 
-                logger.info(f"🎬 Starting session: {session_id}")
+                logger.info(f"Starting session: {session_id}")
+
+                # Track session to connection mapping
+                if session_id not in _session_to_connections:
+                    _session_to_connections[session_id] = set()
+                _session_to_connections[session_id].add(connection_id)
 
                 # Start Whisper WebSocket session
                 try:
                     # Ensure whisper client is connected
                     if not whisper_client.connected:
-                        logger.info("🔌 Connecting to Whisper service...")
+                        logger.info("Connecting to Whisper service...")
                         await whisper_client.connect()
 
                     # Set up callback to forward segments to frontend
@@ -130,23 +141,23 @@ async def websocket_audio_stream(websocket: WebSocket):
                         session_id=session_id, config=config
                     )
 
-                    logger.info(f"✅ Whisper session started: {session_id}")
+                    logger.info(f"Whisper session started: {session_id}")
 
                     await websocket.send_json(
                         {
                             "type": "session_started",
                             "session_id": session_id,
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
 
                 except Exception as e:
-                    logger.error(f"❌ Failed to start Whisper session: {e}")
+                    logger.error(f"Failed to start Whisper session: {e}")
                     await websocket.send_json(
                         {
                             "type": "error",
                             "error": f"Failed to start session: {e}",
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
 
@@ -157,7 +168,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                         {
                             "type": "error",
                             "error": "No active session. Please send start_session first.",
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                     continue
@@ -170,18 +181,15 @@ async def websocket_audio_stream(websocket: WebSocket):
                         {
                             "type": "error",
                             "error": "Missing audio data",
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                     continue
 
-                # Decode base64 audio
-                import base64
-
                 try:
                     audio_data = base64.b64decode(audio_base64)
-                    logger.info(
-                        f"🎵 Received audio chunk: {len(audio_data)} bytes, forwarding to Whisper"
+                    logger.debug(
+                        f"Received audio chunk: {len(audio_data)} bytes, forwarding to Whisper"
                     )
 
                     # Forward to Whisper service
@@ -193,12 +201,12 @@ async def websocket_audio_stream(websocket: WebSocket):
                     )
 
                 except Exception as e:
-                    logger.error(f"❌ Error processing audio chunk: {e}")
+                    logger.error(f"Error processing audio chunk: {e}")
                     await websocket.send_json(
                         {
                             "type": "error",
                             "error": f"Audio processing failed: {e}",
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
 
@@ -206,11 +214,16 @@ async def websocket_audio_stream(websocket: WebSocket):
             elif msg_type == "end_session":
                 end_session_id = message.get("session_id") or session_id
 
-                logger.info(f"⏹️ Ending session: {end_session_id}")
+                logger.info(f"Ending session: {end_session_id}")
 
                 # End Whisper session
                 if end_session_id:
                     await whisper_client.close_stream(end_session_id)
+                    # Clean up session tracking
+                    if end_session_id in _session_to_connections:
+                        _session_to_connections[end_session_id].discard(connection_id)
+                        if not _session_to_connections[end_session_id]:
+                            del _session_to_connections[end_session_id]
 
                 session_id = None
 
@@ -218,41 +231,48 @@ async def websocket_audio_stream(websocket: WebSocket):
                     {
                         "type": "session_ended",
                         "session_id": end_session_id,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
             # Handle ping
             elif msg_type == "ping":
                 await websocket.send_json(
-                    {"type": "pong", "timestamp": datetime.utcnow().isoformat()}
+                    {"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}
                 )
 
             else:
-                logger.warning(f"⚠️ Unknown message type: {msg_type}")
+                logger.warning(f"Unknown message type: {msg_type}")
                 await websocket.send_json(
                     {
                         "type": "error",
                         "error": f"Unknown message type: {msg_type}",
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
 
     except WebSocketDisconnect:
-        logger.info(f"🔌 Frontend disconnected: {connection_id}")
+        logger.info(f"Frontend disconnected: {connection_id}")
 
     except Exception as e:
-        logger.error(f"❌ WebSocket error: {e}", exc_info=True)
+        logger.error(f"WebSocket error: {e}", exc_info=True)
 
     finally:
+        # Cleanup connection tracking
+        _active_connections.discard(connection_id)
+
         # Cleanup session if active
         if session_id:
             try:
                 await whisper_client.end_session(session_id)
+                if session_id in _session_to_connections:
+                    _session_to_connections[session_id].discard(connection_id)
+                    if not _session_to_connections[session_id]:
+                        del _session_to_connections[session_id]
             except Exception as e:
                 logger.error(f"Error ending session during cleanup: {e}")
 
-        logger.info(f"🧹 Cleaned up connection: {connection_id}")
+        logger.info(f"Cleaned up connection: {connection_id}")
 
 
 # Health check endpoint
@@ -266,9 +286,9 @@ async def websocket_audio_health():
     """
     return {
         "status": "healthy",
-        "active_connections": len(frontend_handler.connections),
+        "active_connections": len(_active_connections),
         "whisper_connected": whisper_client.is_connected()
         if hasattr(whisper_client, "is_connected")
         else False,
-        "sessions": list(frontend_handler.session_to_connections.keys()),
+        "sessions": list(_session_to_connections.keys()),
     }
