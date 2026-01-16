@@ -361,18 +361,7 @@
         <div class="form-group">
           <label>Target Languages (Ctrl/Cmd+Click to select multiple)</label>
           <select id="targetLanguages" multiple style="height: 120px;">
-            <option value="en">English (en)</option>
-            <option value="es" selected>Spanish (es)</option>
-            <option value="fr">French (fr)</option>
-            <option value="de">German (de)</option>
-            <option value="pt">Portuguese (pt)</option>
-            <option value="it">Italian (it)</option>
-            <option value="zh">Chinese (zh)</option>
-            <option value="ja">Japanese (ja)</option>
-            <option value="ko">Korean (ko)</option>
-            <option value="ru">Russian (ru)</option>
-            <option value="ar">Arabic (ar)</option>
-            <option value="hi">Hindi (hi)</option>
+            <!-- Populated dynamically from /fireflies/dashboard/config -->
           </select>
         </div>
       </div>
@@ -539,11 +528,7 @@
           <div class="form-group" style="max-width: 150px;">
             <label>Target</label>
             <select id="testTargetLang">
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="ja">Japanese</option>
-              <option value="zh">Chinese</option>
+              <!-- Populated dynamically from backend config -->
             </select>
           </div>
           <button class="btn-primary" onclick="testTranslation()">Translate</button>
@@ -615,11 +600,7 @@
           <div class="form-group" style="max-width: 150px;">
             <label>Target Language</label>
             <select id="feedTargetLang">
-              <option value="es">Spanish</option>
-              <option value="fr">French</option>
-              <option value="de">German</option>
-              <option value="ja">Japanese</option>
-              <option value="zh">Chinese</option>
+              <!-- Populated dynamically from backend config -->
             </select>
           </div>
           <button class="btn-primary" onclick="connectToFeed()">Connect</button>
@@ -791,9 +772,7 @@
         <h2>📄 Transcript: <span id="transcriptViewerTitle"></span></h2>
         <div style="margin-bottom: 16px; display: flex; gap: 8px;">
           <select id="historyTargetLang">
-            <option value="es">Spanish</option>
-            <option value="fr">French</option>
-            <option value="de">German</option>
+            <!-- Populated dynamically from backend config -->
           </select>
           <button class="btn-primary btn-sm" onclick="translateFullTranscript()">Translate All</button>
           <button class="btn-secondary btn-sm" onclick="saveTranscriptLocal()">💾 Save Locally</button>
@@ -820,6 +799,7 @@
     let apiKey = localStorage.getItem('fireflies_api_key') || '';
     let currentSessions = [];
     let translationConfig = {};
+    let dashboardConfig = null;  // Centralized config from backend
 
     // ==========================================================================
     // Initialization
@@ -829,6 +809,9 @@
     });
 
     async function initializeDashboard() {
+      // Load centralized dashboard config FIRST
+      await loadDashboardConfig();
+
       // Load saved API key (but don't mark as connected until validated)
       if (apiKey) {
         document.getElementById('apiKeyInput').value = apiKey;
@@ -851,6 +834,185 @@
       await refreshSessions();
 
       log('Dashboard ready', 'info');
+    }
+
+    // ==========================================================================
+    // Centralized Configuration (NO HARDCODED FALLBACKS - all from backend)
+    // ==========================================================================
+    async function loadDashboardConfig() {
+      try {
+        log('Loading dashboard configuration from backend...', 'info');
+        // Use system-wide config endpoint (single source of truth)
+        // Falls back to fireflies-specific endpoint for backwards compatibility
+        let response = await fetch(`${baseUrl}/api/system/ui-config`);
+        if (!response.ok) {
+          log('System config not available, trying fireflies config...', 'warn');
+          response = await fetch(`${baseUrl}/fireflies/dashboard/config`);
+        }
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: { message: response.statusText } }));
+          throw new Error(error.error?.message || `HTTP ${response.status}`);
+        }
+
+        dashboardConfig = await response.json();
+        log(`Dashboard config loaded: ${dashboardConfig.languages?.length || 0} languages, ${dashboardConfig.translation_models?.length || 0} models`, 'success');
+
+        // Populate all dynamic selects from config
+        populateLanguageSelects();
+        populateDomainSelects();
+        populateModelSelects();
+        populatePromptTemplates();
+
+      } catch (e) {
+        log(`CRITICAL: Failed to load dashboard config: ${e.message}`, 'error');
+        showAlert('Failed to load configuration from backend. Some features may not work.', 'error');
+        // Mark config as failed - don't use fallbacks
+        dashboardConfig = { _loadFailed: true, _error: e.message };
+      }
+    }
+
+    function populateLanguageSelects() {
+      if (!dashboardConfig || dashboardConfig._loadFailed || !dashboardConfig.languages) {
+        log('Cannot populate languages - config not loaded', 'warn');
+        return;
+      }
+
+      const languages = dashboardConfig.languages;
+      const defaults = dashboardConfig.defaults || {};
+
+      // All language select IDs in the dashboard
+      const languageSelectIds = [
+        'targetLanguages',      // Main connect tab (multi-select)
+        'testTargetLang',       // Translation test
+        'feedTargetLang',       // Live Feed
+        'glossarySourceLang',   // Glossary source
+        'historyTargetLang',    // History tab
+      ];
+
+      languageSelectIds.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+
+        const isMultiple = select.multiple;
+
+        // Clear existing options
+        select.innerHTML = '';
+
+        // Add options from backend config
+        languages.forEach(lang => {
+          const option = document.createElement('option');
+          option.value = lang.code;
+          option.textContent = lang.native ? `${lang.name} (${lang.native})` : `${lang.name} (${lang.code})`;
+
+          // Set defaults from config
+          if (isMultiple) {
+            if (defaults.default_target_languages?.includes(lang.code)) {
+              option.selected = true;
+            }
+          } else {
+            if (selectId === 'glossarySourceLang' && lang.code === defaults.default_source_language) {
+              option.selected = true;
+            } else if (selectId !== 'glossarySourceLang' && lang.code === defaults.default_target_languages?.[0]) {
+              option.selected = true;
+            }
+          }
+
+          select.appendChild(option);
+        });
+      });
+
+      log(`Populated ${languageSelectIds.length} language selects`, 'debug');
+    }
+
+    function populateDomainSelects() {
+      if (!dashboardConfig || dashboardConfig._loadFailed || !dashboardConfig.domains) return;
+
+      const domains = dashboardConfig.domains;
+      const domainSelectIds = ['glossaryDomain'];
+
+      domainSelectIds.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+
+        select.innerHTML = '';
+
+        domains.forEach(domain => {
+          const option = document.createElement('option');
+          option.value = domain.value;
+          option.textContent = domain.label;
+          select.appendChild(option);
+        });
+      });
+    }
+
+    function populateModelSelects() {
+      if (!dashboardConfig || dashboardConfig._loadFailed || !dashboardConfig.translation_models) return;
+
+      const models = dashboardConfig.translation_models;
+      const modelSelectIds = ['translationModel'];  // Main model select
+
+      modelSelectIds.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+
+        select.innerHTML = '';
+
+        models.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model.id || model.name;
+          option.textContent = model.name || model.id;
+          if (model.description) {
+            option.title = model.description;
+          }
+          // Mark default
+          if (model.id === dashboardConfig.defaults?.default_translation_model) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        });
+      });
+
+      log(`Populated model selects with ${models.length} models`, 'debug');
+    }
+
+    function populatePromptTemplates() {
+      if (!dashboardConfig || dashboardConfig._loadFailed || !dashboardConfig.prompt_templates) return;
+
+      const templates = dashboardConfig.prompt_templates;
+      const templateSelect = document.getElementById('promptTemplateSelect');
+
+      if (templateSelect) {
+        templateSelect.innerHTML = '';
+
+        Object.entries(templates).forEach(([key, template]) => {
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = template.name || key;
+          option.title = template.description || '';
+          templateSelect.appendChild(option);
+        });
+      }
+
+      // Update prompt template info display if exists
+      updatePromptTemplateInfo();
+    }
+
+    function updatePromptTemplateInfo() {
+      const infoDiv = document.getElementById('promptTemplateInfo');
+      const templateSelect = document.getElementById('promptTemplateSelect');
+
+      if (!infoDiv || !templateSelect || !dashboardConfig?.prompt_templates) return;
+
+      const selectedKey = templateSelect.value;
+      const template = dashboardConfig.prompt_templates[selectedKey];
+
+      if (template) {
+        infoDiv.innerHTML = `
+          <p><strong>${template.name}</strong>: ${template.description || ''}</p>
+          <p><strong>Variables:</strong> ${template.variables?.map(v => `<code>{${v}}</code>`).join(', ') || 'None'}</p>
+        `;
+      }
     }
 
     async function validateStoredApiKey() {
