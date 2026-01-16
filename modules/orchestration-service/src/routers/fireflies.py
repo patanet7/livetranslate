@@ -309,6 +309,10 @@ class ConnectRequest(BaseModel):
     domain: Optional[str] = Field(
         default=None, description="Domain for glossary filtering"
     )
+    translation_model: Optional[str] = Field(
+        default=None,
+        description="Translation model/service to use (ollama, groq, etc.)",
+    )
 
     # Sentence aggregation config (all optional, uses .env defaults)
     pause_threshold_ms: Optional[float] = Field(default=None)
@@ -394,11 +398,17 @@ async def connect_to_fireflies(
             or ff_config.default_target_languages,
             glossary_id=request.glossary_id,
             domain=request.domain,
+            translation_model=request.translation_model,  # Pass through model selection
             pause_threshold_ms=request.pause_threshold_ms
             or ff_config.pause_threshold_ms,
             max_buffer_words=request.max_buffer_words or ff_config.max_buffer_words,
             context_window_size=request.context_window_size
             or ff_config.context_window_size,
+        )
+
+        logger.info(
+            f"Session config: languages={config.target_languages}, "
+            f"model={config.translation_model or 'default'}"
         )
 
         # Get database manager for transcript/translation storage
@@ -609,3 +619,140 @@ async def health_check(
             for s in sessions
         ],
     }
+
+
+# =============================================================================
+# Past Transcripts Endpoints
+# =============================================================================
+
+
+class GetTranscriptsRequest(BaseModel):
+    """Request to get past transcripts from Fireflies"""
+
+    api_key: Optional[str] = None
+    limit: int = Field(default=20, ge=1, le=100, description="Max transcripts to return")
+    skip: int = Field(default=0, ge=0, description="Pagination offset")
+
+
+class TranscriptsResponse(BaseModel):
+    """Response containing past transcripts"""
+
+    success: bool
+    transcripts: List[Dict[str, Any]]
+    count: int
+
+
+@router.post(
+    "/transcripts",
+    response_model=TranscriptsResponse,
+    summary="Get past transcripts from Fireflies",
+    description="Query Fireflies GraphQL API for past meeting transcripts",
+)
+async def get_past_transcripts(
+    request: GetTranscriptsRequest,
+    ff_config: FirefliesSettings = Depends(get_fireflies_config),
+):
+    """
+    Get past transcripts from Fireflies.
+
+    Returns a list of past meeting transcripts with title, date, duration, etc.
+
+    API key is optional - will use .env configuration if not provided.
+    """
+    api_key = request.api_key or ff_config.api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fireflies API key required. Provide in request or set FIREFLIES_API_KEY in .env",
+        )
+
+    try:
+        client = FirefliesClient(api_key=api_key)
+
+        transcripts = await client.get_transcripts(
+            limit=request.limit,
+            skip=request.skip,
+        )
+
+        await client.close()
+
+        return TranscriptsResponse(
+            success=True,
+            transcripts=transcripts,
+            count=len(transcripts),
+        )
+
+    except FirefliesAPIError as e:
+        logger.error(f"Fireflies API error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Fireflies API error: {str(e)}",
+        )
+    except Exception as e:
+        logger.exception(f"Failed to get transcripts: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get transcripts: {str(e)}",
+        )
+
+
+class GetTranscriptDetailRequest(BaseModel):
+    """Request to get transcript details"""
+
+    api_key: Optional[str] = None
+
+
+@router.post(
+    "/transcript/{transcript_id}",
+    summary="Get transcript detail with sentences",
+    description="Get full transcript including individual sentences",
+)
+async def get_transcript_detail(
+    transcript_id: str,
+    request: GetTranscriptDetailRequest,
+    ff_config: FirefliesSettings = Depends(get_fireflies_config),
+):
+    """
+    Get detailed transcript including sentences.
+
+    Returns the full transcript with all sentences, speakers, and timestamps.
+    """
+    api_key = request.api_key or ff_config.api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fireflies API key required. Provide in request or set FIREFLIES_API_KEY in .env",
+        )
+
+    try:
+        client = FirefliesClient(api_key=api_key)
+
+        transcript = await client.get_transcript_detail(transcript_id)
+
+        await client.close()
+
+        if not transcript:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Transcript {transcript_id} not found",
+            )
+
+        return {
+            "success": True,
+            "transcript": transcript,
+        }
+
+    except HTTPException:
+        raise
+    except FirefliesAPIError as e:
+        logger.error(f"Fireflies API error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Fireflies API error: {str(e)}",
+        )
+    except Exception as e:
+        logger.exception(f"Failed to get transcript: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get transcript: {str(e)}",
+        )

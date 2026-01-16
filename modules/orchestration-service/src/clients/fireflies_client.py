@@ -62,6 +62,41 @@ query ActiveMeetings($email: String, $states: [MeetingState!]) {
 }
 """
 
+PAST_TRANSCRIPTS_QUERY = """
+query Transcripts($limit: Int, $skip: Int) {
+  transcripts(limit: $limit, skip: $skip) {
+    id
+    title
+    date
+    duration
+    organizer_email
+    participants
+    summary {
+      overview
+      action_items
+    }
+  }
+}
+"""
+
+TRANSCRIPT_DETAIL_QUERY = """
+query Transcript($id: String!) {
+  transcript(id: $id) {
+    id
+    title
+    date
+    duration
+    sentences {
+      text
+      start_time
+      end_time
+      speaker_name
+    }
+    participants
+  }
+}
+"""
+
 
 # =============================================================================
 # Event Callback Types
@@ -219,6 +254,57 @@ class FirefliesGraphQLClient:
 
         except Exception as e:
             logger.error(f"Failed to get active meetings: {e}")
+            raise
+
+    async def get_transcripts(
+        self,
+        limit: int = 20,
+        skip: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get past transcripts from Fireflies.
+
+        Args:
+            limit: Maximum number of transcripts to return (default: 20)
+            skip: Number of transcripts to skip (for pagination)
+
+        Returns:
+            List of transcript dictionaries
+        """
+        variables = {"limit": limit, "skip": skip}
+
+        try:
+            data = await self.execute_query(PAST_TRANSCRIPTS_QUERY, variables)
+            transcripts = data.get("transcripts", [])
+
+            logger.info(f"Found {len(transcripts)} past transcripts")
+            return transcripts
+
+        except Exception as e:
+            logger.error(f"Failed to get transcripts: {e}")
+            raise
+
+    async def get_transcript_detail(
+        self,
+        transcript_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed transcript including sentences.
+
+        Args:
+            transcript_id: Transcript ID to fetch
+
+        Returns:
+            Transcript detail with sentences, or None if not found
+        """
+        variables = {"id": transcript_id}
+
+        try:
+            data = await self.execute_query(TRANSCRIPT_DETAIL_QUERY, variables)
+            return data.get("transcript")
+
+        except Exception as e:
+            logger.error(f"Failed to get transcript detail: {e}")
             raise
 
 
@@ -644,6 +730,38 @@ class FirefliesClient:
             List of active meetings
         """
         return await self._graphql.get_active_meetings(email, states)
+
+    async def get_transcripts(
+        self,
+        limit: int = 20,
+        skip: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get past transcripts from Fireflies.
+
+        Args:
+            limit: Maximum number of transcripts to return
+            skip: Number of transcripts to skip (pagination)
+
+        Returns:
+            List of transcript dictionaries
+        """
+        return await self._graphql.get_transcripts(limit, skip)
+
+    async def get_transcript_detail(
+        self,
+        transcript_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed transcript including sentences.
+
+        Args:
+            transcript_id: Transcript ID to fetch
+
+        Returns:
+            Transcript detail with sentences
+        """
+        return await self._graphql.get_transcript_detail(transcript_id)
 
     # -------------------------------------------------------------------------
     # Realtime Methods

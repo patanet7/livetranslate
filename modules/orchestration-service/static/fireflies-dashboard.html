@@ -1,0 +1,2594 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fireflies Dashboard - LiveTranslate</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    h1 { font-size: 24px; color: #fff; }
+    .header-status { display: flex; align-items: center; gap: 12px; }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      background: rgba(0,0,0,0.2);
+      padding: 4px;
+      border-radius: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #888;
+      cursor: pointer;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .tab:hover { color: #fff; }
+    .tab.active { background: rgba(100, 181, 246, 0.2); color: #64B5F6; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card h2 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: #64B5F6;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      background: rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 12px;
+    }
+
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #64B5F6; }
+
+    .form-row { display: flex; gap: 12px; align-items: flex-end; }
+    .form-row .form-group { flex: 1; margin-bottom: 0; }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary { background: #4CAF50; color: white; }
+    .btn-primary:hover { background: #45a049; }
+    .btn-primary:disabled { background: #666; cursor: not-allowed; }
+
+    .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+
+    .btn-danger { background: #f44336; color: white; }
+    .btn-danger:hover { background: #d32f2f; }
+
+    .btn-sm { padding: 8px 16px; font-size: 12px; }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-connected { background: rgba(76,175,80,0.2); color: #4CAF50; }
+    .status-disconnected { background: rgba(244,67,54,0.2); color: #f44336; }
+    .status-connecting { background: rgba(255,152,0,0.2); color: #FF9800; }
+    .status-active { background: rgba(33,150,243,0.2); color: #2196F3; }
+
+    .meeting-list, .session-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .meeting-item, .session-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .meeting-item:hover, .session-item:hover {
+      border-color: rgba(100,181,246,0.3);
+    }
+
+    .meeting-info, .session-info { flex: 1; }
+    .meeting-title, .session-title {
+      font-size: 15px;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+
+    .meeting-meta, .session-meta {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .meeting-meta span, .session-meta span { margin-right: 16px; }
+
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+
+    .api-key-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      font-family: monospace;
+    }
+
+    .api-key-display .key {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .alert-success { background: rgba(76,175,80,0.2); border: 1px solid #4CAF50; }
+    .alert-error { background: rgba(244,67,54,0.2); border: 1px solid #f44336; }
+    .alert-info { background: rgba(33,150,243,0.2); border: 1px solid #2196F3; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: rgba(0,0,0,0.2);
+      padding: 16px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .stat-value { font-size: 28px; font-weight: bold; color: #fff; }
+    .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+
+    .log-panel {
+      background: rgba(0,0,0,0.4);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 11px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .log-entry { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .log-entry.info { color: #64B5F6; }
+    .log-entry.success { color: #4CAF50; }
+    .log-entry.error { color: #f44336; }
+    .log-entry.warn { color: #FF9800; }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .data-table th, .data-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .data-table th {
+      background: rgba(0,0,0,0.3);
+      color: #888;
+      font-weight: 500;
+      text-transform: uppercase;
+      font-size: 11px;
+    }
+
+    .data-table tr:hover { background: rgba(255,255,255,0.05); }
+
+    .code-block {
+      background: rgba(0,0,0,0.4);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      color: #a0e0a0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 800px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+
+    .model-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+
+    .model-info .model-name {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .model-info .model-backend {
+      color: #888;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔥 Fireflies Dashboard</h1>
+      <div class="header-status">
+        <span id="apiStatus" class="status-badge status-disconnected">API Not Connected</span>
+        <span id="translationStatus" class="status-badge status-disconnected">Translation Offline</span>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('connect')">Connect</button>
+      <button class="tab" onclick="showTab('livefeed')">Live Feed</button>
+      <button class="tab" onclick="showTab('sessions')">Sessions</button>
+      <button class="tab" onclick="showTab('glossary')">Glossary</button>
+      <button class="tab" onclick="showTab('history')">History</button>
+      <button class="tab" onclick="showTab('data')">Data & Logs</button>
+      <button class="tab" onclick="showTab('translation')">Translation</button>
+      <button class="tab" onclick="showTab('settings')">Settings</button>
+    </div>
+
+    <div id="alertContainer"></div>
+
+    <!-- Connect Tab -->
+    <div id="tab-connect" class="tab-content active">
+      <div class="card">
+        <h2>🎯 Connect to Fireflies Meeting</h2>
+
+        <div class="form-row" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Meeting/Transcript ID</label>
+            <input type="text" id="transcriptId" placeholder="Enter Fireflies transcript ID" />
+          </div>
+          <button class="btn-primary" onclick="connectToMeeting()" id="connectBtn">
+            Connect
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label>Target Languages (Ctrl/Cmd+Click to select multiple)</label>
+          <select id="targetLanguages" multiple style="height: 120px;">
+            <option value="en">English (en)</option>
+            <option value="es" selected>Spanish (es)</option>
+            <option value="fr">French (fr)</option>
+            <option value="de">German (de)</option>
+            <option value="pt">Portuguese (pt)</option>
+            <option value="it">Italian (it)</option>
+            <option value="zh">Chinese (zh)</option>
+            <option value="ja">Japanese (ja)</option>
+            <option value="ko">Korean (ko)</option>
+            <option value="ru">Russian (ru)</option>
+            <option value="ar">Arabic (ar)</option>
+            <option value="hi">Hindi (hi)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📋 Your Active Meetings</h2>
+        <p style="font-size: 13px; color: #888; margin-bottom: 16px;">
+          Meetings available for your API key. Click to connect.
+        </p>
+
+        <button class="btn-secondary" onclick="fetchMeetings()" id="fetchMeetingsBtn" style="margin-bottom: 16px;">
+          🔄 Refresh Meetings
+        </button>
+
+        <div id="meetingsList" class="meeting-list">
+          <div class="empty-state">Click "Refresh Meetings" to discover active meetings</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sessions Tab -->
+    <div id="tab-sessions" class="tab-content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="statTotalSessions">0</div>
+          <div class="stat-label">Total Sessions</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statConnected">0</div>
+          <div class="stat-label">Connected</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statChunks">0</div>
+          <div class="stat-label">Chunks</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statTranslations">0</div>
+          <div class="stat-label">Translations</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📡 Active Sessions</h2>
+        <button class="btn-secondary btn-sm" onclick="refreshSessions()" style="margin-bottom: 16px;">
+          🔄 Refresh
+        </button>
+        <div id="sessionsList" class="session-list">
+          <div class="empty-state">No active sessions</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data & Logs Tab -->
+    <div id="tab-data" class="tab-content">
+      <div class="card">
+        <h2>📊 Session Data Viewer</h2>
+        <div class="form-row" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Select Session</label>
+            <select id="dataSessionSelect" onchange="loadSessionData()">
+              <option value="">-- Select a session --</option>
+            </select>
+          </div>
+          <button class="btn-secondary" onclick="loadSessionData()">Load Data</button>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h2>📝 Transcripts</h2>
+          <div id="transcriptsPanel" class="log-panel" style="max-height: 400px;">
+            <div class="empty-state">Select a session to view transcripts</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🌐 Translations</h2>
+          <div id="translationsPanel" class="log-panel" style="max-height: 400px;">
+            <div class="empty-state">Select a session to view translations</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📋 Database Entries</h2>
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="dbEntriesTable">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Speaker</th>
+                <th>Original</th>
+                <th>Translation</th>
+                <th>Language</th>
+                <th>Confidence</th>
+              </tr>
+            </thead>
+            <tbody id="dbEntriesBody">
+              <tr><td colspan="6" class="empty-state">No data loaded</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📜 API Call Log</h2>
+        <div id="apiLogPanel" class="log-panel">
+          <div class="log-entry info">[System] Dashboard ready</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Translation Tab -->
+    <div id="tab-translation" class="tab-content">
+      <div class="card">
+        <h2>🤖 Translation Model</h2>
+        <div id="currentModelInfo" class="model-info">
+          <span class="model-name">Loading...</span>
+          <span class="model-backend"></span>
+        </div>
+
+        <div class="form-group">
+          <label>Available Models</label>
+          <select id="modelSelect">
+            <option value="">Loading models...</option>
+          </select>
+        </div>
+
+        <button class="btn-primary" onclick="switchModel()">Switch Model</button>
+        <button class="btn-secondary" onclick="loadTranslationConfig()" style="margin-left: 8px;">Refresh</button>
+      </div>
+
+      <div class="card">
+        <h2>📝 Translation Prompt Template</h2>
+        <p style="font-size: 12px; color: #888; margin-bottom: 12px;">
+          <strong>Available Variables:</strong><br>
+          <code>{target_language}</code> - Target language name (e.g., "Spanish")<br>
+          <code>{current_sentence}</code> - The text to translate<br>
+          <code>{glossary_section}</code> - Formatted glossary terms (auto-populated)<br>
+          <code>{context_window}</code> - Previous sentences for context (auto-populated)
+        </p>
+        <div class="form-group">
+          <label>Template Style</label>
+          <select id="templateStyleSelect" onchange="loadTemplateStyle()" style="margin-bottom: 12px;">
+            <option value="simple">Simple (minimal, fast)</option>
+            <option value="full">Full (with context & glossary)</option>
+            <option value="minimal">Minimal (single line)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <textarea id="promptTemplate" placeholder="Loading prompt template..."></textarea>
+        </div>
+        <button class="btn-primary" onclick="savePromptTemplate()">Save Prompt</button>
+        <button class="btn-secondary" onclick="resetPromptTemplate()" style="margin-left: 8px;">Reset to Default</button>
+      </div>
+
+      <div class="card">
+        <h2>🧪 Test Translation</h2>
+        <div class="form-row" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Test Text</label>
+            <input type="text" id="testText" placeholder="Enter text to translate" value="Hello, how are you today?" />
+          </div>
+          <div class="form-group" style="max-width: 150px;">
+            <label>Target</label>
+            <select id="testTargetLang">
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="ja">Japanese</option>
+              <option value="zh">Chinese</option>
+            </select>
+          </div>
+          <button class="btn-primary" onclick="testTranslation()">Translate</button>
+        </div>
+        <div id="testResult" class="code-block" style="min-height: 60px;">
+          Translation result will appear here...
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="tab-settings" class="tab-content">
+      <div class="card">
+        <h2>🔑 Fireflies API Configuration</h2>
+
+        <div class="form-group">
+          <label>API Key</label>
+          <div class="form-row">
+            <input type="password" id="apiKeyInput" placeholder="Enter your Fireflies API key" />
+            <button class="btn-secondary btn-sm" onclick="toggleApiKeyVisibility()">Show</button>
+          </div>
+          <p style="font-size: 11px; color: #666; margin-top: 8px;">
+            Get your API key from <a href="https://app.fireflies.ai/integrations" target="_blank" style="color: #64B5F6;">https://app.fireflies.ai/integrations</a>
+          </p>
+        </div>
+
+        <div class="form-row" style="margin-top: 16px;">
+          <button class="btn-primary" onclick="saveApiKey()">Save API Key</button>
+          <button class="btn-secondary" onclick="testApiKey()">Test Connection</button>
+          <button class="btn-danger btn-sm" onclick="clearApiKey()">Clear</button>
+        </div>
+
+        <div id="savedKeyDisplay" class="hidden" style="margin-top: 16px;">
+          <label style="font-size: 12px; color: #888;">Saved API Key</label>
+          <div class="api-key-display">
+            <span class="key" id="maskedKey">••••••••••••••••</span>
+            <span class="status-badge status-connected">Saved</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🩺 Service Status</h2>
+        <div id="serviceStatus">
+          <p>Checking services...</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📜 Activity Log</h2>
+        <button class="btn-secondary btn-sm" onclick="clearActivityLog()" style="margin-bottom: 12px;">Clear Log</button>
+        <div id="logPanel" class="log-panel">
+          <div class="log-entry info">[System] Dashboard initialized</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Feed Tab -->
+    <div id="tab-livefeed" class="tab-content">
+      <div class="card">
+        <h2>📡 Live Transcript & Translation Feed</h2>
+        <div class="form-row" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Active Session</label>
+            <select id="feedSessionSelect">
+              <option value="">-- Select a session --</option>
+            </select>
+          </div>
+          <div class="form-group" style="max-width: 150px;">
+            <label>Target Language</label>
+            <select id="feedTargetLang">
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+              <option value="ja">Japanese</option>
+              <option value="zh">Chinese</option>
+            </select>
+          </div>
+          <button class="btn-primary" onclick="connectToFeed()">Connect</button>
+          <button class="btn-secondary" onclick="disconnectFeed()">Disconnect</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <span id="feedStatus" class="status-badge status-disconnected">Disconnected</span>
+          <span id="feedStats" style="font-size: 12px; color: #888;"></span>
+          <button class="btn-secondary btn-sm" onclick="saveFeedToLocal()">💾 Save Feed</button>
+          <button class="btn-secondary btn-sm" onclick="exportFeedJson()">📤 Export JSON</button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div class="card">
+          <h2>🎤 Original Transcript</h2>
+          <div id="originalFeed" class="log-panel" style="max-height: 500px; min-height: 400px;">
+            <div class="empty-state">Connect to a session to see live transcripts</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>🌐 Translation (<span id="feedTargetLangLabel">Spanish</span>)</h2>
+          <div id="translatedFeed" class="log-panel" style="max-height: 500px; min-height: 400px;">
+            <div class="empty-state">Connect to a session to see live translations</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Glossary Tab -->
+    <div id="tab-glossary" class="tab-content">
+      <div class="two-col">
+        <div class="card">
+          <h2>📚 Vocabulary Libraries</h2>
+          <div class="form-row" style="margin-bottom: 16px;">
+            <div class="form-group">
+              <select id="glossarySelect" onchange="loadGlossaryEntries()">
+                <option value="">-- Select Glossary --</option>
+              </select>
+            </div>
+            <button class="btn-primary btn-sm" onclick="createNewGlossary()">+ New</button>
+            <button class="btn-secondary btn-sm" onclick="refreshGlossaries()">🔄</button>
+          </div>
+          <div id="glossaryList" class="session-list" style="max-height: 300px; overflow-y: auto;">
+            <div class="empty-state">Click refresh to load glossaries</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>⚙️ Glossary Details</h2>
+          <div id="glossaryDetails">
+            <div class="form-group">
+              <label>Glossary Name</label>
+              <input type="text" id="glossaryName" placeholder="Enter glossary name">
+            </div>
+            <div class="form-group">
+              <label>Domain</label>
+              <select id="glossaryDomain">
+                <option value="">General</option>
+                <option value="medical">Medical</option>
+                <option value="legal">Legal</option>
+                <option value="technology">Technology</option>
+                <option value="business">Business</option>
+                <option value="finance">Finance</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Source Language</label>
+              <select id="glossarySourceLang">
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 16px;">
+              <button class="btn-primary btn-sm" onclick="saveGlossary()">Save</button>
+              <button class="btn-secondary btn-sm" onclick="setDefaultGlossary()">Set as Default</button>
+              <button class="btn-danger btn-sm" onclick="deleteGlossary()">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📝 Glossary Entries</h2>
+        <div style="margin-bottom: 16px; display: flex; gap: 8px;">
+          <button class="btn-primary btn-sm" onclick="addGlossaryEntry()">+ Add Term</button>
+          <button class="btn-secondary btn-sm" onclick="bulkImportGlossary()">📥 Import CSV</button>
+          <button class="btn-secondary btn-sm" onclick="exportGlossary()">📤 Export</button>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="glossaryEntriesTable">
+            <thead>
+              <tr>
+                <th>Source Term</th>
+                <th>Spanish (es)</th>
+                <th>French (fr)</th>
+                <th>German (de)</th>
+                <th>Priority</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="glossaryEntriesBody">
+              <tr><td colspan="6" class="empty-state">Select a glossary to view entries</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Tab -->
+    <div id="tab-history" class="tab-content">
+      <div class="card">
+        <h2>📅 Historical Transcripts from Fireflies</h2>
+        <div class="form-row" style="margin-bottom: 16px;">
+          <div class="form-group">
+            <label>Date Range</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="date" id="historyDateFrom">
+              <span style="align-self: center;">to</span>
+              <input type="date" id="historyDateTo">
+            </div>
+          </div>
+          <button class="btn-primary" onclick="fetchPastMeetings()">Fetch Past Meetings</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📋 Past Meetings</h2>
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="pastMeetingsTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Title</th>
+                <th>Duration</th>
+                <th>Speakers</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="pastMeetingsBody">
+              <tr><td colspan="5" class="empty-state">Click "Fetch Past Meetings" to load</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>💾 Saved Transcripts (Local)</h2>
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="savedTranscriptsTable">
+            <thead>
+              <tr>
+                <th>Session/Transcript ID</th>
+                <th>Language</th>
+                <th>Saved At</th>
+                <th>Items</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="savedTranscriptsBody">
+              <tr><td colspan="5" class="empty-state">No saved transcripts</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <button class="btn-secondary btn-sm" onclick="loadSavedTranscripts()" style="margin-top: 12px;">Refresh Saved</button>
+      </div>
+
+      <!-- Transcript Viewer Modal -->
+      <div id="transcriptViewer" class="card hidden">
+        <h2>📄 Transcript: <span id="transcriptViewerTitle"></span></h2>
+        <div style="margin-bottom: 16px; display: flex; gap: 8px;">
+          <select id="historyTargetLang">
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+          </select>
+          <button class="btn-primary btn-sm" onclick="translateFullTranscript()">Translate All</button>
+          <button class="btn-secondary btn-sm" onclick="saveTranscriptLocal()">💾 Save Locally</button>
+          <button class="btn-secondary btn-sm" onclick="closeTranscriptViewer()">Close</button>
+        </div>
+        <div id="transcriptViewerProgress" class="hidden" style="margin-bottom: 16px;">
+          <div style="background: rgba(0,0,0,0.3); border-radius: 4px; height: 20px; overflow: hidden;">
+            <div id="translationProgressBar" style="background: #4CAF50; height: 100%; width: 0%; transition: width 0.3s;"></div>
+          </div>
+          <span id="translationProgressText" style="font-size: 12px; color: #888;">0%</span>
+        </div>
+        <div id="transcriptContent" class="log-panel" style="max-height: 400px;">
+          <div class="empty-state">Loading transcript...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================================================
+    // State
+    // ==========================================================================
+    const baseUrl = window.location.origin;
+    let apiKey = localStorage.getItem('fireflies_api_key') || '';
+    let currentSessions = [];
+    let translationConfig = {};
+
+    // ==========================================================================
+    // Initialization
+    // ==========================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      initializeDashboard();
+    });
+
+    async function initializeDashboard() {
+      // Load saved API key (but don't mark as connected until validated)
+      if (apiKey) {
+        document.getElementById('apiKeyInput').value = apiKey;
+        document.getElementById('savedKeyDisplay').classList.remove('hidden');
+        document.getElementById('maskedKey').textContent = maskApiKey(apiKey);
+        // Don't auto-mark as connected - validate first
+        updateApiStatus(false);
+        log('Saved API key found - validating...', 'info');
+        // Validate the saved API key
+        await validateStoredApiKey();
+      }
+
+      // Check services
+      await checkServices();
+
+      // Load translation config
+      await loadTranslationConfig();
+
+      // Load active sessions
+      await refreshSessions();
+
+      log('Dashboard ready', 'info');
+    }
+
+    async function validateStoredApiKey() {
+      if (!apiKey) return;
+
+      try {
+        const response = await fetch(`${baseUrl}/fireflies/meetings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: apiKey })
+        });
+
+        if (response.ok) {
+          updateApiStatus(true);
+          log('Stored API key validated successfully', 'success');
+        } else {
+          updateApiStatus(false);
+          log('Stored API key is invalid or expired', 'warn');
+        }
+      } catch (e) {
+        updateApiStatus(false);
+        log(`Could not validate API key: ${e.message}`, 'warn');
+      }
+    }
+
+    // ==========================================================================
+    // Tab Navigation
+    // ==========================================================================
+    function showTab(tabName) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      document.querySelector(`.tab-content#tab-${tabName}`).classList.add('active');
+      const tabBtn = document.querySelector(`.tab[onclick="showTab('${tabName}')"]`);
+      if (tabBtn) tabBtn.classList.add('active');
+
+      if (tabName === 'sessions') refreshSessions();
+      if (tabName === 'translation') loadTranslationConfig();
+      if (tabName === 'data') updateSessionSelect();
+    }
+
+    // ==========================================================================
+    // API Key Management
+    // ==========================================================================
+    async function saveApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (!key) {
+        showAlert('Please enter an API key', 'error');
+        return;
+      }
+
+      // Validate the API key against Fireflies API before saving
+      log('Validating API key with Fireflies...', 'info');
+      apiLog('POST', '/fireflies/meetings', { api_key: '***' });
+
+      try {
+        const response = await fetch(`${baseUrl}/fireflies/meetings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: key })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // API key is valid - save it
+          apiKey = key;
+          localStorage.setItem('fireflies_api_key', key);
+          document.getElementById('savedKeyDisplay').classList.remove('hidden');
+          document.getElementById('maskedKey').textContent = maskApiKey(key);
+          updateApiStatus(true);
+          showAlert(`API key validated and saved! Found ${data.count} meeting(s)`, 'success');
+          log(`API key validated - ${data.count} meetings found`, 'success');
+          apiLog('RESPONSE', '/fireflies/meetings', data, true);
+        } else {
+          const error = await response.json();
+          updateApiStatus(false);
+          showAlert(`Invalid API key: ${error.detail || 'Authentication failed'}`, 'error');
+          log(`API key validation failed: ${error.detail}`, 'error');
+          apiLog('RESPONSE', '/fireflies/meetings', error, false);
+        }
+      } catch (e) {
+        updateApiStatus(false);
+        showAlert(`Connection error: ${e.message}. Key saved locally but not validated.`, 'error');
+        log(`Validation error: ${e.message}`, 'error');
+        // Still save locally in case it's a network issue
+        apiKey = key;
+        localStorage.setItem('fireflies_api_key', key);
+        document.getElementById('savedKeyDisplay').classList.remove('hidden');
+        document.getElementById('maskedKey').textContent = maskApiKey(key);
+      }
+    }
+
+    function clearApiKey() {
+      if (!confirm('Are you sure you want to clear the API key?')) return;
+
+      apiKey = '';
+      localStorage.removeItem('fireflies_api_key');
+      document.getElementById('apiKeyInput').value = '';
+      document.getElementById('savedKeyDisplay').classList.add('hidden');
+      updateApiStatus(false);
+      showAlert('API key cleared', 'info');
+      log('API key cleared', 'warn');
+    }
+
+    function toggleApiKeyVisibility() {
+      const input = document.getElementById('apiKeyInput');
+      const btn = event.target;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+      }
+    }
+
+    async function testApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim() || apiKey;
+      if (!key) {
+        showAlert('Please enter an API key first', 'error');
+        return;
+      }
+
+      log('Testing API connection...', 'info');
+      apiLog('POST', '/fireflies/meetings', { api_key: '***' });
+
+      try {
+        const response = await fetch(`${baseUrl}/fireflies/meetings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: key })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          showAlert(`API key valid! Found ${data.count} active meeting(s)`, 'success');
+          updateApiStatus(true);
+          log(`API test successful - ${data.count} meetings found`, 'success');
+          apiLog('RESPONSE', '/fireflies/meetings', data, true);
+        } else {
+          const error = await response.json();
+          showAlert(`API error: ${error.detail}`, 'error');
+          updateApiStatus(false);
+          log(`API test failed: ${error.detail}`, 'error');
+          apiLog('RESPONSE', '/fireflies/meetings', error, false);
+        }
+      } catch (e) {
+        showAlert(`Connection error: ${e.message}`, 'error');
+        log(`Connection error: ${e.message}`, 'error');
+      }
+    }
+
+    function maskApiKey(key) {
+      if (!key || key.length < 8) return '••••••••';
+      return key.substring(0, 4) + '••••••••' + key.substring(key.length - 4);
+    }
+
+    function updateApiStatus(connected) {
+      const badge = document.getElementById('apiStatus');
+      if (connected) {
+        badge.className = 'status-badge status-connected';
+        badge.textContent = 'API Connected';
+      } else {
+        badge.className = 'status-badge status-disconnected';
+        badge.textContent = 'API Not Connected';
+      }
+    }
+
+    // ==========================================================================
+    // Meetings Discovery
+    // ==========================================================================
+    async function fetchMeetings() {
+      if (!apiKey) {
+        showAlert('Please save your API key in Settings first', 'error');
+        showTab('settings');
+        return;
+      }
+
+      const btn = document.getElementById('fetchMeetingsBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Fetching...';
+
+      log('Fetching active meetings...', 'info');
+      apiLog('POST', '/fireflies/meetings', { api_key: '***' });
+
+      try {
+        const response = await fetch(`${baseUrl}/fireflies/meetings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: apiKey })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to fetch meetings');
+        }
+
+        const data = await response.json();
+        renderMeetings(data.meetings);
+        log(`Found ${data.count} active meeting(s)`, 'success');
+        apiLog('RESPONSE', '/fireflies/meetings', data, true);
+
+      } catch (e) {
+        showAlert(`Error: ${e.message}`, 'error');
+        log(`Fetch meetings error: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔄 Refresh Meetings';
+      }
+    }
+
+    function renderMeetings(meetings) {
+      const container = document.getElementById('meetingsList');
+
+      if (!meetings || meetings.length === 0) {
+        container.innerHTML = '<div class="empty-state">No active meetings found</div>';
+        return;
+      }
+
+      container.innerHTML = meetings.map(m => `
+        <div class="meeting-item">
+          <div class="meeting-info">
+            <div class="meeting-title">${m.title || 'Untitled Meeting'}</div>
+            <div class="meeting-meta">
+              <span>ID: ${m.id}</span>
+              <span>Organizer: ${m.organizer_email || 'Unknown'}</span>
+            </div>
+          </div>
+          <div class="actions">
+            <span class="status-badge status-active">${m.state || 'Active'}</span>
+            <button class="btn-primary btn-sm" onclick="selectMeeting('${m.id}')">
+              Connect
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selectMeeting(transcriptId) {
+      document.getElementById('transcriptId').value = transcriptId;
+      showAlert(`Selected: ${transcriptId}. Click Connect to start.`, 'info');
+      log(`Selected meeting: ${transcriptId}`, 'info');
+    }
+
+    // ==========================================================================
+    // Connect to Meeting
+    // ==========================================================================
+    async function connectToMeeting() {
+      const transcriptId = document.getElementById('transcriptId').value.trim();
+      if (!transcriptId) {
+        showAlert('Please enter a transcript/meeting ID', 'error');
+        return;
+      }
+
+      if (!apiKey) {
+        showAlert('Please save your API key in Settings first', 'error');
+        showTab('settings');
+        return;
+      }
+
+      const languageSelect = document.getElementById('targetLanguages');
+      const targetLanguages = Array.from(languageSelect.selectedOptions).map(o => o.value);
+
+      const btn = document.getElementById('connectBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Connecting...';
+
+      // Validate selected model before connecting
+      const validModelIds = availableModels.map(m => m.id);
+      const modelToUse = validModelIds.includes(selectedModel) ? selectedModel : (validModelIds[0] || 'default');
+
+      if (modelToUse !== selectedModel) {
+        log(`Note: Using model "${modelToUse}" (selected "${selectedModel}" not in available list)`, 'warn');
+      }
+
+      log(`Connecting to meeting: ${transcriptId} with model: ${modelToUse}...`, 'info');
+      apiLog('POST', '/fireflies/connect', { transcript_id: transcriptId, target_languages: targetLanguages, translation_model: modelToUse });
+
+      try {
+        const response = await fetch(`${baseUrl}/fireflies/connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_key: apiKey,
+            transcript_id: transcriptId,
+            target_languages: targetLanguages,
+            translation_model: modelToUse  // Include validated model
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to connect');
+        }
+
+        const data = await response.json();
+
+        showAlert(`Connected! Session ID: ${data.session_id}`, 'success');
+        log(`Connected. Session: ${data.session_id}`, 'success');
+        apiLog('RESPONSE', '/fireflies/connect', data, true);
+
+        // Open caption view
+        const captionUrl = `${baseUrl}/static/captions.html?session=${data.session_id}&showStatus=true`;
+
+        if (confirm(`Connected successfully!\n\nSession ID: ${data.session_id}\n\nOpen caption overlay in new tab?`)) {
+          window.open(captionUrl, '_blank');
+        }
+
+        // Refresh and switch to sessions
+        await refreshSessions();
+        showTab('sessions');
+
+      } catch (e) {
+        showAlert(`Connection failed: ${e.message}`, 'error');
+        log(`Connection failed: ${e.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Connect';
+      }
+    }
+
+    // ==========================================================================
+    // Sessions Management
+    // ==========================================================================
+    async function refreshSessions() {
+      log('Refreshing sessions...', 'info');
+
+      try {
+        const response = await fetch(`${baseUrl}/fireflies/sessions`);
+        if (!response.ok) throw new Error('Failed to fetch sessions');
+
+        currentSessions = await response.json();
+        renderSessions(currentSessions);
+        updateStats(currentSessions);
+        updateSessionSelect();
+
+      } catch (e) {
+        log(`Error loading sessions: ${e.message}`, 'error');
+      }
+    }
+
+    function renderSessions(sessions) {
+      const container = document.getElementById('sessionsList');
+
+      if (!sessions || sessions.length === 0) {
+        container.innerHTML = '<div class="empty-state">No active sessions</div>';
+        return;
+      }
+
+      container.innerHTML = sessions.map(s => `
+        <div class="session-item">
+          <div class="session-info">
+            <div class="session-title">${s.session_id}</div>
+            <div class="session-meta">
+              <span>Transcript: ${s.transcript_id || 'Unknown'}</span>
+              <span>Chunks: ${s.chunks_received || 0}</span>
+              <span>Translations: ${s.translations_completed || 0}</span>
+              <span>Speakers: ${(s.speakers_detected || []).length}</span>
+            </div>
+          </div>
+          <div class="actions">
+            <span class="status-badge ${getStatusClass(s.connection_status)}">${s.connection_status}</span>
+            <button class="btn-secondary btn-sm" onclick="viewCaptions('${s.session_id}')">
+              📺 Captions
+            </button>
+            <button class="btn-secondary btn-sm" onclick="viewSessionData('${s.session_id}')">
+              📊 Data
+            </button>
+            <button class="btn-danger btn-sm" onclick="disconnectSession('${s.session_id}')">
+              Disconnect
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getStatusClass(status) {
+      if (status === 'connected') return 'status-connected';
+      if (status === 'connecting') return 'status-connecting';
+      return 'status-disconnected';
+    }
+
+    function updateStats(sessions) {
+      const connected = sessions.filter(s => s.connection_status === 'connected').length;
+      const totalChunks = sessions.reduce((sum, s) => sum + (s.chunks_received || 0), 0);
+      const totalTranslations = sessions.reduce((sum, s) => sum + (s.translations_completed || 0), 0);
+
+      document.getElementById('statTotalSessions').textContent = sessions.length;
+      document.getElementById('statConnected').textContent = connected;
+      document.getElementById('statChunks').textContent = totalChunks;
+      document.getElementById('statTranslations').textContent = totalTranslations;
+    }
+
+    function updateSessionSelect() {
+      const select = document.getElementById('dataSessionSelect');
+      select.innerHTML = '<option value="">-- Select a session --</option>' +
+        currentSessions.map(s => `<option value="${s.session_id}">${s.session_id} (${s.transcript_id})</option>`).join('');
+    }
+
+    function viewCaptions(sessionId) {
+      const url = `${baseUrl}/static/captions.html?session=${sessionId}&showStatus=true`;
+      window.open(url, '_blank');
+    }
+
+    function viewSessionData(sessionId) {
+      document.getElementById('dataSessionSelect').value = sessionId;
+      showTab('data');
+      loadSessionData();
+    }
+
+    async function disconnectSession(sessionId) {
+      if (!confirm(`Disconnect session ${sessionId}?`)) return;
+
+      log(`Disconnecting session: ${sessionId}...`, 'info');
+      apiLog('POST', '/fireflies/disconnect', { session_id: sessionId });
+
+      try {
+        const response = await fetch(`${baseUrl}/fireflies/disconnect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId })
+        });
+
+        if (response.ok) {
+          showAlert('Session disconnected', 'success');
+          log(`Session ${sessionId} disconnected`, 'success');
+          refreshSessions();
+        } else {
+          const error = await response.json();
+          throw new Error(error.detail);
+        }
+      } catch (e) {
+        showAlert(`Error: ${e.message}`, 'error');
+        log(`Disconnect error: ${e.message}`, 'error');
+      }
+    }
+
+    // ==========================================================================
+    // Data & Logs
+    // ==========================================================================
+    async function loadSessionData() {
+      const sessionId = document.getElementById('dataSessionSelect').value;
+      if (!sessionId) {
+        showAlert('Please select a session', 'info');
+        return;
+      }
+
+      log(`Loading data for session: ${sessionId}`, 'info');
+      apiLog('GET', `/api/captions/session/${sessionId}/data`, {});
+
+      try {
+        // Try to get session data from the captions endpoint
+        const response = await fetch(`${baseUrl}/api/captions/session/${sessionId}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          renderSessionData(data);
+        } else {
+          // Fallback to showing session info
+          const session = currentSessions.find(s => s.session_id === sessionId);
+          if (session) {
+            renderSessionData({ session, transcripts: [], translations: [] });
+          }
+        }
+      } catch (e) {
+        log(`Error loading session data: ${e.message}`, 'error');
+        document.getElementById('transcriptsPanel').innerHTML = `<div class="log-entry error">Error: ${e.message}</div>`;
+      }
+    }
+
+    function renderSessionData(data) {
+      const transcriptsPanel = document.getElementById('transcriptsPanel');
+      const translationsPanel = document.getElementById('translationsPanel');
+      const dbBody = document.getElementById('dbEntriesBody');
+
+      // Render transcripts
+      if (data.transcripts && data.transcripts.length > 0) {
+        transcriptsPanel.innerHTML = data.transcripts.map(t => `
+          <div class="log-entry">
+            <span style="color:#888;">[${t.timestamp || ''}]</span>
+            <span style="color:#64B5F6;">${t.speaker || 'Unknown'}:</span>
+            ${t.text}
+          </div>
+        `).join('');
+      } else {
+        transcriptsPanel.innerHTML = '<div class="empty-state">No transcripts yet</div>';
+      }
+
+      // Render translations
+      if (data.translations && data.translations.length > 0) {
+        translationsPanel.innerHTML = data.translations.map(t => `
+          <div class="log-entry">
+            <span style="color:#888;">[${t.language}]</span>
+            <span style="color:#4CAF50;">${t.speaker || 'Unknown'}:</span>
+            ${t.translated_text}
+          </div>
+        `).join('');
+      } else {
+        translationsPanel.innerHTML = '<div class="empty-state">No translations yet</div>';
+      }
+
+      // Render DB entries table
+      const entries = [...(data.transcripts || []), ...(data.translations || [])].sort((a, b) =>
+        new Date(a.timestamp || 0) - new Date(b.timestamp || 0)
+      );
+
+      if (entries.length > 0) {
+        dbBody.innerHTML = entries.slice(-50).map(e => `
+          <tr>
+            <td>${e.timestamp || '-'}</td>
+            <td>${e.speaker || '-'}</td>
+            <td>${e.text || e.original_text || '-'}</td>
+            <td>${e.translated_text || '-'}</td>
+            <td>${e.language || e.target_language || '-'}</td>
+            <td>${e.confidence ? (e.confidence * 100).toFixed(1) + '%' : '-'}</td>
+          </tr>
+        `).join('');
+      } else {
+        dbBody.innerHTML = '<tr><td colspan="6" class="empty-state">No data entries</td></tr>';
+      }
+    }
+
+    function apiLog(method, endpoint, data, success = null) {
+      const panel = document.getElementById('apiLogPanel');
+      const time = new Date().toLocaleTimeString();
+      const statusClass = success === true ? 'success' : success === false ? 'error' : 'info';
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${statusClass}`;
+      entry.innerHTML = `[${time}] <strong>${method}</strong> ${endpoint} ${success !== null ? (success ? '✓' : '✗') : ''}`;
+      panel.appendChild(entry);
+      panel.scrollTop = panel.scrollHeight;
+    }
+
+    // ==========================================================================
+    // Translation Configuration
+    // ==========================================================================
+
+    // Store the selected model for use in translations
+    let selectedModel = localStorage.getItem('fireflies_translation_model') || 'default';
+    // Store available models from the API for validation
+    let availableModels = [];
+
+    async function loadTranslationConfig() {
+      try {
+        // Get translation service health and config
+        const healthResponse = await fetch(`${baseUrl}/api/translation/health`);
+
+        if (healthResponse.ok) {
+          const health = await healthResponse.json();
+          document.getElementById('translationStatus').className = 'status-badge status-connected';
+          document.getElementById('translationStatus').textContent = 'Translation Online';
+
+          // Update model info - use correct fields from health endpoint
+          const modelInfo = document.getElementById('currentModelInfo');
+          const backendName = health.backend || health.details?.health?.backend || 'unknown';
+          const deviceName = health.device || health.details?.device?.device || 'unknown';
+          const serviceName = health.details?.health?.service || 'translation';
+
+          modelInfo.innerHTML = `
+            <span class="model-name">${selectedModel || 'default'}</span>
+            <span class="model-backend">Backend: ${backendName} | Device: ${deviceName}</span>
+            <span class="status-badge status-connected">Active</span>
+          `;
+
+          // Try to get available models
+          try {
+            const modelsResponse = await fetch(`${baseUrl}/api/translation/models`);
+            if (modelsResponse.ok) {
+              const models = await modelsResponse.json();
+              const modelList = models.models || models || [];
+
+              // Store available models for validation
+              availableModels = modelList.map(m => ({
+                id: m.id || m.name || (typeof m === 'string' ? m : 'default'),
+                name: m.name || m.id || (typeof m === 'string' ? m : 'default'),
+                description: m.description || ''
+              }));
+
+              // Validate that selected model is in the list, otherwise default to first available
+              const validModelIds = availableModels.map(m => m.id);
+              if (validModelIds.length > 0 && !validModelIds.includes(selectedModel)) {
+                log(`Previously selected model "${selectedModel}" not available, using "${validModelIds[0]}"`, 'warn');
+                selectedModel = validModelIds[0];
+                localStorage.setItem('fireflies_translation_model', selectedModel);
+              }
+
+              // Render the select dropdown
+              const select = document.getElementById('modelSelect');
+              if (availableModels.length > 0) {
+                select.innerHTML = availableModels.map(m => {
+                  const isSelected = m.id === selectedModel ? 'selected' : '';
+                  return `<option value="${m.id}" ${isSelected} title="${m.description}">${m.name}</option>`;
+                }).join('');
+              } else {
+                select.innerHTML = '<option value="default">default</option>';
+                availableModels = [{ id: 'default', name: 'default', description: 'Default model' }];
+              }
+
+              log(`Loaded ${availableModels.length} translation models, selected: ${selectedModel}`, 'info');
+            }
+          } catch (e) {
+            console.log('Could not fetch models list:', e);
+            document.getElementById('modelSelect').innerHTML = '<option value="default">default</option>';
+            availableModels = [{ id: 'default', name: 'default', description: 'Default model' }];
+          }
+
+          translationConfig = health;
+        } else {
+          document.getElementById('translationStatus').className = 'status-badge status-disconnected';
+          document.getElementById('translationStatus').textContent = 'Translation Offline';
+          document.getElementById('currentModelInfo').innerHTML = '<span class="model-name">Service unavailable</span>';
+        }
+
+        // Load default prompt template from our prompt builder
+        loadDefaultPromptTemplate();
+
+      } catch (e) {
+        log(`Error loading translation config: ${e.message}`, 'error');
+        document.getElementById('translationStatus').className = 'status-badge status-disconnected';
+        document.getElementById('translationStatus').textContent = 'Translation Offline';
+      }
+    }
+
+    // Default prompt templates from translation_prompt_builder.py
+    const PROMPT_TEMPLATES = {
+      full: `You are a professional real-time translator.
+
+Target Language: {target_language}
+
+{glossary_section}
+
+Previous context (DO NOT translate, only use for understanding references):
+{context_window}
+
+---
+
+Translate ONLY the following sentence to {target_language}:
+{current_sentence}
+
+Translation:`,
+      simple: `Translate to {target_language}:
+{current_sentence}
+
+Translation:`,
+      minimal: `Translate to {target_language}: {current_sentence}`
+    };
+
+    function loadDefaultPromptTemplate() {
+      // Load saved prompt or use simple template as default for dashboard
+      const savedPrompt = localStorage.getItem('fireflies_translation_prompt');
+      const savedStyle = localStorage.getItem('fireflies_template_style') || 'simple';
+
+      if (savedPrompt) {
+        document.getElementById('promptTemplate').value = savedPrompt;
+      } else {
+        document.getElementById('promptTemplate').value = PROMPT_TEMPLATES.simple;
+      }
+
+      // Set the style selector
+      const styleSelect = document.getElementById('templateStyleSelect');
+      if (styleSelect) {
+        styleSelect.value = savedStyle;
+      }
+    }
+
+    function loadTemplateStyle() {
+      const style = document.getElementById('templateStyleSelect').value;
+      const template = PROMPT_TEMPLATES[style] || PROMPT_TEMPLATES.simple;
+      document.getElementById('promptTemplate').value = template;
+      localStorage.setItem('fireflies_template_style', style);
+      log(`Loaded ${style} template`, 'info');
+    }
+
+    async function switchModel() {
+      const model = document.getElementById('modelSelect').value;
+      if (!model) {
+        showAlert('Please select a model', 'error');
+        return;
+      }
+
+      // Validate model is in available list
+      const validModelIds = availableModels.map(m => m.id);
+      if (!validModelIds.includes(model)) {
+        showAlert(`Invalid model: ${model}. Available: ${validModelIds.join(', ')}`, 'error');
+        log(`Invalid model selection: ${model}`, 'error');
+        return;
+      }
+
+      log(`Switching to model: ${model}`, 'info');
+
+      // Save the selected model locally
+      selectedModel = model;
+      localStorage.setItem('fireflies_translation_model', model);
+
+      // Update the display immediately
+      const modelInfo = document.getElementById('currentModelInfo');
+      const currentHtml = modelInfo.innerHTML;
+      modelInfo.innerHTML = currentHtml.replace(/<span class="model-name">[^<]*<\/span>/, `<span class="model-name">${model}</span>`);
+
+      showAlert(`Model set to: ${model}`, 'success');
+      log(`Model set to: ${model} (saved locally, will be used for translations)`, 'success');
+
+      // Optionally try to notify the backend (this may not have an endpoint)
+      try {
+        const response = await fetch(`${baseUrl}/api/translation/model`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: model })
+        });
+
+        if (response.ok) {
+          log(`Backend notified of model change`, 'info');
+        }
+      } catch (e) {
+        // Backend notification is optional - model is already saved locally
+        log(`Note: Backend model endpoint not available - using local setting`, 'info');
+      }
+    }
+
+    async function savePromptTemplate() {
+      const template = document.getElementById('promptTemplate').value;
+
+      log('Saving prompt template...', 'info');
+
+      // Save locally
+      localStorage.setItem('fireflies_translation_prompt', template);
+      showAlert('Prompt template saved locally', 'success');
+      log('Prompt template saved locally', 'success');
+
+      // Optionally try to save to backend
+      try {
+        const response = await fetch(`${baseUrl}/api/translation/prompt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template: template })
+        });
+
+        if (response.ok) {
+          log('Prompt also saved to backend', 'info');
+        }
+      } catch (e) {
+        log('Note: Backend prompt endpoint not available - saved locally only', 'info');
+      }
+    }
+
+    function resetPromptTemplate() {
+      const style = document.getElementById('templateStyleSelect')?.value || 'simple';
+      const template = PROMPT_TEMPLATES[style] || PROMPT_TEMPLATES.simple;
+      document.getElementById('promptTemplate').value = template;
+      localStorage.setItem('fireflies_translation_prompt', template);
+      localStorage.setItem('fireflies_template_style', style);
+      showAlert(`Prompt reset to ${style} template`, 'info');
+    }
+
+    // ========================================================================
+    // API Helper with Enhanced Error Handling
+    // ========================================================================
+    async function apiCallWithErrors(url, options, actionName) {
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          let errorMsg = `HTTP ${response.status}`;
+          try {
+            const errorData = await response.json();
+            // Extract detail from FastAPI response
+            if (errorData.detail) {
+              if (Array.isArray(errorData.detail)) {
+                // Validation errors are arrays
+                errorMsg = errorData.detail.map(e => e.msg || e.message || JSON.stringify(e)).join('; ');
+              } else {
+                errorMsg = errorData.detail;
+              }
+            } else if (errorData.message) {
+              errorMsg = errorData.message;
+            }
+          } catch {
+            errorMsg = response.statusText || `HTTP ${response.status}`;
+          }
+          throw new Error(`${actionName} failed: ${errorMsg}`);
+        }
+        return await response.json();
+      } catch (e) {
+        // Network errors
+        if (e.name === 'TypeError' && e.message.includes('fetch')) {
+          throw new Error(`${actionName}: Network error - service may be unavailable`);
+        }
+        throw e;
+      }
+    }
+
+    async function testTranslation() {
+      const text = document.getElementById('testText').value.trim();
+      const targetLang = document.getElementById('testTargetLang').value;
+      const resultDiv = document.getElementById('testResult');
+
+      if (!text) {
+        showAlert('Please enter text to translate', 'error');
+        return;
+      }
+
+      // Validate selected model
+      const validModelIds = availableModels.map(m => m.id);
+      const modelToUse = validModelIds.includes(selectedModel) ? selectedModel : (validModelIds[0] || 'default');
+
+      resultDiv.textContent = 'Translating...';
+      log(`Testing translation: "${text}" → ${targetLang} using model: ${modelToUse}`, 'info');
+      apiLog('POST', '/api/translation/translate', { text: text.substring(0, 50) + '...', target_language: targetLang, service: modelToUse });
+
+      try {
+        const data = await apiCallWithErrors(
+          `${baseUrl}/api/translation/translate`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: text,
+              target_language: targetLang,
+              source_language: 'auto',
+              service: modelToUse,
+            })
+          },
+          'Translation'
+        );
+
+        // Success - display result
+        const translatedText = data.translated_text || data.translation || 'N/A';
+        const modelUsed = data.model_used || modelToUse;
+        const backendUsed = data.backend_used || 'unknown';
+        const processingTime = data.processing_time ? data.processing_time.toFixed(2) + 's' : 'N/A';
+        const confidence = data.confidence ? (data.confidence * 100).toFixed(1) + '%' : 'N/A';
+
+        resultDiv.innerHTML = `<strong>Original:</strong> ${escapeHtml(text)}
+<strong>Translation (${targetLang}):</strong> ${escapeHtml(translatedText)}
+<strong>Model:</strong> ${escapeHtml(modelUsed)}
+<strong>Backend:</strong> ${escapeHtml(backendUsed)}
+<strong>Time:</strong> ${processingTime}
+<strong>Confidence:</strong> ${confidence}`;
+
+        log(`Translation successful using ${modelUsed}`, 'success');
+        apiLog('RESPONSE', '/api/translation/translate', { translated_text: translatedText.substring(0, 50) }, true);
+
+      } catch (e) {
+        // Display detailed error
+        resultDiv.innerHTML = `<span style="color: #f44336;"><strong>Error:</strong> ${escapeHtml(e.message)}</span>
+
+<span style="color: #888; font-size: 11px;">Troubleshooting:
+• Check if Translation Service is running (port 5003)
+• Verify model "${modelToUse}" is available
+• Check service logs for details</span>`;
+
+        log(`Translation error: ${e.message}`, 'error');
+        apiLog('RESPONSE', '/api/translation/translate', { error: e.message }, false);
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ==========================================================================
+    // Service Health Check
+    // ==========================================================================
+    async function checkServices() {
+      const statusDiv = document.getElementById('serviceStatus');
+
+      const services = [
+        { name: 'Orchestration', url: `${baseUrl}/api/health`, key: 'orchestration' },
+        { name: 'Database', url: `${baseUrl}/api/health`, key: 'database' },
+        { name: 'Translation', url: `${baseUrl}/api/translation/health`, key: 'translation' },
+        { name: 'Fireflies Router', url: `${baseUrl}/fireflies/health`, key: 'fireflies' },
+      ];
+
+      let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+      for (const service of services) {
+        try {
+          const response = await fetch(service.url, { signal: AbortSignal.timeout(5000) });
+          let isHealthy = response.ok;
+          let detail = '';
+
+          if (response.ok && service.key === 'database') {
+            const data = await response.json();
+            isHealthy = data.services?.database === 'healthy';
+            detail = isHealthy ? '' : ' (connection issue)';
+          }
+
+          html += `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>${service.name}</span>
+              <span class="status-badge ${isHealthy ? 'status-connected' : 'status-disconnected'}">
+                ${isHealthy ? 'Healthy' : 'Unavailable'}${detail}
+              </span>
+            </div>
+          `;
+
+          if (service.key === 'translation') {
+            const badge = document.getElementById('translationStatus');
+            badge.className = `status-badge ${isHealthy ? 'status-connected' : 'status-disconnected'}`;
+            badge.textContent = isHealthy ? 'Translation Online' : 'Translation Offline';
+          }
+        } catch (e) {
+          html += `
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span>${service.name}</span>
+              <span class="status-badge status-disconnected">Error</span>
+            </div>
+          `;
+        }
+      }
+
+      html += '</div>';
+      statusDiv.innerHTML = html;
+    }
+
+    // ==========================================================================
+    // Utilities
+    // ==========================================================================
+    function showAlert(message, type = 'info') {
+      const container = document.getElementById('alertContainer');
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${type}`;
+      alert.textContent = message;
+      container.innerHTML = '';
+      container.appendChild(alert);
+
+      setTimeout(() => alert.remove(), 5000);
+    }
+
+    function log(message, type = 'info') {
+      const logPanel = document.getElementById('logPanel');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logPanel.appendChild(entry);
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    function clearActivityLog() {
+      document.getElementById('logPanel').innerHTML = '<div class="log-entry info">[System] Log cleared</div>';
+    }
+
+    // ==========================================================================
+    // Live Feed Functions
+    // ==========================================================================
+    let feedWebSocket = null;
+    let feedEntries = [];
+
+    function updateFeedSessionSelect() {
+      const select = document.getElementById('feedSessionSelect');
+      select.innerHTML = '<option value="">-- Select a session --</option>' +
+        currentSessions.map(s => `<option value="${s.session_id}">${s.session_id} (${s.transcript_id || 'Unknown'})</option>`).join('');
+    }
+
+    async function connectToFeed() {
+      const sessionId = document.getElementById('feedSessionSelect').value;
+      if (!sessionId) {
+        showAlert('Please select a session', 'error');
+        return;
+      }
+
+      const targetLang = document.getElementById('feedTargetLang').value;
+      document.getElementById('feedTargetLangLabel').textContent = document.querySelector('#feedTargetLang option:checked').textContent;
+
+      // Close existing connection
+      if (feedWebSocket) {
+        feedWebSocket.close();
+      }
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/api/captions/stream/${sessionId}?target_language=${targetLang}`;
+
+      log(`Connecting to feed: ${wsUrl}`, 'info');
+      updateFeedStatus('connecting');
+
+      try {
+        feedWebSocket = new WebSocket(wsUrl);
+
+        feedWebSocket.onopen = () => {
+          log('Feed WebSocket connected', 'success');
+          updateFeedStatus('connected');
+        };
+
+        feedWebSocket.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            handleFeedMessage(message);
+          } catch (e) {
+            console.error('Failed to parse feed message:', e);
+          }
+        };
+
+        feedWebSocket.onerror = (error) => {
+          log(`Feed WebSocket error: ${error.message || 'Unknown error'}`, 'error');
+          updateFeedStatus('error');
+        };
+
+        feedWebSocket.onclose = () => {
+          log('Feed WebSocket disconnected', 'warn');
+          updateFeedStatus('disconnected');
+        };
+
+      } catch (e) {
+        log(`Failed to connect to feed: ${e.message}`, 'error');
+        updateFeedStatus('error');
+      }
+    }
+
+    function handleFeedMessage(message) {
+      switch (message.event) {
+        case 'connected':
+          // Load existing captions
+          if (message.current_captions) {
+            message.current_captions.forEach(addCaptionToFeed);
+          }
+          updateFeedStats();
+          break;
+
+        case 'caption_added':
+          addCaptionToFeed(message.caption);
+          updateFeedStats();
+          break;
+
+        case 'caption_updated':
+          updateCaptionInFeed(message.caption);
+          break;
+      }
+    }
+
+    function addCaptionToFeed(caption) {
+      if (!caption) return;
+
+      // Store for persistence
+      feedEntries.push({
+        timestamp: new Date().toISOString(),
+        speaker: caption.speaker_name || 'Unknown',
+        original: caption.original_text || '',
+        translated: caption.translated_text || '',
+        confidence: caption.confidence || 0,
+        language: caption.target_language || 'unknown',
+      });
+
+      // Add to original column
+      const originalDiv = document.getElementById('originalFeed');
+      if (originalDiv.querySelector('.empty-state')) {
+        originalDiv.innerHTML = '';
+      }
+      const origEntry = document.createElement('div');
+      origEntry.className = 'log-entry';
+      origEntry.innerHTML = `<span style="color:#64B5F6;">[${caption.speaker_name || 'Speaker'}]</span> ${escapeHtml(caption.original_text || '')}`;
+      originalDiv.appendChild(origEntry);
+      originalDiv.scrollTop = originalDiv.scrollHeight;
+
+      // Add to translated column
+      const translatedDiv = document.getElementById('translatedFeed');
+      if (translatedDiv.querySelector('.empty-state')) {
+        translatedDiv.innerHTML = '';
+      }
+      const transEntry = document.createElement('div');
+      transEntry.className = 'log-entry';
+      const confPercent = caption.confidence ? `(${(caption.confidence * 100).toFixed(0)}%)` : '';
+      transEntry.innerHTML = `<span style="color:#4CAF50;">[${caption.speaker_name || 'Speaker'}]</span> ${escapeHtml(caption.translated_text || '')} <span style="color:#888; font-size:10px;">${confPercent}</span>`;
+      translatedDiv.appendChild(transEntry);
+      translatedDiv.scrollTop = translatedDiv.scrollHeight;
+    }
+
+    function updateCaptionInFeed(caption) {
+      // For simplicity, just add as new (could implement update logic)
+      addCaptionToFeed(caption);
+    }
+
+    function updateFeedStatus(status) {
+      const badge = document.getElementById('feedStatus');
+      const statusMap = {
+        'connected': { class: 'status-connected', text: 'Connected' },
+        'connecting': { class: 'status-connecting', text: 'Connecting...' },
+        'disconnected': { class: 'status-disconnected', text: 'Disconnected' },
+        'error': { class: 'status-disconnected', text: 'Error' },
+      };
+      const info = statusMap[status] || statusMap['disconnected'];
+      badge.className = `status-badge ${info.class}`;
+      badge.textContent = info.text;
+    }
+
+    function updateFeedStats() {
+      const statsEl = document.getElementById('feedStats');
+      const speakers = [...new Set(feedEntries.map(e => e.speaker))];
+      statsEl.textContent = `${feedEntries.length} entries | ${speakers.length} speakers`;
+    }
+
+    function disconnectFeed() {
+      if (feedWebSocket) {
+        feedWebSocket.close();
+        feedWebSocket = null;
+      }
+      updateFeedStatus('disconnected');
+      log('Disconnected from feed', 'info');
+    }
+
+    function saveFeedToLocal() {
+      const sessionId = document.getElementById('feedSessionSelect').value || 'unknown';
+      const key = `fireflies_feed_${sessionId}_${Date.now()}`;
+      const data = {
+        session_id: sessionId,
+        saved_at: new Date().toISOString(),
+        target_language: document.getElementById('feedTargetLang').value,
+        entry_count: feedEntries.length,
+        entries: feedEntries,
+      };
+      localStorage.setItem(key, JSON.stringify(data));
+      showAlert(`Feed saved to local storage (${feedEntries.length} entries)`, 'success');
+      log(`Feed saved: ${key}`, 'success');
+    }
+
+    function exportFeedJson() {
+      const sessionId = document.getElementById('feedSessionSelect').value || 'session';
+      const data = {
+        session_id: sessionId,
+        exported_at: new Date().toISOString(),
+        target_language: document.getElementById('feedTargetLang').value,
+        entry_count: feedEntries.length,
+        entries: feedEntries,
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `transcript_${sessionId}_${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      log(`Exported feed as JSON`, 'success');
+    }
+
+    // ==========================================================================
+    // Glossary Functions
+    // ==========================================================================
+    let currentGlossaryId = null;
+    let glossaryEntries = [];
+
+    async function refreshGlossaries() {
+      log('Loading glossaries...', 'info');
+      try {
+        const data = await apiCallWithErrors(
+          `${baseUrl}/api/glossaries`,
+          { method: 'GET' },
+          'Load glossaries'
+        );
+
+        const glossaries = data.glossaries || data || [];
+        const select = document.getElementById('glossarySelect');
+        select.innerHTML = '<option value="">-- Select Glossary --</option>' +
+          glossaries.map(g => `<option value="${g.glossary_id || g.id}">${g.name} (${g.entry_count || 0} terms) ${g.is_default ? '★' : ''}</option>`).join('');
+
+        // Update list view
+        const listDiv = document.getElementById('glossaryList');
+        if (glossaries.length === 0) {
+          listDiv.innerHTML = '<div class="empty-state">No glossaries found. Create one!</div>';
+        } else {
+          listDiv.innerHTML = glossaries.map(g => `
+            <div class="session-item" onclick="selectGlossary('${g.glossary_id || g.id}')" style="cursor: pointer;">
+              <div class="session-info">
+                <div class="session-title">${escapeHtml(g.name)} ${g.is_default ? '★' : ''}</div>
+                <div class="session-meta">
+                  <span>${g.entry_count || 0} terms</span>
+                  <span>${g.domain || 'General'}</span>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        log(`Loaded ${glossaries.length} glossaries`, 'success');
+      } catch (e) {
+        log(`Failed to load glossaries: ${e.message}`, 'error');
+        document.getElementById('glossaryList').innerHTML = `<div class="empty-state" style="color:#f44336;">Error: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function selectGlossary(glossaryId) {
+      document.getElementById('glossarySelect').value = glossaryId;
+      loadGlossaryEntries();
+    }
+
+    async function loadGlossaryEntries() {
+      const glossaryId = document.getElementById('glossarySelect').value;
+      if (!glossaryId) {
+        document.getElementById('glossaryEntriesBody').innerHTML = '<tr><td colspan="6" class="empty-state">Select a glossary to view entries</td></tr>';
+        return;
+      }
+
+      currentGlossaryId = glossaryId;
+      log(`Loading entries for glossary: ${glossaryId}`, 'info');
+
+      try {
+        const data = await apiCallWithErrors(
+          `${baseUrl}/api/glossaries/${glossaryId}`,
+          { method: 'GET' },
+          'Load glossary'
+        );
+
+        // Update details form
+        document.getElementById('glossaryName').value = data.name || '';
+        document.getElementById('glossaryDomain').value = data.domain || '';
+
+        // Load entries
+        const entriesData = await apiCallWithErrors(
+          `${baseUrl}/api/glossaries/${glossaryId}/entries`,
+          { method: 'GET' },
+          'Load entries'
+        );
+
+        glossaryEntries = entriesData.entries || entriesData || [];
+        renderGlossaryEntries();
+
+      } catch (e) {
+        log(`Failed to load glossary: ${e.message}`, 'error');
+      }
+    }
+
+    function renderGlossaryEntries() {
+      const tbody = document.getElementById('glossaryEntriesBody');
+      if (glossaryEntries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No entries. Add terms above.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = glossaryEntries.map((entry, idx) => `
+        <tr>
+          <td>${escapeHtml(entry.source_term || '')}</td>
+          <td>${escapeHtml(entry.translations?.es || entry.target_term || '-')}</td>
+          <td>${escapeHtml(entry.translations?.fr || '-')}</td>
+          <td>${escapeHtml(entry.translations?.de || '-')}</td>
+          <td>${entry.priority || 'normal'}</td>
+          <td>
+            <button class="btn-secondary btn-sm" onclick="editGlossaryEntry(${idx})">Edit</button>
+            <button class="btn-danger btn-sm" onclick="deleteGlossaryEntry(${idx})">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function createNewGlossary() {
+      const name = prompt('Enter glossary name:');
+      if (!name) return;
+
+      try {
+        const data = await apiCallWithErrors(
+          `${baseUrl}/api/glossaries`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: name,
+              target_languages: ['es', 'fr', 'de'],
+              source_language: 'en',
+            })
+          },
+          'Create glossary'
+        );
+
+        showAlert(`Glossary "${name}" created!`, 'success');
+        await refreshGlossaries();
+        if (data.glossary_id) {
+          document.getElementById('glossarySelect').value = data.glossary_id;
+          await loadGlossaryEntries();
+        }
+      } catch (e) {
+        showAlert(`Failed to create glossary: ${e.message}`, 'error');
+      }
+    }
+
+    async function saveGlossary() {
+      if (!currentGlossaryId) {
+        showAlert('No glossary selected', 'error');
+        return;
+      }
+
+      const name = document.getElementById('glossaryName').value;
+      const domain = document.getElementById('glossaryDomain').value;
+
+      try {
+        await apiCallWithErrors(
+          `${baseUrl}/api/glossaries/${currentGlossaryId}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, domain })
+          },
+          'Save glossary'
+        );
+        showAlert('Glossary saved!', 'success');
+        await refreshGlossaries();
+      } catch (e) {
+        showAlert(`Failed to save: ${e.message}`, 'error');
+      }
+    }
+
+    async function deleteGlossary() {
+      if (!currentGlossaryId) {
+        showAlert('No glossary selected', 'error');
+        return;
+      }
+
+      if (!confirm('Delete this glossary? This cannot be undone.')) return;
+
+      try {
+        await apiCallWithErrors(
+          `${baseUrl}/api/glossaries/${currentGlossaryId}`,
+          { method: 'DELETE' },
+          'Delete glossary'
+        );
+        showAlert('Glossary deleted', 'success');
+        currentGlossaryId = null;
+        await refreshGlossaries();
+        document.getElementById('glossaryEntriesBody').innerHTML = '<tr><td colspan="6" class="empty-state">Select a glossary</td></tr>';
+      } catch (e) {
+        showAlert(`Failed to delete: ${e.message}`, 'error');
+      }
+    }
+
+    async function setDefaultGlossary() {
+      if (!currentGlossaryId) {
+        showAlert('No glossary selected', 'error');
+        return;
+      }
+
+      try {
+        await apiCallWithErrors(
+          `${baseUrl}/api/glossaries/${currentGlossaryId}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_default: true })
+          },
+          'Set default glossary'
+        );
+        showAlert('Set as default glossary', 'success');
+        await refreshGlossaries();
+      } catch (e) {
+        showAlert(`Failed: ${e.message}`, 'error');
+      }
+    }
+
+    async function addGlossaryEntry() {
+      if (!currentGlossaryId) {
+        showAlert('Please select a glossary first', 'error');
+        return;
+      }
+
+      const sourceTerm = prompt('Enter source term (English):');
+      if (!sourceTerm) return;
+
+      const spanishTrans = prompt('Spanish translation:') || '';
+      const frenchTrans = prompt('French translation:') || '';
+      const germanTrans = prompt('German translation:') || '';
+
+      try {
+        await apiCallWithErrors(
+          `${baseUrl}/api/glossaries/${currentGlossaryId}/entries`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              source_term: sourceTerm,
+              translations: {
+                es: spanishTrans,
+                fr: frenchTrans,
+                de: germanTrans,
+              }
+            })
+          },
+          'Add entry'
+        );
+        showAlert('Entry added!', 'success');
+        await loadGlossaryEntries();
+      } catch (e) {
+        showAlert(`Failed: ${e.message}`, 'error');
+      }
+    }
+
+    function editGlossaryEntry(idx) {
+      showAlert('Edit entry not yet implemented - delete and re-add for now', 'info');
+    }
+
+    async function deleteGlossaryEntry(idx) {
+      if (!confirm('Delete this entry?')) return;
+      const entry = glossaryEntries[idx];
+      if (!entry || !entry.entry_id) {
+        showAlert('Cannot delete - entry ID missing', 'error');
+        return;
+      }
+
+      try {
+        await apiCallWithErrors(
+          `${baseUrl}/api/glossaries/${currentGlossaryId}/entries/${entry.entry_id}`,
+          { method: 'DELETE' },
+          'Delete entry'
+        );
+        showAlert('Entry deleted', 'success');
+        await loadGlossaryEntries();
+      } catch (e) {
+        showAlert(`Failed: ${e.message}`, 'error');
+      }
+    }
+
+    function bulkImportGlossary() {
+      showAlert('Bulk import feature coming soon!', 'info');
+    }
+
+    function exportGlossary() {
+      if (glossaryEntries.length === 0) {
+        showAlert('No entries to export', 'error');
+        return;
+      }
+
+      const csv = ['Source,Spanish,French,German,Priority'];
+      glossaryEntries.forEach(e => {
+        csv.push(`"${e.source_term || ''}","${e.translations?.es || ''}","${e.translations?.fr || ''}","${e.translations?.de || ''}","${e.priority || 'normal'}"`);
+      });
+
+      const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `glossary_${currentGlossaryId}_${Date.now()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ==========================================================================
+    // History Functions
+    // ==========================================================================
+    let currentTranscriptData = null;
+    let translatedTranscript = [];
+
+    async function fetchPastMeetings() {
+      if (!apiKey) {
+        showAlert('Please save your API key in Settings first', 'error');
+        return;
+      }
+
+      log('Fetching past meetings from Fireflies...', 'info');
+
+      try {
+        const data = await apiCallWithErrors(
+          `${baseUrl}/fireflies/transcripts`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: apiKey,
+              limit: 20,
+            })
+          },
+          'Fetch past meetings'
+        );
+
+        const transcripts = data.transcripts || [];
+        const tbody = document.getElementById('pastMeetingsBody');
+
+        if (transcripts.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No past meetings found</td></tr>';
+        } else {
+          tbody.innerHTML = transcripts.map(t => `
+            <tr>
+              <td>${t.date || t.created_at || '-'}</td>
+              <td>${escapeHtml(t.title || 'Untitled')}</td>
+              <td>${t.duration || '-'}</td>
+              <td>${t.speaker_count || t.participants?.length || '-'}</td>
+              <td>
+                <button class="btn-primary btn-sm" onclick="viewTranscript('${t.id}', '${escapeHtml(t.title || 'Transcript')}')">View</button>
+                <button class="btn-secondary btn-sm" onclick="translatePastMeeting('${t.id}')">Translate</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+
+        log(`Fetched ${transcripts.length} past meetings`, 'success');
+      } catch (e) {
+        log(`Failed to fetch past meetings: ${e.message}`, 'error');
+        const tbody = document.getElementById('pastMeetingsBody');
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state" style="color:#f44336;">Error: ${escapeHtml(e.message)}</td></tr>`;
+      }
+    }
+
+    async function viewTranscript(transcriptId, title) {
+      log(`Loading transcript: ${transcriptId}`, 'info');
+      document.getElementById('transcriptViewer').classList.remove('hidden');
+      document.getElementById('transcriptViewerTitle').textContent = title;
+      document.getElementById('transcriptContent').innerHTML = '<div class="empty-state">Loading transcript...</div>';
+
+      try {
+        const data = await apiCallWithErrors(
+          `${baseUrl}/fireflies/transcript/${transcriptId}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey })
+          },
+          'Load transcript'
+        );
+
+        currentTranscriptData = data;
+        const sentences = data.sentences || [];
+
+        if (sentences.length === 0) {
+          document.getElementById('transcriptContent').innerHTML = '<div class="empty-state">No content in transcript</div>';
+        } else {
+          document.getElementById('transcriptContent').innerHTML = sentences.map(s => `
+            <div class="log-entry">
+              <span style="color:#64B5F6;">[${s.speaker_name || 'Speaker'}]</span>
+              <span style="color:#888; font-size:10px;">${s.start_time ? formatTime(s.start_time) : ''}</span>
+              ${escapeHtml(s.text || '')}
+            </div>
+          `).join('');
+        }
+
+        log(`Loaded transcript with ${sentences.length} sentences`, 'success');
+      } catch (e) {
+        document.getElementById('transcriptContent').innerHTML = `<div class="empty-state" style="color:#f44336;">Error: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    async function translateFullTranscript() {
+      if (!currentTranscriptData || !currentTranscriptData.sentences) {
+        showAlert('No transcript loaded', 'error');
+        return;
+      }
+
+      const sentences = currentTranscriptData.sentences;
+      const targetLang = document.getElementById('historyTargetLang').value;
+      translatedTranscript = [];
+
+      // Show progress
+      document.getElementById('transcriptViewerProgress').classList.remove('hidden');
+      const progressBar = document.getElementById('translationProgressBar');
+      const progressText = document.getElementById('translationProgressText');
+
+      log(`Translating ${sentences.length} sentences to ${targetLang}...`, 'info');
+
+      for (let i = 0; i < sentences.length; i++) {
+        const s = sentences[i];
+        try {
+          const result = await apiCallWithErrors(
+            `${baseUrl}/api/translation/translate`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: s.text,
+                target_language: targetLang,
+                source_language: 'auto',
+              })
+            },
+            'Translate'
+          );
+
+          translatedTranscript.push({
+            speaker: s.speaker_name,
+            original: s.text,
+            translated: result.translated_text,
+            timestamp: s.start_time,
+          });
+
+        } catch (e) {
+          translatedTranscript.push({
+            speaker: s.speaker_name,
+            original: s.text,
+            translated: `[Error: ${e.message}]`,
+            timestamp: s.start_time,
+          });
+        }
+
+        // Update progress
+        const progress = Math.round(((i + 1) / sentences.length) * 100);
+        progressBar.style.width = `${progress}%`;
+        progressText.textContent = `${progress}% (${i + 1}/${sentences.length})`;
+      }
+
+      // Hide progress
+      document.getElementById('transcriptViewerProgress').classList.add('hidden');
+
+      // Display results
+      document.getElementById('transcriptContent').innerHTML = translatedTranscript.map(t => `
+        <div class="log-entry" style="border-left: 3px solid #4CAF50; padding-left: 12px; margin-bottom: 12px;">
+          <div style="color:#888; font-size:11px;">${t.speaker} ${t.timestamp ? formatTime(t.timestamp) : ''}</div>
+          <div style="color:#64B5F6;">${escapeHtml(t.original)}</div>
+          <div style="color:#4CAF50; margin-top:4px;">${escapeHtml(t.translated)}</div>
+        </div>
+      `).join('');
+
+      showAlert(`Translated ${sentences.length} sentences!`, 'success');
+      log('Translation complete', 'success');
+    }
+
+    function saveTranscriptLocal() {
+      if (translatedTranscript.length === 0) {
+        showAlert('No translated content to save', 'error');
+        return;
+      }
+
+      const transcriptId = currentTranscriptData?.transcript_id || 'unknown';
+      const targetLang = document.getElementById('historyTargetLang').value;
+      const key = `fireflies_translated_${transcriptId}_${targetLang}`;
+
+      const data = {
+        transcript_id: transcriptId,
+        target_language: targetLang,
+        translated_at: new Date().toISOString(),
+        translations: translatedTranscript,
+      };
+
+      localStorage.setItem(key, JSON.stringify(data));
+      showAlert(`Saved translated transcript locally`, 'success');
+      log(`Saved: ${key}`, 'success');
+      loadSavedTranscripts();
+    }
+
+    function closeTranscriptViewer() {
+      document.getElementById('transcriptViewer').classList.add('hidden');
+      currentTranscriptData = null;
+      translatedTranscript = [];
+    }
+
+    function translatePastMeeting(transcriptId) {
+      viewTranscript(transcriptId, 'Past Meeting').then(() => {
+        translateFullTranscript();
+      });
+    }
+
+    function loadSavedTranscripts() {
+      const saved = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith('fireflies_translated_') || key.startsWith('fireflies_feed_')) {
+          try {
+            const data = JSON.parse(localStorage.getItem(key));
+            saved.push({ key, ...data });
+          } catch (e) {
+            console.error('Failed to parse saved data:', key);
+          }
+        }
+      }
+
+      saved.sort((a, b) => new Date(b.translated_at || b.saved_at || 0) - new Date(a.translated_at || a.saved_at || 0));
+
+      const tbody = document.getElementById('savedTranscriptsBody');
+      if (saved.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No saved transcripts</td></tr>';
+      } else {
+        tbody.innerHTML = saved.map(s => `
+          <tr>
+            <td>${escapeHtml(s.transcript_id || s.session_id || 'Unknown')}</td>
+            <td>${s.target_language || '-'}</td>
+            <td>${new Date(s.translated_at || s.saved_at).toLocaleString()}</td>
+            <td>${s.translations?.length || s.entries?.length || s.entry_count || 0}</td>
+            <td>
+              <button class="btn-secondary btn-sm" onclick="viewSaved('${s.key}')">View</button>
+              <button class="btn-secondary btn-sm" onclick="exportSaved('${s.key}')">Export</button>
+              <button class="btn-danger btn-sm" onclick="deleteSaved('${s.key}')">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function viewSaved(key) {
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        const entries = data.translations || data.entries || [];
+
+        document.getElementById('transcriptViewer').classList.remove('hidden');
+        document.getElementById('transcriptViewerTitle').textContent = `Saved: ${data.transcript_id || data.session_id}`;
+
+        document.getElementById('transcriptContent').innerHTML = entries.map(e => `
+          <div class="log-entry" style="border-left: 3px solid #64B5F6; padding-left: 12px; margin-bottom: 8px;">
+            <div style="color:#888; font-size:11px;">${e.speaker || 'Speaker'} ${e.timestamp ? formatTime(e.timestamp) : ''}</div>
+            <div>${escapeHtml(e.original || e.text || '')}</div>
+            <div style="color:#4CAF50; margin-top:2px;">${escapeHtml(e.translated || e.translation || '')}</div>
+          </div>
+        `).join('');
+
+      } catch (e) {
+        showAlert(`Failed to load: ${e.message}`, 'error');
+      }
+    }
+
+    function exportSaved(key) {
+      try {
+        const data = JSON.parse(localStorage.getItem(key));
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${key}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        showAlert(`Failed to export: ${e.message}`, 'error');
+      }
+    }
+
+    function deleteSaved(key) {
+      if (!confirm('Delete this saved transcript?')) return;
+      localStorage.removeItem(key);
+      showAlert('Deleted', 'success');
+      loadSavedTranscripts();
+    }
+
+    // ==========================================================================
+    // Tab-specific initialization
+    // ==========================================================================
+    const originalShowTab = showTab;
+    showTab = function(tabName) {
+      // Call original tab switch
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      document.querySelector(`.tab-content#tab-${tabName}`).classList.add('active');
+      const tabBtn = document.querySelector(`.tab[onclick="showTab('${tabName}')"]`);
+      if (tabBtn) tabBtn.classList.add('active');
+
+      // Tab-specific actions
+      if (tabName === 'sessions') refreshSessions();
+      if (tabName === 'translation') loadTranslationConfig();
+      if (tabName === 'data') updateSessionSelect();
+      if (tabName === 'livefeed') updateFeedSessionSelect();
+      if (tabName === 'glossary') refreshGlossaries();
+      if (tabName === 'history') loadSavedTranscripts();
+    };
+  </script>
+</body>
+</html>
