@@ -2,7 +2,7 @@
 Integration Tests for Fireflies Dashboard API Endpoints
 
 TDD Tests - These tests define the EXPECTED API CONTRACT.
-Tests actual API endpoints with mocked services.
+Tests actual API endpoints with real database connection.
 
 Behaviors:
 1. Translation endpoint returns correct response format
@@ -11,76 +11,26 @@ Behaviors:
 4. Error responses include actionable detail
 
 Run with: pytest tests/fireflies/integration/test_fireflies_dashboard_api.py -v
+
+NOTE: These tests use the shared fixtures from conftest.py:
+- `client` fixture: TestClient with properly initialized dependencies
+- `initialized_app` fixture: FastAPI app with startup_dependencies() called
+
+This ensures:
+- Database manager is initialized (no "Database manager not initialized" errors)
+- FastAPI validation returns 422 (not 500 from middleware)
+- Not found errors return 404 properly
 """
 
 import pytest
 import json
-import sys
-from pathlib import Path
-from datetime import datetime, timezone
-from typing import Dict, Any, List
-from unittest.mock import AsyncMock, MagicMock, patch
-import asyncio
-
-# Add src path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
-
-from fastapi.testclient import TestClient
-from httpx import AsyncClient
 
 
 # =============================================================================
-# Test Fixtures
+# Test Fixtures - Using shared fixtures from conftest.py
 # =============================================================================
-
-
-@pytest.fixture
-def app():
-    """Create FastAPI app for testing."""
-    # Import here to avoid side effects
-    from main_fastapi import app as fastapi_app
-    return fastapi_app
-
-
-@pytest.fixture
-def client(app):
-    """Create test client."""
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_translation_client():
-    """Mock translation service client."""
-    client = AsyncMock()
-    client.translate = AsyncMock(return_value=MagicMock(
-        translated_text="Hola, como estas?",
-        source_language="en",
-        target_language="es",
-        confidence=0.95,
-        processing_time=0.123,
-        model_used="ollama",
-        backend_used="ollama",
-    ))
-    client.health_check = AsyncMock(return_value={
-        "status": "healthy",
-        "backend": "ollama",
-    })
-    client.get_models = AsyncMock(return_value=[
-        {"id": "default", "name": "Default"},
-        {"id": "ollama", "name": "Ollama"},
-    ])
-    return client
-
-
-@pytest.fixture
-def mock_db_session():
-    """Mock database session."""
-    session = AsyncMock()
-    session.get = AsyncMock(return_value=None)  # No session found
-    session.commit = AsyncMock()
-    session.rollback = AsyncMock()
-    session.add = MagicMock()
-    return session
+# The `client` fixture is provided by conftest.py with proper dependency
+# initialization. No local fixtures needed for basic integration tests.
 
 
 # =============================================================================
@@ -119,7 +69,7 @@ class TestTranslationAPI:
         """
         GIVEN: A request missing the 'text' field
         WHEN: Calling the translation endpoint
-        THEN: Should return 422 with validation error (or 500 in test env due to middleware)
+        THEN: Should return 422 with validation error
         """
         # Act
         response = client.post(
@@ -130,18 +80,18 @@ class TestTranslationAPI:
             }
         )
 
-        # Assert - 422 is expected in production, but test env may return 500 due to middleware
-        # The important thing is the endpoint exists and processes the request
-        assert response.status_code in [422, 500], f"Unexpected status: {response.status_code}"
+        # Assert - FastAPI validation should return 422
+        assert response.status_code == 422, f"Expected 422 but got {response.status_code}"
         data = response.json()
-        # Response should have error info - "detail" from FastAPI validation or "error" from middleware
-        assert "detail" in data or "error" in data
+        # Centralized error format: {"error": {"code": "...", "message": "..."}}
+        assert "error" in data
+        assert data["error"]["code"] == "VALIDATION_ERROR"
 
     def test_translation_request_requires_target_language(self, client):
         """
         GIVEN: A request missing the 'target_language' field
         WHEN: Calling the translation endpoint
-        THEN: Should return 422 with validation error (or 500 in test env due to middleware)
+        THEN: Should return 422 with validation error
         """
         # Act
         response = client.post(
@@ -152,54 +102,55 @@ class TestTranslationAPI:
             }
         )
 
-        # Assert - 422 is expected in production, but test env may return 500 due to middleware
-        assert response.status_code in [422, 500], f"Unexpected status: {response.status_code}"
+        # Assert - FastAPI validation should return 422
+        assert response.status_code == 422, f"Expected 422 but got {response.status_code}"
         data = response.json()
-        # Response should have error info - "detail" from FastAPI validation or "error" from middleware
-        assert "detail" in data or "error" in data
+        # Centralized error format: {"error": {"code": "...", "message": "..."}}
+        assert "error" in data
+        assert data["error"]["code"] == "VALIDATION_ERROR"
 
-    def test_translation_accepts_service_field(self, client, mock_translation_client):
+    def test_translation_accepts_service_field(self, client):
         """
         GIVEN: A request with 'service' field for model selection
         WHEN: Calling the translation endpoint
-        THEN: Should accept and process the request
+        THEN: Should accept and process the request (validation passes)
         """
         # This tests the correct field name (service, not model)
-        with patch('routers.translation.get_translation_service_client', return_value=mock_translation_client):
-            response = client.post(
-                "/api/translation/translate",
-                json={
-                    "text": "Hello",
-                    "target_language": "es",
-                    "service": "ollama",  # Correct field
-                }
-            )
+        response = client.post(
+            "/api/translation/translate",
+            json={
+                "text": "Hello",
+                "target_language": "es",
+                "service": "ollama",  # Correct field name
+            }
+        )
 
-        # Response may fail due to other deps, but request format is valid
-        assert response.status_code in [200, 500, 503], f"Unexpected status: {response.status_code}"
+        # Request format is valid - should pass validation
+        # May fail due to translation service being unavailable, but NOT 422 (validation error)
+        assert response.status_code != 422, (
+            f"Request should be valid, but got validation error: {response.json()}"
+        )
 
     def test_translation_error_response_format(self, client):
         """
         GIVEN: A translation that fails
         WHEN: Getting the error response
-        THEN: Should have 'detail' field with error message
+        THEN: Should have centralized error format with code and message
         """
-        # We expect 422 for invalid request, which should have detail
+        # We expect 422 for invalid request
         response = client.post(
             "/api/translation/translate",
             json={}  # Invalid - missing all fields
         )
 
-        # 422 is expected in production, but test env may return 500 due to middleware
-        assert response.status_code in [422, 500], f"Unexpected status: {response.status_code}"
+        # FastAPI validation should return 422
+        assert response.status_code == 422
         data = response.json()
-        # Response should have error info - "detail" from FastAPI validation or "error" from middleware
-        assert "detail" in data or "error" in data
-        # Verify error content format
-        if "detail" in data:
-            assert isinstance(data["detail"], list) or isinstance(data["detail"], str)
-        else:
-            assert isinstance(data["error"], str)
+        # Centralized error format
+        assert "error" in data
+        assert "code" in data["error"]
+        assert "message" in data["error"]
+        assert data["error"]["code"] == "VALIDATION_ERROR"
 
 
 class TestTranslationHealthEndpoint:
@@ -343,11 +294,17 @@ class TestFirefliesSessionAPI:
         """
         GIVEN: A session detail request with invalid ID
         WHEN: Calling GET /fireflies/sessions/{id}
-        THEN: Should return 404 (or 500 in test env due to middleware)
+        THEN: Should return 404 with centralized error format
         """
         response = client.get("/fireflies/sessions/nonexistent-session-id")
-        # 404 is expected in production, but test env may return 500 due to middleware
-        assert response.status_code in [404, 500], f"Unexpected status: {response.status_code}"
+        # Should return 404 with centralized error
+        assert response.status_code == 404, (
+            f"Expected 404, got {response.status_code}"
+        )
+        data = response.json()
+        # Centralized error format
+        assert "error" in data
+        assert data["error"]["code"] == "NOT_FOUND"
 
     def test_connect_endpoint_exists(self, client):
         """
@@ -415,65 +372,68 @@ class TestFirefliesSessionAPI:
 
 class TestErrorResponseFormat:
     """
-    BEHAVIOR: Standardized error response format.
+    BEHAVIOR: Standardized centralized error response format.
 
     Given: Any API error occurs
     When: Returning the error response
-    Then: Should follow consistent error format
+    Then: Should follow consistent centralized error format:
+          {"error": {"code": "...", "message": "...", "details": {...}, "timestamp": "..."}}
     """
 
-    def test_validation_errors_have_detail_field(self, client):
+    def test_validation_errors_have_error_structure(self, client):
         """
         GIVEN: A request with validation errors
         WHEN: Getting error response
-        THEN: Should have error info in response
+        THEN: Should have centralized error format
         """
         response = client.post(
             "/api/translation/translate",
             json={}  # Invalid
         )
 
-        # 422 is expected in production, but test env may return 500 due to middleware
-        assert response.status_code in [422, 500], f"Unexpected status: {response.status_code}"
+        # FastAPI validation should return 422
+        assert response.status_code == 422
         data = response.json()
-        # Response should have error info - "detail" from FastAPI validation or "error" from middleware
-        assert "detail" in data or "error" in data
+        # Centralized error format
+        assert "error" in data
+        assert "code" in data["error"]
+        assert "message" in data["error"]
 
     def test_validation_errors_are_descriptive(self, client):
         """
         GIVEN: A request missing required field
         WHEN: Getting error response
-        THEN: Should have descriptive error info
+        THEN: Should mention the missing field in message or details
         """
         response = client.post(
             "/api/translation/translate",
             json={"text": "Hello"}  # Missing target_language
         )
 
-        # 422 is expected in production, but test env may return 500 due to middleware
-        assert response.status_code in [422, 500], f"Unexpected status: {response.status_code}"
+        # FastAPI validation should return 422
+        assert response.status_code == 422
         data = response.json()
-        # Response should have error info
-        assert "detail" in data or "error" in data
-        # In production, FastAPI validation errors include field name
-        # In test env, middleware error is also acceptable
-        if "detail" in data:
-            detail_str = json.dumps(data["detail"])
-            assert "target_language" in detail_str.lower()
+        # Centralized error format includes details with field info
+        assert "error" in data
+        error_str = json.dumps(data["error"])
+        assert "target_language" in error_str.lower()
 
-    def test_not_found_errors_have_detail(self, client):
+    def test_not_found_errors_have_error_structure(self, client):
         """
         GIVEN: A resource that doesn't exist
-        WHEN: Getting 404 response
-        THEN: Should have descriptive detail (or 500 in test env due to middleware)
+        WHEN: Getting error response
+        THEN: Should have centralized error format with NOT_FOUND code
         """
         response = client.get("/fireflies/sessions/nonexistent-id")
 
-        # 404 is expected in production, but test env may return 500 due to middleware
-        assert response.status_code in [404, 500], f"Unexpected status: {response.status_code}"
+        # Should be 404
+        assert response.status_code == 404, (
+            f"Expected 404, got {response.status_code}"
+        )
         data = response.json()
-        # Should have error info
-        assert "detail" in data or "error" in data
+        # Centralized error format
+        assert "error" in data
+        assert data["error"]["code"] == "NOT_FOUND"
 
 
 # =============================================================================

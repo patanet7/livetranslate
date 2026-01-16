@@ -1,12 +1,107 @@
 # Orchestration Service - Development Plan
 
-**Last Updated**: 2026-01-12
-**Current Status**: DRY/YAGNI/SOLID Audit COMPLETE - All 494 tests passing
+**Last Updated**: 2026-01-16
+**Current Status**: Fireflies Dashboard improvements + Model validation
 **Module**: `modules/orchestration-service/`
 
 ---
 
-## 📋 Current Work: Architecture Improvements
+## 📋 Current Work: Fireflies Dashboard Improvements (2026-01-16)
+
+### What Was Done
+
+**1. API Key Validation** ✅
+- Fixed `saveApiKey()` to actually validate against Fireflies API before marking as connected
+- Added `validateStoredApiKey()` to validate saved keys on dashboard load
+- Previously: Just saved key and marked "connected" without validation
+- Now: Makes POST to `/fireflies/meetings` to verify key is valid
+
+**2. Translation Model Display** ✅
+- Fixed model display to use correct response fields from health endpoint
+- Health endpoint returns `backend` and `device`, not `model` or `current_model`
+- Updated to show: Model name | Backend | Device | Status
+
+**3. Prompt Template Loading** ✅
+- Added `loadDefaultPromptTemplate()` to load actual prompt templates from code
+- Templates match `translation_prompt_builder.py` (full, simple, minimal)
+- Saved prompts persist to localStorage
+
+**4. Model Selection & Validation** ✅
+- Added `availableModels` array to track valid models from API
+- `switchModel()` now validates selected model is in available list
+- `connectToMeeting()` validates model before connecting
+- `testTranslation()` validates model before translating
+- Invalid models fall back to first available or "default"
+
+**5. Backend Support** ✅
+- Added `translation_model` field to `ConnectRequest` in Fireflies router
+- Added `translation_model` field to `FirefliesSessionConfig` model
+- Model selection now passed through to Fireflies pipeline
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `static/fireflies-dashboard.html` | API validation, model display fix, prompt loading, model validation |
+| `src/routers/fireflies.py` | Added `translation_model` to ConnectRequest |
+| `src/models/fireflies.py` | Added `translation_model` to FirefliesSessionConfig |
+
+### Key Improvements
+
+**Before:**
+```javascript
+function saveApiKey() {
+  apiKey = key;
+  localStorage.setItem('fireflies_api_key', key);
+  updateApiStatus(true);  // Just marks connected without validation!
+}
+```
+
+**After:**
+```javascript
+async function saveApiKey() {
+  // Validate the API key against Fireflies API before saving
+  const response = await fetch(`${baseUrl}/fireflies/meetings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: key })
+  });
+
+  if (response.ok) {
+    // API key is valid - save it
+    apiKey = key;
+    localStorage.setItem('fireflies_api_key', key);
+    updateApiStatus(true);
+  } else {
+    updateApiStatus(false);
+    showAlert('Invalid API key', 'error');
+  }
+}
+```
+
+### Model Validation Flow
+
+```
+Load Dashboard
+    ↓
+Fetch /api/translation/models
+    ↓
+Store in availableModels[]
+    ↓
+Validate selectedModel against availableModels
+    ↓
+If invalid → use first available or "default"
+    ↓
+On switchModel() → validate before saving
+    ↓
+On testTranslation() → validate before calling
+    ↓
+On connectToMeeting() → validate before connecting
+```
+
+---
+
+## 📋 Previous Work: Architecture Improvements
 
 ### **Status**: ✅ **PHASE 3 COMPLETE** - Safe Endpoint Consolidation (2026-01-11)
 
@@ -137,20 +232,40 @@ curl http://localhost:5003/api/models/status
 
 ### Remaining Tasks
 
-**Phase 4: Model Registry** 📋
-1. Create `shared/model_registry.py`
-2. Unified model aliases ("base" → "whisper-base")
-3. Validation in orchestration config
+**Phase 4: Model Registry** ✅ **COMPLETE** (2026-01-12)
+1. ✅ Created `modules/shared/src/model_registry/model_registry.py` (450+ lines)
+2. ✅ Unified model aliases ("base" → "whisper-base", "turbo" → "whisper-large-v3-turbo")
+3. ✅ Validation and normalization in orchestration config
+4. ✅ Updated orchestration service to use registry (3 files)
 
-**Phase 5: Whisper FastAPI Prep** 📋
-1. Create stateless FastAPI endpoints
-2. Keep Flask for SocketIO (interim)
-3. Run both backends in parallel
+**Features Implemented:**
+- 12 Whisper model definitions with aliases, parameters, VRAM requirements
+- Translation backend support (Ollama, vLLM, Groq, OpenAI, Triton)
+- `normalize_whisper_model()` - converts aliases to canonical names
+- `is_valid_whisper_model()` - validation function
+- `get_whisper_model_info()` - detailed model information
+- `get_recommended_whisper_model()` - context-aware recommendations
+- Fallback chains for graceful degradation
 
-**Phase 6: Whisper SocketIO Migration** 📋 (HIGH RISK)
-1. Migrate 30+ SocketIO events
-2. Preserve thread spawning pattern
-3. Extensive testing required
+**Files Created:**
+- `modules/shared/src/model_registry/__init__.py`
+- `modules/shared/src/model_registry/model_registry.py`
+
+**Files Modified:**
+- `modules/orchestration-service/src/internal_services/audio.py`
+- `modules/orchestration-service/src/clients/audio_service_client.py`
+- `modules/orchestration-service/src/routers/audio/audio_core.py`
+
+**Phase 5: Whisper Service Review** 📋
+- Whisper currently uses Flask + Flask-SocketIO + native websockets
+- Translation service already has FastAPI version
+- Whisper needs stateful sessions for streaming (not stateless)
+- Consider: Keep Flask-SocketIO for real-time streaming (works well)
+
+**Phase 6: Remaining Audits** 📋
+1. Audit Whisper session managers (3 implementations)
+2. Audit Bot managers (3 implementations)
+3. Audit Config systems (5 implementations)
 
 ---
 

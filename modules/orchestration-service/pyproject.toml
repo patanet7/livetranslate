@@ -186,3 +186,63 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
 ]
+
+[project]
+authors = [
+    {name = "LiveTranslate Team", email = "team@livetranslate.com"},
+]
+requires-python = "<3.15,>=3.12"
+dependencies = [
+    "fastapi<1.0.0,>=0.121.0",
+    "uvicorn[standard]<1.0.0,>=0.38.0",
+    "websockets<16.0.0,>=15.0.1",
+    "requests<3.0.0,>=2.31.0",
+    "pydantic<3.0.0,>=2.12.3",
+    "pydantic-settings<3.0.0,>=2.7.1",
+    "python-multipart<1.0.0,>=0.0.6",
+    "pyyaml<7.0.0,>=6.0.1",
+    "python-dateutil<3.0.0,>=2.8.2",
+    "google-api-python-client<3.0.0,>=2.100.0",
+    "google-auth<3.0.0,>=2.23.0",
+    "google-auth-oauthlib<2.0.0,>=1.0.0",
+    "google-auth-httplib2<1.0.0,>=0.1.0",
+    "psycopg2-binary>=2.9.11",
+    "sqlalchemy<3.0.0,>=2.0.21",
+    "alembic<2.0.0,>=1.12.0",
+    "aiosqlite<1.0.0,>=0.19.0",
+    "pyjwt<3.0.0,>=2.8.0",
+    "cryptography<42.0.0,>=41.0.4",
+    "aiohttp<4.0.0,>=3.8.5",
+    "watchdog<4.0.0,>=3.0.0",
+    "numpy<3.0.0,>=2.2.0",
+    "scipy<2.0.0,>=1.16.2",
+    "librosa<1.0.0,>=0.11.0",
+    "soundfile<1.0.0,>=0.13.1",
+    "pydub<1.0.0,>=0.25.1",
+    "ffmpeg-python<1.0.0,>=0.2.0",
+    "pedalboard<1.0.0,>=0.9.0",
+    "pyloudnorm<1.0.0,>=0.1.1",
+    "webrtcvad-wheels<3.0.0,>=2.0.11",
+    "pywavelets<2.0.0,>=1.4.1",
+    "redis<7.0.0,>=6.4.0",
+    "prometheus-client<1.0.0,>=0.18.0",
+    "structlog<24.0.0,>=23.1.0",
+    "werkzeug<3.0.0,>=2.3.7",
+    "aiofiles<25.0.0,>=24.1.0",
+    "asyncpg<1.0.0,>=0.30.0",
+    "openvino-genai<2026.0.0.0,>=2025.3.0.0",
+    "transformers<5.0.0,>=4.57.1",
+    "python-socketio[client]<6.0.0,>=5.14.2",
+    "docker<8.0.0,>=7.1.0",
+    "pillow<13.0.0,>=12.0.0",
+    "opencv-python<5.0.0.0,>=4.12.0.88",
+]
+name = "livetranslate-orchestration-service"
+version = "1.0.0"
+description = "LiveTranslate Orchestration Service - Backend API & Service Coordination"
+readme = "README.md"
+
+[project.scripts]
+start-backend = "src.orchestration_service:main"
+start-fastapi = "backend.main:main"
+run-tests = "pytest:main"

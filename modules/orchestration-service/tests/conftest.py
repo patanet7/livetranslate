@@ -601,6 +601,101 @@ def reset_dependency_singletons():
             pass
 
 
+# =============================================================================
+# FASTAPI TEST CLIENT FIXTURES - With proper dependency initialization
+# =============================================================================
+
+
+@pytest.fixture(scope="function")
+def initialized_app():
+    """
+    Create FastAPI app with dependencies initialized.
+
+    The TestClient does NOT run the lifespan context manager by default.
+    This fixture manually calls startup_dependencies() to initialize
+    all singletons (DatabaseManager, etc.) before tests run.
+
+    IMPORTANT: There are TWO database manager systems in this codebase:
+    1. src/dependencies.py - get_database_manager() with @lru_cache
+    2. src/database/database.py - global database_manager requiring initialize_database()
+
+    Both must be initialized for the app to work properly.
+
+    This ensures:
+    - Database manager is initialized
+    - All service clients are ready
+    - Validation errors return 422 (not 500 from middleware)
+    - Not found errors return 404 properly
+    """
+    if app is None:
+        pytest.skip("FastAPI app not available")
+
+    # Import startup/shutdown functions
+    try:
+        from src.dependencies import startup_dependencies, shutdown_dependencies
+    except ImportError:
+        from dependencies import startup_dependencies, shutdown_dependencies
+
+    # Import database initialization (for the global database_manager in database/database.py)
+    try:
+        from src.database.database import initialize_database
+        from src.config import DatabaseSettings
+    except ImportError:
+        from database.database import initialize_database
+        from config import DatabaseSettings
+
+    # Run startup in a new event loop
+    loop = asyncio.new_event_loop()
+    try:
+        # Initialize the global database_manager in database/database.py
+        # This is required by get_db_session() which routers use
+        database_url = os.environ.get(
+            "DATABASE_URL",
+            "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+        )
+        db_settings = DatabaseSettings(url=database_url)
+        initialize_database(db_settings)
+        logger.info("Database module initialized")
+
+        # Initialize all other dependencies (config manager, service clients, etc.)
+        loop.run_until_complete(startup_dependencies())
+        logger.info("Dependencies initialized for test")
+    except Exception as e:
+        logger.warning(f"Failed to initialize dependencies: {e}")
+        import traceback
+        traceback.print_exc()
+        # Continue anyway - some tests may still work
+
+    yield app
+
+    # Cleanup: shutdown dependencies
+    try:
+        loop.run_until_complete(shutdown_dependencies())
+    except Exception as e:
+        logger.warning(f"Error during dependency shutdown: {e}")
+    finally:
+        loop.close()
+
+
+@pytest.fixture(scope="function")
+def client(initialized_app):
+    """
+    Create TestClient with properly initialized dependencies.
+
+    This is the main fixture for integration tests. It ensures:
+    - All dependencies (DatabaseManager, etc.) are initialized
+    - FastAPI validation works correctly (422 for validation errors)
+    - HTTP errors return proper status codes (404 for not found)
+
+    Usage:
+        def test_something(client):
+            response = client.get("/api/endpoint")
+            assert response.status_code == 200
+    """
+    with TestClient(initialized_app) as test_client:
+        yield test_client
+
+
 # Session-level fixtures for resource management
 @pytest.fixture(scope="session", autouse=True)
 def session_setup_teardown():

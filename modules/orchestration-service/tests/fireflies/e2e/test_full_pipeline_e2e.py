@@ -230,9 +230,13 @@ def event_loop():
     loop.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 async def mock_server():
-    """Start Fireflies mock server for the test module."""
+    """Start Fireflies mock server for the test.
+
+    Note: Using function scope (not module) to avoid event loop issues
+    with pytest-asyncio. Each test gets a fresh server instance.
+    """
     server = FirefliesMockServer(
         host=MOCK_SERVER_HOST,
         port=MOCK_SERVER_PORT,
@@ -293,7 +297,8 @@ class TestFirefliesPipelineE2E:
 
     async def test_mock_server_healthy(self, mock_server):
         """Verify mock server is running."""
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(f"http://{MOCK_SERVER_HOST}:{MOCK_SERVER_PORT}/health") as resp:
                 assert resp.status == 200
                 data = await resp.json()

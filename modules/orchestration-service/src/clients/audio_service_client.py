@@ -11,6 +11,7 @@ import json
 import ssl
 import mimetypes
 import os
+import sys
 from typing import Dict, Any, Optional, List, AsyncGenerator, Tuple
 from pathlib import Path
 import aiohttp
@@ -31,6 +32,24 @@ from utils.audio_errors import (
 from internal_services.audio import (
     get_unified_audio_service,
     UnifiedAudioError,
+)
+
+# Add shared module to path for model registry (append to avoid conflicts)
+_SHARED_PATH = Path(__file__).parent.parent.parent.parent / "shared" / "src"
+if str(_SHARED_PATH) not in sys.path:
+    sys.path.append(str(_SHARED_PATH))
+
+try:
+    from model_registry import ModelRegistry
+    _MODEL_REGISTRY_AVAILABLE = True
+except ImportError:
+    _MODEL_REGISTRY_AVAILABLE = False
+
+# Default whisper model from registry or fallback
+_DEFAULT_WHISPER_MODEL = (
+    ModelRegistry.DEFAULT_WHISPER_MODEL
+    if _MODEL_REGISTRY_AVAILABLE
+    else "whisper-base"
 )
 
 logger = logging.getLogger(__name__)
@@ -137,7 +156,7 @@ class TranscriptionRequest(BaseModel):
     task: str = "transcribe"  # transcribe or translate
     enable_diarization: bool = True
     enable_vad: bool = True
-    model: str = "whisper-tiny"
+    model: str = _DEFAULT_WHISPER_MODEL
 
 
 class TranscriptionResponse(BaseModel):

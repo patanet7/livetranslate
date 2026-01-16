@@ -13,9 +13,21 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Add shared module to path for model registry (append to avoid conflicts)
+_SHARED_PATH = Path(__file__).parent.parent.parent.parent.parent / "shared" / "src"
+if str(_SHARED_PATH) not in sys.path:
+    sys.path.append(str(_SHARED_PATH))
+
+try:
+    from model_registry import ModelRegistry
+    _MODEL_REGISTRY_AVAILABLE = True
+except ImportError:
+    _MODEL_REGISTRY_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +54,12 @@ class UnifiedAudioService:
     """Facade around whisper-service that exposes a thin async API."""
 
     DEFAULT_SAMPLE_RATE = 16000
-    DEFAULT_MODEL = "whisper-tiny"
+    # Use model registry if available, fallback to hardcoded default
+    DEFAULT_MODEL = (
+        ModelRegistry.DEFAULT_WHISPER_MODEL
+        if _MODEL_REGISTRY_AVAILABLE
+        else "whisper-base"
+    )
 
     def __init__(self) -> None:
         self._service: Optional[_WhisperService] = None

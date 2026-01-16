@@ -324,24 +324,63 @@ class ConfigManager:
     def _load_from_env(self, config: OrchestrationConfig) -> OrchestrationConfig:
         """Load configuration from environment variables"""
         # Main orchestration settings
-        config.host = os.getenv("ORCHESTRATION_HOST", config.host)
-        config.port = int(os.getenv("ORCHESTRATION_PORT", config.port))
+        config.host = os.getenv("HOST", os.getenv("ORCHESTRATION_HOST", config.host))
+        config.port = int(os.getenv("PORT", os.getenv("ORCHESTRATION_PORT", config.port)))
         config.workers = int(os.getenv("ORCHESTRATION_WORKERS", config.workers))
         config.debug = (
-            os.getenv("ORCHESTRATION_DEBUG", str(config.debug)).lower() == "true"
+            os.getenv("DEBUG", os.getenv("ORCHESTRATION_DEBUG", str(config.debug))).lower() == "true"
         )
-        config.log_level = os.getenv("ORCHESTRATION_LOG_LEVEL", config.log_level)
+        config.log_level = os.getenv("LOG_LEVEL", os.getenv("ORCHESTRATION_LOG_LEVEL", config.log_level))
 
-        # Database settings
-        config.database.host = os.getenv("DATABASE_HOST", config.database.host)
-        config.database.port = int(os.getenv("DATABASE_PORT", config.database.port))
-        config.database.database = os.getenv("DATABASE_NAME", config.database.database)
+        # Database settings - support both POSTGRES_* and DATABASE_* prefixes
+        # Also support DATABASE_URL for full connection string parsing
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            # Parse DATABASE_URL: postgresql://user:password@host:port/database
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(database_url)
+                if parsed.hostname:
+                    config.database.host = parsed.hostname
+                if parsed.port:
+                    config.database.port = parsed.port
+                if parsed.path and parsed.path.startswith('/'):
+                    config.database.database = parsed.path[1:]  # Remove leading slash
+                if parsed.username:
+                    config.database.username = parsed.username
+                if parsed.password:
+                    config.database.password = parsed.password
+                logger.info(f"Loaded database config from DATABASE_URL: {config.database.host}:{config.database.port}/{config.database.database} (user: {config.database.username})")
+            except Exception as e:
+                logger.warning(f"Failed to parse DATABASE_URL: {e}, falling back to individual vars")
+
+        # Individual vars override DATABASE_URL (POSTGRES_* takes priority, then DATABASE_*)
+        config.database.host = os.getenv(
+            "POSTGRES_HOST", os.getenv("DATABASE_HOST", config.database.host)
+        )
+        config.database.port = int(os.getenv(
+            "POSTGRES_PORT", os.getenv("DATABASE_PORT", str(config.database.port))
+        ))
+        config.database.database = os.getenv(
+            "POSTGRES_DB", os.getenv("DATABASE_NAME", config.database.database)
+        )
         config.database.username = os.getenv(
-            "DATABASE_USERNAME", config.database.username
+            "POSTGRES_USER", os.getenv("DATABASE_USERNAME", config.database.username)
         )
         config.database.password = os.getenv(
-            "DATABASE_PASSWORD", config.database.password
+            "POSTGRES_PASSWORD", os.getenv("DATABASE_PASSWORD", config.database.password)
         )
+
+        # Pool settings from environment
+        config.database.pool_size = int(os.getenv(
+            "DATABASE_POOL_SIZE", str(config.database.pool_size)
+        ))
+        config.database.max_overflow = int(os.getenv(
+            "DATABASE_MAX_OVERFLOW", str(config.database.max_overflow)
+        ))
+        config.database.pool_timeout = int(os.getenv(
+            "DATABASE_POOL_TIMEOUT", str(config.database.pool_timeout)
+        ))
 
         # Service URLs
         if os.getenv("AUDIO_SERVICE_URL"):

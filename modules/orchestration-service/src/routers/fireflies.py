@@ -519,10 +519,8 @@ async def get_session(
     session = manager.get_session(session_id)
 
     if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session not found: {session_id}",
-        )
+        from errors import NotFoundError
+        raise NotFoundError("Session", session_id)
 
     return SessionResponse(
         session_id=session.session_id,
