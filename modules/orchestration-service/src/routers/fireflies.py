@@ -754,3 +754,90 @@ async def get_transcript_detail(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get transcript: {str(e)}",
         )
+
+
+# =============================================================================
+# Dashboard Configuration
+# =============================================================================
+# NOTE: This endpoint proxies to the centralized /api/system/ui-config endpoint.
+# All configuration is centralized in config/system_constants.py.
+# DO NOT add duplicate definitions here.
+
+
+@router.get(
+    "/dashboard/config",
+    summary="Get dashboard configuration",
+    description="Returns centralized configuration for dashboards. Proxies to /api/system/ui-config.",
+)
+async def get_dashboard_config():
+    """
+    Get centralized dashboard configuration.
+
+    This endpoint proxies to the system-wide UI config endpoint.
+    All dashboards should use this for consistent configuration.
+
+    Returns:
+    - Supported languages with codes and display names
+    - Glossary domain options
+    - Default values
+    - Available translation models (if service is available)
+    - Prompt templates (if available)
+    """
+    # Import from centralized system constants
+    from config.system_constants import (
+        SUPPORTED_LANGUAGES,
+        GLOSSARY_DOMAINS,
+        DEFAULT_CONFIG,
+        PROMPT_TEMPLATE_VARIABLES,
+    )
+
+    config = {
+        "languages": SUPPORTED_LANGUAGES,
+        "language_codes": [lang["code"] for lang in SUPPORTED_LANGUAGES],
+        "domains": GLOSSARY_DOMAINS,
+        "defaults": DEFAULT_CONFIG,
+        "prompt_variables": PROMPT_TEMPLATE_VARIABLES,
+    }
+
+    # Fetch available models from translation service (NO FALLBACK)
+    try:
+        from clients.translation_service_client import TranslationServiceClient
+
+        client = TranslationServiceClient()
+        models = await client.get_models()
+        config["translation_models"] = models
+        config["translation_service_available"] = True
+    except Exception as e:
+        logger.warning(f"Translation service unavailable: {e}")
+        config["translation_models"] = []
+        config["translation_service_available"] = False
+        config["translation_service_error"] = str(e)
+
+    # Fetch prompts from translation service (NO FALLBACK)
+    try:
+        import aiohttp
+        from config import get_settings
+
+        settings = get_settings()
+        translation_url = getattr(settings, 'translation_service_url', 'http://localhost:5003')
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{translation_url}/prompts",
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    prompts_data = await resp.json()
+                    config["prompt_templates"] = prompts_data.get("prompts", [])
+                    config["prompts_available"] = True
+                else:
+                    config["prompt_templates"] = []
+                    config["prompts_available"] = False
+                    config["prompts_error"] = f"HTTP {resp.status}"
+    except Exception as e:
+        logger.warning(f"Could not fetch prompts: {e}")
+        config["prompt_templates"] = []
+        config["prompts_available"] = False
+        config["prompts_error"] = str(e)
+
+    return config

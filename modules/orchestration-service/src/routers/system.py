@@ -349,6 +349,79 @@ async def get_performance_metrics(
 # ============================================================================
 
 
+@router.get("/ui-config")
+async def get_ui_config():
+    """
+    Get UI configuration constants.
+
+    Returns centralized configuration for all UI components including:
+    - Supported languages (with codes, names, native names)
+    - Glossary domains
+    - Default settings
+    - Prompt template variables
+
+    This is the SINGLE SOURCE OF TRUTH for UI configuration.
+    All dashboards and UIs should fetch from this endpoint.
+    """
+    from config.system_constants import (
+        SUPPORTED_LANGUAGES,
+        GLOSSARY_DOMAINS,
+        DEFAULT_CONFIG,
+        PROMPT_TEMPLATE_VARIABLES,
+    )
+
+    # Fetch translation models from translation service (if available)
+    translation_models = []
+    translation_service_available = False
+    try:
+        from clients.translation_service_client import TranslationServiceClient
+        client = TranslationServiceClient()
+        translation_models = await client.get_models()
+        translation_service_available = True
+    except Exception as e:
+        logger.warning(f"Translation service unavailable for model list: {e}")
+
+    # Fetch prompts from translation service (if available)
+    prompt_templates = []
+    prompts_available = False
+    try:
+        import aiohttp
+        from config import get_settings
+        settings = get_settings()
+        translation_url = getattr(settings, 'translation_service_url', 'http://localhost:5003')
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{translation_url}/prompts",
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status == 200:
+                    prompts_data = await resp.json()
+                    prompt_templates = prompts_data.get("prompts", [])
+                    prompts_available = True
+    except Exception as e:
+        logger.debug(f"Could not fetch prompts: {e}")
+
+    return {
+        # Core configuration
+        "languages": SUPPORTED_LANGUAGES,
+        "language_codes": [lang["code"] for lang in SUPPORTED_LANGUAGES],
+        "domains": GLOSSARY_DOMAINS,
+        "defaults": DEFAULT_CONFIG,
+        "prompt_variables": PROMPT_TEMPLATE_VARIABLES,
+
+        # Dynamic configuration (from services)
+        "translation_models": translation_models,
+        "translation_service_available": translation_service_available,
+        "prompt_templates": prompt_templates,
+        "prompts_available": prompts_available,
+
+        # Metadata
+        "config_version": "1.0",
+        "source": "orchestration-service",
+    }
+
+
 @router.get("/config", response_model=Dict[str, Any])
 async def get_system_config(
     health_monitor=Depends(get_health_monitor),

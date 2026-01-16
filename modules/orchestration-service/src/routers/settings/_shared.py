@@ -196,6 +196,36 @@ class SettingsBackupResponse(BaseModel):
 
 
 # ============================================================================
+# Configuration Helpers (use centralized constants)
+# ============================================================================
+
+
+def _get_language_config() -> Dict[str, Any]:
+    """Get language configuration from centralized system constants."""
+    try:
+        from config.system_constants import (
+            VALID_LANGUAGE_CODES,
+            DEFAULT_CONFIG,
+        )
+        return {
+            "auto_detect": DEFAULT_CONFIG.get("auto_detect_language", True),
+            "default_source_language": DEFAULT_CONFIG.get("default_source_language", "en"),
+            "target_languages": DEFAULT_CONFIG.get("default_target_languages", ["es", "fr", "de"]),
+            "supported_languages": VALID_LANGUAGE_CODES,
+            "confidence_threshold": DEFAULT_CONFIG.get("confidence_threshold", 0.8),
+        }
+    except ImportError:
+        logger.warning("Could not import system_constants for language config")
+        return {
+            "auto_detect": True,
+            "default_source_language": "en",
+            "target_languages": ["es", "fr", "de"],
+            "supported_languages": ["en", "es", "fr", "de"],
+            "confidence_threshold": 0.8,
+        }
+
+
+# ============================================================================
 # Enhanced Configuration Models
 # ============================================================================
 
@@ -325,32 +355,11 @@ class TranslationConfig(BaseModel):
         "timeout_ms": 30000,
         "max_retries": 3,
     }
-    languages: Dict[str, Any] = {
-        "auto_detect": True,
-        "default_source_language": "en",
-        "target_languages": ["es", "fr", "de"],
-        "supported_languages": [
-            "en",
-            "es",
-            "fr",
-            "de",
-            "it",
-            "pt",
-            "ru",
-            "ja",
-            "ko",
-            "zh",
-            "ar",
-            "hi",
-            "tr",
-            "pl",
-            "nl",
-            "sv",
-            "da",
-            "no",
-        ],
-        "confidence_threshold": 0.8,
-    }
+    # Languages configuration - imports from centralized system constants
+    # See: config/system_constants.py for the single source of truth
+    languages: Dict[str, Any] = Field(
+        default_factory=lambda: _get_language_config()
+    )
     quality: Dict[str, Any] = {
         "quality_threshold": 0.7,
         "confidence_scoring": True,
