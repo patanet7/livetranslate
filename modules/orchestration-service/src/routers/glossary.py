@@ -33,18 +33,18 @@ router = APIRouter(prefix="/glossaries", tags=["glossaries"])
 # =============================================================================
 
 
-def get_db_session(
+async def get_db_session(
     db_manager: DatabaseManager = Depends(get_database_manager),
-) -> DBSession:
+):
     """Get database session for request scope."""
-    session = db_manager.get_session()
+    session = await db_manager.get_session_direct()
     try:
         yield session
     finally:
-        session.close()
+        await session.close()
 
 
-def get_glossary_service(
+async def get_glossary_service(
     db: DBSession = Depends(get_db_session),
 ) -> GlossaryService:
     """Get GlossaryService instance with database session."""
