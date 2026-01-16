@@ -21,7 +21,8 @@ LiveTranslate is a real-time speech-to-text transcription and translation system
 - 16-week MLOps implementation roadmap included
 
 ## Service Architecture
-# NEVER USE MOCK DATA!!!! ALWAYS COMPREHENSIVE AND INTEGRATED!!! 
+# NEVER USE MOCK DATA!!!! ALWAYS COMPREHENSIVE AND INTEGRATED!!!
+# ALWAYS USE PDM FOR DEPENDENCY MANAGEMENT - NOT PIP!
 ### 4 Core Services
 
 1. **Whisper Service** (`modules/whisper-service/`) - **[NPU OPTIMIZED]** ✅

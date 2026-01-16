@@ -56,6 +56,17 @@ class DatabaseSettings(BaseSettings):
 
     model_config = ConfigDict(env_prefix="DATABASE_")
 
+    @property
+    def async_url(self) -> str:
+        """Get async database URL (postgresql+asyncpg://) for SQLAlchemy async"""
+        url = self.url
+        # Convert postgresql:// to postgresql+asyncpg://
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url
+
 
 class RedisSettings(BaseSettings):
     """Redis configuration"""

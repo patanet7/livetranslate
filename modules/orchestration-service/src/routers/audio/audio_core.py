@@ -11,10 +11,23 @@ Main audio processing endpoints including:
 """
 
 import json
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, Any, Optional
 
 from fastapi import Depends, UploadFile, File, Form, HTTPException, status
+
+# Add shared module to path for model registry (append to avoid conflicts)
+_SHARED_PATH = Path(__file__).parent.parent.parent.parent.parent / "shared" / "src"
+if str(_SHARED_PATH) not in sys.path:
+    sys.path.append(str(_SHARED_PATH))
+
+try:
+    from model_registry import ModelRegistry
+    _DEFAULT_WHISPER_MODEL = ModelRegistry.DEFAULT_WHISPER_MODEL
+except ImportError:
+    _DEFAULT_WHISPER_MODEL = "whisper-base"
 
 from ._shared import (
     create_audio_router,
@@ -283,7 +296,7 @@ async def upload_audio_file(
     enable_transcription: Optional[str] = Form("true"),
     enable_translation: Optional[str] = Form("false"),
     enable_diarization: Optional[str] = Form("true"),
-    whisper_model: Optional[str] = Form("whisper-tiny"),
+    whisper_model: Optional[str] = Form(_DEFAULT_WHISPER_MODEL),
     translation_quality: Optional[str] = Form("balanced"),
     audio_processing: Optional[str] = Form("true"),
     noise_reduction: Optional[str] = Form("false"),
@@ -304,7 +317,7 @@ async def upload_audio_file(
     - **enable_transcription**: Enable transcription (default: true)
     - **enable_translation**: Enable translation (default: false)
     - **enable_diarization**: Enable speaker diarization (default: true)
-    - **whisper_model**: Whisper model to use (default: whisper-tiny)
+    - **whisper_model**: Whisper model to use (default: whisper-base)
     - **translation_quality**: Translation quality setting (default: balanced)
     """
     correlation_id = f"upload_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"

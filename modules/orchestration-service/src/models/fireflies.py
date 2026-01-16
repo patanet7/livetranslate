@@ -194,6 +194,12 @@ class FirefliesSessionConfig(BaseModel):
         default_factory=lambda: ["es"], description="Target languages for translation"
     )
 
+    # Translation model/service to use
+    translation_model: Optional[str] = Field(
+        default=None,
+        description="Translation model/service to use (ollama, groq, etc.)",
+    )
+
     # Sentence aggregation settings
     pause_threshold_ms: float = Field(
         default=800.0,

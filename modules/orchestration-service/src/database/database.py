@@ -9,7 +9,7 @@ from typing import AsyncGenerator, Optional
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy import event
+from sqlalchemy import event, text
 
 from config import DatabaseSettings as DatabaseConfig
 from .models import Base
@@ -31,9 +31,18 @@ class DatabaseManager:
         if self._initialized:
             return
 
-        # Create async engine
+        # Create async engine - use async_url for proper SQLAlchemy async format
+        db_url = getattr(self.config, 'async_url', self.config.url)
+        # Ensure we have the async driver prefix
+        if db_url.startswith("postgresql://"):
+            db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+
+        logger.info(f"Connecting to database: {db_url.split('@')[1] if '@' in db_url else db_url}")
+
         self.engine = create_async_engine(
-            self.config.url,
+            db_url,
             echo=self.config.echo,
             pool_size=self.config.pool_size,
             max_overflow=self.config.max_overflow,
@@ -123,7 +132,7 @@ class DatabaseManager:
         """Check database health"""
         try:
             async with self.get_session() as session:
-                result = await session.execute("SELECT 1")
+                result = await session.execute(text("SELECT 1"))
                 return result.scalar() == 1
         except Exception as e:
             logger.error(f"Database health check failed: {e}")

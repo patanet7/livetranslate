@@ -6,6 +6,10 @@ Modern async/await backend with enhanced API endpoints, automatic documentation,
 and improved performance over the legacy Flask implementation.
 """
 
+# CRITICAL: Load .env file FIRST before any other imports
+from dotenv import load_dotenv
+load_dotenv()
+
 import logging
 import json
 import time
@@ -198,6 +202,18 @@ try:
         else 0,
     }
 
+    # Import fireflies_router
+    import_logger.debug("Importing fireflies_router...")
+    from routers.fireflies import router as fireflies_router
+
+    import_logger.info("[OK] fireflies_router imported successfully")
+    routers_status["fireflies_router"] = {
+        "status": "success",
+        "routes": len(fireflies_router.routes)
+        if hasattr(fireflies_router, "routes")
+        else 0,
+    }
+
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(
@@ -354,6 +370,11 @@ app = FastAPI(
     lifespan=lifespan,
     default_response_class=DateTimeJSONResponse,  # Use our custom JSON response class
 )
+
+# Register centralized exception handlers for consistent error responses
+from errors import register_exception_handlers
+register_exception_handlers(app)
+startup_logger.info("[OK] Registered centralized exception handlers")
 
 # Middleware setup
 app.add_middleware(
@@ -584,6 +605,16 @@ conflicts = check_route_conflicts(
 app.include_router(captions_router, prefix="/api", tags=["Captions"])
 registered_routes.append(("/api/captions", "captions_router"))
 router_logger.info(" captions_router registered successfully")
+
+# Register fireflies_router (Fireflies.ai integration)
+router_logger.info("[15] Registering fireflies_router...")
+log_router_details("fireflies_router", fireflies_router, "/fireflies")
+conflicts = check_route_conflicts(
+    "/fireflies", "fireflies_router", registered_routes
+)
+app.include_router(fireflies_router, tags=["Fireflies"])
+registered_routes.append(("/fireflies", "fireflies_router"))
+router_logger.info(" fireflies_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
