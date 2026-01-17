@@ -24,6 +24,7 @@ from clients.fireflies_client import (
     FirefliesAuthError,
     DEFAULT_GRAPHQL_ENDPOINT,
     DEFAULT_WEBSOCKET_ENDPOINT,
+    DEFAULT_WEBSOCKET_PATH,
     MAX_RECONNECTION_ATTEMPTS,
     ACTIVE_MEETINGS_QUERY,
 )
@@ -39,7 +40,10 @@ class TestClientConstants:
     def test_default_endpoints(self):
         """Test default endpoint URLs."""
         assert DEFAULT_GRAPHQL_ENDPOINT == "https://api.fireflies.ai/graphql"
-        assert DEFAULT_WEBSOCKET_ENDPOINT == "wss://api.fireflies.ai/realtime"
+        # Socket.IO endpoint (without path - path is separate)
+        assert DEFAULT_WEBSOCKET_ENDPOINT == "wss://api.fireflies.ai"
+        # Socket.IO path
+        assert DEFAULT_WEBSOCKET_PATH == "/ws/realtime"
 
     def test_reconnection_settings(self):
         """Test reconnection constants."""
@@ -120,32 +124,45 @@ class TestFirefliesRealtimeClient:
         assert client.max_reconnect_attempts == 10
 
     @pytest.mark.asyncio
-    async def test_handle_auth_success_message(self):
-        """Test handling auth.success message."""
+    async def test_status_transitions(self):
+        """Test status transitions via _set_status method."""
         client = FirefliesRealtimeClient(api_key="key", transcript_id="t1")
 
-        message = json.dumps({"type": "auth.success"})
-        await client._handle_message(message)
+        # Test initial state
+        assert client._status == FirefliesConnectionStatus.DISCONNECTED
 
+        # Test status change
+        await client._set_status(FirefliesConnectionStatus.CONNECTED, "Authenticated")
         assert client._status == FirefliesConnectionStatus.CONNECTED
-        assert client._reconnect_attempts == 0
 
-    @pytest.mark.asyncio
-    async def test_handle_auth_failed_message(self):
-        """Test handling auth.failed message."""
-        client = FirefliesRealtimeClient(api_key="key", transcript_id="t1")
-        client._running = True
-
-        message = json.dumps({"type": "auth.failed"})
-        await client._handle_message(message)
-
+        # Test error status
+        await client._set_status(FirefliesConnectionStatus.ERROR, "Auth failed")
         assert client._status == FirefliesConnectionStatus.ERROR
-        assert client._running is False
-        assert client.auto_reconnect is False
 
     @pytest.mark.asyncio
-    async def test_handle_transcript_message(self):
-        """Test handling transcription.broadcast message."""
+    async def test_status_callback_invoked(self):
+        """Test that status callback is invoked on status change."""
+        status_changes = []
+
+        async def on_status(status, message):
+            status_changes.append((status, message))
+
+        client = FirefliesRealtimeClient(
+            api_key="key",
+            transcript_id="t1",
+            on_status_change=on_status,
+        )
+
+        await client._set_status(FirefliesConnectionStatus.CONNECTING, "Starting")
+        await client._set_status(FirefliesConnectionStatus.CONNECTED, "Ready")
+
+        assert len(status_changes) == 2
+        assert status_changes[0][0] == FirefliesConnectionStatus.CONNECTING
+        assert status_changes[1][0] == FirefliesConnectionStatus.CONNECTED
+
+    @pytest.mark.asyncio
+    async def test_handle_transcript_via_direct_method(self):
+        """Test handling transcript data via _handle_transcript method."""
         received_chunks = []
 
         async def on_transcript(chunk):
@@ -157,33 +174,31 @@ class TestFirefliesRealtimeClient:
             on_transcript=on_transcript,
         )
 
-        message = json.dumps(
+        # Call _handle_transcript directly (simulating Socket.IO event)
+        await client._handle_transcript(
             {
-                "type": "transcription.broadcast",
-                "data": {
-                    "transcript_id": "t1",
-                    "chunk_id": "c1",
-                    "text": "Hello world",
-                    "speaker_name": "Alice",
-                    "start_time": 0.0,
-                    "end_time": 1.5,
-                },
+                "transcript_id": "t1",
+                "chunk_id": "c1",
+                "text": "Hello world",
+                "speaker_name": "Alice",
+                "start_time": 0.0,
+                "end_time": 1.5,
             }
         )
-
-        await client._handle_message(message)
 
         assert len(received_chunks) == 1
         assert received_chunks[0].text == "Hello world"
         assert received_chunks[0].speaker_name == "Alice"
 
     @pytest.mark.asyncio
-    async def test_handle_invalid_json(self):
-        """Test handling invalid JSON gracefully."""
+    async def test_handle_invalid_transcript_data(self):
+        """Test handling invalid transcript data gracefully."""
         client = FirefliesRealtimeClient(api_key="key", transcript_id="t1")
 
-        # Should not raise
-        await client._handle_message("not valid json {{{")
+        # Should not raise with invalid data types
+        await client._handle_transcript("not a dict")
+        await client._handle_transcript(None)
+        await client._handle_transcript(123)
 
     @pytest.mark.asyncio
     async def test_handle_transcript_creates_chunk(self):
