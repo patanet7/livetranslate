@@ -206,6 +206,125 @@ def get_pipeline():
 # ============================================================================
 
 
+class SessionSummary(BaseModel):
+    """Summary information for a transcript session."""
+
+    session_id: str
+    source_type: str
+    title: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    transcript_count: int = 0
+    translation_count: int = 0
+    speaker_count: int = 0
+    total_duration: float = 0.0
+    languages: List[str] = []
+    metadata: Dict[str, Any] = {}
+
+
+class SessionsListResponse(BaseModel):
+    """Response containing list of sessions."""
+
+    total: int
+    sessions: List[SessionSummary]
+
+
+@router.get(
+    "/sessions",
+    response_model=SessionsListResponse,
+    summary="List all transcript sessions",
+    description="Retrieve a list of all transcript sessions from the database with optional filtering",
+)
+async def list_sessions(
+    source_type: Optional[str] = Query(
+        None, description="Filter by source type (fireflies, audio_upload, google_meet)"
+    ),
+    limit: int = Query(50, description="Maximum sessions to return", ge=1, le=500),
+    offset: int = Query(0, description="Offset for pagination", ge=0),
+    pipeline=Depends(get_pipeline),
+):
+    """
+    List all transcript sessions from database.
+
+    Returns a list of session summaries with:
+    - Session ID and source type
+    - Transcript and translation counts
+    - Speaker counts
+    - Total duration
+    - Languages used
+
+    Supports filtering by source type and pagination.
+    """
+    try:
+        # Ensure database is initialized
+        if not pipeline.db_manager.db_pool:
+            await pipeline.db_manager.initialize()
+
+        # Query for unique sessions with aggregated stats
+        # This uses the transcript table to get distinct sessions
+        query = """
+            SELECT
+                t.session_id,
+                t.source_type,
+                MIN(t.created_at) as created_at,
+                MAX(t.created_at) as updated_at,
+                COUNT(DISTINCT t.transcript_id) as transcript_count,
+                COUNT(DISTINCT tr.translation_id) as translation_count,
+                COUNT(DISTINCT t.speaker_id) FILTER (WHERE t.speaker_id IS NOT NULL) as speaker_count,
+                COALESCE(SUM(t.end_timestamp - t.start_timestamp), 0) as total_duration,
+                ARRAY_AGG(DISTINCT t.language_code) FILTER (WHERE t.language_code IS NOT NULL) as languages,
+                MAX(t.processing_metadata) as metadata
+            FROM transcripts t
+            LEFT JOIN translations tr ON t.session_id = tr.session_id
+            WHERE ($1::text IS NULL OR t.source_type = $1)
+            GROUP BY t.session_id, t.source_type
+            ORDER BY MAX(t.created_at) DESC
+            LIMIT $2 OFFSET $3
+        """
+
+        async with pipeline.db_manager.db_pool.acquire() as conn:
+            rows = await conn.fetch(query, source_type, limit, offset)
+
+            # Get total count for pagination
+            count_query = """
+                SELECT COUNT(DISTINCT session_id) as total
+                FROM transcripts
+                WHERE ($1::text IS NULL OR source_type = $1)
+            """
+            count_row = await conn.fetchrow(count_query, source_type)
+            total = count_row["total"] if count_row else 0
+
+        # Convert to response models
+        sessions = []
+        for row in rows:
+            # Extract title from metadata if available
+            metadata = row["metadata"] if isinstance(row["metadata"], dict) else {}
+            title = metadata.get("title") or metadata.get("source_metadata", {}).get("title")
+
+            sessions.append(
+                SessionSummary(
+                    session_id=row["session_id"],
+                    source_type=row["source_type"],
+                    title=title,
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                    transcript_count=row["transcript_count"],
+                    translation_count=row["translation_count"],
+                    speaker_count=row["speaker_count"],
+                    total_duration=float(row["total_duration"]) if row["total_duration"] else 0.0,
+                    languages=row["languages"] or [],
+                    metadata=metadata,
+                )
+            )
+
+        logger.info(f"Retrieved {len(sessions)} sessions (total: {total})")
+        return SessionsListResponse(total=total, sessions=sessions)
+
+    except Exception as e:
+        logger.error(f"Error listing sessions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/sessions/{session_id}/transcripts",
     response_model=List[TranscriptResponse],

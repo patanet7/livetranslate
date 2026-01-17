@@ -10,6 +10,7 @@ from .base import ChunkAdapter, TranscriptChunk
 from .fireflies_adapter import FirefliesChunkAdapter
 from .google_meet_adapter import GoogleMeetChunkAdapter
 from .import_adapter import ImportChunkAdapter
+from .audio_adapter import AudioUploadChunkAdapter
 
 __all__ = [
     "ChunkAdapter",
@@ -17,4 +18,5 @@ __all__ = [
     "FirefliesChunkAdapter",
     "GoogleMeetChunkAdapter",
     "ImportChunkAdapter",
+    "AudioUploadChunkAdapter",
 ]

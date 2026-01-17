@@ -10,6 +10,7 @@ Usage:
         PipelineConfig,
         FirefliesChunkAdapter,
         GoogleMeetChunkAdapter,
+        AudioUploadChunkAdapter,
     )
 
     # Create coordinator with appropriate adapter
@@ -28,6 +29,7 @@ from .adapters import (
     FirefliesChunkAdapter,
     GoogleMeetChunkAdapter,
     ImportChunkAdapter,
+    AudioUploadChunkAdapter,
 )
 
 __all__ = [
@@ -42,4 +44,5 @@ __all__ = [
     "FirefliesChunkAdapter",
     "GoogleMeetChunkAdapter",
     "ImportChunkAdapter",
+    "AudioUploadChunkAdapter",
 ]

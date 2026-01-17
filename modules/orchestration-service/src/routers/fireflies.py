@@ -604,7 +604,7 @@ async def get_sessions(
         SessionResponse(
             session_id=s.session_id,
             transcript_id=s.fireflies_transcript_id,
-            connection_status=s.connection_status.value,
+            connection_status=s.connection_status.value if hasattr(s.connection_status, 'value') else str(s.connection_status),
             chunks_received=s.chunks_received,
             sentences_produced=s.sentences_produced,
             translations_completed=s.translations_completed,
@@ -636,7 +636,7 @@ async def get_session(
     return SessionResponse(
         session_id=session.session_id,
         transcript_id=session.fireflies_transcript_id,
-        connection_status=session.connection_status.value,
+        connection_status=session.connection_status.value if hasattr(session.connection_status, 'value') else str(session.connection_status),
         chunks_received=session.chunks_received,
         sentences_produced=session.sentences_produced,
         translations_completed=session.translations_completed,
