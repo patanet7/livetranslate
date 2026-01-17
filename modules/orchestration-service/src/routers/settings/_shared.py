@@ -203,14 +203,14 @@ class SettingsBackupResponse(BaseModel):
 def _get_language_config() -> Dict[str, Any]:
     """Get language configuration from centralized system constants."""
     try:
-        from config.system_constants import (
+        from system_constants import (
             VALID_LANGUAGE_CODES,
             DEFAULT_CONFIG,
         )
         return {
             "auto_detect": DEFAULT_CONFIG.get("auto_detect_language", True),
             "default_source_language": DEFAULT_CONFIG.get("default_source_language", "en"),
-            "target_languages": DEFAULT_CONFIG.get("default_target_languages", ["es", "fr", "de"]),
+            "target_languages": DEFAULT_CONFIG.get("default_target_languages", ["en"]),
             "supported_languages": VALID_LANGUAGE_CODES,
             "confidence_threshold": DEFAULT_CONFIG.get("confidence_threshold", 0.8),
         }
@@ -219,7 +219,7 @@ def _get_language_config() -> Dict[str, Any]:
         return {
             "auto_detect": True,
             "default_source_language": "en",
-            "target_languages": ["es", "fr", "de"],
+            "target_languages": ["en"],
             "supported_languages": ["en", "es", "fr", "de"],
             "confidence_threshold": 0.8,
         }

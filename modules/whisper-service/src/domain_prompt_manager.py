@@ -45,25 +45,30 @@ class DomainPromptManager:
     - Token-aware prompt construction
     """
 
-    def __init__(self, config: Optional[DomainPromptConfig] = None, db_session=None):
+    def __init__(self, config: Optional[DomainPromptConfig] = None, db_session=None, glossary_api_url: Optional[str] = None):
         """
         Initialize domain prompt manager
 
         Args:
             config: Domain prompt configuration
-            db_session: SQLAlchemy database session for terminology lookup
+            db_session: DEPRECATED - no longer used (kept for backwards compatibility)
+            glossary_api_url: URL of orchestration service for glossary API (e.g., "http://localhost:3000")
         """
         self.config = config or DomainPromptConfig()
-        self.db_session = db_session
+        self.db_session = db_session  # Kept for backwards compatibility but not used
 
-        # Built-in domain dictionaries (fallback if DB unavailable)
+        # Glossary API URL for fetching terms from orchestration service
+        import os
+        self._glossary_api_url = glossary_api_url or os.getenv("ORCHESTRATION_SERVICE_URL", "http://localhost:3000")
+
+        # Built-in domain dictionaries (fallback if glossary API unavailable)
         self.builtin_domains = self._load_builtin_domains()
 
         # Scrolling context buffer
         self.context_buffer: List[str] = []
 
         logger.info(f"DomainPromptManager initialized: max_tokens={self.config.max_total_tokens}, "
-                   f"max_context={self.config.max_context_tokens}")
+                   f"max_context={self.config.max_context_tokens}, glossary_api={self._glossary_api_url}")
 
     def _load_builtin_domains(self) -> Dict[str, List[str]]:
         """Load built-in domain dictionaries as fallback"""
@@ -97,7 +102,7 @@ class DomainPromptManager:
 
     def get_domain_terminology(self, domain: str, limit: int = 15) -> List[str]:
         """
-        Get domain-specific terminology from database or built-in dictionary
+        Get domain-specific terminology from external glossary service or built-in dictionary
 
         Args:
             domain: Domain name (e.g., "medical", "legal", "technical")
@@ -106,33 +111,37 @@ class DomainPromptManager:
         Returns:
             List of domain-specific terms
         """
-        # Try database first
-        if self.db_session:
+        # Try to fetch from orchestration service's glossary API
+        if self._glossary_api_url:
             try:
-                from database.domain_models import DomainCategory, DomainTerminology
+                import httpx
 
-                # Query database for domain terminology
-                domain_cat = (
-                    self.db_session.query(DomainCategory)
-                    .filter(DomainCategory.name == domain, DomainCategory.is_active == True)
-                    .first()
+                # Fetch glossary entries for the domain
+                response = httpx.get(
+                    f"{self._glossary_api_url}/api/glossaries",
+                    params={"domain": domain, "limit": limit},
+                    timeout=5.0
                 )
 
-                if domain_cat:
-                    terms = (
-                        self.db_session.query(DomainTerminology)
-                        .filter(DomainTerminology.domain_id == domain_cat.domain_id)
-                        .order_by(DomainTerminology.importance.desc())
-                        .limit(limit)
-                        .all()
-                    )
-
-                    if terms:
-                        logger.info(f"[DOMAIN] Loaded {len(terms)} terms from database for '{domain}'")
-                        return [term.term for term in terms]
-
+                if response.status_code == 200:
+                    glossaries = response.json()
+                    if glossaries:
+                        # Get entries from matching glossary
+                        glossary_id = glossaries[0].get("glossary_id")
+                        if glossary_id:
+                            entries_response = httpx.get(
+                                f"{self._glossary_api_url}/api/glossaries/{glossary_id}/entries",
+                                params={"limit": limit},
+                                timeout=5.0
+                            )
+                            if entries_response.status_code == 200:
+                                entries = entries_response.json()
+                                terms = [e.get("source_term") for e in entries if e.get("source_term")]
+                                if terms:
+                                    logger.info(f"[DOMAIN] Loaded {len(terms)} terms from glossary API for '{domain}'")
+                                    return terms[:limit]
             except Exception as e:
-                logger.warning(f"Failed to load domain terms from database: {e}")
+                logger.debug(f"Failed to load terms from glossary API: {e}")
 
         # Fallback to built-in dictionaries
         if domain in self.builtin_domains:
@@ -333,7 +342,7 @@ class DomainPromptManager:
 
     def get_prompt_template(self, domain: str) -> Optional[str]:
         """
-        Get pre-defined prompt template for domain from database
+        Get pre-defined prompt template for domain from glossary API
 
         Args:
             domain: Domain name
@@ -341,34 +350,43 @@ class DomainPromptManager:
         Returns:
             Prompt template string or None
         """
-        if not self.db_session:
-            return None
+        # Try to fetch from orchestration service's glossary API
+        if self._glossary_api_url:
+            try:
+                import httpx
 
-        try:
-            from database.domain_models import DomainCategory, DomainPrompt
-
-            domain_cat = (
-                self.db_session.query(DomainCategory)
-                .filter(DomainCategory.name == domain, DomainCategory.is_active == True)
-                .first()
-            )
-
-            if domain_cat:
-                prompt = (
-                    self.db_session.query(DomainPrompt)
-                    .filter(
-                        DomainPrompt.domain_id == domain_cat.domain_id,
-                        DomainPrompt.is_default == True
-                    )
-                    .first()
+                # Fetch glossary that has description/notes for the domain
+                response = httpx.get(
+                    f"{self._glossary_api_url}/api/glossaries",
+                    params={"domain": domain},
+                    timeout=5.0
                 )
 
-                if prompt:
-                    logger.info(f"[DOMAIN] Loaded prompt template for '{domain}' from database")
-                    return prompt.template
+                if response.status_code == 200:
+                    glossaries = response.json()
+                    if glossaries and len(glossaries) > 0:
+                        # Use the glossary description as a prompt template if available
+                        glossary = glossaries[0]
+                        description = glossary.get("description")
+                        if description:
+                            logger.info(f"[DOMAIN] Loaded prompt template for '{domain}' from glossary API")
+                            return description
 
-        except Exception as e:
-            logger.warning(f"Failed to load prompt template from database: {e}")
+            except Exception as e:
+                logger.debug(f"Failed to load prompt template from glossary API: {e}")
+
+        # Built-in templates as fallback
+        builtin_templates = {
+            "medical": "Medical transcription with clinical terminology, diagnoses, and treatment discussions.",
+            "legal": "Legal transcription with court proceedings, contracts, and legal terminology.",
+            "technical": "Technical discussion with software, infrastructure, and engineering terms.",
+            "business": "Business meeting with financial, strategic, and organizational discussions.",
+            "education": "Educational content with academic, pedagogical, and research terminology."
+        }
+
+        if domain in builtin_templates:
+            logger.info(f"[DOMAIN] Using built-in template for '{domain}'")
+            return builtin_templates[domain]
 
         return None
 
@@ -380,7 +398,7 @@ class DomainPromptManager:
         processing_time_ms: Optional[int] = None
     ):
         """
-        Log domain prompt usage to database for analytics
+        Log domain prompt usage for analytics
 
         Args:
             domain: Domain name used
@@ -388,36 +406,35 @@ class DomainPromptManager:
             quality_score: Transcription quality (0-100)
             processing_time_ms: Processing time in milliseconds
         """
-        if not self.db_session:
-            return
+        # Log locally for now - orchestration service can collect via API if needed
+        logger.info(
+            f"[DOMAIN_USAGE] domain={domain}, session={session_id}, "
+            f"quality={quality_score}, time_ms={processing_time_ms}"
+        )
 
-        try:
-            from database.domain_models import DomainCategory, DomainUsageLog
-            import uuid
+        # Optionally send to orchestration service for centralized logging
+        if self._glossary_api_url:
+            try:
+                import httpx
 
-            domain_cat = (
-                self.db_session.query(DomainCategory)
-                .filter(DomainCategory.name == domain)
-                .first()
-            )
-
-            if domain_cat:
-                usage_log = DomainUsageLog(
-                    session_id=uuid.UUID(session_id) if session_id else None,
-                    domain_id=domain_cat.domain_id,
-                    model_used="whisper-large-v3",
-                    transcription_quality=quality_score,
-                    processing_time_ms=processing_time_ms
+                response = httpx.post(
+                    f"{self._glossary_api_url}/api/analytics/domain-usage",
+                    json={
+                        "domain": domain,
+                        "session_id": session_id,
+                        "quality_score": quality_score,
+                        "processing_time_ms": processing_time_ms,
+                        "model_used": "whisper-large-v3"
+                    },
+                    timeout=2.0
                 )
 
-                self.db_session.add(usage_log)
-                self.db_session.commit()
+                if response.status_code == 200:
+                    logger.debug(f"[DOMAIN] Logged usage to orchestration service")
 
-                logger.debug(f"[DOMAIN] Logged usage for domain '{domain}'")
-
-        except Exception as e:
-            logger.warning(f"Failed to log domain usage: {e}")
-            self.db_session.rollback()
+            except Exception as e:
+                # Don't fail on analytics logging errors
+                logger.debug(f"Failed to log usage to orchestration service: {e}")
 
 
 # Convenience function

@@ -9,10 +9,12 @@ interface to the TranscriptionPipelineCoordinator.
 from .base import ChunkAdapter, TranscriptChunk
 from .fireflies_adapter import FirefliesChunkAdapter
 from .google_meet_adapter import GoogleMeetChunkAdapter
+from .import_adapter import ImportChunkAdapter
 
 __all__ = [
     "ChunkAdapter",
     "TranscriptChunk",
     "FirefliesChunkAdapter",
     "GoogleMeetChunkAdapter",
+    "ImportChunkAdapter",
 ]

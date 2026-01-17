@@ -40,6 +40,7 @@ from services.pipeline import (
     TranscriptionPipelineCoordinator,
     PipelineConfig,
     FirefliesChunkAdapter,
+    ImportChunkAdapter,
 )
 from services.caption_buffer import CaptionBuffer
 
@@ -263,6 +264,116 @@ class FirefliesSessionManager:
     def get_caption_buffer(self, session_id: str) -> Optional[CaptionBuffer]:
         """Get caption buffer for session"""
         return self._caption_buffers.get(session_id)
+
+    async def create_import_session(
+        self,
+        transcript_id: str,
+        transcript_title: str,
+        target_languages: List[str],
+        glossary_id: Optional[str] = None,
+        domain: Optional[str] = None,
+        db_manager=None,
+        translation_client=None,
+        simple_translation_client=None,
+    ) -> tuple[str, TranscriptionPipelineCoordinator]:
+        """
+        Create a session for importing historical transcripts.
+
+        Uses the same pipeline as live sessions (DRY) but without real-time connection.
+        Sentences are fed through the coordinator manually.
+
+        Args:
+            transcript_id: Original transcript ID (e.g., Fireflies ID)
+            transcript_title: Title for the session
+            target_languages: Languages to translate to
+            glossary_id: Optional glossary for translation
+            domain: Optional domain for glossary filtering
+            db_manager: Database manager for persistence
+            translation_client: Translation service client
+            simple_translation_client: V3 translation client
+
+        Returns:
+            Tuple of (session_id, coordinator) for manual chunk processing
+        """
+        session_id = f"import_{uuid.uuid4().hex[:12]}"
+
+        # Create caption buffer (even for import, for consistency)
+        caption_buffer = CaptionBuffer(
+            max_captions=5,
+            default_duration=4.0,
+        )
+        self._caption_buffers[session_id] = caption_buffer
+
+        # Create pipeline config
+        pipeline_config = PipelineConfig(
+            session_id=session_id,
+            source_type="fireflies_import",
+            transcript_id=transcript_id,
+            target_languages=target_languages,
+            # Import uses relaxed aggregation since sentences are already formed
+            pause_threshold_ms=100,  # Low threshold for import
+            max_words_per_sentence=1000,  # High limit - sentences already segmented
+            max_time_per_sentence_ms=60000,  # 60s - already segmented
+            min_words_for_translation=1,  # Translate everything
+            use_nlp_boundary_detection=False,  # Not needed for import
+            speaker_context_window=3,  # Use context for better translation
+            include_cross_speaker_context=True,
+            glossary_id=glossary_id,
+            domain=domain or "general",
+            source_metadata={
+                "fireflies_transcript_id": transcript_id,
+                "import_type": "fireflies",
+                "title": transcript_title,
+            },
+        )
+
+        # Create coordinator with import adapter
+        coordinator = TranscriptionPipelineCoordinator(
+            config=pipeline_config,
+            adapter=ImportChunkAdapter(source_name="fireflies_import"),
+            translation_client=translation_client,
+            simple_translation_client=simple_translation_client,
+            caption_buffer=caption_buffer,
+            db_manager=db_manager,
+        )
+
+        # Initialize the pipeline
+        await coordinator.initialize()
+        self._coordinators[session_id] = coordinator
+
+        logger.info(f"Import session created: {session_id} for transcript {transcript_id}")
+
+        return session_id, coordinator
+
+    async def finalize_import_session(self, session_id: str) -> Dict[str, Any]:
+        """
+        Finalize an import session after all sentences have been processed.
+
+        Flushes the coordinator and returns final stats.
+
+        Args:
+            session_id: The import session ID
+
+        Returns:
+            Final statistics from the pipeline
+        """
+        coordinator = self._coordinators.get(session_id)
+        if not coordinator:
+            return {"error": f"Session {session_id} not found"}
+
+        # Flush any remaining buffered content
+        await coordinator.flush()
+
+        # Get final stats
+        stats = coordinator.get_stats()
+
+        # Clean up
+        self._coordinators.pop(session_id, None)
+        self._caption_buffers.pop(session_id, None)
+
+        logger.info(f"Import session finalized: {session_id}, stats: {stats}")
+
+        return stats
 
 
 # Global session manager instance
@@ -757,6 +868,169 @@ async def get_transcript_detail(
 
 
 # =============================================================================
+# Import Transcript to Local Database (Session-Based Pipeline)
+# =============================================================================
+
+
+class ImportTranscriptRequest(BaseModel):
+    """Request to import a Fireflies transcript to local database"""
+    api_key: Optional[str] = None
+    include_translations: bool = True  # Default to including translations
+    target_language: Optional[str] = Field(default="en", description="Target language for translation")
+    glossary_id: Optional[str] = None
+    domain: Optional[str] = None
+
+
+class ImportProgress(BaseModel):
+    """Progress update for import"""
+    session_id: str
+    total_sentences: int
+    processed: int
+    translations_completed: int
+    errors: int
+    status: str
+
+
+@router.post(
+    "/import/{transcript_id}",
+    summary="Import Fireflies transcript to local database",
+    description="Fetch transcript from Fireflies and process through the same pipeline as live data (DRY)",
+)
+async def import_transcript_to_db(
+    transcript_id: str,
+    request: ImportTranscriptRequest,
+    manager: FirefliesSessionManager = Depends(get_session_manager),
+    ff_config: FirefliesSettings = Depends(get_fireflies_config),
+):
+    """
+    Import a Fireflies transcript to local database using the same pipeline as live data.
+
+    This ensures:
+    - Same database storage logic (BotSession, Transcript, Translation)
+    - Same translation flow with context windows
+    - Same glossary application
+    - Consistent data format across live and imported data
+
+    The import processes each sentence through the TranscriptionPipelineCoordinator,
+    which handles all the orchestration DRY.
+    """
+    api_key = request.api_key or ff_config.api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fireflies API key required",
+        )
+
+    try:
+        # Step 1: Fetch transcript from Fireflies
+        client = FirefliesClient(api_key=api_key)
+        transcript_data = await client.get_transcript_detail(transcript_id)
+        await client.close()
+
+        if not transcript_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Transcript {transcript_id} not found in Fireflies",
+            )
+
+        sentences = transcript_data.get("sentences", [])
+        if not sentences:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Transcript has no sentences to import",
+            )
+
+        transcript_title = transcript_data.get("title", f"Fireflies Import: {transcript_id}")
+        target_lang = request.target_language or "en"
+
+        logger.info(f"Starting import of {len(sentences)} sentences from {transcript_id}")
+
+        # Step 2: Get database manager and translation client
+        data_pipeline = get_data_pipeline()
+        db_manager = data_pipeline.db_manager if data_pipeline else None
+
+        # Get translation clients if translations requested
+        translation_client = None
+        simple_translation_client = None
+
+        if request.include_translations:
+            try:
+                from clients.translation_service_client import TranslationServiceClient
+                translation_client = TranslationServiceClient()
+            except Exception as e:
+                logger.warning(f"Translation client unavailable: {e}")
+
+        # Step 3: Create import session (uses same pipeline as live sessions)
+        session_id, coordinator = await manager.create_import_session(
+            transcript_id=transcript_id,
+            transcript_title=transcript_title,
+            target_languages=[target_lang],
+            glossary_id=request.glossary_id,
+            domain=request.domain,
+            db_manager=db_manager,
+            translation_client=translation_client,
+            simple_translation_client=simple_translation_client,
+        )
+
+        # Step 4: Process each sentence through the pipeline
+        # This is the same flow as live data - DRY!
+        processed = 0
+        errors = 0
+
+        for i, sentence in enumerate(sentences):
+            try:
+                # Add index for chunk_id generation
+                sentence["index"] = i
+                sentence["transcript_id"] = transcript_id
+
+                # Process through coordinator (same as live chunks)
+                await coordinator.process_raw_chunk(sentence)
+                processed += 1
+
+                # Log progress every 10 sentences
+                if (i + 1) % 10 == 0:
+                    logger.info(f"Import progress: {i + 1}/{len(sentences)} sentences")
+
+            except Exception as e:
+                logger.error(f"Error processing sentence {i}: {e}")
+                errors += 1
+
+        # Step 5: Finalize the session
+        final_stats = await manager.finalize_import_session(session_id)
+
+        logger.info(
+            f"Import complete for {transcript_id}: "
+            f"{processed} processed, {final_stats.get('translations_completed', 0)} translated, "
+            f"{errors} errors"
+        )
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "transcript_id": transcript_id,
+            "title": transcript_title,
+            "total_sentences": len(sentences),
+            "processed": processed,
+            "translations_completed": final_stats.get("translations_completed", 0),
+            "sentences_stored": final_stats.get("sentences_produced", 0),
+            "errors": errors,
+            "target_language": target_lang,
+            "glossary_id": request.glossary_id,
+            "pipeline_stats": final_stats,
+            "message": f"Successfully imported {processed} sentences to local database",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Failed to import transcript: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to import transcript: {str(e)}",
+        )
+
+
+# =============================================================================
 # Dashboard Configuration
 # =============================================================================
 # NOTE: This endpoint proxies to the centralized /api/system/ui-config endpoint.
@@ -784,7 +1058,7 @@ async def get_dashboard_config():
     - Prompt templates (if available)
     """
     # Import from centralized system constants
-    from config.system_constants import (
+    from system_constants import (
         SUPPORTED_LANGUAGES,
         GLOSSARY_DOMAINS,
         DEFAULT_CONFIG,

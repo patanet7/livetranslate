@@ -1,12 +1,365 @@
 # Orchestration Service - Development Plan
 
-**Last Updated**: 2026-01-16
-**Current Status**: Fireflies Dashboard improvements + Model validation
+**Last Updated**: 2026-01-17
+**Current Status**: Session-Based Import Pipeline Complete
 **Module**: `modules/orchestration-service/`
 
 ---
 
-## 📋 Current Work: Fireflies Dashboard Improvements (2026-01-16)
+## 📋 Current Work: Session-Based Import Pipeline (2026-01-17)
+
+### What Was Done
+
+**Problem**: Fireflies transcript imports bypassed the standard pipeline, creating data inconsistency between live and imported data.
+
+**Solution**: Implemented session-based import that uses the same `TranscriptionPipelineCoordinator` as live sessions (DRY principle).
+
+### New Components Created
+
+**1. ImportChunkAdapter** (`src/services/pipeline/adapters/import_adapter.py`)
+- Converts imported sentences to `TranscriptChunk` format
+- Same adapter pattern as `FirefliesChunkAdapter` and `GoogleMeetChunkAdapter`
+- Supports batch processing with `create_batch_chunks()`
+- Source type: `fireflies_import`
+
+**2. FirefliesSessionManager Extensions** (`src/routers/fireflies.py`)
+- `create_import_session()` - Creates a session for import processing
+  - Uses `TranscriptionPipelineCoordinator` with `ImportChunkAdapter`
+  - Configures relaxed aggregation settings (sentences already formed)
+  - Returns `(session_id, coordinator)` for manual chunk processing
+- `finalize_import_session()` - Cleans up and returns final stats
+
+**3. Rewritten Import Endpoint** (`POST /fireflies/import/{transcript_id}`)
+- Now creates proper sessions using `create_import_session()`
+- Processes each sentence through coordinator (same as live data)
+- Returns comprehensive stats including pipeline statistics
+
+### Data Flow (DRY)
+
+```
+Fireflies API → fetch transcript
+       ↓
+create_import_session(transcript_id, ...)
+       ↓
+For each sentence:
+    coordinator.process_raw_chunk(sentence)
+       ↓
+    ImportChunkAdapter → TranscriptChunk
+       ↓
+    SentenceAggregator (DRY)
+       ↓
+    RollingWindowTranslator (DRY, if configured)
+       ↓
+    Database Storage (DRY, if configured)
+       ↓
+    CaptionBuffer (DRY)
+       ↓
+finalize_import_session()
+       ↓
+Return stats (same format as live sessions)
+```
+
+### Test Coverage
+
+**65 new tests** - ALL PASSING
+
+| Test File | Tests | Purpose |
+|-----------|-------|---------|
+| `tests/fireflies/unit/test_import_adapter.py` | 25 | ImportChunkAdapter unit tests |
+| `tests/fireflies/integration/test_import_session_pipeline.py` | 22 | Session creation, chunk processing, finalization |
+| `tests/fireflies/e2e/test_import_pipeline_e2e.py` | 18 | Full import endpoint flow, error handling, DRY parity |
+
+**Test Results**: `tests/output/20260117_*_test_import_pipeline_results.log`
+
+### Files Created/Modified
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/services/pipeline/adapters/import_adapter.py` | **CREATE** | ImportChunkAdapter class |
+| `src/services/pipeline/adapters/__init__.py` | MODIFY | Export ImportChunkAdapter |
+| `src/services/pipeline/__init__.py` | MODIFY | Export ImportChunkAdapter |
+| `src/routers/fireflies.py` | MODIFY | Add create_import_session, finalize_import_session, rewrite import endpoint |
+| `tests/fireflies/unit/test_import_adapter.py` | **CREATE** | Unit tests |
+| `tests/fireflies/integration/test_import_session_pipeline.py` | **CREATE** | Integration tests |
+| `tests/fireflies/e2e/test_import_pipeline_e2e.py` | **CREATE** | E2E tests |
+
+### API Changes
+
+**`POST /fireflies/import/{transcript_id}` Request:**
+```json
+{
+    "api_key": "optional - uses env default",
+    "include_translations": true,
+    "target_language": "es",
+    "glossary_id": "optional",
+    "domain": "optional"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "session_id": "import_abc123...",
+    "transcript_id": "ff_123456",
+    "title": "Meeting Title",
+    "total_sentences": 100,
+    "processed": 100,
+    "translations_completed": 100,
+    "sentences_stored": 100,
+    "errors": 0,
+    "target_language": "es",
+    "pipeline_stats": { ... same format as live sessions ... }
+}
+```
+
+---
+
+## 📋 Previous Work: Glossary Consolidation & Model Selection (2026-01-17)
+
+### What Was Done
+
+**1. Consolidated Domain Terminology into Glossaries** ✅
+- **Problem**: Two redundant systems existed (glossaries + domain_terminology)
+- **Solution**: Consolidated into single glossary system for both translation AND Whisper prompting
+- **Migration**: `003_consolidate_domain_into_glossaries.py`
+  - Added `phonetic` column to glossary_entries (for Whisper pronunciation hints)
+  - Added `common_context` column to glossary_entries (for usage context)
+  - Dropped all domain_* tables (all were empty, 0 rows)
+
+**Tables Dropped**:
+- `domain_usage_logs`
+- `user_domain_preferences`
+- `domain_prompts`
+- `domain_terminology`
+- `domain_categories`
+
+**2. Fixed Translation Service Model Selection** ✅
+- **Problem**: Dashboard model dropdown only showed "ollama" instead of individual models like "qwen3:4b"
+- **Solution**: Updated `/api/models/available` endpoint to list ALL Ollama models individually
+- **File**: `modules/translation-service/src/api_server.py`
+
+**3. Fixed Model Override in Translation Requests** ✅
+- **Problem**: Selected model wasn't actually being used in translations
+- **Solution**:
+  - Parse model format like "ollama:qwen3:4b" (backend:model)
+  - Pass `model_override` parameter to translator
+- **Files**:
+  - `modules/translation-service/src/api_server.py` - Parse model format
+  - `modules/translation-service/src/openai_compatible_translator.py` - Accept model_override param
+
+**4. Updated Whisper Domain Prompt Manager** ✅
+- **Problem**: Whisper service imported deleted `database.domain_models`
+- **Solution**: Updated to use glossary API from orchestration service instead
+- **File**: `modules/whisper-service/src/domain_prompt_manager.py`
+- **Changes**:
+  - Added `glossary_api_url` parameter (defaults to `ORCHESTRATION_SERVICE_URL`)
+  - `get_domain_terminology()` now fetches from glossary API
+  - `get_prompt_template()` now fetches from glossary API
+  - `log_usage()` now logs locally + optionally to orchestration service
+  - Removed all broken `database.domain_models` imports
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `orchestration-service/src/database/models.py` | Added phonetic, common_context to GlossaryEntry |
+| `orchestration-service/src/database/__init__.py` | Removed domain model imports |
+| `orchestration-service/alembic/versions/003_consolidate_domain_into_glossaries.py` | NEW - Migration |
+| `translation-service/src/api_server.py` | Fixed models listing, model parsing |
+| `translation-service/src/openai_compatible_translator.py` | Added model_override parameter |
+| `whisper-service/src/domain_prompt_manager.py` | Use glossary API instead of deleted DB |
+
+### Migration Chain
+
+```
+001_initial → 5f3bcf8a26da (creates domain_*) → 002_session_id_nullable → 003_consolidate_glossaries (drops domain_*)
+```
+
+### New Glossary Entry Schema
+
+```python
+class GlossaryEntry(Base):
+    # ... existing fields ...
+    phonetic = Column(String(255), nullable=True)      # NEW: Pronunciation hint for Whisper
+    common_context = Column(Text, nullable=True)        # NEW: Usage context for prompting
+```
+
+### Model Selection Flow (Fixed)
+
+```
+Dashboard: Select "ollama:qwen3:4b"
+    ↓
+POST /api/translate { model: "ollama:qwen3:4b" }
+    ↓
+api_server.py: Parse "ollama:qwen3:4b" → backend="ollama", specific_model="qwen3:4b"
+    ↓
+translator.translate(..., model_override="qwen3:4b")
+    ↓
+Ollama API: Uses qwen3:4b model
+```
+
+---
+
+## 📋 Previous Work: Database Setup & Migration (2026-01-16)
+
+### What Was Done
+
+**1. Database Migration Applied Successfully**
+- Applied migration `001_initial` (10 core tables)
+- Applied migration `5f3bcf8a26da` (11 additional tables)
+- **21 total tables** now exist in database
+- `alembic check` confirms: "No new upgrade operations detected"
+
+**2. Database Setup Scripts Created**
+- Created `scripts/setup_database.py` - Comprehensive Python setup script
+- Created `scripts/setup_database.sh` - Shell wrapper for convenience
+- Scripts handle: connection check, extension verification, migrations, schema validation
+
+**3. Tables Created**
+
+| Table | Purpose |
+|-------|---------|
+| `alembic_version` | Migration tracking |
+| `api_tokens` | User API token management |
+| `audio_files` | Audio file storage metadata |
+| `bot_sessions` | Core session tracking |
+| `chat_messages` | User conversation messages |
+| `conversation_sessions` | Conversation session tracking |
+| `conversation_statistics` | Aggregated conversation stats |
+| `correlations` | Time synchronization data |
+| `domain_categories` | In-domain prompting categories |
+| `domain_prompts` | Domain-specific Whisper prompts |
+| `domain_terminology` | Domain terminology for accuracy |
+| `domain_usage_logs` | Domain prompt usage analytics |
+| `glossaries` | Translation glossary collections |
+| `glossary_entries` | Individual glossary term mappings |
+| `participants` | Meeting participant tracking |
+| `session_events` | Session event logging |
+| `session_statistics` | Aggregated session stats |
+| `transcripts` | Transcription storage |
+| `translations` | Translation storage |
+| `user_domain_preferences` | User-specific domain settings |
+| `users` | Multi-tenant user management |
+
+### Database Connection Details
+
+```
+Container: livetranslate-postgres (port 5433)
+Database: livetranslate
+User: livetranslate
+Password: livetranslate_dev_password
+URL: postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate
+```
+
+### Setup Commands
+
+```bash
+# Check database status
+DATABASE_URL="postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate" \
+  ./scripts/setup_database.sh --status
+
+# Run migrations (if needed)
+DATABASE_URL="postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate" \
+  ./scripts/setup_database.sh
+
+# Create test data
+DATABASE_URL="..." ./scripts/setup_database.sh --create-test-data
+
+# Reset database (WARNING: drops all data!)
+DATABASE_URL="..." ./scripts/setup_database.sh --reset
+```
+
+### Files Created
+
+| File | Purpose |
+|------|---------|
+| `scripts/setup_database.py` | Comprehensive database setup script |
+| `scripts/setup_database.sh` | Shell wrapper with defaults |
+
+---
+
+## 📋 Previous Work: Dashboard Configuration & API Verification (2026-01-17)
+
+### What Was Done
+
+**1. Fixed system_constants Import Error** ✅
+- **Problem**: Python module resolution conflict - both `config.py` and `config/` directory existed
+- **Solution**: Moved `system_constants.py` from `src/config/` to `src/system_constants.py`
+- **Impact**: All config endpoints now load correctly (`/api/system/ui-config`, `/fireflies/dashboard/config`)
+
+**2. Fixed DateTime Serialization Errors** ✅
+- **Problem**: Exception handlers returned `JSONResponse` with datetime objects causing serialization errors
+- **Solution**: Changed to `DateTimeJSONResponse` and `model_dump(mode="json")` in exception handlers
+- **Files**: `src/main_fastapi.py` (lines 325-344)
+
+**3. Fixed Database Timezone Mismatch** ✅
+- **Problem**: `utc_now()` returned timezone-aware datetime but PostgreSQL columns were `TIMESTAMP WITHOUT TIME ZONE`
+- **Error**: `asyncpg.exceptions.DataError: can't subtract offset-naive and offset-aware datetimes`
+- **Solution**: Changed `utc_now()` to return `datetime.now(timezone.utc).replace(tzinfo=None)`
+- **File**: `src/database/models.py`
+
+**4. Fixed Glossary Service Parameter Mismatches** ✅
+- **Problem**: Router passed `notes`, `match_whole_word`; Service expected `definition`, `whole_word`
+- **Solution**: Updated service to use same parameter names as router
+- **File**: `src/services/glossary_service.py`
+
+**5. Fixed Glossary Router Method Call** ✅
+- **Problem**: Router called `service.import_entries()` but service had `bulk_add_entries()`
+- **Solution**: Updated router to call correct method name
+- **File**: `src/routers/glossary.py`
+
+**6. Rewrote Glossary Tests with Real Database (NO MOCKS)** ✅
+- User explicitly requested: "SO THIS FOR ALL SERVICES AND TESTS ... NO MOCKS"
+- Converted mock-based tests to real integration tests using actual database
+- **File**: `tests/fireflies/unit/test_glossary_router.py`
+
+**7. Fixed Test Issues** ✅
+- Fixed `test_disconnect_endpoint_exists` - test expected wrong status code
+- Fixed `test_translation` name conflict - renamed to `_translate_text()` helper
+- **Files**: `tests/fireflies/integration/test_fireflies_dashboard_api.py`, `tests/fireflies/e2e/test_multiple_meeting_codes.py`
+
+### Verified Endpoints
+
+| Endpoint | Status | Response |
+|----------|--------|----------|
+| `/api/system/ui-config` | ✅ 200 | 48 languages, domains, defaults |
+| `/fireflies/dashboard/config` | ✅ 200 | 48 languages, domains, defaults |
+| `/fireflies/sessions` | ✅ 200 | Empty array (no active sessions) |
+| `/fireflies/transcripts` | ✅ 502 | Working, needs valid API key |
+| `/api/glossaries` | ✅ 200 | CRUD operations working |
+| `/api/audio-coordination/sessions` | ✅ 200 | Empty sessions list |
+
+### Test Results
+
+**Final: 469 passed, 2 skipped, 0 failed, 0 errors**
+
+| Category | Count |
+|----------|-------|
+| Passed | 469 |
+| Skipped | 2 (translation service not running) |
+| Failed | 0 |
+| Errors | 0 |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/system_constants.py` | MOVED from `src/config/system_constants.py` |
+| `src/routers/system.py` | Updated import path |
+| `src/routers/fireflies.py` | Updated import path |
+| `src/routers/settings/_shared.py` | Updated import path |
+| `src/main_fastapi.py` | Fixed exception handlers |
+| `src/database/models.py` | Fixed `utc_now()` timezone |
+| `src/services/glossary_service.py` | Fixed parameter names |
+| `src/routers/glossary.py` | Fixed method call |
+| `tests/fireflies/unit/test_glossary_router.py` | Rewrote with real DB |
+| `tests/fireflies/integration/test_fireflies_dashboard_api.py` | Fixed disconnect test |
+| `tests/fireflies/e2e/test_multiple_meeting_codes.py` | Fixed test name conflict |
+
+---
+
+## 📋 Previous Work: Fireflies Dashboard Improvements (2026-01-16)
 
 ### What Was Done
 

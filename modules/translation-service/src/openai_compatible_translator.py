@@ -164,14 +164,18 @@ class OpenAICompatibleTranslator:
             try:
                 # For Ollama, we need to hit the base URL without /v1
                 ollama_base = self.config.base_url.replace("/v1", "")
-                response = await httpx.AsyncClient(timeout=10.0).get(f"{ollama_base}/api/tags")
-                if response.status_code == 200:
-                    data = response.json()
-                    models = [model["name"] for model in data.get("models", [])]
-                    logger.info(f"📋 {self.config.name} available models (Ollama format): {models}")
-                    return models
+                logger.info(f"🔍 Fetching Ollama models from: {ollama_base}/api/tags")
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(f"{ollama_base}/api/tags")
+                    logger.info(f"🔍 Ollama /api/tags response status: {response.status_code}")
+                    if response.status_code == 200:
+                        data = response.json()
+                        logger.info(f"🔍 Ollama /api/tags raw response: {data}")
+                        models = [model["name"] for model in data.get("models", [])]
+                        logger.info(f"📋 {self.config.name} available models (Ollama format): {models}")
+                        return models
             except Exception as e:
-                logger.debug(f"Ollama /api/tags format not supported: {e}")
+                logger.warning(f"Ollama /api/tags failed: {e}")
 
             logger.warning(f"Could not retrieve models list from {self.config.name}")
             return []
@@ -245,7 +249,8 @@ class OpenAICompatibleTranslator:
         text: str,
         source_language: str,
         target_language: str,
-        context: Optional[str] = None
+        context: Optional[str] = None,
+        model_override: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Translate text using OpenAI-compatible chat completions API.
@@ -269,9 +274,12 @@ class OpenAICompatibleTranslator:
             # Build the translation prompt
             prompt = self._build_translation_prompt(text, source_language, target_language, context)
 
+            # Determine which model to use (override takes precedence)
+            model_to_use = model_override or self.config.model
+
             # Prepare the request payload
             payload = {
-                "model": self.config.model,
+                "model": model_to_use,
                 "messages": [
                     {
                         "role": "system",
@@ -311,7 +319,7 @@ class OpenAICompatibleTranslator:
                 "confidence": self._estimate_confidence(response_data),
                 "metadata": {
                     "backend_used": self.config.name,
-                    "model_used": self.config.model,
+                    "model_used": model_to_use,
                     "processing_time": processing_time,
                     "api_response": response_data
                 }
