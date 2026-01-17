@@ -318,6 +318,97 @@
       color: #888;
       font-size: 12px;
     }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    .modal-overlay.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-content {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      transform: scale(0.9);
+      transition: transform 0.3s;
+    }
+
+    .modal-overlay.visible .modal-content {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .modal-header h2 {
+      font-size: 18px;
+      color: #64B5F6;
+      margin: 0;
+    }
+
+    .modal-close {
+      background: rgba(255,255,255,0.1);
+      border: none;
+      color: #888;
+      font-size: 24px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+      background: rgba(244,67,54,0.3);
+      color: #f44336;
+    }
+
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 8px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
   </style>
 </head>
 <body>
@@ -767,16 +858,24 @@
         <button class="btn-secondary btn-sm" onclick="loadSavedTranscripts()" style="margin-top: 12px;">Refresh Saved</button>
       </div>
 
-      <!-- Transcript Viewer Modal -->
-      <div id="transcriptViewer" class="card hidden">
-        <h2>📄 Transcript: <span id="transcriptViewerTitle"></span></h2>
-        <div style="margin-bottom: 16px; display: flex; gap: 8px;">
-          <select id="historyTargetLang">
+    </div>
+  </div>
+
+  <!-- Transcript Viewer Modal (outside container for proper overlay positioning) -->
+  <div id="transcriptViewerModal" class="modal-overlay" onclick="if(event.target === this) closeTranscriptViewer()">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>📄 <span id="transcriptViewerTitle">Transcript</span></h2>
+        <button class="modal-close" onclick="closeTranscriptViewer()" title="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <select id="historyTargetLang" style="width: auto; min-width: 150px;">
             <!-- Populated dynamically from backend config -->
           </select>
-          <button class="btn-primary btn-sm" onclick="translateFullTranscript()">Translate All</button>
+          <button class="btn-primary btn-sm" onclick="translateFullTranscript()">🌐 Translate All</button>
           <button class="btn-secondary btn-sm" onclick="saveTranscriptLocal()">💾 Save Locally</button>
-          <button class="btn-secondary btn-sm" onclick="closeTranscriptViewer()">Close</button>
+          <button class="btn-secondary btn-sm" onclick="importToDatabase()">🗄️ Import to DB</button>
         </div>
         <div id="transcriptViewerProgress" class="hidden" style="margin-bottom: 16px;">
           <div style="background: rgba(0,0,0,0.3); border-radius: 4px; height: 20px; overflow: hidden;">
@@ -784,12 +883,16 @@
           </div>
           <span id="translationProgressText" style="font-size: 12px; color: #888;">0%</span>
         </div>
-        <div id="transcriptContent" class="log-panel" style="max-height: 400px;">
-          <div class="empty-state">Loading transcript...</div>
+        <div id="transcriptContent" class="log-panel" style="max-height: 50vh; min-height: 200px;">
+          <div class="empty-state">Select a transcript to view</div>
         </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeTranscriptViewer()">Close</button>
       </div>
     </div>
   </div>
+
 
   <script>
     // ==========================================================================
@@ -832,6 +935,9 @@
 
       // Load active sessions
       await refreshSessions();
+
+      // Check for pending translation jobs
+      showPendingJobBanner();
 
       log('Dashboard ready', 'info');
     }
@@ -1461,11 +1567,11 @@
       }
 
       log(`Loading data for session: ${sessionId}`, 'info');
-      apiLog('GET', `/api/captions/session/${sessionId}/data`, {});
+      apiLog('GET', `/api/captions/${sessionId}`, {});
 
       try {
         // Try to get session data from the captions endpoint
-        const response = await fetch(`${baseUrl}/api/captions/session/${sessionId}`);
+        const response = await fetch(`${baseUrl}/api/captions/${sessionId}`);
 
         if (response.ok) {
           const data = await response.json();
@@ -1567,13 +1673,19 @@
 
           // Update model info - use correct fields from health endpoint
           const modelInfo = document.getElementById('currentModelInfo');
-          const backendName = health.backend || health.details?.health?.backend || 'unknown';
-          const deviceName = health.device || health.details?.device?.device || 'unknown';
+          const backendName = health.backend || health.details?.health?.details?.backend || health.details?.health?.backend || 'unknown';
+          const availableBackends = health.available_backends || health.details?.health?.details?.available_backends || [];
+          const deviceName = health.device || health.details?.device?.device || 'cpu';
           const serviceName = health.details?.health?.service || 'translation';
+
+          // Show available backends if we have them
+          const backendDisplay = availableBackends.length > 0
+            ? availableBackends.join(', ')
+            : backendName;
 
           modelInfo.innerHTML = `
             <span class="model-name">${selectedModel || 'default'}</span>
-            <span class="model-backend">Backend: ${backendName} | Device: ${deviceName}</span>
+            <span class="model-backend">Backend: ${backendDisplay} | Device: ${deviceName}</span>
             <span class="status-badge status-connected">Active</span>
           `;
 
@@ -1585,11 +1697,22 @@
               const modelList = models.models || models || [];
 
               // Store available models for validation
-              availableModels = modelList.map(m => ({
-                id: m.id || m.name || (typeof m === 'string' ? m : 'default'),
-                name: m.name || m.id || (typeof m === 'string' ? m : 'default'),
-                description: m.description || ''
-              }));
+              // API returns: {name: "ollama", model: "qwen3:4b", display_name: "Ollama (Local)", backend: "openai_compatible"}
+              availableModels = modelList.map(m => {
+                const id = m.id || m.name || (typeof m === 'string' ? m : 'default');
+                // Create a display name that includes the actual model if available
+                let displayName = m.display_name || m.name || id;
+                if (m.model && m.model !== m.name) {
+                  displayName = `${displayName} (${m.model})`;
+                }
+                return {
+                  id: id,
+                  name: displayName,
+                  actualModel: m.model || id,
+                  backend: m.backend || 'unknown',
+                  description: m.description || ''
+                };
+              });
 
               // Validate that selected model is in the list, otherwise default to first available
               const validModelIds = availableModels.map(m => m.id);
@@ -1609,6 +1732,17 @@
               } else {
                 select.innerHTML = '<option value="default">default</option>';
                 availableModels = [{ id: 'default', name: 'default', description: 'Default model' }];
+              }
+
+              // Update the model display with actual model info
+              const currentModel = availableModels.find(m => m.id === selectedModel);
+              if (currentModel) {
+                const modelInfo = document.getElementById('currentModelInfo');
+                modelInfo.innerHTML = `
+                  <span class="model-name">${currentModel.name}</span>
+                  <span class="model-backend">Backend: ${currentModel.backend} | Actual Model: ${currentModel.actualModel}</span>
+                  <span class="status-badge status-connected">Active</span>
+                `;
               }
 
               log(`Loaded ${availableModels.length} translation models, selected: ${selectedModel}`, 'info');
@@ -2502,7 +2636,8 @@ Translation:`,
 
     async function viewTranscript(transcriptId, title) {
       log(`Loading transcript: ${transcriptId}`, 'info');
-      document.getElementById('transcriptViewer').classList.remove('hidden');
+      // Show modal
+      document.getElementById('transcriptViewerModal').classList.add('visible');
       document.getElementById('transcriptViewerTitle').textContent = title;
       document.getElementById('transcriptContent').innerHTML = '<div class="empty-state">Loading transcript...</div>';
 
@@ -2517,11 +2652,13 @@ Translation:`,
           'Load transcript'
         );
 
-        currentTranscriptData = data;
-        const sentences = data.sentences || [];
+        // API returns { success: true, transcript: { sentences: [...] } }
+        const transcript = data.transcript || data;
+        currentTranscriptData = transcript;
+        const sentences = transcript.sentences || [];
 
         if (sentences.length === 0) {
-          document.getElementById('transcriptContent').innerHTML = '<div class="empty-state">No content in transcript</div>';
+          document.getElementById('transcriptContent').innerHTML = '<div class="empty-state">No content in transcript. This may be a new meeting without transcription data yet.</div>';
         } else {
           document.getElementById('transcriptContent').innerHTML = sentences.map(s => `
             <div class="log-entry">
@@ -2552,6 +2689,7 @@ Translation:`,
 
       const sentences = currentTranscriptData.sentences;
       const targetLang = document.getElementById('historyTargetLang').value;
+      const modelToUse = document.getElementById('translationModel')?.value || 'default';
       translatedTranscript = [];
 
       // Show progress
@@ -2559,10 +2697,45 @@ Translation:`,
       const progressBar = document.getElementById('translationProgressBar');
       const progressText = document.getElementById('translationProgressText');
 
-      log(`Translating ${sentences.length} sentences to ${targetLang}...`, 'info');
+      log(`Translating ${sentences.length} sentences to ${targetLang} (parallel with context)...`, 'info');
 
-      for (let i = 0; i < sentences.length; i++) {
-        const s = sentences[i];
+      // Configuration
+      const BATCH_SIZE = 5;  // Process 5 sentences in parallel
+      const CONTEXT_WINDOW = 3;  // Include previous 3 sentences as context
+
+      // Job tracking - persist progress for recovery
+      const jobId = `translation_job_${Date.now()}`;
+      const transcriptId = currentTranscriptData.id || currentTranscriptData.transcript_id || 'unknown';
+      const saveJobProgress = (completed, total, results) => {
+        localStorage.setItem('current_translation_job', JSON.stringify({
+          jobId,
+          transcriptId,
+          targetLang,
+          completed,
+          total,
+          startedAt: localStorage.getItem('current_translation_job')
+            ? JSON.parse(localStorage.getItem('current_translation_job')).startedAt
+            : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          results: results.filter(r => r),  // Only save completed results
+        }));
+      };
+
+      // Initial job save
+      saveJobProgress(0, sentences.length, []);
+
+      // Build context for each sentence
+      const getContext = (index) => {
+        if (index === 0) return '';
+        const start = Math.max(0, index - CONTEXT_WINDOW);
+        return sentences.slice(start, index)
+          .map(s => `[${s.speaker_name || 'Speaker'}]: ${s.text}`)
+          .join('\n');
+      };
+
+      // Translate a single sentence with context
+      const translateOne = async (sentence, index) => {
+        const context = getContext(index);
         try {
           const result = await apiCallWithErrors(
             `${baseUrl}/api/translation/translate`,
@@ -2570,50 +2743,189 @@ Translation:`,
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                text: s.text,
+                text: sentence.text,
                 target_language: targetLang,
                 source_language: 'auto',
+                context: context || undefined,  // Include context for better quality
+                model: modelToUse,
               })
             },
             'Translate'
           );
-
-          translatedTranscript.push({
-            speaker: s.speaker_name,
-            original: s.text,
+          return {
+            index,
+            speaker: sentence.speaker_name,
+            original: sentence.text,
             translated: result.translated_text,
-            timestamp: s.start_time,
-          });
-
+            timestamp: sentence.start_time,
+            confidence: result.confidence,
+          };
         } catch (e) {
-          translatedTranscript.push({
-            speaker: s.speaker_name,
-            original: s.text,
+          return {
+            index,
+            speaker: sentence.speaker_name,
+            original: sentence.text,
             translated: `[Error: ${e.message}]`,
-            timestamp: s.start_time,
-          });
+            timestamp: sentence.start_time,
+            error: true,
+          };
+        }
+      };
+
+      // Process in batches with parallel execution
+      let completed = 0;
+      const results = new Array(sentences.length);
+
+      for (let batchStart = 0; batchStart < sentences.length; batchStart += BATCH_SIZE) {
+        const batchEnd = Math.min(batchStart + BATCH_SIZE, sentences.length);
+        const batchPromises = [];
+
+        for (let i = batchStart; i < batchEnd; i++) {
+          batchPromises.push(translateOne(sentences[i], i));
         }
 
-        // Update progress
-        const progress = Math.round(((i + 1) / sentences.length) * 100);
-        progressBar.style.width = `${progress}%`;
-        progressText.textContent = `${progress}% (${i + 1}/${sentences.length})`;
+        // Execute batch in parallel
+        const batchResults = await Promise.all(batchPromises);
+
+        // Store results in order
+        for (const result of batchResults) {
+          results[result.index] = result;
+          completed++;
+
+          // Update progress
+          const progress = Math.round((completed / sentences.length) * 100);
+          progressBar.style.width = `${progress}%`;
+          progressText.textContent = `${progress}% (${completed}/${sentences.length})`;
+        }
+
+        // Save progress after each batch (for recovery)
+        saveJobProgress(completed, sentences.length, results);
       }
+
+      // Build final ordered transcript
+      translatedTranscript = results.filter(r => r);
 
       // Hide progress
       document.getElementById('transcriptViewerProgress').classList.add('hidden');
 
       // Display results
+      const errorCount = translatedTranscript.filter(t => t.error).length;
       document.getElementById('transcriptContent').innerHTML = translatedTranscript.map(t => `
-        <div class="log-entry" style="border-left: 3px solid #4CAF50; padding-left: 12px; margin-bottom: 12px;">
-          <div style="color:#888; font-size:11px;">${t.speaker} ${t.timestamp ? formatTime(t.timestamp) : ''}</div>
+        <div class="log-entry" style="border-left: 3px solid ${t.error ? '#f44336' : '#4CAF50'}; padding-left: 12px; margin-bottom: 12px;">
+          <div style="color:#888; font-size:11px;">
+            ${t.speaker || 'Speaker'} ${t.timestamp ? formatTime(t.timestamp) : ''}
+            ${t.confidence ? `<span style="color:#64B5F6;">(${(t.confidence * 100).toFixed(0)}%)</span>` : ''}
+          </div>
           <div style="color:#64B5F6;">${escapeHtml(t.original)}</div>
-          <div style="color:#4CAF50; margin-top:4px;">${escapeHtml(t.translated)}</div>
+          <div style="color:${t.error ? '#f44336' : '#4CAF50'}; margin-top:4px;">${escapeHtml(t.translated)}</div>
         </div>
       `).join('');
 
-      showAlert(`Translated ${sentences.length} sentences!`, 'success');
-      log('Translation complete', 'success');
+      const successCount = sentences.length - errorCount;
+      showAlert(`Translated ${successCount}/${sentences.length} sentences!${errorCount > 0 ? ` (${errorCount} errors)` : ''}`, errorCount > 0 ? 'warn' : 'success');
+      log(`Translation complete: ${successCount} success, ${errorCount} errors`, 'success');
+
+      // Clear job tracking on completion
+      localStorage.removeItem('current_translation_job');
+    }
+
+    // Check for and display any in-progress translation jobs
+    function checkPendingTranslationJob() {
+      const jobData = localStorage.getItem('current_translation_job');
+      if (!jobData) return null;
+
+      try {
+        const job = JSON.parse(jobData);
+        const minutesAgo = (Date.now() - new Date(job.updatedAt).getTime()) / 60000;
+
+        // If job is more than 30 minutes old, consider it stale
+        if (minutesAgo > 30) {
+          localStorage.removeItem('current_translation_job');
+          return null;
+        }
+
+        return job;
+      } catch (e) {
+        localStorage.removeItem('current_translation_job');
+        return null;
+      }
+    }
+
+    function showPendingJobBanner() {
+      const job = checkPendingTranslationJob();
+      if (!job) return;
+
+      const progress = Math.round((job.completed / job.total) * 100);
+      const minutesAgo = Math.round((Date.now() - new Date(job.updatedAt).getTime()) / 60000);
+
+      // Create banner if it doesn't exist
+      let banner = document.getElementById('pendingJobBanner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'pendingJobBanner';
+        banner.style.cssText = 'background: rgba(255,152,0,0.2); border: 1px solid #FF9800; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;';
+        const historyTab = document.getElementById('historyTab');
+        if (historyTab) {
+          historyTab.insertBefore(banner, historyTab.firstChild);
+        }
+      }
+
+      banner.innerHTML = `
+        <div>
+          <strong>⏳ Previous translation job found</strong><br>
+          <span style="font-size: 12px; color: #888;">
+            ${job.transcriptId} → ${job.targetLang} | ${progress}% complete (${job.completed}/${job.total}) | ${minutesAgo}m ago
+          </span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-primary btn-sm" onclick="resumeTranslationJob()">Resume</button>
+          <button class="btn-secondary btn-sm" onclick="viewPartialResults()">View Partial</button>
+          <button class="btn-secondary btn-sm" onclick="clearPendingJob()">Dismiss</button>
+        </div>
+      `;
+    }
+
+    function resumeTranslationJob() {
+      const job = checkPendingTranslationJob();
+      if (!job) {
+        showAlert('No pending job found', 'error');
+        return;
+      }
+
+      // Load partial results and continue (simplified - just show partial)
+      viewPartialResults();
+      showAlert('Resume not fully implemented yet - showing partial results', 'info');
+    }
+
+    function viewPartialResults() {
+      const job = checkPendingTranslationJob();
+      if (!job || !job.results) {
+        showAlert('No partial results available', 'error');
+        return;
+      }
+
+      translatedTranscript = job.results;
+      document.getElementById('transcriptViewerModal').classList.add('visible');
+      document.getElementById('transcriptViewerTitle').textContent = `Partial: ${job.transcriptId}`;
+
+      document.getElementById('transcriptContent').innerHTML = job.results.map(t => `
+        <div class="log-entry" style="border-left: 3px solid ${t.error ? '#f44336' : '#4CAF50'}; padding-left: 12px; margin-bottom: 12px;">
+          <div style="color:#888; font-size:11px;">
+            ${t.speaker || 'Speaker'} ${t.timestamp ? formatTime(t.timestamp) : ''}
+          </div>
+          <div style="color:#64B5F6;">${escapeHtml(t.original)}</div>
+          <div style="color:${t.error ? '#f44336' : '#4CAF50'}; margin-top:4px;">${escapeHtml(t.translated)}</div>
+        </div>
+      `).join('');
+
+      log(`Showing ${job.results.length} partial results`, 'info');
+    }
+
+    function clearPendingJob() {
+      localStorage.removeItem('current_translation_job');
+      const banner = document.getElementById('pendingJobBanner');
+      if (banner) banner.remove();
+      log('Cleared pending translation job', 'info');
     }
 
     function saveTranscriptLocal() {
@@ -2639,8 +2951,57 @@ Translation:`,
       loadSavedTranscripts();
     }
 
+    async function importToDatabase() {
+      if (!currentTranscriptData) {
+        showAlert('No transcript loaded', 'error');
+        return;
+      }
+
+      const transcriptId = currentTranscriptData.id || currentTranscriptData.transcript_id;
+      if (!transcriptId) {
+        showAlert('Cannot determine transcript ID', 'error');
+        return;
+      }
+
+      const targetLang = document.getElementById('historyTargetLang').value;
+
+      log(`Importing transcript ${transcriptId} to database...`, 'info');
+
+      try {
+        const result = await apiCallWithErrors(
+          `${baseUrl}/fireflies/import/${transcriptId}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              api_key: apiKey,
+              transcript_id: transcriptId,
+              target_language: targetLang,
+            })
+          },
+          'Import to database'
+        );
+
+        showAlert(`Imported ${result.imported_count} sentences to database! Session ID: ${result.session_id}`, 'success');
+        log(`Import complete: ${result.message}`, 'success');
+
+        // Store reference locally
+        const key = `fireflies_imported_${transcriptId}`;
+        localStorage.setItem(key, JSON.stringify({
+          transcript_id: transcriptId,
+          session_id: result.session_id,
+          imported_at: new Date().toISOString(),
+          imported_count: result.imported_count,
+        }));
+
+      } catch (e) {
+        showAlert(`Import failed: ${e.message}`, 'error');
+        log(`Import error: ${e.message}`, 'error');
+      }
+    }
+
     function closeTranscriptViewer() {
-      document.getElementById('transcriptViewer').classList.add('hidden');
+      document.getElementById('transcriptViewerModal').classList.remove('visible');
       currentTranscriptData = null;
       translatedTranscript = [];
     }
@@ -2692,7 +3053,7 @@ Translation:`,
         const data = JSON.parse(localStorage.getItem(key));
         const entries = data.translations || data.entries || [];
 
-        document.getElementById('transcriptViewer').classList.remove('hidden');
+        document.getElementById('transcriptViewerModal').classList.add('visible');
         document.getElementById('transcriptViewerTitle').textContent = `Saved: ${data.transcript_id || data.session_id}`;
 
         document.getElementById('transcriptContent').innerHTML = entries.map(e => `

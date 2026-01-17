@@ -23,10 +23,13 @@ from typing import Dict, List, Optional
 import aiohttp
 
 # Add parent paths for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+orchestration_root = Path(__file__).parent.parent.parent.parent
+tests_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(orchestration_root / "src"))
+sys.path.insert(0, str(orchestration_root))
+sys.path.insert(0, str(tests_root))
 
-from tests.fireflies.mocks.fireflies_mock_server import (
+from fireflies.mocks.fireflies_mock_server import (
     FirefliesMockServer,
     MockChunk,
     MockMeeting,
@@ -218,8 +221,8 @@ async def check_services():
     return services_ok
 
 
-async def test_translation(text: str, target_lang: str = "Spanish") -> Optional[str]:
-    """Test translation endpoint."""
+async def _translate_text(text: str, target_lang: str = "Spanish") -> Optional[str]:
+    """Translate text via translation service (helper function)."""
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(
@@ -256,7 +259,7 @@ async def run_meeting_test(meeting: MockMeeting, scenario: MockTranscriptScenari
         logger.info(f"\n[{chunk.speaker_name}]: {chunk.text}")
 
         # Translate to Spanish
-        translated = await test_translation(chunk.text)
+        translated = await _translate_text(chunk.text)
         if translated:
             logger.info(f"  → ES: {translated}")
             results.append({

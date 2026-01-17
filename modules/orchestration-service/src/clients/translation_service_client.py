@@ -28,6 +28,7 @@ class TranslationRequest(BaseModel):
     model: str = "default"
     quality: str = "balanced"  # fast, balanced, quality
     session_id: Optional[str] = None
+    context: Optional[str] = None  # Previous sentences for context-aware translation
 
 
 class TranslationResponse(BaseModel):
@@ -605,7 +606,7 @@ class TranslationServiceClient:
         try:
             session = await self._get_session()
 
-            async with session.get(f"{self.base_url}/api/models") as response:
+            async with session.get(f"{self.base_url}/api/models/available") as response:
                 if response.status == 200:
                     data = await response.json()
                     return data.get("models", [])

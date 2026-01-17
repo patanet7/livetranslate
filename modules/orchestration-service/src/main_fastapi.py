@@ -1342,11 +1342,11 @@ async def get_websocket_stats(
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc: HTTPException):
     """Handle HTTP exceptions with consistent error format"""
-    return JSONResponse(
+    return DateTimeJSONResponse(
         status_code=exc.status_code,
         content=ErrorResponse(
             error=exc.detail, status_code=exc.status_code, path=str(request.url.path)
-        ).dict(),
+        ).model_dump(mode="json"),
     )
 
 
@@ -1354,11 +1354,11 @@ async def http_exception_handler(request, exc: HTTPException):
 async def general_exception_handler(request, exc: Exception):
     """Handle general exceptions"""
     logger.error(f"Unhandled exception: {exc}")
-    return JSONResponse(
+    return DateTimeJSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=ErrorResponse(
             error="Internal server error", status_code=500, path=str(request.url.path)
-        ).dict(),
+        ).model_dump(mode="json"),
     )
 
 

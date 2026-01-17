@@ -363,7 +363,7 @@ async def get_ui_config():
     This is the SINGLE SOURCE OF TRUTH for UI configuration.
     All dashboards and UIs should fetch from this endpoint.
     """
-    from config.system_constants import (
+    from system_constants import (
         SUPPORTED_LANGUAGES,
         GLOSSARY_DOMAINS,
         DEFAULT_CONFIG,

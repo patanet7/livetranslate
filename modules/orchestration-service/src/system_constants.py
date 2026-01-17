@@ -116,7 +116,7 @@ VALID_DOMAINS: List[str] = [d["value"] for d in GLOSSARY_DOMAINS]
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "default_source_language": "en",
-    "default_target_languages": ["es", "fr", "de"],
+    "default_target_languages": ["en"],
     "default_translation_model": "default",
     "auto_detect_language": True,
     "confidence_threshold": 0.8,

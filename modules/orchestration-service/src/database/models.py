@@ -29,8 +29,8 @@ from .base import Base
 
 
 def utc_now():
-    """Return current UTC time (timezone-aware)."""
-    return datetime.now(timezone.utc)
+    """Return current UTC time (timezone-naive for TIMESTAMP WITHOUT TIME ZONE columns)."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class BotSession(Base):
@@ -341,8 +341,8 @@ class SessionEvent(Base):
 
     event_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     session_id = Column(
-        UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False
-    )
+        UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=True
+    )  # Nullable to support dashboard settings not tied to a session
 
     # Event information
     event_type = Column(String(50), nullable=False)
@@ -532,6 +532,10 @@ class GlossaryEntry(Base):
     context = Column(Text, nullable=True)  # Usage context or example
     notes = Column(Text, nullable=True)  # Internal notes
 
+    # Whisper prompting fields (for transcription accuracy)
+    phonetic = Column(String(255), nullable=True)  # Pronunciation hint for Whisper
+    common_context = Column(Text, nullable=True)  # Common usage context for prompting
+
     # Matching settings
     case_sensitive = Column(Boolean, nullable=False, default=False)
     match_whole_word = Column(Boolean, nullable=False, default=True)
@@ -564,6 +568,8 @@ class GlossaryEntry(Base):
             "translations": self.translations,
             "context": self.context,
             "notes": self.notes,
+            "phonetic": self.phonetic,
+            "common_context": self.common_context,
             "case_sensitive": self.case_sensitive,
             "match_whole_word": self.match_whole_word,
             "priority": self.priority,

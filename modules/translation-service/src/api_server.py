@@ -436,26 +436,62 @@ with app.app_context():
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    if translation_service is None:
-        return jsonify({"status": "error", "message": "Service not initialized"}), 503
-    
+    has_backend = (
+        translation_service is not None or
+        (llama_translator and llama_translator.is_ready) or
+        (nllb_translator and nllb_translator.is_ready) or
+        bool(openai_compatible_translators)
+    )
+    if not has_backend:
+        return jsonify({"status": "error", "message": "No translation backend available"}), 503
+
+    # Determine active backend
+    active_backend = "unknown"
+    if llama_translator and llama_translator.is_ready:
+        active_backend = "llama"
+    elif nllb_translator and nllb_translator.is_ready:
+        active_backend = "nllb"
+    elif openai_compatible_translators:
+        active_backend = list(openai_compatible_translators.keys())[0]
+    elif translation_service:
+        active_backend = "translation_service"
+
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "active_backend": active_backend
     })
 
 # API health check endpoint (compatible with other services)
 @app.route('/api/health', methods=['GET'])
 def api_health_check():
     """API health check endpoint for service integration"""
-    if translation_service is None:
-        return jsonify({"status": "error", "message": "Service not initialized"}), 503
-    
+    has_backend = (
+        translation_service is not None or
+        (llama_translator and llama_translator.is_ready) or
+        (nllb_translator and nllb_translator.is_ready) or
+        bool(openai_compatible_translators)
+    )
+    if not has_backend:
+        return jsonify({"status": "error", "message": "No translation backend available"}), 503
+
+    # Determine active backend
+    active_backend = "unknown"
+    if llama_translator and llama_translator.is_ready:
+        active_backend = "llama"
+    elif nllb_translator and nllb_translator.is_ready:
+        active_backend = "nllb"
+    elif openai_compatible_translators:
+        active_backend = list(openai_compatible_translators.keys())[0]
+    elif translation_service:
+        active_backend = "translation_service"
+
     return jsonify({
         "status": "healthy",
         "service": "translation",
-        "backend": os.getenv("INFERENCE_BACKEND", "auto"),
+        "backend": active_backend,
+        "available_backends": list(openai_compatible_translators.keys()) if openai_compatible_translators else [],
         "timestamp": datetime.now().isoformat(),
         "version": "1.0.0"
     })
@@ -659,46 +695,50 @@ async def update_configuration():
 @app.route('/translate', methods=['POST'])
 async def translate_text():
     """Translate text using the translation service"""
-    if translation_service is None:
-        return jsonify({"error": "Service not initialized"}), 503
-    
+    # Check if any translation backend is available
+    has_backend = (
+        translation_service is not None or
+        (llama_translator and llama_translator.is_ready) or
+        (nllb_translator and nllb_translator.is_ready) or
+        bool(openai_compatible_translators)
+    )
+    if not has_backend:
+        return jsonify({"error": "No translation backend available"}), 503
+
     try:
         data = request.get_json()
         if not data or 'text' not in data:
             return jsonify({"error": "Missing 'text' field"}), 400
-        
-        # Create translation request
-        translation_request = TranslationRequest(
-            text=data['text'],
-            source_language=data.get('source_language', 'auto'),
-            target_language=data.get('target_language', 'en'),
-            session_id=data.get('session_id'),
-            confidence_threshold=data.get('confidence_threshold', 0.8),
-            preserve_formatting=data.get('preserve_formatting', True),
-            context=data.get('context')
-        )
-        
+
+        text = data['text']
+        source_language = data.get('source_language', 'auto')
+        target_language = data.get('target_language', 'en')
+        session_id = data.get('session_id')
+        model = data.get('model', 'auto')
+
+        start_time = time.time()
+
         # Check if we should use Llama translator directly
         if llama_translator and llama_translator.is_ready:
             logger.info("Using Llama transformer for direct translation")
             try:
                 llama_result = llama_translator.translate(
-                    text=translation_request.text,
-                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
-                    target_lang=translation_request.target_language
+                    text=text,
+                    source_lang=source_language if source_language != 'auto' else 'en',
+                    target_lang=target_language
                 )
-                
+
                 if "error" not in llama_result:
                     logger.info(f"Llama translation result: {llama_result['translated_text']}")
                     return jsonify({
                         "translated_text": llama_result['translated_text'],
-                        "source_language": llama_result.get('source_language', translation_request.source_language or 'auto'),
-                        "target_language": llama_result.get('target_language', translation_request.target_language),
+                        "source_language": llama_result.get('source_language', source_language or 'auto'),
+                        "target_language": llama_result.get('target_language', target_language),
                         "confidence": llama_result.get('confidence_score', 0.9),
                         "confidence_score": llama_result.get('confidence_score', 0.9),
                         "processing_time": llama_result.get('processing_time', 0.0),
                         "backend_used": llama_result.get('backend_used', 'llama_transformers'),
-                        "session_id": translation_request.session_id,
+                        "session_id": session_id,
                         "timestamp": llama_result.get('timestamp', datetime.utcnow().isoformat()),
                         "model_used": llama_result.get('model_used', 'llama-transformers')
                     })
@@ -706,27 +746,27 @@ async def translate_text():
                     logger.warning(f"Llama translation error: {llama_result['error']}")
             except Exception as llama_error:
                 logger.error(f"Llama translator failed: {llama_error}")
-        
+
         # Check if we should use NLLB translator as fallback
-        elif nllb_translator and nllb_translator.is_ready:
+        if nllb_translator and nllb_translator.is_ready:
             logger.info("Using NLLB translator for direct translation")
             try:
                 nllb_result = nllb_translator.translate(
-                    text=translation_request.text,
-                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
-                    target_lang=translation_request.target_language
+                    text=text,
+                    source_lang=source_language if source_language != 'auto' else 'en',
+                    target_lang=target_language
                 )
-                
+
                 if "error" not in nllb_result:
                     logger.info(f"NLLB translation result: {nllb_result['translated_text']}")
                     return jsonify({
                         "translated_text": nllb_result['translated_text'],
-                        "source_language": nllb_result.get('source_language', translation_request.source_language),
-                        "target_language": nllb_result.get('target_language', translation_request.target_language),
+                        "source_language": nllb_result.get('source_language', source_language),
+                        "target_language": nllb_result.get('target_language', target_language),
                         "confidence_score": nllb_result.get('confidence_score', 0.9),
                         "processing_time": nllb_result.get('processing_time', 0.0),
                         "backend_used": nllb_result.get('backend_used', 'nllb_transformers'),
-                        "session_id": translation_request.session_id,
+                        "session_id": session_id,
                         "timestamp": nllb_result.get('timestamp', datetime.utcnow().isoformat()),
                         "model_used": nllb_result.get('model_used', current_config.get('model_name', 'nllb'))
                     })
@@ -734,20 +774,83 @@ async def translate_text():
                     logger.warning(f"NLLB translation error: {nllb_result['error']}")
             except Exception as nllb_error:
                 logger.error(f"NLLB translator failed: {nllb_error}")
-        
+
+        # Check for OpenAI-compatible backends (Ollama, Groq, etc.)
+        openai_backend = None
+        specific_model = None  # For specifying a particular model within a backend (e.g., qwen3:4b for Ollama)
+
+        # Handle model format like "ollama:qwen3:4b" (backend:model)
+        if ':' in model and model != 'auto':
+            parts = model.split(':', 1)
+            backend_name = parts[0]
+            specific_model = parts[1] if len(parts) > 1 else None
+            if backend_name in openai_compatible_translators:
+                openai_backend = openai_compatible_translators[backend_name]
+                logger.info(f"Selected backend '{backend_name}' with model '{specific_model}'")
+        elif model in openai_compatible_translators:
+            openai_backend = openai_compatible_translators[model]
+        elif model == 'auto' and openai_compatible_translators:
+            for backend_name in ['ollama', 'groq', 'together', 'vllm_server', 'openai', 'custom']:
+                if backend_name in openai_compatible_translators:
+                    openai_backend = openai_compatible_translators[backend_name]
+                    logger.info(f"Auto-selected OpenAI-compatible backend: {backend_name}")
+                    break
+
+        if openai_backend and openai_backend.is_ready:
+            logger.info(f"Using OpenAI-compatible translator: {openai_backend.config.name}" +
+                       (f" with model override: {specific_model}" if specific_model else ""))
+            try:
+                result = await openai_backend.translate(
+                    text=text,
+                    source_language=source_language if source_language != 'auto' else 'en',
+                    target_language=target_language,
+                    model_override=specific_model  # Pass the specific model to use
+                )
+
+                if result and 'translated_text' in result:
+                    processing_time = time.time() - start_time
+                    return jsonify({
+                        "translated_text": result['translated_text'],
+                        "source_language": source_language,
+                        "target_language": target_language,
+                        "confidence": result.get('confidence', 0.9),
+                        "confidence_score": result.get('confidence', 0.9),
+                        "processing_time": processing_time,
+                        "backend_used": result.get('metadata', {}).get('backend_used', openai_backend.config.name),
+                        "session_id": session_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "model_used": result.get('metadata', {}).get('model_used', openai_backend.config.model)
+                    })
+                else:
+                    logger.warning(f"OpenAI-compatible translation returned no result")
+            except Exception as openai_error:
+                logger.error(f"OpenAI-compatible translator failed: {openai_error}")
+
         # Fallback to standard translation service
-        result = asyncio.run(translation_service.translate(translation_request))
-        
-        return jsonify({
-            "translated_text": result.translated_text,
-            "source_language": result.source_language,
-            "target_language": result.target_language,
-            "confidence_score": result.confidence_score,
-            "processing_time": result.processing_time,
-            "backend_used": result.backend_used,
-            "session_id": result.session_id,
-            "timestamp": result.timestamp
-        })
+        if translation_service is not None:
+            translation_request = TranslationRequest(
+                text=text,
+                source_language=source_language,
+                target_language=target_language,
+                session_id=session_id,
+                confidence_threshold=data.get('confidence_threshold', 0.8),
+                preserve_formatting=data.get('preserve_formatting', True),
+                context=data.get('context')
+            )
+            result = await translation_service.translate(translation_request)
+
+            return jsonify({
+                "translated_text": result.translated_text,
+                "source_language": result.source_language,
+                "target_language": result.target_language,
+                "confidence_score": result.confidence_score,
+                "processing_time": result.processing_time,
+                "backend_used": result.backend_used,
+                "session_id": result.session_id,
+                "timestamp": result.timestamp
+            })
+
+        return jsonify({"error": "No translation backend succeeded"}), 503
         
     except Exception as e:
         logger.error(f"Translation failed: {e}")
@@ -820,7 +923,7 @@ def api_available_models():
     # Check OpenAI-compatible translators
     for backend_name, translator in openai_compatible_translators.items():
         backend_display_names = {
-            "ollama": "Ollama (Local)",
+            "ollama": "Ollama",
             "groq": "Groq (Cloud - Fast)",
             "together": "Together AI (Cloud)",
             "vllm_server": "vLLM Server",
@@ -837,16 +940,78 @@ def api_available_models():
             "custom": "Custom OpenAI-compatible endpoint"
         }
 
-        models.append({
-            "name": backend_name,
-            "display_name": backend_display_names.get(backend_name, backend_name.title()),
-            "available": translator.is_ready,
-            "description": backend_descriptions.get(backend_name, f"OpenAI-compatible: {backend_name}"),
-            "backend": "openai_compatible",
-            "endpoint": translator.config.base_url,
-            "model": translator.config.model,
-            "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "ar", "hi", "id", "nl", "pl", "tr", "vi", "th"]
-        })
+        # For Ollama, get ALL available models and list them individually
+        if backend_name == "ollama" and translator.is_ready:
+            try:
+                import asyncio
+                import httpx
+
+                # Direct sync call to Ollama /api/tags (more reliable than async in Flask)
+                ollama_base = translator.config.base_url.replace("/v1", "")
+                logger.info(f"🔍 Fetching Ollama models from: {ollama_base}/api/tags")
+
+                try:
+                    response = httpx.get(f"{ollama_base}/api/tags", timeout=10.0)
+                    if response.status_code == 200:
+                        data = response.json()
+                        available_ollama_models = [model["name"] for model in data.get("models", [])]
+                        logger.info(f"📋 Ollama models from /api/tags: {available_ollama_models}")
+                    else:
+                        logger.warning(f"Ollama /api/tags returned status {response.status_code}")
+                        available_ollama_models = []
+                except Exception as e:
+                    logger.warning(f"Direct Ollama fetch failed: {e}, trying async")
+                    # Fallback to async method
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        available_ollama_models = loop.run_until_complete(
+                            translator.get_available_models()
+                        )
+                    finally:
+                        loop.close()
+
+                logger.info(f"Found {len(available_ollama_models)} Ollama models: {available_ollama_models}")
+
+                for ollama_model in available_ollama_models:
+                    is_default = (ollama_model == translator.config.model)
+                    models.append({
+                        "name": f"ollama:{ollama_model}",
+                        "display_name": f"Ollama - {ollama_model}" + (" (default)" if is_default else ""),
+                        "available": True,
+                        "description": f"Ollama local model: {ollama_model}",
+                        "backend": "openai_compatible",
+                        "backend_name": "ollama",
+                        "endpoint": translator.config.base_url,
+                        "model": ollama_model,
+                        "is_default": is_default,
+                        "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "ar", "hi", "id", "nl", "pl", "tr", "vi", "th"]
+                    })
+            except Exception as e:
+                logger.warning(f"Could not get Ollama models list: {e}, falling back to configured model")
+                # Fallback: just show configured model
+                models.append({
+                    "name": backend_name,
+                    "display_name": backend_display_names.get(backend_name, backend_name.title()),
+                    "available": translator.is_ready,
+                    "description": backend_descriptions.get(backend_name, f"OpenAI-compatible: {backend_name}"),
+                    "backend": "openai_compatible",
+                    "endpoint": translator.config.base_url,
+                    "model": translator.config.model,
+                    "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "ar", "hi", "id", "nl", "pl", "tr", "vi", "th"]
+                })
+        else:
+            # Non-Ollama backends: show single entry
+            models.append({
+                "name": backend_name,
+                "display_name": backend_display_names.get(backend_name, backend_name.title()),
+                "available": translator.is_ready,
+                "description": backend_descriptions.get(backend_name, f"OpenAI-compatible: {backend_name}"),
+                "backend": "openai_compatible",
+                "endpoint": translator.config.base_url,
+                "model": translator.config.model,
+                "supported_languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "ar", "hi", "id", "nl", "pl", "tr", "vi", "th"]
+            })
 
     # Check if translation service has other backends
     if translation_service and hasattr(translation_service, 'backend_priority'):
@@ -1078,54 +1243,54 @@ async def api_translate_multi():
 
 # API endpoint for compatibility with orchestration service
 @app.route('/api/translate', methods=['POST'])
-def api_translate_text():
+async def api_translate_text():
     """API translate endpoint for orchestration service compatibility"""
-    global translation_service
-    
+    # Check if any translation backend is available
+    has_backend = (
+        translation_service is not None or
+        (llama_translator and llama_translator.is_ready) or
+        (nllb_translator and nllb_translator.is_ready) or
+        bool(openai_compatible_translators)
+    )
+    if not has_backend:
+        return jsonify({"error": "No translation backend available"}), 503
+
     try:
-        # Check if service is initialized
-        if translation_service is None:
-            logger.error("Translation service not initialized")
-            return jsonify({"error": "Translation service not initialized"}), 503
-            
         data = request.get_json()
         if not data or 'text' not in data:
             return jsonify({"error": "Missing 'text' field"}), 400
-        
-        logger.info(f"API translate request: {data}")
-        
-        # Create translation request
-        translation_request = TranslationRequest(
-            text=data['text'],
-            source_language=data.get('source_language', 'auto'),
-            target_language=data.get('target_language', 'en'),
-            session_id=data.get('session_id'),
-            confidence_threshold=data.get('confidence_threshold', 0.8),
-            preserve_formatting=data.get('preserve_formatting', True),
-            context=data.get('context')
-        )
-        
+
+        text = data['text']
+        source_language = data.get('source_language', 'auto')
+        target_language = data.get('target_language', 'en')
+        session_id = data.get('session_id')
+        model = data.get('model', 'auto')
+
+        logger.info(f"API translate request: text={text[:50]}... target={target_language} model={model}")
+
+        start_time = time.time()
+
         # Check if we should use Llama translator directly
         if llama_translator and llama_translator.is_ready:
             logger.info("Using Llama transformer for direct translation")
             try:
                 llama_result = llama_translator.translate(
-                    text=translation_request.text,
-                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
-                    target_lang=translation_request.target_language
+                    text=text,
+                    source_lang=source_language if source_language != 'auto' else 'en',
+                    target_lang=target_language
                 )
-                
+
                 if "error" not in llama_result:
                     logger.info(f"Llama translation result: {llama_result['translated_text']}")
                     return jsonify({
                         "translated_text": llama_result['translated_text'],
-                        "source_language": llama_result.get('source_language', translation_request.source_language or 'auto'),
-                        "target_language": llama_result.get('target_language', translation_request.target_language),
+                        "source_language": llama_result.get('source_language', source_language or 'auto'),
+                        "target_language": llama_result.get('target_language', target_language),
                         "confidence": llama_result.get('confidence_score', 0.9),
                         "confidence_score": llama_result.get('confidence_score', 0.9),
                         "processing_time": llama_result.get('processing_time', 0.0),
                         "backend_used": llama_result.get('backend_used', 'llama_transformers'),
-                        "session_id": translation_request.session_id,
+                        "session_id": session_id,
                         "timestamp": llama_result.get('timestamp', datetime.utcnow().isoformat()),
                         "model_used": llama_result.get('model_used', 'llama-transformers')
                     })
@@ -1133,27 +1298,27 @@ def api_translate_text():
                     logger.warning(f"Llama translation error: {llama_result['error']}")
             except Exception as llama_error:
                 logger.error(f"Llama translator failed: {llama_error}")
-        
-        # Check if we should use NLLB translator as fallback
-        elif nllb_translator and nllb_translator.is_ready:
+
+        # Check if we should use NLLB translator
+        if nllb_translator and nllb_translator.is_ready:
             logger.info("Using NLLB translator for direct translation")
             try:
                 nllb_result = nllb_translator.translate(
-                    text=translation_request.text,
-                    source_lang=translation_request.source_language if translation_request.source_language != 'auto' else 'en',
-                    target_lang=translation_request.target_language
+                    text=text,
+                    source_lang=source_language if source_language != 'auto' else 'en',
+                    target_lang=target_language
                 )
-                
+
                 if "error" not in nllb_result:
                     logger.info(f"NLLB translation result: {nllb_result['translated_text']}")
                     return jsonify({
                         "translated_text": nllb_result['translated_text'],
-                        "source_language": nllb_result.get('source_language', translation_request.source_language),
-                        "target_language": nllb_result.get('target_language', translation_request.target_language),
+                        "source_language": nllb_result.get('source_language', source_language),
+                        "target_language": nllb_result.get('target_language', target_language),
                         "confidence_score": nllb_result.get('confidence_score', 0.9),
                         "processing_time": nllb_result.get('processing_time', 0.0),
                         "backend_used": nllb_result.get('backend_used', 'nllb_transformers'),
-                        "session_id": translation_request.session_id,
+                        "session_id": session_id,
                         "timestamp": nllb_result.get('timestamp', datetime.utcnow().isoformat()),
                         "model_used": nllb_result.get('model_used', current_config.get('model_name', 'nllb'))
                     })
@@ -1161,25 +1326,87 @@ def api_translate_text():
                     logger.warning(f"NLLB translation error: {nllb_result['error']}")
             except Exception as nllb_error:
                 logger.error(f"NLLB translator failed: {nllb_error}")
-        
+
+        # Check for OpenAI-compatible backends (Ollama, Groq, etc.)
+        openai_backend = None
+        specific_model = None  # For specifying a particular model within a backend (e.g., qwen3:4b for Ollama)
+
+        # Handle model format like "ollama:qwen3:4b" (backend:model)
+        if ':' in model and model != 'auto':
+            parts = model.split(':', 1)
+            backend_name = parts[0]
+            specific_model = parts[1] if len(parts) > 1 else None
+            if backend_name in openai_compatible_translators:
+                openai_backend = openai_compatible_translators[backend_name]
+                logger.info(f"Selected backend '{backend_name}' with model '{specific_model}'")
+        elif model in openai_compatible_translators:
+            openai_backend = openai_compatible_translators[model]
+        elif model == 'auto' and openai_compatible_translators:
+            for backend_name in ['ollama', 'groq', 'together', 'vllm_server', 'openai', 'custom']:
+                if backend_name in openai_compatible_translators:
+                    openai_backend = openai_compatible_translators[backend_name]
+                    logger.info(f"Auto-selected OpenAI-compatible backend: {backend_name}")
+                    break
+
+        if openai_backend and openai_backend.is_ready:
+            logger.info(f"Using OpenAI-compatible translator: {openai_backend.config.name}" +
+                       (f" with model override: {specific_model}" if specific_model else ""))
+            try:
+                result = await openai_backend.translate(
+                    text=text,
+                    source_language=source_language if source_language != 'auto' else 'en',
+                    target_language=target_language,
+                    model_override=specific_model  # Pass the specific model to use
+                )
+
+                if result and 'translated_text' in result:
+                    processing_time = time.time() - start_time
+                    return jsonify({
+                        "translated_text": result['translated_text'],
+                        "source_language": source_language,
+                        "target_language": target_language,
+                        "confidence": result.get('confidence', 0.9),
+                        "confidence_score": result.get('confidence', 0.9),
+                        "processing_time": processing_time,
+                        "backend_used": result.get('metadata', {}).get('backend_used', openai_backend.config.name),
+                        "session_id": session_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "model_used": result.get('metadata', {}).get('model_used', openai_backend.config.model)
+                    })
+                else:
+                    logger.warning(f"OpenAI-compatible translation returned no result")
+            except Exception as openai_error:
+                logger.error(f"OpenAI-compatible translator failed: {openai_error}")
+
         # Fallback to standard translation service
-        try:
-            result = asyncio.run(translation_service.translate(translation_request))
-            logger.info(f"Translation result: {result.translated_text}")
-        except Exception as trans_error:
-            logger.error(f"Translation execution failed: {trans_error}")
-            return jsonify({"error": f"Translation failed: {str(trans_error)}"}), 500
-        
-        return jsonify({
-            "translated_text": result.translated_text,
-            "source_language": result.source_language,
-            "target_language": result.target_language,
-            "confidence_score": result.confidence_score,
-            "processing_time": result.processing_time,
-            "backend_used": result.backend_used,
-            "session_id": result.session_id,
-            "timestamp": result.timestamp
-        })
+        if translation_service is not None:
+            try:
+                translation_request = TranslationRequest(
+                    text=text,
+                    source_language=source_language,
+                    target_language=target_language,
+                    session_id=session_id,
+                    confidence_threshold=data.get('confidence_threshold', 0.8),
+                    preserve_formatting=data.get('preserve_formatting', True),
+                    context=data.get('context')
+                )
+                result = await translation_service.translate(translation_request)
+                logger.info(f"Translation result: {result.translated_text}")
+
+                return jsonify({
+                    "translated_text": result.translated_text,
+                    "source_language": result.source_language,
+                    "target_language": result.target_language,
+                    "confidence_score": result.confidence_score,
+                    "processing_time": result.processing_time,
+                    "backend_used": result.backend_used,
+                    "session_id": result.session_id,
+                    "timestamp": result.timestamp
+                })
+            except Exception as trans_error:
+                logger.error(f"Translation execution failed: {trans_error}")
+
+        return jsonify({"error": "No translation backend succeeded"}), 503
         
     except Exception as e:
         logger.error(f"API translate failed: {e}")

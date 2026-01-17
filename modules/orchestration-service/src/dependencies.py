@@ -172,6 +172,11 @@ def get_database_manager() -> DatabaseManager:
             DatabaseSettings(url=database_url) if database_url else DatabaseSettings()
         )
         _database_manager = DatabaseManager(db_settings)
+
+        # Also set the global in database/database.py for backward compatibility
+        from database import database as db_module
+        db_module.database_manager = _database_manager
+
         logger.info("DatabaseManager initialized successfully")
     return _database_manager
 

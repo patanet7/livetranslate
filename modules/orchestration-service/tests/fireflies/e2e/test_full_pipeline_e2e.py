@@ -28,9 +28,13 @@ import aiohttp
 import websockets
 
 # Add parent paths for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
+orchestration_root = Path(__file__).parent.parent.parent.parent
+tests_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(orchestration_root))
+sys.path.insert(0, str(orchestration_root / "src"))
+sys.path.insert(0, str(tests_root))
 
-from tests.fireflies.fixtures.meeting_transcript_5min import (
+from fireflies.fixtures.meeting_transcript_5min import (
     MEETING_TRANSCRIPT,
     GLOSSARY_TERMS,
     GLOSSARY_VERIFICATION_CASES,
@@ -38,7 +42,7 @@ from tests.fireflies.fixtures.meeting_transcript_5min import (
     get_expected_context_count,
     get_transcript_duration_seconds,
 )
-from tests.fireflies.mocks.fireflies_mock_server import (
+from fireflies.mocks.fireflies_mock_server import (
     FirefliesMockServer,
     MockChunk,
     MockTranscriptScenario,

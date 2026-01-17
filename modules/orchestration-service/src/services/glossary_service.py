@@ -20,8 +20,9 @@ import re
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, and_, or_
-from sqlalchemy.orm import Session as DBSession, selectinload
+from sqlalchemy import select, and_, or_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from database.models import Glossary, GlossaryEntry
 
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# Glossary Service
+# Glossary Service (Async)
 # =============================================================================
 
 
@@ -44,7 +45,7 @@ class GlossaryService:
         service = GlossaryService(db_session)
 
         # Get glossary terms for translation
-        terms = service.get_glossary_terms(
+        terms = await service.get_glossary_terms(
             glossary_id=config.glossary_id,
             target_language="es",
             domain="medical"
@@ -57,12 +58,12 @@ class GlossaryService:
         )
     """
 
-    def __init__(self, db: DBSession):
+    def __init__(self, db: AsyncSession):
         """
         Initialize the glossary service.
 
         Args:
-            db: SQLAlchemy database session
+            db: SQLAlchemy async database session
         """
         self.db = db
 
@@ -70,7 +71,7 @@ class GlossaryService:
     # Glossary CRUD Operations
     # =========================================================================
 
-    def create_glossary(
+    async def create_glossary(
         self,
         name: str,
         target_languages: List[str],
@@ -102,12 +103,13 @@ class GlossaryService:
             source_language=source_language,
             target_languages=target_languages,
             is_default=is_default,
+            is_active=True,  # Explicitly set
             created_by=created_by,
         )
 
         self.db.add(glossary)
-        self.db.commit()
-        self.db.refresh(glossary)
+        await self.db.commit()
+        await self.db.refresh(glossary)
 
         logger.info(
             f"Created glossary: id={glossary.glossary_id}, "
@@ -116,7 +118,7 @@ class GlossaryService:
 
         return glossary
 
-    def get_glossary(self, glossary_id: UUID) -> Optional[Glossary]:
+    async def get_glossary(self, glossary_id: UUID) -> Optional[Glossary]:
         """
         Get a glossary by ID.
 
@@ -126,9 +128,12 @@ class GlossaryService:
         Returns:
             Glossary object or None if not found
         """
-        return self.db.get(Glossary, glossary_id)
+        result = await self.db.execute(
+            select(Glossary).where(Glossary.glossary_id == glossary_id)
+        )
+        return result.scalar_one_or_none()
 
-    def get_glossary_with_entries(self, glossary_id: UUID) -> Optional[Glossary]:
+    async def get_glossary_with_entries(self, glossary_id: UUID) -> Optional[Glossary]:
         """
         Get a glossary with all its entries loaded.
 
@@ -143,10 +148,10 @@ class GlossaryService:
             .options(selectinload(Glossary.entries))
             .where(Glossary.glossary_id == glossary_id)
         )
-        result = self.db.execute(stmt)
+        result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    def list_glossaries(
+    async def list_glossaries(
         self,
         domain: Optional[str] = None,
         source_language: Optional[str] = None,
@@ -180,10 +185,10 @@ class GlossaryService:
 
         stmt = stmt.order_by(Glossary.name)
 
-        result = self.db.execute(stmt)
+        result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    def update_glossary(
+    async def update_glossary(
         self,
         glossary_id: UUID,
         name: Optional[str] = None,
@@ -206,7 +211,7 @@ class GlossaryService:
         Returns:
             Updated Glossary or None if not found
         """
-        glossary = self.get_glossary(glossary_id)
+        glossary = await self.get_glossary(glossary_id)
         if not glossary:
             return None
 
@@ -221,14 +226,13 @@ class GlossaryService:
         if is_active is not None:
             glossary.is_active = is_active
 
-        self.db.commit()
-        self.db.refresh(glossary)
+        await self.db.commit()
+        await self.db.refresh(glossary)
 
         logger.info(f"Updated glossary: id={glossary_id}")
-
         return glossary
 
-    def delete_glossary(self, glossary_id: UUID) -> bool:
+    async def delete_glossary(self, glossary_id: UUID) -> bool:
         """
         Delete a glossary and all its entries.
 
@@ -238,51 +242,95 @@ class GlossaryService:
         Returns:
             True if deleted, False if not found
         """
-        glossary = self.get_glossary(glossary_id)
+        glossary = await self.get_glossary(glossary_id)
         if not glossary:
             return False
 
-        self.db.delete(glossary)
-        self.db.commit()
+        await self.db.delete(glossary)
+        await self.db.commit()
 
         logger.info(f"Deleted glossary: id={glossary_id}")
-
         return True
+
+    async def get_glossary_stats(self, glossary_id: UUID) -> Optional[Dict]:
+        """
+        Get statistics for a glossary.
+
+        Args:
+            glossary_id: Glossary UUID
+
+        Returns:
+            Statistics dict or None if glossary not found
+        """
+        glossary = await self.get_glossary(glossary_id)
+        if not glossary:
+            return None
+
+        # Count entries
+        count_result = await self.db.execute(
+            select(func.count(GlossaryEntry.entry_id)).where(
+                GlossaryEntry.glossary_id == glossary_id
+            )
+        )
+        entry_count = count_result.scalar() or 0
+
+        # Get language coverage
+        entries_result = await self.db.execute(
+            select(GlossaryEntry.translations).where(
+                GlossaryEntry.glossary_id == glossary_id
+            )
+        )
+        all_translations = entries_result.scalars().all()
+
+        languages_with_translations = set()
+        for translations in all_translations:
+            if translations:
+                languages_with_translations.update(translations.keys())
+
+        return {
+            "glossary_id": str(glossary_id),
+            "name": glossary.name,
+            "entry_count": entry_count,
+            "target_languages": glossary.target_languages or [],
+            "languages_with_translations": list(languages_with_translations),
+            "coverage": len(languages_with_translations) / len(glossary.target_languages)
+            if glossary.target_languages
+            else 0,
+        }
 
     # =========================================================================
     # Entry CRUD Operations
     # =========================================================================
 
-    def add_entry(
+    async def add_entry(
         self,
         glossary_id: UUID,
         source_term: str,
         translations: Dict[str, str],
         context: Optional[str] = None,
         notes: Optional[str] = None,
+        priority: int = 0,
         case_sensitive: bool = False,
         match_whole_word: bool = True,
-        priority: int = 0,
     ) -> Optional[GlossaryEntry]:
         """
-        Add an entry to a glossary.
+        Add a new entry to a glossary.
 
         Args:
             glossary_id: Parent glossary UUID
             source_term: Source term to translate
-            translations: Dict of target_language -> translation
-            context: Optional usage context/example
+            translations: Dict mapping language codes to translations
+            context: Optional usage context
             notes: Optional internal notes
-            case_sensitive: Whether matching is case-sensitive
-            match_whole_word: Whether to match whole words only
             priority: Priority for conflict resolution (higher = more important)
+            case_sensitive: Whether matching should be case-sensitive
+            match_whole_word: Whether to match whole words only
 
         Returns:
             Created GlossaryEntry or None if glossary not found
         """
-        glossary = self.get_glossary(glossary_id)
+        glossary = await self.get_glossary(glossary_id)
         if not glossary:
-            logger.warning(f"Cannot add entry: glossary {glossary_id} not found")
             return None
 
         entry = GlossaryEntry(
@@ -292,39 +340,30 @@ class GlossaryService:
             translations=translations,
             context=context,
             notes=notes,
+            priority=priority,
             case_sensitive=case_sensitive,
             match_whole_word=match_whole_word,
-            priority=priority,
         )
 
         self.db.add(entry)
+        await self.db.commit()
+        await self.db.refresh(entry)
 
-        # Update entry count
-        glossary.entry_count = (glossary.entry_count or 0) + 1
-
-        self.db.commit()
-        self.db.refresh(entry)
-
-        logger.debug(
-            f"Added glossary entry: '{source_term}' -> {translations} "
-            f"(glossary={glossary_id})"
+        logger.info(
+            f"Added entry to glossary {glossary_id}: "
+            f"'{source_term}' -> {len(translations)} translations"
         )
 
         return entry
 
-    def get_entry(self, entry_id: UUID) -> Optional[GlossaryEntry]:
-        """
-        Get a glossary entry by ID.
+    async def get_entry(self, entry_id: UUID) -> Optional[GlossaryEntry]:
+        """Get an entry by ID."""
+        result = await self.db.execute(
+            select(GlossaryEntry).where(GlossaryEntry.entry_id == entry_id)
+        )
+        return result.scalar_one_or_none()
 
-        Args:
-            entry_id: Entry UUID
-
-        Returns:
-            GlossaryEntry or None if not found
-        """
-        return self.db.get(GlossaryEntry, entry_id)
-
-    def list_entries(
+    async def list_entries(
         self,
         glossary_id: UUID,
         target_language: Optional[str] = None,
@@ -334,84 +373,80 @@ class GlossaryService:
 
         Args:
             glossary_id: Glossary UUID
-            target_language: Optional filter for entries with this target language
+            target_language: Optional filter for entries with this language
 
         Returns:
             List of matching entries
         """
-        stmt = (
-            select(GlossaryEntry)
-            .where(GlossaryEntry.glossary_id == glossary_id)
-            .order_by(GlossaryEntry.priority.desc(), GlossaryEntry.source_term)
-        )
+        stmt = select(GlossaryEntry).where(GlossaryEntry.glossary_id == glossary_id)
 
-        result = self.db.execute(stmt)
+        # Note: Filtering by target_language would require JSON operations
+        # For now, return all and filter in Python if needed
+
+        stmt = stmt.order_by(GlossaryEntry.source_term)
+
+        result = await self.db.execute(stmt)
         entries = list(result.scalars().all())
 
         # Filter by target language if specified
         if target_language:
             entries = [
-                e for e in entries
-                if target_language in (e.translations or {})
+                e
+                for e in entries
+                if e.translations and target_language in e.translations
             ]
 
         return entries
 
-    def update_entry(
+    async def update_entry(
         self,
         entry_id: UUID,
-        source_term: Optional[str] = None,
         translations: Optional[Dict[str, str]] = None,
+        definition: Optional[str] = None,
         context: Optional[str] = None,
-        notes: Optional[str] = None,
-        case_sensitive: Optional[bool] = None,
-        match_whole_word: Optional[bool] = None,
         priority: Optional[int] = None,
+        case_sensitive: Optional[bool] = None,
+        whole_word: Optional[bool] = None,
     ) -> Optional[GlossaryEntry]:
         """
         Update a glossary entry.
 
         Args:
             entry_id: Entry UUID
-            source_term: New source term (optional)
             translations: New translations dict (optional)
+            definition: New definition (optional)
             context: New context (optional)
-            notes: New notes (optional)
-            case_sensitive: New case sensitivity (optional)
-            match_whole_word: New whole word setting (optional)
             priority: New priority (optional)
+            case_sensitive: New case sensitivity setting (optional)
+            whole_word: New whole word setting (optional)
 
         Returns:
-            Updated GlossaryEntry or None if not found
+            Updated entry or None if not found
         """
-        entry = self.get_entry(entry_id)
+        entry = await self.get_entry(entry_id)
         if not entry:
             return None
 
-        if source_term is not None:
-            entry.source_term = source_term
-            entry.source_term_normalized = source_term.lower()
         if translations is not None:
             entry.translations = translations
+        if definition is not None:
+            entry.definition = definition
         if context is not None:
             entry.context = context
-        if notes is not None:
-            entry.notes = notes
-        if case_sensitive is not None:
-            entry.case_sensitive = case_sensitive
-        if match_whole_word is not None:
-            entry.match_whole_word = match_whole_word
         if priority is not None:
             entry.priority = priority
+        if case_sensitive is not None:
+            entry.case_sensitive = case_sensitive
+        if whole_word is not None:
+            entry.whole_word = whole_word
 
-        self.db.commit()
-        self.db.refresh(entry)
+        await self.db.commit()
+        await self.db.refresh(entry)
 
-        logger.debug(f"Updated glossary entry: id={entry_id}")
-
+        logger.info(f"Updated entry: id={entry_id}")
         return entry
 
-    def delete_entry(self, entry_id: UUID) -> bool:
+    async def delete_entry(self, entry_id: UUID) -> bool:
         """
         Delete a glossary entry.
 
@@ -421,62 +456,52 @@ class GlossaryService:
         Returns:
             True if deleted, False if not found
         """
-        entry = self.get_entry(entry_id)
+        entry = await self.get_entry(entry_id)
         if not entry:
             return False
 
-        glossary = self.get_glossary(entry.glossary_id)
-        if glossary:
-            glossary.entry_count = max(0, (glossary.entry_count or 1) - 1)
+        await self.db.delete(entry)
+        await self.db.commit()
 
-        self.db.delete(entry)
-        self.db.commit()
-
-        logger.debug(f"Deleted glossary entry: id={entry_id}")
-
+        logger.info(f"Deleted entry: id={entry_id}")
         return True
 
-    # =========================================================================
-    # Bulk Operations
-    # =========================================================================
-
-    def import_entries(
+    async def bulk_add_entries(
         self,
         glossary_id: UUID,
         entries: List[Dict],
-    ) -> Tuple[int, int]:
+    ) -> Tuple[int, int, List[str]]:
         """
-        Bulk import entries into a glossary.
+        Bulk add entries to a glossary.
 
         Args:
-            glossary_id: Target glossary UUID
-            entries: List of entry dicts with keys:
-                - source_term: str (required)
-                - translations: Dict[str, str] (required)
-                - context: str (optional)
-                - notes: str (optional)
-                - case_sensitive: bool (optional, default False)
-                - match_whole_word: bool (optional, default True)
-                - priority: int (optional, default 0)
+            glossary_id: Glossary UUID
+            entries: List of entry dicts with source_term, translations, etc.
 
         Returns:
-            Tuple of (successful_count, failed_count)
+            Tuple of (added_count, skipped_count, errors)
         """
-        glossary = self.get_glossary(glossary_id)
+        glossary = await self.get_glossary(glossary_id)
         if not glossary:
-            logger.warning(f"Cannot import: glossary {glossary_id} not found")
-            return (0, len(entries))
+            return 0, 0, ["Glossary not found"]
 
-        successful = 0
-        failed = 0
+        added = 0
+        skipped = 0
+        errors = []
 
         for entry_data in entries:
             try:
                 source_term = entry_data.get("source_term")
-                translations = entry_data.get("translations")
+                translations = entry_data.get("translations", {})
 
-                if not source_term or not translations:
-                    failed += 1
+                if not source_term:
+                    skipped += 1
+                    errors.append("Missing source_term")
+                    continue
+
+                if not translations:
+                    skipped += 1
+                    errors.append(f"No translations for '{source_term}'")
                     continue
 
                 entry = GlossaryEntry(
@@ -486,282 +511,161 @@ class GlossaryService:
                     translations=translations,
                     context=entry_data.get("context"),
                     notes=entry_data.get("notes"),
+                    priority=entry_data.get("priority", 0),
                     case_sensitive=entry_data.get("case_sensitive", False),
                     match_whole_word=entry_data.get("match_whole_word", True),
-                    priority=entry_data.get("priority", 0),
                 )
-
                 self.db.add(entry)
-                successful += 1
+                added += 1
 
             except Exception as e:
-                logger.warning(f"Failed to import entry: {e}")
-                failed += 1
+                skipped += 1
+                errors.append(str(e))
 
-        # Update entry count
-        glossary.entry_count = (glossary.entry_count or 0) + successful
-
-        self.db.commit()
+        if added > 0:
+            await self.db.commit()
 
         logger.info(
-            f"Imported entries to glossary {glossary_id}: "
-            f"{successful} successful, {failed} failed"
+            f"Bulk import to glossary {glossary_id}: "
+            f"added={added}, skipped={skipped}"
         )
 
-        return (successful, failed)
+        return added, skipped, errors
 
     # =========================================================================
-    # Term Matching and Translation Support
+    # Term Matching & Lookup
     # =========================================================================
 
-    def get_glossary_terms(
+    async def get_glossary_terms(
         self,
-        glossary_id: Optional[UUID],
         target_language: str,
+        glossary_id: Optional[UUID] = None,
         domain: Optional[str] = None,
         include_default: bool = True,
     ) -> Dict[str, str]:
         """
-        Get glossary terms for use in translation.
-
-        This method retrieves all applicable terms and returns them as a
-        simple source_term -> translation dict for use in TranslationContext.
-
-        Merges:
-        1. Default glossary (if include_default=True)
-        2. Specified glossary (if glossary_id provided)
-
-        Later entries override earlier ones (specified glossary wins).
+        Get glossary terms formatted for use in translation.
 
         Args:
-            glossary_id: Specific glossary to use (optional)
             target_language: Target language code
-            domain: Filter by domain (optional)
-            include_default: Include default glossary terms
+            glossary_id: Specific glossary to use (optional)
+            domain: Domain to filter by (optional)
+            include_default: Include default glossaries (default: True)
 
         Returns:
-            Dict mapping source_term -> translation for the target language
+            Dict mapping source terms to translations
         """
-        terms: Dict[str, str] = {}
+        terms = {}
 
-        # Get default glossary first
-        if include_default:
-            default_terms = self._get_default_glossary_terms(
-                target_language, domain
-            )
-            terms.update(default_terms)
-
-        # Get specified glossary (overrides default)
+        # Get specific glossary if provided
         if glossary_id:
-            specific_terms = self._get_glossary_terms_by_id(
-                glossary_id, target_language
+            glossary = await self.get_glossary_with_entries(glossary_id)
+            if glossary and glossary.entries:
+                for entry in glossary.entries:
+                    if entry.translations and target_language in entry.translations:
+                        terms[entry.source_term] = entry.translations[target_language]
+
+        # Get default glossaries
+        if include_default:
+            conditions = [Glossary.is_default == True, Glossary.is_active == True]
+            if domain:
+                conditions.append(Glossary.domain == domain)
+
+            stmt = (
+                select(Glossary)
+                .options(selectinload(Glossary.entries))
+                .where(and_(*conditions))
             )
-            terms.update(specific_terms)
+            result = await self.db.execute(stmt)
+            default_glossaries = result.scalars().all()
 
-        logger.debug(
-            f"Retrieved {len(terms)} glossary terms for "
-            f"target_language={target_language}, domain={domain}"
-        )
-
-        return terms
-
-    def _get_default_glossary_terms(
-        self,
-        target_language: str,
-        domain: Optional[str] = None,
-    ) -> Dict[str, str]:
-        """Get terms from default glossaries."""
-        conditions = [
-            Glossary.is_active == True,
-            Glossary.is_default == True,
-        ]
-
-        if domain:
-            # Include matching domain OR no domain (global defaults)
-            conditions.append(
-                or_(
-                    Glossary.domain == domain,
-                    Glossary.domain.is_(None),
-                )
-            )
-
-        stmt = (
-            select(Glossary)
-            .options(selectinload(Glossary.entries))
-            .where(and_(*conditions))
-        )
-
-        result = self.db.execute(stmt)
-        glossaries = result.scalars().all()
-
-        terms: Dict[str, str] = {}
-        for glossary in glossaries:
-            for entry in glossary.entries:
-                translation = entry.get_translation(target_language)
-                if translation:
-                    terms[entry.source_term] = translation
+            for glossary in default_glossaries:
+                if glossary.entries:
+                    for entry in glossary.entries:
+                        if (
+                            entry.translations
+                            and target_language in entry.translations
+                        ):
+                            # Don't override specific glossary terms
+                            if entry.source_term not in terms:
+                                terms[entry.source_term] = entry.translations[
+                                    target_language
+                                ]
 
         return terms
 
-    def _get_glossary_terms_by_id(
-        self,
-        glossary_id: UUID,
-        target_language: str,
-    ) -> Dict[str, str]:
-        """Get terms from a specific glossary."""
-        glossary = self.get_glossary_with_entries(glossary_id)
-        if not glossary or not glossary.is_active:
-            return {}
-
-        terms: Dict[str, str] = {}
-        for entry in sorted(glossary.entries, key=lambda e: e.priority):
-            translation = entry.get_translation(target_language)
-            if translation:
-                terms[entry.source_term] = translation
-
-        return terms
-
-    def find_matching_terms(
+    async def find_matching_terms(
         self,
         text: str,
-        glossary_id: Optional[UUID],
-        target_language: str,
+        glossary_id: Optional[UUID] = None,
         domain: Optional[str] = None,
-    ) -> List[Tuple[str, str, int, int]]:
+        target_language: Optional[str] = None,
+    ) -> List[Dict]:
         """
         Find glossary terms that match within the given text.
 
-        Returns matches with their positions for potential highlighting
-        or verification that terms were applied.
-
         Args:
             text: Text to search for terms
-            glossary_id: Glossary to use (optional)
-            target_language: Target language
-            domain: Domain filter (optional)
+            glossary_id: Specific glossary to search
+            domain: Domain to filter by
+            target_language: Target language for translations
 
         Returns:
-            List of (source_term, translation, start_pos, end_pos) tuples
+            List of match dicts with term, position, and translation info
         """
-        matches: List[Tuple[str, str, int, int]] = []
+        matches = []
 
-        # Get all applicable entries
-        entries = self._get_all_applicable_entries(
-            glossary_id, target_language, domain
-        )
+        # Build query for entries
+        if glossary_id:
+            entries = await self.list_entries(glossary_id)
+        else:
+            # Get entries from all active glossaries
+            conditions = [Glossary.is_active == True]
+            if domain:
+                conditions.append(Glossary.domain == domain)
 
-        # Sort by length (longest first) to match longer terms first
-        entries = sorted(entries, key=lambda e: len(e.source_term), reverse=True)
+            stmt = (
+                select(Glossary)
+                .options(selectinload(Glossary.entries))
+                .where(and_(*conditions))
+            )
+            result = await self.db.execute(stmt)
+            glossaries = result.scalars().all()
 
-        text_lower = text.lower()
+            entries = []
+            for g in glossaries:
+                if g.entries:
+                    entries.extend(g.entries)
 
+        # Find matches
         for entry in entries:
-            translation = entry.get_translation(target_language)
-            if not translation:
-                continue
+            pattern = entry.source_term
+            if not entry.case_sensitive:
+                pattern = re.escape(pattern)
+                flags = re.IGNORECASE
+            else:
+                pattern = re.escape(pattern)
+                flags = 0
 
-            # Build regex pattern
-            pattern_str = re.escape(entry.source_term)
-            if entry.match_whole_word:
-                pattern_str = rf"\b{pattern_str}\b"
+            if entry.whole_word:
+                pattern = r"\b" + pattern + r"\b"
 
-            flags = 0 if entry.case_sensitive else re.IGNORECASE
+            for match in re.finditer(pattern, text, flags):
+                match_info = {
+                    "term": entry.source_term,
+                    "start": match.start(),
+                    "end": match.end(),
+                    "matched_text": match.group(),
+                    "entry_id": str(entry.entry_id),
+                    "priority": entry.priority,
+                }
 
-            pattern = re.compile(pattern_str, flags)
+                if target_language and entry.translations:
+                    match_info["translation"] = entry.translations.get(target_language)
 
-            for match in pattern.finditer(text):
-                matches.append((
-                    entry.source_term,
-                    translation,
-                    match.start(),
-                    match.end(),
-                ))
+                matches.append(match_info)
 
-        # Sort by position
-        matches.sort(key=lambda m: m[2])
+        # Sort by position, then priority
+        matches.sort(key=lambda m: (m["start"], -m["priority"]))
 
         return matches
-
-    def _get_all_applicable_entries(
-        self,
-        glossary_id: Optional[UUID],
-        target_language: str,
-        domain: Optional[str] = None,
-    ) -> List[GlossaryEntry]:
-        """Get all entries from applicable glossaries."""
-        entries: List[GlossaryEntry] = []
-
-        # Default glossaries
-        conditions = [
-            Glossary.is_active == True,
-            Glossary.is_default == True,
-        ]
-
-        if domain:
-            conditions.append(
-                or_(
-                    Glossary.domain == domain,
-                    Glossary.domain.is_(None),
-                )
-            )
-
-        stmt = (
-            select(Glossary)
-            .options(selectinload(Glossary.entries))
-            .where(and_(*conditions))
-        )
-
-        result = self.db.execute(stmt)
-        for glossary in result.scalars():
-            for entry in glossary.entries:
-                if target_language in (entry.translations or {}):
-                    entries.append(entry)
-
-        # Specific glossary
-        if glossary_id:
-            glossary = self.get_glossary_with_entries(glossary_id)
-            if glossary and glossary.is_active:
-                for entry in glossary.entries:
-                    if target_language in (entry.translations or {}):
-                        entries.append(entry)
-
-        return entries
-
-    # =========================================================================
-    # Utility Methods
-    # =========================================================================
-
-    def get_glossary_stats(self, glossary_id: UUID) -> Optional[Dict]:
-        """
-        Get statistics for a glossary.
-
-        Args:
-            glossary_id: Glossary UUID
-
-        Returns:
-            Dict with stats or None if glossary not found
-        """
-        glossary = self.get_glossary_with_entries(glossary_id)
-        if not glossary:
-            return None
-
-        # Count translations per language
-        language_counts: Dict[str, int] = {}
-        for entry in glossary.entries:
-            for lang in (entry.translations or {}):
-                language_counts[lang] = language_counts.get(lang, 0) + 1
-
-        return {
-            "glossary_id": str(glossary.glossary_id),
-            "name": glossary.name,
-            "domain": glossary.domain,
-            "source_language": glossary.source_language,
-            "target_languages": glossary.target_languages,
-            "is_active": glossary.is_active,
-            "is_default": glossary.is_default,
-            "entry_count": glossary.entry_count,
-            "actual_entry_count": len(glossary.entries),
-            "translations_per_language": language_counts,
-            "created_at": glossary.created_at.isoformat() if glossary.created_at else None,
-            "updated_at": glossary.updated_at.isoformat() if glossary.updated_at else None,
-        }

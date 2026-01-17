@@ -198,7 +198,7 @@ async def list_glossaries(
     - **source_language**: Filter by source language code
     - **active_only**: Only return active glossaries (default: true)
     """
-    glossaries = service.list_glossaries(
+    glossaries = await service.list_glossaries(
         domain=domain,
         source_language=source_language,
         active_only=active_only,
@@ -234,7 +234,7 @@ async def create_glossary(
     - **Default**: Applied to all translations in a domain
     - **Session-specific**: Applied only when explicitly referenced
     """
-    glossary = service.create_glossary(
+    glossary = await service.create_glossary(
         name=request.name,
         description=request.description,
         domain=request.domain,
@@ -264,7 +264,7 @@ async def get_glossary(
     service: GlossaryService = Depends(get_glossary_service),
 ):
     """Get a glossary by ID."""
-    glossary = service.get_glossary(glossary_id)
+    glossary = await service.get_glossary(glossary_id)
     if not glossary:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -293,7 +293,7 @@ async def update_glossary(
     service: GlossaryService = Depends(get_glossary_service),
 ):
     """Update a glossary."""
-    glossary = service.update_glossary(
+    glossary = await service.update_glossary(
         glossary_id=glossary_id,
         name=request.name,
         description=request.description,
@@ -333,7 +333,7 @@ async def delete_glossary(
 
     This operation is irreversible.
     """
-    deleted = service.delete_glossary(glossary_id)
+    deleted = await service.delete_glossary(glossary_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -347,7 +347,7 @@ async def get_glossary_stats(
     service: GlossaryService = Depends(get_glossary_service),
 ):
     """Get statistics for a glossary."""
-    stats = service.get_glossary_stats(glossary_id)
+    stats = await service.get_glossary_stats(glossary_id)
     if not stats:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -374,14 +374,14 @@ async def list_entries(
     - **target_language**: Filter entries that have a translation for this language
     """
     # Verify glossary exists
-    glossary = service.get_glossary(glossary_id)
+    glossary = await service.get_glossary(glossary_id)
     if not glossary:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Glossary {glossary_id} not found",
         )
 
-    entries = service.list_entries(
+    entries = await service.list_entries(
         glossary_id=glossary_id,
         target_language=target_language,
     )
@@ -415,7 +415,7 @@ async def create_entry(
     service: GlossaryService = Depends(get_glossary_service),
 ):
     """Add a new entry to a glossary."""
-    entry = service.add_entry(
+    entry = await service.add_entry(
         glossary_id=glossary_id,
         source_term=request.source_term,
         translations=request.translations,
@@ -456,14 +456,14 @@ async def update_entry(
 ):
     """Update a glossary entry."""
     # Verify entry belongs to glossary
-    entry = service.get_entry(entry_id)
+    entry = await service.get_entry(entry_id)
     if not entry or entry.glossary_id != glossary_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Entry {entry_id} not found in glossary {glossary_id}",
         )
 
-    updated = service.update_entry(
+    updated = await service.update_entry(
         entry_id=entry_id,
         source_term=request.source_term,
         translations=request.translations,
@@ -499,14 +499,14 @@ async def delete_entry(
 ):
     """Delete a glossary entry."""
     # Verify entry belongs to glossary
-    entry = service.get_entry(entry_id)
+    entry = await service.get_entry(entry_id)
     if not entry or entry.glossary_id != glossary_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Entry {entry_id} not found in glossary {glossary_id}",
         )
 
-    service.delete_entry(entry_id)
+    await service.delete_entry(entry_id)
 
 
 # =============================================================================
@@ -540,14 +540,16 @@ async def bulk_import_entries(
         for e in request.entries
     ]
 
-    successful, failed = service.import_entries(
+    added, skipped, errors = await service.bulk_add_entries(
         glossary_id=glossary_id,
         entries=entries_data,
     )
+    successful = added
+    failed = skipped
 
     if successful == 0 and failed == len(request.entries):
         # Check if glossary exists
-        glossary = service.get_glossary(glossary_id)
+        glossary = await service.get_glossary(glossary_id)
         if not glossary:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -578,7 +580,7 @@ async def lookup_terms(
     Returns all matching terms with their positions and translations.
     Useful for highlighting terms or verifying glossary coverage.
     """
-    matches = service.find_matching_terms(
+    matches = await service.find_matching_terms(
         text=request.text,
         glossary_id=glossary_id,
         target_language=request.target_language,
@@ -610,7 +612,7 @@ async def lookup_terms_global(
     Searches default glossaries and optionally domain-filtered glossaries.
     Does not require a specific glossary_id.
     """
-    matches = service.find_matching_terms(
+    matches = await service.find_matching_terms(
         text=request.text,
         glossary_id=None,  # Search all applicable
         target_language=request.target_language,
@@ -656,7 +658,7 @@ async def get_terms_for_translation(
     - **domain**: Filter by domain (optional)
     - **include_default**: Include default glossary terms (default: true)
     """
-    terms = service.get_glossary_terms(
+    terms = await service.get_glossary_terms(
         glossary_id=glossary_id,
         target_language=target_language,
         domain=domain,

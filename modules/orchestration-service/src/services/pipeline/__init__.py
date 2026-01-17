@@ -27,6 +27,7 @@ from .adapters import (
     TranscriptChunk,
     FirefliesChunkAdapter,
     GoogleMeetChunkAdapter,
+    ImportChunkAdapter,
 )
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     "TranscriptChunk",
     "FirefliesChunkAdapter",
     "GoogleMeetChunkAdapter",
+    "ImportChunkAdapter",
 ]

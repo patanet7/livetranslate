@@ -25,7 +25,7 @@ from clients.translation_service_client import (
     TranslationResponse,
     LanguageDetectionResponse,
 )
-from database import get_db_session, Translation, BotSession
+from database import get_db_session, Translation, BotSession, SessionEvent
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +119,7 @@ class TranslateTextRequest(BaseModel):
     )
     prompt_id: Optional[str] = Field(None, description="Custom prompt template ID")
     session_id: Optional[str] = Field(None, description="Session ID for context")
+    context: Optional[str] = Field(None, description="Previous sentences for context-aware translation")
 
     # Legacy field support - accept 'model' but map it to 'service'
     model: Optional[str] = Field(None, description="[DEPRECATED] Use 'service' instead")
@@ -304,6 +305,7 @@ async def translate_text(
             target_language=request.target_language,
             model=request.backend_service,  # Use backend_service property for proper mapping
             quality=request.quality,
+            context=request.context,  # Pass context for better translation quality
         )
 
         # Call translation service
@@ -420,6 +422,262 @@ async def translate_batch(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Batch translation failed: {str(e)}",
+        )
+
+
+# ============================================================================
+# Job Tracking Endpoints
+# ============================================================================
+
+
+class CreateJobRequest(BaseModel):
+    """Request to create a translation job"""
+    job_type: str = Field(..., description="Type of job: translation, transcription")
+    source_id: str = Field(..., description="Source identifier (transcript_id, file_id, etc.)")
+    target_language: Optional[str] = None
+    total_items: int = Field(..., ge=1, description="Total items to process")
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class UpdateJobRequest(BaseModel):
+    """Request to update job progress"""
+    completed_items: int = Field(..., ge=0)
+    status: str = Field("in_progress", description="Job status: pending, in_progress, completed, failed")
+    error_message: Optional[str] = None
+    partial_results: Optional[List[Dict[str, Any]]] = None
+
+
+class JobResponse(BaseModel):
+    """Job status response"""
+    job_id: str
+    job_type: str
+    source_id: str
+    status: str
+    completed_items: int
+    total_items: int
+    progress_percent: float
+    created_at: str
+    updated_at: str
+    metadata: Optional[Dict[str, Any]] = None
+
+
+@router.post("/jobs", response_model=JobResponse)
+async def create_job(
+    request: CreateJobRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """
+    Create a new translation/transcription job for tracking.
+
+    Jobs are tracked using SessionEvent table for flexibility.
+    """
+    try:
+        job_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+
+        # Store job as a SessionEvent
+        event = SessionEvent(
+            event_id=uuid.UUID(job_id),
+            session_id=None,  # Jobs don't require a session
+            event_type="job",
+            event_name=f"{request.job_type}_job_created",
+            event_data={
+                "job_type": request.job_type,
+                "source_id": request.source_id,
+                "target_language": request.target_language,
+                "total_items": request.total_items,
+                "completed_items": 0,
+                "status": "pending",
+                "metadata": request.metadata or {},
+            },
+            severity="info",
+            source="job_tracker",
+            timestamp=now,
+        )
+        db.add(event)
+        await db.commit()
+
+        logger.info(f"Created job {job_id} for {request.job_type}")
+
+        return JobResponse(
+            job_id=job_id,
+            job_type=request.job_type,
+            source_id=request.source_id,
+            status="pending",
+            completed_items=0,
+            total_items=request.total_items,
+            progress_percent=0.0,
+            created_at=now.isoformat(),
+            updated_at=now.isoformat(),
+            metadata=request.metadata,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to create job: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create job: {str(e)}",
+        )
+
+
+@router.patch("/jobs/{job_id}", response_model=JobResponse)
+async def update_job(
+    job_id: str,
+    request: UpdateJobRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Update job progress."""
+    try:
+        from sqlalchemy import select
+
+        # Find the job event
+        result = await db.execute(
+            select(SessionEvent).where(SessionEvent.event_id == uuid.UUID(job_id))
+        )
+        event = result.scalar_one_or_none()
+
+        if not event:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        # Update the event data
+        now = datetime.now(timezone.utc)
+        event_data = event.event_data or {}
+        event_data["completed_items"] = request.completed_items
+        event_data["status"] = request.status
+        if request.error_message:
+            event_data["error_message"] = request.error_message
+        if request.partial_results:
+            event_data["partial_results"] = request.partial_results
+
+        event.event_data = event_data
+        event.timestamp = now
+        event.event_name = f"{event_data.get('job_type', 'unknown')}_job_{request.status}"
+
+        await db.commit()
+
+        total = event_data.get("total_items", 1)
+        completed = request.completed_items
+        progress = (completed / total * 100) if total > 0 else 0
+
+        return JobResponse(
+            job_id=job_id,
+            job_type=event_data.get("job_type", "unknown"),
+            source_id=event_data.get("source_id", ""),
+            status=request.status,
+            completed_items=completed,
+            total_items=total,
+            progress_percent=round(progress, 1),
+            created_at=event_data.get("created_at", now.isoformat()),
+            updated_at=now.isoformat(),
+            metadata=event_data.get("metadata"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update job: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update job: {str(e)}",
+        )
+
+
+@router.get("/jobs/{job_id}", response_model=JobResponse)
+async def get_job(
+    job_id: str,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Get job status."""
+    try:
+        from sqlalchemy import select
+
+        result = await db.execute(
+            select(SessionEvent).where(SessionEvent.event_id == uuid.UUID(job_id))
+        )
+        event = result.scalar_one_or_none()
+
+        if not event:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        event_data = event.event_data or {}
+        total = event_data.get("total_items", 1)
+        completed = event_data.get("completed_items", 0)
+        progress = (completed / total * 100) if total > 0 else 0
+
+        return JobResponse(
+            job_id=job_id,
+            job_type=event_data.get("job_type", "unknown"),
+            source_id=event_data.get("source_id", ""),
+            status=event_data.get("status", "unknown"),
+            completed_items=completed,
+            total_items=total,
+            progress_percent=round(progress, 1),
+            created_at=event_data.get("created_at", event.timestamp.isoformat()),
+            updated_at=event.timestamp.isoformat(),
+            metadata=event_data.get("metadata"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get job: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get job: {str(e)}",
+        )
+
+
+@router.get("/jobs")
+async def list_jobs(
+    status: Optional[str] = None,
+    job_type: Optional[str] = None,
+    limit: int = 20,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """List recent jobs."""
+    try:
+        from sqlalchemy import select, desc
+
+        query = select(SessionEvent).where(
+            SessionEvent.event_type == "job"
+        ).order_by(desc(SessionEvent.timestamp)).limit(limit)
+
+        result = await db.execute(query)
+        events = result.scalars().all()
+
+        jobs = []
+        for event in events:
+            event_data = event.event_data or {}
+
+            # Filter by status/type if specified
+            if status and event_data.get("status") != status:
+                continue
+            if job_type and event_data.get("job_type") != job_type:
+                continue
+
+            total = event_data.get("total_items", 1)
+            completed = event_data.get("completed_items", 0)
+            progress = (completed / total * 100) if total > 0 else 0
+
+            jobs.append({
+                "job_id": str(event.event_id),
+                "job_type": event_data.get("job_type", "unknown"),
+                "source_id": event_data.get("source_id", ""),
+                "status": event_data.get("status", "unknown"),
+                "completed_items": completed,
+                "total_items": total,
+                "progress_percent": round(progress, 1),
+                "created_at": event_data.get("created_at", event.timestamp.isoformat()),
+                "updated_at": event.timestamp.isoformat(),
+            })
+
+        return {"jobs": jobs, "count": len(jobs)}
+
+    except Exception as e:
+        logger.error(f"Failed to list jobs: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list jobs: {str(e)}",
         )
 
 
@@ -586,10 +844,23 @@ async def translation_service_health(
         health_data = await translation_client.health_check()
         device_info = await translation_client.get_device_info()
 
+        # Extract backend from nested structure (translation service returns details.backend)
+        backend = (
+            health_data.get("backend")
+            or health_data.get("details", {}).get("backend")
+            or "unknown"
+        )
+
+        # Extract available backends for more info
+        available_backends = health_data.get("details", {}).get("available_backends", [])
+        if available_backends and backend == "unknown":
+            backend = available_backends[0] if available_backends else "unknown"
+
         return {
             "status": health_data.get("status", "unknown"),
             "service": "translation",
-            "backend": health_data.get("backend", "unknown"),
+            "backend": backend,
+            "available_backends": available_backends,
             "device": device_info.get("device", "unknown"),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "details": {
@@ -757,4 +1028,219 @@ async def assess_translation_quality(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Translation quality assessment failed: {str(e)}",
+        )
+
+
+# ============================================================================
+# Dashboard Settings Endpoints (Database-backed)
+# ============================================================================
+
+# Constants for dashboard settings
+DASHBOARD_SETTINGS_KEY = "fireflies-dashboard-settings"
+
+
+class ModelSettingRequest(BaseModel):
+    """Request model for setting translation model"""
+
+    model: str = Field(..., description="Translation model to use")
+
+
+class PromptSettingRequest(BaseModel):
+    """Request model for setting prompt template"""
+
+    template: str = Field(..., description="Prompt template text")
+
+
+async def get_dashboard_setting(db: AsyncSession, setting_name: str) -> Optional[str]:
+    """Get a dashboard setting from the database using session_events table."""
+    from sqlalchemy import select, desc
+
+    try:
+        # Query for the most recent setting event
+        stmt = (
+            select(SessionEvent)
+            .where(SessionEvent.event_type == "dashboard_setting")
+            .where(SessionEvent.event_name == setting_name)
+            .order_by(desc(SessionEvent.timestamp))
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        event = result.scalar_one_or_none()
+
+        if event and event.event_data:
+            return event.event_data.get("value")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get dashboard setting '{setting_name}': {e}")
+        return None
+
+
+async def save_dashboard_setting(
+    db: AsyncSession, setting_name: str, value: str
+) -> bool:
+    """Save a dashboard setting to the database using session_events table."""
+    try:
+        # Create a new session event for the setting
+        event = SessionEvent(
+            event_id=uuid.uuid4(),
+            session_id=None,  # Dashboard settings are not session-specific
+            event_type="dashboard_setting",
+            event_name=setting_name,
+            event_data={"value": value, "saved_at": datetime.now(timezone.utc).isoformat()},
+            timestamp=datetime.now(timezone.utc),
+            severity="info",
+            source="fireflies-dashboard",
+        )
+        db.add(event)
+        await db.commit()
+        logger.info(f"Saved dashboard setting '{setting_name}' to database")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save dashboard setting '{setting_name}': {e}")
+        await db.rollback()
+        return False
+
+
+@router.post("/model")
+async def set_translation_model(
+    request: ModelSettingRequest,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Set the default translation model for the dashboard.
+
+    **Features:**
+    - Persists model selection to database
+    - Used by Fireflies dashboard for default model setting
+    """
+    try:
+        logger.info(f"Setting translation model to: {request.model}")
+
+        success = await save_dashboard_setting(db, "translation_model", request.model)
+
+        if success:
+            return {
+                "success": True,
+                "model": request.model,
+                "message": "Translation model saved to database",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save model setting to database",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to set translation model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set translation model: {str(e)}",
+        )
+
+
+@router.get("/model")
+async def get_translation_model(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get the default translation model from the database.
+
+    **Features:**
+    - Retrieves persisted model selection
+    - Returns default if not set
+    """
+    try:
+        model = await get_dashboard_setting(db, "translation_model")
+
+        return {
+            "model": model or "default",
+            "source": "database" if model else "default",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get translation model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get translation model: {str(e)}",
+        )
+
+
+@router.post("/prompt")
+async def set_translation_prompt(
+    request: PromptSettingRequest,
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Set the translation prompt template for the dashboard.
+
+    **Features:**
+    - Persists prompt template to database
+    - Used by Fireflies dashboard for custom prompts
+    """
+    try:
+        logger.info(f"Saving translation prompt template ({len(request.template)} chars)")
+
+        success = await save_dashboard_setting(db, "translation_prompt", request.template)
+
+        if success:
+            return {
+                "success": True,
+                "template_length": len(request.template),
+                "message": "Prompt template saved to database",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to save prompt template to database",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to set translation prompt: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set translation prompt: {str(e)}",
+        )
+
+
+@router.get("/prompt")
+async def get_translation_prompt(
+    db: AsyncSession = Depends(get_db_session),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Get the translation prompt template from the database.
+
+    **Features:**
+    - Retrieves persisted prompt template
+    - Returns default template if not set
+    """
+    try:
+        template = await get_dashboard_setting(db, "translation_prompt")
+
+        default_template = """Translate to {target_language}:
+{current_sentence}
+
+Translation:"""
+
+        return {
+            "template": template or default_template,
+            "source": "database" if template else "default",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get translation prompt: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get translation prompt: {str(e)}",
         )
