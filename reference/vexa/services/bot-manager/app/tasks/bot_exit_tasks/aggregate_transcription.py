@@ -16,22 +16,22 @@ async def run(meeting: Meeting, db: AsyncSession):
     try:
         # The collector service is internal, so we can use its service name
         collector_url = f"http://transcription-collector:8000/internal/transcripts/{meeting_id}"
-        
+
         async with httpx.AsyncClient() as client:
             logger.info(f"Calling transcription-collector for meeting {meeting_id} at {collector_url}")
             response = await client.get(collector_url, timeout=30.0) # Increased timeout
-        
+
         if response.status_code == 200:
             transcription_segments = response.json()
             logger.info(f"Received {len(transcription_segments)} segments from collector for meeting {meeting_id}")
-            
+
             if not transcription_segments:
                 logger.info(f"No transcription segments returned for meeting {meeting_id}. Nothing to aggregate.")
                 return
 
             unique_speakers = set()
             unique_languages = set()
-            
+
             for segment in transcription_segments:
                 speaker = segment.get('speaker')
                 language = segment.get('language')
@@ -39,19 +39,19 @@ async def run(meeting: Meeting, db: AsyncSession):
                     unique_speakers.add(speaker.strip())
                 if language and language.strip():
                     unique_languages.add(language.strip())
-            
+
             aggregated_data = {}
             if unique_speakers:
                 aggregated_data['participants'] = sorted(list(unique_speakers))
             if unique_languages:
                 aggregated_data['languages'] = sorted(list(unique_languages))
-            
+
             if aggregated_data:
                 # Use a flag to track if the data object was changed
                 data_changed = False
                 # Ensure meeting.data is a dictionary
                 existing_data = meeting.data or {}
-                
+
                 # Update participants if not present
                 if 'participants' not in existing_data and 'participants' in aggregated_data:
                     existing_data['participants'] = aggregated_data['participants']
@@ -61,7 +61,7 @@ async def run(meeting: Meeting, db: AsyncSession):
                 if 'languages' not in existing_data and 'languages' in aggregated_data:
                     existing_data['languages'] = aggregated_data['languages']
                     data_changed = True
-                
+
                 if data_changed:
                     meeting.data = existing_data
                     # The caller is responsible for the commit
@@ -78,4 +78,4 @@ async def run(meeting: Meeting, db: AsyncSession):
     except httpx.RequestError as exc:
         logger.error(f"An error occurred while requesting transcript for meeting {meeting_id} from {exc.request.url!r}: {exc}", exc_info=True)
     except Exception as e:
-        logger.error(f"Failed to process and aggregate data for meeting {meeting_id}: {e}", exc_info=True) 
+        logger.error(f"Failed to process and aggregate data for meeting {meeting_id}: {e}", exc_info=True)

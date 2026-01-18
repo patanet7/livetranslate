@@ -4,13 +4,14 @@ Logging Middleware
 Provides structured logging for all HTTP requests and responses.
 """
 
+import json
 import logging
 import time
-import json
-from typing import Callable
+import uuid
+from collections.abc import Callable
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     Logging middleware for FastAPI applications
     """
 
-    def __init__(self, app, config: dict = None):
+    def __init__(self, app, config: dict | None = None):
         super().__init__(app)
         self.config = config or {}
         self.log_level = self.config.get("log_level", "INFO")
@@ -63,7 +64,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Log error
             process_time = time.time() - start_time
             logger.error(
-                f"Request {request_id} failed: {str(e)}",
+                f"Request {request_id} failed: {e!s}",
                 extra={
                     "request_id": request_id,
                     "error": str(e),
@@ -118,9 +119,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(f"Failed to log request {request_id}: {e}")
 
-    async def _log_response(
-        self, response: Response, request_id: str, process_time: float
-    ):
+    async def _log_response(self, response: Response, request_id: str, process_time: float):
         """
         Log outgoing response
         """
@@ -140,14 +139,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                         try:
                             log_data["body"] = json.loads(response.body.decode("utf-8"))
                         except (json.JSONDecodeError, UnicodeDecodeError):
-                            log_data["body"] = response.body.decode(
-                                "utf-8", errors="replace"
-                            )[: self.max_body_size]
+                            log_data["body"] = response.body.decode("utf-8", errors="replace")[
+                                : self.max_body_size
+                            ]
                     elif response.body:
                         log_data["body_size"] = len(response.body)
-                        log_data["body"] = (
-                            f"<body too large: {len(response.body)} bytes>"
-                        )
+                        log_data["body"] = f"<body too large: {len(response.body)} bytes>"
                 except Exception as e:
                     log_data["body_error"] = str(e)
 
@@ -173,9 +170,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         Configure logging format and handlers
         """
         # Create formatter for structured logging
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
         # Configure root logger
         root_logger = logging.getLogger()

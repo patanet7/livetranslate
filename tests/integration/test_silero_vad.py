@@ -4,8 +4,9 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
-import pytest
+
 import numpy as np
+import pytest
 
 
 class TestSileroVAD:
@@ -116,10 +117,10 @@ class TestSileroVAD:
         medium_audio = np.random.randn(16000).astype(np.float32) * 0.3
 
         # Low threshold should detect it
-        detected_low = vad_low.filter_silence(medium_audio)
+        vad_low.filter_silence(medium_audio)
 
         # High threshold might not
-        detected_high = vad_high.filter_silence(medium_audio)
+        vad_high.filter_silence(medium_audio)
 
         # Low threshold should be more permissive (but not guaranteed)
         # Just verify thresholds are different

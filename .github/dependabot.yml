@@ -1,0 +1,286 @@
+version: 2
+updates:
+  # Whisper Service - Python dependencies
+  - package-ecosystem: pip
+    directory: /modules/whisper-service
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    reviewers:
+      - livetranslate/whisper-team
+    labels:
+      - dependencies
+      - python
+      - whisper-service
+    commit-message:
+      prefix: "deps(whisper)"
+    groups:
+      python-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: torch
+        update-types:
+          - version-update:semver-major
+      - dependency-name: torchaudio
+        update-types:
+          - version-update:semver-major
+
+  # Translation Service - Python dependencies
+  - package-ecosystem: pip
+    directory: /modules/translation-service
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    reviewers:
+      - livetranslate/translation-team
+    labels:
+      - dependencies
+      - python
+      - translation-service
+    commit-message:
+      prefix: "deps(translation)"
+    groups:
+      python-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Orchestration Service - Python dependencies
+  - package-ecosystem: pip
+    directory: /modules/orchestration-service
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    reviewers:
+      - livetranslate/backend-team
+    labels:
+      - dependencies
+      - python
+      - orchestration-service
+    commit-message:
+      prefix: "deps(orchestration)"
+    groups:
+      python-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: openvino*
+        update-types:
+          - version-update:semver-major
+
+  # Frontend Service - npm dependencies
+  - package-ecosystem: npm
+    directory: /modules/frontend-service
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    reviewers:
+      - livetranslate/frontend-team
+    labels:
+      - dependencies
+      - javascript
+      - frontend-service
+    commit-message:
+      prefix: "deps(frontend)"
+    groups:
+      react:
+        patterns:
+          - react
+          - react-dom
+          - react-router*
+          - react-redux
+          - "@reduxjs/*"
+        update-types:
+          - minor
+          - patch
+      mui:
+        patterns:
+          - "@mui/*"
+          - "@emotion/*"
+        update-types:
+          - minor
+          - patch
+      testing:
+        patterns:
+          - vitest
+          - "@vitest/*"
+          - "@testing-library/*"
+          - "@playwright/*"
+        update-types:
+          - minor
+          - patch
+      dev-dependencies:
+        patterns:
+          - typescript
+          - eslint*
+          - prettier
+          - vite
+          - "@vitejs/*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: react
+        update-types:
+          - version-update:semver-major
+      - dependency-name: react-dom
+        update-types:
+          - version-update:semver-major
+
+  # Meeting Bot Service - npm dependencies (if exists)
+  - package-ecosystem: npm
+    directory: /modules/meeting-bot-service
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    reviewers:
+      - livetranslate/bot-team
+    labels:
+      - dependencies
+      - javascript
+      - meeting-bot-service
+    commit-message:
+      prefix: "deps(bot)"
+    groups:
+      all-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Docker dependencies
+  - package-ecosystem: docker
+    directory: /modules/whisper-service
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 2
+    reviewers:
+      - livetranslate/devops-team
+    labels:
+      - dependencies
+      - docker
+      - whisper-service
+    commit-message:
+      prefix: "deps(docker-whisper)"
+
+  - package-ecosystem: docker
+    directory: /modules/translation-service
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 2
+    reviewers:
+      - livetranslate/devops-team
+    labels:
+      - dependencies
+      - docker
+      - translation-service
+    commit-message:
+      prefix: "deps(docker-translation)"
+
+  - package-ecosystem: docker
+    directory: /modules/orchestration-service
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 2
+    reviewers:
+      - livetranslate/devops-team
+    labels:
+      - dependencies
+      - docker
+      - orchestration-service
+    commit-message:
+      prefix: "deps(docker-orchestration)"
+
+  - package-ecosystem: docker
+    directory: /modules/frontend-service
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 2
+    reviewers:
+      - livetranslate/devops-team
+    labels:
+      - dependencies
+      - docker
+      - frontend-service
+    commit-message:
+      prefix: "deps(docker-frontend)"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: thursday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    reviewers:
+      - livetranslate/devops-team
+    labels:
+      - dependencies
+      - github-actions
+      - ci-cd
+    commit-message:
+      prefix: "deps(actions)"
+    groups:
+      actions-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # Root-level Docker Compose files
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 2
+    reviewers:
+      - livetranslate/devops-team
+    labels:
+      - dependencies
+      - docker
+      - infrastructure
+    commit-message:
+      prefix: "deps(docker)"

@@ -5,10 +5,10 @@
 audio_processing:
   # Preset name for this configuration
   preset_name: "default"
-  
+
   # Version for compatibility tracking
   version: "1.0.0"
-  
+
   # Voice Activity Detection (VAD)
   vad:
     enabled: true
@@ -16,7 +16,7 @@ audio_processing:
     energy_threshold: 0.01
     speech_duration_threshold: 0.3
     silence_duration_threshold: 0.5
-  
+
   # Voice Frequency Filtering
   voice_filter:
     enabled: true
@@ -24,7 +24,7 @@ audio_processing:
     fundamental_max: 300  # Hz - maximum human voice frequency
     formant_preservation: true
     sibilance_enhancement: true
-  
+
   # Noise Reduction
   noise_reduction:
     enabled: false  # Disabled for loopback audio debugging
@@ -32,7 +32,7 @@ audio_processing:
     voice_protection: true
     spectral_subtraction: false
     adaptive_gating: true
-  
+
   # Voice Enhancement
   voice_enhancement:
     enabled: true
@@ -47,24 +47,24 @@ audio_processing:
       enabled: false
       frequency: 6000  # Hz
       threshold: -15.0 # dB
-  
+
   # Quality Control
   quality:
     min_quality_threshold: 0.3
     clipping_prevention: true
     phase_coherence: true
     artifact_detection: true
-  
+
   # Performance
   performance:
     chunk_size: 1024
     overlap_samples: 256
     processing_threads: 2
-  
+
   # Enabled stages (can be toggled individually)
   enabled_stages:
     - "vad"
-    - "voice_filter" 
+    - "voice_filter"
     - "voice_enhancement"
     # "noise_reduction" is disabled for loopback compatibility
 
@@ -74,18 +74,18 @@ presets:
     description: "Balanced processing for general use"
     noise_reduction: false
     voice_enhancement: true
-    
+
   high_quality:
     description: "Maximum quality processing"
     noise_reduction: true
     voice_enhancement: true
-    
+
   low_latency:
     description: "Minimal processing for low latency"
     noise_reduction: false
     voice_enhancement: false
     enabled_stages: ["vad"]
-    
+
   debug:
     description: "Debug mode with minimal processing"
     noise_reduction: false

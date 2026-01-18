@@ -552,4 +552,3 @@ After:  "Could not find meeting 12345"
 **Related Documentation:**
 - vexa/services/vexa-bot/README.md - Bot architecture overview
 - vexa/services/bot-manager/README.md - Bot-manager API documentation
-

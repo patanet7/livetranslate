@@ -300,7 +300,7 @@ class BatchedInferencePipeline:
         batch_size: int = 8,
         hotwords: Optional[str] = None,
         language_detection_threshold: Optional[float] = 0.5,
-        language_detection_segments: int = int(os.getenv('LANGUAGE_DETECTION_SEGMENTS', '10')), 
+        language_detection_segments: int = int(os.getenv('LANGUAGE_DETECTION_SEGMENTS', '10')),
     ) -> Tuple[Iterable[Segment], TranscriptionInfo]:
         """transcribe audio in chunks in batched fashion and return with language info.
 
@@ -378,8 +378,8 @@ class BatchedInferencePipeline:
             - a generator over transcribed segments
             - an instance of TranscriptionInfo
         """
-        
-        # --- Added Logging --- 
+
+        # --- Added Logging ---
         vad_threshold_env = float(os.getenv('VAD_FILTER_THRESHOLD', '0.5'))
         print(f"[WhisperLive Transcriber] Using LANGUAGE_DETECTION_SEGMENTS: {language_detection_segments}")
         print(f"[WhisperLive Transcriber] Using VAD_FILTER_THRESHOLD: {vad_threshold_env}")
@@ -406,7 +406,7 @@ class BatchedInferencePipeline:
                     # Read VAD threshold from env var with default of 0.5
                     vad_threshold_env = float(os.getenv('VAD_FILTER_THRESHOLD', '0.5'))
                     print(f"[WhisperLive Transcriber] VAD parameters not provided, using threshold from env: {vad_threshold_env}") # Added log
-                    
+
                     vad_parameters = VadOptions(
                         max_speech_duration_s=chunk_length,
                         min_silence_duration_ms=160,
@@ -756,7 +756,7 @@ class WhisperModel:
         hallucination_silence_threshold: Optional[float] = None,
         hotwords: Optional[str] = None,
         language_detection_threshold: Optional[float] = 0.5,
-        language_detection_segments: int = int(os.getenv('LANGUAGE_DETECTION_SEGMENTS', '10')), 
+        language_detection_segments: int = int(os.getenv('LANGUAGE_DETECTION_SEGMENTS', '10')),
     ) -> Tuple[Iterable[Segment], TranscriptionInfo]:
         """Transcribes an input file.
 

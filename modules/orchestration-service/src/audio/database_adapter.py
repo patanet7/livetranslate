@@ -21,15 +21,17 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Any, AsyncGenerator
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
 import asyncpg
 
 from .models import (
     AudioChunkMetadata,
-    SpeakerCorrelation,
     ProcessingStatus,
+    SpeakerCorrelation,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,7 @@ class DatabaseConnectionPool:
         self.database_url = database_url
         self.min_size = min_size
         self.max_size = max_size
-        self.pool: Optional[asyncpg.Pool] = None
+        self.pool: asyncpg.Pool | None = None
 
     async def initialize(self) -> bool:
         """Initialize the connection pool."""
@@ -57,9 +59,7 @@ class DatabaseConnectionPool:
                     "application_name": "livetranslate_audio_coordinator",
                 },
             )
-            logger.info(
-                f"Database pool initialized: {self.min_size}-{self.max_size} connections"
-            )
+            logger.info(f"Database pool initialized: {self.min_size}-{self.max_size} connections")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize database pool: {e}")
@@ -87,7 +87,7 @@ class AudioDatabaseAdapter:
     Optimized for high-throughput audio chunk processing with proper error handling.
     """
 
-    def __init__(self, database_url: str, pool_config: Optional[Dict] = None):
+    def __init__(self, database_url: str, pool_config: dict | None = None):
         self.database_url = database_url
         pool_config = pool_config or {}
 
@@ -249,9 +249,9 @@ class AudioDatabaseAdapter:
     async def store_transcript(
         self,
         session_id: str,
-        transcript_data: Dict[str, Any],
-        audio_file_id: Optional[str] = None,
-    ) -> Optional[str]:
+        transcript_data: dict[str, Any],
+        audio_file_id: str | None = None,
+    ) -> str | None:
         """
         Store transcript in bot_sessions.transcripts with speaker correlation support.
 
@@ -276,9 +276,7 @@ class AudioDatabaseAdapter:
                 # Extract speaker information
                 speaker_info = transcript_data.get("speaker_info", {})
                 speaker_id = speaker_info.get("speaker_id") if speaker_info else None
-                speaker_name = (
-                    speaker_info.get("speaker_name") if speaker_info else None
-                )
+                speaker_name = speaker_info.get("speaker_name") if speaker_info else None
 
                 # Prepare processing metadata
                 processing_metadata = {
@@ -313,8 +311,8 @@ class AudioDatabaseAdapter:
                     transcript_data.get("segment_index", 0),
                     audio_file_id,
                     json.dumps(processing_metadata),
-                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
-                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                    datetime.now(UTC).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                    datetime.now(UTC).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                 )
 
                 # Log event
@@ -348,8 +346,8 @@ class AudioDatabaseAdapter:
         self,
         session_id: str,
         source_transcript_id: str,
-        translation_data: Dict[str, Any],
-    ) -> Optional[str]:
+        translation_data: dict[str, Any],
+    ) -> str | None:
         """
         Store translation in bot_sessions.translations with full lineage tracking.
 
@@ -373,9 +371,7 @@ class AudioDatabaseAdapter:
             async with self.connection_pool.get_connection() as conn:
                 # Prepare processing metadata with lineage
                 processing_metadata = {
-                    "translation_service": translation_data.get(
-                        "translation_service", "unknown"
-                    ),
+                    "translation_service": translation_data.get("translation_service", "unknown"),
                     "translation_model": translation_data.get("model", "unknown"),
                     "processing_time": translation_data.get("processing_time", 0.0),
                     "chunk_lineage": translation_data.get("chunk_lineage", []),
@@ -407,8 +403,8 @@ class AudioDatabaseAdapter:
                     translation_data["start_timestamp"],
                     translation_data["end_timestamp"],
                     json.dumps(processing_metadata),
-                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
-                    datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                    datetime.now(UTC).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                    datetime.now(UTC).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                 )
 
                 # Log event
@@ -439,9 +435,7 @@ class AudioDatabaseAdapter:
             self.operation_stats["failed_operations"] += 1
             return None
 
-    async def store_speaker_correlation(
-        self, correlation: SpeakerCorrelation
-    ) -> Optional[str]:
+    async def store_speaker_correlation(self, correlation: SpeakerCorrelation) -> str | None:
         """
         Store speaker correlation in bot_sessions.correlations.
 
@@ -506,31 +500,27 @@ class AudioDatabaseAdapter:
                 self.operation_stats["correlations_stored"] += 1
                 self._update_operation_stats(start_time)
 
-                logger.debug(
-                    f"Stored speaker correlation: {correlation.correlation_id}"
-                )
+                logger.debug(f"Stored speaker correlation: {correlation.correlation_id}")
                 return correlation.correlation_id
 
         except Exception as e:
-            logger.error(
-                f"Failed to store speaker correlation {correlation.correlation_id}: {e}"
-            )
+            logger.error(f"Failed to store speaker correlation {correlation.correlation_id}: {e}")
             self.operation_stats["failed_operations"] += 1
             return None
 
     async def get_session_audio_chunks(
         self,
         session_id: str,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None,
+        limit: int | None = None,
+        offset: int | None = None,
         order_by: str = "chunk_start_time",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get audio chunks for a session with optional pagination."""
         try:
             async with self.connection_pool.get_connection() as conn:
                 query = f"""
-                    SELECT * FROM bot_sessions.audio_files 
-                    WHERE session_id = $1 
+                    SELECT * FROM bot_sessions.audio_files
+                    WHERE session_id = $1
                     ORDER BY {order_by}
                 """
 
@@ -552,9 +542,9 @@ class AudioDatabaseAdapter:
     async def get_session_transcripts(
         self,
         session_id: str,
-        source_type: Optional[str] = None,
-        speaker_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        source_type: str | None = None,
+        speaker_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         """Get transcripts for a session with optional filtering."""
         try:
             async with self.connection_pool.get_connection() as conn:
@@ -580,13 +570,13 @@ class AudioDatabaseAdapter:
 
     async def get_speaker_correlations(
         self, session_id: str, min_confidence: float = 0.0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get speaker correlations for a session."""
         try:
             async with self.connection_pool.get_connection() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT * FROM bot_sessions.correlations 
+                    SELECT * FROM bot_sessions.correlations
                     WHERE session_id = $1 AND correlation_confidence >= $2
                     ORDER BY start_timestamp
                 """,
@@ -604,7 +594,7 @@ class AudioDatabaseAdapter:
         self,
         chunk_id: str,
         status: ProcessingStatus,
-        processing_metadata: Optional[Dict[str, Any]] = None,
+        processing_metadata: dict[str, Any] | None = None,
     ) -> bool:
         """Update processing status for an audio chunk."""
         try:
@@ -612,13 +602,13 @@ class AudioDatabaseAdapter:
                 if processing_metadata:
                     await conn.execute(
                         """
-                        UPDATE bot_sessions.audio_files 
+                        UPDATE bot_sessions.audio_files
                         SET processing_status = $1, metadata = metadata || $2, updated_at = $3
                         WHERE file_id = $4
                     """,
                         status.value,
                         json.dumps(processing_metadata),
-                        datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                        datetime.now(UTC).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                         chunk_id,
                     )
                 else:
@@ -629,7 +619,7 @@ class AudioDatabaseAdapter:
                         WHERE file_id = $3
                     """,
                         status.value,
-                        datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                        datetime.now(UTC).replace(tzinfo=None),  # DB uses naive TIMESTAMP
                         chunk_id,
                     )
 
@@ -639,14 +629,14 @@ class AudioDatabaseAdapter:
             logger.error(f"Failed to update chunk status {chunk_id}: {e}")
             return False
 
-    async def get_session_analytics(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_analytics(self, session_id: str) -> dict[str, Any]:
         """Get comprehensive analytics for a session."""
         try:
             async with self.connection_pool.get_connection() as conn:
                 # Get session overview
                 session_overview = await conn.fetchrow(
                     """
-                    SELECT * FROM bot_sessions.session_overview 
+                    SELECT * FROM bot_sessions.session_overview
                     WHERE session_id = $1
                 """,
                     session_id,
@@ -661,13 +651,13 @@ class AudioDatabaseAdapter:
                 # Add chunk processing statistics
                 chunk_stats = await conn.fetchrow(
                     """
-                    SELECT 
+                    SELECT
                         COUNT(*) as total_chunks,
                         AVG(audio_quality_score) as avg_quality,
                         SUM(duration_seconds) as total_audio_duration,
                         COUNT(CASE WHEN processing_status = 'completed' THEN 1 END) as completed_chunks,
                         COUNT(CASE WHEN processing_status = 'failed' THEN 1 END) as failed_chunks
-                    FROM bot_sessions.audio_files 
+                    FROM bot_sessions.audio_files
                     WHERE session_id = $1
                 """,
                     session_id,
@@ -678,11 +668,11 @@ class AudioDatabaseAdapter:
                 # Add correlation statistics
                 correlation_stats = await conn.fetchrow(
                     """
-                    SELECT 
+                    SELECT
                         COUNT(*) as total_correlations,
                         AVG(correlation_confidence) as avg_confidence,
                         COUNT(CASE WHEN correlation_confidence >= 0.8 THEN 1 END) as high_confidence_correlations
-                    FROM bot_sessions.correlations 
+                    FROM bot_sessions.correlations
                     WHERE session_id = $1
                 """,
                     session_id,
@@ -698,9 +688,9 @@ class AudioDatabaseAdapter:
             logger.error(f"Failed to get analytics for session {session_id}: {e}")
             return {}
 
-    async def cleanup_old_data(self, retention_days: int = 30) -> Dict[str, int]:
+    async def cleanup_old_data(self, retention_days: int = 30) -> dict[str, int]:
         """Clean up old audio data based on retention policy."""
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=retention_days)
         cleanup_stats = {
             "audio_files": 0,
             "transcripts": 0,
@@ -713,7 +703,7 @@ class AudioDatabaseAdapter:
                 # Cleanup old sessions and cascade
                 result = await conn.execute(
                     """
-                    DELETE FROM bot_sessions.sessions 
+                    DELETE FROM bot_sessions.sessions
                     WHERE created_at < $1 AND status IN ('ended', 'error')
                 """,
                     cutoff_date,
@@ -734,7 +724,7 @@ class AudioDatabaseAdapter:
         session_id: str,
         event_type: str,
         event_subtype: str,
-        event_data: Dict[str, Any],
+        event_data: dict[str, Any],
         severity: str = "info",
     ):
         """Log an event to bot_sessions.events."""
@@ -742,7 +732,7 @@ class AudioDatabaseAdapter:
             await conn.execute(
                 """
                 INSERT INTO bot_sessions.events (
-                    session_id, event_type, event_subtype, event_data, 
+                    session_id, event_type, event_subtype, event_data,
                     source_component, severity, timestamp
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
             """,
@@ -752,7 +742,7 @@ class AudioDatabaseAdapter:
                 json.dumps(event_data),
                 "audio_coordinator",
                 severity,
-                datetime.now(timezone.utc).replace(tzinfo=None),  # DB uses naive TIMESTAMP
+                datetime.now(UTC).replace(tzinfo=None),  # DB uses naive TIMESTAMP
             )
         except Exception as e:
             logger.warning(f"Failed to log event: {e}")
@@ -778,7 +768,7 @@ class AudioDatabaseAdapter:
             logger.warning(f"Failed to generate hash for {file_path}: {e}")
             return ""
 
-    def get_operation_statistics(self) -> Dict[str, Any]:
+    def get_operation_statistics(self) -> dict[str, Any]:
         """Get database operation statistics."""
         return {
             **self.operation_stats,
@@ -796,7 +786,7 @@ class AudioDatabaseAdapter:
 
 # Factory function for creating database adapter
 def create_audio_database_adapter(
-    database_url: str, pool_config: Optional[Dict] = None
+    database_url: str, pool_config: dict | None = None
 ) -> AudioDatabaseAdapter:
     """Create and return an AudioDatabaseAdapter instance."""
     return AudioDatabaseAdapter(database_url, pool_config)
@@ -823,7 +813,7 @@ async def main():
             return
 
         # Example audio chunk
-        from .models import create_audio_chunk_metadata, SourceType
+        from .models import SourceType, create_audio_chunk_metadata
 
         chunk = create_audio_chunk_metadata(
             session_id="test-session-123",

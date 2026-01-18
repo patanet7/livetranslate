@@ -7,20 +7,21 @@ capturing audio, and extracting captions in real-time.
 
 import asyncio
 import logging
-from typing import Optional, Dict, Any, Callable
+import re
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-import time
-import re
+from typing import Any
 
 # Browser automation imports
 try:
     from selenium import webdriver
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import NoSuchElementException, TimeoutException
     from selenium.webdriver.chrome.options import Options as ChromeOptions
-    from selenium.common.exceptions import TimeoutException, NoSuchElementException
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.webdriver.support.ui import WebDriverWait
 
     SELENIUM_AVAILABLE = True
 except ImportError:
@@ -51,10 +52,10 @@ class GoogleMeetConfig:
     video_enabled: bool = False
     microphone_enabled: bool = False
     join_timeout: int = 30
-    chrome_profile_path: Optional[str] = None
+    chrome_profile_path: str | None = None
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     window_size: tuple = (1920, 1080)
-    chrome_binary_path: Optional[str] = None
+    chrome_binary_path: str | None = None
 
 
 class GoogleMeetAutomation:
@@ -64,23 +65,26 @@ class GoogleMeetAutomation:
 
     def __init__(self, config: GoogleMeetConfig):
         self.config = config
-        self.driver: Optional[webdriver.Chrome] = None
+        self.driver: webdriver.Chrome | None = None
         self.meeting_state = MeetingState.DISCONNECTED
-        self.meeting_id: Optional[str] = None
-        self.meeting_url: Optional[str] = None
-        self.participants: Dict[str, Dict[str, Any]] = {}
+        self.meeting_id: str | None = None
+        self.meeting_url: str | None = None
+        self.participants: dict[str, dict[str, Any]] = {}
 
         # Callbacks
-        self.on_state_change: Optional[Callable[[MeetingState], None]] = None
-        self.on_participant_change: Optional[Callable[[Dict[str, Any]], None]] = None
-        self.on_caption_received: Optional[Callable[[str, str, float], None]] = None
-        self.on_audio_data: Optional[Callable[[bytes], None]] = None
+        self.on_state_change: Callable[[MeetingState], None] | None = None
+        self.on_participant_change: Callable[[dict[str, Any]], None] | None = None
+        self.on_caption_received: Callable[[str, str, float], None] | None = None
+        self.on_audio_data: Callable[[bytes], None] | None = None
 
         # Internal state
         self._last_caption_timestamp = 0
         self._caption_elements: list = []
         self._is_monitoring = False
-        self._monitor_task: Optional[asyncio.Task] = None
+        self._monitor_task: asyncio.Task | None = None
+
+        # Background task tracking (prevents garbage collection and enables cleanup)
+        self._background_tasks: set[asyncio.Task] = set()
 
         if not SELENIUM_AVAILABLE:
             raise ImportError("Selenium is required for Google Meet automation")
@@ -112,17 +116,13 @@ class GoogleMeetAutomation:
 
             if self.config.audio_capture_enabled:
                 chrome_options.add_argument("--allow-running-insecure-content")
-                chrome_options.add_argument(
-                    "--autoplay-policy=no-user-gesture-required"
-                )
+                chrome_options.add_argument("--autoplay-policy=no-user-gesture-required")
                 chrome_options.add_argument("--disable-web-security")
                 chrome_options.add_argument("--disable-features=VizDisplayCompositor")
 
             # Chrome profile
             if self.config.chrome_profile_path:
-                chrome_options.add_argument(
-                    f"--user-data-dir={self.config.chrome_profile_path}"
-                )
+                chrome_options.add_argument(f"--user-data-dir={self.config.chrome_profile_path}")
 
             # Chrome binary path
             if self.config.chrome_binary_path:
@@ -304,10 +304,7 @@ class GoogleMeetAutomation:
 
             # Check URL for meeting indicators
             current_url = self.driver.current_url
-            if "meet.google.com" in current_url and len(current_url.split("/")[-1]) > 5:
-                return True
-
-            return False
+            return bool("meet.google.com" in current_url and len(current_url.split("/")[-1]) > 5)
 
         except Exception as e:
             logger.error(f"Error checking meeting status: {e}")
@@ -366,9 +363,7 @@ class GoogleMeetAutomation:
 
             for selector in caption_selectors:
                 try:
-                    caption_container = self.driver.find_element(
-                        By.CSS_SELECTOR, selector
-                    )
+                    caption_container = self.driver.find_element(By.CSS_SELECTOR, selector)
                     if caption_container.is_displayed():
                         await self._extract_captions_from_container(caption_container)
                         break
@@ -411,7 +406,7 @@ class GoogleMeetAutomation:
         except Exception as e:
             logger.error(f"Error extracting captions: {e}")
 
-    def _extract_speaker_from_element(self, element) -> Optional[str]:
+    def _extract_speaker_from_element(self, element) -> str | None:
         """Extract speaker name from caption element"""
         try:
             # Try to find speaker name in parent or sibling elements
@@ -446,9 +441,7 @@ class GoogleMeetAutomation:
 
             for selector in participant_selectors:
                 try:
-                    participant_elements = self.driver.find_elements(
-                        By.CSS_SELECTOR, selector
-                    )
+                    participant_elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
 
                     for element in participant_elements:
                         try:
@@ -470,9 +463,7 @@ class GoogleMeetAutomation:
                 self.participants = current_participants
 
                 if self.on_participant_change:
-                    await self._safe_callback(
-                        self.on_participant_change, self.participants
-                    )
+                    await self._safe_callback(self.on_participant_change, self.participants)
 
         except Exception as e:
             logger.error(f"Error monitoring participants: {e}")
@@ -562,9 +553,11 @@ class GoogleMeetAutomation:
             logger.info(f"Meeting state changed: {old_state} -> {new_state}")
 
             if self.on_state_change:
-                asyncio.create_task(
+                task = asyncio.create_task(
                     self._safe_callback(self.on_state_change, new_state)
                 )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
 
     async def _safe_callback(self, callback, *args):
         """Execute callback safely"""
@@ -582,7 +575,7 @@ class GoogleMeetAutomation:
         return self.meeting_state == MeetingState.JOINED
 
     @property
-    def meeting_info(self) -> Dict[str, Any]:
+    def meeting_info(self) -> dict[str, Any]:
         """Get current meeting information"""
         return {
             "meeting_id": self.meeting_id,
@@ -595,7 +588,7 @@ class GoogleMeetAutomation:
 
 # Factory function for creating Google Meet automation
 def create_google_meet_automation(
-    config: Optional[GoogleMeetConfig] = None,
+    config: GoogleMeetConfig | None = None,
 ) -> GoogleMeetAutomation:
     """Create a Google Meet automation instance"""
     if config is None:

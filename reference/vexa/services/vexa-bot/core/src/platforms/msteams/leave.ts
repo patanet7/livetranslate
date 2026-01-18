@@ -36,38 +36,38 @@ export async function prepareForRecording(page: Page, botConfig: BotConfig): Pro
 
           (window as any).logBot?.("🔍 Starting stateless Teams leave button detection...");
           (window as any).logBot?.(`📋 Will try ${leaveSelectors.length} selectors until one works`);
-          
+
           // Try each selector until one works (stateless iteration)
           for (let i = 0; i < leaveSelectors.length; i++) {
             const selector = leaveSelectors[i];
             try {
               (window as any).logBot?.(`🔍 [${i + 1}/${leaveSelectors.length}] Trying selector: ${selector}`);
-              
+
               const button = document.querySelector(selector) as HTMLElement;
               if (button) {
                 // Check if button is visible and clickable
                 const rect = button.getBoundingClientRect();
                 const computedStyle = getComputedStyle(button);
-                const isVisible = rect.width > 0 && rect.height > 0 && 
-                                computedStyle.display !== 'none' && 
+                const isVisible = rect.width > 0 && rect.height > 0 &&
+                                computedStyle.display !== 'none' &&
                                 computedStyle.visibility !== 'hidden' &&
                                 computedStyle.opacity !== '0';
-                
+
                 if (isVisible) {
                   const ariaLabel = button.getAttribute('aria-label');
                   const dataTid = button.getAttribute('data-tid');
                   const textContent = button.textContent?.trim();
-                  
+
                   (window as any).logBot?.(`✅ Found clickable button: aria-label="${ariaLabel}", data-tid="${dataTid}", text="${textContent}"`);
-                  
+
                   // Scroll into view and click
                   button.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   await new Promise((resolve) => setTimeout(resolve, 500));
-                  
+
                   (window as any).logBot?.(`🖱️ Clicking Teams button...`);
                   button.click();
                   await new Promise((resolve) => setTimeout(resolve, 1000));
-                  
+
                   (window as any).logBot?.(`✅ Successfully clicked button with selector: ${selector}`);
                   return true;
                 } else {
@@ -81,7 +81,7 @@ export async function prepareForRecording(page: Page, botConfig: BotConfig): Pro
               continue;
             }
           }
-          
+
           (window as any).logBot?.("❌ No working leave/cancel button found - tried all selectors");
           return false;
         } catch (err: any) {

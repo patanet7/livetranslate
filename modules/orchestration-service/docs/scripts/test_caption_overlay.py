@@ -14,12 +14,10 @@ Usage:
     python test_caption_overlay.py --demo 30  # Run 30 second demo
 """
 
-import sys
-import asyncio
 import argparse
+import asyncio
+
 import aiohttp
-from pathlib import Path
-from datetime import datetime, timezone
 
 
 async def post_caption(
@@ -27,7 +25,7 @@ async def post_caption(
     base_url: str,
     session_id: str,
     text: str,
-    original: str = None,
+    original: str | None = None,
     speaker: str = "Speaker",
     color: str = "#4CAF50",
     duration: float = 8.0,
@@ -56,9 +54,9 @@ async def post_caption(
 
 async def test_basic(session_id: str, host: str, port: int):
     """Test basic caption display."""
-    print(f"\n🧪 Testing basic caption display...")
+    print("\n🧪 Testing basic caption display...")
     print(f"   Session: {session_id}")
-    print(f"\n   Open this URL in your browser:")
+    print("\n   Open this URL in your browser:")
     print(f"   http://{host}:{port}/static/captions.html?session={session_id}&showStatus=true")
     print()
 
@@ -69,7 +67,9 @@ async def test_basic(session_id: str, host: str, port: int):
     async with aiohttp.ClientSession() as session:
         # Send test captions
         await post_caption(
-            session, base_url, session_id,
+            session,
+            base_url,
+            session_id,
             text="Hola, bienvenidos a la reunión.",
             original="Hello, welcome to the meeting.",
             speaker="Alice",
@@ -80,7 +80,9 @@ async def test_basic(session_id: str, host: str, port: int):
         await asyncio.sleep(2)
 
         await post_caption(
-            session, base_url, session_id,
+            session,
+            base_url,
+            session_id,
             text="Gracias por unirse hoy.",
             original="Thank you for joining today.",
             speaker="Bob",
@@ -91,7 +93,9 @@ async def test_basic(session_id: str, host: str, port: int):
         await asyncio.sleep(2)
 
         await post_caption(
-            session, base_url, session_id,
+            session,
+            base_url,
+            session_id,
             text="Vamos a empezar con la agenda.",
             original="Let's start with the agenda.",
             speaker="Alice",
@@ -107,15 +111,25 @@ async def run_demo(session_id: str, host: str, port: int, duration: int):
     """Run a live demo with simulated captions."""
     print(f"\n🎬 Running caption demo for {duration} seconds...")
     print(f"   Session: {session_id}")
-    print(f"\n   Open this URL in your browser:")
+    print("\n   Open this URL in your browser:")
     print(f"   http://{host}:{port}/static/captions.html?session={session_id}&showStatus=true")
     print("\n   Press Ctrl+C to stop\n")
 
     demo_conversations = [
-        ("Alice", "#4CAF50", "Hello everyone, welcome to the meeting.", "Hola a todos, bienvenidos a la reunión."),
+        (
+            "Alice",
+            "#4CAF50",
+            "Hello everyone, welcome to the meeting.",
+            "Hola a todos, bienvenidos a la reunión.",
+        ),
         ("Bob", "#2196F3", "Thanks for joining us today.", "Gracias por unirse hoy."),
         ("Alice", "#4CAF50", "Let's start with the agenda.", "Comencemos con la agenda."),
-        ("Charlie", "#FF9800", "I have a question about the budget.", "Tengo una pregunta sobre el presupuesto."),
+        (
+            "Charlie",
+            "#FF9800",
+            "I have a question about the budget.",
+            "Tengo una pregunta sobre el presupuesto.",
+        ),
         ("Bob", "#2196F3", "Good question, let me explain.", "Buena pregunta, déjame explicar."),
         ("Alice", "#4CAF50", "The project is on track.", "El proyecto va por buen camino."),
         ("Charlie", "#FF9800", "When is the deadline?", "¿Cuándo es la fecha límite?"),
@@ -132,10 +146,14 @@ async def run_demo(session_id: str, host: str, port: int, duration: int):
             index = 0
 
             while asyncio.get_event_loop().time() - start_time < duration:
-                speaker, color, original, translated = demo_conversations[index % len(demo_conversations)]
+                speaker, color, original, translated = demo_conversations[
+                    index % len(demo_conversations)
+                ]
 
                 await post_caption(
-                    session, base_url, session_id,
+                    session,
+                    base_url,
+                    session_id,
                     text=translated,
                     original=original,
                     speaker=speaker,
@@ -156,8 +174,8 @@ async def run_demo(session_id: str, host: str, port: int, duration: int):
 
 async def test_multiple_speakers(session_id: str, host: str, port: int):
     """Test multiple speakers appearing simultaneously."""
-    print(f"\n🎭 Testing multiple speakers...")
-    print(f"\n   Open this URL in your browser:")
+    print("\n🎭 Testing multiple speakers...")
+    print("\n   Open this URL in your browser:")
     print(f"   http://{host}:{port}/static/captions.html?session={session_id}&showStatus=true")
 
     base_url = f"http://{host}:{port}"
@@ -175,7 +193,9 @@ async def test_multiple_speakers(session_id: str, host: str, port: int):
         for i in range(8):
             speaker, color = speakers[i % len(speakers)]
             await post_caption(
-                session, base_url, session_id,
+                session,
+                base_url,
+                session_id,
                 text=f"Message {i+1} from {speaker}",
                 speaker=speaker,
                 color=color,
@@ -188,9 +208,7 @@ async def test_multiple_speakers(session_id: str, host: str, port: int):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Test the HTML caption overlay"
-    )
+    parser = argparse.ArgumentParser(description="Test the HTML caption overlay")
 
     parser.add_argument("--session", default="test", help="Session ID")
     parser.add_argument("--host", default="localhost", help="Server host")

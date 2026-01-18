@@ -8,13 +8,13 @@ OBS WebSocket v5 protocol reference:
 https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.md
 """
 
-import sys
-from pathlib import Path
-from datetime import datetime, timezone
-from uuid import uuid4
-from unittest.mock import MagicMock, AsyncMock, patch
-import pytest
 import asyncio
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add src to path
 orchestration_root = Path(__file__).parent.parent.parent.parent
@@ -23,7 +23,6 @@ sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(orchestration_root))
 
 from models.fireflies import CaptionEntry
-
 
 # =============================================================================
 # Test Fixtures
@@ -40,7 +39,7 @@ def sample_caption():
         speaker_name="Alice",
         speaker_color="#4CAF50",
         target_language="es",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         duration_seconds=8.0,
         confidence=0.95,
     )
@@ -127,7 +126,7 @@ class TestOBSConnection:
     @pytest.mark.asyncio
     async def test_connect_failure_raises_error(self):
         """Test connection failure raises appropriate error."""
-        from services.obs_output import OBSOutput, OBSConnectionError
+        from services.obs_output import OBSConnectionError, OBSOutput
 
         with patch("services.obs_output.obsws") as mock_obsws:
             mock_client = AsyncMock()
@@ -371,7 +370,7 @@ class TestOBSErrorHandling:
     @pytest.mark.asyncio
     async def test_update_when_disconnected(self, sample_caption):
         """Test updating caption when not connected."""
-        from services.obs_output import OBSOutput, OBSConnectionError
+        from services.obs_output import OBSConnectionError, OBSOutput
 
         obs = OBSOutput()
         # Not connected
@@ -386,9 +385,7 @@ class TestOBSErrorHandling:
 
         with patch("services.obs_output.obsws") as mock_obsws:
             mock_client = AsyncMock()
-            mock_client.set_input_settings = AsyncMock(
-                side_effect=Exception("OBS Error")
-            )
+            mock_client.set_input_settings = AsyncMock(side_effect=Exception("OBS Error"))
             mock_obsws.ReqClient.return_value = mock_client
 
             obs = OBSOutput()
@@ -401,13 +398,11 @@ class TestOBSErrorHandling:
     @pytest.mark.asyncio
     async def test_connection_timeout(self):
         """Test connection timeout handling."""
-        from services.obs_output import OBSOutput, OBSConnectionError
+        from services.obs_output import OBSConnectionError, OBSOutput
 
         with patch("services.obs_output.obsws") as mock_obsws:
             mock_client = AsyncMock()
-            mock_client.connect = AsyncMock(
-                side_effect=asyncio.TimeoutError("Connection timeout")
-            )
+            mock_client.connect = AsyncMock(side_effect=TimeoutError("Connection timeout"))
             mock_obsws.ReqClient.return_value = mock_client
 
             obs = OBSOutput(connection_timeout=1.0)
@@ -426,8 +421,8 @@ class TestCaptionBufferIntegration:
     @pytest.mark.asyncio
     async def test_register_as_caption_callback(self, sample_caption):
         """Test registering OBSOutput as caption callback."""
-        from services.obs_output import OBSOutput
         from services.caption_buffer import create_caption_buffer
+        from services.obs_output import OBSOutput
 
         with patch("services.obs_output.obsws") as mock_obsws:
             mock_client = AsyncMock()
@@ -436,7 +431,7 @@ class TestCaptionBufferIntegration:
             obs = OBSOutput()
             await obs.connect()
 
-            buffer = create_caption_buffer()
+            create_caption_buffer()
 
             # Register OBS callback
             async def on_caption(caption):

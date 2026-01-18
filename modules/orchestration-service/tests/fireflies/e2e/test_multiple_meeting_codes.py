@@ -16,10 +16,9 @@ import asyncio
 import json
 import logging
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+
 import aiohttp
 
 # Add parent paths for imports
@@ -36,7 +35,7 @@ from fireflies.mocks.fireflies_mock_server import (
     MockTranscriptScenario,
 )
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -51,33 +50,56 @@ TEST_API_KEY = "test-multi-meeting-key"
 # Meeting Scenarios
 # =============================================================================
 
+
 def create_tech_meeting_scenario() -> tuple:
     """Tech meeting discussing API changes and deployments."""
     meeting = MockMeeting(
         id="tech-meeting-001",
         title="API Architecture Review",
         organizer_email="tech-lead@example.com",
-        state="active"
+        state="active",
     )
 
     chunks = [
-        MockChunk(chunk_id="tech-001", text="Good morning team. Let's discuss the API changes.",
-                  speaker_name="Alice", start_time=0.0, end_time=2.5),
-        MockChunk(chunk_id="tech-002", text="I've reviewed the endpoint documentation.",
-                  speaker_name="Bob", start_time=3.0, end_time=5.0),
-        MockChunk(chunk_id="tech-003", text="The microservice architecture needs refactoring.",
-                  speaker_name="Alice", start_time=6.0, end_time=8.5),
-        MockChunk(chunk_id="tech-004", text="We should add better error handling for the deployment pipeline.",
-                  speaker_name="Charlie", start_time=9.0, end_time=12.0),
-        MockChunk(chunk_id="tech-005", text="Let's schedule the production rollout for next week.",
-                  speaker_name="Alice", start_time=13.0, end_time=15.5),
+        MockChunk(
+            chunk_id="tech-001",
+            text="Good morning team. Let's discuss the API changes.",
+            speaker_name="Alice",
+            start_time=0.0,
+            end_time=2.5,
+        ),
+        MockChunk(
+            chunk_id="tech-002",
+            text="I've reviewed the endpoint documentation.",
+            speaker_name="Bob",
+            start_time=3.0,
+            end_time=5.0,
+        ),
+        MockChunk(
+            chunk_id="tech-003",
+            text="The microservice architecture needs refactoring.",
+            speaker_name="Alice",
+            start_time=6.0,
+            end_time=8.5,
+        ),
+        MockChunk(
+            chunk_id="tech-004",
+            text="We should add better error handling for the deployment pipeline.",
+            speaker_name="Charlie",
+            start_time=9.0,
+            end_time=12.0,
+        ),
+        MockChunk(
+            chunk_id="tech-005",
+            text="Let's schedule the production rollout for next week.",
+            speaker_name="Alice",
+            start_time=13.0,
+            end_time=15.5,
+        ),
     ]
 
     scenario = MockTranscriptScenario(
-        transcript_id=meeting.id,
-        chunks=chunks,
-        chunk_delay_ms=200.0,
-        stream_mode="chunks"
+        transcript_id=meeting.id, chunks=chunks, chunk_delay_ms=200.0, stream_mode="chunks"
     )
 
     return meeting, scenario
@@ -89,29 +111,56 @@ def create_sales_meeting_scenario() -> tuple:
         id="sales-meeting-002",
         title="Enterprise Product Demo",
         organizer_email="sales@example.com",
-        state="active"
+        state="active",
     )
 
     chunks = [
-        MockChunk(chunk_id="sales-001", text="Thank you for joining today's demo.",
-                  speaker_name="SalesRep", start_time=0.0, end_time=2.0),
-        MockChunk(chunk_id="sales-002", text="I'd like to show you our enterprise features.",
-                  speaker_name="SalesRep", start_time=2.5, end_time=5.0),
-        MockChunk(chunk_id="sales-003", text="How does the pricing model work?",
-                  speaker_name="Customer", start_time=6.0, end_time=7.5),
-        MockChunk(chunk_id="sales-004", text="We offer flexible licensing based on user count.",
-                  speaker_name="SalesRep", start_time=8.0, end_time=11.0),
-        MockChunk(chunk_id="sales-005", text="What about integration with our existing systems?",
-                  speaker_name="Customer", start_time=12.0, end_time=14.5),
-        MockChunk(chunk_id="sales-006", text="We have REST APIs and webhooks for seamless integration.",
-                  speaker_name="SalesRep", start_time=15.0, end_time=18.0),
+        MockChunk(
+            chunk_id="sales-001",
+            text="Thank you for joining today's demo.",
+            speaker_name="SalesRep",
+            start_time=0.0,
+            end_time=2.0,
+        ),
+        MockChunk(
+            chunk_id="sales-002",
+            text="I'd like to show you our enterprise features.",
+            speaker_name="SalesRep",
+            start_time=2.5,
+            end_time=5.0,
+        ),
+        MockChunk(
+            chunk_id="sales-003",
+            text="How does the pricing model work?",
+            speaker_name="Customer",
+            start_time=6.0,
+            end_time=7.5,
+        ),
+        MockChunk(
+            chunk_id="sales-004",
+            text="We offer flexible licensing based on user count.",
+            speaker_name="SalesRep",
+            start_time=8.0,
+            end_time=11.0,
+        ),
+        MockChunk(
+            chunk_id="sales-005",
+            text="What about integration with our existing systems?",
+            speaker_name="Customer",
+            start_time=12.0,
+            end_time=14.5,
+        ),
+        MockChunk(
+            chunk_id="sales-006",
+            text="We have REST APIs and webhooks for seamless integration.",
+            speaker_name="SalesRep",
+            start_time=15.0,
+            end_time=18.0,
+        ),
     ]
 
     scenario = MockTranscriptScenario(
-        transcript_id=meeting.id,
-        chunks=chunks,
-        chunk_delay_ms=250.0,
-        stream_mode="chunks"
+        transcript_id=meeting.id, chunks=chunks, chunk_delay_ms=250.0, stream_mode="chunks"
     )
 
     return meeting, scenario
@@ -123,29 +172,56 @@ def create_multilang_meeting_scenario() -> tuple:
         id="multilang-meeting-003",
         title="International Team Sync",
         organizer_email="global@example.com",
-        state="active"
+        state="active",
     )
 
     chunks = [
-        MockChunk(chunk_id="ml-001", text="Welcome everyone from around the world.",
-                  speaker_name="Manager", start_time=0.0, end_time=2.5),
-        MockChunk(chunk_id="ml-002", text="Let's start with the European team update.",
-                  speaker_name="Manager", start_time=3.0, end_time=5.0),
-        MockChunk(chunk_id="ml-003", text="Our Berlin office completed the project milestone.",
-                  speaker_name="Hans", start_time=6.0, end_time=8.5),
-        MockChunk(chunk_id="ml-004", text="Tokyo team has shipped the new mobile features.",
-                  speaker_name="Yuki", start_time=9.0, end_time=11.5),
-        MockChunk(chunk_id="ml-005", text="The São Paulo office needs additional resources.",
-                  speaker_name="Carlos", start_time=12.0, end_time=14.5),
-        MockChunk(chunk_id="ml-006", text="Let's coordinate the handoff between time zones.",
-                  speaker_name="Manager", start_time=15.0, end_time=17.5),
+        MockChunk(
+            chunk_id="ml-001",
+            text="Welcome everyone from around the world.",
+            speaker_name="Manager",
+            start_time=0.0,
+            end_time=2.5,
+        ),
+        MockChunk(
+            chunk_id="ml-002",
+            text="Let's start with the European team update.",
+            speaker_name="Manager",
+            start_time=3.0,
+            end_time=5.0,
+        ),
+        MockChunk(
+            chunk_id="ml-003",
+            text="Our Berlin office completed the project milestone.",
+            speaker_name="Hans",
+            start_time=6.0,
+            end_time=8.5,
+        ),
+        MockChunk(
+            chunk_id="ml-004",
+            text="Tokyo team has shipped the new mobile features.",
+            speaker_name="Yuki",
+            start_time=9.0,
+            end_time=11.5,
+        ),
+        MockChunk(
+            chunk_id="ml-005",
+            text="The São Paulo office needs additional resources.",
+            speaker_name="Carlos",
+            start_time=12.0,
+            end_time=14.5,
+        ),
+        MockChunk(
+            chunk_id="ml-006",
+            text="Let's coordinate the handoff between time zones.",
+            speaker_name="Manager",
+            start_time=15.0,
+            end_time=17.5,
+        ),
     ]
 
     scenario = MockTranscriptScenario(
-        transcript_id=meeting.id,
-        chunks=chunks,
-        chunk_delay_ms=200.0,
-        stream_mode="chunks"
+        transcript_id=meeting.id, chunks=chunks, chunk_delay_ms=200.0, stream_mode="chunks"
     )
 
     return meeting, scenario
@@ -157,29 +233,59 @@ def create_standup_meeting_scenario() -> tuple:
         id="standup-meeting-004",
         title="Daily Standup",
         organizer_email="scrum@example.com",
-        state="active"
+        state="active",
     )
 
     chunks = [
-        MockChunk(chunk_id="su-001", text="Let's start the standup. Dev one?",
-                  speaker_name="ScrumMaster", start_time=0.0, end_time=1.5),
-        MockChunk(chunk_id="su-002", text="Fixed three bugs yesterday. Working on auth today.",
-                  speaker_name="Dev1", start_time=2.0, end_time=4.0),
-        MockChunk(chunk_id="su-003", text="Completed the database migration. No blockers.",
-                  speaker_name="Dev2", start_time=4.5, end_time=6.5),
-        MockChunk(chunk_id="su-004", text="UI tests are passing. Starting integration tests.",
-                  speaker_name="QA1", start_time=7.0, end_time=9.0),
-        MockChunk(chunk_id="su-005", text="Waiting on API specs from product.",
-                  speaker_name="Dev3", start_time=9.5, end_time=11.0),
-        MockChunk(chunk_id="su-006", text="I'll follow up with product after this.",
-                  speaker_name="ScrumMaster", start_time=11.5, end_time=13.0),
+        MockChunk(
+            chunk_id="su-001",
+            text="Let's start the standup. Dev one?",
+            speaker_name="ScrumMaster",
+            start_time=0.0,
+            end_time=1.5,
+        ),
+        MockChunk(
+            chunk_id="su-002",
+            text="Fixed three bugs yesterday. Working on auth today.",
+            speaker_name="Dev1",
+            start_time=2.0,
+            end_time=4.0,
+        ),
+        MockChunk(
+            chunk_id="su-003",
+            text="Completed the database migration. No blockers.",
+            speaker_name="Dev2",
+            start_time=4.5,
+            end_time=6.5,
+        ),
+        MockChunk(
+            chunk_id="su-004",
+            text="UI tests are passing. Starting integration tests.",
+            speaker_name="QA1",
+            start_time=7.0,
+            end_time=9.0,
+        ),
+        MockChunk(
+            chunk_id="su-005",
+            text="Waiting on API specs from product.",
+            speaker_name="Dev3",
+            start_time=9.5,
+            end_time=11.0,
+        ),
+        MockChunk(
+            chunk_id="su-006",
+            text="I'll follow up with product after this.",
+            speaker_name="ScrumMaster",
+            start_time=11.5,
+            end_time=13.0,
+        ),
     ]
 
     scenario = MockTranscriptScenario(
         transcript_id=meeting.id,
         chunks=chunks,
         chunk_delay_ms=100.0,  # Faster delivery for standup
-        stream_mode="chunks"
+        stream_mode="chunks",
     )
 
     return meeting, scenario
@@ -188,6 +294,7 @@ def create_standup_meeting_scenario() -> tuple:
 # =============================================================================
 # Test Runner
 # =============================================================================
+
 
 async def check_services():
     """Check if required services are running."""
@@ -221,14 +328,14 @@ async def check_services():
     return services_ok
 
 
-async def _translate_text(text: str, target_lang: str = "Spanish") -> Optional[str]:
+async def _translate_text(text: str, target_lang: str = "Spanish") -> str | None:
     """Translate text via translation service (helper function)."""
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(
                 f"{TRANSLATION_URL}/api/translate",
                 json={"text": text, "target_language": target_lang},
-                timeout=30
+                timeout=30,
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -241,7 +348,9 @@ async def _translate_text(text: str, target_lang: str = "Spanish") -> Optional[s
             return None
 
 
-async def run_meeting_test(meeting: MockMeeting, scenario: MockTranscriptScenario, server: FirefliesMockServer):
+async def run_meeting_test(
+    meeting: MockMeeting, scenario: MockTranscriptScenario, server: FirefliesMockServer
+):
     """Run a single meeting test."""
     logger.info(f"\n{'='*60}")
     logger.info(f"Testing: {meeting.title}")
@@ -262,26 +371,32 @@ async def run_meeting_test(meeting: MockMeeting, scenario: MockTranscriptScenari
         translated = await _translate_text(chunk.text)
         if translated:
             logger.info(f"  → ES: {translated}")
-            results.append({
-                "speaker": chunk.speaker_name,
-                "original": chunk.text,
-                "translated": translated,
-                "success": True
-            })
+            results.append(
+                {
+                    "speaker": chunk.speaker_name,
+                    "original": chunk.text,
+                    "translated": translated,
+                    "success": True,
+                }
+            )
         else:
-            logger.warning(f"  → Translation failed")
-            results.append({
-                "speaker": chunk.speaker_name,
-                "original": chunk.text,
-                "translated": None,
-                "success": False
-            })
+            logger.warning("  → Translation failed")
+            results.append(
+                {
+                    "speaker": chunk.speaker_name,
+                    "original": chunk.text,
+                    "translated": None,
+                    "success": False,
+                }
+            )
 
     # Calculate success rate
     success_count = sum(1 for r in results if r["success"])
     success_rate = (success_count / len(results)) * 100 if results else 0
 
-    logger.info(f"\nResults: {success_count}/{len(results)} translations successful ({success_rate:.1f}%)")
+    logger.info(
+        f"\nResults: {success_count}/{len(results)} translations successful ({success_rate:.1f}%)"
+    )
 
     return {
         "meeting_id": meeting.id,
@@ -289,7 +404,7 @@ async def run_meeting_test(meeting: MockMeeting, scenario: MockTranscriptScenari
         "total_chunks": len(results),
         "successful_translations": success_count,
         "success_rate": success_rate,
-        "results": results
+        "results": results,
     }
 
 
@@ -305,16 +420,18 @@ async def main():
     print("\n[1] Checking services...")
     if not await check_services():
         print("\n✗ Services not available. Please start them first.")
-        print("  - Orchestration: cd modules/orchestration-service && python -m uvicorn src.main_fastapi:app --port 3000")
-        print("  - Translation: cd modules/translation-service/src && python -m uvicorn api_server_fastapi:app --port 5003")
+        print(
+            "  - Orchestration: cd modules/orchestration-service && python -m uvicorn src.main_fastapi:app --port 3000"
+        )
+        print(
+            "  - Translation: cd modules/translation-service/src && python -m uvicorn api_server_fastapi:app --port 5003"
+        )
         return
 
     # Create mock server
     print("\n[2] Starting mock Fireflies server...")
     server = FirefliesMockServer(
-        host=MOCK_SERVER_HOST,
-        port=MOCK_SERVER_PORT,
-        valid_api_keys={TEST_API_KEY}
+        host=MOCK_SERVER_HOST, port=MOCK_SERVER_PORT, valid_api_keys={TEST_API_KEY}
     )
 
     try:
@@ -348,7 +465,9 @@ async def main():
 
         for r in all_results:
             status = "✓" if r["success_rate"] >= 80 else "✗"
-            print(f"{status} {r['meeting_title']}: {r['successful_translations']}/{r['total_chunks']} ({r['success_rate']:.1f}%)")
+            print(
+                f"{status} {r['meeting_title']}: {r['successful_translations']}/{r['total_chunks']} ({r['success_rate']:.1f}%)"
+            )
 
         print("-" * 70)
         print(f"Overall: {total_success}/{total_chunks} translations ({overall_rate:.1f}%)")
@@ -357,16 +476,23 @@ async def main():
         # Write results to log file
         output_dir = Path(__file__).parent.parent.parent / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = output_dir / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_test_multiple_meetings.log"
+        output_file = (
+            output_dir / f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_test_multiple_meetings.log"
+        )
 
         with open(output_file, "w") as f:
-            f.write(json.dumps({
-                "timestamp": datetime.now().isoformat(),
-                "overall_success_rate": overall_rate,
-                "total_chunks": total_chunks,
-                "total_successful": total_success,
-                "meetings": all_results
-            }, indent=2))
+            f.write(
+                json.dumps(
+                    {
+                        "timestamp": datetime.now().isoformat(),
+                        "overall_success_rate": overall_rate,
+                        "total_chunks": total_chunks,
+                        "total_successful": total_success,
+                        "meetings": all_results,
+                    },
+                    indent=2,
+                )
+            )
 
         print(f"\nResults saved to: {output_file}")
 

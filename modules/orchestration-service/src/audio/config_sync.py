@@ -23,19 +23,20 @@ import logging
 import os
 import threading
 from collections import deque
+from collections.abc import Callable
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import aiohttp
 
 from .models import AudioChunkingConfig
 from .whisper_compatibility import (
+    CONFIGURATION_PRESETS,
     WhisperCompatibilityManager,
     get_frontend_compatible_config,
-    CONFIGURATION_PRESETS,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ def get_config_sync_mode() -> ConfigSyncModes:
 class ConfigurationValidationError(Exception):
     """Raised when configuration validation fails"""
 
-    def __init__(self, message: str, validation_errors: List[str]):
+    def __init__(self, message: str, validation_errors: list[str]):
         super().__init__(message)
         self.validation_errors = validation_errors
 
@@ -71,7 +72,7 @@ class ConfigurationValidationError(Exception):
 class ConfigurationDriftError(Exception):
     """Raised when configuration drift is detected"""
 
-    def __init__(self, message: str, drift_details: Dict[str, Any]):
+    def __init__(self, message: str, drift_details: dict[str, Any]):
         super().__init__(message)
         self.drift_details = drift_details
 
@@ -79,7 +80,7 @@ class ConfigurationDriftError(Exception):
 class ConfigurationConflictError(Exception):
     """Raised when configuration conflicts are detected"""
 
-    def __init__(self, message: str, conflict_details: Dict[str, Any]):
+    def __init__(self, message: str, conflict_details: dict[str, Any]):
         super().__init__(message)
         self.conflict_details = conflict_details
 
@@ -87,15 +88,15 @@ class ConfigurationConflictError(Exception):
 class ConfigurationVersion:
     """Represents a configuration version with metadata"""
 
-    def __init__(self, config: Dict[str, Any], version: str = None):
+    def __init__(self, config: dict[str, Any], version: str | None = None):
         self.config = config
         self.version = version or self._generate_version()
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = datetime.now(UTC)
         self.checksum = self._calculate_checksum()
 
     def _generate_version(self) -> str:
         """Generate version string based on timestamp"""
-        return f"v{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+        return f"v{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     def _calculate_checksum(self) -> str:
         """Calculate configuration checksum for drift detection"""
@@ -125,7 +126,7 @@ class ConfigurationValidator:
             "unified": self._validate_unified_config,
         }
 
-    def validate_config(self, component: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_config(self, component: str, config: dict[str, Any]) -> dict[str, Any]:
         """Validate configuration for a specific component"""
         validation_result = {
             "valid": True,
@@ -144,12 +145,12 @@ class ConfigurationValidator:
                 validation_result["valid"] = False
 
         except Exception as e:
-            validation_result["errors"].append(f"Validation error: {str(e)}")
+            validation_result["errors"].append(f"Validation error: {e!s}")
             validation_result["valid"] = False
 
         return validation_result
 
-    def _validate_whisper_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_whisper_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Validate whisper service configuration"""
         result = {"valid": True, "errors": [], "warnings": [], "suggestions": []}
 
@@ -176,11 +177,7 @@ class ConfigurationValidator:
         # Validate timing parameters
         if "inference_interval" in config:
             interval = config["inference_interval"]
-            if (
-                not isinstance(interval, (int, float))
-                or interval < 0.5
-                or interval > 30.0
-            ):
+            if not isinstance(interval, (int, float)) or interval < 0.5 or interval > 30.0:
                 result["errors"].append(
                     f"Invalid inference_interval: {interval}. Must be between 0.5 and 30.0 seconds"
                 )
@@ -201,18 +198,14 @@ class ConfigurationValidator:
         result["valid"] = len(result["errors"]) == 0
         return result
 
-    def _validate_orchestration_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_orchestration_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Validate orchestration service configuration"""
         result = {"valid": True, "errors": [], "warnings": [], "suggestions": []}
 
         # Check chunk duration
         if "chunk_duration" in config:
             duration = config["chunk_duration"]
-            if (
-                not isinstance(duration, (int, float))
-                or duration < 1.0
-                or duration > 30.0
-            ):
+            if not isinstance(duration, (int, float)) or duration < 1.0 or duration > 30.0:
                 result["errors"].append(
                     f"Invalid chunk_duration: {duration}. Must be between 1.0 and 30.0 seconds"
                 )
@@ -228,14 +221,12 @@ class ConfigurationValidator:
         # Check consistency between chunk and overlap
         if "chunk_duration" in config and "overlap_duration" in config:
             if config["overlap_duration"] >= config["chunk_duration"]:
-                result["errors"].append(
-                    "overlap_duration must be less than chunk_duration"
-                )
+                result["errors"].append("overlap_duration must be less than chunk_duration")
 
         result["valid"] = len(result["errors"]) == 0
         return result
 
-    def _validate_translation_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_translation_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Validate translation service configuration"""
         result = {"valid": True, "errors": [], "warnings": [], "suggestions": []}
 
@@ -252,21 +243,17 @@ class ConfigurationValidator:
         if "temperature" in config:
             temp = config["temperature"]
             if not isinstance(temp, (int, float)) or temp < 0.0 or temp > 2.0:
-                result["errors"].append(
-                    f"Invalid temperature: {temp}. Must be between 0.0 and 2.0"
-                )
+                result["errors"].append(f"Invalid temperature: {temp}. Must be between 0.0 and 2.0")
 
         if "max_tokens" in config:
             tokens = config["max_tokens"]
             if not isinstance(tokens, int) or tokens < 1 or tokens > 4096:
-                result["errors"].append(
-                    f"Invalid max_tokens: {tokens}. Must be between 1 and 4096"
-                )
+                result["errors"].append(f"Invalid max_tokens: {tokens}. Must be between 1 and 4096")
 
         result["valid"] = len(result["errors"]) == 0
         return result
 
-    def _validate_unified_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _validate_unified_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """Validate unified configuration across all components"""
         result = {"valid": True, "errors": [], "warnings": [], "suggestions": []}
 
@@ -276,22 +263,13 @@ class ConfigurationValidator:
                 component_result = self.validate_config(component, config[component])
                 if not component_result["valid"]:
                     result["errors"].extend(
-                        [
-                            f"{component}: {error}"
-                            for error in component_result["errors"]
-                        ]
+                        [f"{component}: {error}" for error in component_result["errors"]]
                     )
                 result["warnings"].extend(
-                    [
-                        f"{component}: {warning}"
-                        for warning in component_result["warnings"]
-                    ]
+                    [f"{component}: {warning}" for warning in component_result["warnings"]]
                 )
                 result["suggestions"].extend(
-                    [
-                        f"{component}: {suggestion}"
-                        for suggestion in component_result["suggestions"]
-                    ]
+                    [f"{component}: {suggestion}" for suggestion in component_result["suggestions"]]
                 )
 
         result["valid"] = len(result["errors"]) == 0
@@ -309,13 +287,13 @@ class ConfigurationVersionManager:
         self.version_history = deque(maxlen=50)  # Keep last 50 versions
         self.lock = threading.Lock()
 
-    def create_version(self, config: Dict[str, Any], description: str = "") -> int:
+    def create_version(self, config: dict[str, Any], description: str = "") -> int:
         """Create a new configuration version"""
         with self.lock:
             self.current_version += 1
             version_data = {
                 "version": self.current_version,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "description": description,
                 "configuration": config,
                 "checksum": self._calculate_checksum(config),
@@ -329,23 +307,21 @@ class ConfigurationVersionManager:
             # Add to history
             self.version_history.append(version_data)
 
-            logger.info(
-                f"Created configuration version {self.current_version}: {description}"
-            )
+            logger.info(f"Created configuration version {self.current_version}: {description}")
             return self.current_version
 
-    def get_version(self, version: int) -> Optional[Dict[str, Any]]:
+    def get_version(self, version: int) -> dict[str, Any] | None:
         """Get a specific configuration version"""
         try:
             version_file = self.versions_dir / f"config_v{version}.json"
             if version_file.exists():
-                with open(version_file, "r") as f:
+                with open(version_file) as f:
                     return json.load(f)
         except Exception as e:
             logger.error(f"Failed to load version {version}: {e}")
         return None
 
-    def rollback_to_version(self, target_version: int) -> Dict[str, Any]:
+    def rollback_to_version(self, target_version: int) -> dict[str, Any]:
         """Rollback to a specific configuration version"""
         version_data = self.get_version(target_version)
         if not version_data:
@@ -367,7 +343,7 @@ class ConfigurationVersionManager:
             "rollback_description": version_data.get("description", ""),
         }
 
-    def list_versions(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def list_versions(self, limit: int = 10) -> list[dict[str, Any]]:
         """List available configuration versions"""
         versions = []
         for version_data in reversed(list(self.version_history)[-limit:]):
@@ -381,7 +357,7 @@ class ConfigurationVersionManager:
             )
         return versions
 
-    def _calculate_checksum(self, config: Dict[str, Any]) -> str:
+    def _calculate_checksum(self, config: dict[str, Any]) -> str:
         """Calculate configuration checksum for integrity verification"""
         config_str = json.dumps(config, sort_keys=True)
         return hashlib.sha256(config_str.encode()).hexdigest()[:16]
@@ -398,17 +374,15 @@ class ConfigurationDriftDetector:
             "checksum_mismatch": True,
         }
 
-    def set_baseline(self, service: str, config: Dict[str, Any]) -> None:
+    def set_baseline(self, service: str, config: dict[str, Any]) -> None:
         """Set baseline configuration for drift detection"""
         self.baseline_configs[service] = {
             "config": copy.deepcopy(config),
             "checksum": self._calculate_config_hash(config),
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
         }
 
-    def detect_drift(
-        self, service: str, current_config: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def detect_drift(self, service: str, current_config: dict[str, Any]) -> dict[str, Any]:
         """Detect configuration drift for a service"""
         if service not in self.baseline_configs:
             return {"drift_detected": False, "reason": "No baseline configuration set"}
@@ -444,14 +418,14 @@ class ConfigurationDriftDetector:
 
         return drift_result
 
-    def _calculate_config_hash(self, config: Dict[str, Any]) -> str:
+    def _calculate_config_hash(self, config: dict[str, Any]) -> str:
         """Calculate hash for configuration comparison"""
         config_str = json.dumps(config, sort_keys=True)
         return hashlib.md5(config_str.encode()).hexdigest()
 
     def _find_config_differences(
-        self, baseline: Dict[str, Any], current: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+        self, baseline: dict[str, Any], current: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Find specific differences between configurations"""
         differences = []
 
@@ -510,13 +484,13 @@ class ConfigurationSyncManager:
         self.compatibility_manager = WhisperCompatibilityManager()
 
         # Configuration cache
-        self._whisper_config: Optional[Dict[str, Any]] = None
-        self._orchestration_config: Optional[AudioChunkingConfig] = None
-        self._translation_config: Optional[Dict[str, Any]] = None
-        self._last_sync_time: Optional[datetime] = None
+        self._whisper_config: dict[str, Any] | None = None
+        self._orchestration_config: AudioChunkingConfig | None = None
+        self._translation_config: dict[str, Any] | None = None
+        self._last_sync_time: datetime | None = None
 
         # Sync callbacks
-        self._config_change_callbacks: List[Callable] = []
+        self._config_change_callbacks: list[Callable] = []
 
         # Configuration file paths
         self.config_dir = Path(__file__).parent.parent / "config"
@@ -584,9 +558,7 @@ class ConfigurationSyncManager:
                     async with session.get(translation_url, timeout=5) as response:
                         if response.status == 200:
                             self._translation_config = await response.json()
-                            logger.info(
-                                "✅ Retrieved translation service configuration"
-                            )
+                            logger.info("✅ Retrieved translation service configuration")
                         else:
                             logger.warning(
                                 f"Translation service config request failed: {response.status}"
@@ -597,12 +569,12 @@ class ConfigurationSyncManager:
 
             # Get orchestration configuration from compatibility manager
             self._orchestration_config = self.compatibility_manager.orchestration_config
-            self._last_sync_time = datetime.now(timezone.utc)
+            self._last_sync_time = datetime.now(UTC)
 
         except Exception as e:
             logger.error(f"Failed to fetch configurations: {e}")
 
-    async def _validate_configuration_compatibility(self) -> Dict[str, Any]:
+    async def _validate_configuration_compatibility(self) -> dict[str, Any]:
         """Validate that all configurations are compatible."""
         compatibility_result = {
             "compatible": True,
@@ -613,9 +585,7 @@ class ConfigurationSyncManager:
 
         if not self._whisper_config or not self._orchestration_config:
             compatibility_result["compatible"] = False
-            compatibility_result["issues"].append(
-                "Missing configuration from one or more services"
-            )
+            compatibility_result["issues"].append("Missing configuration from one or more services")
             return compatibility_result
 
         # Compare key parameters
@@ -624,10 +594,7 @@ class ConfigurationSyncManager:
 
         # Check timing parameters
         if (
-            abs(
-                whisper_cfg.get("inference_interval", 3.0)
-                - orch_cfg.get("chunk_duration", 3.0)
-            )
+            abs(whisper_cfg.get("inference_interval", 3.0) - orch_cfg.get("chunk_duration", 3.0))
             > 0.1
         ):
             compatibility_result["warnings"].append(
@@ -637,10 +604,7 @@ class ConfigurationSyncManager:
             compatibility_result["sync_required"] = True
 
         if (
-            abs(
-                whisper_cfg.get("overlap_duration", 0.2)
-                - orch_cfg.get("overlap_duration", 0.2)
-            )
+            abs(whisper_cfg.get("overlap_duration", 0.2) - orch_cfg.get("overlap_duration", 0.2))
             > 0.05
         ):
             compatibility_result["warnings"].append(
@@ -685,10 +649,7 @@ class ConfigurationSyncManager:
                     {
                         "chunk_duration": whisper_cfg.get("inference_interval", 3.0),
                         "overlap_duration": whisper_cfg.get("overlap_duration", 0.2),
-                        "processing_interval": whisper_cfg.get(
-                            "inference_interval", 3.0
-                        )
-                        * 0.8,
+                        "processing_interval": whisper_cfg.get("inference_interval", 3.0) * 0.8,
                         "buffer_duration": max(
                             whisper_cfg.get("buffer_duration", 4.0),
                             updated_config.get("buffer_duration", 4.0),
@@ -728,11 +689,11 @@ class ConfigurationSyncManager:
         }
 
         self._orchestration_config = AudioChunkingConfig()
-        self._last_sync_time = datetime.now(timezone.utc)
+        self._last_sync_time = datetime.now(UTC)
 
         await self._save_configuration()
 
-    async def get_unified_configuration(self) -> Dict[str, Any]:
+    async def get_unified_configuration(self) -> dict[str, Any]:
         """Get unified configuration for all components."""
         if (
             not self._whisper_config
@@ -748,16 +709,13 @@ class ConfigurationSyncManager:
                 if self._orchestration_config
                 else {},
                 "service_mode": "orchestration"
-                if self._whisper_config
-                and self._whisper_config.get("orchestration_mode")
+                if self._whisper_config and self._whisper_config.get("orchestration_mode")
                 else "legacy",
             },
             "translation_service": self._translation_config,
             "frontend_compatible": get_frontend_compatible_config(),
             "sync_info": {
-                "last_sync": self._last_sync_time.isoformat()
-                if self._last_sync_time
-                else None,
+                "last_sync": self._last_sync_time.isoformat() if self._last_sync_time else None,
                 "sync_source": "configuration_sync_manager",
                 "configuration_version": "1.1",
                 "services_synced": ["whisper", "orchestration", "translation"],
@@ -766,8 +724,8 @@ class ConfigurationSyncManager:
         }
 
     async def update_configuration(
-        self, component: str, config_updates: Dict[str, Any], propagate: bool = True
-    ) -> Dict[str, Any]:
+        self, component: str, config_updates: dict[str, Any], propagate: bool = True
+    ) -> dict[str, Any]:
         """
         Update configuration for a specific component and optionally propagate to others.
 
@@ -786,9 +744,7 @@ class ConfigurationSyncManager:
 
         try:
             if component == "whisper":
-                update_result = await self._update_whisper_configuration(
-                    config_updates, propagate
-                )
+                update_result = await self._update_whisper_configuration(config_updates, propagate)
             elif component == "orchestration":
                 update_result = await self._update_orchestration_configuration(
                     config_updates, propagate
@@ -812,7 +768,7 @@ class ConfigurationSyncManager:
             update_result["errors"].extend(e.validation_errors)
             update_result["success"] = False
         except ConfigurationConflictError as e:
-            update_result["errors"].append(f"Configuration conflict: {str(e)}")
+            update_result["errors"].append(f"Configuration conflict: {e!s}")
             update_result["success"] = False
         except Exception as e:
             logger.error(f"Failed to update {component} configuration: {e}")
@@ -822,8 +778,8 @@ class ConfigurationSyncManager:
         return update_result
 
     async def _update_whisper_configuration(
-        self, config_updates: Dict[str, Any], propagate: bool
-    ) -> Dict[str, Any]:
+        self, config_updates: dict[str, Any], propagate: bool
+    ) -> dict[str, Any]:
         """Update whisper service configuration."""
         result = {
             "success": False,
@@ -835,14 +791,12 @@ class ConfigurationSyncManager:
 
         try:
             # Send configuration updates to whisper service
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession():
                 # Note: Whisper service may need restart for some config changes
                 # For now, we'll update our local cache and notify
 
                 if self._whisper_config:
-                    original_config = self._whisper_config.get(
-                        "configuration", {}
-                    ).copy()
+                    original_config = self._whisper_config.get("configuration", {}).copy()
 
                     # Apply updates to local cache
                     for key, value in config_updates.items():
@@ -855,14 +809,12 @@ class ConfigurationSyncManager:
 
                     # Propagate to orchestration if requested
                     if propagate:
-                        orchestration_updates = (
-                            self._map_whisper_to_orchestration_config(config_updates)
+                        orchestration_updates = self._map_whisper_to_orchestration_config(
+                            config_updates
                         )
                         if orchestration_updates:
-                            prop_result = (
-                                await self._update_orchestration_configuration(
-                                    orchestration_updates, False
-                                )
+                            prop_result = await self._update_orchestration_configuration(
+                                orchestration_updates, False
                             )
                             result["propagation_results"]["orchestration"] = prop_result
 
@@ -875,8 +827,8 @@ class ConfigurationSyncManager:
         return result
 
     async def _update_orchestration_configuration(
-        self, config_updates: Dict[str, Any], propagate: bool
-    ) -> Dict[str, Any]:
+        self, config_updates: dict[str, Any], propagate: bool
+    ) -> dict[str, Any]:
         """Update orchestration service configuration."""
         result = {
             "success": False,
@@ -903,9 +855,7 @@ class ConfigurationSyncManager:
 
                     # Propagate to whisper if requested
                     if propagate:
-                        whisper_updates = self._map_orchestration_to_whisper_config(
-                            config_updates
-                        )
+                        whisper_updates = self._map_orchestration_to_whisper_config(config_updates)
                         if whisper_updates:
                             prop_result = await self._update_whisper_configuration(
                                 whisper_updates, False
@@ -913,9 +863,7 @@ class ConfigurationSyncManager:
                             result["propagation_results"]["whisper"] = prop_result
 
                 except Exception as validation_error:
-                    result["errors"].append(
-                        f"Configuration validation failed: {validation_error}"
-                    )
+                    result["errors"].append(f"Configuration validation failed: {validation_error}")
             else:
                 result["errors"].append("Orchestration configuration not available")
 
@@ -925,8 +873,8 @@ class ConfigurationSyncManager:
         return result
 
     async def _update_translation_configuration(
-        self, config_updates: Dict[str, Any], propagate: bool
-    ) -> Dict[str, Any]:
+        self, config_updates: dict[str, Any], propagate: bool
+    ) -> dict[str, Any]:
         """Update translation service configuration."""
         result = {
             "success": False,
@@ -966,24 +914,18 @@ class ConfigurationSyncManager:
                             if response.status == 200:
                                 self._translation_config = original_config
                                 result["success"] = True
-                                logger.info(
-                                    "✅ Translation configuration updated successfully"
-                                )
+                                logger.info("✅ Translation configuration updated successfully")
                             else:
                                 result["errors"].append(
                                     f"Translation service update failed: {response.status}"
                                 )
 
                     else:
-                        result["errors"].append(
-                            "Translation configuration not available"
-                        )
+                        result["errors"].append("Translation configuration not available")
 
                 except Exception as e:
                     logger.warning(f"Failed to update translation service: {e}")
-                    result["errors"].append(
-                        f"Translation service communication error: {str(e)}"
-                    )
+                    result["errors"].append(f"Translation service communication error: {e!s}")
 
                     # For now, we'll just update our local cache
                     if self._translation_config:
@@ -1007,9 +949,7 @@ class ConfigurationSyncManager:
 
         return result
 
-    async def _update_unified_configuration(
-        self, config_updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def _update_unified_configuration(self, config_updates: dict[str, Any]) -> dict[str, Any]:
         """Update configuration across all components."""
         result = {
             "success": True,
@@ -1059,9 +999,7 @@ class ConfigurationSyncManager:
 
             # Apply updates to all components
             if whisper_updates:
-                whisper_result = await self._update_whisper_configuration(
-                    whisper_updates, False
-                )
+                whisper_result = await self._update_whisper_configuration(whisper_updates, False)
                 result["propagation_results"]["whisper"] = whisper_result
                 if not whisper_result["success"]:
                     result["success"] = False
@@ -1095,8 +1033,8 @@ class ConfigurationSyncManager:
         return result
 
     def _map_whisper_to_orchestration_config(
-        self, whisper_updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, whisper_updates: dict[str, Any]
+    ) -> dict[str, Any]:
         """Map whisper configuration updates to orchestration configuration."""
         mapping = {
             "inference_interval": "chunk_duration",
@@ -1104,15 +1042,11 @@ class ConfigurationSyncManager:
             "buffer_duration": "buffer_duration",
         }
 
-        return {
-            mapping[key]: value
-            for key, value in whisper_updates.items()
-            if key in mapping
-        }
+        return {mapping[key]: value for key, value in whisper_updates.items() if key in mapping}
 
     def _map_orchestration_to_whisper_config(
-        self, orchestration_updates: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, orchestration_updates: dict[str, Any]
+    ) -> dict[str, Any]:
         """Map orchestration configuration updates to whisper configuration."""
         mapping = {
             "chunk_duration": "inference_interval",
@@ -1121,12 +1055,10 @@ class ConfigurationSyncManager:
         }
 
         return {
-            mapping[key]: value
-            for key, value in orchestration_updates.items()
-            if key in mapping
+            mapping[key]: value for key, value in orchestration_updates.items() if key in mapping
         }
 
-    async def apply_preset(self, preset_name: str) -> Dict[str, Any]:
+    async def apply_preset(self, preset_name: str) -> dict[str, Any]:
         """Apply a configuration preset to all components."""
         if preset_name not in CONFIGURATION_PRESETS:
             return {
@@ -1168,10 +1100,8 @@ class ConfigurationSyncManager:
                 if self._orchestration_config
                 else None,
                 "translation_config": self._translation_config,
-                "last_sync": self._last_sync_time.isoformat()
-                if self._last_sync_time
-                else None,
-                "saved_at": datetime.now(timezone.utc).isoformat(),
+                "last_sync": self._last_sync_time.isoformat() if self._last_sync_time else None,
+                "saved_at": datetime.now(UTC).isoformat(),
                 "version": "1.1",
             }
 
@@ -1187,7 +1117,7 @@ class ConfigurationSyncManager:
         """Load saved configuration from file."""
         try:
             if self.sync_config_file.exists():
-                with open(self.sync_config_file, "r") as f:
+                with open(self.sync_config_file) as f:
                     config_data = json.load(f)
 
                 self._whisper_config = config_data.get("whisper_config")
@@ -1208,11 +1138,11 @@ class ConfigurationSyncManager:
         except Exception as e:
             logger.warning(f"Failed to load saved configuration: {e}")
 
-    async def sync_with_services(self) -> Dict[str, Any]:
+    async def sync_with_services(self) -> dict[str, Any]:
         """Force synchronization with all services."""
         sync_result = {
             "success": True,
-            "sync_time": datetime.now(timezone.utc).isoformat(),
+            "sync_time": datetime.now(UTC).isoformat(),
             "services_synced": [],
             "errors": [],
         }
@@ -1230,7 +1160,7 @@ class ConfigurationSyncManager:
                 sync_result["services_synced"].append("configuration_reconciliation")
 
             # Update sync time
-            self._last_sync_time = datetime.now(timezone.utc)
+            self._last_sync_time = datetime.now(UTC)
             await self._save_configuration()
 
             sync_result["compatibility_status"] = compatibility
@@ -1242,8 +1172,8 @@ class ConfigurationSyncManager:
         return sync_result
 
     async def validate_configuration_before_apply(
-        self, config: Dict[str, Any], component: str = "unified"
-    ) -> Dict[str, Any]:
+        self, config: dict[str, Any], component: str = "unified"
+    ) -> dict[str, Any]:
         """Enhanced validation before applying configuration changes"""
         async with self._sync_lock:
             validation_result = {
@@ -1265,17 +1195,13 @@ class ConfigurationSyncManager:
                     drift_result = self.drift_detector.detect_drift(component, config)
                     if drift_result["drift_detected"]:
                         validation_result["drift_detected"] = True
-                        validation_result["drift_details"] = drift_result[
-                            "drift_details"
-                        ]
+                        validation_result["drift_details"] = drift_result["drift_details"]
                         validation_result["warnings"].append(
                             f"Configuration drift detected for {component}"
                         )
 
                 # Conflict detection across services
-                conflict_result = await self._detect_configuration_conflicts(
-                    config, component
-                )
+                conflict_result = await self._detect_configuration_conflicts(config, component)
                 if conflict_result["conflicts_found"]:
                     validation_result["conflict_resolution_required"] = True
                     validation_result["conflicts"] = conflict_result["conflicts"]
@@ -1286,14 +1212,14 @@ class ConfigurationSyncManager:
 
             except Exception as e:
                 validation_result["valid"] = False
-                validation_result["errors"].append(f"Validation failed: {str(e)}")
+                validation_result["errors"].append(f"Validation failed: {e!s}")
                 logger.error(f"Configuration validation error: {e}")
 
             return validation_result
 
     async def _detect_configuration_conflicts(
-        self, new_config: Dict[str, Any], component: str
-    ) -> Dict[str, Any]:
+        self, new_config: dict[str, Any], component: str
+    ) -> dict[str, Any]:
         """Detect conflicts between new configuration and existing service configurations"""
         conflict_result = {
             "conflicts_found": False,
@@ -1316,9 +1242,7 @@ class ConfigurationSyncManager:
                 if not current_config or service == component:
                     continue
 
-                conflicts = self._find_parameter_conflicts(
-                    new_config, current_config, service
-                )
+                conflicts = self._find_parameter_conflicts(new_config, current_config, service)
                 if conflicts:
                     conflict_result["conflicts_found"] = True
                     conflict_result["conflicts"].extend(conflicts)
@@ -1336,8 +1260,8 @@ class ConfigurationSyncManager:
         return conflict_result
 
     def _find_parameter_conflicts(
-        self, new_config: Dict[str, Any], existing_config: Dict[str, Any], service: str
-    ) -> List[Dict[str, Any]]:
+        self, new_config: dict[str, Any], existing_config: dict[str, Any], service: str
+    ) -> list[dict[str, Any]]:
         """Find specific parameter conflicts between configurations"""
         conflicts = []
 
@@ -1353,11 +1277,7 @@ class ConfigurationSyncManager:
             new_value = self._get_nested_value(new_config, param)
             existing_value = self._get_nested_value(existing_config, param)
 
-            if (
-                new_value is not None
-                and existing_value is not None
-                and new_value != existing_value
-            ):
+            if new_value is not None and existing_value is not None and new_value != existing_value:
                 conflicts.append(
                     {
                         "type": param,
@@ -1371,7 +1291,7 @@ class ConfigurationSyncManager:
 
         return conflicts
 
-    def _get_nested_value(self, config: Dict[str, Any], key: str) -> Any:
+    def _get_nested_value(self, config: dict[str, Any], key: str) -> Any:
         """Get value from nested configuration dict"""
         keys = key.split(".")
         value = config
@@ -1386,8 +1306,8 @@ class ConfigurationSyncManager:
             return None
 
     async def resolve_configuration_conflicts(
-        self, conflicts: List[Dict[str, Any]], resolution_strategy: str = "auto"
-    ) -> Dict[str, Any]:
+        self, conflicts: list[dict[str, Any]], resolution_strategy: str = "auto"
+    ) -> dict[str, Any]:
         """Resolve configuration conflicts using specified strategy"""
         resolution_result = {
             "success": True,
@@ -1403,9 +1323,7 @@ class ConfigurationSyncManager:
                 elif resolution_strategy == "prefer_whisper":
                     resolution = self._prefer_service_resolution(conflict, "whisper")
                 elif resolution_strategy == "prefer_orchestration":
-                    resolution = self._prefer_service_resolution(
-                        conflict, "orchestration"
-                    )
+                    resolution = self._prefer_service_resolution(conflict, "orchestration")
                 else:
                     resolution = {
                         "success": False,
@@ -1427,7 +1345,7 @@ class ConfigurationSyncManager:
 
         return resolution_result
 
-    async def _auto_resolve_conflict(self, conflict: Dict[str, Any]) -> Dict[str, Any]:
+    async def _auto_resolve_conflict(self, conflict: dict[str, Any]) -> dict[str, Any]:
         """Automatically resolve a configuration conflict using smart defaults"""
         conflict_type = conflict["type"]
 
@@ -1459,8 +1377,8 @@ class ConfigurationSyncManager:
             }
 
     def _prefer_service_resolution(
-        self, conflict: Dict[str, Any], preferred_service: str
-    ) -> Dict[str, Any]:
+        self, conflict: dict[str, Any], preferred_service: str
+    ) -> dict[str, Any]:
         """Resolve conflict by preferring configuration from specific service"""
         if conflict["service"] == preferred_service:
             return {
@@ -1477,7 +1395,7 @@ class ConfigurationSyncManager:
 
     async def create_configuration_checkpoint(
         self, description: str = "Manual checkpoint"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a configuration checkpoint for rollback purposes"""
         try:
             current_config = {
@@ -1500,7 +1418,7 @@ class ConfigurationSyncManager:
             self._rollback_stack.append(
                 {
                     "version": version,
-                    "timestamp": datetime.now(timezone.utc),
+                    "timestamp": datetime.now(UTC),
                     "description": description,
                 }
             )
@@ -1509,16 +1427,14 @@ class ConfigurationSyncManager:
                 "success": True,
                 "version": version,
                 "description": description,
-                "checkpoint_time": datetime.now(timezone.utc).isoformat(),
+                "checkpoint_time": datetime.now(UTC).isoformat(),
             }
 
         except Exception as e:
             logger.error(f"Failed to create configuration checkpoint: {e}")
             return {"success": False, "error": str(e)}
 
-    async def rollback_configuration(
-        self, target_version: Optional[int] = None
-    ) -> Dict[str, Any]:
+    async def rollback_configuration(self, target_version: int | None = None) -> dict[str, Any]:
         """Rollback configuration to a previous version"""
         try:
             if target_version is None and self._rollback_stack:
@@ -1540,9 +1456,7 @@ class ConfigurationSyncManager:
                 # Set configurations
                 self._whisper_config = config.get("whisper")
                 if config.get("orchestration"):
-                    self._orchestration_config = AudioChunkingConfig(
-                        **config["orchestration"]
-                    )
+                    self._orchestration_config = AudioChunkingConfig(**config["orchestration"])
                 self._translation_config = config.get("translation")
 
                 # Restore metadata
@@ -1557,15 +1471,13 @@ class ConfigurationSyncManager:
                 # Sync with services
                 await self.sync_with_services()
 
-                logger.info(
-                    f"Successfully rolled back to configuration version {target_version}"
-                )
+                logger.info(f"Successfully rolled back to configuration version {target_version}")
 
                 return {
                     "success": True,
                     "version": target_version,
                     "description": rollback_result.get("rollback_description", ""),
-                    "rollback_time": datetime.now(timezone.utc).isoformat(),
+                    "rollback_time": datetime.now(UTC).isoformat(),
                 }
             else:
                 return rollback_result
@@ -1576,7 +1488,7 @@ class ConfigurationSyncManager:
 
 
 # Global configuration sync manager instance
-_config_sync_manager: Optional[ConfigurationSyncManager] = None
+_config_sync_manager: ConfigurationSyncManager | None = None
 
 
 async def get_config_sync_manager() -> ConfigurationSyncManager:
@@ -1590,27 +1502,25 @@ async def get_config_sync_manager() -> ConfigurationSyncManager:
     return _config_sync_manager
 
 
-async def sync_all_configurations() -> Dict[str, Any]:
+async def sync_all_configurations() -> dict[str, Any]:
     """Convenience function to sync all configurations."""
     manager = await get_config_sync_manager()
     return await manager.sync_with_services()
 
 
-async def get_unified_configuration() -> Dict[str, Any]:
+async def get_unified_configuration() -> dict[str, Any]:
     """Get unified configuration for all components."""
     manager = await get_config_sync_manager()
     return await manager.get_unified_configuration()
 
 
-async def update_configuration(
-    component: str, updates: Dict[str, Any]
-) -> Dict[str, Any]:
+async def update_configuration(component: str, updates: dict[str, Any]) -> dict[str, Any]:
     """Update configuration for a specific component."""
     manager = await get_config_sync_manager()
     return await manager.update_configuration(component, updates)
 
 
-async def apply_configuration_preset(preset_name: str) -> Dict[str, Any]:
+async def apply_configuration_preset(preset_name: str) -> dict[str, Any]:
     """Apply a configuration preset."""
     manager = await get_config_sync_manager()
     return await manager.apply_preset(preset_name)

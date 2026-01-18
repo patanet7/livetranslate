@@ -9,14 +9,20 @@
  * - Real-time sync indicators
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { ReactFlowProvider } from 'reactflow';
-import AudioStageNode from '../AudioStageNode';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ReactFlowProvider } from "reactflow";
+import AudioStageNode from "../AudioStageNode";
 
 // Mock Material-UI components that cause issues in tests
-vi.mock('@mui/material/Slider', () => ({
+vi.mock("@mui/material/Slider", () => ({
   default: ({ value, onChange, min, max, ...props }: any) => (
     <input
       type="range"
@@ -24,13 +30,13 @@ vi.mock('@mui/material/Slider', () => ({
       onChange={(e) => onChange?.(e, Number(e.target.value))}
       min={min}
       max={max}
-      data-testid={props['data-testid'] || 'slider'}
+      data-testid={props["data-testid"] || "slider"}
       {...props}
     />
   ),
 }));
 
-describe('AudioStageNode', () => {
+describe("AudioStageNode", () => {
   const mockWebSocket = {
     send: vi.fn(),
     close: vi.fn(),
@@ -42,9 +48,9 @@ describe('AudioStageNode', () => {
   } as any as WebSocket;
 
   const defaultNodeData = {
-    label: 'Test Node',
-    description: 'Test Description',
-    stageType: 'processing' as const,
+    label: "Test Node",
+    description: "Test Description",
+    stageType: "processing" as const,
     icon: () => <div>Icon</div>,
     enabled: true,
     gainIn: 0,
@@ -55,22 +61,22 @@ describe('AudioStageNode', () => {
     },
     parameters: [
       {
-        name: 'strength',
+        name: "strength",
         value: 0.7,
         min: 0.0,
         max: 1.0,
         step: 0.1,
-        unit: '',
-        description: 'Processing strength',
+        unit: "",
+        description: "Processing strength",
       },
       {
-        name: 'threshold',
+        name: "threshold",
         value: 0.5,
         min: 0.0,
         max: 1.0,
         step: 0.05,
-        unit: '',
-        description: 'Threshold level',
+        unit: "",
+        description: "Threshold level",
       },
     ],
     metrics: {
@@ -82,11 +88,11 @@ describe('AudioStageNode', () => {
       cpuUsage: 15.3,
     },
     isProcessing: false,
-    status: 'idle' as const,
+    status: "idle" as const,
   };
 
   const defaultProps = {
-    id: 'node-1',
+    id: "node-1",
     data: defaultNodeData,
     selected: false,
     onSettingsOpen: vi.fn(),
@@ -94,7 +100,7 @@ describe('AudioStageNode', () => {
     onParameterChange: vi.fn(),
     onToggleEnabled: vi.fn(),
     isConnectable: true,
-    type: 'audioStage',
+    type: "audioStage",
     position: { x: 0, y: 0 },
     dragging: false,
     zIndex: 0,
@@ -116,30 +122,30 @@ describe('AudioStageNode', () => {
         <div style={{ width: 400, height: 600 }}>
           <AudioStageNode {...defaultProps} {...props} />
         </div>
-      </ReactFlowProvider>
+      </ReactFlowProvider>,
     );
   };
 
-  describe('Basic Rendering', () => {
-    it('should render node with label and description', () => {
+  describe("Basic Rendering", () => {
+    it("should render node with label and description", () => {
       renderNode();
-      expect(screen.getByText('Test Node')).toBeInTheDocument();
-      expect(screen.getByText('Test Description')).toBeInTheDocument();
+      expect(screen.getByText("Test Node")).toBeInTheDocument();
+      expect(screen.getByText("Test Description")).toBeInTheDocument();
     });
 
-    it('should show enabled status chip', () => {
+    it("should show enabled status chip", () => {
       renderNode();
-      expect(screen.getByText('ENABLED')).toBeInTheDocument();
+      expect(screen.getByText("ENABLED")).toBeInTheDocument();
     });
 
-    it('should show disabled status when disabled', () => {
+    it("should show disabled status when disabled", () => {
       renderNode({
         data: { ...defaultNodeData, enabled: false },
       });
-      expect(screen.getByText('DISABLED')).toBeInTheDocument();
+      expect(screen.getByText("DISABLED")).toBeInTheDocument();
     });
 
-    it('should render metrics when provided', () => {
+    it("should render metrics when provided", () => {
       renderNode();
       expect(screen.getByText(/12\.5ms/)).toBeInTheDocument();
       expect(screen.getByText(/\+2\.5dB/)).toBeInTheDocument();
@@ -147,35 +153,35 @@ describe('AudioStageNode', () => {
     });
   });
 
-  describe('Parameter Changes', () => {
-    it('should call onParameterChange when slider is moved', async () => {
+  describe("Parameter Changes", () => {
+    it("should call onParameterChange when slider is moved", async () => {
       const user = userEvent.setup({ delay: null });
       const onParameterChange = vi.fn();
       renderNode({ onParameterChange });
 
       // Find parameter sliders
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const strengthSlider = sliders[2]; // After gain sliders
 
       // Change slider value
-      await user.type(strengthSlider, '{ArrowRight}');
+      await user.type(strengthSlider, "{ArrowRight}");
 
       // Should call immediately (local update)
       expect(onParameterChange).toHaveBeenCalled();
     });
 
-    it('should debounce WebSocket parameter updates', async () => {
+    it("should debounce WebSocket parameter updates", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const strengthSlider = sliders[2];
 
       // Change parameter multiple times rapidly
-      await user.type(strengthSlider, '{ArrowRight}{ArrowRight}{ArrowRight}');
+      await user.type(strengthSlider, "{ArrowRight}{ArrowRight}{ArrowRight}");
 
       // WebSocket should not be called immediately
       expect(mockWebSocket.send).not.toHaveBeenCalled();
@@ -189,35 +195,35 @@ describe('AudioStageNode', () => {
       });
 
       const sentMessage = JSON.parse(mockWebSocket.send.mock.calls[0][0]);
-      expect(sentMessage.type).toBe('update_stage');
-      expect(sentMessage.stage_id).toBe('node-1');
+      expect(sentMessage.type).toBe("update_stage");
+      expect(sentMessage.stage_id).toBe("node-1");
       expect(sentMessage.parameters).toBeDefined();
     });
 
-    it('should not send WebSocket messages when not active', async () => {
+    it("should not send WebSocket messages when not active", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket,
         isRealtimeActive: false, // Not active
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const strengthSlider = sliders[2];
 
-      await user.type(strengthSlider, '{ArrowRight}');
+      await user.type(strengthSlider, "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       expect(mockWebSocket.send).not.toHaveBeenCalled();
     });
 
-    it('should show syncing indicator during parameter update', async () => {
+    it("should show syncing indicator during parameter update", async () => {
       renderNode({
         websocket: mockWebSocket,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await userEvent.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await userEvent.type(sliders[2], "{ArrowRight}");
 
       vi.advanceTimersByTime(300);
 
@@ -229,106 +235,110 @@ describe('AudioStageNode', () => {
       // After 500ms, syncing indicator should disappear
       vi.advanceTimersByTime(500);
       await waitFor(() => {
-        expect(screen.queryByTitle(/Syncing parameters/i)).not.toBeInTheDocument();
+        expect(
+          screen.queryByTitle(/Syncing parameters/i),
+        ).not.toBeInTheDocument();
       });
     });
   });
 
-  describe('Gain Controls', () => {
-    it('should render input and output gain sliders', () => {
+  describe("Gain Controls", () => {
+    it("should render input and output gain sliders", () => {
       renderNode();
-      expect(screen.getByText('IN')).toBeInTheDocument();
-      expect(screen.getByText('OUT')).toBeInTheDocument();
-      expect(screen.getByText('+0.0dB')).toBeInTheDocument(); // Input gain
+      expect(screen.getByText("IN")).toBeInTheDocument();
+      expect(screen.getByText("OUT")).toBeInTheDocument();
+      expect(screen.getByText("+0.0dB")).toBeInTheDocument(); // Input gain
     });
 
-    it('should call onGainChange for input gain', async () => {
+    it("should call onGainChange for input gain", async () => {
       const onGainChange = vi.fn();
       renderNode({ onGainChange });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const inputGainSlider = sliders[0];
 
-      fireEvent.change(inputGainSlider, { target: { value: '5' } });
+      fireEvent.change(inputGainSlider, { target: { value: "5" } });
 
-      expect(onGainChange).toHaveBeenCalledWith('node-1', 'in', 5);
+      expect(onGainChange).toHaveBeenCalledWith("node-1", "in", 5);
     });
 
-    it('should call onGainChange for output gain', async () => {
+    it("should call onGainChange for output gain", async () => {
       const onGainChange = vi.fn();
       renderNode({ onGainChange });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const outputGainSlider = sliders[1];
 
-      fireEvent.change(outputGainSlider, { target: { value: '-3' } });
+      fireEvent.change(outputGainSlider, { target: { value: "-3" } });
 
-      expect(onGainChange).toHaveBeenCalledWith('node-1', 'out', -3);
+      expect(onGainChange).toHaveBeenCalledWith("node-1", "out", -3);
     });
 
-    it('should format gain values correctly', () => {
+    it("should format gain values correctly", () => {
       renderNode({
         data: { ...defaultNodeData, gainIn: 12.5, gainOut: -6.2 },
       });
 
-      expect(screen.getByText('+12.5dB')).toBeInTheDocument();
-      expect(screen.getByText('-6.2dB')).toBeInTheDocument();
+      expect(screen.getByText("+12.5dB")).toBeInTheDocument();
+      expect(screen.getByText("-6.2dB")).toBeInTheDocument();
     });
   });
 
-  describe('Enable/Disable Toggle', () => {
-    it('should call onToggleEnabled when enabled chip is clicked', async () => {
+  describe("Enable/Disable Toggle", () => {
+    it("should call onToggleEnabled when enabled chip is clicked", async () => {
       const onToggleEnabled = vi.fn();
       renderNode({ onToggleEnabled });
 
-      const enabledChip = screen.getByText('ENABLED');
+      const enabledChip = screen.getByText("ENABLED");
       await userEvent.click(enabledChip);
 
-      expect(onToggleEnabled).toHaveBeenCalledWith('node-1', false);
+      expect(onToggleEnabled).toHaveBeenCalledWith("node-1", false);
     });
 
-    it('should reduce opacity when disabled', () => {
+    it("should reduce opacity when disabled", () => {
       const { container } = renderNode({
         data: { ...defaultNodeData, enabled: false },
       });
 
       const card = container.querySelector('[class*="MuiCard"]');
-      expect(card).toHaveStyle({ opacity: '0.6' });
+      expect(card).toHaveStyle({ opacity: "0.6" });
     });
   });
 
-  describe('Settings Panel', () => {
-    it('should call onSettingsOpen when settings button is clicked', async () => {
+  describe("Settings Panel", () => {
+    it("should call onSettingsOpen when settings button is clicked", async () => {
       const onSettingsOpen = vi.fn();
       renderNode({ onSettingsOpen });
 
-      const settingsButtons = screen.getAllByRole('button', { name: /settings/i });
+      const settingsButtons = screen.getAllByRole("button", {
+        name: /settings/i,
+      });
       await userEvent.click(settingsButtons[0]);
 
-      expect(onSettingsOpen).toHaveBeenCalledWith('node-1');
+      expect(onSettingsOpen).toHaveBeenCalledWith("node-1");
     });
   });
 
-  describe('Real-time Status Indicators', () => {
-    it('should show sync icon when realtime is active', () => {
+  describe("Real-time Status Indicators", () => {
+    it("should show sync icon when realtime is active", () => {
       renderNode({
         websocket: mockWebSocket,
         isRealtimeActive: true,
       });
 
-      expect(screen.getByTitle('Connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Connected to backend")).toBeInTheDocument();
     });
 
-    it('should show disconnect icon when not active', () => {
+    it("should show disconnect icon when not active", () => {
       renderNode({
         websocket: mockWebSocket,
         isRealtimeActive: false,
       });
 
-      expect(screen.getByTitle('Not connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Not connected to backend")).toBeInTheDocument();
     });
 
-    it('should show green border when realtime active', () => {
+    it("should show green border when realtime active", () => {
       const { container } = renderNode({
         websocket: mockWebSocket,
         isRealtimeActive: true,
@@ -336,12 +346,12 @@ describe('AudioStageNode', () => {
 
       const card = container.querySelector('[class*="MuiCard"]');
       const style = window.getComputedStyle(card!);
-      expect(style.border).toContain('#4caf50');
+      expect(style.border).toContain("#4caf50");
     });
   });
 
-  describe('Parameters Expansion', () => {
-    it('should expand parameters section when clicked', async () => {
+  describe("Parameters Expansion", () => {
+    it("should expand parameters section when clicked", async () => {
       renderNode();
 
       const parametersHeader = screen.getByText(/Parameters \(2\)/);
@@ -349,12 +359,12 @@ describe('AudioStageNode', () => {
 
       // Should show parameter sliders
       await waitFor(() => {
-        expect(screen.getByText('strength:')).toBeInTheDocument();
-        expect(screen.getByText('threshold:')).toBeInTheDocument();
+        expect(screen.getByText("strength:")).toBeInTheDocument();
+        expect(screen.getByText("threshold:")).toBeInTheDocument();
       });
     });
 
-    it('should collapse parameters when clicked again', async () => {
+    it("should collapse parameters when clicked again", async () => {
       renderNode();
 
       const parametersHeader = screen.getByText(/Parameters \(2\)/);
@@ -362,74 +372,76 @@ describe('AudioStageNode', () => {
       // Expand
       await userEvent.click(parametersHeader);
       await waitFor(() => {
-        expect(screen.getByText('strength:')).toBeInTheDocument();
+        expect(screen.getByText("strength:")).toBeInTheDocument();
       });
 
       // Collapse
       await userEvent.click(parametersHeader);
       await waitFor(() => {
-        expect(screen.queryByText('strength:')).not.toBeInTheDocument();
+        expect(screen.queryByText("strength:")).not.toBeInTheDocument();
       });
     });
   });
 
-  describe('Event Propagation', () => {
-    it('should stop propagation on slider container to prevent node dragging', () => {
+  describe("Event Propagation", () => {
+    it("should stop propagation on slider container to prevent node dragging", () => {
       renderNode();
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const sliderContainer = sliders[0].parentElement?.parentElement;
 
-      const mouseDownEvent = new MouseEvent('mousedown', {
+      const mouseDownEvent = new MouseEvent("mousedown", {
         bubbles: true,
         cancelable: true,
       });
 
-      const stopPropagation = vi.spyOn(mouseDownEvent, 'stopPropagation');
+      const stopPropagation = vi.spyOn(mouseDownEvent, "stopPropagation");
       sliderContainer?.dispatchEvent(mouseDownEvent);
 
       expect(stopPropagation).toHaveBeenCalled();
     });
   });
 
-  describe('WebSocket Connection States', () => {
-    it('should not send messages when WebSocket is closed', async () => {
+  describe("WebSocket Connection States", () => {
+    it("should not send messages when WebSocket is closed", async () => {
       const closedWebSocket = { ...mockWebSocket, readyState: 3 }; // CLOSED
       renderNode({
         websocket: closedWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await userEvent.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await userEvent.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       expect(mockWebSocket.send).not.toHaveBeenCalled();
     });
 
-    it('should handle WebSocket send errors gracefully', async () => {
+    it("should handle WebSocket send errors gracefully", async () => {
       const errorWebSocket = {
         ...mockWebSocket,
         send: vi.fn().mockImplementation(() => {
-          throw new Error('WebSocket send failed');
+          throw new Error("WebSocket send failed");
         }),
       };
 
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       renderNode({
         websocket: errorWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await userEvent.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await userEvent.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
-          'Failed to send parameter update:',
-          expect.any(Error)
+          "Failed to send parameter update:",
+          expect.any(Error),
         );
       });
 
@@ -437,15 +449,15 @@ describe('AudioStageNode', () => {
     });
   });
 
-  describe('Cleanup', () => {
-    it('should clear debounce timers on unmount', async () => {
+  describe("Cleanup", () => {
+    it("should clear debounce timers on unmount", async () => {
       const { unmount } = renderNode({
         websocket: mockWebSocket,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await userEvent.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await userEvent.type(sliders[2], "{ArrowRight}");
 
       // Unmount before debounce timer fires
       unmount();

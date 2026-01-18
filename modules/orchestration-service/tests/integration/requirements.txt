@@ -1,12 +1,12 @@
 # Integration Test Requirements
 
+aiosqlite>=0.19.0
+httpx>=0.28.1
+numpy>=2.3.4
 pytest>=8.4.2
 pytest-asyncio>=1.2.0
 pytest-cov>=7.0.0
 pytest-mock>=3.15.1
-httpx>=0.28.1
-websockets>=15.0.1
-numpy>=2.3.4
 sqlalchemy>=2.0.44
-aiosqlite>=0.19.0
 timecode>=1.4.1  # SMPTE timecode for precise audio overlap handling
+websockets>=15.0.1

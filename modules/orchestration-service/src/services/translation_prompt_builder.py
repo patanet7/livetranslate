@@ -15,7 +15,6 @@ Reference: API Contract - Translation Service is DUMB
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +54,7 @@ MINIMAL_PROMPT = """Translate to {target_language}: {current_sentence}"""
 # Data Classes
 # =============================================================================
 
+
 @dataclass
 class PromptContext:
     """Context for building a translation prompt."""
@@ -62,9 +62,9 @@ class PromptContext:
     current_sentence: str
     target_language: str
     source_language: str = "auto"
-    previous_sentences: Optional[List[str]] = None
-    glossary_terms: Optional[Dict[str, str]] = None
-    speaker_name: Optional[str] = None
+    previous_sentences: list[str] | None = None
+    glossary_terms: dict[str, str] | None = None
+    speaker_name: str | None = None
 
 
 @dataclass
@@ -82,6 +82,7 @@ class BuiltPrompt:
 # =============================================================================
 # Translation Prompt Builder
 # =============================================================================
+
 
 class TranslationPromptBuilder:
     """
@@ -169,20 +170,16 @@ class TranslationPromptBuilder:
     def _build_full_prompt(
         self,
         context: PromptContext,
-        previous_sentences: List[str],
-        glossary_terms: Dict[str, str],
+        previous_sentences: list[str],
+        glossary_terms: dict[str, str],
     ) -> str:
         """Build prompt with context and glossary."""
         # Format glossary section
         glossary_section = ""
         if glossary_terms:
-            glossary_lines = [
-                f"- {source} = {target}"
-                for source, target in glossary_terms.items()
-            ]
-            glossary_section = (
-                "Glossary (use these exact translations):\n"
-                + "\n".join(glossary_lines)
+            glossary_lines = [f"- {source} = {target}" for source, target in glossary_terms.items()]
+            glossary_section = "Glossary (use these exact translations):\n" + "\n".join(
+                glossary_lines
             )
 
         # Format context window
@@ -209,7 +206,7 @@ class TranslationPromptBuilder:
             current_sentence=context.current_sentence,
         )
 
-    def _format_context_window(self, sentences: List[str]) -> str:
+    def _format_context_window(self, sentences: list[str]) -> str:
         """Format previous sentences as context window."""
         if not sentences:
             return "(no previous context)"
@@ -226,8 +223,9 @@ class TranslationPromptBuilder:
 # Factory Functions
 # =============================================================================
 
+
 def create_prompt_builder(
-    config: Optional[Dict] = None,
+    config: dict | None = None,
 ) -> TranslationPromptBuilder:
     """
     Create a TranslationPromptBuilder with optional configuration.

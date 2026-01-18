@@ -1,5 +1,86 @@
-node_modules
-dist
-.pnpm-store
-.DS_Store
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output (rebuilt in container)
+dist/
+build/
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Tests
+tests/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Docker files (not needed inside container)
+Dockerfile*
+docker-compose*.yml
+.docker/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+Jenkinsfile
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories
+.history/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# TypeScript build info
+*.tsbuildinfo
+
+# ESLint/Prettier cache
+.eslintcache
+.prettierrc
+
+# Storybook
+storybook-static/
+
+# Vitest
+vitest.config.ts
+
+# Cache
+.cache/

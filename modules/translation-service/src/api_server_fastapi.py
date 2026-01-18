@@ -4,67 +4,70 @@ LiveTranslate Translation Service - FastAPI Version
 OpenAI-Compatible Translation with Ollama, Groq, vLLM, etc.
 """
 
+import logging
 import os
 import time
-import asyncio
-import logging
 import uuid
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from difflib import SequenceMatcher
-from pathlib import Path
+from typing import Any
 
 # Load .env file FIRST
 from dotenv import load_dotenv
+
 load_dotenv()
 
+import structlog
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-import structlog
 
 # Initialize structured logging
 structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer()
-    ]
+    processors=[structlog.processors.TimeStamper(fmt="iso"), structlog.processors.JSONRenderer()]
 )
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 # Import translation backends
-from openai_compatible_translator import OpenAICompatibleTranslator, OpenAICompatibleConfig
-from model_manager import RuntimeModelManager, get_model_manager, initialize_model_manager
+from model_manager import RuntimeModelManager, get_model_manager
+from openai_compatible_translator import OpenAICompatibleConfig, OpenAICompatibleTranslator
 
 # ============================================================================
 # Pydantic Models
 # ============================================================================
 
+
 class TranslateRequest(BaseModel):
     """Single translation request"""
+
     text: str = Field(..., description="Text to translate")
-    source_language: Optional[str] = Field(None, description="Source language (auto-detect if None)")
+    source_language: str | None = Field(None, description="Source language (auto-detect if None)")
     target_language: str = Field(..., description="Target language code")
     model: str = Field("ollama", description="Translation model/backend to use")
     quality: str = Field("balanced", description="Translation quality: fast, balanced, quality")
 
+
 class MultiLanguageRequest(BaseModel):
     """Multi-language translation request"""
+
     text: str = Field(..., description="Text to translate")
-    source_language: Optional[str] = Field(None, description="Source language (auto-detect if None)")
-    target_languages: List[str] = Field(..., description="List of target language codes")
+    source_language: str | None = Field(None, description="Source language (auto-detect if None)")
+    target_languages: list[str] = Field(..., description="List of target language codes")
     model: str = Field("ollama", description="Translation model/backend to use")
     quality: str = Field("balanced", description="Translation quality: fast, balanced, quality")
 
+
 class LanguageDetectionRequest(BaseModel):
     """Language detection request"""
+
     text: str = Field(..., min_length=1, max_length=10000)
+
 
 class TranslationResponse(BaseModel):
     """Translation response"""
+
     translated_text: str
     source_language: str
     target_language: str
@@ -73,24 +76,30 @@ class TranslationResponse(BaseModel):
     model_used: str
     backend_used: str
 
+
 class MultiLanguageResponse(BaseModel):
     """Multi-language translation response"""
+
     source_text: str
     source_language: str
     model_requested: str
     quality: str
     total_processing_time: float
     timestamp: str
-    translations: Dict[str, Dict[str, Any]]
+    translations: dict[str, dict[str, Any]]
+
 
 class LanguageDetectionResponse(BaseModel):
     """Language detection response"""
+
     language: str
     confidence: float
-    alternatives: List[Dict[str, float]]
+    alternatives: list[dict[str, float]]
+
 
 class HealthResponse(BaseModel):
     """Health check response"""
+
     status: str
     service: str
     backend: str
@@ -102,26 +111,31 @@ class HealthResponse(BaseModel):
 # Model Management Models
 # ============================================================================
 
+
 class ModelSwitchRequest(BaseModel):
     """Request to switch the active model"""
+
     model: str = Field(..., description="Model name (e.g., 'llama2:7b', 'mistral:latest')")
     backend: str = Field("ollama", description="Backend to use: ollama, groq, vllm, openai")
 
 
 class ModelPreloadRequest(BaseModel):
     """Request to preload a model for faster switching"""
+
     model: str = Field(..., description="Model name to preload")
     backend: str = Field("ollama", description="Backend to use")
 
 
 class ModelUnloadRequest(BaseModel):
     """Request to unload a cached model"""
+
     model: str = Field(..., description="Model name to unload")
     backend: str = Field("ollama", description="Backend the model is loaded on")
 
 
 class ModelSwitchResponse(BaseModel):
     """Response for model switch operation"""
+
     success: bool
     model: str
     backend: str
@@ -131,16 +145,19 @@ class ModelSwitchResponse(BaseModel):
 
 class ModelStatusResponse(BaseModel):
     """Response for model manager status"""
-    current_model: Optional[str]
-    current_backend: Optional[str]
+
+    current_model: str | None
+    current_backend: str | None
     is_ready: bool
-    cached_models: List[Dict[str, Any]]
+    cached_models: list[dict[str, Any]]
     cache_size: int
-    supported_backends: List[str]
+    supported_backends: list[str]
+
 
 # ============================================================================
 # V3 API Models - Simplified "prompt-in, translation-out" contract
 # ============================================================================
+
 
 class PromptTranslateRequest(BaseModel):
     """
@@ -154,32 +171,38 @@ class PromptTranslateRequest(BaseModel):
 
     This service just sends it to the LLM and returns the result.
     """
-    prompt: str = Field(..., description="Complete prompt to send to LLM (with context, glossary embedded)")
+
+    prompt: str = Field(
+        ..., description="Complete prompt to send to LLM (with context, glossary embedded)"
+    )
     backend: str = Field("ollama", description="Backend to use: ollama, groq, vllm, openai")
     max_tokens: int = Field(256, description="Maximum tokens to generate")
     temperature: float = Field(0.3, description="Temperature for generation (0.0-1.0)")
-    system_prompt: Optional[str] = Field(None, description="Optional system prompt override")
+    system_prompt: str | None = Field(None, description="Optional system prompt override")
+
 
 class PromptTranslateResponse(BaseModel):
     """V3 Simplified translation response"""
+
     text: str = Field(..., description="Generated text (the translation)")
     processing_time_ms: float = Field(..., description="Processing time in milliseconds")
     backend_used: str = Field(..., description="Backend that processed the request")
     model_used: str = Field(..., description="Model that generated the response")
-    tokens_used: Optional[int] = Field(None, description="Tokens used for generation")
+    tokens_used: int | None = Field(None, description="Tokens used for generation")
+
 
 # ============================================================================
 # Global state
 # ============================================================================
 
-ollama_translator: Optional[OpenAICompatibleTranslator] = None
-translator_backends: Dict[str, OpenAICompatibleTranslator] = {}
+ollama_translator: OpenAICompatibleTranslator | None = None
+translator_backends: dict[str, OpenAICompatibleTranslator] = {}
 
 # Runtime model manager for dynamic model switching
-model_manager: Optional[RuntimeModelManager] = None
+model_manager: RuntimeModelManager | None = None
 
 # Active realtime translation sessions
-active_sessions: Dict[str, Dict[str, Any]] = {}
+active_sessions: dict[str, dict[str, Any]] = {}
 
 # ============================================================================
 # Initialize FastAPI App
@@ -205,6 +228,7 @@ app.add_middleware(
 # ============================================================================
 # Startup Event
 # ============================================================================
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -265,7 +289,9 @@ async def startup_event():
                 translator_backends["groq"] = groq_translator
                 logger.info("✅ Groq translator ready")
 
-    logger.info(f"🎉 Initialized {len(translator_backends)} translator backend(s): {list(translator_backends.keys())}")
+    logger.info(
+        f"🎉 Initialized {len(translator_backends)} translator backend(s): {list(translator_backends.keys())}"
+    )
 
     # Initialize RuntimeModelManager with default model
     if await model_manager.initialize_default():
@@ -273,9 +299,11 @@ async def startup_event():
     else:
         logger.warning("⚠️ RuntimeModelManager initialization failed - will use legacy backends")
 
+
 # ============================================================================
 # Health & Info Endpoints
 # ============================================================================
+
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
 @app.get("/api/health", response_model=HealthResponse, tags=["Health"])
@@ -290,8 +318,9 @@ async def health_check():
         service="translation",
         backend=",".join(translator_backends.keys()) if translator_backends else "none",
         version="2.0.0",
-        timestamp=datetime.now(timezone.utc).isoformat()
+        timestamp=datetime.now(UTC).isoformat(),
     )
+
 
 @app.get("/api/device-info", tags=["Info"])
 async def get_device_info():
@@ -302,8 +331,9 @@ async def get_device_info():
         "available_models": {
             backend: await translator.get_available_models()
             for backend, translator in translator_backends.items()
-        }
+        },
     }
+
 
 @app.get("/api/models", tags=["Info"])
 async def get_models():
@@ -328,16 +358,16 @@ async def get_models():
     if model_manager is not None:
         status = model_manager.get_status()
         if status.get("current_model"):
-            models.append({
-                "name": status["current_model"],
-                "backend": status.get("current_backend", "ollama"),
-                "active": True
-            })
+            models.append(
+                {
+                    "name": status["current_model"],
+                    "backend": status.get("current_backend", "ollama"),
+                    "active": True,
+                }
+            )
 
-    return {
-        "models": models,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    return {"models": models, "timestamp": datetime.now(UTC).isoformat()}
+
 
 @app.get("/api/models/available", tags=["Info"])
 async def get_available_models():
@@ -355,10 +385,8 @@ async def get_available_models():
             logger.error(f"Failed to get models from {backend_name}: {e}")
             models[backend_name] = []
 
-    return {
-        "backends": models,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    }
+    return {"backends": models, "timestamp": datetime.now(UTC).isoformat()}
+
 
 @app.get("/api/languages", tags=["Info"])
 async def get_supported_languages():
@@ -379,14 +407,13 @@ async def get_supported_languages():
         {"code": "hi", "name": "Hindi"},
     ]
 
-    return {
-        "languages": languages,
-        "total": len(languages)
-    }
+    return {"languages": languages, "total": len(languages)}
+
 
 # ============================================================================
 # Model Management Endpoints - Dynamic Model Switching
 # ============================================================================
+
 
 @app.post("/api/models/switch", response_model=ModelSwitchResponse, tags=["Model Management"])
 async def switch_model_runtime(request: ModelSwitchRequest):
@@ -413,8 +440,7 @@ async def switch_model_runtime(request: ModelSwitchRequest):
     """
     if model_manager is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model manager not initialized"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model manager not initialized"
         )
 
     try:
@@ -428,7 +454,7 @@ async def switch_model_runtime(request: ModelSwitchRequest):
                 model=request.model,
                 backend=request.backend,
                 message=f"Successfully switched to {request.model} on {request.backend}",
-                cached_models=status_info["cache_size"]
+                cached_models=status_info["cache_size"],
             )
         else:
             return ModelSwitchResponse(
@@ -436,15 +462,15 @@ async def switch_model_runtime(request: ModelSwitchRequest):
                 model=request.model,
                 backend=request.backend,
                 message=f"Failed to switch to {request.model} on {request.backend}",
-                cached_models=status_info["cache_size"]
+                cached_models=status_info["cache_size"],
             )
 
     except Exception as e:
         logger.error(f"Error switching model: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to switch model: {str(e)}"
-        )
+            detail=f"Failed to switch model: {e!s}",
+        ) from e
 
 
 @app.post("/api/models/preload", tags=["Model Management"])
@@ -466,8 +492,7 @@ async def preload_model(request: ModelPreloadRequest):
     """
     if model_manager is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model manager not initialized"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model manager not initialized"
         )
 
     try:
@@ -478,15 +503,15 @@ async def preload_model(request: ModelPreloadRequest):
             "model": request.model,
             "backend": request.backend,
             "message": f"{'Successfully preloaded' if success else 'Failed to preload'} {request.model}",
-            "cached_models": model_manager.get_status()["cache_size"]
+            "cached_models": model_manager.get_status()["cache_size"],
         }
 
     except Exception as e:
         logger.error(f"Error preloading model: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to preload model: {str(e)}"
-        )
+            detail=f"Failed to preload model: {e!s}",
+        ) from e
 
 
 @app.post("/api/models/unload", tags=["Model Management"])
@@ -498,8 +523,7 @@ async def unload_model(request: ModelUnloadRequest):
     """
     if model_manager is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model manager not initialized"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model manager not initialized"
         )
 
     try:
@@ -510,15 +534,15 @@ async def unload_model(request: ModelUnloadRequest):
             "model": request.model,
             "backend": request.backend,
             "message": f"{'Successfully unloaded' if success else 'Failed to unload'} {request.model}",
-            "cached_models": model_manager.get_status()["cache_size"]
+            "cached_models": model_manager.get_status()["cache_size"],
         }
 
     except Exception as e:
         logger.error(f"Error unloading model: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to unload model: {str(e)}"
-        )
+            detail=f"Failed to unload model: {e!s}",
+        ) from e
 
 
 @app.get("/api/models/status", response_model=ModelStatusResponse, tags=["Model Management"])
@@ -534,8 +558,7 @@ async def get_model_status():
     """
     if model_manager is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model manager not initialized"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model manager not initialized"
         )
 
     status_info = model_manager.get_status()
@@ -546,7 +569,7 @@ async def get_model_status():
         is_ready=status_info["is_ready"],
         cached_models=status_info["cached_models"],
         cache_size=status_info["cache_size"],
-        supported_backends=status_info["supported_backends"]
+        supported_backends=status_info["supported_backends"],
     )
 
 
@@ -565,8 +588,7 @@ async def list_backend_models(backend: str = "ollama"):
     """
     if model_manager is None:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model manager not initialized"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Model manager not initialized"
         )
 
     try:
@@ -576,20 +598,21 @@ async def list_backend_models(backend: str = "ollama"):
             "backend": backend,
             "models": models,
             "count": len(models),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
         logger.error(f"Error listing models from {backend}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list models: {str(e)}"
-        )
+            detail=f"Failed to list models: {e!s}",
+        ) from e
 
 
 # ============================================================================
 # Translation Endpoints
 # ============================================================================
+
 
 @app.post("/api/translate", response_model=TranslationResponse, tags=["Translation"])
 async def translate_text(request: TranslateRequest):
@@ -614,7 +637,7 @@ async def translate_text(request: TranslateRequest):
         if backend_name not in translator_backends:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}",
             )
         translator = translator_backends[backend_name]
 
@@ -633,7 +656,9 @@ async def translate_text(request: TranslateRequest):
         if isinstance(result, dict):
             translated_text = result.get("translated_text", str(result))
             confidence = result.get("confidence", 0.9)
-            actual_processing_time = result.get("metadata", {}).get("processing_time", processing_time)
+            actual_processing_time = result.get("metadata", {}).get(
+                "processing_time", processing_time
+            )
         else:
             translated_text = str(result)
             confidence = 0.9
@@ -646,15 +671,15 @@ async def translate_text(request: TranslateRequest):
             confidence=confidence,
             processing_time=actual_processing_time,
             model_used=translator.config.model,
-            backend_used=backend_name
+            backend_used=backend_name,
         )
 
     except Exception as e:
         logger.error(f"Translation failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Translation failed: {str(e)}"
-        )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Translation failed: {e!s}"
+        ) from e
+
 
 @app.post("/api/translate/multi", response_model=MultiLanguageResponse, tags=["Translation"])
 async def translate_multi_language(request: MultiLanguageRequest):
@@ -680,12 +705,14 @@ async def translate_multi_language(request: MultiLanguageRequest):
     if backend_name not in translator_backends:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+            detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}",
         )
 
     translator = translator_backends[backend_name]
 
-    logger.info(f"Multi-language translation: {len(request.target_languages)} languages for '{request.text[:50]}...'")
+    logger.info(
+        f"Multi-language translation: {len(request.target_languages)} languages for '{request.text[:50]}...'"
+    )
 
     start_time = time.time()
     translations = {}
@@ -717,7 +744,9 @@ async def translate_multi_language(request: MultiLanguageRequest):
 
     total_time = time.time() - start_time
 
-    logger.info(f"Multi-language translation completed: {len(translations)}/{len(request.target_languages)} successful in {total_time:.3f}s")
+    logger.info(
+        f"Multi-language translation completed: {len(translations)}/{len(request.target_languages)} successful in {total_time:.3f}s"
+    )
 
     return MultiLanguageResponse(
         source_text=request.text,
@@ -725,9 +754,10 @@ async def translate_multi_language(request: MultiLanguageRequest):
         model_requested=request.model,
         quality=request.quality,
         total_processing_time=total_time,
-        timestamp=datetime.now(timezone.utc).isoformat(),
-        translations=translations
+        timestamp=datetime.now(UTC).isoformat(),
+        translations=translations,
     )
+
 
 @app.post("/api/detect", response_model=LanguageDetectionResponse, tags=["Language Detection"])
 async def detect_language(request: LanguageDetectionRequest):
@@ -749,31 +779,30 @@ async def detect_language(request: LanguageDetectionRequest):
         return LanguageDetectionResponse(
             language=detected_lang,
             confidence=alternatives[0]["confidence"] if alternatives else 0.5,
-            alternatives=alternatives[:5]  # Top 5 alternatives
+            alternatives=alternatives[:5],  # Top 5 alternatives
         )
 
     except Exception as e:
         logger.error(f"Language detection failed: {e}")
         # Return default
-        return LanguageDetectionResponse(
-            language="en",
-            confidence=0.5,
-            alternatives=[{"en": 0.5}]
-        )
+        return LanguageDetectionResponse(language="en", confidence=0.5, alternatives=[{"en": 0.5}])
 
 
 # ============================================================================
 # Batch Translation Endpoint
 # ============================================================================
 
+
 class BatchTranslateRequest(BaseModel):
     """Batch translation request containing multiple translation requests"""
-    requests: List[TranslateRequest] = Field(..., min_length=1, max_length=100)
+
+    requests: list[TranslateRequest] = Field(..., min_length=1, max_length=100)
 
 
 class BatchTranslateResponse(BaseModel):
     """Batch translation response with all results"""
-    translations: List[TranslationResponse]
+
+    translations: list[TranslationResponse]
     total_processing_time: float
 
 
@@ -798,7 +827,7 @@ async def translate_batch(request: BatchTranslateRequest):
     ```
     """
     start_time = time.time()
-    translations: List[TranslationResponse] = []
+    translations: list[TranslationResponse] = []
 
     for req in request.requests:
         backend_name = req.model.lower()
@@ -812,15 +841,17 @@ async def translate_batch(request: BatchTranslateRequest):
         if translator is None:
             if backend_name not in translator_backends:
                 # Add error response for this item
-                translations.append(TranslationResponse(
-                    translated_text=f"[ERROR: Backend '{backend_name}' not available]",
-                    source_language=req.source_language or "unknown",
-                    target_language=req.target_language,
-                    confidence=0.0,
-                    processing_time=0.0,
-                    model_used="none",
-                    backend_used="none"
-                ))
+                translations.append(
+                    TranslationResponse(
+                        translated_text=f"[ERROR: Backend '{backend_name}' not available]",
+                        source_language=req.source_language or "unknown",
+                        target_language=req.target_language,
+                        confidence=0.0,
+                        processing_time=0.0,
+                        model_used="none",
+                        backend_used="none",
+                    )
+                )
                 continue
             translator = translator_backends[backend_name]
 
@@ -841,43 +872,46 @@ async def translate_batch(request: BatchTranslateRequest):
                 translated_text = str(result)
                 confidence = 0.9
 
-            translations.append(TranslationResponse(
-                translated_text=translated_text,
-                source_language=req.source_language or "auto",
-                target_language=req.target_language,
-                confidence=confidence,
-                processing_time=req_time,
-                model_used=translator.config.model,
-                backend_used=backend_name
-            ))
+            translations.append(
+                TranslationResponse(
+                    translated_text=translated_text,
+                    source_language=req.source_language or "auto",
+                    target_language=req.target_language,
+                    confidence=confidence,
+                    processing_time=req_time,
+                    model_used=translator.config.model,
+                    backend_used=backend_name,
+                )
+            )
 
         except Exception as e:
             logger.error(f"Batch translation item failed: {e}")
-            translations.append(TranslationResponse(
-                translated_text=f"[ERROR: {str(e)}]",
-                source_language=req.source_language or "unknown",
-                target_language=req.target_language,
-                confidence=0.0,
-                processing_time=time.time() - req_start,
-                model_used="none",
-                backend_used=backend_name
-            ))
+            translations.append(
+                TranslationResponse(
+                    translated_text=f"[ERROR: {e!s}]",
+                    source_language=req.source_language or "unknown",
+                    target_language=req.target_language,
+                    confidence=0.0,
+                    processing_time=time.time() - req_start,
+                    model_used="none",
+                    backend_used=backend_name,
+                )
+            )
 
     total_time = time.time() - start_time
     logger.info(f"Batch translation completed: {len(translations)} items in {total_time:.3f}s")
 
-    return BatchTranslateResponse(
-        translations=translations,
-        total_processing_time=total_time
-    )
+    return BatchTranslateResponse(translations=translations, total_processing_time=total_time)
 
 
 # ============================================================================
 # Quality Assessment Endpoint
 # ============================================================================
 
+
 class QualityRequest(BaseModel):
     """Quality assessment request"""
+
     original: str = Field(..., description="Original text")
     translated: str = Field(..., description="Translated text")
     source_language: str = Field(..., description="Source language code")
@@ -886,6 +920,7 @@ class QualityRequest(BaseModel):
 
 class QualityResponse(BaseModel):
     """Quality assessment response"""
+
     score: float = Field(..., description="Quality score (0.0-1.0)")
     method: str = Field(..., description="Scoring method used")
     original_length: int = Field(..., description="Length of original text")
@@ -952,7 +987,7 @@ async def assess_quality(request: QualityRequest):
         original_length=orig_len,
         translated_length=trans_len,
         length_ratio=round(length_ratio, 3),
-        timestamp=datetime.now(timezone.utc).isoformat()
+        timestamp=datetime.now(UTC).isoformat(),
     )
 
 
@@ -960,9 +995,11 @@ async def assess_quality(request: QualityRequest):
 # Realtime Translation Session Endpoints
 # ============================================================================
 
+
 class RealtimeSessionConfig(BaseModel):
     """Configuration for a realtime translation session"""
-    source_language: Optional[str] = Field(None, description="Source language (auto-detect if None)")
+
+    source_language: str | None = Field(None, description="Source language (auto-detect if None)")
     target_language: str = Field("en", description="Default target language")
     model: str = Field("ollama", description="Translation model/backend")
     quality: str = Field("balanced", description="Translation quality: fast, balanced, quality")
@@ -970,14 +1007,15 @@ class RealtimeSessionConfig(BaseModel):
 
 class RealtimeStartResponse(BaseModel):
     """Response for starting a realtime session"""
+
     session_id: str
     status: str
     created_at: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 @app.post("/api/realtime/start", response_model=RealtimeStartResponse, tags=["Realtime"])
-async def start_realtime_session(config: Optional[RealtimeSessionConfig] = None):
+async def start_realtime_session(config: RealtimeSessionConfig | None = None):
     """
     Start a new realtime translation session.
 
@@ -996,7 +1034,7 @@ async def start_realtime_session(config: Optional[RealtimeSessionConfig] = None)
     ```
     """
     session_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc)
+    created_at = datetime.now(UTC)
 
     # Use default config if none provided
     if config is None:
@@ -1024,19 +1062,23 @@ async def start_realtime_session(config: Optional[RealtimeSessionConfig] = None)
         session_id=session_id,
         status="started",
         created_at=created_at.isoformat(),
-        config=session_data["config"]
+        config=session_data["config"],
     )
 
 
 class RealtimeTranslateRequest(BaseModel):
     """Request for realtime translation within a session"""
+
     session_id: str = Field(..., description="Session ID from /api/realtime/start")
     text: str = Field(..., description="Text to translate")
-    target_language: Optional[str] = Field(None, description="Override target language for this request")
+    target_language: str | None = Field(
+        None, description="Override target language for this request"
+    )
 
 
 class RealtimeTranslateResponse(BaseModel):
     """Response for realtime translation"""
+
     session_id: str
     translated_text: str
     source_language: str
@@ -1069,11 +1111,11 @@ async def realtime_translate(request: RealtimeTranslateRequest):
     if session_id not in active_sessions:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session '{session_id}' not found. Start a session with /api/realtime/start"
+            detail=f"Session '{session_id}' not found. Start a session with /api/realtime/start",
         )
 
     session = active_sessions[session_id]
-    session["last_activity"] = datetime.now(timezone.utc).isoformat()
+    session["last_activity"] = datetime.now(UTC).isoformat()
 
     # Use request target language or session default
     target_language = request.target_language or session["config"]["target_language"]
@@ -1090,7 +1132,7 @@ async def realtime_translate(request: RealtimeTranslateRequest):
         if backend_name not in translator_backends:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}",
             )
         translator = translator_backends[backend_name]
 
@@ -1117,11 +1159,13 @@ async def realtime_translate(request: RealtimeTranslateRequest):
         session["total_characters"] += len(request.text)
 
         # Add to rolling context (keep last 5 translations)
-        session["context"].append({
-            "original": request.text,
-            "translated": translated_text,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
+        session["context"].append(
+            {
+                "original": request.text,
+                "translated": translated_text,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
         if len(session["context"]) > 5:
             session["context"] = session["context"][-5:]
 
@@ -1132,24 +1176,25 @@ async def realtime_translate(request: RealtimeTranslateRequest):
             target_language=target_language,
             confidence=confidence,
             processing_time=processing_time,
-            translation_count=session["translation_count"]
+            translation_count=session["translation_count"],
         )
 
     except Exception as e:
         logger.error(f"Realtime translation failed for session {session_id}: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Translation failed: {str(e)}"
-        )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Translation failed: {e!s}"
+        ) from e
 
 
 class RealtimeStopRequest(BaseModel):
     """Request to stop a realtime session"""
+
     session_id: str = Field(..., description="Session ID to stop")
 
 
 class RealtimeStopResponse(BaseModel):
     """Response for stopping a realtime session"""
+
     session_id: str
     status: str
     duration_seconds: float
@@ -1176,8 +1221,7 @@ async def stop_realtime_session(request: RealtimeStopRequest):
 
     if session_id not in active_sessions:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session '{session_id}' not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Session '{session_id}' not found"
         )
 
     session = active_sessions.pop(session_id)
@@ -1185,23 +1229,26 @@ async def stop_realtime_session(request: RealtimeStopRequest):
     # Calculate session duration
     created_at = datetime.fromisoformat(session["created_at"])
     if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=timezone.utc)
-    duration = (datetime.now(timezone.utc) - created_at).total_seconds()
+        created_at = created_at.replace(tzinfo=UTC)
+    duration = (datetime.now(UTC) - created_at).total_seconds()
 
-    logger.info(f"Stopped realtime session {session_id}: {session['translation_count']} translations, {duration:.1f}s duration")
+    logger.info(
+        f"Stopped realtime session {session_id}: {session['translation_count']} translations, {duration:.1f}s duration"
+    )
 
     return RealtimeStopResponse(
         session_id=session_id,
         status="stopped",
         duration_seconds=round(duration, 2),
         translation_count=session["translation_count"],
-        total_characters=session["total_characters"]
+        total_characters=session["total_characters"],
     )
 
 
 # ============================================================================
 # V3 API Endpoints - Simplified "prompt-in, translation-out" contract
 # ============================================================================
+
 
 @app.post("/api/v3/translate", response_model=PromptTranslateResponse, tags=["V3 Translation"])
 async def translate_prompt(request: PromptTranslateRequest):
@@ -1254,7 +1301,7 @@ async def translate_prompt(request: PromptTranslateRequest):
         if backend_name not in translator_backends:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}",
             )
         translator = translator_backends[backend_name]
 
@@ -1263,13 +1310,13 @@ async def translate_prompt(request: PromptTranslateRequest):
             prompt=request.prompt,
             max_tokens=request.max_tokens,
             temperature=request.temperature,
-            system_prompt=request.system_prompt
+            system_prompt=request.system_prompt,
         )
 
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Translation failed - no result from backend"
+                detail="Translation failed - no result from backend",
             )
 
         return PromptTranslateResponse(
@@ -1277,7 +1324,7 @@ async def translate_prompt(request: PromptTranslateRequest):
             processing_time_ms=result["processing_time_ms"],
             backend_used=result["backend_used"],
             model_used=current_model or result["model_used"],  # Use RuntimeModelManager's model
-            tokens_used=result.get("tokens_used")
+            tokens_used=result.get("tokens_used"),
         )
 
     except HTTPException:
@@ -1285,9 +1332,8 @@ async def translate_prompt(request: PromptTranslateRequest):
     except Exception as e:
         logger.error(f"V3 Translation failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Translation failed: {str(e)}"
-        )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Translation failed: {e!s}"
+        ) from e
 
 
 @app.post("/api/v3/translate/stream", tags=["V3 Translation"])
@@ -1304,24 +1350,23 @@ async def translate_prompt_stream(request: PromptTranslateRequest):
     data: {"done": true, "processing_time_ms": 150.5, "backend_used": "ollama-local", "model_used": "gemma3:4b"}
     ```
     """
-    from fastapi.responses import StreamingResponse
     import json
+
+    from fastapi.responses import StreamingResponse
 
     backend_name = request.backend.lower()
 
     # Use RuntimeModelManager for dynamic model switching
     translator = None
-    current_model = None
     if backend_name == "ollama" and model_manager is not None:
         translator = await model_manager.get_current_translator()
-        current_model = model_manager.current_model
 
     # Fall back to static backends if RuntimeModelManager not available
     if translator is None:
         if backend_name not in translator_backends:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}"
+                detail=f"Backend '{backend_name}' not available. Available: {list(translator_backends.keys())}",
             )
         translator = translator_backends[backend_name]
 
@@ -1331,7 +1376,7 @@ async def translate_prompt_stream(request: PromptTranslateRequest):
                 prompt=request.prompt,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
-                system_prompt=request.system_prompt
+                system_prompt=request.system_prompt,
             ):
                 yield f"data: {json.dumps(chunk_data)}\n\n"
         except Exception as e:
@@ -1344,13 +1389,14 @@ async def translate_prompt_stream(request: PromptTranslateRequest):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-        }
+        },
     )
 
 
 # ============================================================================
 # Test Endpoint
 # ============================================================================
+
 
 @app.get("/api/test", tags=["Testing"])
 async def api_test():
@@ -1359,8 +1405,9 @@ async def api_test():
         "status": "ok",
         "service": "translation",
         "backends": list(translator_backends.keys()),
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(UTC).isoformat(),
     }
+
 
 # ============================================================================
 # Main entry point
@@ -1381,5 +1428,5 @@ if __name__ == "__main__":
         host=host,
         port=port,
         reload=True,  # Enable auto-reload during development
-        log_level="info"
+        log_level="info",
     )

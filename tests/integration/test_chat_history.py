@@ -4,9 +4,10 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
-import pytest
+
 from datetime import datetime, timedelta
-from uuid import uuid4
+
+import pytest
 
 
 class TestChatHistory:
@@ -17,22 +18,16 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_conversation_storage(self, db_session):
         """Test that conversations are stored in database"""
-        from database.chat_models import User, ConversationSession, ChatMessage
+        from database.chat_models import ChatMessage, ConversationSession, User
 
         # Create user first
-        user = User(
-            user_id="test_user_123",
-            email="test@example.com",
-            name="Test User"
-        )
+        user = User(user_id="test_user_123", email="test@example.com", name="Test User")
         db_session.add(user)
         db_session.commit()
 
         # Create session
         session = ConversationSession(
-            user_id="test_user_123",
-            session_type="user_chat",
-            session_title="Test Conversation"
+            user_id="test_user_123", session_type="user_chat", session_title="Test Conversation"
         )
 
         db_session.add(session)
@@ -47,23 +42,26 @@ class TestChatHistory:
             session_id=session.session_id,
             role="user",
             content="Hello, how are you?",
-            original_language="en"
+            original_language="en",
         )
 
         msg2 = ChatMessage(
             session_id=session.session_id,
             role="assistant",
             content="I'm doing well, thank you!",
-            original_language="en"
+            original_language="en",
         )
 
         db_session.add_all([msg1, msg2])
         db_session.commit()
 
         # Verify messages were stored
-        messages = db_session.query(ChatMessage).filter(
-            ChatMessage.session_id == session.session_id
-        ).order_by(ChatMessage.sequence_number).all()
+        messages = (
+            db_session.query(ChatMessage)
+            .filter(ChatMessage.session_id == session.session_id)
+            .order_by(ChatMessage.sequence_number)
+            .all()
+        )
 
         assert len(messages) == 2
         assert messages[0].sequence_number == 1
@@ -74,13 +72,10 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_retrieval_by_session(self, db_session):
         """Test retrieving messages by session ID"""
-        from database.chat_models import User, ConversationSession, ChatMessage
+        from database.chat_models import ChatMessage, ConversationSession, User
 
         # Create user first
-        user = User(
-            user_id="user123",
-            email="user123@example.com"
-        )
+        user = User(user_id="user123", email="user123@example.com")
         db_session.add(user)
         db_session.commit()
 
@@ -95,16 +90,19 @@ class TestChatHistory:
             msg = ChatMessage(
                 session_id=session.session_id,
                 role="user" if i % 2 == 0 else "assistant",
-                content=f"Test message {i}"
+                content=f"Test message {i}",
             )
             db_session.add(msg)
 
         db_session.commit()
 
         # Retrieve
-        messages = db_session.query(ChatMessage).filter(
-            ChatMessage.session_id == session.session_id
-        ).order_by(ChatMessage.sequence_number).all()
+        messages = (
+            db_session.query(ChatMessage)
+            .filter(ChatMessage.session_id == session.session_id)
+            .order_by(ChatMessage.sequence_number)
+            .all()
+        )
 
         assert len(messages) == 10
         assert messages[0].sequence_number == 1
@@ -115,33 +113,21 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_retrieval_by_date_range(self, db_session):
         """Test retrieving sessions by date range"""
-        from database.chat_models import User, ConversationSession
+        from database.chat_models import ConversationSession, User
 
         user_id = "user123"
 
         # Create user first
-        user = User(
-            user_id=user_id,
-            email=f"{user_id}@example.com"
-        )
+        user = User(user_id=user_id, email=f"{user_id}@example.com")
         db_session.add(user)
         db_session.commit()
 
         # Create sessions over time range
         now = datetime.utcnow()
 
-        session1 = ConversationSession(
-            user_id=user_id,
-            started_at=now - timedelta(days=10)
-        )
-        session2 = ConversationSession(
-            user_id=user_id,
-            started_at=now - timedelta(days=5)
-        )
-        session3 = ConversationSession(
-            user_id=user_id,
-            started_at=now - timedelta(days=1)
-        )
+        session1 = ConversationSession(user_id=user_id, started_at=now - timedelta(days=10))
+        session2 = ConversationSession(user_id=user_id, started_at=now - timedelta(days=5))
+        session3 = ConversationSession(user_id=user_id, started_at=now - timedelta(days=1))
 
         db_session.add_all([session1, session2, session3])
         db_session.commit()
@@ -150,11 +136,15 @@ class TestChatHistory:
         start_date = now - timedelta(days=7)
         end_date = now
 
-        sessions = db_session.query(ConversationSession).filter(
-            ConversationSession.user_id == user_id,
-            ConversationSession.started_at >= start_date,
-            ConversationSession.started_at <= end_date
-        ).all()
+        sessions = (
+            db_session.query(ConversationSession)
+            .filter(
+                ConversationSession.user_id == user_id,
+                ConversationSession.started_at >= start_date,
+                ConversationSession.started_at <= end_date,
+            )
+            .all()
+        )
 
         # Should only get session2 and session3 (within 7 days)
         assert len(sessions) == 2
@@ -164,7 +154,7 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_customer_access_isolation(self, db_session):
         """Test that customers can only access their own conversations"""
-        from database.chat_models import User, ConversationSession
+        from database.chat_models import ConversationSession, User
 
         # Create users first
         user1 = User(user_id="user1", email="user1@example.com")
@@ -180,17 +170,21 @@ class TestChatHistory:
         db_session.commit()
 
         # User 1 should only see their sessions
-        user1_sessions = db_session.query(ConversationSession).filter(
-            ConversationSession.user_id == "user1"
-        ).all()
+        user1_sessions = (
+            db_session.query(ConversationSession)
+            .filter(ConversationSession.user_id == "user1")
+            .all()
+        )
 
         assert len(user1_sessions) == 1
         assert all(s.user_id == "user1" for s in user1_sessions)
 
         # User 2 should only see their sessions
-        user2_sessions = db_session.query(ConversationSession).filter(
-            ConversationSession.user_id == "user2"
-        ).all()
+        user2_sessions = (
+            db_session.query(ConversationSession)
+            .filter(ConversationSession.user_id == "user2")
+            .all()
+        )
 
         assert len(user2_sessions) == 1
         assert all(s.user_id == "user2" for s in user2_sessions)
@@ -200,7 +194,7 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_full_text_search(self, db_session):
         """Test searching messages by content"""
-        from database.chat_models import User, ConversationSession, ChatMessage
+        from database.chat_models import ChatMessage, ConversationSession, User
 
         # Create user first
         user = User(user_id="user123", email="user123@example.com")
@@ -217,17 +211,15 @@ class TestChatHistory:
         msg1 = ChatMessage(
             session_id=session.session_id,
             role="user",
-            content="I need help with Kubernetes deployment"
+            content="I need help with Kubernetes deployment",
         )
         msg2 = ChatMessage(
             session_id=session.session_id,
             role="assistant",
-            content="Here is how to deploy to Kubernetes..."
+            content="Here is how to deploy to Kubernetes...",
         )
         msg3 = ChatMessage(
-            session_id=session.session_id,
-            role="user",
-            content="What about Docker containers?"
+            session_id=session.session_id, role="user", content="What about Docker containers?"
         )
 
         db_session.add_all([msg1, msg2, msg3])
@@ -235,9 +227,9 @@ class TestChatHistory:
 
         # Search for "Kubernetes"
         # Note: Full-text search syntax varies by database
-        results = db_session.query(ChatMessage).filter(
-            ChatMessage.content.ilike("%Kubernetes%")
-        ).all()
+        results = (
+            db_session.query(ChatMessage).filter(ChatMessage.content.ilike("%Kubernetes%")).all()
+        )
 
         assert len(results) >= 2  # msg1 and msg2
         assert any("Kubernetes" in msg.content for msg in results)
@@ -247,7 +239,7 @@ class TestChatHistory:
     @pytest.mark.requires_db
     async def test_translated_content_storage(self, db_session):
         """Test that translated content is stored correctly"""
-        from database.chat_models import User, ConversationSession, ChatMessage
+        from database.chat_models import ChatMessage, ConversationSession, User
 
         # Create user first
         user = User(user_id="user123", email="user123@example.com")
@@ -265,11 +257,7 @@ class TestChatHistory:
             role="user",
             content="Hello world",
             original_language="en",
-            translated_content={
-                "es": "Hola mundo",
-                "fr": "Bonjour le monde",
-                "de": "Hallo Welt"
-            }
+            translated_content={"es": "Hola mundo", "fr": "Bonjour le monde", "de": "Hallo Welt"},
         )
 
         db_session.add(msg)

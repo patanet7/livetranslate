@@ -14,8 +14,8 @@ License: MIT (same as Silero VAD: https://github.com/snakers4/silero-vad/blob/ma
 This is how SimulStreaming handles silence!
 """
 
-import torch
 import numpy as np
+import torch
 
 
 class VADIterator:
@@ -51,7 +51,7 @@ class VADIterator:
         sampling_rate: int = 16000,
         min_silence_duration_ms: int = 500,
         min_speech_duration_ms: int = 120,  # Phase 2: Configurable min speech duration
-        speech_pad_ms: int = 100
+        speech_pad_ms: int = 100,
     ):
         self.model = model
         self.threshold = threshold
@@ -59,9 +59,7 @@ class VADIterator:
 
         # Validate sampling rate (Silero VAD requirement)
         if sampling_rate not in [8000, 16000]:
-            raise ValueError(
-                'VADIterator does not support sampling rates other than [8000, 16000]'
-            )
+            raise ValueError("VADIterator does not support sampling rates other than [8000, 16000]")
 
         # Calculate sample counts
         self.min_silence_samples = sampling_rate * min_silence_duration_ms / 1000
@@ -97,8 +95,8 @@ class VADIterator:
         if not torch.is_tensor(x):
             try:
                 x = torch.Tensor(x)
-            except Exception:
-                raise TypeError("Audio cannot be casted to tensor. Cast it manually")
+            except Exception as e:
+                raise TypeError("Audio cannot be casted to tensor. Cast it manually") from e
 
         # Get chunk size
         window_size_samples = len(x[0]) if x.dim() == 2 else len(x)
@@ -115,13 +113,13 @@ class VADIterator:
         if (speech_prob >= self.threshold) and not self.triggered:
             self.triggered = True
             speech_start = max(
-                0,
-                self.current_sample - self.speech_pad_samples - window_size_samples
+                0, self.current_sample - self.speech_pad_samples - window_size_samples
             )
             self.temp_start = speech_start  # Phase 2: Track start for duration check
 
             return {
-                'start': int(speech_start) if not return_seconds
+                "start": int(speech_start)
+                if not return_seconds
                 else round(speech_start / self.sampling_rate, time_resolution)
             }
 
@@ -151,7 +149,8 @@ class VADIterator:
                 self.triggered = False
 
                 return {
-                    'end': int(speech_end) if not return_seconds
+                    "end": int(speech_end)
+                    if not return_seconds
                     else round(speech_end / self.sampling_rate, time_resolution)
                 }
 
@@ -211,11 +210,11 @@ class FixedVADIterator(VADIterator):
                 ret = r
             elif r is not None:
                 # Handle multiple segments in one call
-                if 'end' in r:
-                    ret['end'] = r['end']  # Update to latest end
-                if 'start' in r and 'end' in ret:
+                if "end" in r:
+                    ret["end"] = r["end"]  # Update to latest end
+                if "start" in r and "end" in ret:
                     # Merge segments - remove end to continue with previous
-                    del ret['end']
+                    del ret["end"]
 
         return ret if ret != {} else None
 
@@ -224,9 +223,7 @@ class FixedVADIterator(VADIterator):
 if __name__ == "__main__":
     # Load Silero VAD model
     model, utils = torch.hub.load(
-        repo_or_dir='snakers4/silero-vad',
-        model='silero_vad',
-        force_reload=False
+        repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
     )
 
     # Create FixedVADIterator

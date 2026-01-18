@@ -7,17 +7,19 @@ only produces Chinese transcription.
 """
 
 import asyncio
-import sys
 import os
+import sys
+
+import librosa
 import numpy as np
 import soundfile as sf
-import librosa
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-from whisper_service import WhisperService, TranscriptionRequest
-
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 import logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+from whisper_service import TranscriptionRequest, WhisperService
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 AUDIO_DIR = "tests/audio"
@@ -45,8 +47,8 @@ async def debug_mixed_audio():
     english_audio = load_and_resample(f"{AUDIO_DIR}/jfk.wav")
 
     # Create clips
-    chinese_clip = chinese_audio[:int(5 * 16000)]
-    english_clip = english_audio[:int(5 * 16000)]
+    chinese_clip = chinese_audio[: (5 * 16000)]
+    english_clip = english_audio[: (5 * 16000)]
     silence = np.zeros(int(0.5 * 16000), dtype=np.float32)
 
     # Save individual pieces for inspection
@@ -64,18 +66,20 @@ async def debug_mixed_audio():
     sf.write("debug_mixed.wav", mixed_audio, 16000)
 
     logger.info(f"\n✓ Saved debug_mixed.wav ({len(mixed_audio)/16000:.2f}s)")
-    logger.info(f"  Structure:")
-    logger.info(f"    0.0s - 5.0s: Chinese")
-    logger.info(f"    5.0s - 5.5s: Silence")
-    logger.info(f"    5.5s - 10.5s: English")
+    logger.info("  Structure:")
+    logger.info("    0.0s - 5.0s: Chinese")
+    logger.info("    5.0s - 5.5s: Silence")
+    logger.info("    5.5s - 10.5s: English")
 
     # Initialize service
-    service = WhisperService({
-        "models_dir": ".models",
-        "default_model": "base",
-        "sample_rate": 16000,
-        "orchestration_mode": False
-    })
+    service = WhisperService(
+        {
+            "models_dir": ".models",
+            "default_model": "base",
+            "sample_rate": 16000,
+            "orchestration_mode": False,
+        }
+    )
     await asyncio.sleep(2)
 
     # Test 1: Transcribe ONLY the English clip
@@ -90,13 +94,15 @@ async def debug_mixed_audio():
         session_id="test-en-only",
         sample_rate=16000,
         streaming=False,
-        enable_code_switching=False
+        enable_code_switching=False,
     )
 
     result_en_only = await service.transcribe(request_en_only)
-    logger.info(f"\nEnglish clip alone:")
+    logger.info("\nEnglish clip alone:")
     logger.info(f"  Text: {result_en_only.text}")
-    logger.info(f"  Segments: {len(result_en_only.segments) if hasattr(result_en_only, 'segments') else 'N/A'}")
+    logger.info(
+        f"  Segments: {len(result_en_only.segments) if hasattr(result_en_only, 'segments') else 'N/A'}"
+    )
 
     # Test 2: Transcribe mixed audio WITH language pinned to English
     logger.info("\n" + "=" * 80)
@@ -110,14 +116,14 @@ async def debug_mixed_audio():
         session_id="test-mixed-en",
         sample_rate=16000,
         streaming=False,
-        enable_code_switching=False
+        enable_code_switching=False,
     )
 
     result_mixed_en = await service.transcribe(request_mixed_en)
-    logger.info(f"\nMixed audio (forced English):")
+    logger.info("\nMixed audio (forced English):")
     logger.info(f"  Text: {result_mixed_en.text}")
 
-    if hasattr(result_mixed_en, 'segments') and result_mixed_en.segments:
+    if hasattr(result_mixed_en, "segments") and result_mixed_en.segments:
         logger.info(f"  Segments ({len(result_mixed_en.segments)}):")
         for i, seg in enumerate(result_mixed_en.segments[:10], 1):
             if isinstance(seg, dict):
@@ -135,14 +141,14 @@ async def debug_mixed_audio():
         session_id="test-mixed-auto",
         sample_rate=16000,
         streaming=False,
-        enable_code_switching=False  # No code-switching
+        enable_code_switching=False,  # No code-switching
     )
 
     result_mixed_auto = await service.transcribe(request_mixed_auto)
-    logger.info(f"\nMixed audio (auto-detect, no code-switching):")
+    logger.info("\nMixed audio (auto-detect, no code-switching):")
     logger.info(f"  Text: {result_mixed_auto.text}")
 
-    if hasattr(result_mixed_auto, 'segments') and result_mixed_auto.segments:
+    if hasattr(result_mixed_auto, "segments") and result_mixed_auto.segments:
         logger.info(f"  Segments ({len(result_mixed_auto.segments)}):")
         for i, seg in enumerate(result_mixed_auto.segments[:10], 1):
             if isinstance(seg, dict):
@@ -160,22 +166,22 @@ async def debug_mixed_audio():
         session_id="test-mixed-cs",
         sample_rate=16000,
         streaming=False,
-        enable_code_switching=True  # Code-switching enabled
+        enable_code_switching=True,  # Code-switching enabled
     )
 
     result_mixed_cs = await service.transcribe(request_mixed_cs)
-    logger.info(f"\nMixed audio (code-switching enabled):")
+    logger.info("\nMixed audio (code-switching enabled):")
     logger.info(f"  Text: {result_mixed_cs.text}")
 
-    if hasattr(result_mixed_cs, 'segments') and result_mixed_cs.segments:
+    if hasattr(result_mixed_cs, "segments") and result_mixed_cs.segments:
         logger.info(f"  Segments ({len(result_mixed_cs.segments)}):")
         for i, seg in enumerate(result_mixed_cs.segments[:10], 1):
             if isinstance(seg, dict):
-                text = seg.get('text', '')
-                lang = seg.get('detected_language', 'N/A')
-                conf = seg.get('language_confidence', 0.0)
-                start = seg.get('start', 0)
-                end = seg.get('end', 0)
+                text = seg.get("text", "")
+                lang = seg.get("detected_language", "N/A")
+                conf = seg.get("language_confidence", 0.0)
+                start = seg.get("start", 0)
+                end = seg.get("end", 0)
                 logger.info(f"    [{i}] {start:.1f}s-{end:.1f}s | {lang} ({conf:.2f}): {text}")
 
     # Analysis
@@ -186,18 +192,29 @@ async def debug_mixed_audio():
     logger.info("\n🔍 Observations:")
 
     # Check if English appears in any transcription
-    has_english_words = lambda text: any(word in text.lower() for word in ['and', 'so', 'fellow', 'american', 'ask', 'country'])
+    def has_english_words(text):
+        return any(
+            word in text.lower() for word in ["and", "so", "fellow", "american", "ask", "country"]
+        )
 
-    logger.info(f"\n1. English clip alone has English words: {has_english_words(result_en_only.text)}")
+    logger.info(
+        f"\n1. English clip alone has English words: {has_english_words(result_en_only.text)}"
+    )
     logger.info(f"   Text: {result_en_only.text[:100]}")
 
-    logger.info(f"\n2. Mixed (forced EN) has English words: {has_english_words(result_mixed_en.text)}")
+    logger.info(
+        f"\n2. Mixed (forced EN) has English words: {has_english_words(result_mixed_en.text)}"
+    )
     logger.info(f"   Text: {result_mixed_en.text[:100]}")
 
-    logger.info(f"\n3. Mixed (auto-detect) has English words: {has_english_words(result_mixed_auto.text)}")
+    logger.info(
+        f"\n3. Mixed (auto-detect) has English words: {has_english_words(result_mixed_auto.text)}"
+    )
     logger.info(f"   Text: {result_mixed_auto.text[:100]}")
 
-    logger.info(f"\n4. Mixed (code-switching) has English words: {has_english_words(result_mixed_cs.text)}")
+    logger.info(
+        f"\n4. Mixed (code-switching) has English words: {has_english_words(result_mixed_cs.text)}"
+    )
     logger.info(f"   Text: {result_mixed_cs.text[:100]}")
 
     # Check segment timestamps
@@ -206,17 +223,19 @@ async def debug_mixed_audio():
     for name, result in [
         ("Forced EN", result_mixed_en),
         ("Auto-detect", result_mixed_auto),
-        ("Code-switching", result_mixed_cs)
+        ("Code-switching", result_mixed_cs),
     ]:
-        if hasattr(result, 'segments') and result.segments:
+        if hasattr(result, "segments") and result.segments:
             last_seg = result.segments[-1] if isinstance(result.segments[-1], dict) else None
             if last_seg:
-                last_time = last_seg.get('end', 0)
+                last_time = last_seg.get("end", 0)
                 logger.info(f"  {name}: Last segment ends at {last_time:.1f}s (total audio: 10.5s)")
                 if last_time < 6.0:
-                    logger.warning(f"    ⚠️  Transcription stopped early! Only {last_time:.1f}s of 10.5s processed")
+                    logger.warning(
+                        f"    ⚠️  Transcription stopped early! Only {last_time:.1f}s of 10.5s processed"
+                    )
                 else:
-                    logger.info(f"    ✓ Transcription reached English portion (5.5s+)")
+                    logger.info("    ✓ Transcription reached English portion (5.5s+)")
 
     logger.info("\n💡 HYPOTHESIS:")
     logger.info("  If transcription stops before 5.5s:")

@@ -15,12 +15,12 @@ This implementation uses Playwright for reliable browser automation and includes
 
 import asyncio
 import logging
-import random
 import os
-from typing import Optional, Dict, Any, List
-from enum import Enum
 from dataclasses import dataclass
-from playwright.async_api import async_playwright, Browser, Page, BrowserContext, Playwright
+from enum import Enum
+from typing import ClassVar
+
+from playwright.async_api import Browser, BrowserContext, Page, Playwright, async_playwright
 from undetected_playwright import Malenia
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class MeetingState(Enum):
     """Google Meet session states"""
+
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     JOINING = "joining"
@@ -41,83 +42,84 @@ class MeetingState(Enum):
 @dataclass
 class BrowserConfig:
     """Browser automation configuration"""
+
     headless: bool = True
     audio_capture_enabled: bool = True
     video_enabled: bool = False
     microphone_enabled: bool = False
     join_timeout: int = 120
     window_size: tuple = (1280, 720)  # Match ScreenApp's size
-    user_agent: Optional[str] = None
+    user_agent: str | None = None
     screenshots_enabled: bool = True
     screenshots_path: str = "/tmp/bot-screenshots"
 
     # DEPRECATED: Authentication no longer used - bots join anonymously
     # Keeping for backward compatibility but will be ignored
-    user_data_dir: Optional[str] = None
-    google_email: Optional[str] = None
-    google_password: Optional[str] = None
+    user_data_dir: str | None = None
+    google_email: str | None = None
+    google_password: str | None = None
 
     # NEW: Bearer token for API callbacks (ScreenApp/Vexa pattern)
-    bearer_token: Optional[str] = None
-    callback_url: Optional[str] = None
+    bearer_token: str | None = None
+    callback_url: str | None = None
 
 
 class GoogleMeetSelectors:
     """Google Meet DOM selectors (from Vexa reference)"""
 
     # Name input
-    NAME_INPUT = [
+    NAME_INPUT: ClassVar[list[str]] = [
         'input[type="text"][aria-label="Your name"]',
         'input[placeholder*="name"]',
-        'input[placeholder*="Name"]'
+        'input[placeholder*="Name"]',
     ]
 
     # Join buttons
-    JOIN_BUTTON = [
+    JOIN_BUTTON: ClassVar[list[str]] = [
         '//button[.//span[text()="Ask to join"]]',
         'button:has-text("Ask to join")',
         'button:has-text("Join now")',
-        'button:has-text("Join")'
+        'button:has-text("Join")',
     ]
 
     # Microphone toggle
-    MICROPHONE_BUTTON = [
+    MICROPHONE_BUTTON: ClassVar[list[str]] = [
         '[aria-label*="Turn off microphone"]',
         'button[aria-label*="Turn off microphone"]',
-        'button[aria-label*="Turn on microphone"]'
+        'button[aria-label*="Turn on microphone"]',
     ]
 
     # Camera toggle
-    CAMERA_BUTTON = [
+    CAMERA_BUTTON: ClassVar[list[str]] = [
         '[aria-label*="Turn off camera"]',
         'button[aria-label*="Turn off camera"]',
-        'button[aria-label*="Turn on camera"]'
+        'button[aria-label*="Turn on camera"]',
     ]
 
     # Meeting joined indicators
-    ADMISSION_INDICATORS = [
+    ADMISSION_INDICATORS: ClassVar[list[str]] = [
         'button[aria-label*="Chat"]',
         'button[aria-label*="People"]',
         'button[aria-label*="Leave call"]',
         '[role="toolbar"]',
         'button[aria-label*="Turn off microphone"]',
-        'button[aria-label*="Turn on microphone"]'
+        'button[aria-label*="Turn on microphone"]',
     ]
 
     # Waiting room indicators
-    WAITING_ROOM_INDICATORS = [
+    WAITING_ROOM_INDICATORS: ClassVar[list[str]] = [
         'text="Asking to be let in..."',
         'text*="Asking to be let in"',
         'text="You\'ll join the call when someone lets you in"',
         'text*="You\'ll join the call when someone lets you"',
-        'text="Waiting for the host to let you in"'
+        'text="Waiting for the host to let you in"',
     ]
 
     # Leave button
-    LEAVE_BUTTON = [
+    LEAVE_BUTTON: ClassVar[list[str]] = [
         'button[aria-label="Leave call"]',
         'button[aria-label*="Leave"]',
-        'button:has-text("Leave meeting")'
+        'button:has-text("Leave meeting")',
     ]
 
 
@@ -139,17 +141,17 @@ class GoogleMeetAutomation:
         await automation.cleanup()
     """
 
-    def __init__(self, config: Optional[BrowserConfig] = None):
+    def __init__(self, config: BrowserConfig | None = None):
         self.config = config or BrowserConfig()
         self.state = MeetingState.DISCONNECTED
-        self.meeting_url: Optional[str] = None
-        self.bot_name: Optional[str] = None
+        self.meeting_url: str | None = None
+        self.bot_name: str | None = None
 
         # Playwright objects
-        self.playwright: Optional[Playwright] = None
-        self.browser: Optional[Browser] = None
-        self.context: Optional[BrowserContext] = None
-        self.page: Optional[Page] = None
+        self.playwright: Playwright | None = None
+        self.browser: Browser | None = None
+        self.context: BrowserContext | None = None
+        self.page: Page | None = None
 
         # Audio/video streams
         self.audio_stream = None
@@ -167,16 +169,14 @@ class GoogleMeetAutomation:
             # Only include what's ABSOLUTELY necessary for media capture
             browser_args = [
                 # Media capture (ScreenApp's critical args)
-                '--enable-usermedia-screen-capturing',
-                '--allow-http-screen-capture',
-                '--auto-accept-this-tab-capture',
-                '--enable-features=MediaRecorder',
-
+                "--enable-usermedia-screen-capturing",
+                "--allow-http-screen-capture",
+                "--auto-accept-this-tab-capture",
+                "--enable-features=MediaRecorder",
                 # Window config
-                f'--window-size={self.config.window_size[0]},{self.config.window_size[1]}',
-
+                f"--window-size={self.config.window_size[0]},{self.config.window_size[1]}",
                 # Fake UI for media prompts (needed to auto-accept)
-                '--use-fake-ui-for-media-stream',
+                "--use-fake-ui-for-media-stream",
             ]
 
             # ⚡ USE REAL CHROME to match TLS/HTTP fingerprint (NOT Playwright's Chromium!)
@@ -187,8 +187,8 @@ class GoogleMeetAutomation:
                 headless=self.config.headless,
                 executable_path=chrome_path,  # ← REAL Chrome = Real TLS fingerprint!
                 args=browser_args,
-                ignore_default_args=['--mute-audio'],  # ScreenApp: Don't mute audio!
-                channel=None  # Don't use channel when using executable_path
+                ignore_default_args=["--mute-audio"],  # ScreenApp: Don't mute audio!
+                channel=None,  # Don't use channel when using executable_path
             )
 
             # Create browser context with media permissions and Vexa's user agent
@@ -197,14 +197,19 @@ class GoogleMeetAutomation:
 
             # Simple context - no persistent storage needed for anonymous joining
             self.context = await self.browser.new_context(
-                viewport={'width': self.config.window_size[0], 'height': self.config.window_size[1]},
+                viewport={
+                    "width": self.config.window_size[0],
+                    "height": self.config.window_size[1],
+                },
                 user_agent=self.config.user_agent or vexa_user_agent,
                 bypass_csp=True,
                 ignore_https_errors=True,  # ScreenApp uses this
             )
 
             # Grant camera and microphone permissions to Google Meet
-            await self.context.grant_permissions(['microphone', 'camera'], origin='https://meet.google.com')
+            await self.context.grant_permissions(
+                ["microphone", "camera"], origin="https://meet.google.com"
+            )
 
             # Apply Malenia's UNDETECTED stealth mode to bypass Google bot detection!
             logger.info("🥷 Applying Malenia stealth to context...")
@@ -215,7 +220,7 @@ class GoogleMeetAutomation:
             self.page = await self.context.new_page()
 
             # Enable console logging for debugging
-            self.page.on('console', lambda msg: logger.debug(f"Browser console: {msg.text}"))
+            self.page.on("console", lambda msg: logger.debug(f"Browser console: {msg.text}"))
 
             logger.info("✅ Browser initialized successfully")
             self.state = MeetingState.DISCONNECTED
@@ -244,17 +249,17 @@ class GoogleMeetAutomation:
         try:
             # Navigate to Google login page
             login_url = "https://accounts.google.com/ServiceLogin?hl=en&passive=true&continue=https://www.google.com/"
-            await self.page.goto(login_url, wait_until='networkidle', timeout=60000)
+            await self.page.goto(login_url, wait_until="networkidle", timeout=60000)
             await self._take_screenshot("login-01-start")
 
             # Enter email
             logger.info("📧 Entering email...")
-            await self.page.wait_for_selector('#identifierId', timeout=30000)
-            await self.page.fill('#identifierId', self.config.google_email)
+            await self.page.wait_for_selector("#identifierId", timeout=30000)
+            await self.page.fill("#identifierId", self.config.google_email)
             await self._take_screenshot("login-02-email-entered")
 
             # Click Next button (email)
-            await self.page.click('#identifierNext')
+            await self.page.click("#identifierNext")
             await asyncio.sleep(1.5)  # Reduced from 3s
             await self._take_screenshot("login-03-after-email-next")
 
@@ -265,7 +270,7 @@ class GoogleMeetAutomation:
             await self._take_screenshot("login-04-password-entered")
 
             # Click Next button (password)
-            await self.page.click('#passwordNext')
+            await self.page.click("#passwordNext")
             await asyncio.sleep(2)  # Reduced from 5s
             await self._take_screenshot("login-05-after-password-next")
 
@@ -323,7 +328,7 @@ class GoogleMeetAutomation:
             logger.info("🎭 Joining anonymously (no authentication required)")
 
             # Navigate to meeting
-            await self.page.goto(meeting_url, wait_until='networkidle', timeout=60000)
+            await self.page.goto(meeting_url, wait_until="networkidle", timeout=60000)
             await self.page.bring_to_front()
 
             await self._take_screenshot("01-after-navigation")
@@ -537,6 +542,7 @@ class GoogleMeetAutomation:
 
         try:
             import os
+
             os.makedirs(self.config.screenshots_path, exist_ok=True)
             path = f"{self.config.screenshots_path}/{name}.png"
             await self.page.screenshot(path=path, full_page=True)
@@ -557,10 +563,7 @@ class GoogleMeetAutomation:
 async def example_usage():
     """Example of using Google Meet automation"""
     config = BrowserConfig(
-        headless=True,
-        audio_capture_enabled=True,
-        video_enabled=False,
-        microphone_enabled=False
+        headless=True, audio_capture_enabled=True, video_enabled=False, microphone_enabled=False
     )
 
     automation = GoogleMeetAutomation(config)
@@ -571,8 +574,7 @@ async def example_usage():
 
         # Join meeting
         success = await automation.join_meeting(
-            "https://meet.google.com/test-meeting",
-            "LiveTranslate Bot"
+            "https://meet.google.com/test-meeting", "LiveTranslate Bot"
         )
 
         if success:

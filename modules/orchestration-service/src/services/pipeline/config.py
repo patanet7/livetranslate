@@ -7,8 +7,8 @@ metadata stored in the source_metadata field.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -48,7 +48,7 @@ class PipelineConfig:
 
     # Translation settings
     source_language: str = "en"
-    target_languages: List[str] = field(default_factory=lambda: ["es"])
+    target_languages: list[str] = field(default_factory=lambda: ["es"])
 
     # Sentence aggregation
     pause_threshold_ms: float = 800.0
@@ -63,7 +63,7 @@ class PipelineConfig:
     include_cross_speaker_context: bool = True
 
     # Glossary
-    glossary_id: Optional[str] = None
+    glossary_id: str | None = None
     domain: str = "general"
 
     # Caption display
@@ -75,7 +75,7 @@ class PipelineConfig:
     enable_obs: bool = False
 
     # Source-specific metadata (adapter uses this)
-    source_metadata: Dict[str, Any] = field(default_factory=dict)
+    source_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -89,20 +89,20 @@ class PipelineStats:
     captions_displayed: int = 0
     errors: int = 0
     speakers_seen: int = 0
-    speaker_names: List[str] = field(default_factory=list)
-    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    last_chunk_at: Optional[datetime] = None
-    last_translation_at: Optional[datetime] = None
+    speaker_names: list[str] = field(default_factory=list)
+    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    last_chunk_at: datetime | None = None
+    last_translation_at: datetime | None = None
     average_translation_time_ms: float = 0.0
 
     def record_translation(self, translation_time_ms: float) -> None:
         """Record a successful translation and update average time."""
         n = self.translations_completed
         self.average_translation_time_ms = (
-            (self.average_translation_time_ms * n + translation_time_ms) / (n + 1)
-        )
+            self.average_translation_time_ms * n + translation_time_ms
+        ) / (n + 1)
         self.translations_completed += 1
-        self.last_translation_at = datetime.now(timezone.utc)
+        self.last_translation_at = datetime.now(UTC)
 
     def record_speaker(self, speaker_name: str) -> None:
         """Record a speaker if not already seen."""
@@ -110,7 +110,7 @@ class PipelineStats:
             self.speaker_names.append(speaker_name)
             self.speakers_seen = len(self.speaker_names)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "chunks_received": self.chunks_received,
@@ -128,8 +128,6 @@ class PipelineStats:
             ),
             "average_translation_time_ms": round(self.average_translation_time_ms, 2),
             "running_seconds": (
-                (datetime.now(timezone.utc) - self.started_at).total_seconds()
-                if self.started_at
-                else 0
+                (datetime.now(UTC) - self.started_at).total_seconds() if self.started_at else 0
             ),
         }

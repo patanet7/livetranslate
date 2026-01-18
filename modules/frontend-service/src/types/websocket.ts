@@ -59,61 +59,98 @@ export interface WebSocketConfig {
 }
 
 // Import types from index.ts to avoid duplication
-import type { ServiceHealth, Notification, Translation, AudioDevice } from './index';
+import type {
+  ServiceHealth,
+  Notification,
+  Translation,
+  AudioDevice,
+} from "./index";
 
 // Define types to avoid circular imports with index.ts
-type BotStatus = 'spawning' | 'active' | 'error' | 'terminated';
+type BotStatus = "spawning" | "active" | "error" | "terminated";
 
 export interface WebSocketEventMap {
   // Connection events
-  'connection:established': { connectionId: string; serverTime: number };
-  'connection:lost': { reason: string; code: number };
-  'connection:reconnecting': { attempt: number; maxAttempts: number };
-  'connection:error': { error: string; code: number };
-  'connection:ping': { timestamp: number };
-  'connection:pong': { timestamp: number; server_time: string };
-  
+  "connection:established": { connectionId: string; serverTime: number };
+  "connection:lost": { reason: string; code: number };
+  "connection:reconnecting": { attempt: number; maxAttempts: number };
+  "connection:error": { error: string; code: number };
+  "connection:ping": { timestamp: number };
+  "connection:pong": { timestamp: number; server_time: string };
+
   // Audio events
-  'audio:chunk': { chunk: ArrayBuffer; timestamp: number; quality: AudioAnalysisResult };
-  'audio:transcription': { text: string; confidence: number; language: string; timestamp: number };
-  'audio:device_change': { devices: AudioDevice[] };
-  'audio:error': { error: string; timestamp: number };
-  
+  "audio:chunk": {
+    chunk: ArrayBuffer;
+    timestamp: number;
+    quality: AudioAnalysisResult;
+  };
+  "audio:transcription": {
+    text: string;
+    confidence: number;
+    language: string;
+    timestamp: number;
+  };
+  "audio:device_change": { devices: AudioDevice[] };
+  "audio:error": { error: string; timestamp: number };
+
   // Bot events
-  'bot:spawned': { botId: string; meetingId: string; status: BotStatus };
-  'bot:status_change': { botId: string; status: BotStatus; data?: any };
-  'bot:audio_capture': { botId: string; metrics: AudioAnalysisResult };
-  'bot:caption_received': { botId: string; caption: CaptionSegment };
-  'bot:translation_ready': { botId: string; translation: Translation };
-  'bot:webcam_frame': { botId: string; frame: VirtualWebcamFrame };
-  'bot:error': { botId: string; error: BotError };
-  'bot:terminated': { botId: string; reason: string; sessionData: BotSession };
-  
+  "bot:spawned": { botId: string; meetingId: string; status: BotStatus };
+  "bot:status_change": { botId: string; status: BotStatus; data?: any };
+  "bot:audio_capture": { botId: string; metrics: AudioAnalysisResult };
+  "bot:caption_received": { botId: string; caption: CaptionSegment };
+  "bot:translation_ready": { botId: string; translation: Translation };
+  "bot:webcam_frame": { botId: string; frame: VirtualWebcamFrame };
+  "bot:error": { botId: string; error: BotError };
+  "bot:terminated": { botId: string; reason: string; sessionData: BotSession };
+
   // System events
-  'system:health_update': { services: ServiceHealth[]; timestamp: number };
-  'system:performance_metrics': { cpu: number; memory: number; timestamp: number };
-  'system:alert': { level: 'info' | 'warning' | 'error'; message: string; timestamp: number };
-  
+  "system:health_update": { services: ServiceHealth[]; timestamp: number };
+  "system:performance_metrics": {
+    cpu: number;
+    memory: number;
+    timestamp: number;
+  };
+  "system:alert": {
+    level: "info" | "warning" | "error";
+    message: string;
+    timestamp: number;
+  };
+
   // Processing events
-  'processing:stage_start': { stageId: string; stageName: string; timestamp: number };
-  'processing:stage_complete': { stageId: string; result: any; timestamp: number };
-  'processing:pipeline_complete': { pipelineId: string; results: any; timestamp: number };
-  'processing:error': { stageId: string; error: string; timestamp: number };
-  
+  "processing:stage_start": {
+    stageId: string;
+    stageName: string;
+    timestamp: number;
+  };
+  "processing:stage_complete": {
+    stageId: string;
+    result: any;
+    timestamp: number;
+  };
+  "processing:pipeline_complete": {
+    pipelineId: string;
+    results: any;
+    timestamp: number;
+  };
+  "processing:error": { stageId: string; error: string; timestamp: number };
+
   // UI events
-  'ui:notification': { notification: Notification };
-  'ui:page_change': { page: string; timestamp: number };
-  'ui:user_action': { action: string; data: any; timestamp: number };
-  
+  "ui:notification": { notification: Notification };
+  "ui:page_change": { page: string; timestamp: number };
+  "ui:user_action": { action: string; data: any; timestamp: number };
+
   // System heartbeat and echo
-  'system:heartbeat': { timestamp: number; server_time: string };
-  'message:echo': { original_message: any; echo_from: string };
+  "system:heartbeat": { timestamp: number; server_time: string };
+  "message:echo": { original_message: any; echo_from: string };
 }
 
 export type WebSocketEventType = keyof WebSocketEventMap;
-export type WebSocketEventData<T extends WebSocketEventType> = WebSocketEventMap[T];
+export type WebSocketEventData<T extends WebSocketEventType> =
+  WebSocketEventMap[T];
 
-export interface WebSocketMessage<T extends WebSocketEventType = WebSocketEventType> {
+export interface WebSocketMessage<
+  T extends WebSocketEventType = WebSocketEventType,
+> {
   type: T;
   data: WebSocketEventData<T>;
   timestamp: number;

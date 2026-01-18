@@ -13,9 +13,7 @@ Reference: SimulStreaming paper (IWSLT 2025) - Section 4.2
 """
 
 import logging
-from typing import List, Optional, Dict, Any
 from dataclasses import dataclass
-import re
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DomainPromptConfig:
     """Configuration for domain prompt generation"""
+
     max_total_tokens: int = 448  # SimulStreaming paper: 448 tokens max
     max_context_tokens: int = 223  # SimulStreaming paper: 223 tokens for previous context
     max_terminology_tokens: int = 225  # Remaining tokens for domain terminology
@@ -45,7 +44,12 @@ class DomainPromptManager:
     - Token-aware prompt construction
     """
 
-    def __init__(self, config: Optional[DomainPromptConfig] = None, db_session=None, glossary_api_url: Optional[str] = None):
+    def __init__(
+        self,
+        config: DomainPromptConfig | None = None,
+        db_session=None,
+        glossary_api_url: str | None = None,
+    ):
         """
         Initialize domain prompt manager
 
@@ -59,48 +63,113 @@ class DomainPromptManager:
 
         # Glossary API URL for fetching terms from orchestration service
         import os
-        self._glossary_api_url = glossary_api_url or os.getenv("ORCHESTRATION_SERVICE_URL", "http://localhost:3000")
+
+        self._glossary_api_url = glossary_api_url or os.getenv(
+            "ORCHESTRATION_SERVICE_URL", "http://localhost:3000"
+        )
 
         # Built-in domain dictionaries (fallback if glossary API unavailable)
         self.builtin_domains = self._load_builtin_domains()
 
         # Scrolling context buffer
-        self.context_buffer: List[str] = []
+        self.context_buffer: list[str] = []
 
-        logger.info(f"DomainPromptManager initialized: max_tokens={self.config.max_total_tokens}, "
-                   f"max_context={self.config.max_context_tokens}, glossary_api={self._glossary_api_url}")
+        logger.info(
+            f"DomainPromptManager initialized: max_tokens={self.config.max_total_tokens}, "
+            f"max_context={self.config.max_context_tokens}, glossary_api={self._glossary_api_url}"
+        )
 
-    def _load_builtin_domains(self) -> Dict[str, List[str]]:
+    def _load_builtin_domains(self) -> dict[str, list[str]]:
         """Load built-in domain dictionaries as fallback"""
         return {
             "medical": [
-                "diagnosis", "symptoms", "prescription", "patient", "consultation",
-                "hypertension", "diabetes", "cardiovascular", "antibiotic", "inflammation",
-                "examination", "treatment", "medication", "dosage", "healthcare"
+                "diagnosis",
+                "symptoms",
+                "prescription",
+                "patient",
+                "consultation",
+                "hypertension",
+                "diabetes",
+                "cardiovascular",
+                "antibiotic",
+                "inflammation",
+                "examination",
+                "treatment",
+                "medication",
+                "dosage",
+                "healthcare",
             ],
             "legal": [
-                "plaintiff", "defendant", "litigation", "jurisdiction", "compliance",
-                "contract", "liability", "statute", "testimony", "precedent",
-                "attorney", "court", "evidence", "ruling", "legal"
+                "plaintiff",
+                "defendant",
+                "litigation",
+                "jurisdiction",
+                "compliance",
+                "contract",
+                "liability",
+                "statute",
+                "testimony",
+                "precedent",
+                "attorney",
+                "court",
+                "evidence",
+                "ruling",
+                "legal",
             ],
             "technical": [
-                "Kubernetes", "microservices", "Docker", "API", "database",
-                "CI/CD", "deployment", "scalability", "authentication", "latency",
-                "infrastructure", "architecture", "repository", "endpoint", "service"
+                "Kubernetes",
+                "microservices",
+                "Docker",
+                "API",
+                "database",
+                "CI/CD",
+                "deployment",
+                "scalability",
+                "authentication",
+                "latency",
+                "infrastructure",
+                "architecture",
+                "repository",
+                "endpoint",
+                "service",
             ],
             "business": [
-                "revenue", "stakeholder", "quarter", "metrics", "strategy",
-                "budget", "forecast", "analysis", "investment", "ROI",
-                "partnership", "acquisition", "growth", "market", "client"
+                "revenue",
+                "stakeholder",
+                "quarter",
+                "metrics",
+                "strategy",
+                "budget",
+                "forecast",
+                "analysis",
+                "investment",
+                "ROI",
+                "partnership",
+                "acquisition",
+                "growth",
+                "market",
+                "client",
             ],
             "education": [
-                "curriculum", "pedagogy", "assessment", "student", "lecture",
-                "syllabus", "assignment", "exam", "research", "thesis",
-                "academic", "scholar", "university", "degree", "course"
-            ]
+                "curriculum",
+                "pedagogy",
+                "assessment",
+                "student",
+                "lecture",
+                "syllabus",
+                "assignment",
+                "exam",
+                "research",
+                "thesis",
+                "academic",
+                "scholar",
+                "university",
+                "degree",
+                "course",
+            ],
         }
 
-    def get_domain_terminology(self, domain: str, limit: int = 15) -> List[str]:
+    def get_domain_terminology(self, domain: str, limit: int = 15) -> list[str]:
         """
         Get domain-specific terminology from external glossary service or built-in dictionary
 
@@ -120,7 +189,7 @@ class DomainPromptManager:
                 response = httpx.get(
                     f"{self._glossary_api_url}/api/glossaries",
                     params={"domain": domain, "limit": limit},
-                    timeout=5.0
+                    timeout=5.0,
                 )
 
                 if response.status_code == 200:
@@ -132,13 +201,17 @@ class DomainPromptManager:
                             entries_response = httpx.get(
                                 f"{self._glossary_api_url}/api/glossaries/{glossary_id}/entries",
                                 params={"limit": limit},
-                                timeout=5.0
+                                timeout=5.0,
                             )
                             if entries_response.status_code == 200:
                                 entries = entries_response.json()
-                                terms = [e.get("source_term") for e in entries if e.get("source_term")]
+                                terms = [
+                                    e.get("source_term") for e in entries if e.get("source_term")
+                                ]
                                 if terms:
-                                    logger.info(f"[DOMAIN] Loaded {len(terms)} terms from glossary API for '{domain}'")
+                                    logger.info(
+                                        f"[DOMAIN] Loaded {len(terms)} terms from glossary API for '{domain}'"
+                                    )
                                     return terms[:limit]
             except Exception as e:
                 logger.debug(f"Failed to load terms from glossary API: {e}")
@@ -154,9 +227,9 @@ class DomainPromptManager:
 
     def create_domain_prompt(
         self,
-        domain: Optional[str] = None,
-        custom_terms: Optional[List[str]] = None,
-        previous_context: Optional[str] = None
+        domain: str | None = None,
+        custom_terms: list[str] | None = None,
+        previous_context: str | None = None,
     ) -> str:
         """
         Create domain-specific prompt for Whisper initial_prompt parameter
@@ -199,7 +272,9 @@ class DomainPromptManager:
 
                 # Trim if exceeds max terminology tokens
                 if terms_tokens > self.config.max_terminology_tokens:
-                    terms_text = self._trim_to_tokens(terms_text, self.config.max_terminology_tokens)
+                    terms_text = self._trim_to_tokens(
+                        terms_text, self.config.max_terminology_tokens
+                    )
                     terms_tokens = self.config.max_terminology_tokens
 
                 prompt_parts.append(terms_text)
@@ -213,7 +288,9 @@ class DomainPromptManager:
 
             # Trim if exceeds max context tokens
             if context_tokens > self.config.max_context_tokens:
-                previous_context = self._trim_to_tokens(previous_context, self.config.max_context_tokens)
+                previous_context = self._trim_to_tokens(
+                    previous_context, self.config.max_context_tokens
+                )
                 context_tokens = self.config.max_context_tokens
 
             prompt_parts.append(previous_context)
@@ -230,7 +307,9 @@ class DomainPromptManager:
         # Final token check (should be <= 448)
         final_tokens = self._estimate_tokens(final_prompt)
         if final_tokens > self.config.max_total_tokens:
-            logger.warning(f"[DOMAIN] Prompt exceeds max tokens ({final_tokens} > {self.config.max_total_tokens}), trimming...")
+            logger.warning(
+                f"[DOMAIN] Prompt exceeds max tokens ({final_tokens} > {self.config.max_total_tokens}), trimming..."
+            )
             final_prompt = self._trim_to_tokens(final_prompt, self.config.max_total_tokens)
             final_tokens = self.config.max_total_tokens
 
@@ -262,7 +341,9 @@ class DomainPromptManager:
             combined = self.config.separator.join(self.context_buffer)
             tokens = self._estimate_tokens(combined)
 
-        logger.debug(f"[DOMAIN] Context buffer updated: {len(self.context_buffer)} segments, ~{tokens} tokens")
+        logger.debug(
+            f"[DOMAIN] Context buffer updated: {len(self.context_buffer)} segments, ~{tokens} tokens"
+        )
 
     def get_current_context(self) -> str:
         """
@@ -334,13 +415,13 @@ class DomainPromptManager:
         trimmed = text[:max_chars]
 
         # Try to break at last complete sentence
-        last_period = trimmed.rfind('. ')
+        last_period = trimmed.rfind(". ")
         if last_period > max_chars * 0.7:  # Keep at least 70% of content
-            trimmed = trimmed[:last_period + 1]
+            trimmed = trimmed[: last_period + 1]
 
         return trimmed.strip()
 
-    def get_prompt_template(self, domain: str) -> Optional[str]:
+    def get_prompt_template(self, domain: str) -> str | None:
         """
         Get pre-defined prompt template for domain from glossary API
 
@@ -359,7 +440,7 @@ class DomainPromptManager:
                 response = httpx.get(
                     f"{self._glossary_api_url}/api/glossaries",
                     params={"domain": domain},
-                    timeout=5.0
+                    timeout=5.0,
                 )
 
                 if response.status_code == 200:
@@ -369,7 +450,9 @@ class DomainPromptManager:
                         glossary = glossaries[0]
                         description = glossary.get("description")
                         if description:
-                            logger.info(f"[DOMAIN] Loaded prompt template for '{domain}' from glossary API")
+                            logger.info(
+                                f"[DOMAIN] Loaded prompt template for '{domain}' from glossary API"
+                            )
                             return description
 
             except Exception as e:
@@ -381,7 +464,7 @@ class DomainPromptManager:
             "legal": "Legal transcription with court proceedings, contracts, and legal terminology.",
             "technical": "Technical discussion with software, infrastructure, and engineering terms.",
             "business": "Business meeting with financial, strategic, and organizational discussions.",
-            "education": "Educational content with academic, pedagogical, and research terminology."
+            "education": "Educational content with academic, pedagogical, and research terminology.",
         }
 
         if domain in builtin_templates:
@@ -393,9 +476,9 @@ class DomainPromptManager:
     def log_usage(
         self,
         domain: str,
-        session_id: Optional[str] = None,
-        quality_score: Optional[int] = None,
-        processing_time_ms: Optional[int] = None
+        session_id: str | None = None,
+        quality_score: int | None = None,
+        processing_time_ms: int | None = None,
     ):
         """
         Log domain prompt usage for analytics
@@ -424,13 +507,13 @@ class DomainPromptManager:
                         "session_id": session_id,
                         "quality_score": quality_score,
                         "processing_time_ms": processing_time_ms,
-                        "model_used": "whisper-large-v3"
+                        "model_used": "whisper-large-v3",
                     },
-                    timeout=2.0
+                    timeout=2.0,
                 )
 
                 if response.status_code == 200:
-                    logger.debug(f"[DOMAIN] Logged usage to orchestration service")
+                    logger.debug("[DOMAIN] Logged usage to orchestration service")
 
             except Exception as e:
                 # Don't fail on analytics logging errors
@@ -439,10 +522,10 @@ class DomainPromptManager:
 
 # Convenience function
 def create_domain_prompt(
-    domain: Optional[str] = None,
-    custom_terms: Optional[List[str]] = None,
-    previous_context: Optional[str] = None,
-    db_session=None
+    domain: str | None = None,
+    custom_terms: list[str] | None = None,
+    previous_context: str | None = None,
+    db_session=None,
 ) -> str:
     """
     Quick function to create domain prompt without instantiating manager
@@ -472,7 +555,7 @@ if __name__ == "__main__":
     medical_prompt = manager.create_domain_prompt(
         domain="medical",
         custom_terms=["COVID-19", "vaccination"],
-        previous_context="The patient reports feeling unwell for three days."
+        previous_context="The patient reports feeling unwell for three days.",
     )
     print(f"Tokens: ~{manager._estimate_tokens(medical_prompt)}")
     print(f"Content: {medical_prompt[:200]}...")
@@ -480,8 +563,7 @@ if __name__ == "__main__":
     # Test technical domain
     print("\n2. TECHNICAL DOMAIN PROMPT:")
     tech_prompt = manager.create_domain_prompt(
-        domain="technical",
-        custom_terms=["FastAPI", "PostgreSQL"]
+        domain="technical", custom_terms=["FastAPI", "PostgreSQL"]
     )
     print(f"Tokens: ~{manager._estimate_tokens(tech_prompt)}")
     print(f"Content: {tech_prompt[:200]}...")

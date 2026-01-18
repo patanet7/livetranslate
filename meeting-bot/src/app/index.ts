@@ -26,8 +26,8 @@ app.get('/isbusy', async (req, res) => {
 
 app.get('/health', async (req, res) => {
   // Simple health check endpoint for Docker
-  return res.status(200).json({ 
-    status: 'healthy', 
+  return res.status(200).json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });

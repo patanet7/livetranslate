@@ -36,7 +36,7 @@ export const formatUptime = (seconds: number): string => {
   if (minutes > 0) parts.push(`${minutes}m`);
   if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
 
-  return parts.join(' ');
+  return parts.join(" ");
 };
 
 /**
@@ -81,11 +81,11 @@ export const formatDurationShort = (ms: number): string => {
  */
 export const formatRelativeTime = (date: string | Date): string => {
   const now = new Date();
-  const then = typeof date === 'string' ? new Date(date) : date;
+  const then = typeof date === "string" ? new Date(date) : date;
   const diffMs = now.getTime() - then.getTime();
 
   if (isNaN(then.getTime())) {
-    return 'Invalid date';
+    return "Invalid date";
   }
 
   const diffSeconds = Math.floor(diffMs / 1000);
@@ -93,13 +93,13 @@ export const formatRelativeTime = (date: string | Date): string => {
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffSeconds < 30) return 'just now';
+  if (diffSeconds < 30) return "just now";
   if (diffSeconds < 60) return `${diffSeconds} seconds ago`;
-  if (diffMinutes === 1) return '1 minute ago';
+  if (diffMinutes === 1) return "1 minute ago";
   if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
-  if (diffHours === 1) return '1 hour ago';
+  if (diffHours === 1) return "1 hour ago";
   if (diffHours < 24) return `${diffHours} hours ago`;
-  if (diffDays === 1) return 'yesterday';
+  if (diffDays === 1) return "yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
   if (diffDays < 365) return `${Math.floor(diffDays / 30)} months ago`;
@@ -117,22 +117,25 @@ export const formatRelativeTime = (date: string | Date): string => {
  */
 export const formatTimestamp = (
   isoString: string,
-  options?: Intl.DateTimeFormatOptions
+  options?: Intl.DateTimeFormatOptions,
 ): string => {
   try {
     const date = new Date(isoString);
     if (isNaN(date.getTime())) {
-      return 'Invalid date';
+      return "Invalid date";
     }
-    return date.toLocaleString(undefined, options || {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return date.toLocaleString(
+      undefined,
+      options || {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      },
+    );
   } catch {
-    return 'Invalid date';
+    return "Invalid date";
   }
 };
 
@@ -144,9 +147,9 @@ export const formatTimestamp = (
  */
 export const formatDate = (isoString: string): string => {
   return formatTimestamp(isoString, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 };
 
@@ -158,9 +161,9 @@ export const formatDate = (isoString: string): string => {
  */
 export const formatTime = (isoString: string): string => {
   return formatTimestamp(isoString, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
 };
 
@@ -173,11 +176,14 @@ export const formatTime = (isoString: string): string => {
  *
  * Used for: Activity detection, health checks, freshness validation
  */
-export const isRecent = (isoString: string, thresholdMs: number = 300000): boolean => {
+export const isRecent = (
+  isoString: string,
+  thresholdMs: number = 300000,
+): boolean => {
   try {
     const date = new Date(isoString);
     const now = new Date();
-    return (now.getTime() - date.getTime()) < thresholdMs;
+    return now.getTime() - date.getTime() < thresholdMs;
   } catch {
     return false;
   }
@@ -201,10 +207,18 @@ export const parseDuration = (duration: string): number => {
     const unit = match[2];
 
     switch (unit) {
-      case 'd': totalMs += value * 86400000; break;
-      case 'h': totalMs += value * 3600000; break;
-      case 'm': totalMs += value * 60000; break;
-      case 's': totalMs += value * 1000; break;
+      case "d":
+        totalMs += value * 86400000;
+        break;
+      case "h":
+        totalMs += value * 3600000;
+        break;
+      case "m":
+        totalMs += value * 60000;
+        break;
+      case "s":
+        totalMs += value * 1000;
+        break;
     }
   }
 

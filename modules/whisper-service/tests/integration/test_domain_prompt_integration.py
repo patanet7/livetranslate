@@ -11,17 +11,17 @@ Following SimulStreaming specification:
 NO MOCKS - Only real Whisper inference!
 """
 
-import pytest
-import numpy as np
 import sys
 from pathlib import Path
 
-# Add src directory to path
+# Add src directory to path before imports
 SRC_DIR = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from whisper_service import ModelManager
+import numpy as np
+import pytest
 from domain_prompt_manager import DomainPromptManager, create_domain_prompt
+from whisper_service import ModelManager
 
 
 class TestDomainPromptIntegration:
@@ -54,18 +54,11 @@ class TestDomainPromptIntegration:
         medical_prompt = "Medical terminology: hypertension, diabetes, myocardial infarction, ECG"
 
         # Inference without prompt
-        result_no_prompt = model.transcribe(
-            audio=audio_data,
-            beam_size=1,
-            temperature=0.0
-        )
+        result_no_prompt = model.transcribe(audio=audio_data, beam_size=1, temperature=0.0)
 
         # Inference with domain prompt
         result_with_prompt = model.transcribe(
-            audio=audio_data,
-            beam_size=1,
-            temperature=0.0,
-            initial_prompt=medical_prompt
+            audio=audio_data, beam_size=1, temperature=0.0, initial_prompt=medical_prompt
         )
 
         assert result_no_prompt is not None
@@ -73,7 +66,7 @@ class TestDomainPromptIntegration:
 
         print(f"   Without prompt: '{result_no_prompt['text']}'")
         print(f"   With prompt: '{result_with_prompt['text']}'")
-        print(f"✅ Domain prompts accepted by Whisper")
+        print("✅ Domain prompts accepted by Whisper")
 
     @pytest.mark.integration
     def test_medical_domain_prompting(self):
@@ -96,25 +89,19 @@ class TestDomainPromptIntegration:
             "diabetes mellitus",
             "cardiomyopathy",
             "electrocardiogram",
-            "myocardial infarction"
+            "myocardial infarction",
         ]
 
-        prompt = create_domain_prompt(
-            domain="medical",
-            custom_terms=medical_terms
-        )
+        prompt = create_domain_prompt(domain="medical", custom_terms=medical_terms)
 
         print(f"   Medical prompt: '{prompt}'")
 
         result = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=prompt
         )
 
         assert result is not None
-        print(f"✅ Medical domain prompt works")
+        print("✅ Medical domain prompt works")
 
     @pytest.mark.integration
     def test_legal_domain_prompting(self):
@@ -132,30 +119,18 @@ class TestDomainPromptIntegration:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Create legal domain prompt
-        legal_terms = [
-            "plaintiff",
-            "defendant",
-            "litigation",
-            "deposition",
-            "subpoena"
-        ]
+        legal_terms = ["plaintiff", "defendant", "litigation", "deposition", "subpoena"]
 
-        prompt = create_domain_prompt(
-            domain="legal",
-            custom_terms=legal_terms
-        )
+        prompt = create_domain_prompt(domain="legal", custom_terms=legal_terms)
 
         print(f"   Legal prompt: '{prompt}'")
 
         result = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=prompt
         )
 
         assert result is not None
-        print(f"✅ Legal domain prompt works")
+        print("✅ Legal domain prompt works")
 
     @pytest.mark.integration
     def test_technical_domain_prompting(self):
@@ -178,25 +153,19 @@ class TestDomainPromptIntegration:
             "microservices",
             "API endpoint",
             "Docker container",
-            "CI/CD pipeline"
+            "CI/CD pipeline",
         ]
 
-        prompt = create_domain_prompt(
-            domain="technical",
-            custom_terms=tech_terms
-        )
+        prompt = create_domain_prompt(domain="technical", custom_terms=tech_terms)
 
         print(f"   Technical prompt: '{prompt}'")
 
         result = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=prompt
         )
 
         assert result is not None
-        print(f"✅ Technical domain prompt works")
+        print("✅ Technical domain prompt works")
 
     @pytest.mark.integration
     def test_domain_prompt_manager(self):
@@ -218,21 +187,17 @@ class TestDomainPromptIntegration:
 
         # Get medical prompt
         medical_prompt = prompt_mgr.get_prompt(
-            domain="medical",
-            custom_terms=["hypertension", "diabetes"]
+            domain="medical", custom_terms=["hypertension", "diabetes"]
         )
 
         print(f"   Prompt: '{medical_prompt}'")
 
         result = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=medical_prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=medical_prompt
         )
 
         assert result is not None
-        print(f"✅ DomainPromptManager works with real inference")
+        print("✅ DomainPromptManager works with real inference")
 
     @pytest.mark.integration
     def test_custom_terminology_injection(self):
@@ -250,30 +215,18 @@ class TestDomainPromptIntegration:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Custom company-specific terms
-        custom_terms = [
-            "LiveTranslate",
-            "Whisper NPU",
-            "SimulStreaming",
-            "AlignAtt",
-            "BeamSearch"
-        ]
+        custom_terms = ["LiveTranslate", "Whisper NPU", "SimulStreaming", "AlignAtt", "BeamSearch"]
 
-        prompt = create_domain_prompt(
-            domain="general",
-            custom_terms=custom_terms
-        )
+        prompt = create_domain_prompt(domain="general", custom_terms=custom_terms)
 
         print(f"   Custom prompt: '{prompt}'")
 
         result = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=prompt
         )
 
         assert result is not None
-        print(f"✅ Custom terminology injection works")
+        print("✅ Custom terminology injection works")
 
     @pytest.mark.integration
     def test_domain_prompt_with_beam_search(self):
@@ -291,8 +244,7 @@ class TestDomainPromptIntegration:
         audio_data = np.zeros(16000 * 2, dtype=np.float32)
 
         medical_prompt = create_domain_prompt(
-            domain="medical",
-            custom_terms=["hypertension", "cardiomyopathy"]
+            domain="medical", custom_terms=["hypertension", "cardiomyopathy"]
         )
 
         # Combined: domain prompt + beam search
@@ -300,12 +252,12 @@ class TestDomainPromptIntegration:
             audio=audio_data,
             beam_size=5,  # Beam search for quality
             temperature=0.0,
-            initial_prompt=medical_prompt  # Domain prompt
+            initial_prompt=medical_prompt,  # Domain prompt
         )
 
         assert result is not None
         print(f"   Result: '{result['text']}'")
-        print(f"✅ Domain prompt + beam search works")
+        print("✅ Domain prompt + beam search works")
 
 
 class TestDomainPromptQuality:
@@ -334,23 +286,17 @@ class TestDomainPromptQuality:
 
         # Run twice
         result1 = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=prompt
         )
 
         result2 = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=prompt
         )
 
         # Should be identical (deterministic)
-        assert result1['text'] == result2['text']
+        assert result1["text"] == result2["text"]
 
-        print(f"✅ Domain prompts are deterministic")
+        print("✅ Domain prompts are deterministic")
 
     @pytest.mark.integration
     def test_long_domain_prompt(self):
@@ -368,24 +314,29 @@ class TestDomainPromptQuality:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Long medical prompt with many terms
-        long_prompt = "Medical terminology: " + ", ".join([
-            "hypertension", "diabetes mellitus", "cardiomyopathy",
-            "myocardial infarction", "electrocardiogram", "arrhythmia",
-            "coronary artery disease", "congestive heart failure",
-            "atrial fibrillation", "ventricular tachycardia"
-        ])
+        long_prompt = "Medical terminology: " + ", ".join(
+            [
+                "hypertension",
+                "diabetes mellitus",
+                "cardiomyopathy",
+                "myocardial infarction",
+                "electrocardiogram",
+                "arrhythmia",
+                "coronary artery disease",
+                "congestive heart failure",
+                "atrial fibrillation",
+                "ventricular tachycardia",
+            ]
+        )
 
         print(f"   Prompt length: {len(long_prompt)} chars")
 
         result = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=long_prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=long_prompt
         )
 
         assert result is not None
-        print(f"✅ Long prompts handled correctly")
+        print("✅ Long prompts handled correctly")
 
     @pytest.mark.integration
     def test_empty_vs_domain_prompt_comparison(self):
@@ -403,23 +354,19 @@ class TestDomainPromptQuality:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Without domain prompt
-        result_empty = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0
-        )
+        result_empty = model.transcribe(audio=audio_data, beam_size=5, temperature=0.0)
 
         # With domain prompt
         result_domain = model.transcribe(
             audio=audio_data,
             beam_size=5,
             temperature=0.0,
-            initial_prompt="Medical: hypertension, diabetes"
+            initial_prompt="Medical: hypertension, diabetes",
         )
 
         print(f"   Empty prompt: '{result_empty['text']}'")
         print(f"   Domain prompt: '{result_domain['text']}'")
-        print(f"✅ Domain prompt comparison complete")
+        print("✅ Domain prompt comparison complete")
 
 
 # Run tests

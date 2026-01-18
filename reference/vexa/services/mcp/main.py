@@ -88,16 +88,16 @@ async def request_meeting_bot(
 ) -> Dict[str, Any]:
     """
     Request a Vexa bot to join a meeting for transcription.
-    
+
     Args:
         native_meeting_id: The unique identifier for the meeting (e.g., 'xxx-xxxx-xxx' from Google Meet URL)
         language: Optional language code for transcription (e.g., 'en', 'es'). If not specified, auto-detected
         bot_name: Optional custom name for the bot in the meeting
         meeting_platform: The meeting platform (e.g., 'google_meet', 'zoom'). Default is 'google_meet'.
-    
+
     Returns:
         JSON string with bot request details and status
-    
+
     Note: After a successful request, it typically takes about 10 seconds for the bot to join the meeting.
     """
     url = f"{BASE_URL}/bots"
@@ -113,14 +113,14 @@ async def get_meeting_transcript(
 ) -> Dict[str, Any]:
     """
     Get the real-time transcript for a meeting.
-    
+
     Args:
         meeting_id: The unique identifier for the meeting
         meeting_platform: The meeting platform (e.g., 'google_meet', 'zoom'). Default is 'google_meet'.
-    
+
     Returns:
         JSON with the meeting transcript data including segments with speaker, timestamp, and text
-    
+
     Note: This provides real-time transcription data and can be called during or after the meeting.
     """
     url = f"{BASE_URL}/transcripts/{meeting_platform}/{meeting_id}"
@@ -131,7 +131,7 @@ async def get_meeting_transcript(
 async def get_bot_status(api_key: str = Depends(get_api_key)) -> Dict[str, Any]:
     """
     Get the status of currently running bots.
-    
+
     Returns:
         JSON with details about active bots under your API key
     """
@@ -148,12 +148,12 @@ async def update_bot_config(
 ) -> Dict[str, Any]:
     """
     Update the configuration of an active bot (e.g., changing the language).
-    
+
     Args:
         meeting_id: The identifier of the meeting with the active bot
         language: New language code for transcription (e.g., 'en', 'es')
         meeting_platform: The meeting platform (e.g., 'google_meet', 'zoom'). Default is 'google_meet'.
-    
+
     Returns:
         JSON indicating whether the update request was accepted
     """
@@ -169,11 +169,11 @@ async def stop_bot(
 ) -> Dict[str, Any]:
     """
     Remove an active bot from a meeting.
-    
+
     Args:
         meeting_id: The identifier of the meeting
         meeting_platform: The meeting platform (e.g., 'google_meet', 'zoom'). Default is 'google_meet'.
-    
+
     Returns:
         JSON confirming the bot removal
     """
@@ -185,7 +185,7 @@ async def stop_bot(
 async def list_meetings(api_key: str = Depends(get_api_key)) -> Dict[str, Any]:
     """
     List all meetings associated with your API key.
-    
+
     Returns:
         JSON with a list of meeting records
     """
@@ -202,7 +202,7 @@ async def update_meeting_data(
 ) -> Dict[str, Any]:
     """
     Update meeting metadata such as name, participants, languages, and notes.
-    
+
     Args:
         meeting_id: The unique identifier of the meeting
         name: Optional meeting name/title
@@ -210,7 +210,7 @@ async def update_meeting_data(
         languages: Optional list of language codes detected/used in the meeting
         notes: Optional meeting notes or description
         meeting_platform: The meeting platform (e.g., 'google_meet', 'zoom'). Default is 'google_meet'.
-    
+
     Returns:
         JSON with the updated meeting record
     """
@@ -227,17 +227,17 @@ async def delete_meeting(
 ) -> Dict[str, Any]:
     """
     Purge transcripts and anonymize meeting data for finalized meetings.
-    
+
     Only works for meetings in completed or failed states. Deletes all transcripts
     but preserves meeting and session records for telemetry.
-    
+
     Args:
         meeting_id: The unique identifier of the meeting
         meeting_platform: The meeting platform (e.g., 'google_meet', 'zoom'). Default is 'google_meet'.
-    
+
     Returns:
         JSON with confirmation message
-    
+
     Raises:
         409 Conflict: If meeting is not in a finalized state.
     """

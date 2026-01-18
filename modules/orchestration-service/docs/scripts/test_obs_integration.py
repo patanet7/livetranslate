@@ -41,12 +41,13 @@ Usage:
     python test_obs_integration.py --host 192.168.1.100 --port 4455 --password secret
 """
 
-import sys
-import asyncio
 import argparse
+import asyncio
 import os
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
+
 from dotenv import load_dotenv
 
 # Add src to path
@@ -54,18 +55,15 @@ orchestration_root = Path(__file__).parent.parent.parent
 src_path = orchestration_root / "src"
 sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(orchestration_root))
+sys.path.insert(0, str(src_path / "services"))
+sys.path.insert(0, str(src_path / "models"))
 
 # Load environment variables from .env
 load_dotenv(orchestration_root / ".env")
 
-# Import directly to avoid circular dependencies
-import sys
-sys.path.insert(0, str(src_path / "services"))
-from obs_output import OBSOutput, OBSOutputConfig, OBSConnectionError
-
-# Import models
-sys.path.insert(0, str(src_path / "models"))
+# Now import after path setup
 from fireflies import CaptionEntry
+from obs_output import OBSConnectionError, OBSOutput
 
 # Try to get settings (may fail if DB not configured)
 try:
@@ -87,7 +85,7 @@ def get_obs_config_from_env():
     }
 
 
-async def test_connection(host: str, port: int, password: str = None) -> bool:
+async def test_connection(host: str, port: int, password: str | None = None) -> bool:
     """Test basic OBS connection."""
     print(f"\n🔌 Testing connection to OBS at {host}:{port}...")
 
@@ -113,14 +111,12 @@ async def test_connection(host: str, port: int, password: str = None) -> bool:
 
 
 async def test_source_validation(
-    host: str, port: int, password: str = None, caption_source: str = "LiveTranslate Caption"
+    host: str, port: int, password: str | None = None, caption_source: str = "LiveTranslate Caption"
 ) -> bool:
     """Test that text sources exist in OBS."""
-    print(f"\n🔍 Validating OBS sources...")
+    print("\n🔍 Validating OBS sources...")
 
-    obs = OBSOutput(
-        host=host, port=port, password=password, caption_source=caption_source
-    )
+    obs = OBSOutput(host=host, port=port, password=password, caption_source=caption_source)
 
     try:
         await obs.connect()
@@ -143,12 +139,12 @@ async def test_source_validation(
 async def send_test_caption(
     host: str,
     port: int,
-    password: str = None,
+    password: str | None = None,
     caption_source: str = "LiveTranslate Caption",
     text: str = "Hello, this is a test caption!",
 ) -> bool:
     """Send a test caption to OBS."""
-    print(f"\n📝 Sending test caption to OBS...")
+    print("\n📝 Sending test caption to OBS...")
 
     obs = OBSOutput(host=host, port=port, password=password, caption_source=caption_source)
 
@@ -163,14 +159,14 @@ async def send_test_caption(
             speaker_name="Test Speaker",
             speaker_color="#4CAF50",
             target_language="es",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             duration_seconds=5.0,
             confidence=0.95,
         )
 
         result = await obs.update_caption(caption)
         if result:
-            print(f"✅ Caption sent successfully!")
+            print("✅ Caption sent successfully!")
             print(f"   Text: {text}")
             print("   Check your OBS text source for the caption")
         else:
@@ -190,7 +186,7 @@ async def send_test_caption(
 async def run_full_test(
     host: str,
     port: int,
-    password: str = None,
+    password: str | None = None,
     caption_source: str = "LiveTranslate Caption",
 ) -> bool:
     """Run full integration test with multiple captions."""
@@ -241,7 +237,7 @@ async def run_full_test(
                 speaker_name=speaker,
                 speaker_color=["#4CAF50", "#2196F3", "#FF9800"][i % 3],
                 target_language=lang,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_seconds=3.0,
                 confidence=0.95,
             )
@@ -275,6 +271,7 @@ async def run_full_test(
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -282,7 +279,7 @@ async def run_full_test(
 async def demo_live_captions(
     host: str,
     port: int,
-    password: str = None,
+    password: str | None = None,
     caption_source: str = "LiveTranslate Caption",
     duration_seconds: int = 30,
 ) -> None:
@@ -305,7 +302,11 @@ async def demo_live_captions(
             ("Alice", "Welcome to the meeting", "Bienvenidos a la reunión"),
             ("Bob", "Thank you for joining us today", "Gracias por unirse hoy"),
             ("Alice", "Let's start with the agenda", "Empecemos con la agenda"),
-            ("Charlie", "I have a question about the budget", "Tengo una pregunta sobre el presupuesto"),
+            (
+                "Charlie",
+                "I have a question about the budget",
+                "Tengo una pregunta sobre el presupuesto",
+            ),
             ("Bob", "Good question, let me explain", "Buena pregunta, déjame explicar"),
             ("Alice", "The project is on track", "El proyecto va por buen camino"),
             ("Charlie", "When is the deadline?", "¿Cuándo es la fecha límite?"),
@@ -314,11 +315,11 @@ async def demo_live_captions(
             ("Charlie", "No, I think we're good", "No, creo que estamos bien"),
         ]
 
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
         caption_index = 0
 
         while True:
-            elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+            elapsed = (datetime.now(UTC) - start_time).total_seconds()
             if elapsed > duration_seconds:
                 break
 
@@ -331,7 +332,7 @@ async def demo_live_captions(
                 speaker_name=speaker,
                 speaker_color=["#4CAF50", "#2196F3", "#FF9800"][caption_index % 3],
                 target_language="es",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 duration_seconds=3.0,
                 confidence=0.92 + (caption_index % 8) * 0.01,
             )
@@ -372,16 +373,12 @@ def main():
     )
 
     # Test modes
-    parser.add_argument(
-        "--test-connection", action="store_true", help="Test OBS connection only"
-    )
+    parser.add_argument("--test-connection", action="store_true", help="Test OBS connection only")
     parser.add_argument(
         "--validate-sources", action="store_true", help="Validate OBS sources exist"
     )
     parser.add_argument("--send-caption", metavar="TEXT", help="Send a test caption")
-    parser.add_argument(
-        "--full-test", action="store_true", help="Run full integration test"
-    )
+    parser.add_argument("--full-test", action="store_true", help="Run full integration test")
     parser.add_argument(
         "--demo",
         type=int,
@@ -412,9 +409,7 @@ def main():
 
     if args.validate_sources:
         asyncio.run(
-            test_source_validation(
-                args.host, args.port, args.password, args.caption_source
-            )
+            test_source_validation(args.host, args.port, args.password, args.caption_source)
         )
 
     if args.send_caption:
@@ -425,15 +420,11 @@ def main():
         )
 
     if args.full_test:
-        asyncio.run(
-            run_full_test(args.host, args.port, args.password, args.caption_source)
-        )
+        asyncio.run(run_full_test(args.host, args.port, args.password, args.caption_source))
 
     if args.demo:
         asyncio.run(
-            demo_live_captions(
-                args.host, args.port, args.password, args.caption_source, args.demo
-            )
+            demo_live_captions(args.host, args.port, args.password, args.caption_source, args.demo)
         )
 
 

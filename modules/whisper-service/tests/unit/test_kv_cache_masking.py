@@ -14,18 +14,17 @@ Critical edge cases:
 Reference: modules/whisper-service/src/simul_whisper/whisper/model.py lines 132-208
 """
 
-import sys
-import os
-from pathlib import Path
-import torch
-import numpy as np
-import pytest
 import logging
+import sys
+from pathlib import Path
 
 # Add src to path
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
+import numpy as np
+import pytest
+import torch
 from simul_whisper.whisper.model import MultiHeadAttention
 
 logger = logging.getLogger(__name__)
@@ -120,7 +119,7 @@ class TestKVCacheMaskSlicing:
         assert not torch.isnan(qk_flat).any(), "No NaNs in attention weights"
         assert not torch.isinf(qk_flat).any(), "No Infs in attention weights (after softmax)"
 
-        logger.info(f"✅ Mask slicing at 440 tokens works correctly")
+        logger.info("✅ Mask slicing at 440 tokens works correctly")
 
     def test_mask_slicing_at_boundary_445(self, attention_module, causal_mask):
         """
@@ -149,7 +148,7 @@ class TestKVCacheMaskSlicing:
         assert qk.shape == (n_batch, 8, n_new, n_cached + n_new)
         assert not torch.isnan(out).any(), "No NaNs in output"
 
-        logger.info(f"✅ Mask slicing at 445 tokens works correctly")
+        logger.info("✅ Mask slicing at 445 tokens works correctly")
 
     def test_mask_slicing_at_boundary_448(self, attention_module, causal_mask):
         """
@@ -164,7 +163,6 @@ class TestKVCacheMaskSlicing:
         """
         n_batch = 1
         n_state = 512
-        n_cached = 447
         n_new = 1
 
         q = torch.randn(n_batch, n_new, n_state)
@@ -177,7 +175,7 @@ class TestKVCacheMaskSlicing:
         assert qk.shape == (n_batch, 8, n_new, 448)
         assert not torch.isnan(out).any(), "No NaNs in output"
 
-        logger.info(f"✅ Mask slicing at 448 tokens (exact boundary) works correctly")
+        logger.info("✅ Mask slicing at 448 tokens (exact boundary) works correctly")
 
     def test_mask_slicing_beyond_boundary_450(self, attention_module, causal_mask):
         """
@@ -214,7 +212,9 @@ class TestKVCacheMaskSlicing:
         qk_flat = qk[0, 0, 0, :]  # Shape: [450]
         assert not torch.isinf(qk_flat).any(), "No Infs after softmax"
 
-        logger.info(f"✅ Mask slicing beyond 448 tokens (overflow) handled correctly with dynamic mask")
+        logger.info(
+            "✅ Mask slicing beyond 448 tokens (overflow) handled correctly with dynamic mask"
+        )
 
     def test_offset_calculation_correctness(self, attention_module, causal_mask):
         """
@@ -227,11 +227,11 @@ class TestKVCacheMaskSlicing:
         n_state = 512
 
         test_cases = [
-            (1, 100, 99),    # 1 new, 99 cached
-            (5, 100, 95),    # 5 new, 95 cached
+            (1, 100, 99),  # 1 new, 99 cached
+            (5, 100, 95),  # 5 new, 95 cached
             (10, 200, 190),  # 10 new, 190 cached
-            (1, 447, 446),   # 1 new, 446 cached (near boundary)
-            (1, 448, 447),   # 1 new, 447 cached (at boundary)
+            (1, 447, 446),  # 1 new, 446 cached (near boundary)
+            (1, 448, 447),  # 1 new, 447 cached (at boundary)
         ]
 
         for n_new, n_key, expected_offset in test_cases:
@@ -242,15 +242,16 @@ class TestKVCacheMaskSlicing:
             out, qk = attention_module.qkv_attention(q, k, v, causal_mask)
 
             # Verify output dimensions
-            assert out.shape == (n_batch, n_new, n_state), \
-                f"n_new={n_new}, n_key={n_key}: output shape mismatch"
-            assert qk.shape[2] == n_new and qk.shape[3] == n_key, \
-                f"n_new={n_new}, n_key={n_key}: qk shape mismatch"
+            assert out.shape == (
+                n_batch,
+                n_new,
+                n_state,
+            ), f"n_new={n_new}, n_key={n_key}: output shape mismatch"
+            assert (
+                qk.shape[2] == n_new and qk.shape[3] == n_key
+            ), f"n_new={n_new}, n_key={n_key}: qk shape mismatch"
 
-            logger.info(
-                f"✅ Offset={expected_offset} correct for n_new={n_new}, "
-                f"n_key={n_key}"
-            )
+            logger.info(f"✅ Offset={expected_offset} correct for n_new={n_new}, " f"n_key={n_key}")
 
     def test_rapid_kv_cache_accumulation(self, attention_module, causal_mask):
         """
@@ -276,16 +277,14 @@ class TestKVCacheMaskSlicing:
             k = torch.randn(n_batch, n_key, n_state)
             v = torch.randn(n_batch, n_key, n_state)
 
-            out, qk = attention_module.qkv_attention(q, k, v, causal_mask)
+            out, _qk = attention_module.qkv_attention(q, k, v, causal_mask)
 
             # Verify no crashes or NaNs at any cache size
             assert out.shape == (n_batch, n_new, n_state)
             assert not torch.isnan(out).any(), f"NaNs at cache_size={n_key}"
             assert not torch.isinf(out).any(), f"Infs at cache_size={n_key}"
 
-        logger.info(
-            f"✅ Rapid KV cache accumulation (0→460 tokens) handled correctly"
-        )
+        logger.info("✅ Rapid KV cache accumulation (0→460 tokens) handled correctly")
 
     def test_multiple_new_tokens_with_cache(self, attention_module, causal_mask):
         """
@@ -319,15 +318,17 @@ class TestKVCacheMaskSlicing:
 
             # Check causal masking: positions [0..n_cached+i] should be finite
             # positions [n_cached+i+1..end] should be -inf
-            valid_positions = qk_i[:n_cached + i + 1]
-            future_positions = qk_i[n_cached + i + 1:]
+            valid_positions = qk_i[: n_cached + i + 1]
+            future_positions = qk_i[n_cached + i + 1 :]
 
-            assert not torch.isinf(valid_positions).any(), \
-                f"Query {i}: Valid positions have -inf (incorrect masking)"
+            assert not torch.isinf(
+                valid_positions
+            ).any(), f"Query {i}: Valid positions have -inf (incorrect masking)"
 
             if len(future_positions) > 0:
-                assert torch.isinf(future_positions).all(), \
-                    f"Query {i}: Future positions should be -inf (causal masking)"
+                assert torch.isinf(
+                    future_positions
+                ).all(), f"Query {i}: Future positions should be -inf (causal masking)"
 
         logger.info(f"✅ Multiple new tokens (n_new={n_new}) with cache handled correctly")
 
@@ -355,13 +356,14 @@ class TestKVCacheMaskSlicing:
             # After softmax, attention should be distributed only over valid positions
             # Check that attention weights sum to ~1.0 (probability distribution)
             qk_flat = qk[0, 0, 0, :]  # First batch, first head, query 0
-            attention_sum = torch.sum(qk_flat).item()
+            torch.sum(qk_flat).item()
 
             # Should be close to 1.0 after softmax (within numerical precision)
             # Note: qk is returned BEFORE softmax in the code (line 206)
             # So we can't check sum=1 here. Instead check no infinities.
-            assert not torch.isinf(qk_flat).any(), \
-                f"Causality broken at n_key={n_key}: infinite attention weights"
+            assert not torch.isinf(
+                qk_flat
+            ).any(), f"Causality broken at n_key={n_key}: infinite attention weights"
 
             logger.info(f"✅ Causality preserved at n_key={n_key}")
 
@@ -395,7 +397,7 @@ class TestKVCacheMaskSlicing:
         # For each query position i, keys at positions > (offset + i) should be -inf
         offset = n_key - n_query
         for i in range(n_query):
-            qk_i = qk[0, 0, i, :]  # Query i, head 0
+            qk[0, 0, i, :]  # Query i, head 0
             # Keys at positions [offset+i+1...] should be -inf
             future_start = offset + i + 1
             if future_start < n_key:
@@ -424,7 +426,7 @@ class TestKVCacheEdgeCasesCoverage:
         v = torch.randn(n_batch, n_ctx, n_state)
 
         # No mask - should work fine
-        out, qk = module.qkv_attention(q, k, v, mask=None)
+        out, _qk = module.qkv_attention(q, k, v, mask=None)
 
         assert out.shape == (n_batch, n_ctx, n_state)
         assert not torch.isnan(out).any()
@@ -448,7 +450,7 @@ class TestKVCacheEdgeCasesCoverage:
         k = torch.randn(n_batch, n_key, n_state)
         v = torch.randn(n_batch, n_key, n_state)
 
-        out, qk = module.qkv_attention(q, k, v, mask)
+        out, _qk = module.qkv_attention(q, k, v, mask)
 
         assert out.shape == (n_batch, n_query, n_state)
         assert not torch.isnan(out).any()
@@ -472,7 +474,7 @@ class TestKVCacheEdgeCasesCoverage:
             k = torch.randn(n_batch, n_key, n_state)
             v = torch.randn(n_batch, n_key, n_state)
 
-            out, qk = module.qkv_attention(q, k, v, mask)
+            out, _qk = module.qkv_attention(q, k, v, mask)
 
             assert out.shape == (n_batch, n_new, n_state)
             assert not torch.isnan(out).any()

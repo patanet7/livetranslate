@@ -1,5 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Button, Card, CardContent, Link, Stack, Typography } from '@mui/material';
+import React, { useEffect, useState } from "react";
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Link,
+  Stack,
+  Typography,
+} from "@mui/material";
 
 interface SessionRow {
   id: string;
@@ -13,7 +21,8 @@ const SeamlessSessions: React.FC = () => {
   const [rows, setRows] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const apiBase = (import.meta as any).env.VITE_API_BASE || 'http://localhost:3000';
+  const apiBase =
+    (import.meta as any).env.VITE_API_BASE || "http://localhost:3000";
 
   useEffect(() => {
     const run = async () => {
@@ -33,13 +42,17 @@ const SeamlessSessions: React.FC = () => {
 
   const downloadTranscript = async (id: string) => {
     try {
-      const res = await fetch(`${apiBase}/api/seamless/sessions/${id}/transcripts`);
+      const res = await fetch(
+        `${apiBase}/api/seamless/sessions/${id}/transcripts`,
+      );
       const data = await res.json();
-      const finals = (Array.isArray(data) ? data : []).filter((t: any) => t.is_final === 1);
-      const text = finals.map((t: any) => t.text).join('\n');
-      const blob = new Blob([text], { type: 'text/plain' });
+      const finals = (Array.isArray(data) ? data : []).filter(
+        (t: any) => t.is_final === 1,
+      );
+      const text = finals.map((t: any) => t.text).join("\n");
+      const blob = new Blob([text], { type: "text/plain" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `${id}.txt`;
       a.click();
@@ -51,32 +64,56 @@ const SeamlessSessions: React.FC = () => {
 
   return (
     <Box p={3}>
-      <Typography variant="h5" mb={2}>Seamless Sessions</Typography>
+      <Typography variant="h5" mb={2}>
+        Seamless Sessions
+      </Typography>
       {loading && <Typography>Loading...</Typography>}
       <Stack spacing={2}>
         {rows.map((r) => (
           <Card key={r.id}>
             <CardContent>
-              <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+              <Stack
+                direction="row"
+                spacing={2}
+                alignItems="center"
+                justifyContent="space-between"
+              >
                 <Box>
                   <Typography variant="subtitle1">{r.id}</Typography>
-                  <Typography variant="body2">{r.source_lang} → {r.target_lang}</Typography>
-                  <Typography variant="body2">{r.created_at}{r.ended_at ? ` → ${r.ended_at}` : ''}</Typography>
+                  <Typography variant="body2">
+                    {r.source_lang} → {r.target_lang}
+                  </Typography>
+                  <Typography variant="body2">
+                    {r.created_at}
+                    {r.ended_at ? ` → ${r.ended_at}` : ""}
+                  </Typography>
                 </Box>
                 <Stack direction="row" spacing={1}>
-                  <Button size="small" variant="outlined" onClick={() => downloadTranscript(r.id)}>Download Transcript</Button>
-                  <Link href={`${apiBase}/api/seamless/sessions/${r.id}/events`} target="_blank" rel="noreferrer">Events</Link>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => downloadTranscript(r.id)}
+                  >
+                    Download Transcript
+                  </Button>
+                  <Link
+                    href={`${apiBase}/api/seamless/sessions/${r.id}/events`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Events
+                  </Link>
                 </Stack>
               </Stack>
             </CardContent>
           </Card>
         ))}
-        {rows.length === 0 && !loading && <Typography>No sessions yet.</Typography>}
+        {rows.length === 0 && !loading && (
+          <Typography>No sessions yet.</Typography>
+        )}
       </Stack>
     </Box>
   );
 };
 
 export default SeamlessSessions;
-
-

@@ -23,13 +23,11 @@ async def test_health_monitor():
 
     try:
         # Import after path setup
-        from managers.health_monitor import HealthMonitor
         from config import get_settings
+        from managers.health_monitor import HealthMonitor
 
         settings = get_settings()
-        print(
-            f"Loaded settings - Audio Service URL: {settings.services.audio_service_url}"
-        )
+        print(f"Loaded settings - Audio Service URL: {settings.services.audio_service_url}")
 
         # Create health monitor
         health_monitor = HealthMonitor(settings=settings)

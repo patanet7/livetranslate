@@ -1,17 +1,15 @@
 import argparse
 import os
 import warnings
-from typing import TYPE_CHECKING, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 import tqdm
-
 from whisper.audio import (
     FRAMES_PER_SECOND,
     HOP_LENGTH,
     N_FRAMES,
-    N_SAMPLES,
     SAMPLE_RATE,
     log_mel_spectrogram,
     pad_or_trim,
@@ -35,18 +33,18 @@ if TYPE_CHECKING:
 
 def transcribe(
     model: "Whisper",
-    audio: Union[str, np.ndarray, torch.Tensor],
+    audio: str | np.ndarray | torch.Tensor,
     *,
-    verbose: Optional[bool] = None,
-    temperature: Union[float, Tuple[float, ...]] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
-    compression_ratio_threshold: Optional[float] = 2.4,
-    logprob_threshold: Optional[float] = -1.0,
-    no_speech_threshold: Optional[float] = 0.6,
+    verbose: bool | None = None,
+    temperature: float | tuple[float, ...] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
+    compression_ratio_threshold: float | None = 2.4,
+    logprob_threshold: float | None = -1.0,
+    no_speech_threshold: float | None = 0.6,
     condition_on_previous_text: bool = True,
-    initial_prompt: Optional[str] = None,
+    initial_prompt: str | None = None,
     word_timestamps: bool = False,
-    prepend_punctuations: str = "\"'“¿([{-",
-    append_punctuations: str = "\"'.。,，!！?？:：”)]}、",
+    prepend_punctuations: str = "\"'\"\u00bf([{-",
+    append_punctuations: str = "\"'.\u3002,\uff0c!\uff01?\uff1f:\uff1a\")]}、",
     **decode_options,
 ):
     """
@@ -110,25 +108,27 @@ def transcribe(
     dtype = torch.float16 if decode_options.get("fp16", True) else torch.float32
     if model.device == torch.device("cpu"):
         if torch.cuda.is_available():
-            warnings.warn("Performing inference on CPU when CUDA is available")
+            warnings.warn("Performing inference on CPU when CUDA is available", stacklevel=2)
         if dtype == torch.float16:
-            warnings.warn("FP16 is not supported on CPU; using FP32 instead")
+            warnings.warn("FP16 is not supported on CPU; using FP32 instead", stacklevel=2)
             dtype = torch.float32
 
     if dtype == torch.float32:
         decode_options["fp16"] = False
 
     # Pad 30-seconds of silence to the input audio, for slicing
-    mel = log_mel_spectrogram(audio, padding=0) # log_mel_spectrogram(audio, padding=N_SAMPLES) # 添加16000*30 = 480000个点
+    mel = log_mel_spectrogram(
+        audio, padding=0
+    )  # log_mel_spectrogram(audio, padding=N_SAMPLES) # adds 16000*30 = 480000 points
     # mel = pad_or_trim(mel, 3000)
-    content_frames = mel.shape[-1] # - N_FRAMES # 对应3000帧；真正有内容的是去掉尾部3000的那些数据
+    content_frames = mel.shape[-1]  # - N_FRAMES # corresponds to 3000 frames; actual content excludes trailing 3000
 
-    # 判断语种
-    if decode_options.get("language", None) is None:
-        # 如果是单语种模型，直接设成英文
+    # Detect language
+    if decode_options.get("language") is None:
+        # If monolingual model, set to English
         if not model.is_multilingual:
             decode_options["language"] = "en"
-        # 否则需要前传一次
+        # Otherwise, need a forward pass
         else:
             if verbose:
                 print(
@@ -139,23 +139,19 @@ def transcribe(
             _, probs = model.detect_language(mel_segment)
             decode_options["language"] = max(probs, key=probs.get)
             if verbose is not None:
-                print(
-                    f"Detected language: {LANGUAGES[decode_options['language']].title()}"
-                )
+                print(f"Detected language: {LANGUAGES[decode_options['language']].title()}")
 
     language: str = decode_options["language"]
     task: str = decode_options.get("task", "transcribe")
-    # 输出编码器
+    # Output tokenizer
     tokenizer = get_tokenizer(model.is_multilingual, language=language, task=task)
 
-    # 词级别时间戳
+    # Word-level timestamps
     if word_timestamps and task == "translate":
-        warnings.warn("Word-level timestamps on translations may not be reliable.")
+        warnings.warn("Word-level timestamps on translations may not be reliable.", stacklevel=2)
 
     def decode_with_fallback(segment: torch.Tensor) -> DecodingResult:
-        temperatures = (
-            [temperature] if isinstance(temperature, (int, float)) else temperature
-        )
+        temperatures = [temperature] if isinstance(temperature, (int, float)) else temperature
         decode_result = None
 
         for t in temperatures:
@@ -171,18 +167,15 @@ def transcribe(
             options = DecodingOptions(**kwargs, temperature=t)
             decode_result = model.decode(segment, options)
 
-            # 几种解码可能失败的情况。这些情况下会重复解码
-            # 感觉是一种KnowHow的东西 或许ChatGPT里有不少这种trick
+            # Several cases where decoding may fail. Will retry decoding in these cases.
+            # This is a form of know-how, perhaps ChatGPT has many such tricks.
             needs_fallback = False
             if (
                 compression_ratio_threshold is not None
                 and decode_result.compression_ratio > compression_ratio_threshold
             ):
                 needs_fallback = True  # too repetitive
-            if (
-                logprob_threshold is not None
-                and decode_result.avg_logprob < logprob_threshold
-            ):
+            if logprob_threshold is not None and decode_result.avg_logprob < logprob_threshold:
                 needs_fallback = True  # average log probability is too low
             if (
                 no_speech_threshold is not None
@@ -192,7 +185,7 @@ def transcribe(
             if not needs_fallback:
                 break
             # print("decode with temperature {} compress rate {:.3f}/{:.3f}, log_prob {:.3f}/{:.3f}, {:.3f}/{:.3f}".format(
-            #     t, 
+            #     t,
             #     decode_result.compression_ratio, compression_ratio_threshold,
             #     -decode_result.avg_logprob, -logprob_threshold,
             #     decode_result.no_speech_prob, no_speech_threshold
@@ -201,10 +194,8 @@ def transcribe(
         return decode_result
 
     seek = 0
-    input_stride = exact_div(
-        N_FRAMES, model.dims.n_audio_ctx
-    )  # mel frames per output token: 2
-    # 这里output token指的应该是CNN输出的那个东西
+    input_stride = exact_div(N_FRAMES, model.dims.n_audio_ctx)  # mel frames per output token: 2
+    # Here output token refers to the CNN output
 
     time_precision = (
         input_stride * HOP_LENGTH / SAMPLE_RATE
@@ -219,9 +210,7 @@ def transcribe(
     else:
         initial_prompt_tokens = []
 
-    def new_segment(
-        *, start: float, end: float, tokens: torch.Tensor, result: DecodingResult
-    ):
+    def new_segment(*, start: float, end: float, tokens: torch.Tensor, result: DecodingResult):
         tokens = tokens.tolist()
         text_tokens = [token for token in tokens if token < tokenizer.eot]
         return {
@@ -237,31 +226,30 @@ def transcribe(
         }
 
     # show the progress bar when verbose is False (if True, transcribed text will be printed)
-    with tqdm.tqdm(
-        total=content_frames, unit="frames", disable=verbose is not False
-    ) as pbar:
+    with tqdm.tqdm(total=content_frames, unit="frames", disable=verbose is not False) as pbar:
         last_speech_timestamp = 0.0
-        while seek < content_frames: # seek：标记mel频谱当前帧的位置 直接跳过Padding上的部分
+        while seek < content_frames:  # seek: marks current mel frame position, skips padding
             # print("seek segments", seek, content_frames)
-            time_offset = float(seek * HOP_LENGTH / SAMPLE_RATE) # 本片段的开始时间
-            # mel_segment = mel[:, seek : seek + N_FRAMES] # 获得当前片段的数据
+            time_offset = float(seek * HOP_LENGTH / SAMPLE_RATE)  # Start time of this segment
+            # mel_segment = mel[:, seek : seek + N_FRAMES] # get current segment data
             mel_segment = mel[:, seek:]
-            segment_size = min(N_FRAMES, content_frames - seek) # segment_size: 排除padding的真的长度。content_frames：有内容的段的真正长度 如果不够N_FRAMES的话就会截断
-            segment_duration = segment_size * HOP_LENGTH / SAMPLE_RATE # 当前片段的时长
-            mel_segment = mel_segment.to(model.device).to(dtype) # pad_or_trim(mel_segment, N_FRAMES).to(model.device).to(dtype) # 补到mel_segment帧
+            segment_size = min(
+                N_FRAMES, content_frames - seek
+            )  # segment_size: real length excluding padding; content_frames: actual content length, truncated if < N_FRAMES
+            segment_duration = segment_size * HOP_LENGTH / SAMPLE_RATE  # Duration of current segment
+            mel_segment = mel_segment.to(model.device).to(
+                dtype
+            )  # pad_or_trim(mel_segment, N_FRAMES).to(model.device).to(dtype) # pad to mel_segment frames
 
             decode_options["prompt"] = all_tokens[prompt_reset_since:]
             result: DecodingResult = decode_with_fallback(mel_segment)
             tokens = torch.tensor(result.tokens)
 
-            # 跳过静音部分
+            # Skip silence parts
             if no_speech_threshold is not None:
                 # no voice activity check
                 should_skip = result.no_speech_prob > no_speech_threshold
-                if (
-                    logprob_threshold is not None
-                    and result.avg_logprob > logprob_threshold
-                ):
+                if logprob_threshold is not None and result.avg_logprob > logprob_threshold:
                     # don't skip if the logprob is high enough, despite the no_speech_prob
                     should_skip = False
 
@@ -272,35 +260,36 @@ def transcribe(
             previous_seek = seek
             current_segments = []
 
-            timestamp_tokens: torch.Tensor = tokens.ge(tokenizer.timestamp_begin) # timestamp begin是<|0.00|>的token；bos比文字token大，eos的值比bos还大，所以是ge
+            timestamp_tokens: torch.Tensor = tokens.ge(
+                tokenizer.timestamp_begin
+            )  # timestamp begin is <|0.00|> token; bos > text token, eos > bos, hence ge
             timestamp_tokens[-1] = False
-            single_timestamp_ending = timestamp_tokens[-2:].tolist() == [False, True] # 如果最后是[False,True]：本段里一个句子结束了
+            single_timestamp_ending = timestamp_tokens[-2:].tolist() == [
+                False,
+                True,
+            ]  # If last is [False,True]: a sentence ended in this segment
 
-            consecutive = torch.where(timestamp_tokens[:-1] & timestamp_tokens[1:])[0] 
+            consecutive = torch.where(timestamp_tokens[:-1] & timestamp_tokens[1:])[0]
             # torch.where(condition) is identical to torch.nonzero(condition, as_tuple=True).
-            # timestamp_token就是个一维向量吧 那为啥不直接nonzero
-            # 如果有两个连续的时间戳 这个会是一个一维tensor 是这两个连续时间戳的结尾位置
-            # 多个的话指向第二个 那如果有三个怎么办？
-            # 否则是个0维tensor
+            # timestamp_token is a 1D vector, why not use nonzero directly?
+            # If two consecutive timestamps, this is a 1D tensor pointing to the end of consecutive timestamps
+            # For multiple, points to second one. What if there are three?
+            # Otherwise it's a 0D tensor
 
-            consecutive.add_(1) # 0维tensor+1还是0维 哪儿找的这些edge cases js是吧
+            consecutive.add_(1)  # 0D tensor +1 is still 0D, where do they find these edge cases
             if len(consecutive) > 0:
                 # if the output contains two consecutive timestamp tokens
                 slices = consecutive.tolist()
                 if single_timestamp_ending:
-                    slices.append(len(tokens)) # 把最后一段的结尾也加进去
+                    slices.append(len(tokens))  # Add end of last segment
                 # print("many sentenses", consecutive)
                 last_slice = 0
                 for current_slice in slices:
                     sliced_tokens = tokens[last_slice:current_slice]
-                    # 看起来语音开始帧、语音结束帧的位置会被编码到start_timestamp中
-                    start_timestamp_pos = (
-                        sliced_tokens[0].item() - tokenizer.timestamp_begin
-                    )
-                    end_timestamp_pos = (
-                        sliced_tokens[-1].item() - tokenizer.timestamp_begin
-                    )
-                    # 获取一个新的语音段
+                    # Speech start/end frame positions are encoded in start_timestamp
+                    start_timestamp_pos = sliced_tokens[0].item() - tokenizer.timestamp_begin
+                    end_timestamp_pos = sliced_tokens[-1].item() - tokenizer.timestamp_begin
+                    # Get a new speech segment
                     current_segments.append(
                         new_segment(
                             start=time_offset + start_timestamp_pos * time_precision,
@@ -316,26 +305,19 @@ def transcribe(
                     seek += segment_size
                 else:
                     # otherwise, ignore the unfinished segment and seek to the last timestamp
-                    # 如果语音尚未结束，那么seek变为上一个结束的语段的位置
-                    # 换句话说就是针对30s长的chunk的语音设计的
-                    last_timestamp_pos = (
-                        tokens[last_slice - 1].item() - tokenizer.timestamp_begin
-                    )
+                    # If speech not finished, seek becomes position of last completed segment
+                    # In other words, designed for 30s long chunk audio
+                    last_timestamp_pos = tokens[last_slice - 1].item() - tokenizer.timestamp_begin
                     seek += last_timestamp_pos * input_stride
             else:
                 duration = segment_duration
                 timestamps = tokens[timestamp_tokens.nonzero().flatten()]
                 # print(timestamps)
-                if (
-                    len(timestamps) > 0
-                    and timestamps[-1].item() != tokenizer.timestamp_begin
-                ):
+                if len(timestamps) > 0 and timestamps[-1].item() != tokenizer.timestamp_begin:
                     # no consecutive timestamps but it has a timestamp; use the last one.
-                    # 取最后一个；假设要么有一个结束的time stamp；要么有一对儿？
-                    # 如果里面只有一个开始的timestamp 似乎后面的东西都会被丢掉？
-                    last_timestamp_pos = (
-                        timestamps[-1].item() - tokenizer.timestamp_begin
-                    )
+                    # Take the last one; assuming either one ending timestamp or a pair?
+                    # If only one start timestamp, seems the rest gets discarded?
+                    last_timestamp_pos = timestamps[-1].item() - tokenizer.timestamp_begin
                     duration = last_timestamp_pos * time_precision
 
                 current_segments.append(
@@ -348,7 +330,7 @@ def transcribe(
                 )
                 seek += segment_size
 
-            # 每个token有自己的时间戳
+            # Each token has its own timestamp
             if word_timestamps:
                 add_word_timestamps(
                     segments=current_segments,
@@ -360,15 +342,11 @@ def transcribe(
                     append_punctuations=append_punctuations,
                     last_speech_timestamp=last_speech_timestamp,
                 )
-                word_end_timestamps = [
-                    w["end"] for s in current_segments for w in s["words"]
-                ]
+                word_end_timestamps = [w["end"] for s in current_segments for w in s["words"]]
                 if len(word_end_timestamps) > 0:
                     last_speech_timestamp = word_end_timestamps[-1]
                 if not single_timestamp_ending and len(word_end_timestamps) > 0:
-                    seek_shift = round(
-                        (word_end_timestamps[-1] - time_offset) * FRAMES_PER_SECOND
-                    )
+                    seek_shift = round((word_end_timestamps[-1] - time_offset) * FRAMES_PER_SECOND)
                     if seek_shift > 0:
                         seek = previous_seek + seek_shift
 
@@ -379,19 +357,17 @@ def transcribe(
                     print(make_safe(line))
 
             # if a segment is instantaneous or does not contain text, clear it
-            for i, segment in enumerate(current_segments):
+            for _i, segment in enumerate(current_segments):
                 if segment["start"] == segment["end"] or segment["text"].strip() == "":
                     segment["text"] = ""
                     segment["tokens"] = []
                     segment["words"] = []
 
-            # 更新结果
+            # Update results
             all_segments.extend(
                 [
                     {"id": i, **segment}
-                    for i, segment in enumerate(
-                        current_segments, start=len(all_segments)
-                    )
+                    for i, segment in enumerate(current_segments, start=len(all_segments))
                 ]
             )
             all_tokens.extend(
@@ -405,14 +381,14 @@ def transcribe(
             # update progress bar
             pbar.update(min(content_frames, seek) - previous_seek)
 
-            # print("太长了")
+            # print("too long")
             # break
 
-    return dict(
-        text=tokenizer.decode(all_tokens[len(initial_prompt_tokens) :]),
-        segments=all_segments,
-        language=language,
-    )
+    return {
+        "text": tokenizer.decode(all_tokens[len(initial_prompt_tokens) :]),
+        "segments": all_segments,
+        "language": language,
+    }
 
 
 def cli():
@@ -429,7 +405,7 @@ def cli():
     parser.add_argument("--verbose", type=str2bool, default=True, help="whether to print out the progress and debug messages")
 
     parser.add_argument("--task", type=str, default="transcribe", choices=["transcribe", "translate"], help="whether to perform X->X speech recognition ('transcribe') or X->English translation ('translate')")
-    parser.add_argument("--language", type=str, default=None, choices=sorted(LANGUAGES.keys()) + sorted([k.title() for k in TO_LANGUAGE_CODE.keys()]), help="language spoken in the audio, specify None to perform language detection")
+    parser.add_argument("--language", type=str, default=None, choices=sorted(LANGUAGES.keys()) + sorted([k.title() for k in TO_LANGUAGE_CODE]), help="language spoken in the audio, specify None to perform language detection")
 
     parser.add_argument("--temperature", type=float, default=0, help="temperature to use for sampling")
     parser.add_argument("--best_of", type=optional_int, default=5, help="number of candidates when sampling with non-zero temperature")
@@ -447,8 +423,8 @@ def cli():
     parser.add_argument("--logprob_threshold", type=optional_float, default=-1.0, help="if the average log probability is lower than this value, treat the decoding as failed")
     parser.add_argument("--no_speech_threshold", type=optional_float, default=0.6, help="if the probability of the <|nospeech|> token is higher than this value AND the decoding has failed due to `logprob_threshold`, consider the segment as silence")
     parser.add_argument("--word_timestamps", type=str2bool, default=False, help="(experimental) extract word-level timestamps and refine the results based on them")
-    parser.add_argument("--prepend_punctuations", type=str, default="\"\'“¿([{-", help="if word_timestamps is True, merge these punctuation symbols with the next word")
-    parser.add_argument("--append_punctuations", type=str, default="\"\'.。,，!！?？:：”)]}、", help="if word_timestamps is True, merge these punctuation symbols with the previous word")
+    parser.add_argument("--prepend_punctuations", type=str, default="\"'\"\u00bf([{-", help="if word_timestamps is True, merge these punctuation symbols with the next word")
+    parser.add_argument("--append_punctuations", type=str, default="\"'.\u3002,\uff0c!\uff01?\uff1f:\uff1a\")]}、", help="if word_timestamps is True, merge these punctuation symbols with the previous word")
     parser.add_argument("--highlight_words", type=str2bool, default=False, help="(requires --word_timestamps True) underline each word as it is spoken in srt and vtt")
     parser.add_argument("--max_line_width", type=optional_int, default=None, help="(requires --word_timestamps True) the maximum number of characters in a line before breaking the line")
     parser.add_argument("--max_line_count", type=optional_int, default=None, help="(requires --word_timestamps True) the maximum number of lines in a segment")
@@ -466,7 +442,7 @@ def cli():
     if model_name.endswith(".en") and args["language"] not in {"en", "English"}:
         if args["language"] is not None:
             warnings.warn(
-                f"{model_name} is an English-only model but receipted '{args['language']}'; using English instead."
+                f"{model_name} is an English-only model but receipted '{args['language']}'; using English instead.", stacklevel=2
             )
         args["language"] = "en"
 
@@ -490,7 +466,7 @@ def cli():
             if args[option]:
                 parser.error(f"--{option} requires --word_timestamps True")
     if args["max_line_count"] and not args["max_line_width"]:
-        warnings.warn("--max_line_count has no effect without --max_line_width")
+        warnings.warn("--max_line_count has no effect without --max_line_width", stacklevel=2)
     writer_args = {arg: args.pop(arg) for arg in word_options}
     for audio_path in args.pop("audio"):
         result = transcribe(model, audio_path, temperature=temperature, **args)

@@ -21,14 +21,14 @@ Usage:
         cache.put(audio_hash, encoder_output)
 """
 
-import torch
-import numpy as np
 import hashlib
 import logging
-from typing import Optional, Tuple
+import time
 from collections import OrderedDict
 from dataclasses import dataclass
-import time
+
+import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +36,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CacheEntry:
     """Entry in encoder cache with metadata."""
+
     encoder_output: torch.Tensor
     timestamp: float
     access_count: int
     audio_hash: str
 
-    __slots__ = ('encoder_output', 'timestamp', 'access_count', 'audio_hash')
+    __slots__ = ("access_count", "audio_hash", "encoder_output", "timestamp")
 
 
 class EncoderCache:
@@ -64,14 +65,9 @@ class EncoderCache:
         _misses: Cache miss count
     """
 
-    __slots__ = ('max_size', 'device', 'hash_precision', '_cache', '_hits', '_misses', '_evictions')
+    __slots__ = ("_cache", "_evictions", "_hits", "_misses", "device", "hash_precision", "max_size")
 
-    def __init__(
-        self,
-        max_size: int = 50,
-        device: str = 'cpu',
-        hash_precision: int = 6
-    ):
+    def __init__(self, max_size: int = 50, device: str = "cpu", hash_precision: int = 6):
         """Initialize LRU encoder cache."""
         if max_size <= 0:
             raise ValueError(f"max_size must be positive, got {max_size}")
@@ -117,10 +113,8 @@ class EncoderCache:
         return hash_obj.hexdigest()[:16]
 
     def get(
-        self,
-        audio: Optional[np.ndarray] = None,
-        audio_hash: Optional[str] = None
-    ) -> Optional[torch.Tensor]:
+        self, audio: np.ndarray | None = None, audio_hash: str | None = None
+    ) -> torch.Tensor | None:
         """
         Retrieve cached encoder output.
 
@@ -145,10 +139,7 @@ class EncoderCache:
             self._cache[audio_hash] = entry
 
             self._hits += 1
-            logger.debug(
-                f"Cache HIT: hash={audio_hash}, "
-                f"access_count={entry.access_count}"
-            )
+            logger.debug(f"Cache HIT: hash={audio_hash}, " f"access_count={entry.access_count}")
             return entry.encoder_output
         else:
             # Cache miss
@@ -159,8 +150,8 @@ class EncoderCache:
     def put(
         self,
         encoder_output: torch.Tensor,
-        audio: Optional[np.ndarray] = None,
-        audio_hash: Optional[str] = None
+        audio: np.ndarray | None = None,
+        audio_hash: str | None = None,
     ) -> str:
         """
         Store encoder output in cache.
@@ -188,7 +179,7 @@ class EncoderCache:
             encoder_output=encoder_output.detach(),  # Detach from computation graph
             timestamp=time.time(),
             access_count=0,
-            audio_hash=audio_hash
+            audio_hash=audio_hash,
         )
 
         # Add to cache
@@ -255,13 +246,13 @@ class EncoderCache:
         hit_rate = self._hits / total_requests if total_requests > 0 else 0.0
 
         return {
-            'hits': self._hits,
-            'misses': self._misses,
-            'hit_rate': hit_rate,
-            'size': len(self._cache),
-            'capacity': self.max_size,
-            'evictions': self._evictions,
-            'utilization': len(self._cache) / self.max_size if self.max_size > 0 else 0.0
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate": hit_rate,
+            "size": len(self._cache),
+            "capacity": self.max_size,
+            "evictions": self._evictions,
+            "utilization": len(self._cache) / self.max_size if self.max_size > 0 else 0.0,
         }
 
     def reset_statistics(self) -> None:
@@ -293,10 +284,7 @@ class BatchEncoderCache(EncoderCache):
     Useful for batch LID processing.
     """
 
-    def get_batch(
-        self,
-        audio_hashes: list[str]
-    ) -> Tuple[list[Optional[torch.Tensor]], list[str]]:
+    def get_batch(self, audio_hashes: list[str]) -> tuple[list[torch.Tensor | None], list[str]]:
         """
         Retrieve multiple cached encoder outputs.
 
@@ -320,11 +308,7 @@ class BatchEncoderCache(EncoderCache):
 
         return encoder_outputs, missing_hashes
 
-    def put_batch(
-        self,
-        encoder_outputs: list[torch.Tensor],
-        audio_hashes: list[str]
-    ) -> None:
+    def put_batch(self, encoder_outputs: list[torch.Tensor], audio_hashes: list[str]) -> None:
         """
         Store multiple encoder outputs in cache.
 
@@ -338,5 +322,5 @@ class BatchEncoderCache(EncoderCache):
                 f"{len(audio_hashes)} hashes"
             )
 
-        for encoder_output, audio_hash in zip(encoder_outputs, audio_hashes):
+        for encoder_output, audio_hash in zip(encoder_outputs, audio_hashes, strict=False):
             self.put(encoder_output, audio_hash=audio_hash)

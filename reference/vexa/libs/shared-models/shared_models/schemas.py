@@ -12,12 +12,12 @@ logger = logging.getLogger(__name__)
 # These are the accepted language codes from the faster-whisper library
 # Source: faster_whisper.tokenizer._LANGUAGE_CODES
 ACCEPTED_LANGUAGE_CODES = {
-    "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br", "bs", "ca", "cs", "cy", 
-    "da", "de", "el", "en", "es", "et", "eu", "fa", "fi", "fo", "fr", "gl", "gu", "ha", "haw", 
-    "he", "hi", "hr", "ht", "hu", "hy", "id", "is", "it", "ja", "jw", "ka", "kk", "km", "kn", 
-    "ko", "la", "lb", "ln", "lo", "lt", "lv", "mg", "mi", "mk", "ml", "mn", "mr", "ms", "mt", 
-    "my", "ne", "nl", "nn", "no", "oc", "pa", "pl", "ps", "pt", "ro", "ru", "sa", "sd", "si", 
-    "sk", "sl", "sn", "so", "sq", "sr", "su", "sv", "sw", "ta", "te", "tg", "th", "tk", "tl", 
+    "af", "am", "ar", "as", "az", "ba", "be", "bg", "bn", "bo", "br", "bs", "ca", "cs", "cy",
+    "da", "de", "el", "en", "es", "et", "eu", "fa", "fi", "fo", "fr", "gl", "gu", "ha", "haw",
+    "he", "hi", "hr", "ht", "hu", "hy", "id", "is", "it", "ja", "jw", "ka", "kk", "km", "kn",
+    "ko", "la", "lb", "ln", "lo", "lt", "lv", "mg", "mi", "mk", "ml", "mn", "mr", "ms", "mt",
+    "my", "ne", "nl", "nn", "no", "oc", "pa", "pl", "ps", "pt", "ro", "ru", "sa", "sd", "si",
+    "sk", "sl", "sn", "so", "sq", "sr", "su", "sv", "sw", "ta", "te", "tg", "th", "tk", "tl",
     "tr", "tt", "uk", "ur", "uz", "vi", "yi", "yo", "zh", "yue"
 }
 
@@ -30,17 +30,17 @@ ALLOWED_TASKS = {"transcribe", "translate"}
 class MeetingStatus(str, Enum):
     """
     Meeting status values with their sources and transitions.
-    
+
     Status Flow:
     requested -> joining -> awaiting_admission -> active -> stopping -> completed
                                     |              |                 \
                                     v              v                  -> failed
                                  failed         failed
-    
+
     Sources:
     - requested: POST bot API (user)
     - joining: bot callback
-    - awaiting_admission: bot callback  
+    - awaiting_admission: bot callback
     - active: bot callback
     - stopping: user (stop bot API)
     - completed: user, bot callback
@@ -79,7 +79,7 @@ class MeetingFailureStage(str, Enum):
 def get_valid_status_transitions() -> Dict[MeetingStatus, List[MeetingStatus]]:
     """
     Returns valid status transitions for meetings.
-    
+
     Returns:
         Dict mapping current status to list of valid next statuses
     """
@@ -118,11 +118,11 @@ def get_valid_status_transitions() -> Dict[MeetingStatus, List[MeetingStatus]]:
 def is_valid_status_transition(from_status: MeetingStatus, to_status: MeetingStatus) -> bool:
     """
     Check if a status transition is valid.
-    
+
     Args:
         from_status: Current meeting status
         to_status: Desired new status
-        
+
     Returns:
         True if transition is valid, False otherwise
     """
@@ -132,18 +132,18 @@ def is_valid_status_transition(from_status: MeetingStatus, to_status: MeetingSta
 def get_status_source(from_status: MeetingStatus, to_status: MeetingStatus) -> str:
     """
     Get the source that should trigger this status transition.
-    
+
     Args:
         from_status: Current meeting status
         to_status: Desired new status
-        
+
     Returns:
         Source description ("user", "bot_callback", "validation_error")
     """
     # User-controlled transitions (via API)
     if to_status in (MeetingStatus.STOPPING, MeetingStatus.COMPLETED):
         return "user"  # Stop bot API initiated
-    
+
     # Bot callback transitions
     bot_callback_transitions = [
         (MeetingStatus.REQUESTED, MeetingStatus.JOINING),
@@ -157,14 +157,14 @@ def get_status_source(from_status: MeetingStatus, to_status: MeetingStatus) -> s
         (MeetingStatus.ACTIVE, MeetingStatus.FAILED),
         (MeetingStatus.STOPPING, MeetingStatus.FAILED),
     ]
-    
+
     if (from_status, to_status) in bot_callback_transitions:
         return "bot_callback"
-    
+
     # Validation error transitions
     if to_status == MeetingStatus.FAILED and from_status == MeetingStatus.REQUESTED:
         return "validation_error"
-    
+
     return "unknown"
 
 # --- Platform Definitions ---
@@ -177,7 +177,7 @@ class Platform(str, Enum):
     GOOGLE_MEET = "google_meet"
     ZOOM = "zoom"
     TEAMS = "teams"
-    
+
     @property
     def bot_name(self) -> str:
         """
@@ -190,16 +190,16 @@ class Platform(str, Enum):
             Platform.TEAMS: "teams"
         }
         return mapping[self]
-    
+
     @classmethod
     def get_bot_name(cls, platform_str: str) -> str:
         """
         Static method to get the bot platform name from a string.
         This is useful when you have a platform string but not a Platform instance.
-        
+
         Args:
             platform_str: The platform identifier string (e.g., 'google_meet')
-            
+
         Returns:
             The platform name used by the bot (e.g., 'google')
         """
@@ -252,7 +252,7 @@ class Platform(str, Enum):
         except ValueError:
             return None # Invalid platform string
 
-# --- Schemas from Admin API --- 
+# --- Schemas from Admin API ---
 
 class UserBase(BaseModel): # Base for common user fields
     email: EmailStr
@@ -298,7 +298,7 @@ class UserUpdate(BaseModel):
     data: Optional[Dict[str, Any]] = Field(None, description="JSONB storage for arbitrary user data, like webhook URLs and subscription info")
 # --- END UserUpdate Schema ---
 
-# --- Meeting Schemas --- 
+# --- Meeting Schemas ---
 
 class MeetingBase(BaseModel):
     platform: Platform = Field(..., description="Platform identifier (e.g., 'google_meet', 'teams')")
@@ -367,28 +367,28 @@ class MeetingCreate(BaseModel):
         """Validate that the native meeting ID matches the expected format for the platform."""
         if not v or not v.strip():
             raise ValueError("native_meeting_id cannot be empty")
-        
+
         platform = values.get('platform')
         if not platform:
             return v  # Let platform validator handle this case
-        
+
         platform = Platform(platform)
         native_id = v.strip()
-        
+
         if platform == Platform.GOOGLE_MEET:
             # Google Meet format: abc-defg-hij
             if not re.fullmatch(r"^[a-z]{3}-[a-z]{4}-[a-z]{3}$", native_id):
                 raise ValueError("Google Meet ID must be in format 'abc-defg-hij' (lowercase letters only)")
-        
+
         elif platform == Platform.TEAMS:
             # Teams format: numeric ID only (10-15 digits)
             if not re.fullmatch(r"^\d{10,15}$", native_id):
                 raise ValueError("Teams meeting ID must be 10-15 digits only (not a full URL)")
-            
+
             # Explicitly reject full URLs
             if native_id.startswith(('http://', 'https://', 'teams.microsoft.com', 'teams.live.com')):
                 raise ValueError("Teams meeting ID must be the numeric ID only (e.g., '9399697580372'), not a full URL")
-        
+
         return v
 
 class MeetingResponse(BaseModel): # Not inheriting from MeetingBase anymore to avoid duplicate fields if DB model is used directly
@@ -416,7 +416,7 @@ class MeetingResponse(BaseModel): # Not inheriting from MeetingBase anymore to a
                 # For unknown status values, default to 'completed' as a safe fallback
                 logger.warning("Unknown meeting status '%s' → completed", v)
                 return MeetingStatus.COMPLETED
-        
+
         return v
 
     @validator('data')
@@ -424,23 +424,23 @@ class MeetingResponse(BaseModel): # Not inheriting from MeetingBase anymore to a
         """Validate that status-related data is consistent with meeting status."""
         if v is None:
             return v
-            
+
         status = values.get('status')
         if not status:
             return v
-            
+
         # Validate completion reasons
         if status == MeetingStatus.COMPLETED:
             reason = v.get('completion_reason')
             if reason and reason not in [r.value for r in MeetingCompletionReason]:
                 raise ValueError(f"Invalid completion_reason '{reason}'. Must be one of: {[r.value for r in MeetingCompletionReason]}")
-        
+
         # Validate failure stage
         elif status == MeetingStatus.FAILED:
             stage = v.get('failure_stage')
             if stage and stage not in [s.value for s in MeetingFailureStage]:
                 raise ValueError(f"Invalid failure_stage '{stage}'. Must be one of: {[s.value for s in MeetingFailureStage]}")
-        
+
         return v
 
     class Config:
@@ -488,7 +488,7 @@ class MeetingConfigUpdate(BaseModel):
             raise ValueError(f"Invalid task '{v}'. Must be one of: {sorted(ALLOWED_TASKS)}")
         return v
 
-# --- Transcription Schemas --- 
+# --- Transcription Schemas ---
 
 class TranscriptionSegment(BaseModel):
     # id: Optional[int] # No longer relevant to expose outside DB
@@ -551,7 +551,7 @@ class TranscriptionResponse(BaseModel): # Doesn't inherit MeetingResponse to avo
         orm_mode = True # Allows creation from ORM models (e.g., joined query result)
         use_enum_values = True
 
-# --- Utility Schemas --- 
+# --- Utility Schemas ---
 
 class HealthResponse(BaseModel):
     status: str
@@ -564,7 +564,7 @@ class ErrorResponse(BaseModel):
     detail: str # Standard FastAPI error response uses 'detail'
 
 class MeetingListResponse(BaseModel):
-    meetings: List[MeetingResponse] 
+    meetings: List[MeetingResponse]
 
 # --- ADD Bot Status Schemas ---
 class BotStatus(BaseModel):
@@ -636,7 +636,7 @@ class MeetingTableResponse(BaseModel):
                 # For unknown status values, default to 'completed' as a safe fallback
                 logger.warning("Unknown meeting status '%s' → completed", v)
                 return MeetingStatus.COMPLETED
-        
+
         return v
 
     class Config:
@@ -696,4 +696,4 @@ class UserAnalyticsResponse(BaseModel):
     meeting_stats: UserMeetingStats
     usage_patterns: UserUsagePatterns
     api_tokens: Optional[List[TokenResponse]]  # Optional for security
-# --- END Analytics Schemas --- 
+# --- END Analytics Schemas ---

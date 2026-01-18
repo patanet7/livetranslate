@@ -14,7 +14,7 @@ INTEGRATION INSTRUCTIONS:
 
 import logging
 import time
-from typing import Dict, List, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +78,8 @@ async def _request_translations_optimized(
     self,
     session_id: str,
     transcript_id: str,
-    transcript_result: Dict[str, Any],
-    target_languages: List[str],
+    transcript_result: dict[str, Any],
+    target_languages: list[str],
 ):
     """
     OPTIMIZED: Request translations with caching and multi-language batching.
@@ -132,9 +132,7 @@ async def _request_translations_optimized(
                     logger.debug(f"Cache MISS: {source_language}→{lang}")
 
         except Exception as cache_error:
-            logger.error(
-                f"Cache lookup failed: {cache_error}, proceeding without cache"
-            )
+            logger.error(f"Cache lookup failed: {cache_error}, proceeding without cache")
             needs_translation = target_langs
     else:
         # No cache, translate all
@@ -144,20 +142,16 @@ async def _request_translations_optimized(
     new_translations = {}
 
     if needs_translation:
-        logger.info(
-            f"Translating {len(needs_translation)} uncached languages: {needs_translation}"
-        )
+        logger.info(f"Translating {len(needs_translation)} uncached languages: {needs_translation}")
 
         try:
             # Use optimized multi-language endpoint via translation client
             if self.translation_client:
-                translation_results = (
-                    await self.translation_client.translate_to_multiple_languages(
-                        text=text,
-                        source_language=source_language,
-                        target_languages=needs_translation,
-                        session_id=session_id,
-                    )
+                translation_results = await self.translation_client.translate_to_multiple_languages(
+                    text=text,
+                    source_language=source_language,
+                    target_languages=needs_translation,
+                    session_id=session_id,
                 )
 
                 # Convert TranslationResponse objects to dict format
@@ -176,10 +170,8 @@ async def _request_translations_optimized(
                 # Fallback to service client pool
                 logger.warning("Translation client not available, using service pool")
                 for lang in needs_translation:
-                    translation_result = (
-                        await self.service_client.send_to_translation_service(
-                            session_id, transcript_result, lang
-                        )
+                    translation_result = await self.service_client.send_to_translation_service(
+                        session_id, transcript_result, lang
                     )
                     if translation_result:
                         new_translations[lang] = translation_result
@@ -257,9 +249,9 @@ async def _store_and_emit_translation(
     self,
     session_id: str,
     transcript_id: str,
-    transcript_result: Dict[str, Any],
+    transcript_result: dict[str, Any],
     target_language: str,
-    translation_data: Dict[str, Any],
+    translation_data: dict[str, Any],
     was_cached: bool,
 ):
     """
@@ -288,12 +280,8 @@ async def _store_and_emit_translation(
                 "translation_service": translation_data.get("metadata", {}).get(
                     "backend_used", "unknown"
                 ),
-                "speaker_id": transcript_result.get("speaker_info", {}).get(
-                    "speaker_id"
-                ),
-                "speaker_name": transcript_result.get("speaker_info", {}).get(
-                    "speaker_name"
-                ),
+                "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
                 "start_timestamp": transcript_result.get("start_timestamp", 0.0),
                 "end_timestamp": transcript_result.get("end_timestamp", 0.0),
                 "metadata": translation_data.get("metadata", {}),
@@ -306,9 +294,7 @@ async def _store_and_emit_translation(
                 await self.translation_opt_adapter.update_translation_optimization_metadata(
                     translation_id=translation_id,
                     model_name=translation_data.get("metadata", {}).get("model_used"),
-                    model_backend=translation_data.get("metadata", {}).get(
-                        "backend_used"
-                    ),
+                    model_backend=translation_data.get("metadata", {}).get("backend_used"),
                     was_cached=was_cached,
                     optimization_metadata={
                         "was_cached": was_cached,

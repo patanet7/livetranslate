@@ -1,94 +1,88 @@
-[tool.poetry]
+[project]
 name = "whisper-service"
 version = "2.0.0"
 description = "PyTorch-based Whisper service with SimulStreaming innovations"
-authors = ["LiveTranslate Team"]
+authors = [
+    {name = "LiveTranslate Team", email = "team@livetranslate.com"},
+]
 readme = "README.md"
-packages = [
-    {include = "src"},
-    {include = "tests"}
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    # Core Flask and web dependencies
+    "Flask>=2.0.0",
+    "Flask-SocketIO>=5.0.0",
+    "Flask-CORS>=3.0.0",
+    # Audio processing
+    "numpy>=2.3.4",
+    "sounddevice>=0.4.0",
+    "soundfile>=0.13.1",
+    "scipy>=1.16.2",
+    "librosa>=0.11.0",
+    "pydub>=0.25.1",
+    "audioread>=3.0.0",
+    # WebSocket and networking
+    "websockets>=15.0.1",
+    "requests>=2.31.0",
+    "python-socketio[client]>=5.14.2",
+    # Async and utilities
+    "asyncio-mqtt>=0.16.2",
+    "python-dotenv>=1.1.1",
+    # Redis for caching
+    "redis>=6.4.0",
+    "hiredis>=2.0.0",
+    # Whisper and speech processing - Phase 2: PyTorch-based
+    "openai-whisper>=20231117",
+    "torch>=2.9.0",
+    "torchaudio>=2.9.0",
+    "tiktoken>=0.5.0",
+    "faster-whisper>=0.9.0",
+    "onnxruntime>=1.12.0",
+    # Audio analysis and visualization
+    "matplotlib>=3.5.0",
+    # Enhanced audio processing
+    "webrtcvad>=2.0.10",
+    "silero-vad>=4.0.0",
+    # Speaker Diarization and Audio Enhancement
+    "pyannote.audio>=3.1.0",
+    "scikit-learn>=1.0.0",
+    # Speech Enhancement
+    "noisereduce>=2.0.0",
+    # Advanced Audio Processing
+    "speechbrain>=0.5.12",
+    "resemblyzer>=0.1.1",
+    # Audio feature extraction
+    "python_speech_features>=0.6.0",
+    # Additional dependencies for speaker diarization
+    "seaborn>=0.11.0",
+    "pandas>=2.0.0",
+    "uvicorn>=0.38.0",
+    "fastapi>=0.121.0",
+    # Configuration
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.10,<3.15"
-
-# Core Flask and web dependencies
-Flask = ">=2.0.0"
-Flask-SocketIO = ">=5.0.0"
-Flask-CORS = ">=3.0.0"
-
-# Audio processing
-numpy = "^2.3.4"
-sounddevice = ">=0.4.0"
-soundfile = "^0.13.1"
-scipy = "^1.16.2"
-librosa = "^0.11.0"
-pydub = "^0.25.1"
-audioread = ">=3.0.0"
-
-# WebSocket and networking
-websockets = "^15.0.1"
-requests = "^2.31.0"
-python-socketio = {extras = ["client"], version = "^5.14.2"}
-
-# Async and utilities
-asyncio-mqtt = "^0.16.2"
-python-dotenv = "^1.1.1"
-
-# Redis for caching
-redis = "^6.4.0"
-hiredis = ">=2.0.0"
-
-# Whisper and speech processing - Phase 2: PyTorch-based
-openai-whisper = ">=20231117"
-torch = ">=2.9.0"
-torchaudio = ">=2.9.0"
-tiktoken = ">=0.5.0"
-faster-whisper = ">=0.9.0"
-onnxruntime = ">=1.12.0"
-
-# Audio analysis and visualization
-matplotlib = ">=3.5.0"
-
-# Enhanced audio processing
-webrtcvad = ">=2.0.10"
-silero-vad = ">=4.0.0"
-
-# Speaker Diarization and Audio Enhancement
-"pyannote.audio" = ">=3.1.0"
-scikit-learn = ">=1.0.0"
-
-# Speech Enhancement
-noisereduce = ">=2.0.0"
-
-# Advanced Audio Processing
-speechbrain = ">=0.5.12"
-resemblyzer = ">=0.1.1"
-
-# Audio feature extraction
-python_speech_features = ">=0.6.0"
-
-# Additional dependencies for speaker diarization
-seaborn = ">=0.11.0"
-pandas = "^2.0.0"
-uvicorn = "^0.38.0"
-fastapi = "^0.121.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.4.2"
-pytest-asyncio = "^1.2.0"
-pytest-cov = "^7.0.0"
-pytest-mock = "^3.15.1"
-pytest-xdist = "^3.8.0"
-black = ">=23.0.0"
-flake8 = ">=6.0.0"
-mypy = ">=1.0.0"
-psutil = "^5.9.5"
-hypothesis = "^6.145.1"
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+package-dir = "."
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.1",
+    "pytest-xdist>=3.8.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "psutil>=5.9.5",
+    "hypothesis>=6.145.1",
+    "ruff>=0.8.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -104,12 +98,11 @@ markers = [
     "unit: marks tests as unit tests",
 ]
 addopts = "-v --strict-markers --tb=short"
-# Allow tests to import from tests module
 pythonpath = ["."]
 
 [tool.black]
 line-length = 100
-target-version = ['py310']
+target-version = ['py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -124,3 +117,11 @@ extend-exclude = '''
   | dist
 )/
 '''
+
+# Ruff config centralized in /ruff.toml at project root
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

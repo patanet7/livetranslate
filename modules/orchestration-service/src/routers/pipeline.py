@@ -4,28 +4,28 @@ Pipeline Processing API Router
 Real-time audio pipeline processing endpoints for the Pipeline Studio
 """
 
+import contextlib
 import json
 import time
 import uuid
-from typing import Dict, Any, List, Optional
-
-from fastapi import (
-    APIRouter,
-    HTTPException,
-    status,
-    Depends,
-    UploadFile,
-    File,
-    Form,
-    WebSocket,
-    WebSocketDisconnect,
-)
-from pydantic import BaseModel, ValidationError
+from typing import Any
 
 from dependencies import (
     get_audio_coordinator,
     get_config_manager,
 )
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from pydantic import BaseModel, ValidationError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -38,7 +38,7 @@ class PipelineStageConfig(BaseModel):
     enabled: bool = True
     gain_in: float = 0.0  # -20 to +20 dB
     gain_out: float = 0.0  # -20 to +20 dB
-    parameters: Dict[str, Any] = {}
+    parameters: dict[str, Any] = {}
 
 
 class PipelineConnection(BaseModel):
@@ -50,27 +50,25 @@ class PipelineConnection(BaseModel):
 class PipelineConfig(BaseModel):
     pipeline_id: str
     name: str
-    stages: Dict[str, PipelineStageConfig]
-    connections: List[PipelineConnection]
+    stages: dict[str, PipelineStageConfig]
+    connections: list[PipelineConnection]
 
 
 class PipelineProcessingRequest(BaseModel):
     pipeline_config: PipelineConfig
     processing_mode: str = "batch"  # "batch", "realtime", "preview"
     output_format: str = "wav"  # "wav", "mp3", "base64"
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
 
 class PipelineProcessingResponse(BaseModel):
     success: bool
     pipeline_id: str
-    processed_audio: Optional[str] = None  # Base64 encoded
-    metrics: Dict[str, Any]
-    stage_outputs: Optional[Dict[str, str]] = (
-        None  # Base64 encoded audio for each stage
-    )
-    errors: Optional[List[str]] = None
-    warnings: Optional[List[str]] = None
+    processed_audio: str | None = None  # Base64 encoded
+    metrics: dict[str, Any]
+    stage_outputs: dict[str, str] | None = None  # Base64 encoded audio for each stage
+    errors: list[str] | None = None
+    warnings: list[str] | None = None
 
 
 class RealtimeSessionConfig(BaseModel):
@@ -84,24 +82,22 @@ class RealtimeSessionConfig(BaseModel):
 class RealtimeSession(BaseModel):
     session_id: str
     pipeline_id: str
-    status: str = (
-        "initializing"  # "initializing", "running", "paused", "stopped", "error"
-    )
-    metrics: Dict[str, Any] = {}
+    status: str = "initializing"  # "initializing", "running", "paused", "stopped", "error"
+    metrics: dict[str, Any] = {}
 
 
 # Global state for WebSocket connections
-active_sessions: Dict[str, Dict[str, Any]] = {}
+active_sessions: dict[str, dict[str, Any]] = {}
 
 
 @router.post("/process", response_model=PipelineProcessingResponse)
 async def process_pipeline(
     pipeline_config: str = Form(...),
-    audio_file: Optional[UploadFile] = File(None),
-    audio_data: Optional[str] = Form(None),
+    audio_file: UploadFile | None = File(None),
+    audio_data: str | None = Form(None),
     processing_mode: str = Form("batch"),
     output_format: str = Form("wav"),
-    metadata: Optional[str] = Form(None),
+    metadata: str | None = Form(None),
     audio_coordinator=Depends(get_audio_coordinator),
     config_manager=Depends(get_config_manager),
 ):
@@ -116,8 +112,8 @@ async def process_pipeline(
         except (json.JSONDecodeError, ValidationError) as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Invalid pipeline configuration: {str(e)}",
-            )
+                detail=f"Invalid pipeline configuration: {e!s}",
+            ) from e
 
         # Get audio data
         audio_content = None
@@ -161,9 +157,7 @@ async def process_pipeline(
                 output_format=output_format,
             )
 
-            processing_time = (
-                time.time() - start_time
-            ) * 1000  # Convert to milliseconds
+            processing_time = (time.time() - start_time) * 1000  # Convert to milliseconds
 
             # Calculate metrics
             metrics = {
@@ -183,19 +177,15 @@ async def process_pipeline(
             if processed_result.get("processed_audio"):
                 import base64
 
-                processed_audio_b64 = base64.b64encode(
-                    processed_result["processed_audio"]
-                ).decode("utf-8")
+                processed_audio_b64 = base64.b64encode(processed_result["processed_audio"]).decode(
+                    "utf-8"
+                )
 
             # Get stage outputs if available
             stage_outputs = {}
             if processed_result.get("stage_outputs"):
-                for stage_name, stage_audio in processed_result[
-                    "stage_outputs"
-                ].items():
-                    stage_outputs[stage_name] = base64.b64encode(stage_audio).decode(
-                        "utf-8"
-                    )
+                for stage_name, stage_audio in processed_result["stage_outputs"].items():
+                    stage_outputs[stage_name] = base64.b64encode(stage_audio).decode("utf-8")
 
             logger.info(f"Pipeline processing completed in {processing_time:.1f}ms")
 
@@ -210,27 +200,27 @@ async def process_pipeline(
             )
 
         except Exception as processing_error:
-            logger.error(f"Pipeline processing failed: {str(processing_error)}")
+            logger.error(f"Pipeline processing failed: {processing_error!s}")
             return PipelineProcessingResponse(
                 success=False,
                 pipeline_id=pipeline.pipeline_id,
                 metrics={"total_latency": (time.time() - start_time) * 1000},
-                errors=[f"Processing failed: {str(processing_error)}"],
+                errors=[f"Processing failed: {processing_error!s}"],
             )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in pipeline processing: {str(e)}")
+        logger.error(f"Unexpected error in pipeline processing: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
-        )
+            detail=f"Internal server error: {e!s}",
+        ) from e
 
 
 @router.post("/realtime/start", response_model=RealtimeSession)
 async def start_realtime_session(
-    request: Dict[str, Any],
+    request: dict[str, Any],
     audio_coordinator=Depends(get_audio_coordinator),
 ):
     """
@@ -243,9 +233,7 @@ async def start_realtime_session(
         session_id = str(uuid.uuid4())
 
         # Convert pipeline config
-        orchestration_config = await convert_pipeline_to_orchestration_format(
-            pipeline_config
-        )
+        orchestration_config = await convert_pipeline_to_orchestration_format(pipeline_config)
 
         # Initialize session
         session = RealtimeSession(
@@ -275,11 +263,11 @@ async def start_realtime_session(
         return session
 
     except Exception as e:
-        logger.error(f"Failed to start real-time session: {str(e)}")
+        logger.error(f"Failed to start real-time session: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start session: {str(e)}",
-        )
+            detail=f"Failed to start session: {e!s}",
+        ) from e
 
 
 @router.websocket("/realtime/{session_id}")
@@ -319,7 +307,7 @@ async def realtime_websocket(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
-        logger.error(f"WebSocket error for session {session_id}: {str(e)}")
+        logger.error(f"WebSocket error for session {session_id}: {e!s}")
         await websocket.send_json({"type": "error", "error": str(e)})
     finally:
         # Clean up session
@@ -327,9 +315,7 @@ async def realtime_websocket(websocket: WebSocket, session_id: str):
             active_sessions[session_id]["websocket"] = None
 
 
-async def process_realtime_chunk(
-    session_id: str, audio_data_b64: str, websocket: WebSocket
-):
+async def process_realtime_chunk(session_id: str, audio_data_b64: str, websocket: WebSocket):
     """
     Process a real-time audio chunk
     """
@@ -365,12 +351,10 @@ async def process_realtime_chunk(
 
         # Send processed audio back
         if processed_result.get("processed_audio"):
-            processed_audio_b64 = base64.b64encode(
-                processed_result["processed_audio"]
-            ).decode("utf-8")
-            await websocket.send_json(
-                {"type": "processed_audio", "audio": processed_audio_b64}
+            processed_audio_b64 = base64.b64encode(processed_result["processed_audio"]).decode(
+                "utf-8"
             )
+            await websocket.send_json({"type": "processed_audio", "audio": processed_audio_b64})
 
         # Send metrics update
         await websocket.send_json(
@@ -390,14 +374,12 @@ async def process_realtime_chunk(
         )
 
     except Exception as e:
-        logger.error(f"Failed to process real-time chunk: {str(e)}")
-        await websocket.send_json(
-            {"type": "error", "error": f"Chunk processing failed: {str(e)}"}
-        )
+        logger.error(f"Failed to process real-time chunk: {e!s}")
+        await websocket.send_json({"type": "error", "error": f"Chunk processing failed: {e!s}"})
 
 
 async def update_stage_config(
-    session_id: str, stage_id: str, parameters: Dict[str, Any], websocket: WebSocket
+    session_id: str, stage_id: str, parameters: dict[str, Any], websocket: WebSocket
 ):
     """
     Update stage configuration in real-time
@@ -418,20 +400,16 @@ async def update_stage_config(
                 {"type": "config_updated", "stage_id": stage_id, "success": True}
             )
         else:
-            await websocket.send_json(
-                {"type": "error", "error": f"Stage {stage_id} not found"}
-            )
+            await websocket.send_json({"type": "error", "error": f"Stage {stage_id} not found"})
 
     except Exception as e:
-        logger.error(f"Failed to update stage config: {str(e)}")
-        await websocket.send_json(
-            {"type": "error", "error": f"Config update failed: {str(e)}"}
-        )
+        logger.error(f"Failed to update stage config: {e!s}")
+        await websocket.send_json({"type": "error", "error": f"Config update failed: {e!s}"})
 
 
 async def convert_pipeline_to_orchestration_format(
     pipeline: PipelineConfig,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Convert frontend pipeline format to orchestration service format
     """
@@ -488,10 +466,8 @@ async def stop_realtime_session(session_id: str):
 
         # Close WebSocket if connected
         if session_data.get("websocket"):
-            try:
+            with contextlib.suppress(Exception):
                 await session_data["websocket"].close()
-            except Exception:
-                pass
 
         # Remove session
         del active_sessions[session_id]
@@ -499,9 +475,7 @@ async def stop_realtime_session(session_id: str):
         logger.info(f"Stopped real-time session {session_id}")
         return {"success": True, "message": f"Session {session_id} stopped"}
     else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
 
 @router.get("/realtime/sessions")

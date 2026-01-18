@@ -4,15 +4,15 @@ Configuration Manager
 Centralized configuration management for the orchestration service.
 """
 
-import logging
 import json
+import logging
 import os
-from typing import Dict, Optional, Union
 from dataclasses import dataclass, field
 from datetime import datetime
+
 import yaml
-from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,9 @@ class DatabaseConfig:
     @property
     def url(self) -> str:
         """Get database URL"""
-        return f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
+        return (
+            f"postgresql://{self.username}:{self.password}@{self.host}:{self.port}/{self.database}"
+        )
 
 
 @dataclass
@@ -84,7 +86,7 @@ class MonitoringConfig:
     enabled: bool = True
     health_check_interval: int = 10
     metrics_collection_interval: int = 5
-    alert_thresholds: Dict[str, Union[int, float]] = field(
+    alert_thresholds: dict[str, int | float] = field(
         default_factory=lambda: {
             "response_time": 1000,  # ms
             "error_rate": 0.05,  # 5%
@@ -142,11 +144,11 @@ class OrchestrationConfig:
     bot: BotConfig = field(default_factory=BotConfig)
 
     # Service configurations
-    services: Dict[str, ServiceConfig] = field(default_factory=dict)
+    services: dict[str, ServiceConfig] = field(default_factory=dict)
 
     # Runtime info
     loaded_at: datetime = field(default_factory=datetime.now)
-    config_file: Optional[str] = None
+    config_file: str | None = None
 
 
 class ConfigFileHandler(FileSystemEventHandler):
@@ -166,11 +168,11 @@ class ConfigManager:
     Configuration manager with hot-reloading support
     """
 
-    def __init__(self, config_file: Optional[str] = None, watch_changes: bool = True):
+    def __init__(self, config_file: str | None = None, watch_changes: bool = True):
         self.config_file = config_file or self._find_config_file()
         self.watch_changes = watch_changes
-        self._config: Optional[OrchestrationConfig] = None
-        self._observer: Optional[Observer] = None
+        self._config: OrchestrationConfig | None = None
+        self._observer: Observer | None = None
         self._callbacks = []
 
         # Load initial configuration
@@ -180,7 +182,7 @@ class ConfigManager:
         if self.watch_changes and self.config_file:
             self._start_watching()
 
-    def _find_config_file(self) -> Optional[str]:
+    def _find_config_file(self) -> str | None:
         """Find configuration file in common locations"""
         possible_paths = [
             "orchestration.yaml",
@@ -204,7 +206,7 @@ class ConfigManager:
         # Load from file if available
         if self.config_file and os.path.exists(self.config_file):
             try:
-                with open(self.config_file, "r") as f:
+                with open(self.config_file) as f:
                     if self.config_file.endswith((".yaml", ".yml")):
                         file_config = yaml.safe_load(f)
                     else:
@@ -246,15 +248,9 @@ class ConfigManager:
             db_config = file_config["database"]
             base_config.database.host = db_config.get("host", base_config.database.host)
             base_config.database.port = db_config.get("port", base_config.database.port)
-            base_config.database.database = db_config.get(
-                "database", base_config.database.database
-            )
-            base_config.database.username = db_config.get(
-                "username", base_config.database.username
-            )
-            base_config.database.password = db_config.get(
-                "password", base_config.database.password
-            )
+            base_config.database.database = db_config.get("database", base_config.database.database)
+            base_config.database.username = db_config.get("username", base_config.database.username)
+            base_config.database.password = db_config.get("password", base_config.database.password)
             base_config.database.pool_size = db_config.get(
                 "pool_size", base_config.database.pool_size
             )
@@ -305,9 +301,7 @@ class ConfigManager:
             base_config.bot.max_concurrent_bots = bot_config.get(
                 "max_concurrent_bots", base_config.bot.max_concurrent_bots
             )
-            base_config.bot.bot_timeout = bot_config.get(
-                "bot_timeout", base_config.bot.bot_timeout
-            )
+            base_config.bot.bot_timeout = bot_config.get("bot_timeout", base_config.bot.bot_timeout)
             base_config.bot.audio_storage_path = bot_config.get(
                 "audio_storage_path", base_config.bot.audio_storage_path
             )
@@ -328,9 +322,12 @@ class ConfigManager:
         config.port = int(os.getenv("PORT", os.getenv("ORCHESTRATION_PORT", config.port)))
         config.workers = int(os.getenv("ORCHESTRATION_WORKERS", config.workers))
         config.debug = (
-            os.getenv("DEBUG", os.getenv("ORCHESTRATION_DEBUG", str(config.debug))).lower() == "true"
+            os.getenv("DEBUG", os.getenv("ORCHESTRATION_DEBUG", str(config.debug))).lower()
+            == "true"
         )
-        config.log_level = os.getenv("LOG_LEVEL", os.getenv("ORCHESTRATION_LOG_LEVEL", config.log_level))
+        config.log_level = os.getenv(
+            "LOG_LEVEL", os.getenv("ORCHESTRATION_LOG_LEVEL", config.log_level)
+        )
 
         # Database settings - support both POSTGRES_* and DATABASE_* prefixes
         # Also support DATABASE_URL for full connection string parsing
@@ -339,28 +336,33 @@ class ConfigManager:
             # Parse DATABASE_URL: postgresql://user:password@host:port/database
             try:
                 from urllib.parse import urlparse
+
                 parsed = urlparse(database_url)
                 if parsed.hostname:
                     config.database.host = parsed.hostname
                 if parsed.port:
                     config.database.port = parsed.port
-                if parsed.path and parsed.path.startswith('/'):
+                if parsed.path and parsed.path.startswith("/"):
                     config.database.database = parsed.path[1:]  # Remove leading slash
                 if parsed.username:
                     config.database.username = parsed.username
                 if parsed.password:
                     config.database.password = parsed.password
-                logger.info(f"Loaded database config from DATABASE_URL: {config.database.host}:{config.database.port}/{config.database.database} (user: {config.database.username})")
+                logger.info(
+                    f"Loaded database config from DATABASE_URL: {config.database.host}:{config.database.port}/{config.database.database} (user: {config.database.username})"
+                )
             except Exception as e:
-                logger.warning(f"Failed to parse DATABASE_URL: {e}, falling back to individual vars")
+                logger.warning(
+                    f"Failed to parse DATABASE_URL: {e}, falling back to individual vars"
+                )
 
         # Individual vars override DATABASE_URL (POSTGRES_* takes priority, then DATABASE_*)
         config.database.host = os.getenv(
             "POSTGRES_HOST", os.getenv("DATABASE_HOST", config.database.host)
         )
-        config.database.port = int(os.getenv(
-            "POSTGRES_PORT", os.getenv("DATABASE_PORT", str(config.database.port))
-        ))
+        config.database.port = int(
+            os.getenv("POSTGRES_PORT", os.getenv("DATABASE_PORT", str(config.database.port)))
+        )
         config.database.database = os.getenv(
             "POSTGRES_DB", os.getenv("DATABASE_NAME", config.database.database)
         )
@@ -372,15 +374,15 @@ class ConfigManager:
         )
 
         # Pool settings from environment
-        config.database.pool_size = int(os.getenv(
-            "DATABASE_POOL_SIZE", str(config.database.pool_size)
-        ))
-        config.database.max_overflow = int(os.getenv(
-            "DATABASE_MAX_OVERFLOW", str(config.database.max_overflow)
-        ))
-        config.database.pool_timeout = int(os.getenv(
-            "DATABASE_POOL_TIMEOUT", str(config.database.pool_timeout)
-        ))
+        config.database.pool_size = int(
+            os.getenv("DATABASE_POOL_SIZE", str(config.database.pool_size))
+        )
+        config.database.max_overflow = int(
+            os.getenv("DATABASE_MAX_OVERFLOW", str(config.database.max_overflow))
+        )
+        config.database.pool_timeout = int(
+            os.getenv("DATABASE_POOL_TIMEOUT", str(config.database.pool_timeout))
+        )
 
         # Service URLs
         if os.getenv("AUDIO_SERVICE_URL"):
@@ -394,9 +396,7 @@ class ConfigManager:
             config.services["translation-service"] = ServiceConfig(
                 name="translation-service",
                 url=os.getenv("TRANSLATION_SERVICE_URL"),
-                health_endpoint=os.getenv(
-                    "TRANSLATION_SERVICE_HEALTH_ENDPOINT", "/health"
-                ),
+                health_endpoint=os.getenv("TRANSLATION_SERVICE_HEALTH_ENDPOINT", "/health"),
             )
 
         # Bot settings
@@ -484,11 +484,11 @@ class ConfigManager:
         """Get current configuration"""
         return self._config
 
-    def get_service_config(self, service_name: str) -> Optional[ServiceConfig]:
+    def get_service_config(self, service_name: str) -> ServiceConfig | None:
         """Get configuration for specific service"""
         return self._config.services.get(service_name)
 
-    def save_config(self, config_file: Optional[str] = None):
+    def save_config(self, config_file: str | None = None):
         """Save current configuration to file"""
         output_file = config_file or self.config_file
 

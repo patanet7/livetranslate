@@ -132,8 +132,8 @@ export type UnsupportedMeetingCategory = {
 }
 
 export const categories = [
-  'WaitingAtLobby', 
-  'Recording', 
+  'WaitingAtLobby',
+  'Recording',
   'Integration',
   'UnsupportedMeeting',
   'Platform',
@@ -153,8 +153,8 @@ export const subCategories = [
   'BotNotResponding',
 ] as const;
 export const logCategories: {
-  category: typeof categories[number], 
-  subCategory: typeof subCategories[number][], 
+  category: typeof categories[number],
+  subCategory: typeof subCategories[number][],
 }[] = [
   {
     category: 'WaitingAtLobby',

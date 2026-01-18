@@ -1,8 +1,5 @@
-import base64
-import io
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import torch
@@ -25,7 +22,7 @@ class StreamingTranslator:
     Not true internal streaming, but performs rolling-window inference to emit partials.
     """
 
-    def __init__(self, config: Optional[StreamingConfig] = None) -> None:
+    def __init__(self, config: StreamingConfig | None = None) -> None:
         self.config = config or StreamingConfig()
         self._buffer = np.zeros(0, dtype=np.float32)
         self._last_partial_text: str = ""
@@ -58,7 +55,7 @@ class StreamingTranslator:
         return self._buffer[-max_samples:]
 
     @torch.inference_mode()
-    def infer_partial(self) -> Optional[str]:
+    def infer_partial(self) -> str | None:
         audio = self._window_for_inference()
         if audio.size == 0:
             return None
@@ -91,5 +88,3 @@ class StreamingTranslator:
         )
         text = self.processor.batch_decode(generated_tokens, skip_special_tokens=True)[0]
         return text.strip()
-
-

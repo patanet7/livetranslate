@@ -22,40 +22,42 @@ import logging
 import os
 import time
 from collections import defaultdict
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Callable, AsyncGenerator
+from datetime import UTC, datetime
+from typing import Any, Optional
+
 import httpx
 import numpy as np
-
 from clients.audio_service_client import (
     AudioServiceClient,
     TranscriptionRequest as ClientTranscriptionRequest,
 )
 from clients.translation_service_client import (
-    TranslationServiceClient,
     TranslationRequest as ClientTranslationRequest,
+    TranslationServiceClient,
 )
 
+from .chunk_manager import ChunkManager, create_chunk_manager
+from .database_adapter import AudioDatabaseAdapter
 from .models import (
-    AudioChunkMetadata,
     AudioChunkingConfig,
+    AudioChunkMetadata,
     AudioStreamingSession,
     SourceType,
     create_audio_chunk_metadata,
     get_default_chunking_config,
 )
-from .database_adapter import AudioDatabaseAdapter
-from .chunk_manager import ChunkManager, create_chunk_manager
 
 # Import data pipeline for modern database operations
 try:
     from pipeline.data_pipeline import (
+        AudioChunkMetadata as PipelineAudioChunkMetadata,
         TranscriptionDataPipeline,
         TranscriptionResult,
         TranslationResult,
-        AudioChunkMetadata as PipelineAudioChunkMetadata,
     )
+
     _PIPELINE_AVAILABLE = True
 except ImportError:
     TranscriptionDataPipeline = None
@@ -63,11 +65,11 @@ except ImportError:
     TranslationResult = None
     PipelineAudioChunkMetadata = None
     _PIPELINE_AVAILABLE = False
+from .audio_processor import AudioPipelineProcessor, create_audio_pipeline_processor
 from .config import (
     AudioProcessingConfig,
     create_audio_config_manager,
 )
-from .audio_processor import AudioPipelineProcessor, create_audio_pipeline_processor
 from .translation_cache import TranslationResultCache
 
 # Optional import for database optimization tracking
@@ -90,10 +92,10 @@ class ServiceClientPool:
 
     def __init__(
         self,
-        service_urls: Dict[str, str],
-        pool_config: Optional[Dict] = None,
-        audio_client: Optional[AudioServiceClient] = None,
-        translation_client: Optional[TranslationServiceClient] = None,
+        service_urls: dict[str, str],
+        pool_config: dict | None = None,
+        audio_client: AudioServiceClient | None = None,
+        translation_client: TranslationServiceClient | None = None,
     ):
         self.service_urls = service_urls
         pool_config = pool_config or {}
@@ -123,7 +125,7 @@ class ServiceClientPool:
         self.failure_timeout = pool_config.get("failure_timeout", 60.0)
 
         # HTTP client
-        self.client: Optional[httpx.AsyncClient] = None
+        self.client: httpx.AsyncClient | None = None
 
     async def initialize(self) -> bool:
         """Initialize the HTTP client pool with robust error handling."""
@@ -158,9 +160,7 @@ class ServiceClientPool:
                     )
                     return False
             else:
-                logger.error(
-                    f"Failed to initialize service client pool due to import error: {e}"
-                )
+                logger.error(f"Failed to initialize service client pool due to import error: {e}")
                 return False
         except Exception as e:
             logger.error(f"Failed to initialize service client pool: {e}")
@@ -177,9 +177,7 @@ class ServiceClientPool:
                 )
                 return True
             except Exception as final_e:
-                logger.error(
-                    f"Complete failure to initialize service client pool: {final_e}"
-                )
+                logger.error(f"Complete failure to initialize service client pool: {final_e}")
                 return False
 
     async def close(self):
@@ -188,7 +186,7 @@ class ServiceClientPool:
             await self.client.aclose()
             logger.info("Service client pool closed")
 
-    def _is_remote_service(self, service_url: Optional[str]) -> bool:
+    def _is_remote_service(self, service_url: str | None) -> bool:
         return bool(service_url and service_url.startswith("http"))
 
     @asynccontextmanager
@@ -204,7 +202,7 @@ class ServiceClientPool:
         chunk_metadata: AudioChunkMetadata,
         audio_data: np.ndarray,
         model: str = "whisper-tiny",
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Send audio chunk to whisper service for transcription."""
         if self.audio_client:
             return await self._transcribe_with_audio_client(
@@ -212,9 +210,7 @@ class ServiceClientPool:
             )
 
         service_url = self.service_urls.get("whisper_service")
-        if not self._is_remote_service(service_url) or not self._is_service_healthy(
-            service_url
-        ):
+        if not self._is_remote_service(service_url) or not self._is_service_healthy(service_url):
             return None
 
         try:
@@ -258,16 +254,14 @@ class ServiceClientPool:
             return None
 
     async def send_to_translation_service(
-        self, session_id: str, transcript_data: Dict[str, Any], target_language: str
-    ) -> Optional[Dict[str, Any]]:
+        self, session_id: str, transcript_data: dict[str, Any], target_language: str
+    ) -> dict[str, Any] | None:
         """Send transcript to translation service."""
         if self.translation_client:
             return await self._translate_with_client(transcript_data, target_language)
 
         service_url = self.service_urls.get("translation_service")
-        if not self._is_remote_service(service_url) or not self._is_service_healthy(
-            service_url
-        ):
+        if not self._is_remote_service(service_url) or not self._is_service_healthy(service_url):
             return None
 
         try:
@@ -308,9 +302,9 @@ class ServiceClientPool:
 
     async def _translate_with_client(
         self,
-        transcript_data: Dict[str, Any],
+        transcript_data: dict[str, Any],
         target_language: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         if not self.translation_client:
             return None
 
@@ -353,7 +347,7 @@ class ServiceClientPool:
         chunk_metadata: AudioChunkMetadata,
         audio_data: np.ndarray,
         model: str = "whisper-tiny",
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         if not self.audio_client:
             return None
 
@@ -381,7 +375,7 @@ class ServiceClientPool:
                 )
             )
 
-            speaker_info: Dict[str, Any] = {}
+            speaker_info: dict[str, Any] = {}
             if response.speakers:
                 speaker_info["speakers"] = response.speakers
 
@@ -400,6 +394,7 @@ class ServiceClientPool:
     def _audio_to_bytes(self, audio_data: np.ndarray, sample_rate: int) -> bytes:
         """Convert audio data to WAV bytes."""
         import io
+
         import soundfile as sf
 
         # Convert to int16 for efficient transmission
@@ -415,7 +410,7 @@ class ServiceClientPool:
         buffer.seek(0)
         return buffer.read()
 
-    def _is_service_healthy(self, service_url: Optional[str]) -> bool:
+    def _is_service_healthy(self, service_url: str | None) -> bool:
         """Check if service is healthy based on circuit breaker state."""
         if not self._is_remote_service(service_url):
             return True
@@ -434,7 +429,7 @@ class ServiceClientPool:
 
         return False
 
-    def _mark_service_healthy(self, service_url: Optional[str]):
+    def _mark_service_healthy(self, service_url: str | None):
         """Mark service as healthy."""
         if not self._is_remote_service(service_url):
             return
@@ -442,7 +437,7 @@ class ServiceClientPool:
             self.service_health[service_url]["healthy"] = True
             self.service_health[service_url]["failures"] = 0
 
-    def _mark_service_failure(self, service_url: Optional[str]):
+    def _mark_service_failure(self, service_url: str | None):
         """Mark service failure and update circuit breaker state."""
         if not self._is_remote_service(service_url):
             return
@@ -466,9 +461,9 @@ class SessionManager:
 
     def __init__(self, max_concurrent_sessions: int = 10):
         self.max_concurrent_sessions = max_concurrent_sessions
-        self.active_sessions: Dict[str, AudioStreamingSession] = {}
-        self.session_managers: Dict[str, ChunkManager] = {}
-        self.session_callbacks: Dict[str, Dict[str, Callable]] = defaultdict(dict)
+        self.active_sessions: dict[str, AudioStreamingSession] = {}
+        self.session_managers: dict[str, ChunkManager] = {}
+        self.session_callbacks: dict[str, dict[str, Callable]] = defaultdict(dict)
 
         # Resource tracking
         self.total_sessions_created = 0
@@ -485,14 +480,12 @@ class SessionManager:
         bot_session_id: str,
         source_type: SourceType,
         config: AudioChunkingConfig,
-        target_languages: List[str],
+        target_languages: list[str],
         database_adapter: AudioDatabaseAdapter,
-    ) -> Optional[AudioStreamingSession]:
+    ) -> AudioStreamingSession | None:
         """Create new audio streaming session."""
         if not self.can_create_session():
-            logger.warning(
-                f"Cannot create session {session_id}: max concurrent sessions reached"
-            )
+            logger.warning(f"Cannot create session {session_id}: max concurrent sessions reached")
             return None
 
         try:
@@ -515,9 +508,7 @@ class SessionManager:
             self.session_managers[session_id] = chunk_manager
             self.total_sessions_created += 1
 
-            logger.info(
-                f"Created audio session {session_id} for bot session {bot_session_id}"
-            )
+            logger.info(f"Created audio session {session_id} for bot session {bot_session_id}")
             return streaming_session
 
         except Exception as e:
@@ -543,7 +534,7 @@ class SessionManager:
             logger.error(f"Failed to start session {session_id}: {e}")
             return False
 
-    async def stop_session(self, session_id: str) -> Dict[str, Any]:
+    async def stop_session(self, session_id: str) -> dict[str, Any]:
         """Stop audio processing for a session and return statistics."""
         if session_id not in self.session_managers:
             return {}
@@ -556,19 +547,15 @@ class SessionManager:
             if session_id in self.active_sessions:
                 session = self.active_sessions[session_id]
                 session.stream_status = "ended"
-                session.ended_at = datetime.now(timezone.utc)
+                session.ended_at = datetime.now(UTC)
                 session.chunks_processed = stats.get("chunks_processed", 0)
                 session.total_duration = stats.get("total_audio_duration", 0.0)
-                session.average_processing_time = stats.get(
-                    "average_processing_time", 0.0
-                )
+                session.average_processing_time = stats.get("average_processing_time", 0.0)
                 session.average_quality_score = stats.get("average_quality_score", 0.0)
 
                 # Update global statistics
                 self.total_chunks_processed += session.chunks_processed
-                session_duration = (
-                    session.ended_at - session.started_at
-                ).total_seconds()
+                session_duration = (session.ended_at - session.started_at).total_seconds()
                 self.average_session_duration = (
                     self.average_session_duration * (self.total_sessions_created - 1)
                     + session_duration
@@ -586,15 +573,15 @@ class SessionManager:
             self.active_sessions.pop(session_id, None)
             self.session_callbacks.pop(session_id, None)
 
-    def get_session(self, session_id: str) -> Optional[AudioStreamingSession]:
+    def get_session(self, session_id: str) -> AudioStreamingSession | None:
         """Get session by ID."""
         return self.active_sessions.get(session_id)
 
-    def get_chunk_manager(self, session_id: str) -> Optional[ChunkManager]:
+    def get_chunk_manager(self, session_id: str) -> ChunkManager | None:
         """Get chunk manager for session."""
         return self.session_managers.get(session_id)
 
-    def set_session_callbacks(self, session_id: str, callbacks: Dict[str, Callable]):
+    def set_session_callbacks(self, session_id: str, callbacks: dict[str, Callable]):
         """Set callbacks for a session."""
         if session_id in self.session_managers:
             chunk_manager = self.session_managers[session_id]
@@ -608,11 +595,11 @@ class SessionManager:
 
             self.session_callbacks[session_id] = callbacks
 
-    def get_all_sessions(self) -> List[AudioStreamingSession]:
+    def get_all_sessions(self) -> list[AudioStreamingSession]:
         """Get all active sessions."""
         return list(self.active_sessions.values())
 
-    def get_session_statistics(self) -> Dict[str, Any]:
+    def get_session_statistics(self) -> dict[str, Any]:
         """Get overall session management statistics."""
         active_sessions = len(self.active_sessions)
 
@@ -638,12 +625,12 @@ class AudioCoordinator:
     def __init__(
         self,
         config: AudioChunkingConfig,
-        database_url: Optional[str],
-        service_urls: Dict[str, str],
+        database_url: str | None,
+        service_urls: dict[str, str],
         max_concurrent_sessions: int = 10,
-        audio_config_file: Optional[str] = None,
-        audio_client: Optional[AudioServiceClient] = None,
-        translation_client: Optional[TranslationServiceClient] = None,
+        audio_config_file: str | None = None,
+        audio_client: AudioServiceClient | None = None,
+        translation_client: TranslationServiceClient | None = None,
         data_pipeline: Optional["TranscriptionDataPipeline"] = None,
     ):
         self.config = config
@@ -682,9 +669,7 @@ class AudioCoordinator:
             database_adapter=self.database_adapter,
             auto_reload=True,
         )
-        self.audio_processors: Dict[
-            str, AudioPipelineProcessor
-        ] = {}  # Per-session processors
+        self.audio_processors: dict[str, AudioPipelineProcessor] = {}  # Per-session processors
 
         # Translation optimization components
         self.translation_opt_adapter = None
@@ -698,9 +683,7 @@ class AudioCoordinator:
                 )
                 logger.info("Translation optimization adapter initialized")
             except Exception as e:
-                logger.warning(
-                    f"Failed to initialize translation optimization adapter: {e}"
-                )
+                logger.warning(f"Failed to initialize translation optimization adapter: {e}")
 
         # Initialize translation cache
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/1")
@@ -715,9 +698,7 @@ class AudioCoordinator:
                     db_adapter=self.translation_opt_adapter,
                     session_id=None,  # Will be set per-session
                 )
-                logger.info(
-                    f"Translation cache enabled: TTL={cache_ttl}s, Redis={redis_url}"
-                )
+                logger.info(f"Translation cache enabled: TTL={cache_ttl}s, Redis={redis_url}")
             except Exception as e:
                 logger.warning(f"Failed to initialize translation cache: {e}")
                 self.translation_cache = None
@@ -726,7 +707,7 @@ class AudioCoordinator:
 
         # Processing state
         self.is_running = False
-        self.start_time: Optional[float] = None
+        self.start_time: float | None = None
 
         # Performance tracking
         self.total_audio_processed = 0.0
@@ -736,17 +717,17 @@ class AudioCoordinator:
         self.processing_errors = 0
 
         # Event callbacks
-        self.on_transcript_ready: Optional[Callable] = None
-        self.on_translation_ready: Optional[Callable] = None
-        self.on_session_event: Optional[Callable] = None
-        self.on_error: Optional[Callable] = None
+        self.on_transcript_ready: Callable | None = None
+        self.on_translation_ready: Callable | None = None
+        self.on_session_event: Callable | None = None
+        self.on_error: Callable | None = None
 
         logger.info("AudioCoordinator initialized")
 
     # ==================== Format Conversion Helper Methods ====================
 
     def _create_transcription_result(
-        self, transcript_data: Dict[str, Any]
+        self, transcript_data: dict[str, Any]
     ) -> "TranscriptionResult":
         """
         Convert transcript dictionary to TranscriptionResult dataclass for pipeline.
@@ -758,9 +739,7 @@ class AudioCoordinator:
             TranscriptionResult instance for pipeline processing
         """
         if not TranscriptionResult:
-            raise ImportError(
-                "TranscriptionResult not available - pipeline not imported"
-            )
+            raise ImportError("TranscriptionResult not available - pipeline not imported")
 
         speaker_info = transcript_data.get("speaker_info", {})
 
@@ -774,12 +753,10 @@ class AudioCoordinator:
             confidence=transcript_data.get("confidence", 0.0),
             segment_index=transcript_data.get("segment_index", 0),
             is_final=transcript_data.get("is_final", True),
-            words=transcript_data.get("words", None),
+            words=transcript_data.get("words"),
         )
 
-    def _create_translation_result(
-        self, translation_data: Dict[str, Any]
-    ) -> "TranslationResult":
+    def _create_translation_result(self, translation_data: dict[str, Any]) -> "TranslationResult":
         """
         Convert translation dictionary to TranslationResult dataclass for pipeline.
 
@@ -799,18 +776,16 @@ class AudioCoordinator:
             speaker=translation_data.get("speaker_id"),
             speaker_name=translation_data.get("speaker_name"),
             confidence=translation_data.get("confidence", 0.0),
-            translation_service=translation_data.get(
-                "translation_service", "translation_service"
-            ),
-            model_name=translation_data.get("model", None),
+            translation_service=translation_data.get("translation_service", "translation_service"),
+            model_name=translation_data.get("model"),
         )
 
     async def _store_transcript_via_pipeline(
         self,
         session_id: str,
-        transcript_data: Dict[str, Any],
-        audio_file_id: Optional[str] = None,
-    ) -> Optional[str]:
+        transcript_data: dict[str, Any],
+        audio_file_id: str | None = None,
+    ) -> str | None:
         """
         Store transcript using data pipeline with proper format conversion.
 
@@ -838,10 +813,10 @@ class AudioCoordinator:
         self,
         session_id: str,
         transcript_id: str,
-        translation_data: Dict[str, Any],
+        translation_data: dict[str, Any],
         start_timestamp: float,
         end_timestamp: float,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Store translation using data pipeline with proper format conversion.
 
@@ -865,9 +840,7 @@ class AudioCoordinator:
                 end_time=end_timestamp,
             )
         except Exception as e:
-            logger.error(
-                f"Failed to store translation via pipeline: {e}", exc_info=True
-            )
+            logger.error(f"Failed to store translation via pipeline: {e}", exc_info=True)
             return None
 
     # ==================== Initialization and Lifecycle ====================
@@ -882,9 +855,7 @@ class AudioCoordinator:
                     logger.error("Failed to initialize database adapter")
                     return False
             else:
-                logger.warning(
-                    "Database adapter disabled - running without persistence"
-                )
+                logger.warning("Database adapter disabled - running without persistence")
 
             # Initialize service client pool
             success = await self.service_client.initialize()
@@ -899,9 +870,7 @@ class AudioCoordinator:
                 return False
 
             # Set up configuration change callback
-            self.audio_config_manager.add_config_change_callback(
-                self._on_audio_config_change
-            )
+            self.audio_config_manager.add_config_change_callback(self._on_audio_config_change)
 
             self.is_running = True
             self.start_time = time.time()
@@ -913,7 +882,7 @@ class AudioCoordinator:
             logger.error(f"Failed to initialize AudioCoordinator: {e}")
             return False
 
-    async def shutdown(self) -> Dict[str, Any]:
+    async def shutdown(self) -> dict[str, Any]:
         """Shutdown the audio coordinator and return final statistics."""
         try:
             self.is_running = False
@@ -972,19 +941,15 @@ class AudioCoordinator:
         return await self.shutdown()
 
     # Event callback setters
-    def set_transcript_ready_callback(self, callback: Callable[[Dict[str, Any]], None]):
+    def set_transcript_ready_callback(self, callback: Callable[[dict[str, Any]], None]):
         """Set callback for when transcripts are ready."""
         self.on_transcript_ready = callback
 
-    def set_translation_ready_callback(
-        self, callback: Callable[[Dict[str, Any]], None]
-    ):
+    def set_translation_ready_callback(self, callback: Callable[[dict[str, Any]], None]):
         """Set callback for when translations are ready."""
         self.on_translation_ready = callback
 
-    def set_session_event_callback(
-        self, callback: Callable[[str, Dict[str, Any]], None]
-    ):
+    def set_session_event_callback(self, callback: Callable[[str, dict[str, Any]], None]):
         """Set callback for session events."""
         self.on_session_event = callback
 
@@ -995,9 +960,9 @@ class AudioCoordinator:
     async def process_audio_chunk(
         self,
         audio_chunk: bytes,
-        pipeline_config: Optional[Dict[str, Any]] = None,
-        session_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        pipeline_config: dict[str, Any] | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         Process a single audio chunk through the pipeline.
 
@@ -1039,7 +1004,7 @@ class AudioCoordinator:
         self,
         change_type: str,
         config: AudioProcessingConfig,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
     ):
         """Handle audio configuration changes."""
         try:
@@ -1047,9 +1012,7 @@ class AudioCoordinator:
                 # Update session-specific processor
                 if session_id in self.audio_processors:
                     self.audio_processors[session_id].update_config(config)
-                    logger.info(
-                        f"Updated audio processor config for session {session_id}"
-                    )
+                    logger.info(f"Updated audio processor config for session {session_id}")
             else:
                 # Update all processors with new default config
                 for processor in self.audio_processors.values():
@@ -1070,9 +1033,7 @@ class AudioCoordinator:
         except Exception as e:
             logger.error(f"Failed to handle audio config change: {e}")
 
-    def get_audio_processing_config(
-        self, session_id: Optional[str] = None
-    ) -> AudioProcessingConfig:
+    def get_audio_processing_config(self, session_id: str | None = None) -> AudioProcessingConfig:
         """Get audio processing configuration for session or default."""
         if session_id:
             return self.audio_config_manager.get_session_config(session_id)
@@ -1081,8 +1042,8 @@ class AudioCoordinator:
 
     async def update_audio_processing_config(
         self,
-        config_updates: Dict[str, Any],
-        session_id: Optional[str] = None,
+        config_updates: dict[str, Any],
+        session_id: str | None = None,
         save_persistent: bool = True,
     ) -> AudioProcessingConfig:
         """Update audio processing configuration."""
@@ -1090,17 +1051,15 @@ class AudioCoordinator:
             config_updates, session_id, save_persistent
         )
 
-    async def apply_audio_preset(
-        self, preset_name: str, session_id: Optional[str] = None
-    ) -> bool:
+    async def apply_audio_preset(self, preset_name: str, session_id: str | None = None) -> bool:
         """Apply an audio processing preset."""
         return await self.audio_config_manager.apply_preset(preset_name, session_id)
 
-    def get_available_audio_presets(self) -> List[str]:
+    def get_available_audio_presets(self) -> list[str]:
         """Get list of available audio processing presets."""
         return self.audio_config_manager.get_available_presets()
 
-    def get_audio_config_schema(self) -> Dict[str, Any]:
+    def get_audio_config_schema(self) -> dict[str, Any]:
         """Get audio configuration schema for frontend validation."""
         return self.audio_config_manager.get_config_schema()
 
@@ -1109,9 +1068,7 @@ class AudioCoordinator:
         if session_id not in self.audio_processors:
             # Get session-specific config or use default
             audio_config = self.audio_config_manager.get_session_config(session_id)
-            self.audio_processors[session_id] = create_audio_pipeline_processor(
-                audio_config
-            )
+            self.audio_processors[session_id] = create_audio_pipeline_processor(audio_config)
             logger.info(
                 f"Created audio processor for session {session_id} with preset: {audio_config.preset_name}"
             )
@@ -1123,9 +1080,9 @@ class AudioCoordinator:
         self,
         bot_session_id: str,
         source_type: SourceType = SourceType.BOT_AUDIO,
-        target_languages: Optional[List[str]] = None,
-        custom_config: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        target_languages: list[str] | None = None,
+        custom_config: dict[str, Any] | None = None,
+    ) -> str | None:
         """
         Create new audio streaming session.
 
@@ -1167,12 +1124,8 @@ class AudioCoordinator:
                     "on_chunk_ready": lambda metadata, audio_data: asyncio.create_task(
                         self._handle_chunk_ready(session_id, metadata, audio_data)
                     ),
-                    "on_quality_alert": lambda alert: self._handle_quality_alert(
-                        session_id, alert
-                    ),
-                    "on_error": lambda error: self._handle_session_error(
-                        session_id, error
-                    ),
+                    "on_quality_alert": lambda alert: self._handle_quality_alert(session_id, alert),
+                    "on_error": lambda error: self._handle_session_error(session_id, error),
                 }
 
                 self.session_manager.set_session_callbacks(session_id, callbacks)
@@ -1207,9 +1160,7 @@ class AudioCoordinator:
             success = await self.session_manager.start_session(session_id)
 
             if success and self.on_session_event:
-                self.on_session_event(
-                    "audio_session_started", {"session_id": session_id}
-                )
+                self.on_session_event("audio_session_started", {"session_id": session_id})
 
             return success
 
@@ -1217,7 +1168,7 @@ class AudioCoordinator:
             logger.error(f"Failed to start audio session {session_id}: {e}")
             return False
 
-    async def stop_audio_session(self, session_id: str) -> Dict[str, Any]:
+    async def stop_audio_session(self, session_id: str) -> dict[str, Any]:
         """Stop audio processing for a session."""
         try:
             stats = await self.session_manager.stop_session(session_id)
@@ -1254,9 +1205,7 @@ class AudioCoordinator:
 
             # Apply audio processing pipeline
             audio_processor = self._get_or_create_audio_processor(session_id)
-            processed_audio, processing_metadata = audio_processor.process_audio_chunk(
-                audio_data
-            )
+            processed_audio, processing_metadata = audio_processor.process_audio_chunk(audio_data)
 
             # Log processing results if significant
             if processing_metadata.get("bypassed", False):
@@ -1275,12 +1224,10 @@ class AudioCoordinator:
                 # Update session activity
                 session = self.session_manager.get_session(session_id)
                 if session:
-                    session.last_activity_at = datetime.now(timezone.utc)
+                    session.last_activity_at = datetime.now(UTC)
 
                 # Update global statistics
-                self.total_audio_processed += (
-                    samples_added / 16000
-                )  # Convert to seconds
+                self.total_audio_processed += samples_added / 16000  # Convert to seconds
 
                 # Store processing metadata for analytics
                 if self.on_session_event:
@@ -1367,9 +1314,7 @@ class AudioCoordinator:
                                 "start_timestamp": metadata.chunk_start_time,
                                 "end_timestamp": metadata.chunk_end_time,
                                 "language": transcript_result.get("language", "en"),
-                                "speaker_info": transcript_result.get(
-                                    "speaker_info", {}
-                                ),
+                                "speaker_info": transcript_result.get("speaker_info", {}),
                                 "confidence": transcript_result.get("confidence", 0.0),
                             }
                         )
@@ -1384,13 +1329,9 @@ class AudioCoordinator:
                             session.target_languages,
                         )
                 else:
-                    logger.warning(
-                        f"Failed to store transcript for chunk {metadata.chunk_id}"
-                    )
+                    logger.warning(f"Failed to store transcript for chunk {metadata.chunk_id}")
             else:
-                logger.debug(
-                    f"No text in transcript result for chunk {metadata.chunk_id}"
-                )
+                logger.debug(f"No text in transcript result for chunk {metadata.chunk_id}")
 
         except Exception as e:
             logger.error(f"Failed to handle chunk ready for {metadata.chunk_id}: {e}")
@@ -1400,8 +1341,8 @@ class AudioCoordinator:
         self,
         session_id: str,
         transcript_id: str,
-        transcript_result: Dict[str, Any],
-        target_languages: List[str],
+        transcript_result: dict[str, Any],
+        target_languages: list[str],
     ):
         """
         OPTIMIZED: Request translations with caching and multi-language batching.
@@ -1420,9 +1361,7 @@ class AudioCoordinator:
         target_langs = [lang for lang in target_languages if lang != source_language]
 
         if not target_langs:
-            logger.debug(
-                f"No target languages to translate to (source={source_language})"
-            )
+            logger.debug(f"No target languages to translate to (source={source_language})")
             return
 
         logger.info(
@@ -1457,9 +1396,7 @@ class AudioCoordinator:
                         logger.debug(f"Cache MISS: {source_language}→{lang}")
 
             except Exception as cache_error:
-                logger.error(
-                    f"Cache lookup failed: {cache_error}, proceeding without cache"
-                )
+                logger.error(f"Cache lookup failed: {cache_error}, proceeding without cache")
                 needs_translation = target_langs
         else:
             # No cache, translate all
@@ -1499,14 +1436,10 @@ class AudioCoordinator:
                             }
                 else:
                     # Fallback to service client pool (sequential)
-                    logger.warning(
-                        "Translation client not available, using service pool"
-                    )
+                    logger.warning("Translation client not available, using service pool")
                     for lang in needs_translation:
-                        translation_result = (
-                            await self.service_client.send_to_translation_service(
-                                session_id, transcript_result, lang
-                            )
+                        translation_result = await self.service_client.send_to_translation_service(
+                            session_id, transcript_result, lang
                         )
                         if translation_result:
                             new_translations[lang] = translation_result
@@ -1577,15 +1510,13 @@ class AudioCoordinator:
                     was_cached=(target_lang in cached_results),
                 )
             except Exception as store_error:
-                logger.error(
-                    f"Failed to store translation {target_lang}: {store_error}"
-                )
+                logger.error(f"Failed to store translation {target_lang}: {store_error}")
 
     async def _process_single_translation(
         self,
         session_id: str,
         transcript_id: str,
-        transcript_result: Dict[str, Any],
+        transcript_result: dict[str, Any],
         target_language: str,
     ):
         """Process a single translation request."""
@@ -1604,20 +1535,16 @@ class AudioCoordinator:
                         transcript_id,
                         {
                             "translated_text": translation_result["translated_text"],
-                            "source_language": transcript_result.get(
-                                "language", "auto"
-                            ),
+                            "source_language": transcript_result.get("language", "auto"),
                             "target_language": target_language,
                             "confidence": translation_result.get("confidence", 0.0),
-                            "translation_service": translation_result.get(
-                                "service", "unknown"
-                            ),
+                            "translation_service": translation_result.get("service", "unknown"),
                             "speaker_id": transcript_result.get("speaker_info", {}).get(
                                 "speaker_id"
                             ),
-                            "speaker_name": transcript_result.get(
-                                "speaker_info", {}
-                            ).get("speaker_name"),
+                            "speaker_name": transcript_result.get("speaker_info", {}).get(
+                                "speaker_name"
+                            ),
                             "metadata": translation_result.get("metadata", {}),
                         },
                         start_timestamp=transcript_result.get("start_timestamp", 0.0),
@@ -1630,26 +1557,18 @@ class AudioCoordinator:
                         transcript_id,
                         {
                             "translated_text": translation_result["translated_text"],
-                            "source_language": transcript_result.get(
-                                "language", "auto"
-                            ),
+                            "source_language": transcript_result.get("language", "auto"),
                             "target_language": target_language,
                             "confidence": translation_result.get("confidence", 0.0),
-                            "translation_service": translation_result.get(
-                                "service", "unknown"
-                            ),
+                            "translation_service": translation_result.get("service", "unknown"),
                             "speaker_id": transcript_result.get("speaker_info", {}).get(
                                 "speaker_id"
                             ),
-                            "speaker_name": transcript_result.get(
-                                "speaker_info", {}
-                            ).get("speaker_name"),
-                            "start_timestamp": transcript_result.get(
-                                "start_timestamp", 0.0
+                            "speaker_name": transcript_result.get("speaker_info", {}).get(
+                                "speaker_name"
                             ),
-                            "end_timestamp": transcript_result.get(
-                                "end_timestamp", 0.0
-                            ),
+                            "start_timestamp": transcript_result.get("start_timestamp", 0.0),
+                            "end_timestamp": transcript_result.get("end_timestamp", 0.0),
                             "metadata": translation_result.get("metadata", {}),
                         },
                     )
@@ -1668,29 +1587,17 @@ class AudioCoordinator:
                                 "translation_id": translation_id,
                                 "transcript_id": transcript_id,
                                 "original_text": transcript_result["text"],
-                                "translated_text": translation_result[
-                                    "translated_text"
-                                ],
-                                "source_language": transcript_result.get(
-                                    "language", "auto"
-                                ),
+                                "translated_text": translation_result["translated_text"],
+                                "source_language": transcript_result.get("language", "auto"),
                                 "target_language": target_language,
-                                "speaker_info": transcript_result.get(
-                                    "speaker_info", {}
-                                ),
+                                "speaker_info": transcript_result.get("speaker_info", {}),
                                 "confidence": translation_result.get("confidence", 0.0),
-                                "start_timestamp": transcript_result.get(
-                                    "start_timestamp", 0.0
-                                ),
-                                "end_timestamp": transcript_result.get(
-                                    "end_timestamp", 0.0
-                                ),
+                                "start_timestamp": transcript_result.get("start_timestamp", 0.0),
+                                "end_timestamp": transcript_result.get("end_timestamp", 0.0),
                             }
                         )
                 else:
-                    logger.warning(
-                        f"Failed to store translation for transcript {transcript_id}"
-                    )
+                    logger.warning(f"Failed to store translation for transcript {transcript_id}")
 
         except Exception as e:
             logger.error(
@@ -1702,9 +1609,9 @@ class AudioCoordinator:
         self,
         session_id: str,
         transcript_id: str,
-        transcript_result: Dict[str, Any],
+        transcript_result: dict[str, Any],
         target_language: str,
-        translation_data: Dict[str, Any],
+        translation_data: dict[str, Any],
         was_cached: bool,
     ):
         """
@@ -1734,12 +1641,8 @@ class AudioCoordinator:
                     "translation_service": translation_data.get("metadata", {}).get(
                         "backend_used", "unknown"
                     ),
-                    "speaker_id": transcript_result.get("speaker_info", {}).get(
-                        "speaker_id"
-                    ),
-                    "speaker_name": transcript_result.get("speaker_info", {}).get(
-                        "speaker_name"
-                    ),
+                    "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                    "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
                     "metadata": translation_data.get("metadata", {}),
                 },
                 start_timestamp=transcript_result.get("start_timestamp", 0.0),
@@ -1758,12 +1661,8 @@ class AudioCoordinator:
                     "translation_service": translation_data.get("metadata", {}).get(
                         "backend_used", "unknown"
                     ),
-                    "speaker_id": transcript_result.get("speaker_info", {}).get(
-                        "speaker_id"
-                    ),
-                    "speaker_name": transcript_result.get("speaker_info", {}).get(
-                        "speaker_name"
-                    ),
+                    "speaker_id": transcript_result.get("speaker_info", {}).get("speaker_id"),
+                    "speaker_name": transcript_result.get("speaker_info", {}).get("speaker_name"),
                     "start_timestamp": transcript_result.get("start_timestamp", 0.0),
                     "end_timestamp": transcript_result.get("end_timestamp", 0.0),
                     "metadata": translation_data.get("metadata", {}),
@@ -1775,18 +1674,14 @@ class AudioCoordinator:
                 try:
                     await self.translation_opt_adapter.update_translation_optimization_metadata(
                         translation_id=translation_id,
-                        model_name=translation_data.get("metadata", {}).get(
-                            "model_used"
-                        ),
-                        model_backend=translation_data.get("metadata", {}).get(
-                            "backend_used"
-                        ),
+                        model_name=translation_data.get("metadata", {}).get("model_used"),
+                        model_backend=translation_data.get("metadata", {}).get("backend_used"),
                         was_cached=was_cached,
                         optimization_metadata={
                             "was_cached": was_cached,
-                            "processing_time_ms": translation_data.get(
-                                "metadata", {}
-                            ).get("processing_time"),
+                            "processing_time_ms": translation_data.get("metadata", {}).get(
+                                "processing_time"
+                            ),
                         },
                     )
                 except Exception as opt_error:
@@ -1811,26 +1706,20 @@ class AudioCoordinator:
                         "target_language": target_language,
                         "speaker_info": transcript_result.get("speaker_info", {}),
                         "confidence": translation_data.get("confidence", 0.0),
-                        "start_timestamp": transcript_result.get(
-                            "start_timestamp", 0.0
-                        ),
+                        "start_timestamp": transcript_result.get("start_timestamp", 0.0),
                         "end_timestamp": transcript_result.get("end_timestamp", 0.0),
                         "was_cached": was_cached,
                     }
                 )
         else:
-            logger.warning(
-                f"Failed to store translation for transcript {transcript_id}"
-            )
+            logger.warning(f"Failed to store translation for transcript {transcript_id}")
 
-    def _handle_quality_alert(self, session_id: str, alert: Dict[str, Any]):
+    def _handle_quality_alert(self, session_id: str, alert: dict[str, Any]):
         """Handle quality alerts from chunk processing."""
         logger.info(f"Quality alert for session {session_id}: {alert}")
 
         if self.on_session_event:
-            self.on_session_event(
-                "quality_alert", {"session_id": session_id, "alert": alert}
-            )
+            self.on_session_event("quality_alert", {"session_id": session_id, "alert": alert})
 
     def _handle_session_error(self, session_id: str, error: str):
         """Handle errors from session processing."""
@@ -1841,7 +1730,7 @@ class AudioCoordinator:
             self.on_error(f"Session {session_id} error: {error}")
 
     # Status and monitoring API
-    def get_coordinator_status(self) -> Dict[str, Any]:
+    def get_coordinator_status(self) -> dict[str, Any]:
         """Get comprehensive coordinator status."""
         runtime = time.time() - self.start_time if self.start_time else 0
 
@@ -1858,8 +1747,7 @@ class AudioCoordinator:
             "total_transcripts_generated": self.total_transcripts_generated,
             "total_translations_generated": self.total_translations_generated,
             "processing_errors": self.processing_errors,
-            "success_rate": 1.0
-            - (self.processing_errors / max(1, self.total_chunks_created)),
+            "success_rate": 1.0 - (self.processing_errors / max(1, self.total_chunks_created)),
             "session_statistics": self.session_manager.get_session_statistics(),
             "database_statistics": self.database_adapter.get_operation_statistics()
             if self.database_adapter
@@ -1873,7 +1761,7 @@ class AudioCoordinator:
             "config": self.config.dict(),
         }
 
-    def get_session_status(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session_status(self, session_id: str) -> dict[str, Any] | None:
         """Get status for a specific session."""
         session = self.session_manager.get_session(session_id)
         chunk_manager = self.session_manager.get_chunk_manager(session_id)
@@ -1889,9 +1777,7 @@ class AudioCoordinator:
 
         # Add audio processing status if available
         if audio_processor:
-            status["audio_processing_status"] = (
-                audio_processor.get_processing_statistics()
-            )
+            status["audio_processing_status"] = audio_processor.get_processing_statistics()
             status["audio_config"] = {
                 "preset_name": audio_processor.config.preset_name,
                 "enabled_stages": audio_processor.config.enabled_stages,
@@ -1900,11 +1786,11 @@ class AudioCoordinator:
 
         return status
 
-    def get_all_sessions_status(self) -> List[Dict[str, Any]]:
+    def get_all_sessions_status(self) -> list[dict[str, Any]]:
         """Get status for all active sessions."""
         statuses = []
 
-        for session_id in self.session_manager.active_sessions.keys():
+        for session_id in self.session_manager.active_sessions:
             status = self.get_session_status(session_id)
             if status:
                 statuses.append(status)
@@ -1916,9 +1802,9 @@ class AudioCoordinator:
         self,
         session_id: str,
         audio_file_path: str,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         request_id: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Process an audio file through the orchestration pipeline.
 
@@ -1933,22 +1819,19 @@ class AudioCoordinator:
             Dict[str, Any]: Processing results with transcription, translations, and metadata
         """
         try:
-            logger.info(
-                f"[{request_id}] Processing audio file through orchestration pipeline"
-            )
+            logger.info(f"[{request_id}] Processing audio file through orchestration pipeline")
 
             # Load audio file - handle WebM and other formats that soundfile doesn't support
-            import soundfile as sf
             import os
+
+            import soundfile as sf
 
             # Check if file is WebM or other unsupported format
             file_ext = os.path.splitext(audio_file_path)[1].lower()
 
             if file_ext in [".webm", ".mp4", ".m4a", ".mp3"]:
                 # Convert to WAV using ffmpeg directly
-                logger.info(
-                    f"[{request_id}] Converting {file_ext} to WAV for processing"
-                )
+                logger.info(f"[{request_id}] Converting {file_ext} to WAV for processing")
                 import subprocess
                 import tempfile
 
@@ -1956,9 +1839,7 @@ class AudioCoordinator:
                 target_sample_rate = config.get("sample_rate", 16000)
 
                 # Create temporary WAV file
-                with tempfile.NamedTemporaryFile(
-                    suffix=".wav", delete=False
-                ) as temp_wav:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
                     temp_wav_path = temp_wav.name
 
                 try:
@@ -1976,9 +1857,7 @@ class AudioCoordinator:
                     ]
 
                     # Run ffmpeg
-                    result = subprocess.run(
-                        ffmpeg_cmd, capture_output=True, text=True, check=True
-                    )
+                    result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, check=True)
 
                     logger.info(
                         f"[{request_id}] Converted to mono @ {target_sample_rate}Hz using ffmpeg"
@@ -1989,9 +1868,7 @@ class AudioCoordinator:
 
                 except subprocess.CalledProcessError as e:
                     logger.error(f"[{request_id}] ffmpeg conversion failed: {e.stderr}")
-                    raise RuntimeError(
-                        f"Failed to convert {file_ext} to WAV: {e.stderr}"
-                    )
+                    raise RuntimeError(f"Failed to convert {file_ext} to WAV: {e.stderr}") from e
                 finally:
                     # Clean up temp file
                     if os.path.exists(temp_wav_path):
@@ -2061,9 +1938,7 @@ class AudioCoordinator:
                     from .config import AudioProcessingConfig
 
                     # Get or create base config
-                    base_config = self.audio_config_manager.get_session_config(
-                        session_id
-                    )
+                    base_config = self.audio_config_manager.get_session_config(session_id)
 
                     # Create custom config with selected stages
                     custom_config = AudioProcessingConfig(
@@ -2085,16 +1960,14 @@ class AudioCoordinator:
                     )
 
                     # Create processor with custom config
-                    audio_processor = create_audio_pipeline_processor(
-                        custom_config, sample_rate
-                    )
+                    audio_processor = create_audio_pipeline_processor(custom_config, sample_rate)
                     logger.info(
                         f"[{request_id}] Created modular audio processor with stages: {enabled_stages}"
                     )
 
                     # Process audio through pipeline
-                    processed_audio, processing_metadata = (
-                        audio_processor.process_audio_chunk(audio_data)
+                    processed_audio, processing_metadata = audio_processor.process_audio_chunk(
+                        audio_data
                     )
 
                     if processing_metadata.get("bypassed", False):
@@ -2115,9 +1988,7 @@ class AudioCoordinator:
                     }
             else:
                 # Skip audio processing - use raw audio
-                logger.info(
-                    f"[{request_id}] Audio processing DISABLED - using raw audio"
-                )
+                logger.info(f"[{request_id}] Audio processing DISABLED - using raw audio")
                 processed_audio = audio_data
                 processing_metadata = {
                     "bypassed": True,
@@ -2130,11 +2001,7 @@ class AudioCoordinator:
             # Get file size
             import os
 
-            file_size = (
-                os.path.getsize(audio_file_path)
-                if os.path.exists(audio_file_path)
-                else 0
-            )
+            file_size = os.path.getsize(audio_file_path) if os.path.exists(audio_file_path) else 0
 
             chunk_metadata = create_audio_chunk_metadata(
                 session_id=session_id,
@@ -2160,9 +2027,7 @@ class AudioCoordinator:
 
             # Send to whisper service if transcription enabled
             if config.get("enable_transcription", True):
-                logger.info(
-                    f"[{request_id}] Sending to whisper service for transcription"
-                )
+                logger.info(f"[{request_id}] Sending to whisper service for transcription")
 
                 # DEBUG: Log audio quality before sending to Whisper
                 audio_rms = np.sqrt(np.mean(processed_audio**2))
@@ -2175,13 +2040,9 @@ class AudioCoordinator:
                 if config.get("debug_audio", False):
                     import tempfile
 
-                    with tempfile.NamedTemporaryFile(
-                        suffix="_pre_whisper.wav", delete=False
-                    ) as f:
+                    with tempfile.NamedTemporaryFile(suffix="_pre_whisper.wav", delete=False) as f:
                         sf.write(f.name, processed_audio, sample_rate)
-                        logger.info(
-                            f"[{request_id}] DEBUG: Saved pre-whisper audio to {f.name}"
-                        )
+                        logger.info(f"[{request_id}] DEBUG: Saved pre-whisper audio to {f.name}")
 
                 whisper_model = config.get("whisper_model", "whisper-tiny")
                 transcript_result = await self.service_client.send_to_whisper_service(
@@ -2205,51 +2066,41 @@ class AudioCoordinator:
                     )
 
                     # Store transcript in database if available
-                    if (self.data_pipeline or self.database_adapter) and config.get(
-                        "session_id"
-                    ):
+                    if (self.data_pipeline or self.database_adapter) and config.get("session_id"):
                         try:
                             if self.data_pipeline:
                                 # Use production-ready pipeline
-                                transcript_id = (
-                                    await self._store_transcript_via_pipeline(
-                                        config.get("session_id"),
-                                        {
-                                            "text": result["transcription"],
-                                            "start_timestamp": 0.0,
-                                            "end_timestamp": audio_duration,
-                                            "language": result["language"],
-                                            "confidence": result["confidence"],
-                                            "speaker_info": speaker_info,
-                                            "chunk_id": chunk_metadata.chunk_id,
-                                            "source_type": "file_upload",
-                                            "metadata": transcript_result.get(
-                                                "metadata", {}
-                                            ),
-                                        },
-                                        audio_file_id=chunk_metadata.chunk_id,
-                                    )
+                                transcript_id = await self._store_transcript_via_pipeline(
+                                    config.get("session_id"),
+                                    {
+                                        "text": result["transcription"],
+                                        "start_timestamp": 0.0,
+                                        "end_timestamp": audio_duration,
+                                        "language": result["language"],
+                                        "confidence": result["confidence"],
+                                        "speaker_info": speaker_info,
+                                        "chunk_id": chunk_metadata.chunk_id,
+                                        "source_type": "file_upload",
+                                        "metadata": transcript_result.get("metadata", {}),
+                                    },
+                                    audio_file_id=chunk_metadata.chunk_id,
                                 )
                             else:
                                 # Fallback to legacy adapter (deprecated)
-                                transcript_id = (
-                                    await self.database_adapter.store_transcript(
-                                        config.get("session_id"),
-                                        {
-                                            "text": result["transcription"],
-                                            "start_timestamp": 0.0,
-                                            "end_timestamp": audio_duration,
-                                            "language": result["language"],
-                                            "confidence": result["confidence"],
-                                            "speaker_info": speaker_info,
-                                            "chunk_id": chunk_metadata.chunk_id,
-                                            "source_type": "file_upload",
-                                            "metadata": transcript_result.get(
-                                                "metadata", {}
-                                            ),
-                                        },
-                                        audio_file_id=chunk_metadata.chunk_id,
-                                    )
+                                transcript_id = await self.database_adapter.store_transcript(
+                                    config.get("session_id"),
+                                    {
+                                        "text": result["transcription"],
+                                        "start_timestamp": 0.0,
+                                        "end_timestamp": audio_duration,
+                                        "language": result["language"],
+                                        "confidence": result["confidence"],
+                                        "speaker_info": speaker_info,
+                                        "chunk_id": chunk_metadata.chunk_id,
+                                        "source_type": "file_upload",
+                                        "metadata": transcript_result.get("metadata", {}),
+                                    },
+                                    audio_file_id=chunk_metadata.chunk_id,
                                 )
                             result["transcript_id"] = transcript_id
                             logger.info(
@@ -2261,9 +2112,7 @@ class AudioCoordinator:
                             )
 
                     # Request translations if enabled
-                    if config.get("enable_translation", False) and config.get(
-                        "target_languages"
-                    ):
+                    if config.get("enable_translation", False) and config.get("target_languages"):
                         target_languages = config["target_languages"]
 
                         # Handle string or list format
@@ -2303,17 +2152,11 @@ class AudioCoordinator:
                         for target_lang, task in translation_tasks:
                             try:
                                 translation_result = await task
-                                if translation_result and translation_result.get(
-                                    "translated_text"
-                                ):
+                                if translation_result and translation_result.get("translated_text"):
                                     translations[target_lang] = {
                                         "text": translation_result["translated_text"],
-                                        "confidence": translation_result.get(
-                                            "confidence", 0.0
-                                        ),
-                                        "service": translation_result.get(
-                                            "service", "unknown"
-                                        ),
+                                        "confidence": translation_result.get("confidence", 0.0),
+                                        "service": translation_result.get("service", "unknown"),
                                     }
                                     logger.info(
                                         f"[{request_id}] Translation complete ({target_lang}): "
@@ -2326,13 +2169,9 @@ class AudioCoordinator:
                                 translations[target_lang] = {"error": str(trans_error)}
 
                         result["translations"] = translations
-                        logger.info(
-                            f"[{request_id}] Completed {len(translations)} translations"
-                        )
+                        logger.info(f"[{request_id}] Completed {len(translations)} translations")
                 else:
-                    logger.warning(
-                        f"[{request_id}] Whisper service returned no transcription"
-                    )
+                    logger.warning(f"[{request_id}] Whisper service returned no transcription")
                     result["status"] = "error"
                     result["error"] = "Transcription service returned empty result"
             else:
@@ -2363,11 +2202,11 @@ class AudioCoordinator:
     async def _translate_single_file(
         self,
         session_id: str,
-        transcript_result: Dict[str, Any],
+        transcript_result: dict[str, Any],
         target_language: str,
         request_id: str,
-        config: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
+        config: dict[str, Any],
+    ) -> dict[str, Any] | None:
         """Translate a single file's transcription to target language."""
         try:
             translation_result = await self.service_client.send_to_translation_service(
@@ -2388,25 +2227,19 @@ class AudioCoordinator:
                                 config.get("session_id"),
                                 transcript_result.get("transcript_id"),
                                 {
-                                    "translated_text": translation_result[
-                                        "translated_text"
-                                    ],
-                                    "source_language": transcript_result.get(
-                                        "language", "auto"
-                                    ),
+                                    "translated_text": translation_result["translated_text"],
+                                    "source_language": transcript_result.get("language", "auto"),
                                     "target_language": target_language,
-                                    "confidence": translation_result.get(
-                                        "confidence", 0.0
-                                    ),
+                                    "confidence": translation_result.get("confidence", 0.0),
                                     "translation_service": translation_result.get(
                                         "service", "unknown"
                                     ),
-                                    "speaker_id": transcript_result.get(
-                                        "speaker_info", {}
-                                    ).get("speaker_id"),
-                                    "speaker_name": transcript_result.get(
-                                        "speaker_info", {}
-                                    ).get("speaker_name"),
+                                    "speaker_id": transcript_result.get("speaker_info", {}).get(
+                                        "speaker_id"
+                                    ),
+                                    "speaker_name": transcript_result.get("speaker_info", {}).get(
+                                        "speaker_name"
+                                    ),
                                     "metadata": translation_result.get("metadata", {}),
                                 },
                                 start_timestamp=0.0,
@@ -2414,37 +2247,27 @@ class AudioCoordinator:
                             )
                         else:
                             # Fallback to legacy adapter (deprecated)
-                            translation_id = (
-                                await self.database_adapter.store_translation(
-                                    config.get("session_id"),
-                                    transcript_result.get("transcript_id"),
-                                    {
-                                        "translated_text": translation_result[
-                                            "translated_text"
-                                        ],
-                                        "source_language": transcript_result.get(
-                                            "language", "auto"
-                                        ),
-                                        "target_language": target_language,
-                                        "confidence": translation_result.get(
-                                            "confidence", 0.0
-                                        ),
-                                        "translation_service": translation_result.get(
-                                            "service", "unknown"
-                                        ),
-                                        "speaker_id": transcript_result.get(
-                                            "speaker_info", {}
-                                        ).get("speaker_id"),
-                                        "speaker_name": transcript_result.get(
-                                            "speaker_info", {}
-                                        ).get("speaker_name"),
-                                        "start_timestamp": 0.0,
-                                        "end_timestamp": config.get("duration", 0.0),
-                                        "metadata": translation_result.get(
-                                            "metadata", {}
-                                        ),
-                                    },
-                                )
+                            translation_id = await self.database_adapter.store_translation(
+                                config.get("session_id"),
+                                transcript_result.get("transcript_id"),
+                                {
+                                    "translated_text": translation_result["translated_text"],
+                                    "source_language": transcript_result.get("language", "auto"),
+                                    "target_language": target_language,
+                                    "confidence": translation_result.get("confidence", 0.0),
+                                    "translation_service": translation_result.get(
+                                        "service", "unknown"
+                                    ),
+                                    "speaker_id": transcript_result.get("speaker_info", {}).get(
+                                        "speaker_id"
+                                    ),
+                                    "speaker_name": transcript_result.get("speaker_info", {}).get(
+                                        "speaker_name"
+                                    ),
+                                    "start_timestamp": 0.0,
+                                    "end_timestamp": config.get("duration", 0.0),
+                                    "metadata": translation_result.get("metadata", {}),
+                                },
                             )
                         translation_result["translation_id"] = translation_id
                         logger.info(
@@ -2460,21 +2283,19 @@ class AudioCoordinator:
             return None
 
         except Exception as e:
-            logger.error(
-                f"[{request_id}] Translation failed for {target_language}: {e}"
-            )
+            logger.error(f"[{request_id}] Translation failed for {target_language}: {e}")
             return None
 
 
 # Factory function for creating audio coordinator
 def create_audio_coordinator(
-    database_url: Optional[str],
-    service_urls: Dict[str, str],
-    config: Optional[AudioChunkingConfig] = None,
+    database_url: str | None,
+    service_urls: dict[str, str],
+    config: AudioChunkingConfig | None = None,
     max_concurrent_sessions: int = 10,
-    audio_config_file: Optional[str] = None,
-    audio_client: Optional[AudioServiceClient] = None,
-    translation_client: Optional[TranslationServiceClient] = None,
+    audio_config_file: str | None = None,
+    audio_client: AudioServiceClient | None = None,
+    translation_client: TranslationServiceClient | None = None,
     data_pipeline: Optional["TranscriptionDataPipeline"] = None,
 ) -> AudioCoordinator:
     """
@@ -2534,9 +2355,7 @@ async def main():
         print(f"Transcript ready: {data['text'][:50]}...")
 
     def on_translation_ready(data):
-        print(
-            f"Translation ready ({data['target_language']}): {data['translated_text'][:50]}..."
-        )
+        print(f"Translation ready ({data['target_language']}): {data['translated_text'][:50]}...")
 
     def on_session_event(event_type, data):
         print(f"Session event: {event_type}")

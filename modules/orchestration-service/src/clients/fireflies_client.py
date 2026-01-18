@@ -14,18 +14,18 @@ NOTE: Fireflies uses Socket.IO protocol, NOT raw WebSocket.
 The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 """
 
-import logging
 import asyncio
-import json
+import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Callable, Awaitable
+from typing import Any
+
 import aiohttp
 import socketio
-
 from models.fireflies import (
     FirefliesChunk,
-    FirefliesMeeting,
     FirefliesConnectionStatus,
+    FirefliesMeeting,
     MeetingState,
 )
 
@@ -111,10 +111,10 @@ query Transcript($id: String!) {
 TranscriptCallback = Callable[[FirefliesChunk], Awaitable[None]]
 
 # Callback for connection status changes
-StatusCallback = Callable[[FirefliesConnectionStatus, Optional[str]], Awaitable[None]]
+StatusCallback = Callable[[FirefliesConnectionStatus, str | None], Awaitable[None]]
 
 # Callback for errors
-ErrorCallback = Callable[[str, Optional[Exception]], Awaitable[None]]
+ErrorCallback = Callable[[str, Exception | None], Awaitable[None]]
 
 
 # =============================================================================
@@ -139,7 +139,7 @@ class FirefliesGraphQLClient:
         self.api_key = api_key
         self.endpoint = endpoint
         self.timeout = aiohttp.ClientTimeout(total=timeout)
-        self._session: Optional[aiohttp.ClientSession] = None
+        self._session: aiohttp.ClientSession | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
@@ -162,8 +162,8 @@ class FirefliesGraphQLClient:
     async def execute_query(
         self,
         query: str,
-        variables: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Execute a GraphQL query.
 
@@ -188,17 +188,15 @@ class FirefliesGraphQLClient:
                 result = await response.json()
 
                 if response.status != 200:
-                    error_msg = result.get("errors", [{"message": "Unknown error"}])[
-                        0
-                    ].get("message")
+                    error_msg = result.get("errors", [{"message": "Unknown error"}])[0].get(
+                        "message"
+                    )
                     raise FirefliesAPIError(
                         f"GraphQL error: {error_msg}", status_code=response.status
                     )
 
                 if "errors" in result:
-                    error_msg = result["errors"][0].get(
-                        "message", "Unknown GraphQL error"
-                    )
+                    error_msg = result["errors"][0].get("message", "Unknown GraphQL error")
                     raise FirefliesAPIError(f"GraphQL error: {error_msg}")
 
                 return result.get("data", {})
@@ -209,9 +207,9 @@ class FirefliesGraphQLClient:
 
     async def get_active_meetings(
         self,
-        email: Optional[str] = None,
-        states: Optional[List[MeetingState]] = None,
-    ) -> List[FirefliesMeeting]:
+        email: str | None = None,
+        states: list[MeetingState] | None = None,
+    ) -> list[FirefliesMeeting]:
         """
         Get active meetings from Fireflies.
 
@@ -239,14 +237,10 @@ class FirefliesGraphQLClient:
                     title=m.get("title"),
                     organizer_email=m.get("organizer_email"),
                     meeting_link=m.get("meeting_link"),
-                    start_time=datetime.fromisoformat(
-                        m["start_time"].replace("Z", "+00:00")
-                    )
+                    start_time=datetime.fromisoformat(m["start_time"].replace("Z", "+00:00"))
                     if m.get("start_time")
                     else None,
-                    end_time=datetime.fromisoformat(
-                        m["end_time"].replace("Z", "+00:00")
-                    )
+                    end_time=datetime.fromisoformat(m["end_time"].replace("Z", "+00:00"))
                     if m.get("end_time")
                     else None,
                     privacy=m.get("privacy"),
@@ -265,7 +259,7 @@ class FirefliesGraphQLClient:
         self,
         limit: int = 20,
         skip: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get past transcripts from Fireflies.
 
@@ -292,7 +286,7 @@ class FirefliesGraphQLClient:
     async def get_transcript_detail(
         self,
         transcript_id: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get detailed transcript including sentences.
 
@@ -342,9 +336,9 @@ class FirefliesRealtimeClient:
         transcript_id: str,
         endpoint: str = DEFAULT_WEBSOCKET_ENDPOINT,
         socketio_path: str = DEFAULT_WEBSOCKET_PATH,
-        on_transcript: Optional[TranscriptCallback] = None,
-        on_status_change: Optional[StatusCallback] = None,
-        on_error: Optional[ErrorCallback] = None,
+        on_transcript: TranscriptCallback | None = None,
+        on_status_change: StatusCallback | None = None,
+        on_error: ErrorCallback | None = None,
         auto_reconnect: bool = True,
         max_reconnect_attempts: int = MAX_RECONNECTION_ATTEMPTS,
     ):
@@ -396,7 +390,7 @@ class FirefliesRealtimeClient:
         self._register_handlers()
 
         # Chunk tracking for deduplication
-        self._last_chunk_id: Optional[str] = None
+        self._last_chunk_id: str | None = None
         self._processed_chunk_ids: set = set()
 
     def _register_handlers(self):
@@ -405,7 +399,7 @@ class FirefliesRealtimeClient:
         @self.sio.event
         async def connect():
             """Called when Socket.IO connects"""
-            logger.info(f"Socket.IO connected to Fireflies")
+            logger.info("Socket.IO connected to Fireflies")
             await self._set_status(FirefliesConnectionStatus.AUTHENTICATING)
 
         @self.sio.event
@@ -437,7 +431,11 @@ class FirefliesRealtimeClient:
         @self.sio.on("auth.failed")
         async def on_auth_failed(data=None):
             """Called when authentication fails"""
-            error_msg = data.get("message", "Authentication failed") if isinstance(data, dict) else "Authentication failed"
+            error_msg = (
+                data.get("message", "Authentication failed")
+                if isinstance(data, dict)
+                else "Authentication failed"
+            )
             logger.error(f"Fireflies authentication failed: {error_msg}")
             await self._notify_error(error_msg)
             await self._set_status(FirefliesConnectionStatus.ERROR, error_msg)
@@ -452,7 +450,11 @@ class FirefliesRealtimeClient:
         @self.sio.on("connection.error")
         async def on_connection_error(data=None):
             """Called on Fireflies connection error"""
-            error_msg = data.get("message", "Connection error") if isinstance(data, dict) else "Connection error"
+            error_msg = (
+                data.get("message", "Connection error")
+                if isinstance(data, dict)
+                else "Connection error"
+            )
             logger.error(f"Fireflies connection error: {error_msg}")
             await self._notify_error(f"Connection error: {error_msg}")
 
@@ -477,14 +479,11 @@ class FirefliesRealtimeClient:
         """Whether currently connected and authenticated"""
         return self._status == FirefliesConnectionStatus.CONNECTED
 
-    async def _set_status(
-        self, status: FirefliesConnectionStatus, message: Optional[str] = None
-    ):
+    async def _set_status(self, status: FirefliesConnectionStatus, message: str | None = None):
         """Update status and notify callback"""
         self._status = status
         logger.info(
-            f"Fireflies connection status: {status.value}"
-            + (f" - {message}" if message else "")
+            f"Fireflies connection status: {status.value}" + (f" - {message}" if message else "")
         )
 
         if self.on_status_change:
@@ -493,11 +492,9 @@ class FirefliesRealtimeClient:
             except Exception as e:
                 logger.error(f"Error in status callback: {e}")
 
-    async def _notify_error(self, message: str, exception: Optional[Exception] = None):
+    async def _notify_error(self, message: str, exception: Exception | None = None):
         """Notify error callback"""
-        logger.error(
-            f"Fireflies error: {message}" + (f" - {exception}" if exception else "")
-        )
+        logger.error(f"Fireflies error: {message}" + (f" - {exception}" if exception else ""))
 
         if self.on_error:
             try:
@@ -577,7 +574,7 @@ class FirefliesRealtimeClient:
         await self._set_status(FirefliesConnectionStatus.DISCONNECTED)
         logger.info("Disconnected from Fireflies")
 
-    async def _handle_transcript(self, message: Dict[str, Any]):
+    async def _handle_transcript(self, message: dict[str, Any]):
         """Handle transcription.broadcast event"""
         try:
             # Extract chunk data - may be nested in 'data' or at top level
@@ -665,7 +662,7 @@ class FirefliesClient:
         )
 
         # Active realtime connections (transcript_id -> client)
-        self._realtime_clients: Dict[str, FirefliesRealtimeClient] = {}
+        self._realtime_clients: dict[str, FirefliesRealtimeClient] = {}
 
     async def close(self):
         """Close all connections"""
@@ -683,9 +680,9 @@ class FirefliesClient:
 
     async def get_active_meetings(
         self,
-        email: Optional[str] = None,
-        states: Optional[List[MeetingState]] = None,
-    ) -> List[FirefliesMeeting]:
+        email: str | None = None,
+        states: list[MeetingState] | None = None,
+    ) -> list[FirefliesMeeting]:
         """
         Get active meetings from Fireflies.
 
@@ -702,7 +699,7 @@ class FirefliesClient:
         self,
         limit: int = 20,
         skip: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get past transcripts from Fireflies.
 
@@ -718,7 +715,7 @@ class FirefliesClient:
     async def get_transcript_detail(
         self,
         transcript_id: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get detailed transcript including sentences.
 
@@ -737,9 +734,9 @@ class FirefliesClient:
     async def connect_realtime(
         self,
         transcript_id: str,
-        on_transcript: Optional[TranscriptCallback] = None,
-        on_status_change: Optional[StatusCallback] = None,
-        on_error: Optional[ErrorCallback] = None,
+        on_transcript: TranscriptCallback | None = None,
+        on_status_change: StatusCallback | None = None,
+        on_error: ErrorCallback | None = None,
         auto_reconnect: bool = True,
     ) -> FirefliesRealtimeClient:
         """
@@ -782,13 +779,9 @@ class FirefliesClient:
 
         if success:
             self._realtime_clients[transcript_id] = client
-            logger.info(
-                f"Connected to Fireflies realtime for transcript: {transcript_id}"
-            )
+            logger.info(f"Connected to Fireflies realtime for transcript: {transcript_id}")
         else:
-            logger.error(
-                f"Failed to connect to Fireflies realtime for transcript: {transcript_id}"
-            )
+            logger.error(f"Failed to connect to Fireflies realtime for transcript: {transcript_id}")
 
         return client
 
@@ -806,9 +799,7 @@ class FirefliesClient:
         else:
             logger.warning(f"No active connection for transcript: {transcript_id}")
 
-    def get_realtime_status(
-        self, transcript_id: str
-    ) -> Optional[FirefliesConnectionStatus]:
+    def get_realtime_status(self, transcript_id: str) -> FirefliesConnectionStatus | None:
         """
         Get the connection status for a transcript.
 
@@ -822,7 +813,7 @@ class FirefliesClient:
             return self._realtime_clients[transcript_id].status
         return None
 
-    def get_active_connections(self) -> Dict[str, FirefliesConnectionStatus]:
+    def get_active_connections(self) -> dict[str, FirefliesConnectionStatus]:
         """
         Get all active realtime connections and their statuses.
 
@@ -840,7 +831,7 @@ class FirefliesClient:
 class FirefliesAPIError(Exception):
     """Exception for Fireflies API errors"""
 
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
 

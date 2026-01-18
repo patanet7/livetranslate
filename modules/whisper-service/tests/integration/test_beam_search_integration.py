@@ -11,10 +11,11 @@ Following SimulStreaming specification:
 NO MOCKS - Only real Whisper inference!
 """
 
-import pytest
-import numpy as np
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
@@ -52,24 +53,16 @@ class TestBeamSearchIntegration:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Test greedy decoding (beam_size=1)
-        result_greedy = model.transcribe(
-            audio=audio_data,
-            beam_size=1,
-            temperature=0.0
-        )
+        result_greedy = model.transcribe(audio=audio_data, beam_size=1, temperature=0.0)
         assert result_greedy is not None
-        assert 'text' in result_greedy
+        assert "text" in result_greedy
 
         print(f"✅ Greedy decoding works: '{result_greedy['text']}'")
 
         # Test beam search (beam_size=5)
-        result_beam = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0
-        )
+        result_beam = model.transcribe(audio=audio_data, beam_size=5, temperature=0.0)
         assert result_beam is not None
-        assert 'text' in result_beam
+        assert "text" in result_beam
 
         print(f"✅ Beam search works: '{result_beam['text']}'")
 
@@ -93,17 +86,13 @@ class TestBeamSearchIntegration:
         results = {}
 
         for beam_size in beam_sizes:
-            result = model.transcribe(
-                audio=audio_data,
-                beam_size=beam_size,
-                temperature=0.0
-            )
-            results[beam_size] = result['text']
+            result = model.transcribe(audio=audio_data, beam_size=beam_size, temperature=0.0)
+            results[beam_size] = result["text"]
             print(f"   beam_size={beam_size}: '{result['text']}'")
 
         # All should complete successfully
         assert len(results) == 3
-        print(f"✅ All beam sizes processed successfully")
+        print("✅ All beam sizes processed successfully")
 
     @pytest.mark.integration
     def test_beam_search_with_safe_inference(self):
@@ -121,9 +110,7 @@ class TestBeamSearchIntegration:
 
         # Greedy mode (beam_size=1)
         result_greedy = manager.safe_inference(
-            model_name="large-v3",
-            audio_data=audio_data,
-            beam_size=1
+            model_name="large-v3", audio_data=audio_data, beam_size=1
         )
         assert result_greedy is not None
         assert result_greedy.text is not None
@@ -131,15 +118,13 @@ class TestBeamSearchIntegration:
 
         # Beam search mode (beam_size=5)
         result_beam = manager.safe_inference(
-            model_name="large-v3",
-            audio_data=audio_data,
-            beam_size=5
+            model_name="large-v3", audio_data=audio_data, beam_size=5
         )
         assert result_beam is not None
         assert result_beam.text is not None
         print(f"   Beam=5: '{result_beam.text}'")
 
-        print(f"✅ safe_inference works with beam search")
+        print("✅ safe_inference works with beam search")
 
     @pytest.mark.integration
     def test_beam_search_with_longer_audio(self):
@@ -161,16 +146,12 @@ class TestBeamSearchIntegration:
         for duration in durations:
             audio_data = np.zeros(16000 * duration, dtype=np.float32)
 
-            result = model.transcribe(
-                audio=audio_data,
-                beam_size=5,
-                temperature=0.0
-            )
+            result = model.transcribe(audio=audio_data, beam_size=5, temperature=0.0)
 
             assert result is not None
             print(f"   {duration}s audio: processed successfully")
 
-        print(f"✅ Beam search handles varying audio lengths")
+        print("✅ Beam search handles varying audio lengths")
 
     @pytest.mark.integration
     def test_beam_search_with_temperature(self):
@@ -188,24 +169,16 @@ class TestBeamSearchIntegration:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Deterministic (temperature=0.0)
-        result_det = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0
-        )
+        result_det = model.transcribe(audio=audio_data, beam_size=5, temperature=0.0)
         assert result_det is not None
         print(f"   Deterministic (T=0.0): '{result_det['text']}'")
 
         # With sampling (temperature=0.7)
-        result_sample = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.7
-        )
+        result_sample = model.transcribe(audio=audio_data, beam_size=5, temperature=0.7)
         assert result_sample is not None
         print(f"   Sampling (T=0.7): '{result_sample['text']}'")
 
-        print(f"✅ Temperature parameter works with beam search")
+        print("✅ Temperature parameter works with beam search")
 
     @pytest.mark.integration
     def test_beam_search_performance_benchmark(self):
@@ -229,11 +202,7 @@ class TestBeamSearchIntegration:
         for beam_size in [1, 5]:
             start_time = time.time()
 
-            result = model.transcribe(
-                audio=audio_data,
-                beam_size=beam_size,
-                temperature=0.0
-            )
+            model.transcribe(audio=audio_data, beam_size=beam_size, temperature=0.0)
 
             elapsed = time.time() - start_time
             timings[beam_size] = elapsed
@@ -270,22 +239,14 @@ class TestBeamSearchQualityMetrics:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Run twice with same parameters
-        result1 = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0
-        )
+        result1 = model.transcribe(audio=audio_data, beam_size=5, temperature=0.0)
 
-        result2 = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0
-        )
+        result2 = model.transcribe(audio=audio_data, beam_size=5, temperature=0.0)
 
         # Should produce identical results (deterministic)
-        assert result1['text'] == result2['text']
+        assert result1["text"] == result2["text"]
 
-        print(f"✅ Beam search is deterministic with temperature=0.0")
+        print("✅ Beam search is deterministic with temperature=0.0")
 
     @pytest.mark.integration
     def test_beam_search_with_domain_prompt(self):
@@ -306,16 +267,13 @@ class TestBeamSearchQualityMetrics:
         medical_prompt = "Medical terminology: hypertension, diabetes, cardiomyopathy"
 
         result = model.transcribe(
-            audio=audio_data,
-            beam_size=5,
-            temperature=0.0,
-            initial_prompt=medical_prompt
+            audio=audio_data, beam_size=5, temperature=0.0, initial_prompt=medical_prompt
         )
 
         assert result is not None
-        assert 'text' in result
+        assert "text" in result
 
-        print(f"✅ Beam search works with domain prompts")
+        print("✅ Beam search works with domain prompts")
 
 
 # Run tests

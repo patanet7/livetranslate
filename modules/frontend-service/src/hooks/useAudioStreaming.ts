@@ -10,11 +10,11 @@
  * Total savings: ~550 lines of duplicate code
  */
 
-import { useState, useCallback, useRef } from 'react';
-import { useAppDispatch } from '@/store';
-import { addProcessingLog } from '@/store/slices/audioSlice';
-import { generateChunkId } from '@/utils/sessionUtils';
-import type { ProcessingConfig, StreamingStats } from '@/types/streaming';
+import { useState, useCallback, useRef } from "react";
+import { useAppDispatch } from "@/store";
+import { addProcessingLog } from "@/store/slices/audioSlice";
+import { generateChunkId } from "@/utils/sessionUtils";
+import type { ProcessingConfig, StreamingStats } from "@/types/streaming";
 
 export interface AudioStreamingOptions {
   /**
@@ -71,7 +71,7 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
     processingConfig = {},
     onChunkProcessed,
     onStatsUpdate,
-    enableLogging = true
+    enableLogging = true,
   } = options;
 
   const [isStreaming, setIsStreaming] = useState(false);
@@ -79,7 +79,7 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
     chunksStreamed: 0,
     totalDuration: 0,
     averageProcessingTime: 0,
-    errorCount: 0
+    errorCount: 0,
   });
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -90,103 +90,143 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
   /**
    * Send audio chunk to orchestration service
    */
-  const sendAudioChunk = useCallback(async (chunkId: string, audioBlob: Blob) => {
-    const startTime = Date.now();
+  const sendAudioChunk = useCallback(
+    async (chunkId: string, audioBlob: Blob) => {
+      const startTime = Date.now();
 
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'chunk.webm');
-      formData.append('chunk_id', chunkId);
-      formData.append('session_id', sessionId);
-      formData.append('target_languages', JSON.stringify(targetLanguages));
+      try {
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "chunk.webm");
+        formData.append("chunk_id", chunkId);
+        formData.append("session_id", sessionId);
+        formData.append("target_languages", JSON.stringify(targetLanguages));
 
-      // Add processing config
-      if (processingConfig.enableTranscription !== undefined) {
-        formData.append('enable_transcription', processingConfig.enableTranscription.toString());
-      }
-      if (processingConfig.enableTranslation !== undefined) {
-        formData.append('enable_translation', processingConfig.enableTranslation.toString());
-      }
-      if (processingConfig.enableDiarization !== undefined) {
-        formData.append('enable_diarization', processingConfig.enableDiarization.toString());
-      }
-      if (processingConfig.enableVAD !== undefined) {
-        formData.append('enable_vad', processingConfig.enableVAD.toString());
-      }
-      if (processingConfig.whisperModel) {
-        formData.append('whisper_model', processingConfig.whisperModel);
-      }
-      if (processingConfig.translationQuality) {
-        formData.append('translation_quality', processingConfig.translationQuality);
-      }
-      if (processingConfig.audioProcessing !== undefined) {
-        formData.append('audio_processing', processingConfig.audioProcessing.toString());
-      }
-      if (processingConfig.noiseReduction !== undefined) {
-        formData.append('noise_reduction', processingConfig.noiseReduction.toString());
-      }
-      if (processingConfig.speechEnhancement !== undefined) {
-        formData.append('speech_enhancement', processingConfig.speechEnhancement.toString());
-      }
-
-      const response = await fetch('/api/audio/upload', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      const processingTime = Date.now() - startTime;
-
-      // Update stats
-      setStreamingStats(prev => {
-        const newStats = {
-          ...prev,
-          chunksStreamed: prev.chunksStreamed + 1,
-          totalDuration: prev.totalDuration + chunkDuration,
-          averageProcessingTime: ((prev.averageProcessingTime * prev.chunksStreamed) + processingTime) / (prev.chunksStreamed + 1)
-        };
-        if (onStatsUpdate) {
-          onStatsUpdate(newStats);
+        // Add processing config
+        if (processingConfig.enableTranscription !== undefined) {
+          formData.append(
+            "enable_transcription",
+            processingConfig.enableTranscription.toString(),
+          );
         }
-        return newStats;
-      });
+        if (processingConfig.enableTranslation !== undefined) {
+          formData.append(
+            "enable_translation",
+            processingConfig.enableTranslation.toString(),
+          );
+        }
+        if (processingConfig.enableDiarization !== undefined) {
+          formData.append(
+            "enable_diarization",
+            processingConfig.enableDiarization.toString(),
+          );
+        }
+        if (processingConfig.enableVAD !== undefined) {
+          formData.append("enable_vad", processingConfig.enableVAD.toString());
+        }
+        if (processingConfig.whisperModel) {
+          formData.append("whisper_model", processingConfig.whisperModel);
+        }
+        if (processingConfig.translationQuality) {
+          formData.append(
+            "translation_quality",
+            processingConfig.translationQuality,
+          );
+        }
+        if (processingConfig.audioProcessing !== undefined) {
+          formData.append(
+            "audio_processing",
+            processingConfig.audioProcessing.toString(),
+          );
+        }
+        if (processingConfig.noiseReduction !== undefined) {
+          formData.append(
+            "noise_reduction",
+            processingConfig.noiseReduction.toString(),
+          );
+        }
+        if (processingConfig.speechEnhancement !== undefined) {
+          formData.append(
+            "speech_enhancement",
+            processingConfig.speechEnhancement.toString(),
+          );
+        }
 
-      // Remove from active chunks
-      activeChunksRef.current.delete(chunkId);
+        const response = await fetch("/api/audio/upload", {
+          method: "POST",
+          body: formData,
+        });
 
-      // Call callback
-      if (onChunkProcessed) {
-        onChunkProcessed(chunkId, result);
-      }
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
 
-      if (enableLogging) {
-        dispatch(addProcessingLog({
-          level: 'SUCCESS',
-          message: `Chunk ${chunkId} processed in ${processingTime}ms`,
-          timestamp: Date.now()
+        const result = await response.json();
+        const processingTime = Date.now() - startTime;
+
+        // Update stats
+        setStreamingStats((prev) => {
+          const newStats = {
+            ...prev,
+            chunksStreamed: prev.chunksStreamed + 1,
+            totalDuration: prev.totalDuration + chunkDuration,
+            averageProcessingTime:
+              (prev.averageProcessingTime * prev.chunksStreamed +
+                processingTime) /
+              (prev.chunksStreamed + 1),
+          };
+          if (onStatsUpdate) {
+            onStatsUpdate(newStats);
+          }
+          return newStats;
+        });
+
+        // Remove from active chunks
+        activeChunksRef.current.delete(chunkId);
+
+        // Call callback
+        if (onChunkProcessed) {
+          onChunkProcessed(chunkId, result);
+        }
+
+        if (enableLogging) {
+          dispatch(
+            addProcessingLog({
+              level: "SUCCESS",
+              message: `Chunk ${chunkId} processed in ${processingTime}ms`,
+              timestamp: Date.now(),
+            }),
+          );
+        }
+      } catch (error) {
+        setStreamingStats((prev) => ({
+          ...prev,
+          errorCount: prev.errorCount + 1,
         }));
-      }
-    } catch (error) {
-      setStreamingStats(prev => ({
-        ...prev,
-        errorCount: prev.errorCount + 1
-      }));
 
-      activeChunksRef.current.delete(chunkId);
+        activeChunksRef.current.delete(chunkId);
 
-      if (enableLogging) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to process chunk ${chunkId}: ${error}`,
-          timestamp: Date.now()
-        }));
+        if (enableLogging) {
+          dispatch(
+            addProcessingLog({
+              level: "ERROR",
+              message: `Failed to process chunk ${chunkId}: ${error}`,
+              timestamp: Date.now(),
+            }),
+          );
+        }
       }
-    }
-  }, [sessionId, targetLanguages, processingConfig, chunkDuration, onChunkProcessed, onStatsUpdate, enableLogging, dispatch]);
+    },
+    [
+      sessionId,
+      targetLanguages,
+      processingConfig,
+      chunkDuration,
+      onChunkProcessed,
+      onStatsUpdate,
+      enableLogging,
+      dispatch,
+    ],
+  );
 
   /**
    * Start streaming
@@ -194,11 +234,13 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
   const startStreaming = useCallback(async () => {
     if (!audioStream) {
       if (enableLogging) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: 'No audio stream available',
-          timestamp: Date.now()
-        }));
+        dispatch(
+          addProcessingLog({
+            level: "ERROR",
+            message: "No audio stream available",
+            timestamp: Date.now(),
+          }),
+        );
       }
       return;
     }
@@ -207,7 +249,7 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
       setIsStreaming(true);
 
       const mediaRecorder = new MediaRecorder(audioStream, {
-        mimeType: 'audio/webm;codecs=opus'
+        mimeType: "audio/webm;codecs=opus",
       });
       mediaRecorderRef.current = mediaRecorder;
 
@@ -219,7 +261,9 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
 
       mediaRecorder.onstop = async () => {
         if (recordingChunksRef.current.length > 0) {
-          const audioBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+          const audioBlob = new Blob(recordingChunksRef.current, {
+            type: "audio/webm",
+          });
           const chunkId = generateChunkId();
 
           activeChunksRef.current.add(chunkId);
@@ -232,27 +276,34 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
       mediaRecorder.start();
 
       chunkIntervalRef.current = setInterval(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        if (
+          mediaRecorderRef.current &&
+          mediaRecorderRef.current.state === "recording"
+        ) {
           mediaRecorderRef.current.stop();
           mediaRecorderRef.current.start();
         }
       }, chunkDuration * 1000);
 
       if (enableLogging) {
-        dispatch(addProcessingLog({
-          level: 'SUCCESS',
-          message: `Started streaming with ${chunkDuration}s chunks`,
-          timestamp: Date.now()
-        }));
+        dispatch(
+          addProcessingLog({
+            level: "SUCCESS",
+            message: `Started streaming with ${chunkDuration}s chunks`,
+            timestamp: Date.now(),
+          }),
+        );
       }
     } catch (error) {
       setIsStreaming(false);
       if (enableLogging) {
-        dispatch(addProcessingLog({
-          level: 'ERROR',
-          message: `Failed to start streaming: ${error}`,
-          timestamp: Date.now()
-        }));
+        dispatch(
+          addProcessingLog({
+            level: "ERROR",
+            message: `Failed to start streaming: ${error}`,
+            timestamp: Date.now(),
+          }),
+        );
       }
     }
   }, [audioStream, chunkDuration, sendAudioChunk, enableLogging, dispatch]);
@@ -268,17 +319,22 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
       chunkIntervalRef.current = null;
     }
 
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== "inactive"
+    ) {
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current = null;
     }
 
     if (enableLogging) {
-      dispatch(addProcessingLog({
-        level: 'INFO',
-        message: 'Streaming stopped',
-        timestamp: Date.now()
-      }));
+      dispatch(
+        addProcessingLog({
+          level: "INFO",
+          message: "Streaming stopped",
+          timestamp: Date.now(),
+        }),
+      );
     }
   }, [enableLogging, dispatch]);
 
@@ -290,7 +346,7 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
       chunksStreamed: 0,
       totalDuration: 0,
       averageProcessingTime: 0,
-      errorCount: 0
+      errorCount: 0,
     });
   }, []);
 
@@ -300,7 +356,7 @@ export const useAudioStreaming = (options: AudioStreamingOptions) => {
     startStreaming,
     stopStreaming,
     resetStats,
-    activeChunks: activeChunksRef.current
+    activeChunks: activeChunksRef.current,
   };
 };
 

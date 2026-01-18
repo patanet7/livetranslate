@@ -12,16 +12,14 @@ Integrates with the GlossaryService for business logic.
 """
 
 import logging
-from typing import Dict, List, Optional
 from uuid import UUID
-
-from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session as DBSession
 
 from database.database import DatabaseManager
 from dependencies import get_database_manager
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from services.glossary_service import GlossaryService
+from sqlalchemy.orm import Session as DBSession
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +58,12 @@ class CreateGlossaryRequest(BaseModel):
     """Request to create a new glossary."""
 
     name: str = Field(..., min_length=1, max_length=255, description="Glossary name")
-    description: Optional[str] = Field(None, description="Glossary description")
-    domain: Optional[str] = Field(
+    description: str | None = Field(None, description="Glossary description")
+    domain: str | None = Field(
         None, max_length=100, description="Domain (e.g., 'medical', 'legal', 'tech')"
     )
     source_language: str = Field("en", description="Source language code")
-    target_languages: List[str] = Field(
+    target_languages: list[str] = Field(
         ..., min_length=1, description="List of target language codes"
     )
     is_default: bool = Field(False, description="Whether this is a default glossary")
@@ -74,11 +72,11 @@ class CreateGlossaryRequest(BaseModel):
 class UpdateGlossaryRequest(BaseModel):
     """Request to update a glossary."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
-    description: Optional[str] = None
-    domain: Optional[str] = None
-    target_languages: Optional[List[str]] = None
-    is_active: Optional[bool] = None
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    domain: str | None = None
+    target_languages: list[str] | None = None
+    is_active: bool | None = None
 
 
 class GlossaryResponse(BaseModel):
@@ -86,26 +84,24 @@ class GlossaryResponse(BaseModel):
 
     glossary_id: str
     name: str
-    description: Optional[str]
-    domain: Optional[str]
+    description: str | None
+    domain: str | None
     source_language: str
-    target_languages: List[str]
+    target_languages: list[str]
     is_active: bool
     is_default: bool
     entry_count: int
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    created_at: str | None
+    updated_at: str | None
 
 
 class CreateEntryRequest(BaseModel):
     """Request to create a glossary entry."""
 
     source_term: str = Field(..., min_length=1, max_length=500, description="Source term")
-    translations: Dict[str, str] = Field(
-        ..., description="Translations by target language"
-    )
-    context: Optional[str] = Field(None, description="Usage context or example")
-    notes: Optional[str] = Field(None, description="Internal notes")
+    translations: dict[str, str] = Field(..., description="Translations by target language")
+    context: str | None = Field(None, description="Usage context or example")
+    notes: str | None = Field(None, description="Internal notes")
     case_sensitive: bool = Field(False, description="Case-sensitive matching")
     match_whole_word: bool = Field(True, description="Match whole words only")
     priority: int = Field(0, ge=0, description="Priority (higher = more important)")
@@ -114,13 +110,13 @@ class CreateEntryRequest(BaseModel):
 class UpdateEntryRequest(BaseModel):
     """Request to update a glossary entry."""
 
-    source_term: Optional[str] = None
-    translations: Optional[Dict[str, str]] = None
-    context: Optional[str] = None
-    notes: Optional[str] = None
-    case_sensitive: Optional[bool] = None
-    match_whole_word: Optional[bool] = None
-    priority: Optional[int] = None
+    source_term: str | None = None
+    translations: dict[str, str] | None = None
+    context: str | None = None
+    notes: str | None = None
+    case_sensitive: bool | None = None
+    match_whole_word: bool | None = None
+    priority: int | None = None
 
 
 class EntryResponse(BaseModel):
@@ -129,20 +125,20 @@ class EntryResponse(BaseModel):
     entry_id: str
     glossary_id: str
     source_term: str
-    translations: Dict[str, str]
-    context: Optional[str]
-    notes: Optional[str]
+    translations: dict[str, str]
+    context: str | None
+    notes: str | None
     case_sensitive: bool
     match_whole_word: bool
     priority: int
-    created_at: Optional[str]
-    updated_at: Optional[str]
+    created_at: str | None
+    updated_at: str | None
 
 
 class BulkImportRequest(BaseModel):
     """Request to bulk import entries."""
 
-    entries: List[CreateEntryRequest] = Field(
+    entries: list[CreateEntryRequest] = Field(
         ..., min_length=1, description="List of entries to import"
     )
 
@@ -160,7 +156,7 @@ class TermLookupRequest(BaseModel):
 
     text: str = Field(..., min_length=1, description="Text to search for terms")
     target_language: str = Field(..., description="Target language for translations")
-    domain: Optional[str] = Field(None, description="Domain filter")
+    domain: str | None = Field(None, description="Domain filter")
 
 
 class TermMatch(BaseModel):
@@ -175,7 +171,7 @@ class TermMatch(BaseModel):
 class TermLookupResponse(BaseModel):
     """Response from term lookup."""
 
-    matches: List[TermMatch]
+    matches: list[TermMatch]
     match_count: int
 
 
@@ -184,10 +180,10 @@ class TermLookupResponse(BaseModel):
 # =============================================================================
 
 
-@router.get("", response_model=List[GlossaryResponse])
+@router.get("", response_model=list[GlossaryResponse])
 async def list_glossaries(
-    domain: Optional[str] = None,
-    source_language: Optional[str] = None,
+    domain: str | None = None,
+    source_language: str | None = None,
     active_only: bool = True,
     service: GlossaryService = Depends(get_glossary_service),
 ):
@@ -362,10 +358,10 @@ async def get_glossary_stats(
 # =============================================================================
 
 
-@router.get("/{glossary_id}/entries", response_model=List[EntryResponse])
+@router.get("/{glossary_id}/entries", response_model=list[EntryResponse])
 async def list_entries(
     glossary_id: UUID,
-    target_language: Optional[str] = None,
+    target_language: str | None = None,
     service: GlossaryService = Depends(get_glossary_service),
 ):
     """
@@ -489,9 +485,7 @@ async def update_entry(
     )
 
 
-@router.delete(
-    "/{glossary_id}/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{glossary_id}/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_entry(
     glossary_id: UUID,
     entry_id: UUID,
@@ -540,7 +534,7 @@ async def bulk_import_entries(
         for e in request.entries
     ]
 
-    added, skipped, errors = await service.bulk_add_entries(
+    added, skipped, _errors = await service.bulk_add_entries(
         glossary_id=glossary_id,
         entries=entries_data,
     )
@@ -641,8 +635,8 @@ async def lookup_terms_global(
 @router.get("/terms/{target_language}")
 async def get_terms_for_translation(
     target_language: str,
-    glossary_id: Optional[UUID] = None,
-    domain: Optional[str] = None,
+    glossary_id: UUID | None = None,
+    domain: str | None = None,
     include_default: bool = True,
     service: GlossaryService = Depends(get_glossary_service),
 ):

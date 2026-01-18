@@ -19,24 +19,25 @@ Usage:
     python test_virtual_webcam_subtitles.py
 """
 
-import sys
 import asyncio
-import pytest
-import numpy as np
 import logging
-from pathlib import Path
-from datetime import datetime
+import sys
 import time
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+import pytest
 from PIL import Image
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from bot.virtual_webcam import (
-    VirtualWebcamManager,
-    WebcamConfig,
     DisplayMode,
     Theme,
+    VirtualWebcamManager,
+    WebcamConfig,
 )
 
 # Configure logging
@@ -54,9 +55,7 @@ class VirtualWebcamIntegrationTest:
     """
 
     def __init__(self):
-        self.test_dir = (
-            Path(__file__).parent.parent.parent / "test_output" / "virtual_webcam"
-        )
+        self.test_dir = Path(__file__).parent.parent.parent / "test_output" / "virtual_webcam"
         self.test_dir.mkdir(parents=True, exist_ok=True)
 
         self.webcam_manager = None
@@ -250,9 +249,7 @@ class VirtualWebcamIntegrationTest:
 
         # Display each transcription + translation pair
         for i, pair in enumerate(test_data, 1):
-            logger.info(
-                f"\n📝 Adding transcription/translation pair {i}/{len(test_data)}"
-            )
+            logger.info(f"\n📝 Adding transcription/translation pair {i}/{len(test_data)}")
 
             # Add original transcription first
             transcription = pair["transcription"]
@@ -368,9 +365,7 @@ class VirtualWebcamIntegrationTest:
 
             # Add all translations
             for j, translation in enumerate(item["translations"], 1):
-                logger.info(
-                    f"   🌐 TRANSLATION {j} ({translation['target_language'].upper()})"
-                )
+                logger.info(f"   🌐 TRANSLATION {j} ({translation['target_language'].upper()})")
                 logger.info(f"      {translation['translated_text']}")
 
                 self.webcam_manager.add_translation(translation)
@@ -409,9 +404,7 @@ class VirtualWebcamIntegrationTest:
         logger.info(f"   Frames saved: {len(self.frames_saved)}")
 
         if self.webcam_manager:
-            logger.info(
-                f"   Total frames generated: {self.webcam_manager.frames_generated}"
-            )
+            logger.info(f"   Total frames generated: {self.webcam_manager.frames_generated}")
             duration = (
                 time.time() - self.webcam_manager.start_time
                 if self.webcam_manager.start_time
@@ -445,16 +438,12 @@ class VirtualWebcamIntegrationTest:
             "output_directory": str(self.test_dir),
             "test_results": {
                 "test_1_transcription_only": len(
-                    [
-                        t
-                        for t in self.transcriptions_received
-                        if t.get("is_original_transcription")
-                    ]
+                    [t for t in self.transcriptions_received if t.get("is_original_transcription")]
                 )
                 > 0,
                 "test_2_bilingual_display": len(self.translations_received) > 0,
                 "test_3_multilingual": len(
-                    set(t.get("target_language") for t in self.translations_received)
+                    {t.get("target_language") for t in self.translations_received}
                 )
                 >= 2,
             },

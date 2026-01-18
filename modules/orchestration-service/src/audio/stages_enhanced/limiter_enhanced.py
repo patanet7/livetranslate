@@ -16,11 +16,12 @@ Pedalboard reference: https://github.com/spotify/pedalboard
 """
 
 import logging
-from typing import Dict, Any, Tuple
+from typing import Any
+
 import numpy as np
 
 try:
-    from pedalboard import Pedalboard, Limiter
+    from pedalboard import Limiter, Pedalboard
 
     HAS_PEDALBOARD = True
 except ImportError:
@@ -28,8 +29,8 @@ except ImportError:
     Pedalboard = None
     Limiter = None
 
-from ..stage_components import BaseAudioStage
 from ..config import LimiterConfig
+from ..stage_components import BaseAudioStage
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +59,7 @@ class LimiterStageEnhanced(BaseAudioStage):
     def __init__(self, config: LimiterConfig, sample_rate: int = 16000):
         if not HAS_PEDALBOARD:
             raise ImportError(
-                "pedalboard is required for LimiterStageEnhanced. "
-                "Install with: poetry install"
+                "pedalboard is required for LimiterStageEnhanced. " "Install with: poetry install"
             )
 
         super().__init__("limiter_enhanced", config, sample_rate)
@@ -89,9 +89,7 @@ class LimiterStageEnhanced(BaseAudioStage):
             threshold_db=self.config.threshold, release_ms=self.config.release_time
         )
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """
         Process audio through limiting.
 
@@ -130,10 +128,7 @@ class LimiterStageEnhanced(BaseAudioStage):
             limited = self.limiter(audio_2d, self.sample_rate)
 
             # Reshape back to original format
-            if audio_float.ndim == 1:
-                limited_audio = limited.reshape(-1)
-            else:
-                limited_audio = limited.T
+            limited_audio = limited.reshape(-1) if audio_float.ndim == 1 else limited.T
 
         except Exception as e:
             logger.error(f"Pedalboard limiting failed: {e}")
@@ -181,7 +176,7 @@ class LimiterStageEnhanced(BaseAudioStage):
 
         return limited_audio.astype(audio_data.dtype), metadata
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -199,13 +194,12 @@ class LimiterStageEnhanced(BaseAudioStage):
         super().update_config(new_config)
         self._create_limiter()
 
-    def get_quality_metrics(self) -> Dict[str, Any]:
+    def get_quality_metrics(self) -> dict[str, Any]:
         """Get quality metrics for this stage."""
         return {
             **self.quality_stats,
             "limiting_engagement_rate": (
-                self.quality_stats["limiting_engaged_count"]
-                / self.total_chunks_processed
+                self.quality_stats["limiting_engaged_count"] / self.total_chunks_processed
                 if self.total_chunks_processed > 0
                 else 0.0
             ),

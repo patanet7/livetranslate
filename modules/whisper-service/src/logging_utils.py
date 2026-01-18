@@ -16,9 +16,10 @@ Usage:
 
 import logging
 import time
-import numpy as np
-from typing import Optional, Dict, Any
 from contextlib import contextmanager
+from typing import Any
+
+import numpy as np
 
 
 class PerformanceLogger:
@@ -28,7 +29,7 @@ class PerformanceLogger:
     Logs timing information at DEBUG level to avoid cluttering production logs.
     """
 
-    def __init__(self, component_name: str, logger: Optional[logging.Logger] = None):
+    def __init__(self, component_name: str, logger: logging.Logger | None = None):
         """
         Initialize performance logger.
 
@@ -38,7 +39,7 @@ class PerformanceLogger:
         """
         self.component_name = component_name
         self.logger = logger or logging.getLogger(__name__)
-        self.metrics: Dict[str, list] = {}
+        self.metrics: dict[str, list] = {}
 
     @contextmanager
     def measure(self, operation: str):
@@ -64,9 +65,7 @@ class PerformanceLogger:
             self.metrics[operation].append(elapsed)
 
             # Log at DEBUG level (high-frequency operations shouldn't clutter INFO logs)
-            self.logger.debug(
-                f"[PERF] {self.component_name}.{operation}: {elapsed:.2f}ms"
-            )
+            self.logger.debug(f"[PERF] {self.component_name}.{operation}: {elapsed:.2f}ms")
 
     def log_summary(self, level: int = logging.INFO):
         """
@@ -92,7 +91,7 @@ class PerformanceLogger:
             self.logger.log(
                 level,
                 f"  {operation}: count={count}, avg={avg:.2f}ms, "
-                f"min={min_time:.2f}ms, max={max_time:.2f}ms"
+                f"min={min_time:.2f}ms, max={max_time:.2f}ms",
             )
 
     def reset(self):
@@ -101,10 +100,7 @@ class PerformanceLogger:
 
 
 def log_audio_stats(
-    audio: np.ndarray,
-    logger: logging.Logger,
-    prefix: str = "Audio",
-    level: int = logging.DEBUG
+    audio: np.ndarray, logger: logging.Logger, prefix: str = "Audio", level: int = logging.DEBUG
 ):
     """
     Log audio statistics at specified log level.
@@ -122,21 +118,18 @@ def log_audio_stats(
         logger.log(level, f"{prefix}: EMPTY")
         return
 
-    rms = float(np.sqrt(np.mean(audio ** 2)))
+    rms = float(np.sqrt(np.mean(audio**2)))
     max_amp = float(np.max(np.abs(audio)))
     duration = len(audio) / 16000  # Assume 16kHz
 
     logger.log(
         level,
-        f"{prefix}: {len(audio)} samples, {duration:.2f}s, "
-        f"RMS={rms:.6f}, Max={max_amp:.6f}"
+        f"{prefix}: {len(audio)} samples, {duration:.2f}s, " f"RMS={rms:.6f}, Max={max_amp:.6f}",
     )
 
 
 def log_vad_event(
-    event: Optional[Dict[str, float]],
-    logger: logging.Logger,
-    level: int = logging.INFO
+    event: dict[str, float] | None, logger: logging.Logger, level: int = logging.INFO
 ):
     """
     Log VAD event with proper formatting.
@@ -155,9 +148,9 @@ def log_vad_event(
         return
 
     parts = []
-    if 'start' in event:
+    if "start" in event:
         parts.append(f"START @ {event['start']:.2f}s")
-    if 'end' in event:
+    if "end" in event:
         parts.append(f"END @ {event['end']:.2f}s")
 
     logger.log(level, f"🎤 VAD: {' + '.join(parts)}")
@@ -170,7 +163,7 @@ def log_language_switch(
     frames: int,
     duration_ms: float,
     logger: logging.Logger,
-    level: int = logging.INFO
+    level: int = logging.INFO,
 ):
     """
     Log language switch event with structured information.
@@ -190,16 +183,16 @@ def log_language_switch(
     logger.log(
         level,
         f"🔄 Language Switch: {from_lang} → {to_lang} | "
-        f"margin={margin:.3f}, frames={frames}, duration={duration_ms:.0f}ms"
+        f"margin={margin:.3f}, frames={frames}, duration={duration_ms:.0f}ms",
     )
 
 
 def log_session_event(
     event_type: str,
     language: str,
-    details: Optional[Dict[str, Any]] = None,
-    logger: Optional[logging.Logger] = None,
-    level: int = logging.INFO
+    details: dict[str, Any] | None = None,
+    logger: logging.Logger | None = None,
+    level: int = logging.INFO,
 ):
     """
     Log session lifecycle events.
@@ -217,16 +210,12 @@ def log_session_event(
     if logger is None:
         logger = logging.getLogger(__name__)
 
-    icons = {
-        'create': '🆕',
-        'finish': '⏹️',
-        'switch': '🔄'
-    }
-    icon = icons.get(event_type, '📌')
+    icons = {"create": "🆕", "finish": "⏹️", "switch": "🔄"}
+    icon = icons.get(event_type, "📌")
 
     msg = f"{icon} Session {event_type}: {language}"
     if details:
-        detail_str = ', '.join(f"{k}={v}" for k, v in details.items())
+        detail_str = ", ".join(f"{k}={v}" for k, v in details.items())
         msg += f" ({detail_str})"
 
     logger.log(level, msg)
@@ -247,9 +236,9 @@ class MetricsCollector:
             name: Name of metrics collector
         """
         self.name = name
-        self.counters: Dict[str, int] = {}
-        self.timers: Dict[str, list] = {}
-        self.gauges: Dict[str, float] = {}
+        self.counters: dict[str, int] = {}
+        self.timers: dict[str, list] = {}
+        self.gauges: dict[str, float] = {}
 
     def increment(self, counter: str, value: int = 1):
         """Increment a counter"""
@@ -265,22 +254,22 @@ class MetricsCollector:
         """Set a gauge value"""
         self.gauges[gauge] = value
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get metrics summary"""
         summary = {
-            'name': self.name,
-            'counters': self.counters.copy(),
-            'gauges': self.gauges.copy(),
-            'timers': {}
+            "name": self.name,
+            "counters": self.counters.copy(),
+            "gauges": self.gauges.copy(),
+            "timers": {},
         }
 
         for timer, values in self.timers.items():
             if values:
-                summary['timers'][timer] = {
-                    'count': len(values),
-                    'avg': sum(values) / len(values),
-                    'min': min(values),
-                    'max': max(values)
+                summary["timers"][timer] = {
+                    "count": len(values),
+                    "avg": sum(values) / len(values),
+                    "min": min(values),
+                    "max": max(values),
                 }
 
         return summary
@@ -293,7 +282,7 @@ class MetricsCollector:
 
 
 # Pre-configured loggers for common components
-def get_component_logger(component: str, level: Optional[int] = None) -> logging.Logger:
+def get_component_logger(component: str, level: int | None = None) -> logging.Logger:
     """
     Get a logger for a specific component with consistent naming.
 

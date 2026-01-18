@@ -1,13 +1,13 @@
 import { log } from "../utils";
 
-export type MeetingStatus = 
+export type MeetingStatus =
   | "joining"
-  | "awaiting_admission" 
+  | "awaiting_admission"
   | "active"
   | "completed"
   | "failed";
 
-export type CompletionReason = 
+export type CompletionReason =
   | "stopped"
   | "awaiting_admission_timeout"
   | "left_alone"
@@ -15,7 +15,7 @@ export type CompletionReason =
   | "removed_by_admin"
   | "admission_rejected_by_admin";
 
-export type FailureStage = 
+export type FailureStage =
   | "requested"
   | "joining"
   | "active";
@@ -47,7 +47,7 @@ export async function callStatusChangeCallback(
   failureStage?: FailureStage
 ): Promise<void> {
   log(`🔥 UNIFIED CALLBACK: ${status.toUpperCase()} - reason: ${reason || 'none'}`);
-  
+
   if (!botConfig.botManagerCallbackUrl) {
     log("Warning: No bot manager callback URL configured. Cannot send status change callback.");
     return;
@@ -61,7 +61,7 @@ export async function callStatusChangeCallback(
   try {
     // Convert the callback URL to the unified endpoint
     const baseUrl = botConfig.botManagerCallbackUrl.replace('/exited', '/status_change');
-    
+
     const payload: UnifiedCallbackPayload = {
       connection_id: botConfig.connectionId,
       container_id: botConfig.container_name,
@@ -98,7 +98,7 @@ export async function callStatusChangeCallback(
  * Helper function to map exit reasons to completion reasons and failure stages
  */
 export function mapExitReasonToStatus(
-  reason: string, 
+  reason: string,
   exitCode: number
 ): { status: MeetingStatus; completionReason?: CompletionReason; failureStage?: FailureStage } {
   if (exitCode === 0) {

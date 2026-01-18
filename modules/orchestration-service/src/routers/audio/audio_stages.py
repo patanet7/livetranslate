@@ -10,23 +10,23 @@ Individual audio processing stage endpoints including:
 
 import asyncio
 import base64
-from datetime import datetime, timezone
-from typing import Dict, Any
+from datetime import UTC, datetime
+from typing import Any
 
+from dependencies import get_audio_coordinator, get_config_manager
 from fastapi import Depends, HTTPException, status
+from utils.audio_errors import (
+    AudioProcessingBaseError,
+    AudioProcessingError,
+    ValidationError,
+)
 
 from ._shared import (
     create_audio_router,
-    logger,
     error_boundary,
     format_recovery,
+    logger,
     service_recovery,
-)
-from dependencies import get_audio_coordinator, get_config_manager
-from utils.audio_errors import (
-    ValidationError,
-    AudioProcessingError,
-    AudioProcessingBaseError,
 )
 
 # Create router for audio stage processing
@@ -36,10 +36,10 @@ router = create_audio_router()
 @router.post("/process/stage/{stage_name}")
 async def process_audio_stage(
     stage_name: str,
-    request: Dict[str, Any],
+    request: dict[str, Any],
     audio_coordinator=Depends(get_audio_coordinator),
     config_manager=Depends(get_config_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Process audio through a specific pipeline stage
 
@@ -47,9 +47,7 @@ async def process_audio_stage(
     - **audio_data**: Base64 encoded audio data
     - **stage_config**: Stage-specific configuration parameters
     """
-    correlation_id = (
-        f"stage_{stage_name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
-    )
+    correlation_id = f"stage_{stage_name}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -103,21 +101,21 @@ async def process_audio_stage(
                 "stage_name": stage_name,
                 "stage_config": merged_config,
                 "result": result,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
         except AudioProcessingBaseError:
             raise
         except Exception as e:
             raise AudioProcessingError(
-                f"Stage processing failed for {stage_name}: {str(e)}",
+                f"Stage processing failed for {stage_name}: {e!s}",
                 correlation_id=stage_correlation_id,
                 processing_stage=stage_name,
                 details={"error": str(e)},
-            )
+            ) from e
 
 
-async def _get_available_stages() -> Dict[str, Dict[str, Any]]:
+async def _get_available_stages() -> dict[str, dict[str, Any]]:
     """Get information about all available processing stages"""
     return {
         "noise_reduction": {
@@ -248,10 +246,10 @@ async def _get_available_stages() -> Dict[str, Dict[str, Any]]:
 async def _process_single_stage(
     stage_name: str,
     audio_data: str,
-    stage_config: Dict[str, Any],
+    stage_config: dict[str, Any],
     correlation_id: str,
     audio_coordinator,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Process audio through a single stage"""
     try:
         # Get stage info
@@ -271,21 +269,13 @@ async def _process_single_stage(
         if stage_name == "vad":
             result = await _process_vad_stage(audio_bytes, stage_config, correlation_id)
         elif stage_name == "noise_reduction":
-            result = await _process_noise_reduction_stage(
-                audio_bytes, stage_config, correlation_id
-            )
+            result = await _process_noise_reduction_stage(audio_bytes, stage_config, correlation_id)
         elif stage_name == "compression":
-            result = await _process_compression_stage(
-                audio_bytes, stage_config, correlation_id
-            )
+            result = await _process_compression_stage(audio_bytes, stage_config, correlation_id)
         elif stage_name == "equalizer":
-            result = await _process_equalizer_stage(
-                audio_bytes, stage_config, correlation_id
-            )
+            result = await _process_equalizer_stage(audio_bytes, stage_config, correlation_id)
         elif stage_name == "limiter":
-            result = await _process_limiter_stage(
-                audio_bytes, stage_config, correlation_id
-            )
+            result = await _process_limiter_stage(audio_bytes, stage_config, correlation_id)
         else:
             # Generic stage processing
             result = await _process_generic_stage(
@@ -303,11 +293,11 @@ async def _process_single_stage(
 
     except Exception as e:
         raise AudioProcessingError(
-            f"Stage {stage_name} processing failed: {str(e)}",
+            f"Stage {stage_name} processing failed: {e!s}",
             correlation_id=correlation_id,
             processing_stage=stage_name,
             details={"error": str(e)},
-        )
+        ) from e
 
 
 def _get_processing_time(speed: str) -> float:
@@ -317,8 +307,8 @@ def _get_processing_time(speed: str) -> float:
 
 
 async def _process_vad_stage(
-    audio_bytes: bytes, config: Dict[str, Any], correlation_id: str
-) -> Dict[str, Any]:
+    audio_bytes: bytes, config: dict[str, Any], correlation_id: str
+) -> dict[str, Any]:
     """Process Voice Activity Detection stage"""
     threshold = config.get("threshold", 0.5)
     min_speech_duration = config.get("min_speech_duration", 0.1)
@@ -359,11 +349,7 @@ async def _process_vad_stage(
             current_time += silence_duration
 
     speech_percentage = (
-        sum(
-            seg["end_time"] - seg["start_time"]
-            for seg in segments
-            if seg["type"] == "speech"
-        )
+        sum(seg["end_time"] - seg["start_time"] for seg in segments if seg["type"] == "speech")
         / audio_duration
         * 100
     )
@@ -380,8 +366,8 @@ async def _process_vad_stage(
 
 
 async def _process_noise_reduction_stage(
-    audio_bytes: bytes, config: Dict[str, Any], correlation_id: str
-) -> Dict[str, Any]:
+    audio_bytes: bytes, config: dict[str, Any], correlation_id: str
+) -> dict[str, Any]:
     """Process noise reduction stage"""
     strength = config.get("strength", 0.5)
     freq_smoothing = config.get("frequency_smoothing", 0.3)
@@ -397,9 +383,7 @@ async def _process_noise_reduction_stage(
     noise_reduction_db = strength * 15.0 + np.random.normal(0, 2.0)
 
     return {
-        "output_audio": base64.b64encode(
-            audio_bytes
-        ).decode(),  # Placeholder - same as input
+        "output_audio": base64.b64encode(audio_bytes).decode(),  # Placeholder - same as input
         "original_snr_db": round(original_snr, 2),
         "final_snr_db": round(final_snr, 2),
         "snr_improvement_db": round(snr_improvement, 2),
@@ -412,8 +396,8 @@ async def _process_noise_reduction_stage(
 
 
 async def _process_compression_stage(
-    audio_bytes: bytes, config: Dict[str, Any], correlation_id: str
-) -> Dict[str, Any]:
+    audio_bytes: bytes, config: dict[str, Any], correlation_id: str
+) -> dict[str, Any]:
     """Process compression stage"""
     ratio = config.get("ratio", 4.0)
     threshold = config.get("threshold", -20.0)
@@ -437,8 +421,8 @@ async def _process_compression_stage(
 
 
 async def _process_equalizer_stage(
-    audio_bytes: bytes, config: Dict[str, Any], correlation_id: str
-) -> Dict[str, Any]:
+    audio_bytes: bytes, config: dict[str, Any], correlation_id: str
+) -> dict[str, Any]:
     """Process equalizer stage"""
     low_shelf = config.get("low_shelf", {})
     mid_peak = config.get("mid_peak", {})
@@ -461,8 +445,8 @@ async def _process_equalizer_stage(
 
 
 async def _process_limiter_stage(
-    audio_bytes: bytes, config: Dict[str, Any], correlation_id: str
-) -> Dict[str, Any]:
+    audio_bytes: bytes, config: dict[str, Any], correlation_id: str
+) -> dict[str, Any]:
     """Process limiter stage"""
     threshold = config.get("threshold", -0.1)
     release = config.get("release", 0.05)
@@ -486,8 +470,8 @@ async def _process_limiter_stage(
 
 
 async def _process_generic_stage(
-    stage_name: str, audio_bytes: bytes, config: Dict[str, Any], correlation_id: str
-) -> Dict[str, Any]:
+    stage_name: str, audio_bytes: bytes, config: dict[str, Any], correlation_id: str
+) -> dict[str, Any]:
     """Process generic stage"""
     return {
         "output_audio": base64.b64encode(audio_bytes).decode(),  # Placeholder
@@ -499,7 +483,7 @@ async def _process_generic_stage(
 
 
 @router.get("/stages/info")
-async def get_stages_info() -> Dict[str, Any]:
+async def get_stages_info() -> dict[str, Any]:
     """
     Get detailed information about all available processing stages
     """
@@ -516,19 +500,19 @@ async def get_stages_info() -> Dict[str, Any]:
                 "enhancement": ["voice_enhancement", "lufs_normalization"],
                 "analysis": ["vad"],
             },
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
         logger.error(f"Failed to get stages info: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve stages information: {str(e)}",
-        )
+            detail=f"Failed to retrieve stages information: {e!s}",
+        ) from e
 
 
 @router.get("/stages/{stage_name}/config")
-async def get_stage_config(stage_name: str) -> Dict[str, Any]:
+async def get_stage_config(stage_name: str) -> dict[str, Any]:
     """
     Get configuration schema and defaults for a specific stage
     """
@@ -551,7 +535,7 @@ async def get_stage_config(stage_name: str) -> Dict[str, Any]:
             "input_format": stage_info["input_format"],
             "output_format": stage_info["output_format"],
             "processing_time": stage_info["processing_time"],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except HTTPException:
@@ -560,21 +544,21 @@ async def get_stage_config(stage_name: str) -> Dict[str, Any]:
         logger.error(f"Failed to get config for stage {stage_name}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve stage configuration: {str(e)}",
-        )
+            detail=f"Failed to retrieve stage configuration: {e!s}",
+        ) from e
 
 
 @router.post("/pipeline/custom")
 async def create_custom_pipeline(
-    request: Dict[str, Any], audio_coordinator=Depends(get_audio_coordinator)
-) -> Dict[str, Any]:
+    request: dict[str, Any], audio_coordinator=Depends(get_audio_coordinator)
+) -> dict[str, Any]:
     """
     Create and execute a custom processing pipeline with multiple stages
 
     - **audio_data**: Base64 encoded audio data
     - **pipeline**: List of stages with their configurations
     """
-    correlation_id = f"pipeline_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"pipeline_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     try:
         audio_data = request.get("audio_data")
@@ -643,7 +627,7 @@ async def create_custom_pipeline(
             "total_processing_time": sum(
                 r["stage_result"]["processing_time"] for r in pipeline_results
             ),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except HTTPException:
@@ -652,5 +636,5 @@ async def create_custom_pipeline(
         logger.error(f"Custom pipeline failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline processing failed: {str(e)}",
-        )
+            detail=f"Pipeline processing failed: {e!s}",
+        ) from e

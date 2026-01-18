@@ -6,14 +6,14 @@ Comprehensive performance testing for all audio processing components including
 throughput, latency, memory usage, and scalability under various load conditions.
 """
 
-import pytest
 import asyncio
 import time
+from dataclasses import dataclass
+from unittest.mock import patch
 
 # import psutil  # Missing dependency - commented out
 import numpy as np
-from dataclasses import dataclass
-from unittest.mock import patch
+import pytest
 
 # Skip tests until audio processing components are implemented
 pytestmark = pytest.mark.skip(reason="Audio processing components not yet implemented")
@@ -22,7 +22,36 @@ pytestmark = pytest.mark.skip(reason="Audio processing components not yet implem
 # from src.audio.chunk_manager import ChunkManager, create_chunk_manager
 # from src.audio.audio_processor import AudioPipelineProcessor, create_audio_pipeline_processor
 # from src.audio.config import AudioConfigurationManager, get_default_audio_processing_config
-from src.audio.models import get_default_chunking_config, SourceType
+from src.audio.models import SourceType, get_default_chunking_config
+
+# Placeholder imports for not-yet-implemented components
+try:
+    from src.audio.audio_coordinator import create_audio_coordinator
+except ImportError:
+    def create_audio_coordinator(**kwargs):
+        """Placeholder - AudioCoordinator not yet implemented."""
+        raise NotImplementedError("AudioCoordinator not yet implemented")
+
+try:
+    from src.audio.chunk_manager import create_chunk_manager
+except ImportError:
+    def create_chunk_manager(*args, **kwargs):
+        """Placeholder - ChunkManager not yet implemented."""
+        raise NotImplementedError("ChunkManager not yet implemented")
+
+try:
+    from src.audio.audio_processor import create_audio_pipeline_processor
+except ImportError:
+    def create_audio_pipeline_processor(config):
+        """Placeholder - AudioPipelineProcessor not yet implemented."""
+        raise NotImplementedError("AudioPipelineProcessor not yet implemented")
+
+try:
+    from src.audio.config import get_default_audio_processing_config
+except ImportError:
+    def get_default_audio_processing_config():
+        """Placeholder - Audio config not yet implemented."""
+        return {}
 
 
 @dataclass
@@ -74,19 +103,13 @@ class PerformanceMonitor:
         cpu_user_time = end_cpu_time.user - self.start_cpu_time.user
         cpu_system_time = end_cpu_time.system - self.start_cpu_time.system
         cpu_total_time = cpu_user_time + cpu_system_time
-        cpu_usage_percent = (
-            (cpu_total_time / processing_time) * 100 if processing_time > 0 else 0
-        )
+        cpu_usage_percent = (cpu_total_time / processing_time) * 100 if processing_time > 0 else 0
 
         # Calculate throughput
-        throughput_ratio = (
-            audio_duration / processing_time if processing_time > 0 else 0
-        )
+        throughput_ratio = audio_duration / processing_time if processing_time > 0 else 0
 
         # Latency (processing time per operation)
-        latency_ms = (
-            (processing_time / operations_count) * 1000 if operations_count > 0 else 0
-        )
+        latency_ms = (processing_time / operations_count) * 1000 if operations_count > 0 else 0
 
         return PerformanceMetrics(
             processing_time=processing_time,
@@ -114,10 +137,9 @@ class TestAudioProcessorPerformance:
             monitor = PerformanceMonitor()
 
             # Create processor with only this stage
-            # config = get_default_audio_processing_config()
+            config = get_default_audio_processing_config()
             # config.enabled_stages = stage_config
-            # processor = create_audio_pipeline_processor(config)
-            pass  # Skip since components not implemented
+            processor = create_audio_pipeline_processor(config)
 
             voice_audio = sample_audio_data["voice_like"]
             audio_duration = len(voice_audio) / 16000
@@ -130,9 +152,7 @@ class TestAudioProcessorPerformance:
 
             for _ in range(iterations):
                 try:
-                    processed_audio, metadata = processor.process_audio_chunk(
-                        voice_audio
-                    )
+                    processed_audio, _metadata = processor.process_audio_chunk(voice_audio)
                     assert len(processed_audio) == len(voice_audio)
                 except Exception:
                     errors += 1
@@ -163,9 +183,7 @@ class TestAudioProcessorPerformance:
         )
 
     @pytest.mark.asyncio
-    async def test_audio_duration_scaling(
-        self, test_audio_fixtures, performance_test_config
-    ):
+    async def test_audio_duration_scaling(self, test_audio_fixtures, performance_test_config):
         """Test performance scaling with audio duration."""
         config = get_default_audio_processing_config()
         processor = create_audio_pipeline_processor(config)
@@ -181,15 +199,13 @@ class TestAudioProcessorPerformance:
             monitor.start_monitoring()
 
             # Process audio
-            processed_audio, metadata = processor.process_audio_chunk(audio_data)
+            _processed_audio, _metadata = processor.process_audio_chunk(audio_data)
 
             metrics = monitor.get_metrics(1, duration)
             duration_results[duration] = metrics
 
             # Performance assertions
-            assert (
-                metrics.throughput_ratio > 5.0
-            )  # Should process 5x faster than real-time
+            assert metrics.throughput_ratio > 5.0  # Should process 5x faster than real-time
             assert metrics.latency_ms < performance_test_config["max_latency_ms"]
 
         # Verify linear scaling
@@ -219,9 +235,7 @@ class TestAudioProcessorPerformance:
             monitor = PerformanceMonitor()
 
             # Create multiple processors for concurrent processing
-            processors = [
-                create_audio_pipeline_processor(config) for _ in range(num_concurrent)
-            ]
+            processors = [create_audio_pipeline_processor(config) for _ in range(num_concurrent)]
 
             monitor.start_monitoring()
 
@@ -237,9 +251,7 @@ class TestAudioProcessorPerformance:
             successes = len(results) - errors
 
             audio_duration = len(voice_audio) / 16000
-            metrics = monitor.get_metrics(
-                num_concurrent, audio_duration * num_concurrent
-            )
+            metrics = monitor.get_metrics(num_concurrent, audio_duration * num_concurrent)
             metrics.error_count = errors
             metrics.success_rate = successes / len(results)
 
@@ -258,9 +270,7 @@ class TestAudioProcessorPerformance:
         concurrent_metrics = concurrency_results[max_concurrent]
 
         # Concurrent processing should be more efficient than sequential
-        efficiency_ratio = (
-            concurrent_metrics.throughput_ratio / single_metrics.throughput_ratio
-        )
+        efficiency_ratio = concurrent_metrics.throughput_ratio / single_metrics.throughput_ratio
         assert efficiency_ratio > 0.5  # Should maintain at least 50% efficiency
 
 
@@ -306,15 +316,11 @@ class TestChunkManagerPerformance:
             await manager.stop()
 
             # Performance assertions
-            assert result == True
-            assert (
-                metrics.throughput_ratio > 2.0
-            )  # Should process 2x faster than real-time
+            assert result
+            assert metrics.throughput_ratio > 2.0  # Should process 2x faster than real-time
 
         # Verify optimal chunk size
-        best_throughput = max(
-            throughput_results.values(), key=lambda m: m.throughput_ratio
-        )
+        best_throughput = max(throughput_results.values(), key=lambda m: m.throughput_ratio)
         assert best_throughput.throughput_ratio > 5.0
 
     @pytest.mark.asyncio
@@ -338,12 +344,12 @@ class TestChunkManagerPerformance:
         total_chunks = 1000  # 100 seconds of audio
 
         errors = 0
-        for i in range(total_chunks):
+        for _i in range(total_chunks):
             audio_chunk = np.random.randn(chunk_size).astype(np.float32) * 0.1
 
             try:
                 result = await manager.add_audio_data(audio_chunk)
-                assert result == True
+                assert result
             except Exception:
                 errors += 1
 
@@ -362,9 +368,7 @@ class TestChunkManagerPerformance:
         assert metrics.memory_usage_mb < 100  # Should not use excessive memory
 
     @pytest.mark.asyncio
-    async def test_file_io_performance(
-        self, mock_database_adapter, sample_audio_data, temp_dir
-    ):
+    async def test_file_io_performance(self, mock_database_adapter, sample_audio_data, temp_dir):
         """Test file I/O performance."""
         session_id = "file_io_test"
         config = get_default_chunking_config()
@@ -400,7 +404,7 @@ class TestChunkManagerPerformance:
         await manager.stop()
 
         # Performance assertions
-        assert result == True
+        assert result
         assert metrics.throughput_ratio > 1.0
 
         # Verify files were created efficiently
@@ -447,7 +451,7 @@ class TestAudioCoordinatorPerformance:
                 source_type=SourceType.BOT_AUDIO,
                 target_languages=["en"],
             )
-            assert result == True
+            assert result
 
         # Get session statuses
         for session_id in session_ids:
@@ -457,7 +461,7 @@ class TestAudioCoordinatorPerformance:
         # End sessions
         for session_id in session_ids:
             result = await coordinator.end_session(session_id)
-            assert result == True
+            assert result
 
         metrics = monitor.get_metrics(num_sessions * 3)  # create + status + end
 
@@ -511,7 +515,7 @@ class TestAudioCoordinatorPerformance:
             await audio_coordinator.end_session(session_id)
 
         # Performance assertions
-        successful_results = [r for r in results if r == True]
+        successful_results = [r for r in results if r]
         success_rate = len(successful_results) / len(results)
 
         assert success_rate > 0.9
@@ -519,9 +523,7 @@ class TestAudioCoordinatorPerformance:
         assert metrics.memory_usage_mb < 300
 
     @pytest.mark.asyncio
-    async def test_service_communication_performance(
-        self, audio_coordinator, sample_audio_data
-    ):
+    async def test_service_communication_performance(self, audio_coordinator, sample_audio_data):
         """Test service communication performance."""
         session_id = "service_comm_perf"
 
@@ -551,16 +553,13 @@ class TestAudioCoordinatorPerformance:
 
         monitor = PerformanceMonitor()
 
-        with patch.object(
-            audio_coordinator.service_client, "post", side_effect=mock_service_call
-        ):
+        with patch.object(audio_coordinator.service_client, "post", side_effect=mock_service_call):
             monitor.start_monitoring()
 
             # Make multiple service calls
             num_calls = 50
             tasks = [
-                audio_coordinator.add_audio_data(session_id, voice_audio)
-                for _ in range(num_calls)
+                audio_coordinator.add_audio_data(session_id, voice_audio) for _ in range(num_calls)
             ]
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -574,9 +573,7 @@ class TestAudioCoordinatorPerformance:
         success_rate = len(successful_calls) / len(results)
 
         assert success_rate > 0.95
-        assert (
-            metrics.latency_ms < 100
-        )  # Less than 100ms per call including network delay
+        assert metrics.latency_ms < 100  # Less than 100ms per call including network delay
 
 
 class TestStressAndScalability:
@@ -587,9 +584,7 @@ class TestStressAndScalability:
         """Test behavior under memory stress."""
         # Generate large amounts of audio data
         large_audio_duration = 300  # 5 minutes
-        large_audio = test_audio_fixtures.generate_voice_like_audio(
-            large_audio_duration
-        )
+        large_audio = test_audio_fixtures.generate_voice_like_audio(large_audio_duration)
 
         session_id = "memory_stress_test"
 
@@ -614,9 +609,7 @@ class TestStressAndScalability:
                 audio_chunk = large_audio[i : i + chunk_size]
 
                 try:
-                    result = await audio_coordinator.add_audio_data(
-                        session_id, audio_chunk
-                    )
+                    await audio_coordinator.add_audio_data(session_id, audio_chunk)
 
                     # Check memory usage periodically
                     # current_memory = psutil.Process().memory_info().rss / (1024 * 1024)  # Missing psutil
@@ -637,9 +630,7 @@ class TestStressAndScalability:
         assert errors < 10  # Less than 10 errors in the entire test
 
     @pytest.mark.asyncio
-    async def test_high_frequency_operations(
-        self, audio_coordinator, sample_audio_data
-    ):
+    async def test_high_frequency_operations(self, audio_coordinator, sample_audio_data):
         """Test high-frequency operations."""
         session_id = "high_freq_test"
 
@@ -666,9 +657,7 @@ class TestStressAndScalability:
 
             for i in range(num_chunks):
                 try:
-                    result = await audio_coordinator.add_audio_data(
-                        session_id, small_audio
-                    )
+                    result = await audio_coordinator.add_audio_data(session_id, small_audio)
                     if not result:
                         errors += 1
                 except Exception:
@@ -678,9 +667,7 @@ class TestStressAndScalability:
                 if i % 100 == 0:
                     await asyncio.sleep(0.01)
 
-            metrics = monitor.get_metrics(
-                num_chunks, (num_chunks * len(small_audio)) / 16000
-            )
+            metrics = monitor.get_metrics(num_chunks, (num_chunks * len(small_audio)) / 16000)
 
         await audio_coordinator.end_session(session_id)
 
@@ -717,9 +704,7 @@ class TestStressAndScalability:
 
             while time.time() - start_time < test_duration:
                 try:
-                    result = await audio_coordinator.add_audio_data(
-                        session_id, voice_audio
-                    )
+                    result = await audio_coordinator.add_audio_data(session_id, voice_audio)
                     operations += 1
 
                     if not result:
@@ -737,18 +722,14 @@ class TestStressAndScalability:
                     # assert memory_mb < 1024  # Memory shouldn't grow excessively
                     pass  # Skip memory check due to missing psutil
 
-            metrics = monitor.get_metrics(
-                operations, (operations * len(voice_audio)) / 16000
-            )
+            metrics = monitor.get_metrics(operations, (operations * len(voice_audio)) / 16000)
 
         await audio_coordinator.end_session(session_id)
 
         # Performance assertions for sustained load
         success_rate = (operations - errors) / operations if operations > 0 else 0
         assert success_rate > 0.85  # Should maintain good success rate
-        assert (
-            operations > test_duration * 5
-        )  # Should process at least 5 operations per second
+        assert operations > test_duration * 5  # Should process at least 5 operations per second
         assert metrics.memory_usage_mb < 200  # Memory should not grow excessively
 
 
@@ -756,9 +737,7 @@ class TestPerformanceRegression:
     """Performance regression tests."""
 
     @pytest.mark.asyncio
-    async def test_performance_baseline(
-        self, sample_audio_data, performance_test_config
-    ):
+    async def test_performance_baseline(self, sample_audio_data, performance_test_config):
         """Establish performance baseline for regression testing."""
         baseline_results = {}
 
@@ -775,15 +754,13 @@ class TestPerformanceRegression:
         # Process audio multiple times for stable measurement
         iterations = 100
         for _ in range(iterations):
-            processed_audio, metadata = processor.process_audio_chunk(voice_audio)
+            _processed_audio, _metadata = processor.process_audio_chunk(voice_audio)
 
         metrics = monitor.get_metrics(iterations, audio_duration * iterations)
         baseline_results["audio_processing"] = metrics
 
         # Performance baseline assertions
-        assert (
-            metrics.throughput_ratio > 10.0
-        )  # Should process 10x faster than real-time
+        assert metrics.throughput_ratio > 10.0  # Should process 10x faster than real-time
         assert metrics.latency_ms < 50  # Less than 50ms per operation
         assert metrics.memory_usage_mb < 50  # Less than 50MB memory growth
 

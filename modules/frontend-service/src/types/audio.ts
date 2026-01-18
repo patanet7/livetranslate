@@ -5,7 +5,7 @@ export interface AudioStreamConfig {
   channels: number;
   bitDepth: number;
   bufferSize: number;
-  latencyHint: 'interactive' | 'balanced' | 'playback';
+  latencyHint: "interactive" | "balanced" | "playback";
 }
 
 export interface AudioAnalysisResult {
@@ -37,7 +37,7 @@ export interface AudioSegment {
 
 export interface AudioProcessor {
   name: string;
-  type: 'filter' | 'enhancement' | 'analysis' | 'codec';
+  type: "filter" | "enhancement" | "analysis" | "codec";
   parameters: Record<string, any>;
   enabled: boolean;
 }
@@ -56,7 +56,7 @@ export interface VoiceActivityDetection {
   confidence: number;
   segmentStart?: number;
   segmentEnd?: number;
-  algorithm: 'webrtc' | 'silero' | 'energy' | 'spectral';
+  algorithm: "webrtc" | "silero" | "energy" | "spectral";
 }
 
 // Processing pipeline types
@@ -64,7 +64,7 @@ export interface ProcessingStage {
   id: string;
   name: string;
   description: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: "pending" | "processing" | "completed" | "error";
   progress: number;
   startTime?: number;
   endTime?: number;
@@ -75,7 +75,7 @@ export interface ProcessingStage {
 }
 
 export interface ProcessingLog {
-  level: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  level: "INFO" | "SUCCESS" | "WARNING" | "ERROR";
   message: string;
   timestamp: number;
 }

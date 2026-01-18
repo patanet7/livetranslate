@@ -299,7 +299,7 @@ CREATE INDEX IF NOT EXISTS idx_performance_metrics_timestamp ON monitoring.perfo
 
 -- Create views for common queries
 CREATE OR REPLACE VIEW transcription.recent_transcripts AS
-SELECT 
+SELECT
     t.id,
     t.session_id,
     t.text,
@@ -321,7 +321,7 @@ WHERE t.created_at >= NOW() - INTERVAL '24 hours'
 ORDER BY t.created_at DESC;
 
 CREATE OR REPLACE VIEW speakers.session_speaker_summary AS
-SELECT 
+SELECT
     p.session_id,
     p.speaker_id,
     sp.display_name,
@@ -331,9 +331,9 @@ SELECT
     p.join_time,
     p.leave_time,
     p.is_active,
-    CASE WHEN p.leave_time IS NULL THEN 
+    CASE WHEN p.leave_time IS NULL THEN
         EXTRACT(EPOCH FROM (NOW() - p.join_time))
-    ELSE 
+    ELSE
         EXTRACT(EPOCH FROM (p.leave_time - p.join_time))
     END as session_duration_seconds
 FROM speakers.session_participants p
@@ -341,7 +341,7 @@ LEFT JOIN speakers.speaker_profiles sp ON p.speaker_id = sp.speaker_id
 ORDER BY p.session_id, p.join_time;
 
 CREATE OR REPLACE VIEW sessions.active_meeting_summary AS
-SELECT 
+SELECT
     ms.session_id,
     ms.meeting_title,
     ms.meeting_type,
@@ -357,12 +357,12 @@ FROM sessions.meeting_sessions ms
 JOIN sessions.live_sessions ls ON ms.session_id::text = ls.room_id
 LEFT JOIN speakers.session_participants sp ON ms.session_id = sp.session_id AND sp.is_active = true
 WHERE ms.meeting_status = 'active' AND ls.status = 'active'
-GROUP BY ms.session_id, ms.meeting_title, ms.meeting_type, ms.platform, 
+GROUP BY ms.session_id, ms.meeting_title, ms.meeting_type, ms.platform,
          ms.actual_start, ms.participant_count, ls.status, ls.source_language, ls.target_languages
 ORDER BY ms.actual_start DESC;
 
 CREATE OR REPLACE VIEW speakers.speaker_analytics_summary AS
-SELECT 
+SELECT
     sa.speaker_id,
     sp.display_name,
     COUNT(DISTINCT sa.session_id) as total_sessions,
@@ -378,7 +378,7 @@ GROUP BY sa.speaker_id, sp.display_name
 ORDER BY total_speaking_time DESC;
 
 CREATE OR REPLACE VIEW monitoring.service_status_summary AS
-SELECT 
+SELECT
     service_name,
     status,
     COUNT(*) as count,
@@ -420,4 +420,4 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA monitoring TO livetranslate;
 INSERT INTO monitoring.service_health (service_name, status, response_time_ms, error_message) VALUES
 ('database-init', 'completed', 0, 'Database initialization completed successfully');
 
-COMMIT; 
+COMMIT;

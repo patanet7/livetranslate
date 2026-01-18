@@ -16,9 +16,9 @@ Usage:
     audio_data = buffer.read_all()
 """
 
-import numpy as np
 import logging
-from typing import Optional
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class RingBuffer:
         _wrapped: Whether write pointer has wrapped around
     """
 
-    __slots__ = ('capacity', '_buffer', '_write_pos', '_size', '_wrapped', 'dtype')
+    __slots__ = ("_buffer", "_size", "_wrapped", "_write_pos", "capacity", "dtype")
 
     def __init__(self, capacity: int, dtype=np.float32):
         """Initialize preallocated ring buffer."""
@@ -93,7 +93,7 @@ class RingBuffer:
 
         if self._write_pos + data_len <= self.capacity:
             # Fast path: No wrap-around needed
-            self._buffer[self._write_pos:self._write_pos + data_len] = data
+            self._buffer[self._write_pos : self._write_pos + data_len] = data
             self._write_pos += data_len
 
             # Update size
@@ -110,7 +110,7 @@ class RingBuffer:
             remaining_space = self.capacity - self._write_pos
 
             # Write first part (to end of buffer)
-            self._buffer[self._write_pos:] = data[:remaining_space]
+            self._buffer[self._write_pos :] = data[:remaining_space]
 
             # Write second part (from start of buffer)
             overflow = data_len - remaining_space
@@ -132,15 +132,14 @@ class RingBuffer:
 
         if not self._wrapped:
             # Haven't wrapped yet, data is contiguous
-            return self._buffer[:self._write_pos].copy()
+            return self._buffer[: self._write_pos].copy()
         else:
             # Wrapped around: Need to concatenate oldest to newest
             # Oldest data: [write_pos : capacity]
             # Newest data: [0 : write_pos]
-            return np.concatenate([
-                self._buffer[self._write_pos:self.capacity],
-                self._buffer[:self._write_pos]
-            ])
+            return np.concatenate(
+                [self._buffer[self._write_pos : self.capacity], self._buffer[: self._write_pos]]
+            )
 
     def read_last_n(self, n: int) -> np.ndarray:
         """
@@ -163,19 +162,18 @@ class RingBuffer:
         if not self._wrapped:
             # Data is contiguous
             start = max(0, self._write_pos - n)
-            return self._buffer[start:self._write_pos].copy()
+            return self._buffer[start : self._write_pos].copy()
         else:
             # Data wraps around
             if n <= self._write_pos:
                 # All data in [0:write_pos] range
-                return self._buffer[self._write_pos - n:self._write_pos].copy()
+                return self._buffer[self._write_pos - n : self._write_pos].copy()
             else:
                 # Need data from both ends
                 from_end = n - self._write_pos
-                return np.concatenate([
-                    self._buffer[self.capacity - from_end:],
-                    self._buffer[:self._write_pos]
-                ])
+                return np.concatenate(
+                    [self._buffer[self.capacity - from_end :], self._buffer[: self._write_pos]]
+                )
 
     def consume(self, n: int) -> np.ndarray:
         """
@@ -201,7 +199,7 @@ class RingBuffer:
             result = self._buffer[:n].copy()
 
             # Shift remaining data to start (could optimize with rotation)
-            self._buffer[:self._write_pos - n] = self._buffer[n:self._write_pos]
+            self._buffer[: self._write_pos - n] = self._buffer[n : self._write_pos]
             self._write_pos -= n
             self._size -= n
         else:
@@ -211,15 +209,12 @@ class RingBuffer:
 
             if read_pos + n <= self.capacity:
                 # Can read contiguously
-                result = self._buffer[read_pos:read_pos + n].copy()
+                result = self._buffer[read_pos : read_pos + n].copy()
                 self._write_pos = (read_pos + n) % self.capacity
             else:
                 # Need to read from both ends
                 first_part = self.capacity - read_pos
-                result = np.concatenate([
-                    self._buffer[read_pos:],
-                    self._buffer[:n - first_part]
-                ])
+                result = np.concatenate([self._buffer[read_pos:], self._buffer[: n - first_part]])
                 self._write_pos = n - first_part
 
             self._size -= n

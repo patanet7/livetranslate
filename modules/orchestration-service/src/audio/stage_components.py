@@ -7,12 +7,13 @@ or as part of the complete pipeline. This enables frontend testing of
 individual stages and flexible pipeline configuration.
 """
 
-import time
 import logging
+import time
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Tuple, Optional, List
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -38,21 +39,21 @@ class StageResult:
     processing_time_ms: float
     input_level_db: float
     output_level_db: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    error_message: Optional[str] = None
-    quality_metrics: Optional[Dict[str, float]] = None
-    stage_config: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    error_message: str | None = None
+    quality_metrics: dict[str, float] | None = None
+    stage_config: dict[str, Any] | None = None
 
 
 @dataclass
 class StagePerformanceTarget:
     """Optional performance targets for a stage."""
 
-    target_latency_ms: Optional[float] = None
-    max_latency_ms: Optional[float] = None
-    min_quality_score: Optional[float] = None
-    max_cpu_usage_percent: Optional[float] = None
-    max_memory_usage_mb: Optional[float] = None
+    target_latency_ms: float | None = None
+    max_latency_ms: float | None = None
+    min_quality_score: float | None = None
+    max_cpu_usage_percent: float | None = None
+    max_memory_usage_mb: float | None = None
 
 
 class BaseAudioStage(ABC):
@@ -75,7 +76,7 @@ class BaseAudioStage(ABC):
         # Performance tracking
         self.total_processing_time = 0.0
         self.total_chunks_processed = 0
-        self.processing_history: List[float] = []
+        self.processing_history: list[float] = []
         self.error_count = 0
 
         # Stage state
@@ -100,7 +101,7 @@ class BaseAudioStage(ABC):
         self.processing_history.clear()
         self.error_count = 0
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get performance statistics for this stage."""
         if self.total_chunks_processed == 0:
             return {
@@ -265,9 +266,7 @@ class BaseAudioStage(ABC):
             )
 
     @abstractmethod
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """
         Stage-specific audio processing implementation.
 
@@ -280,7 +279,7 @@ class BaseAudioStage(ABC):
         pass
 
     @abstractmethod
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration for metadata."""
         pass
 
@@ -298,13 +297,13 @@ class ModularAudioPipeline:
 
     def __init__(self, sample_rate: int = 16000):
         self.sample_rate = sample_rate
-        self.stages: List[BaseAudioStage] = []
-        self.stage_map: Dict[str, BaseAudioStage] = {}
+        self.stages: list[BaseAudioStage] = []
+        self.stage_map: dict[str, BaseAudioStage] = {}
 
         # Pipeline statistics
         self.total_chunks_processed = 0
         self.total_pipeline_time = 0.0
-        self.pipeline_history: List[float] = []
+        self.pipeline_history: list[float] = []
 
         logger.info("Initialized modular audio pipeline")
 
@@ -322,7 +321,7 @@ class ModularAudioPipeline:
             del self.stage_map[stage_name]
             logger.info(f"Removed stage: {stage_name}")
 
-    def get_stage(self, stage_name: str) -> Optional[BaseAudioStage]:
+    def get_stage(self, stage_name: str) -> BaseAudioStage | None:
         """Get a stage by name."""
         return self.stage_map.get(stage_name)
 
@@ -331,16 +330,14 @@ class ModularAudioPipeline:
         if stage_name in self.stage_map:
             self.stage_map[stage_name].enable(enabled)
 
-    def set_stage_performance_target(
-        self, stage_name: str, target: StagePerformanceTarget
-    ):
+    def set_stage_performance_target(self, stage_name: str, target: StagePerformanceTarget):
         """Set performance target for a specific stage."""
         if stage_name in self.stage_map:
             self.stage_map[stage_name].set_performance_target(target)
 
     def process_chunk(
-        self, audio_data: np.ndarray, stop_after_stage: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, audio_data: np.ndarray, stop_after_stage: str | None = None
+    ) -> dict[str, Any]:
         """
         Process audio chunk through the pipeline.
 
@@ -371,9 +368,7 @@ class ModularAudioPipeline:
         }
 
         current_audio = audio_data.copy()
-        result["pipeline_metadata"]["input_level_db"] = self._calculate_audio_level(
-            audio_data
-        )
+        result["pipeline_metadata"]["input_level_db"] = self._calculate_audio_level(audio_data)
 
         # Process through each stage
         for stage in self.stages:
@@ -387,9 +382,7 @@ class ModularAudioPipeline:
             elif stage_result.status == StageStatus.BYPASSED:
                 result["pipeline_metadata"]["stages_bypassed"].append(stage.stage_name)
             elif stage_result.status == StageStatus.ERROR:
-                result["pipeline_metadata"]["stages_with_errors"].append(
-                    stage.stage_name
-                )
+                result["pipeline_metadata"]["stages_with_errors"].append(stage.stage_name)
 
             # Collect performance warnings
             if "performance_warnings" in stage_result.metadata:
@@ -405,9 +398,7 @@ class ModularAudioPipeline:
         pipeline_time_ms = (time.time() - pipeline_start_time) * 1000
         result["final_audio"] = current_audio
         result["pipeline_metadata"]["total_processing_time_ms"] = pipeline_time_ms
-        result["pipeline_metadata"]["output_level_db"] = self._calculate_audio_level(
-            current_audio
-        )
+        result["pipeline_metadata"]["output_level_db"] = self._calculate_audio_level(current_audio)
         result["pipeline_metadata"]["level_change_db"] = (
             result["pipeline_metadata"]["output_level_db"]
             - result["pipeline_metadata"]["input_level_db"]
@@ -435,11 +426,10 @@ class ModularAudioPipeline:
 
         return 20 * np.log10(rms)
 
-    def get_pipeline_statistics(self) -> Dict[str, Any]:
+    def get_pipeline_statistics(self) -> dict[str, Any]:
         """Get comprehensive pipeline statistics."""
         stage_stats = {
-            stage_name: stage.get_statistics()
-            for stage_name, stage in self.stage_map.items()
+            stage_name: stage.get_statistics() for stage_name, stage in self.stage_map.items()
         }
 
         recent_history = self.pipeline_history[-100:]  # Last 100 chunks
@@ -454,17 +444,11 @@ class ModularAudioPipeline:
                     else 0.0
                 ),
                 "recent_average_ms": np.mean(recent_history) if recent_history else 0.0,
-                "min_pipeline_time_ms": np.min(recent_history)
-                if recent_history
-                else 0.0,
-                "max_pipeline_time_ms": np.max(recent_history)
-                if recent_history
-                else 0.0,
+                "min_pipeline_time_ms": np.min(recent_history) if recent_history else 0.0,
+                "max_pipeline_time_ms": np.max(recent_history) if recent_history else 0.0,
                 "stages_count": len(self.stages),
                 "enabled_stages": [s.stage_name for s in self.stages if s.is_enabled],
-                "disabled_stages": [
-                    s.stage_name for s in self.stages if not s.is_enabled
-                ],
+                "disabled_stages": [s.stage_name for s in self.stages if not s.is_enabled],
             },
             "stage_stats": stage_stats,
         }
@@ -478,9 +462,7 @@ class ModularAudioPipeline:
         for stage in self.stages:
             stage.reset_statistics()
 
-    def process_single_stage(
-        self, stage_name: str, audio_data: np.ndarray
-    ) -> Optional[StageResult]:
+    def process_single_stage(self, stage_name: str, audio_data: np.ndarray) -> StageResult | None:
         """Process audio through a single stage only."""
         if stage_name not in self.stage_map:
             return None

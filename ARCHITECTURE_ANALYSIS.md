@@ -893,4 +893,3 @@ LiveTranslate's architecture is well-designed for real-time speech translation w
 - **Quality**: >90% accuracy for both transcription and translation
 
 The primary optimization opportunities lie in **model inference optimization** (quantization, distillation), **GPU utilization** (multi-GPU, batch processing), and **network overhead reduction** (embedded services, gRPC). With these optimizations, the system can achieve <300ms end-to-end latency at scale.
-

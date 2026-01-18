@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -24,17 +24,17 @@ import {
   Tooltip,
   Paper,
   Checkbox,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import RestoreIcon from '@mui/icons-material/Restore';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+} from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import RestoreIcon from "@mui/icons-material/Restore";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 
 interface TranslationConfig {
   // Service Configuration
   service: {
     enabled: boolean;
     service_url: string;
-    inference_engine: 'vllm' | 'ollama' | 'triton';
+    inference_engine: "vllm" | "ollama" | "triton";
     model_name: string;
     fallback_model: string;
     timeout_ms: number;
@@ -88,7 +88,7 @@ interface TranslationConfig {
   };
 }
 
-import { SUPPORTED_LANGUAGES } from '@/constants/languages';
+import { SUPPORTED_LANGUAGES } from "@/constants/languages";
 
 interface TranslationSettingsProps {
   onSave: (message: string, success?: boolean) => void;
@@ -97,20 +97,20 @@ interface TranslationSettingsProps {
 const availableLanguages = SUPPORTED_LANGUAGES;
 
 const availableModels = [
-  { id: 'llama2-7b-chat', name: 'Llama 2 7B Chat' },
-  { id: 'mistral-7b-instruct', name: 'Mistral 7B Instruct' },
-  { id: 'codellama-7b-instruct', name: 'CodeLlama 7B Instruct' },
-  { id: 'vicuna-7b-v1.5', name: 'Vicuna 7B v1.5' },
-  { id: 'orca-mini-3b', name: 'Orca Mini 3B' },
+  { id: "llama2-7b-chat", name: "Llama 2 7B Chat" },
+  { id: "mistral-7b-instruct", name: "Mistral 7B Instruct" },
+  { id: "codellama-7b-instruct", name: "CodeLlama 7B Instruct" },
+  { id: "vicuna-7b-v1.5", name: "Vicuna 7B v1.5" },
+  { id: "orca-mini-3b", name: "Orca Mini 3B" },
 ];
 
 const defaultTranslationConfig: TranslationConfig = {
   service: {
     enabled: true,
-    service_url: 'http://localhost:5003',
-    inference_engine: 'vllm',
-    model_name: 'llama2-7b-chat',
-    fallback_model: 'orca-mini-3b',
+    service_url: "http://localhost:5003",
+    inference_engine: "vllm",
+    model_name: "llama2-7b-chat",
+    fallback_model: "orca-mini-3b",
     timeout_ms: 30000,
     max_retries: 3,
   },
@@ -118,7 +118,7 @@ const defaultTranslationConfig: TranslationConfig = {
     auto_detect: true,
     default_source_language: DEFAULT_SOURCE_LANGUAGE,
     target_languages: [...DEFAULT_TARGET_LANGUAGES],
-    supported_languages: availableLanguages.map(l => l.code),
+    supported_languages: availableLanguages.map((l) => l.code),
     confidence_threshold: DEFAULT_CONFIDENCE_THRESHOLD,
   },
   quality: {
@@ -152,8 +152,12 @@ const defaultTranslationConfig: TranslationConfig = {
   },
 };
 
-const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => {
-  const [config, setConfig] = useState<TranslationConfig>(defaultTranslationConfig);
+const TranslationSettings: React.FC<TranslationSettingsProps> = ({
+  onSave,
+}) => {
+  const [config, setConfig] = useState<TranslationConfig>(
+    defaultTranslationConfig,
+  );
   const [testingTranslation, setTestingTranslation] = useState(false);
   const [translationStats, setTranslationStats] = useState({
     total_translations: 0,
@@ -167,34 +171,38 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
   useEffect(() => {
     const loadConfiguration = async () => {
       try {
-        const response = await fetch('/api/settings/translation');
+        const response = await fetch("/api/settings/translation");
         if (response.ok) {
           const currentConfig = await response.json();
           setConfig({ ...defaultTranslationConfig, ...currentConfig });
         }
       } catch (error) {
-        console.error('Failed to load translation configuration:', error);
+        console.error("Failed to load translation configuration:", error);
       }
     };
 
     const loadStats = async () => {
       try {
-        const response = await fetch('/api/settings/translation/stats');
+        const response = await fetch("/api/settings/translation/stats");
         if (response.ok) {
           const stats = await response.json();
           setTranslationStats(stats);
         }
       } catch (error) {
-        console.error('Failed to load translation stats:', error);
+        console.error("Failed to load translation stats:", error);
       }
     };
-    
+
     loadConfiguration();
     loadStats();
   }, []);
 
-  const handleConfigChange = (section: keyof TranslationConfig, key: string, value: any) => {
-    setConfig(prev => ({
+  const handleConfigChange = (
+    section: keyof TranslationConfig,
+    key: string,
+    value: any,
+  ) => {
+    setConfig((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
@@ -203,56 +211,59 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
     }));
   };
 
-  const handleLanguageToggle = (languageCode: string, isTarget: boolean = false) => {
-    const key = isTarget ? 'target_languages' : 'supported_languages';
+  const handleLanguageToggle = (
+    languageCode: string,
+    isTarget: boolean = false,
+  ) => {
+    const key = isTarget ? "target_languages" : "supported_languages";
     const currentLanguages = config.languages[key];
-    
+
     const updatedLanguages = currentLanguages.includes(languageCode)
-      ? currentLanguages.filter(code => code !== languageCode)
+      ? currentLanguages.filter((code) => code !== languageCode)
       : [...currentLanguages, languageCode];
-    
-    handleConfigChange('languages', key, updatedLanguages);
+
+    handleConfigChange("languages", key, updatedLanguages);
   };
 
   const handleSave = async () => {
     try {
-      const response = await fetch('/api/settings/translation', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/translation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-      
+
       if (response.ok) {
-        onSave('Translation settings saved successfully');
+        onSave("Translation settings saved successfully");
       } else {
-        onSave('Failed to save translation settings', false);
+        onSave("Failed to save translation settings", false);
       }
     } catch (error) {
-      onSave('Error saving translation settings', false);
+      onSave("Error saving translation settings", false);
     }
   };
 
   const handleTestTranslation = async () => {
     setTestingTranslation(true);
     try {
-      const response = await fetch('/api/settings/translation/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/translation/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: 'This is a test translation.',
-          target_language: config.languages.target_languages[0] || 'es',
+          text: "This is a test translation.",
+          target_language: config.languages.target_languages[0] || "es",
           config: config,
         }),
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         onSave(`Translation test successful: "${result.translated_text}"`);
       } else {
-        onSave('Translation test failed', false);
+        onSave("Translation test failed", false);
       }
     } catch (error) {
-      onSave('Error testing translation', false);
+      onSave("Error testing translation", false);
     } finally {
       setTestingTranslation(false);
     }
@@ -260,28 +271,33 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
 
   const handleResetToDefaults = () => {
     setConfig(defaultTranslationConfig);
-    onSave('Translation configuration reset to defaults');
+    onSave("Translation configuration reset to defaults");
   };
 
   const handleClearCache = async () => {
     try {
-      const response = await fetch('/api/settings/translation/clear-cache', {
-        method: 'POST',
+      const response = await fetch("/api/settings/translation/clear-cache", {
+        method: "POST",
       });
-      
+
       if (response.ok) {
-        onSave('Translation cache cleared successfully');
+        onSave("Translation cache cleared successfully");
       } else {
-        onSave('Failed to clear translation cache', false);
+        onSave("Failed to clear translation cache", false);
       }
     } catch (error) {
-      onSave('Error clearing translation cache', false);
+      onSave("Error clearing translation cache", false);
     }
   };
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
+      >
         <Typography variant="h5" component="h2">
           Translation Service Configuration
         </Typography>
@@ -298,7 +314,7 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
             disabled={testingTranslation || !config.service.enabled}
             sx={{ mr: 2 }}
           >
-            {testingTranslation ? 'Testing...' : 'Test Translation'}
+            {testingTranslation ? "Testing..." : "Test Translation"}
           </Button>
           <Button variant="contained" onClick={handleSave}>
             Save Settings
@@ -307,14 +323,15 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
       </Box>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Configure the translation service for real-time multi-language translation.
-        Supports local LLM inference with vLLM, Ollama, and Triton backends.
+        Configure the translation service for real-time multi-language
+        translation. Supports local LLM inference with vLLM, Ollama, and Triton
+        backends.
       </Alert>
 
       {/* Translation Statistics */}
       <Card sx={{ mb: 3 }}>
-        <CardHeader 
-          title="Translation Statistics" 
+        <CardHeader
+          title="Translation Statistics"
           action={
             <Button
               variant="outlined"
@@ -329,7 +346,7 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
         <CardContent>
           <Grid container spacing={2}>
             <Grid item xs={12} md={6} lg={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {translationStats.total_translations}
                 </Typography>
@@ -339,7 +356,7 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
               </Paper>
             </Grid>
             <Grid item xs={12} md={6} lg={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="success.main">
                   {translationStats.successful_translations}
                 </Typography>
@@ -349,7 +366,7 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
               </Paper>
             </Grid>
             <Grid item xs={12} md={6} lg={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="info.main">
                   {translationStats.cache_hits}
                 </Typography>
@@ -359,7 +376,7 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
               </Paper>
             </Grid>
             <Grid item xs={12} md={6} lg={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="secondary.main">
                   {(translationStats.average_quality * 100).toFixed(1)}%
                 </Typography>
@@ -369,7 +386,7 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
               </Paper>
             </Grid>
             <Grid item xs={12} md={6} lg={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {translationStats.average_latency_ms.toFixed(0)}ms
                 </Typography>
@@ -386,9 +403,9 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Service Configuration</Typography>
-          <Chip 
-            label={config.service.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.service.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.service.enabled ? "Enabled" : "Disabled"}
+            color={config.service.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -400,7 +417,9 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.service.enabled}
-                    onChange={(e) => handleConfigChange('service', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange("service", "enabled", e.target.checked)
+                    }
                   />
                 }
                 label="Enable Translation Service"
@@ -411,7 +430,9 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 fullWidth
                 label="Service URL"
                 value={config.service.service_url}
-                onChange={(e) => handleConfigChange('service', 'service_url', e.target.value)}
+                onChange={(e) =>
+                  handleConfigChange("service", "service_url", e.target.value)
+                }
                 disabled={!config.service.enabled}
               />
             </Grid>
@@ -421,7 +442,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 <Select
                   value={config.service.inference_engine}
                   label="Inference Engine"
-                  onChange={(e) => handleConfigChange('service', 'inference_engine', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange(
+                      "service",
+                      "inference_engine",
+                      e.target.value,
+                    )
+                  }
                   disabled={!config.service.enabled}
                 >
                   <MenuItem value="vllm">vLLM (GPU Optimized)</MenuItem>
@@ -436,11 +463,15 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 <Select
                   value={config.service.model_name}
                   label="Primary Model"
-                  onChange={(e) => handleConfigChange('service', 'model_name', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("service", "model_name", e.target.value)
+                  }
                   disabled={!config.service.enabled}
                 >
                   {availableModels.map((model) => (
-                    <MenuItem key={model.id} value={model.id}>{model.name}</MenuItem>
+                    <MenuItem key={model.id} value={model.id}>
+                      {model.name}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -451,11 +482,19 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 <Select
                   value={config.service.fallback_model}
                   label="Fallback Model"
-                  onChange={(e) => handleConfigChange('service', 'fallback_model', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange(
+                      "service",
+                      "fallback_model",
+                      e.target.value,
+                    )
+                  }
                   disabled={!config.service.enabled}
                 >
                   {availableModels.map((model) => (
-                    <MenuItem key={model.id} value={model.id}>{model.name}</MenuItem>
+                    <MenuItem key={model.id} value={model.id}>
+                      {model.name}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -466,7 +505,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Timeout (ms)"
                 type="number"
                 value={config.service.timeout_ms}
-                onChange={(e) => handleConfigChange('service', 'timeout_ms', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "service",
+                    "timeout_ms",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.service.enabled}
               />
             </Grid>
@@ -476,7 +521,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Max Retries"
                 type="number"
                 value={config.service.max_retries}
-                onChange={(e) => handleConfigChange('service', 'max_retries', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "service",
+                    "max_retries",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.service.enabled}
               />
             </Grid>
@@ -488,8 +539,8 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Language Configuration</Typography>
-          <Chip 
-            label={`${config.languages?.target_languages?.length || 0} target languages`} 
+          <Chip
+            label={`${config.languages?.target_languages?.length || 0} target languages`}
             color="primary"
             size="small"
             sx={{ ml: 2 }}
@@ -502,7 +553,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.languages.auto_detect}
-                    onChange={(e) => handleConfigChange('languages', 'auto_detect', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "languages",
+                        "auto_detect",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Auto-detect Source Language"
@@ -514,36 +571,57 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 <Select
                   value={config.languages.default_source_language}
                   label="Default Source Language"
-                  onChange={(e) => handleConfigChange('languages', 'default_source_language', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange(
+                      "languages",
+                      "default_source_language",
+                      e.target.value,
+                    )
+                  }
                   disabled={config.languages.auto_detect}
                 >
                   {availableLanguages.map((lang) => (
-                    <MenuItem key={lang.code} value={lang.code}>{lang.name}</MenuItem>
+                    <MenuItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Confidence Threshold: {config.languages.confidence_threshold}</Typography>
+              <Typography gutterBottom>
+                Confidence Threshold: {config.languages.confidence_threshold}
+              </Typography>
               <Slider
                 value={config.languages.confidence_threshold}
-                onChange={(_, value) => handleConfigChange('languages', 'confidence_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("languages", "confidence_threshold", value)
+                }
                 min={0}
                 max={1}
                 step={0.1}
               />
             </Grid>
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>Target Languages</Typography>
-              <Paper variant="outlined" sx={{ p: 2, maxHeight: 200, overflow: 'auto' }}>
+              <Typography variant="h6" gutterBottom>
+                Target Languages
+              </Typography>
+              <Paper
+                variant="outlined"
+                sx={{ p: 2, maxHeight: 200, overflow: "auto" }}
+              >
                 <Grid container spacing={1}>
                   {availableLanguages.map((lang) => (
                     <Grid item xs={6} md={4} lg={3} key={lang.code}>
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={config.languages.target_languages.includes(lang.code)}
-                            onChange={() => handleLanguageToggle(lang.code, true)}
+                            checked={config.languages.target_languages.includes(
+                              lang.code,
+                            )}
+                            onChange={() =>
+                              handleLanguageToggle(lang.code, true)
+                            }
                           />
                         }
                         label={lang.name}
@@ -561,8 +639,8 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Model Parameters</Typography>
-          <Chip 
-            label={`temp: ${config.model.temperature}`} 
+          <Chip
+            label={`temp: ${config.model.temperature}`}
             color="secondary"
             size="small"
             sx={{ ml: 2 }}
@@ -571,18 +649,22 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
         <AccordionDetails>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Temperature: {config.model.temperature}</Typography>
+              <Typography gutterBottom>
+                Temperature: {config.model.temperature}
+              </Typography>
               <Slider
                 value={config.model.temperature}
-                onChange={(_, value) => handleConfigChange('model', 'temperature', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("model", "temperature", value)
+                }
                 min={0}
                 max={2}
                 step={0.1}
                 marks={[
-                  { value: 0, label: '0' },
-                  { value: 0.5, label: '0.5' },
-                  { value: 1, label: '1' },
-                  { value: 2, label: '2' },
+                  { value: 0, label: "0" },
+                  { value: 0.5, label: "0.5" },
+                  { value: 1, label: "1" },
+                  { value: 2, label: "2" },
                 ]}
               />
             </Grid>
@@ -590,7 +672,9 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
               <Typography gutterBottom>Top P: {config.model.top_p}</Typography>
               <Slider
                 value={config.model.top_p}
-                onChange={(_, value) => handleConfigChange('model', 'top_p', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("model", "top_p", value)
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -602,14 +686,24 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Max Tokens"
                 type="number"
                 value={config.model.max_tokens}
-                onChange={(e) => handleConfigChange('model', 'max_tokens', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "model",
+                    "max_tokens",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Repetition Penalty: {config.model.repetition_penalty}</Typography>
+              <Typography gutterBottom>
+                Repetition Penalty: {config.model.repetition_penalty}
+              </Typography>
               <Slider
                 value={config.model.repetition_penalty}
-                onChange={(_, value) => handleConfigChange('model', 'repetition_penalty', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("model", "repetition_penalty", value)
+                }
                 min={1}
                 max={2}
                 step={0.1}
@@ -621,7 +715,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Context Window"
                 type="number"
                 value={config.model.context_window}
-                onChange={(e) => handleConfigChange('model', 'context_window', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "model",
+                    "context_window",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -630,7 +730,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Batch Size"
                 type="number"
                 value={config.model.batch_size}
-                onChange={(e) => handleConfigChange('model', 'batch_size', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "model",
+                    "batch_size",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
           </Grid>
@@ -645,10 +751,14 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
         <AccordionDetails>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Quality Threshold: {config.quality.quality_threshold}</Typography>
+              <Typography gutterBottom>
+                Quality Threshold: {config.quality.quality_threshold}
+              </Typography>
               <Slider
                 value={config.quality.quality_threshold}
-                onChange={(_, value) => handleConfigChange('quality', 'quality_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("quality", "quality_threshold", value)
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -659,7 +769,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.quality.confidence_scoring}
-                    onChange={(e) => handleConfigChange('quality', 'confidence_scoring', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "quality",
+                        "confidence_scoring",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Confidence Scoring"
@@ -670,7 +786,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.quality.translation_validation}
-                    onChange={(e) => handleConfigChange('quality', 'translation_validation', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "quality",
+                        "translation_validation",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Translation Validation"
@@ -681,7 +803,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.quality.context_preservation}
-                    onChange={(e) => handleConfigChange('quality', 'context_preservation', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "quality",
+                        "context_preservation",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Context Preservation"
@@ -692,7 +820,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.quality.speaker_attribution}
-                    onChange={(e) => handleConfigChange('quality', 'speaker_attribution', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "quality",
+                        "speaker_attribution",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Speaker Attribution"
@@ -714,7 +848,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.realtime.streaming_translation}
-                    onChange={(e) => handleConfigChange('realtime', 'streaming_translation', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "realtime",
+                        "streaming_translation",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Streaming Translation"
@@ -725,7 +865,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.realtime.partial_results}
-                    onChange={(e) => handleConfigChange('realtime', 'partial_results', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "realtime",
+                        "partial_results",
+                        e.target.checked,
+                      )
+                    }
                     disabled={!config.realtime.streaming_translation}
                   />
                 }
@@ -738,7 +884,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Translation Delay (ms)"
                 type="number"
                 value={config.realtime.translation_delay_ms}
-                onChange={(e) => handleConfigChange('realtime', 'translation_delay_ms', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "realtime",
+                    "translation_delay_ms",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -746,7 +898,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.realtime.batch_processing}
-                    onChange={(e) => handleConfigChange('realtime', 'batch_processing', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "realtime",
+                        "batch_processing",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Batch Processing"
@@ -757,7 +915,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.realtime.adaptive_batching}
-                    onChange={(e) => handleConfigChange('realtime', 'adaptive_batching', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "realtime",
+                        "adaptive_batching",
+                        e.target.checked,
+                      )
+                    }
                     disabled={!config.realtime.batch_processing}
                   />
                 }
@@ -772,9 +936,9 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Caching and Optimization</Typography>
-          <Chip 
-            label={config.caching.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.caching.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.caching.enabled ? "Enabled" : "Disabled"}
+            color={config.caching.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -786,7 +950,9 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 control={
                   <Switch
                     checked={config.caching.enabled}
-                    onChange={(e) => handleConfigChange('caching', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange("caching", "enabled", e.target.checked)
+                    }
                   />
                 }
                 label="Enable Translation Caching"
@@ -798,15 +964,25 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Cache Duration (minutes)"
                 type="number"
                 value={config.caching.cache_duration_minutes}
-                onChange={(e) => handleConfigChange('caching', 'cache_duration_minutes', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "caching",
+                    "cache_duration_minutes",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.caching.enabled}
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Similarity Threshold: {config.caching.similarity_threshold}</Typography>
+              <Typography gutterBottom>
+                Similarity Threshold: {config.caching.similarity_threshold}
+              </Typography>
               <Slider
                 value={config.caching.similarity_threshold}
-                onChange={(_, value) => handleConfigChange('caching', 'similarity_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("caching", "similarity_threshold", value)
+                }
                 min={0.8}
                 max={1}
                 step={0.01}
@@ -819,7 +995,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Memory Limit (MB)"
                 type="number"
                 value={config.caching.memory_limit_mb}
-                onChange={(e) => handleConfigChange('caching', 'memory_limit_mb', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "caching",
+                    "memory_limit_mb",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.caching.enabled}
               />
             </Grid>
@@ -829,7 +1011,13 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({ onSave }) => 
                 label="Cleanup Interval (seconds)"
                 type="number"
                 value={config.caching.cache_cleanup_interval}
-                onChange={(e) => handleConfigChange('caching', 'cache_cleanup_interval', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "caching",
+                    "cache_cleanup_interval",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.caching.enabled}
               />
             </Grid>

@@ -11,9 +11,9 @@ Strategy:
 3. For code-switching: Use TEXT language for labeling, audio language for SOT reset logic
 """
 
-import re
-from typing import Optional
 import logging
+import re
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -22,38 +22,38 @@ class TextLanguageDetector:
     """Detect language from transcribed text using character analysis"""
 
     # Character ranges for different scripts
-    CJK_RANGES = [
-        (0x4E00, 0x9FFF),    # CJK Unified Ideographs
-        (0x3400, 0x4DBF),    # CJK Extension A
+    CJK_RANGES: ClassVar[list[tuple[int, int]]] = [
+        (0x4E00, 0x9FFF),  # CJK Unified Ideographs
+        (0x3400, 0x4DBF),  # CJK Extension A
         (0x20000, 0x2A6DF),  # CJK Extension B
         (0x2A700, 0x2B73F),  # CJK Extension C
         (0x2B740, 0x2B81F),  # CJK Extension D
         (0x2B820, 0x2CEAF),  # CJK Extension E
         (0x2CEB0, 0x2EBEF),  # CJK Extension F
-        (0x3000, 0x303F),    # CJK Symbols and Punctuation
-        (0xFF00, 0xFFEF),    # Halfwidth and Fullwidth Forms
+        (0x3000, 0x303F),  # CJK Symbols and Punctuation
+        (0xFF00, 0xFFEF),  # Halfwidth and Fullwidth Forms
     ]
 
-    HIRAGANA_KATAKANA_RANGES = [
-        (0x3040, 0x309F),    # Hiragana
-        (0x30A0, 0x30FF),    # Katakana
+    HIRAGANA_KATAKANA_RANGES: ClassVar[list[tuple[int, int]]] = [
+        (0x3040, 0x309F),  # Hiragana
+        (0x30A0, 0x30FF),  # Katakana
     ]
 
-    HANGUL_RANGES = [
-        (0xAC00, 0xD7AF),    # Hangul Syllables
-        (0x1100, 0x11FF),    # Hangul Jamo
-        (0x3130, 0x318F),    # Hangul Compatibility Jamo
+    HANGUL_RANGES: ClassVar[list[tuple[int, int]]] = [
+        (0xAC00, 0xD7AF),  # Hangul Syllables
+        (0x1100, 0x11FF),  # Hangul Jamo
+        (0x3130, 0x318F),  # Hangul Compatibility Jamo
     ]
 
-    ARABIC_RANGES = [
-        (0x0600, 0x06FF),    # Arabic
-        (0x0750, 0x077F),    # Arabic Supplement
-        (0x08A0, 0x08FF),    # Arabic Extended-A
+    ARABIC_RANGES: ClassVar[list[tuple[int, int]]] = [
+        (0x0600, 0x06FF),  # Arabic
+        (0x0750, 0x077F),  # Arabic Supplement
+        (0x08A0, 0x08FF),  # Arabic Extended-A
     ]
 
-    CYRILLIC_RANGES = [
-        (0x0400, 0x04FF),    # Cyrillic
-        (0x0500, 0x052F),    # Cyrillic Supplement
+    CYRILLIC_RANGES: ClassVar[list[tuple[int, int]]] = [
+        (0x0400, 0x04FF),  # Cyrillic
+        (0x0500, 0x052F),  # Cyrillic Supplement
     ]
 
     def __init__(self):
@@ -73,9 +73,9 @@ class TextLanguageDetector:
 
     def _count_latin_chars(self, text: str) -> int:
         """Count Latin alphabet characters (A-Z, a-z)"""
-        return len(re.findall(r'[A-Za-z]', text))
+        return len(re.findall(r"[A-Za-z]", text))
 
-    def detect(self, text: str, audio_detected_language: Optional[str] = None) -> str:
+    def detect(self, text: str, audio_detected_language: str | None = None) -> str:
         """
         Detect language from transcribed text
 
@@ -87,17 +87,19 @@ class TextLanguageDetector:
             Language code (en, zh, ja, ko, ar, ru, etc.)
         """
         if not text or not text.strip():
-            return audio_detected_language or 'en'
+            return audio_detected_language or "en"
 
         # Remove whitespace for character counting
-        text_no_space = text.replace(' ', '').replace('\n', '')
+        text_no_space = text.replace(" ", "").replace("\n", "")
 
         if not text_no_space:
-            return audio_detected_language or 'en'
+            return audio_detected_language or "en"
 
         # Count characters in different scripts
         cjk_count = self._count_chars_in_ranges(text_no_space, self.CJK_RANGES)
-        hiragana_katakana_count = self._count_chars_in_ranges(text_no_space, self.HIRAGANA_KATAKANA_RANGES)
+        hiragana_katakana_count = self._count_chars_in_ranges(
+            text_no_space, self.HIRAGANA_KATAKANA_RANGES
+        )
         hangul_count = self._count_chars_in_ranges(text_no_space, self.HANGUL_RANGES)
         arabic_count = self._count_chars_in_ranges(text_no_space, self.ARABIC_RANGES)
         cyrillic_count = self._count_chars_in_ranges(text_no_space, self.CYRILLIC_RANGES)
@@ -115,34 +117,42 @@ class TextLanguageDetector:
 
             # Japanese has Hiragana/Katakana mixed with CJK
             if jp_ratio > 0.1 or (hiragana_katakana_count > 0 and cjk_ratio < 0.5):
-                logger.debug(f"[TEXT_LID] Detected Japanese: CJK={cjk_count}, HK={hiragana_katakana_count}, ratio={jp_ratio:.2f}")
-                return 'ja'
+                logger.debug(
+                    f"[TEXT_LID] Detected Japanese: CJK={cjk_count}, HK={hiragana_katakana_count}, ratio={jp_ratio:.2f}"
+                )
+                return "ja"
 
             # Pure Chinese (mostly CJK, no Hiragana/Katakana)
             if cjk_ratio > 0.2:
                 logger.debug(f"[TEXT_LID] Detected Chinese: CJK={cjk_count}, ratio={cjk_ratio:.2f}")
-                return 'zh'
+                return "zh"
 
         # Korean detection
         if hangul_count > 0:
             hangul_ratio = hangul_count / total_chars if total_chars > 0 else 0
             if hangul_ratio > 0.2:
-                logger.debug(f"[TEXT_LID] Detected Korean: Hangul={hangul_count}, ratio={hangul_ratio:.2f}")
-                return 'ko'
+                logger.debug(
+                    f"[TEXT_LID] Detected Korean: Hangul={hangul_count}, ratio={hangul_ratio:.2f}"
+                )
+                return "ko"
 
         # Arabic detection
         if arabic_count > 0:
             arabic_ratio = arabic_count / total_chars if total_chars > 0 else 0
             if arabic_ratio > 0.2:
-                logger.debug(f"[TEXT_LID] Detected Arabic: Arabic={arabic_count}, ratio={arabic_ratio:.2f}")
-                return 'ar'
+                logger.debug(
+                    f"[TEXT_LID] Detected Arabic: Arabic={arabic_count}, ratio={arabic_ratio:.2f}"
+                )
+                return "ar"
 
         # Cyrillic detection (Russian, Ukrainian, etc.)
         if cyrillic_count > 0:
             cyrillic_ratio = cyrillic_count / total_chars if total_chars > 0 else 0
             if cyrillic_ratio > 0.2:
-                logger.debug(f"[TEXT_LID] Detected Cyrillic (Russian): Cyrillic={cyrillic_count}, ratio={cyrillic_ratio:.2f}")
-                return 'ru'
+                logger.debug(
+                    f"[TEXT_LID] Detected Cyrillic (Russian): Cyrillic={cyrillic_count}, ratio={cyrillic_ratio:.2f}"
+                )
+                return "ru"
 
         # Latin-based languages (English, Spanish, French, German, etc.)
         # If mostly Latin characters, default to audio detection or English
@@ -151,20 +161,36 @@ class TextLanguageDetector:
             if latin_ratio > 0.5:
                 # Can't distinguish between Latin-based languages without more sophisticated analysis
                 # Use audio detection as hint if available
-                if audio_detected_language in ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'pl', 'tr']:
-                    logger.debug(f"[TEXT_LID] Detected Latin script, using audio hint: {audio_detected_language}")
+                if audio_detected_language in [
+                    "en",
+                    "es",
+                    "fr",
+                    "de",
+                    "it",
+                    "pt",
+                    "nl",
+                    "pl",
+                    "tr",
+                ]:
+                    logger.debug(
+                        f"[TEXT_LID] Detected Latin script, using audio hint: {audio_detected_language}"
+                    )
                     return audio_detected_language
                 else:
-                    logger.debug(f"[TEXT_LID] Detected Latin script, defaulting to English: Latin={latin_count}, ratio={latin_ratio:.2f}")
-                    return 'en'
+                    logger.debug(
+                        f"[TEXT_LID] Detected Latin script, defaulting to English: Latin={latin_count}, ratio={latin_ratio:.2f}"
+                    )
+                    return "en"
 
         # Fallback: Use audio detection or default to English
         if audio_detected_language:
-            logger.debug(f"[TEXT_LID] No clear script detected, using audio detection: {audio_detected_language}")
+            logger.debug(
+                f"[TEXT_LID] No clear script detected, using audio detection: {audio_detected_language}"
+            )
             return audio_detected_language
 
-        logger.debug(f"[TEXT_LID] No clear script detected, defaulting to English")
-        return 'en'
+        logger.debug("[TEXT_LID] No clear script detected, defaulting to English")
+        return "en"
 
     def get_language_confidence(self, text: str, language: str) -> float:
         """
@@ -180,31 +206,31 @@ class TextLanguageDetector:
         if not text or not text.strip():
             return 0.0
 
-        text_no_space = text.replace(' ', '').replace('\n', '')
+        text_no_space = text.replace(" ", "").replace("\n", "")
         total_chars = len(text_no_space)
 
         if total_chars == 0:
             return 0.0
 
         # Calculate confidence based on script character ratio
-        if language == 'zh':
+        if language == "zh":
             cjk_count = self._count_chars_in_ranges(text_no_space, self.CJK_RANGES)
             return min(1.0, cjk_count / total_chars)
 
-        elif language == 'ja':
+        elif language == "ja":
             jp_count = self._count_chars_in_ranges(text_no_space, self.HIRAGANA_KATAKANA_RANGES)
             cjk_count = self._count_chars_in_ranges(text_no_space, self.CJK_RANGES)
             return min(1.0, (jp_count + cjk_count * 0.5) / total_chars)
 
-        elif language == 'ko':
+        elif language == "ko":
             hangul_count = self._count_chars_in_ranges(text_no_space, self.HANGUL_RANGES)
             return min(1.0, hangul_count / total_chars)
 
-        elif language == 'ar':
+        elif language == "ar":
             arabic_count = self._count_chars_in_ranges(text_no_space, self.ARABIC_RANGES)
             return min(1.0, arabic_count / total_chars)
 
-        elif language == 'ru':
+        elif language == "ru":
             cyrillic_count = self._count_chars_in_ranges(text_no_space, self.CYRILLIC_RANGES)
             return min(1.0, cyrillic_count / total_chars)
 

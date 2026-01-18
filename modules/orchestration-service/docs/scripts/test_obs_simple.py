@@ -15,16 +15,14 @@ Usage:
     python test_obs_simple.py --password YOUR_PASSWORD
 """
 
-import os
-import asyncio
 import argparse
-from pathlib import Path
-from datetime import datetime, timezone
+import os
 from dataclasses import dataclass
-from typing import Optional
+from pathlib import Path
 
 try:
     from dotenv import load_dotenv
+
     # Load .env from orchestration-service root
     env_path = Path(__file__).parent.parent.parent / ".env"
     load_dotenv(env_path)
@@ -41,9 +39,10 @@ except ImportError:
 @dataclass
 class OBSConfig:
     """OBS connection configuration."""
+
     host: str = "localhost"
     port: int = 4455
-    password: Optional[str] = None
+    password: str | None = None
     caption_source: str = "LiveTranslate Caption"
 
 
@@ -73,17 +72,14 @@ def test_connection(config: OBSConfig) -> bool:
 
         # Get version info
         version = client.get_version()
-        print(f"✅ Connected to OBS!")
+        print("✅ Connected to OBS!")
         print(f"   OBS Version: {version.obs_version}")
         print(f"   WebSocket Version: {version.obs_web_socket_version}")
         print(f"   Platform: {version.platform}")
 
         # Get input list
         inputs = client.get_input_list()
-        text_sources = [
-            inp for inp in inputs.inputs
-            if "text" in inp.get("inputKind", "").lower()
-        ]
+        text_sources = [inp for inp in inputs.inputs if "text" in inp.get("inputKind", "").lower()]
 
         print(f"\n📋 Text Sources Found ({len(text_sources)}):")
         for src in text_sources:
@@ -121,7 +117,7 @@ def send_test_caption(config: OBSConfig, text: str) -> bool:
             settings={"text": text},
         )
 
-        print(f"✅ Caption sent: \"{text}\"")
+        print(f'✅ Caption sent: "{text}"')
         print("   Check your OBS text source!")
 
         client.disconnect()
@@ -190,14 +186,16 @@ def main():
     # Load defaults from environment
     default_config = get_config_from_env()
 
-    parser = argparse.ArgumentParser(
-        description="Simple OBS WebSocket connection test"
-    )
+    parser = argparse.ArgumentParser(description="Simple OBS WebSocket connection test")
 
     parser.add_argument("--host", default=default_config.host, help="OBS WebSocket host")
     parser.add_argument("--port", type=int, default=default_config.port, help="OBS WebSocket port")
-    parser.add_argument("--password", default=default_config.password, help="OBS WebSocket password")
-    parser.add_argument("--source", default=default_config.caption_source, help="Caption text source name")
+    parser.add_argument(
+        "--password", default=default_config.password, help="OBS WebSocket password"
+    )
+    parser.add_argument(
+        "--source", default=default_config.caption_source, help="Caption text source name"
+    )
 
     parser.add_argument("--test", action="store_true", help="Test connection only")
     parser.add_argument("--send", metavar="TEXT", help="Send a test caption")

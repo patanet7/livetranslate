@@ -18,11 +18,10 @@ Architecture:
 See WHISPER_LID_ARCHITECTURE.md for complete technical design.
 """
 
-import numpy as np
-import torch
 import logging
-from typing import Dict, Optional, List
 from dataclasses import dataclass
+
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +29,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LIDFrame:
     """Single LID detection result for a frame"""
+
     timestamp: float  # Frame timestamp in seconds
     language: str  # Detected language code
-    probabilities: Dict[str, float]  # Per-language probabilities
+    probabilities: dict[str, float]  # Per-language probabilities
     confidence: float  # Confidence of top prediction
 
 
@@ -55,20 +55,17 @@ class FrameLevelLID:
     """
 
     def __init__(
-        self,
-        hop_ms: int = 100,
-        target_languages: Optional[List[str]] = None,
-        smoothing: bool = True
+        self, hop_ms: int = 100, target_languages: list[str] | None = None, smoothing: bool = True
     ):
         self.hop_ms = hop_ms
-        self.target_languages = target_languages or ['en', 'zh']
+        self.target_languages = target_languages or ["en", "zh"]
         self.smoothing = smoothing
 
         # Language token IDs (lazy initialized from tokenizer)
-        self.language_token_ids: Optional[Dict[str, int]] = None
+        self.language_token_ids: dict[str, int] | None = None
 
         # Detection history for smoothing
-        self.detection_history: List[Dict[str, float]] = []  # Store raw probabilities
+        self.detection_history: list[dict[str, float]] = []  # Store raw probabilities
         self.max_history = 50  # Keep last 5 seconds at 10Hz
 
         logger.info(
@@ -77,12 +74,8 @@ class FrameLevelLID:
         )
 
     def detect(
-        self,
-        encoder_output: torch.Tensor,
-        model,
-        tokenizer,
-        timestamp: float
-    ) -> Dict[str, float]:
+        self, encoder_output: torch.Tensor, model, tokenizer, timestamp: float
+    ) -> dict[str, float]:
         """
         Detect language using Whisper's encoder output (zero-cost probe).
 
@@ -106,7 +99,7 @@ class FrameLevelLID:
             encoder_output=encoder_output,
             model=model,
             tokenizer=tokenizer,
-            language_token_ids=self.language_token_ids
+            language_token_ids=self.language_token_ids,
         )
 
         # Add to history for smoothing
@@ -120,7 +113,7 @@ class FrameLevelLID:
 
         return lang_probs
 
-    def _get_language_token_ids(self, tokenizer) -> Dict[str, int]:
+    def _get_language_token_ids(self, tokenizer) -> dict[str, int]:
         """
         Extract language token IDs from Whisper tokenizer.
 
@@ -146,12 +139,8 @@ class FrameLevelLID:
         return language_token_ids
 
     def _probe_language(
-        self,
-        encoder_output: torch.Tensor,
-        model,
-        tokenizer,
-        language_token_ids: Dict[str, int]
-    ) -> Dict[str, float]:
+        self, encoder_output: torch.Tensor, model, tokenizer, language_token_ids: dict[str, int]
+    ) -> dict[str, float]:
         """
         Run Whisper-native LID probe using Whisper's built-in detect_language().
 
@@ -183,15 +172,15 @@ class FrameLevelLID:
                 # CPU is fast enough for this single forward pass (~10ms)
                 original_device = str(encoder_output.device)
                 encoder_output_cpu = encoder_output.cpu()
-                model_cpu = model.to('cpu')
+                model.to("cpu")
 
                 _, all_lang_probs = model.detect_language(encoder_output_cpu, tokenizer)
 
                 # Move model back to original device for transcription
-                if 'mps' in original_device.lower():
-                    model.to('mps')
-                elif 'cuda' in original_device.lower():
-                    model.to('cuda')
+                if "mps" in original_device.lower():
+                    model.to("mps")
+                elif "cuda" in original_device.lower():
+                    model.to("cuda")
                 # else: already on CPU, no need to move
 
                 # all_lang_probs is a list of dicts with ALL language probabilities
@@ -199,10 +188,7 @@ class FrameLevelLID:
                 full_probs = all_lang_probs[0]  # Get first batch element
 
                 # Filter to target languages
-                target_probs = {
-                    lang: full_probs.get(lang, 0.0)
-                    for lang in self.target_languages
-                }
+                target_probs = {lang: full_probs.get(lang, 0.0) for lang in self.target_languages}
 
                 # Renormalize to sum to 1.0 (since we're only looking at subset)
                 total = sum(target_probs.values())
@@ -210,8 +196,9 @@ class FrameLevelLID:
                     lang_probs = {lang: prob / total for lang, prob in target_probs.items()}
                 else:
                     # Fallback to uniform if something went wrong
-                    lang_probs = {lang: 1.0 / len(self.target_languages)
-                                 for lang in self.target_languages}
+                    lang_probs = {
+                        lang: 1.0 / len(self.target_languages) for lang in self.target_languages
+                    }
 
                 logger.debug(
                     f"LID probe (Whisper built-in): {' '.join([f'{lang}={prob:.3f}' for lang, prob in lang_probs.items()])}"
@@ -222,10 +209,9 @@ class FrameLevelLID:
         except Exception as e:
             logger.error(f"Whisper LID probe failed: {e}", exc_info=True)
             # Fallback: uniform distribution
-            return {lang: 1.0 / len(self.target_languages)
-                   for lang in self.target_languages}
+            return {lang: 1.0 / len(self.target_languages) for lang in self.target_languages}
 
-    def _apply_median_smoothing(self, current_probs: Dict[str, float]) -> Dict[str, float]:
+    def _apply_median_smoothing(self, current_probs: dict[str, float]) -> dict[str, float]:
         """
         Apply median filtering to reduce language flapping.
 
@@ -243,7 +229,7 @@ class FrameLevelLID:
         recent_frames = self.detection_history[-5:]
 
         # Count language votes (based on argmax of each frame)
-        language_votes: Dict[str, int] = {}
+        language_votes: dict[str, int] = {}
         for frame_probs in recent_frames:
             top_lang = max(frame_probs, key=frame_probs.get)
             language_votes[top_lang] = language_votes.get(top_lang, 0) + 1
@@ -255,8 +241,7 @@ class FrameLevelLID:
         # If majority differs from current, boost majority language probability
         if majority_lang != current_lang and language_votes[majority_lang] >= 3:
             logger.debug(
-                f"LID smoothing: {current_lang} → {majority_lang} "
-                f"(votes: {language_votes})"
+                f"LID smoothing: {current_lang} → {majority_lang} " f"(votes: {language_votes})"
             )
 
             # Boost majority language probability
@@ -271,7 +256,7 @@ class FrameLevelLID:
 
         return current_probs
 
-    def get_recent_detections(self, count: int = 10) -> List[Dict[str, float]]:
+    def get_recent_detections(self, count: int = 10) -> list[dict[str, float]]:
         """
         Get recent LID detections.
 
@@ -286,7 +271,7 @@ class FrameLevelLID:
 
         return self.detection_history[-count:]
 
-    def get_current_language(self) -> Optional[str]:
+    def get_current_language(self) -> str | None:
         """Get most recent detected language (argmax of latest probabilities)"""
         if not self.detection_history:
             return None

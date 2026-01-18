@@ -35,7 +35,7 @@ const constructRedisUri = () => {
   const port = process.env.REDIS_PORT || 6379;
   const username = process.env.REDIS_USERNAME;
   const password = process.env.REDIS_PASSWORD;
-  
+
   if (username && password) {
     return `redis://${username}:${password}@${host}:${port}`;
   } else if (password) {
@@ -55,7 +55,7 @@ export default {
   // Unset MAX_RECORDING_DURATION_MINUTES to use default upper limit on duration
   maxRecordingDuration: process.env.MAX_RECORDING_DURATION_MINUTES ?
     Number(process.env.MAX_RECORDING_DURATION_MINUTES) :
-    180, // There's an upper limit on meeting duration 3 hours 
+    180, // There's an upper limit on meeting duration 3 hours
   chromeExecutablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // We use Google Chrome with Playwright for recording
   inactivityLimit: process.env.MEETING_INACTIVITY_MINUTES ? Number(process.env.MEETING_INACTIVITY_MINUTES) : 1,
   activateInactivityDetectionAfter: process.env.INACTIVITY_DETECTION_START_DELAY_MINUTES ? Number(process.env.INACTIVITY_DETECTION_START_DELAY_MINUTES) :  1,

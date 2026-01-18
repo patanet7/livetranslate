@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -24,7 +24,7 @@ import {
   Select,
   Tab,
   Tabs,
-} from '@mui/material';
+} from "@mui/material";
 import {
   SaveAs,
   Delete,
@@ -43,7 +43,7 @@ import {
   Podcasts,
   MusicNote,
   MoreVert,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface PresetManagerProps {
   currentPipeline?: PipelinePreset;
@@ -71,7 +71,7 @@ interface PipelinePreset {
   };
   metadata: {
     totalLatency: number;
-    complexity: 'simple' | 'moderate' | 'complex';
+    complexity: "simple" | "moderate" | "complex";
     stageCount: number;
     audioFormat?: {
       sampleRate: number;
@@ -83,108 +83,121 @@ interface PipelinePreset {
   thumbnail?: string;
 }
 
-type PresetCategory = 
-  | 'voice-enhancement'
-  | 'noise-reduction'
-  | 'broadcast'
-  | 'podcast'
-  | 'music'
-  | 'streaming'
-  | 'recording'
-  | 'custom';
+type PresetCategory =
+  | "voice-enhancement"
+  | "noise-reduction"
+  | "broadcast"
+  | "podcast"
+  | "music"
+  | "streaming"
+  | "recording"
+  | "custom";
 
-const CATEGORY_INFO: Record<PresetCategory, { label: string; icon: React.ElementType; color: string }> = {
-  'voice-enhancement': { label: 'Voice Enhancement', icon: RecordVoiceOver, color: '#2196f3' },
-  'noise-reduction': { label: 'Noise Reduction', icon: VolumeUp, color: '#4caf50' },
-  'broadcast': { label: 'Broadcast', icon: Radio, color: '#ff9800' },
-  'podcast': { label: 'Podcast', icon: Podcasts, color: '#9c27b0' },
-  'music': { label: 'Music', icon: MusicNote, color: '#f44336' },
-  'streaming': { label: 'Streaming', icon: Speed, color: '#00bcd4' },
-  'recording': { label: 'Recording', icon: Mic, color: '#795548' },
-  'custom': { label: 'Custom', icon: Category, color: '#607d8b' },
+const CATEGORY_INFO: Record<
+  PresetCategory,
+  { label: string; icon: React.ElementType; color: string }
+> = {
+  "voice-enhancement": {
+    label: "Voice Enhancement",
+    icon: RecordVoiceOver,
+    color: "#2196f3",
+  },
+  "noise-reduction": {
+    label: "Noise Reduction",
+    icon: VolumeUp,
+    color: "#4caf50",
+  },
+  broadcast: { label: "Broadcast", icon: Radio, color: "#ff9800" },
+  podcast: { label: "Podcast", icon: Podcasts, color: "#9c27b0" },
+  music: { label: "Music", icon: MusicNote, color: "#f44336" },
+  streaming: { label: "Streaming", icon: Speed, color: "#00bcd4" },
+  recording: { label: "Recording", icon: Mic, color: "#795548" },
+  custom: { label: "Custom", icon: Category, color: "#607d8b" },
 };
 
 // Built-in presets
 const BUILT_IN_PRESETS: PipelinePreset[] = [
   {
-    id: 'preset_voice_clarity',
-    name: 'Voice Clarity Pro',
-    description: 'Professional voice enhancement with noise reduction and clarity optimization',
-    category: 'voice-enhancement',
-    tags: ['voice', 'clarity', 'professional', 'realtime'],
+    id: "preset_voice_clarity",
+    name: "Voice Clarity Pro",
+    description:
+      "Professional voice enhancement with noise reduction and clarity optimization",
+    category: "voice-enhancement",
+    tags: ["voice", "clarity", "professional", "realtime"],
     isFavorite: false,
     isBuiltIn: true,
-    author: 'LiveTranslate Team',
-    created: new Date('2024-01-01'),
-    modified: new Date('2024-01-01'),
+    author: "LiveTranslate Team",
+    created: new Date("2024-01-01"),
+    modified: new Date("2024-01-01"),
     pipeline: {
       nodes: [], // Would contain actual pipeline configuration
       edges: [],
     },
     metadata: {
       totalLatency: 45.5,
-      complexity: 'moderate',
+      complexity: "moderate",
       stageCount: 6,
       audioFormat: {
         sampleRate: 16000,
         channels: 1,
         bitDepth: 16,
       },
-      targetUseCase: ['meeting', 'conference', 'presentation'],
+      targetUseCase: ["meeting", "conference", "presentation"],
     },
   },
   {
-    id: 'preset_broadcast_standard',
-    name: 'Broadcast Standard EBU R128',
-    description: 'EBU R128 compliant loudness normalization for broadcast',
-    category: 'broadcast',
-    tags: ['broadcast', 'ebu', 'loudness', 'compliance'],
+    id: "preset_broadcast_standard",
+    name: "Broadcast Standard EBU R128",
+    description: "EBU R128 compliant loudness normalization for broadcast",
+    category: "broadcast",
+    tags: ["broadcast", "ebu", "loudness", "compliance"],
     isFavorite: false,
     isBuiltIn: true,
-    author: 'LiveTranslate Team',
-    created: new Date('2024-01-01'),
-    modified: new Date('2024-01-01'),
+    author: "LiveTranslate Team",
+    created: new Date("2024-01-01"),
+    modified: new Date("2024-01-01"),
     pipeline: {
       nodes: [],
       edges: [],
     },
     metadata: {
       totalLatency: 68.2,
-      complexity: 'complex',
+      complexity: "complex",
       stageCount: 8,
       audioFormat: {
         sampleRate: 48000,
         channels: 2,
         bitDepth: 24,
       },
-      targetUseCase: ['broadcast', 'television', 'radio'],
+      targetUseCase: ["broadcast", "television", "radio"],
     },
   },
   {
-    id: 'preset_podcast_master',
-    name: 'Podcast Master',
-    description: 'Complete podcast audio processing chain with voice optimization',
-    category: 'podcast',
-    tags: ['podcast', 'voice', 'master', 'production'],
+    id: "preset_podcast_master",
+    name: "Podcast Master",
+    description:
+      "Complete podcast audio processing chain with voice optimization",
+    category: "podcast",
+    tags: ["podcast", "voice", "master", "production"],
     isFavorite: false,
     isBuiltIn: true,
-    author: 'LiveTranslate Team',
-    created: new Date('2024-01-01'),
-    modified: new Date('2024-01-01'),
+    author: "LiveTranslate Team",
+    created: new Date("2024-01-01"),
+    modified: new Date("2024-01-01"),
     pipeline: {
       nodes: [],
       edges: [],
     },
     metadata: {
       totalLatency: 82.7,
-      complexity: 'complex',
+      complexity: "complex",
       stageCount: 10,
       audioFormat: {
         sampleRate: 44100,
         channels: 1,
         bitDepth: 16,
       },
-      targetUseCase: ['podcast', 'audiobook', 'narration'],
+      targetUseCase: ["podcast", "audiobook", "narration"],
     },
   },
 ];
@@ -198,24 +211,29 @@ const PresetManager: React.FC<PresetManagerProps> = ({
   onImportPreset,
 }) => {
   const [presets, setPresets] = useState<PipelinePreset[]>([]);
-  const [selectedCategory] = useState<PresetCategory | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory] = useState<PresetCategory | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [editingPreset, setEditingPreset] = useState<PipelinePreset | null>(null);
-  const [presetMenuAnchor, setPresetMenuAnchor] = useState<{ element: HTMLElement; preset: PipelinePreset } | null>(null);
+  const [editingPreset, setEditingPreset] = useState<PipelinePreset | null>(
+    null,
+  );
+  const [presetMenuAnchor, setPresetMenuAnchor] = useState<{
+    element: HTMLElement;
+    preset: PipelinePreset;
+  } | null>(null);
   const [activeTab, setActiveTab] = useState(0);
 
   // Form state for save dialog
   const [presetForm, setPresetForm] = useState({
-    name: '',
-    description: '',
-    category: 'custom' as PresetCategory,
-    tags: '',
+    name: "",
+    description: "",
+    category: "custom" as PresetCategory,
+    tags: "",
   });
 
   useEffect(() => {
     // Load presets from localStorage and combine with built-in presets
-    const savedPresets = localStorage.getItem('audioPipelinePresets');
+    const savedPresets = localStorage.getItem("audioPipelinePresets");
     if (savedPresets) {
       const userPresets = JSON.parse(savedPresets);
       setPresets([...BUILT_IN_PRESETS, ...userPresets]);
@@ -225,23 +243,27 @@ const PresetManager: React.FC<PresetManagerProps> = ({
   }, []);
 
   const savePresetsToStorage = (updatedPresets: PipelinePreset[]) => {
-    const userPresets = updatedPresets.filter(p => !p.isBuiltIn);
-    localStorage.setItem('audioPipelinePresets', JSON.stringify(userPresets));
+    const userPresets = updatedPresets.filter((p) => !p.isBuiltIn);
+    localStorage.setItem("audioPipelinePresets", JSON.stringify(userPresets));
     setPresets(updatedPresets);
   };
 
-  const filteredPresets = presets.filter(preset => {
-    const matchesCategory = selectedCategory === 'all' || preset.category === selectedCategory;
-    const matchesSearch = searchQuery === '' ||
+  const filteredPresets = presets.filter((preset) => {
+    const matchesCategory =
+      selectedCategory === "all" || preset.category === selectedCategory;
+    const matchesSearch =
+      searchQuery === "" ||
       preset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       preset.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      preset.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
+      preset.tags.some((tag) =>
+        tag.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+
     return matchesCategory && matchesSearch;
   });
 
-  const favoritePresets = filteredPresets.filter(p => p.isFavorite);
-  const regularPresets = filteredPresets.filter(p => !p.isFavorite);
+  const favoritePresets = filteredPresets.filter((p) => p.isFavorite);
+  const regularPresets = filteredPresets.filter((p) => !p.isFavorite);
 
   const handleSavePreset = () => {
     if (!currentPipeline || !presetForm.name) return;
@@ -251,10 +273,13 @@ const PresetManager: React.FC<PresetManagerProps> = ({
       name: presetForm.name,
       description: presetForm.description,
       category: presetForm.category,
-      tags: presetForm.tags.split(',').map(t => t.trim()).filter(t => t),
+      tags: presetForm.tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter((t) => t),
       isFavorite: editingPreset?.isFavorite || false,
       isBuiltIn: false,
-      author: 'Current User',
+      author: "Current User",
       created: editingPreset?.created || new Date(),
       modified: new Date(),
       pipeline: currentPipeline.pipeline,
@@ -262,7 +287,9 @@ const PresetManager: React.FC<PresetManagerProps> = ({
     };
 
     if (editingPreset) {
-      const updatedPresets = presets.map(p => p.id === editingPreset.id ? newPreset : p);
+      const updatedPresets = presets.map((p) =>
+        p.id === editingPreset.id ? newPreset : p,
+      );
       savePresetsToStorage(updatedPresets);
     } else {
       savePresetsToStorage([...presets, newPreset]);
@@ -276,15 +303,15 @@ const PresetManager: React.FC<PresetManagerProps> = ({
 
   const handleDeletePreset = (preset: PipelinePreset) => {
     if (preset.isBuiltIn) return;
-    
-    const updatedPresets = presets.filter(p => p.id !== preset.id);
+
+    const updatedPresets = presets.filter((p) => p.id !== preset.id);
     savePresetsToStorage(updatedPresets);
     onDeletePreset(preset.id);
   };
 
   const handleToggleFavorite = (preset: PipelinePreset) => {
-    const updatedPresets = presets.map(p => 
-      p.id === preset.id ? { ...p, isFavorite: !p.isFavorite } : p
+    const updatedPresets = presets.map((p) =>
+      p.id === preset.id ? { ...p, isFavorite: !p.isFavorite } : p,
     );
     savePresetsToStorage(updatedPresets);
   };
@@ -296,11 +323,11 @@ const PresetManager: React.FC<PresetManagerProps> = ({
       name: `${preset.name} (Copy)`,
       isBuiltIn: false,
       isFavorite: false,
-      author: 'Current User',
+      author: "Current User",
       created: new Date(),
       modified: new Date(),
     };
-    
+
     savePresetsToStorage([...presets, duplicatedPreset]);
   };
 
@@ -315,13 +342,13 @@ const PresetManager: React.FC<PresetManagerProps> = ({
           const importedPreset = JSON.parse(e.target?.result as string);
           importedPreset.id = `preset_${Date.now()}`;
           importedPreset.isBuiltIn = false;
-          importedPreset.author = 'Imported';
+          importedPreset.author = "Imported";
           importedPreset.created = new Date();
           importedPreset.modified = new Date();
-          
+
           savePresetsToStorage([...presets, importedPreset]);
         } catch (error) {
-          console.error('Failed to import preset:', error);
+          console.error("Failed to import preset:", error);
         }
       };
       reader.readAsText(file);
@@ -330,19 +357,23 @@ const PresetManager: React.FC<PresetManagerProps> = ({
 
   const resetForm = () => {
     setPresetForm({
-      name: '',
-      description: '',
-      category: 'custom',
-      tags: '',
+      name: "",
+      description: "",
+      category: "custom",
+      tags: "",
     });
   };
 
   const getComplexityColor = (complexity: string) => {
     switch (complexity) {
-      case 'simple': return '#4caf50';
-      case 'moderate': return '#ff9800';
-      case 'complex': return '#f44336';
-      default: return '#9e9e9e';
+      case "simple":
+        return "#4caf50";
+      case "moderate":
+        return "#ff9800";
+      case "complex":
+        return "#f44336";
+      default:
+        return "#9e9e9e";
     }
   };
 
@@ -352,22 +383,27 @@ const PresetManager: React.FC<PresetManagerProps> = ({
 
   const PresetCard: React.FC<{ preset: PipelinePreset }> = ({ preset }) => {
     const CategoryIcon = CATEGORY_INFO[preset.category].icon;
-    
+
     return (
       <Card
         sx={{
-          height: '100%',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease-in-out',
-          '&:hover': {
-            transform: 'translateY(-2px)',
+          height: "100%",
+          cursor: "pointer",
+          transition: "all 0.2s ease-in-out",
+          "&:hover": {
+            transform: "translateY(-2px)",
             boxShadow: 4,
           },
         }}
         onClick={() => onLoadPreset(preset)}
       >
         <CardContent>
-          <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Box
+            display="flex"
+            justifyContent="space-between"
+            alignItems="flex-start"
+            mb={1}
+          >
             <Box display="flex" alignItems="center" gap={1}>
               <Avatar
                 sx={{
@@ -383,11 +419,15 @@ const PresetManager: React.FC<PresetManagerProps> = ({
                   {preset.name}
                 </Typography>
                 {preset.isBuiltIn && (
-                  <Chip label="Built-in" size="small" sx={{ height: 16, fontSize: '0.7rem' }} />
+                  <Chip
+                    label="Built-in"
+                    size="small"
+                    sx={{ height: 16, fontSize: "0.7rem" }}
+                  />
                 )}
               </Box>
             </Box>
-            
+
             <Box display="flex" alignItems="center" gap={0.5}>
               <IconButton
                 size="small"
@@ -396,7 +436,11 @@ const PresetManager: React.FC<PresetManagerProps> = ({
                   handleToggleFavorite(preset);
                 }}
               >
-                {preset.isFavorite ? <Star sx={{ fontSize: 18 }} /> : <StarBorder sx={{ fontSize: 18 }} />}
+                {preset.isFavorite ? (
+                  <Star sx={{ fontSize: 18 }} />
+                ) : (
+                  <StarBorder sx={{ fontSize: 18 }} />
+                )}
               </IconButton>
               <IconButton
                 size="small"
@@ -418,21 +462,21 @@ const PresetManager: React.FC<PresetManagerProps> = ({
             <Chip
               size="small"
               label={`${preset.metadata.stageCount} stages`}
-              sx={{ height: 20, fontSize: '0.7rem' }}
+              sx={{ height: 20, fontSize: "0.7rem" }}
             />
             <Chip
               size="small"
               label={formatLatency(preset.metadata.totalLatency)}
-              sx={{ height: 20, fontSize: '0.7rem' }}
+              sx={{ height: 20, fontSize: "0.7rem" }}
             />
             <Chip
               size="small"
               label={preset.metadata.complexity}
               sx={{
                 height: 20,
-                fontSize: '0.7rem',
+                fontSize: "0.7rem",
                 backgroundColor: getComplexityColor(preset.metadata.complexity),
-                color: 'white',
+                color: "white",
               }}
             />
           </Box>
@@ -444,7 +488,7 @@ const PresetManager: React.FC<PresetManagerProps> = ({
                 label={tag}
                 size="small"
                 variant="outlined"
-                sx={{ height: 18, fontSize: '0.65rem' }}
+                sx={{ height: 18, fontSize: "0.65rem" }}
               />
             ))}
             {preset.tags.length > 3 && (
@@ -459,12 +503,12 @@ const PresetManager: React.FC<PresetManagerProps> = ({
   };
 
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <Box mb={2}>
         <Typography variant="h6" gutterBottom>
           Pipeline Presets
         </Typography>
-        
+
         <Box display="flex" gap={2} mb={2}>
           <TextField
             size="small"
@@ -504,7 +548,7 @@ const PresetManager: React.FC<PresetManagerProps> = ({
         >
           <Tab label={`All (${presets.length})`} />
           {Object.entries(CATEGORY_INFO).map(([category, info]) => {
-            const count = presets.filter(p => p.category === category).length;
+            const count = presets.filter((p) => p.category === category).length;
             return (
               <Tab
                 key={category}
@@ -520,7 +564,11 @@ const PresetManager: React.FC<PresetManagerProps> = ({
       <Box flexGrow={1} overflow="auto">
         {favoritePresets.length > 0 && (
           <Box mb={3}>
-            <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography
+              variant="subtitle2"
+              gutterBottom
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
               <Star sx={{ fontSize: 18 }} /> Favorites
             </Typography>
             <Grid container spacing={2}>
@@ -560,23 +608,32 @@ const PresetManager: React.FC<PresetManagerProps> = ({
       </Box>
 
       {/* Save Preset Dialog */}
-      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={saveDialogOpen}
+        onClose={() => setSaveDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>
-          {editingPreset ? 'Edit Preset' : 'Save Pipeline as Preset'}
+          {editingPreset ? "Edit Preset" : "Save Pipeline as Preset"}
         </DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={2} mt={1}>
             <TextField
               label="Preset Name"
               value={presetForm.name}
-              onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })}
+              onChange={(e) =>
+                setPresetForm({ ...presetForm, name: e.target.value })
+              }
               fullWidth
               required
             />
             <TextField
               label="Description"
               value={presetForm.description}
-              onChange={(e) => setPresetForm({ ...presetForm, description: e.target.value })}
+              onChange={(e) =>
+                setPresetForm({ ...presetForm, description: e.target.value })
+              }
               fullWidth
               multiline
               rows={3}
@@ -586,12 +643,19 @@ const PresetManager: React.FC<PresetManagerProps> = ({
               <Select
                 value={presetForm.category}
                 label="Category"
-                onChange={(e) => setPresetForm({ ...presetForm, category: e.target.value as PresetCategory })}
+                onChange={(e) =>
+                  setPresetForm({
+                    ...presetForm,
+                    category: e.target.value as PresetCategory,
+                  })
+                }
               >
                 {Object.entries(CATEGORY_INFO).map(([category, info]) => (
                   <MenuItem key={category} value={category}>
                     <Box display="flex" alignItems="center" gap={1}>
-                      {React.createElement(info.icon, { sx: { fontSize: 18, color: info.color } })}
+                      {React.createElement(info.icon, {
+                        sx: { fontSize: 18, color: info.color },
+                      })}
                       {info.label}
                     </Box>
                   </MenuItem>
@@ -601,18 +665,22 @@ const PresetManager: React.FC<PresetManagerProps> = ({
             <TextField
               label="Tags (comma-separated)"
               value={presetForm.tags}
-              onChange={(e) => setPresetForm({ ...presetForm, tags: e.target.value })}
+              onChange={(e) =>
+                setPresetForm({ ...presetForm, tags: e.target.value })
+              }
               fullWidth
               placeholder="voice, enhancement, realtime"
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setSaveDialogOpen(false);
-            setEditingPreset(null);
-            resetForm();
-          }}>
+          <Button
+            onClick={() => {
+              setSaveDialogOpen(false);
+              setEditingPreset(null);
+              resetForm();
+            }}
+          >
             Cancel
           </Button>
           <Button
@@ -620,7 +688,7 @@ const PresetManager: React.FC<PresetManagerProps> = ({
             variant="contained"
             disabled={!presetForm.name}
           >
-            {editingPreset ? 'Update' : 'Save'}
+            {editingPreset ? "Update" : "Save"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -633,46 +701,62 @@ const PresetManager: React.FC<PresetManagerProps> = ({
       >
         {presetMenuAnchor && !presetMenuAnchor.preset.isBuiltIn && (
           <>
-            <MenuItem onClick={() => {
-              setEditingPreset(presetMenuAnchor.preset);
-              setPresetForm({
-                name: presetMenuAnchor.preset.name,
-                description: presetMenuAnchor.preset.description,
-                category: presetMenuAnchor.preset.category,
-                tags: presetMenuAnchor.preset.tags.join(', '),
-              });
-              setSaveDialogOpen(true);
-              setPresetMenuAnchor(null);
-            }}>
-              <ListItemIcon><Edit fontSize="small" /></ListItemIcon>
+            <MenuItem
+              onClick={() => {
+                setEditingPreset(presetMenuAnchor.preset);
+                setPresetForm({
+                  name: presetMenuAnchor.preset.name,
+                  description: presetMenuAnchor.preset.description,
+                  category: presetMenuAnchor.preset.category,
+                  tags: presetMenuAnchor.preset.tags.join(", "),
+                });
+                setSaveDialogOpen(true);
+                setPresetMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                <Edit fontSize="small" />
+              </ListItemIcon>
               <ListItemText>Edit</ListItemText>
             </MenuItem>
-            <MenuItem onClick={() => {
-              handleDeletePreset(presetMenuAnchor.preset);
-              setPresetMenuAnchor(null);
-            }}>
-              <ListItemIcon><Delete fontSize="small" /></ListItemIcon>
+            <MenuItem
+              onClick={() => {
+                handleDeletePreset(presetMenuAnchor.preset);
+                setPresetMenuAnchor(null);
+              }}
+            >
+              <ListItemIcon>
+                <Delete fontSize="small" />
+              </ListItemIcon>
               <ListItemText>Delete</ListItemText>
             </MenuItem>
             <Divider />
           </>
         )}
-        <MenuItem onClick={() => {
-          if (presetMenuAnchor) {
-            handleDuplicatePreset(presetMenuAnchor.preset);
-          }
-          setPresetMenuAnchor(null);
-        }}>
-          <ListItemIcon><ContentCopy fontSize="small" /></ListItemIcon>
+        <MenuItem
+          onClick={() => {
+            if (presetMenuAnchor) {
+              handleDuplicatePreset(presetMenuAnchor.preset);
+            }
+            setPresetMenuAnchor(null);
+          }}
+        >
+          <ListItemIcon>
+            <ContentCopy fontSize="small" />
+          </ListItemIcon>
           <ListItemText>Duplicate</ListItemText>
         </MenuItem>
-        <MenuItem onClick={() => {
-          if (presetMenuAnchor) {
-            onExportPreset(presetMenuAnchor.preset);
-          }
-          setPresetMenuAnchor(null);
-        }}>
-          <ListItemIcon><FileDownload fontSize="small" /></ListItemIcon>
+        <MenuItem
+          onClick={() => {
+            if (presetMenuAnchor) {
+              onExportPreset(presetMenuAnchor.preset);
+            }
+            setPresetMenuAnchor(null);
+          }}
+        >
+          <ListItemIcon>
+            <FileDownload fontSize="small" />
+          </ListItemIcon>
           <ListItemText>Export</ListItemText>
         </MenuItem>
       </Menu>

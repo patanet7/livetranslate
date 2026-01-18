@@ -6,11 +6,13 @@ Modular noise reduction implementation that can be used independently
 or as part of the complete audio processing pipeline.
 """
 
+from typing import Any
+
 import numpy as np
-from scipy.fft import rfft, irfft
-from typing import Dict, Any, Tuple
-from ..stage_components import BaseAudioStage
+from scipy.fft import irfft, rfft
+
 from ..config import NoiseReductionConfig, NoiseReductionMode
+from ..stage_components import BaseAudioStage
 
 
 class NoiseReductionStage(BaseAudioStage):
@@ -31,9 +33,7 @@ class NoiseReductionStage(BaseAudioStage):
 
         self.is_initialized = True
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through noise reduction."""
         try:
             # Apply input gain
@@ -65,9 +65,7 @@ class NoiseReductionStage(BaseAudioStage):
             # Calculate noise reduction metrics
             input_noise_floor = self._estimate_noise_floor(audio_data)
             output_noise_floor = self._estimate_noise_floor(processed)
-            noise_reduction_db = 20 * np.log10(
-                input_noise_floor / max(output_noise_floor, 1e-10)
-            )
+            noise_reduction_db = 20 * np.log10(input_noise_floor / max(output_noise_floor, 1e-10))
 
             metadata = {
                 "mode": self.config.mode.value,
@@ -86,7 +84,7 @@ class NoiseReductionStage(BaseAudioStage):
             return processed, metadata
 
         except Exception as e:
-            raise Exception(f"Noise reduction failed: {e}")
+            raise Exception(f"Noise reduction failed: {e}") from e
 
     def _light_noise_reduction(self, audio_data: np.ndarray) -> np.ndarray:
         """Light noise reduction using simple spectral subtraction."""
@@ -117,9 +115,7 @@ class NoiseReductionStage(BaseAudioStage):
             # Normal signal - use standard reduction
             alpha = 0.7
 
-        return self._spectral_subtraction(
-            audio_data, alpha=alpha, voice_protection=True
-        )
+        return self._spectral_subtraction(audio_data, alpha=alpha, voice_protection=True)
 
     def _spectral_subtraction(
         self, audio_data: np.ndarray, alpha: float = 0.7, voice_protection: bool = False
@@ -130,9 +126,7 @@ class NoiseReductionStage(BaseAudioStage):
 
         # Pad audio to ensure we can process full frames
         padded_length = len(audio_data) + self.frame_size
-        padded_audio = np.pad(
-            audio_data, (0, padded_length - len(audio_data)), mode="constant"
-        )
+        padded_audio = np.pad(audio_data, (0, padded_length - len(audio_data)), mode="constant")
         processed = np.zeros_like(padded_audio)
 
         # Process overlapping frames
@@ -163,9 +157,7 @@ class NoiseReductionStage(BaseAudioStage):
 
                     # Create protection factor array matching magnitude shape
                     protection_factor = np.ones_like(magnitude)
-                    protection_factor[voice_mask] *= (
-                        0.5  # Reduce noise reduction in voice range
-                    )
+                    protection_factor[voice_mask] *= 0.5  # Reduce noise reduction in voice range
 
                     # Apply protection by modifying the reduction strength per frequency
                     final_reduction_factor = noise_reduction_factor * protection_factor
@@ -174,9 +166,7 @@ class NoiseReductionStage(BaseAudioStage):
                     final_reduction_factor = noise_reduction_factor
 
                 # Spectral subtraction
-                reduced_magnitude = (
-                    magnitude - final_reduction_factor * self.noise_profile
-                )
+                reduced_magnitude = magnitude - final_reduction_factor * self.noise_profile
 
                 # Ensure we don't over-subtract
                 reduced_magnitude = np.maximum(reduced_magnitude, 0.1 * magnitude)
@@ -188,9 +178,7 @@ class NoiseReductionStage(BaseAudioStage):
                 processed_frame = irfft(processed_spectrum)
 
                 # Apply window and overlap-add
-                processed[i : i + self.frame_size] += processed_frame * np.hanning(
-                    self.frame_size
-                )
+                processed[i : i + self.frame_size] += processed_frame * np.hanning(self.frame_size)
             else:
                 # No noise profile yet, just add original frame
                 processed[i : i + self.frame_size] += windowed_frame
@@ -223,7 +211,7 @@ class NoiseReductionStage(BaseAudioStage):
         noise_floor_index = int(len(sorted_levels) * 0.1)
         return np.mean(sorted_levels[: max(1, noise_floor_index)])
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -238,7 +226,7 @@ class NoiseReductionStage(BaseAudioStage):
             "adaptation_rate": self.config.adaptation_rate,
         }
 
-    def get_noise_profile(self) -> Dict[str, Any]:
+    def get_noise_profile(self) -> dict[str, Any]:
         """Get current noise profile information."""
         return {
             "has_noise_profile": self.noise_profile is not None,

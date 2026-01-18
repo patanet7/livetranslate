@@ -17,9 +17,8 @@ Imported sentence format (from Fireflies API or local storage):
 }
 """
 
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
 import uuid
+from typing import Any
 
 from .base import ChunkAdapter, TranscriptChunk
 
@@ -100,7 +99,7 @@ class ImportChunkAdapter(ChunkAdapter):
             },
         )
 
-    def extract_speaker(self, raw_chunk: Any) -> Optional[str]:
+    def extract_speaker(self, raw_chunk: Any) -> str | None:
         """Extract speaker from imported sentence."""
         if hasattr(raw_chunk, "speaker_name"):
             return raw_chunk.speaker_name

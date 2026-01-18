@@ -1,24 +1,24 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { 
-  ApiResponse, 
-  PaginatedResponse, 
-  AudioDevice, 
-  BotInstance, 
-  MeetingRequest, 
+import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import {
+  ApiResponse,
+  PaginatedResponse,
+  AudioDevice,
+  BotInstance,
+  MeetingRequest,
   ServiceHealth,
   SystemHealth,
   ProcessingPreset,
   BotSession,
-  Translation
-} from '@/types';
+  Translation,
+} from "@/types";
 
 // Enhanced base query with retry logic and error handling
 const baseQuery = fetchBaseQuery({
-  baseUrl: '/api',
+  baseUrl: "/api",
   timeout: 30000, // 30 second timeout
   prepareHeaders: (headers) => {
     // Add any authentication headers here if needed
-    headers.set('Content-Type', 'application/json');
+    headers.set("Content-Type", "application/json");
     return headers;
   },
 });
@@ -30,17 +30,17 @@ const baseQueryWithRetry = async (args: any, api: any, extraOptions: any) => {
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const result = await baseQuery(args, api, extraOptions);
-    
+
     // If successful or it's the last attempt, return the result
     if (!result.error || attempt === maxRetries) {
       return result;
     }
 
     // Only retry on network errors or 5xx server errors
-    const shouldRetry = 
-      result.error.status === 'FETCH_ERROR' ||
-      result.error.status === 'TIMEOUT_ERROR' ||
-      (typeof result.error.status === 'number' && result.error.status >= 500);
+    const shouldRetry =
+      result.error.status === "FETCH_ERROR" ||
+      result.error.status === "TIMEOUT_ERROR" ||
+      (typeof result.error.status === "number" && result.error.status >= 500);
 
     if (!shouldRetry) {
       return result;
@@ -48,9 +48,11 @@ const baseQueryWithRetry = async (args: any, api: any, extraOptions: any) => {
 
     // Exponential backoff delay
     const delay = baseDelay * Math.pow(2, attempt);
-    console.warn(`API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`);
-    
-    await new Promise(resolve => setTimeout(resolve, delay));
+    console.warn(
+      `API request failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms...`,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   // This should never be reached, but TypeScript requires it
@@ -59,332 +61,390 @@ const baseQueryWithRetry = async (args: any, api: any, extraOptions: any) => {
 
 // API slice with all service endpoints
 export const apiSlice = createApi({
-  reducerPath: 'api',
+  reducerPath: "api",
   baseQuery: baseQueryWithRetry,
   tagTypes: [
-    'AudioDevice',
-    'Bot',
-    'BotSession', 
-    'ServiceHealth',
-    'SystemHealth',
-    'ProcessingPreset',
-    'Translation',
-    'AudioFile',
-    'SystemMetrics',
+    "AudioDevice",
+    "Bot",
+    "BotSession",
+    "ServiceHealth",
+    "SystemHealth",
+    "ProcessingPreset",
+    "Translation",
+    "AudioFile",
+    "SystemMetrics",
   ],
   endpoints: (builder) => ({
     // Audio API endpoints
     getAudioDevices: builder.query<ApiResponse<AudioDevice[]>, void>({
-      query: () => 'audio/devices',
-      providesTags: ['AudioDevice'],
+      query: () => "audio/devices",
+      providesTags: ["AudioDevice"],
     }),
-    
-    processAudio: builder.mutation<ApiResponse<any>, {
-      audioBlob: Blob;
-      preset?: string;
-      stages?: string[];
-    }>({
+
+    processAudio: builder.mutation<
+      ApiResponse<any>,
+      {
+        audioBlob: Blob;
+        preset?: string;
+        stages?: string[];
+      }
+    >({
       query: ({ audioBlob, preset, stages }) => {
         const formData = new FormData();
-        formData.append('audio', audioBlob);
-        if (preset) formData.append('preset', preset);
-        if (stages) formData.append('stages', JSON.stringify(stages));
-        
+        formData.append("audio", audioBlob);
+        if (preset) formData.append("preset", preset);
+        if (stages) formData.append("stages", JSON.stringify(stages));
+
         return {
-          url: 'audio/process',
-          method: 'POST',
+          url: "audio/process",
+          method: "POST",
           body: formData,
         };
       },
     }),
-    
-    uploadAudioFile: builder.mutation<ApiResponse<any>, {
-      audio: Blob | File;
-      config?: Record<string, any>;
-      sessionId?: string;
-    }>({
+
+    uploadAudioFile: builder.mutation<
+      ApiResponse<any>,
+      {
+        audio: Blob | File;
+        config?: Record<string, any>;
+        sessionId?: string;
+      }
+    >({
       query: ({ audio, config, sessionId }) => {
         const formData = new FormData();
         // Backend expects 'audio' field name (not 'file')
-        const audioFile = audio instanceof File ? audio : new File([audio], 'audio.webm', { type: 'audio/webm' });
-        formData.append('audio', audioFile);
+        const audioFile =
+          audio instanceof File
+            ? audio
+            : new File([audio], "audio.webm", { type: "audio/webm" });
+        formData.append("audio", audioFile);
         // Backend expects 'config' field name (not 'metadata') as JSON string
-        if (config) formData.append('config', JSON.stringify(config));
-        if (sessionId) formData.append('session_id', sessionId);
+        if (config) formData.append("config", JSON.stringify(config));
+        if (sessionId) formData.append("session_id", sessionId);
 
         return {
-          url: 'audio/upload',
-          method: 'POST',
+          url: "audio/upload",
+          method: "POST",
           body: formData,
         };
       },
-      invalidatesTags: ['AudioFile'],
+      invalidatesTags: ["AudioFile"],
     }),
-    
-    getAudioProcessingPresets: builder.query<ApiResponse<ProcessingPreset[]>, void>({
-      query: () => 'audio/presets',
-      providesTags: ['ProcessingPreset'],
+
+    getAudioProcessingPresets: builder.query<
+      ApiResponse<ProcessingPreset[]>,
+      void
+    >({
+      query: () => "audio/presets",
+      providesTags: ["ProcessingPreset"],
     }),
-    
+
     // Bot Management API endpoints
     getBots: builder.query<ApiResponse<BotInstance[]>, void>({
-      query: () => 'bot',
-      providesTags: ['Bot'],
+      query: () => "bot",
+      providesTags: ["Bot"],
     }),
-    
+
     getBot: builder.query<ApiResponse<BotInstance>, string>({
       query: (botId) => `bot/${botId}`,
-      providesTags: (_result, _error, botId) => [{ type: 'Bot', id: botId }],
+      providesTags: (_result, _error, botId) => [{ type: "Bot", id: botId }],
     }),
-    
+
     spawnBot: builder.mutation<ApiResponse<{ botId: string }>, MeetingRequest>({
       query: (meetingRequest) => ({
-        url: 'bot/spawn',
-        method: 'POST',
+        url: "bot/spawn",
+        method: "POST",
         body: meetingRequest,
       }),
-      invalidatesTags: ['Bot'],
+      invalidatesTags: ["Bot"],
     }),
-    
+
     terminateBot: builder.mutation<ApiResponse<void>, string>({
       query: (botId) => ({
         url: `bot/${botId}/terminate`,
-        method: 'POST',
+        method: "POST",
       }),
-      invalidatesTags: ['Bot'],
+      invalidatesTags: ["Bot"],
     }),
-    
+
     getBotStatus: builder.query<ApiResponse<BotInstance>, string>({
       query: (botId) => `bot/${botId}/status`,
-      providesTags: (_result, _error, botId) => [{ type: 'Bot', id: botId }],
+      providesTags: (_result, _error, botId) => [{ type: "Bot", id: botId }],
     }),
-    
-    getBotSessions: builder.query<ApiResponse<PaginatedResponse<BotSession>>, {
-      page?: number;
-      pageSize?: number;
-      botId?: string;
-      status?: string;
-    }>({
+
+    getBotSessions: builder.query<
+      ApiResponse<PaginatedResponse<BotSession>>,
+      {
+        page?: number;
+        pageSize?: number;
+        botId?: string;
+        status?: string;
+      }
+    >({
       query: ({ page = 1, pageSize = 20, botId, status }) => ({
-        url: 'bot/sessions',
+        url: "bot/sessions",
         params: { page, pageSize, botId, status },
       }),
-      providesTags: ['BotSession'],
+      providesTags: ["BotSession"],
     }),
-    
+
     getBotSession: builder.query<ApiResponse<BotSession>, string>({
       query: (sessionId) => `bot/sessions/${sessionId}`,
-      providesTags: (_result, _error, sessionId) => [{ type: 'BotSession', id: sessionId }],
+      providesTags: (_result, _error, sessionId) => [
+        { type: "BotSession", id: sessionId },
+      ],
     }),
-    
+
     // Virtual Webcam API endpoints
-    getWebcamFrame: builder.query<ApiResponse<{ frameBase64: string }>, string>({
-      query: (botId) => `bot/${botId}/webcam/frame`,
-    }),
-    
-    updateWebcamConfig: builder.mutation<ApiResponse<void>, {
-      botId: string;
-      config: Record<string, any>;
-    }>({
+    getWebcamFrame: builder.query<ApiResponse<{ frameBase64: string }>, string>(
+      {
+        query: (botId) => `bot/${botId}/webcam/frame`,
+      },
+    ),
+
+    updateWebcamConfig: builder.mutation<
+      ApiResponse<void>,
+      {
+        botId: string;
+        config: Record<string, any>;
+      }
+    >({
       query: ({ botId, config }) => ({
         url: `bot/${botId}/webcam/config`,
-        method: 'PATCH',
+        method: "PATCH",
         body: config,
       }),
     }),
-    
+
     // Translation API endpoints
-    getTranslations: builder.query<ApiResponse<Translation[]>, {
-      botId?: string;
-      sessionId?: string;
-      limit?: number;
-    }>({
+    getTranslations: builder.query<
+      ApiResponse<Translation[]>,
+      {
+        botId?: string;
+        sessionId?: string;
+        limit?: number;
+      }
+    >({
       query: ({ botId, sessionId, limit = 50 }) => ({
-        url: 'translations',
+        url: "translations",
         params: { botId, sessionId, limit },
       }),
-      providesTags: ['Translation'],
+      providesTags: ["Translation"],
     }),
-    
-    translateText: builder.mutation<ApiResponse<Translation>, {
-      text: string;
-      sourceLanguage: string;
-      targetLanguage: string;
-      context?: string;
-    }>({
+
+    translateText: builder.mutation<
+      ApiResponse<Translation>,
+      {
+        text: string;
+        sourceLanguage: string;
+        targetLanguage: string;
+        context?: string;
+      }
+    >({
       query: (data) => ({
-        url: 'translations/translate',
-        method: 'POST',
+        url: "translations/translate",
+        method: "POST",
         body: data,
       }),
-      invalidatesTags: ['Translation'],
+      invalidatesTags: ["Translation"],
     }),
-    
+
     // Health and System API endpoints
     getSystemHealth: builder.query<ApiResponse<SystemHealth>, void>({
-      query: () => 'system/health',
-      providesTags: ['SystemHealth'],
+      query: () => "system/health",
+      providesTags: ["SystemHealth"],
     }),
-    
+
     getServiceHealth: builder.query<ApiResponse<ServiceHealth[]>, void>({
-      query: () => 'system/services',
-      providesTags: ['ServiceHealth'],
+      query: () => "system/services",
+      providesTags: ["ServiceHealth"],
     }),
-    
+
     getSystemMetrics: builder.query<ApiResponse<any>, void>({
-      query: () => 'system/metrics',
-      providesTags: ['SystemMetrics'],
+      query: () => "system/metrics",
+      providesTags: ["SystemMetrics"],
     }),
-    
+
     // Configuration API endpoints
     getConfiguration: builder.query<ApiResponse<any>, void>({
-      query: () => 'system/config',
+      query: () => "system/config",
     }),
-    
-    updateConfiguration: builder.mutation<ApiResponse<void>, Record<string, any>>({
+
+    updateConfiguration: builder.mutation<
+      ApiResponse<void>,
+      Record<string, any>
+    >({
       query: (config) => ({
-        url: 'system/config',
-        method: 'PATCH',
+        url: "system/config",
+        method: "PATCH",
         body: config,
       }),
     }),
-    
+
     // Logs API endpoints
-    getLogs: builder.query<ApiResponse<any[]>, {
-      level?: string;
-      source?: string;
-      limit?: number;
-      offset?: number;
-    }>({
+    getLogs: builder.query<
+      ApiResponse<any[]>,
+      {
+        level?: string;
+        source?: string;
+        limit?: number;
+        offset?: number;
+      }
+    >({
       query: ({ level, source, limit = 100, offset = 0 }) => ({
-        url: 'system/logs',
+        url: "system/logs",
         params: { level, source, limit, offset },
       }),
     }),
-    
+
     // Statistics API endpoints
-    getStatistics: builder.query<ApiResponse<any>, {
-      timeRange?: string;
-      metrics?: string[];
-    }>({
-      query: ({ timeRange = '24h', metrics }) => ({
-        url: 'system/statistics',
-        params: { timeRange, metrics: metrics?.join(',') },
+    getStatistics: builder.query<
+      ApiResponse<any>,
+      {
+        timeRange?: string;
+        metrics?: string[];
+      }
+    >({
+      query: ({ timeRange = "24h", metrics }) => ({
+        url: "system/statistics",
+        params: { timeRange, metrics: metrics?.join(",") },
       }),
     }),
-    
+
     // Bot testing and smoke tests
     runBotSmokeTest: builder.mutation<ApiResponse<any>, void>({
       query: () => ({
-        url: 'bot/smoke-test',
-        method: 'POST',
+        url: "bot/smoke-test",
+        method: "POST",
       }),
     }),
-    
+
     getBotMemoryStats: builder.query<ApiResponse<any>, string>({
       query: (botId) => `bot/${botId}/memory-stats`,
     }),
-    
+
     // Audio testing endpoints
-    testAudioCapture: builder.mutation<ApiResponse<any>, {
-      deviceId: string;
-      duration: number;
-    }>({
+    testAudioCapture: builder.mutation<
+      ApiResponse<any>,
+      {
+        deviceId: string;
+        duration: number;
+      }
+    >({
       query: (data) => ({
-        url: 'audio/test-capture',
-        method: 'POST',
+        url: "audio/test-capture",
+        method: "POST",
         body: data,
       }),
     }),
-    
-    analyzeAudioQuality: builder.mutation<ApiResponse<any>, {
-      audioBlob: Blob;
-    }>({
+
+    analyzeAudioQuality: builder.mutation<
+      ApiResponse<any>,
+      {
+        audioBlob: Blob;
+      }
+    >({
       query: ({ audioBlob }) => {
         const formData = new FormData();
-        formData.append('audio', audioBlob);
-        
+        formData.append("audio", audioBlob);
+
         return {
-          url: 'audio/analyze-quality',
-          method: 'POST',
+          url: "audio/analyze-quality",
+          method: "POST",
           body: formData,
         };
       },
     }),
-    
+
     // WebSocket connection management
     getWebSocketInfo: builder.query<ApiResponse<any>, void>({
-      query: () => 'websocket/info',
+      query: () => "websocket/info",
     }),
-    
+
     // Feature flags
     getFeatureFlags: builder.query<ApiResponse<Record<string, boolean>>, void>({
-      query: () => 'system/features',
+      query: () => "system/features",
     }),
-    
-    updateFeatureFlag: builder.mutation<ApiResponse<void>, {
-      flag: string;
-      enabled: boolean;
-    }>({
+
+    updateFeatureFlag: builder.mutation<
+      ApiResponse<void>,
+      {
+        flag: string;
+        enabled: boolean;
+      }
+    >({
       query: ({ flag, enabled }) => ({
         url: `system/features/${flag}`,
-        method: 'PATCH',
+        method: "PATCH",
         body: { enabled },
       }),
     }),
 
     // Pipeline Processing endpoints - standardized from pipelineApiClient.ts
-    processPipeline: builder.mutation<any, {
-      pipelineConfig: any;
-      audioData?: Blob | string;
-      processingMode: 'realtime' | 'batch' | 'preview';
-      outputFormat?: 'wav' | 'mp3' | 'base64';
-      metadata?: any;
-    }>({
-      query: ({ pipelineConfig, audioData, processingMode, outputFormat, metadata }) => {
+    processPipeline: builder.mutation<
+      any,
+      {
+        pipelineConfig: any;
+        audioData?: Blob | string;
+        processingMode: "realtime" | "batch" | "preview";
+        outputFormat?: "wav" | "mp3" | "base64";
+        metadata?: any;
+      }
+    >({
+      query: ({
+        pipelineConfig,
+        audioData,
+        processingMode,
+        outputFormat,
+        metadata,
+      }) => {
         const formData = new FormData();
-        formData.append('pipeline_config', JSON.stringify(pipelineConfig));
-        
+        formData.append("pipeline_config", JSON.stringify(pipelineConfig));
+
         if (audioData instanceof Blob) {
-          formData.append('audio_file', audioData, 'audio.wav');
+          formData.append("audio_file", audioData, "audio.wav");
         } else if (audioData) {
-          formData.append('audio_data', audioData);
+          formData.append("audio_data", audioData);
         }
-        
-        formData.append('processing_mode', processingMode);
-        formData.append('output_format', outputFormat || 'wav');
-        
+
+        formData.append("processing_mode", processingMode);
+        formData.append("output_format", outputFormat || "wav");
+
         if (metadata) {
-          formData.append('metadata', JSON.stringify(metadata));
+          formData.append("metadata", JSON.stringify(metadata));
         }
 
         return {
-          url: 'audio/pipeline/process',
-          method: 'POST',
+          url: "audio/pipeline/process",
+          method: "POST",
           body: formData,
         };
       },
     }),
 
-    processSingleStage: builder.mutation<any, {
-      stageType: string;
-      audioData: Blob | string;
-      stageConfig: Record<string, any>;
-    }>({
+    processSingleStage: builder.mutation<
+      any,
+      {
+        stageType: string;
+        audioData: Blob | string;
+        stageConfig: Record<string, any>;
+      }
+    >({
       query: ({ stageType, audioData, stageConfig }) => {
         const formData = new FormData();
-        
+
         if (audioData instanceof Blob) {
-          formData.append('audio_file', audioData, 'audio.wav');
+          formData.append("audio_file", audioData, "audio.wav");
         } else {
-          formData.append('audio_data', audioData);
+          formData.append("audio_data", audioData);
         }
-        
-        formData.append('stage_config', JSON.stringify(stageConfig));
+
+        formData.append("stage_config", JSON.stringify(stageConfig));
 
         return {
           url: `audio/process/stage/${stageType}`,
-          method: 'POST',
+          method: "POST",
           body: formData,
         };
       },
@@ -393,16 +453,16 @@ export const apiSlice = createApi({
     getFFTAnalysis: builder.mutation<any, Blob | string>({
       query: (audioData) => {
         const formData = new FormData();
-        
+
         if (audioData instanceof Blob) {
-          formData.append('audio_file', audioData, 'audio.wav');
+          formData.append("audio_file", audioData, "audio.wav");
         } else {
-          formData.append('audio_data', audioData);
+          formData.append("audio_data", audioData);
         }
 
         return {
-          url: 'audio/analyze/fft',
-          method: 'POST',
+          url: "audio/analyze/fft",
+          method: "POST",
           body: formData,
         };
       },
@@ -411,28 +471,31 @@ export const apiSlice = createApi({
     getLUFSAnalysis: builder.mutation<any, Blob | string>({
       query: (audioData) => {
         const formData = new FormData();
-        
+
         if (audioData instanceof Blob) {
-          formData.append('audio_file', audioData, 'audio.wav');
+          formData.append("audio_file", audioData, "audio.wav");
         } else {
-          formData.append('audio_data', audioData);
+          formData.append("audio_data", audioData);
         }
 
         return {
-          url: 'audio/analyze/lufs',
-          method: 'POST',
+          url: "audio/analyze/lufs",
+          method: "POST",
           body: formData,
         };
       },
     }),
 
-    startRealtimeSession: builder.mutation<any, {
-      pipelineConfig: any;
-      sessionConfig?: any;
-    }>({
+    startRealtimeSession: builder.mutation<
+      any,
+      {
+        pipelineConfig: any;
+        sessionConfig?: any;
+      }
+    >({
       query: ({ pipelineConfig, sessionConfig }) => ({
-        url: 'pipeline/realtime/start',
-        method: 'POST',
+        url: "pipeline/realtime/start",
+        method: "POST",
         body: {
           pipeline_config: pipelineConfig,
           session_config: sessionConfig || {
@@ -446,41 +509,44 @@ export const apiSlice = createApi({
 
     // Processing Presets endpoints
     getProcessingPresets: builder.query<ApiResponse<any[]>, void>({
-      query: () => 'audio/presets',
-      providesTags: ['ProcessingPreset'],
+      query: () => "audio/presets",
+      providesTags: ["ProcessingPreset"],
     }),
 
-    saveProcessingPreset: builder.mutation<ApiResponse<void>, {
-      name: string;
-      pipelineConfig: any;
-      metadata: {
-        description: string;
-        category: string;
-        tags: string[];
-      };
-    }>({
+    saveProcessingPreset: builder.mutation<
+      ApiResponse<void>,
+      {
+        name: string;
+        pipelineConfig: any;
+        metadata: {
+          description: string;
+          category: string;
+          tags: string[];
+        };
+      }
+    >({
       query: ({ name, pipelineConfig, metadata }) => ({
-        url: 'audio/presets/save',
-        method: 'POST',
+        url: "audio/presets/save",
+        method: "POST",
         body: {
           name,
           pipeline_config: pipelineConfig,
           metadata,
         },
       }),
-      invalidatesTags: ['ProcessingPreset'],
+      invalidatesTags: ["ProcessingPreset"],
     }),
 
     // Additional preset endpoints for pipeline processing
     getPresets: builder.query<any[], void>({
-      query: () => 'audio/presets',
-      providesTags: ['ProcessingPreset'],
+      query: () => "audio/presets",
+      providesTags: ["ProcessingPreset"],
     }),
 
     // Analytics endpoints to replace unifiedAnalyticsService.ts
     getAnalyticsOverview: builder.query<ApiResponse<any>, void>({
-      query: () => 'analytics/overview',
-      providesTags: ['SystemMetrics'],
+      query: () => "analytics/overview",
+      providesTags: ["SystemMetrics"],
     }),
 
     // Audio Analysis endpoints - connecting backend audio analysis APIs
@@ -489,14 +555,14 @@ export const apiSlice = createApi({
         const formData = new FormData();
 
         if (audioData instanceof Blob) {
-          formData.append('audio_file', audioData, 'audio.wav');
+          formData.append("audio_file", audioData, "audio.wav");
         } else {
-          formData.append('audio_data', audioData);
+          formData.append("audio_data", audioData);
         }
 
         return {
-          url: 'audio/analyze/quality',
-          method: 'POST',
+          url: "audio/analyze/quality",
+          method: "POST",
           body: formData,
         };
       },
@@ -508,18 +574,18 @@ export const apiSlice = createApi({
 
     // Audio Statistics
     getAudioStats: builder.query<any, void>({
-      query: () => 'audio/stats',
-      providesTags: ['SystemMetrics'],
+      query: () => "audio/stats",
+      providesTags: ["SystemMetrics"],
     }),
 
     // Audio Models endpoint
     getAudioModels: builder.query<any, void>({
-      query: () => 'audio/models',
+      query: () => "audio/models",
     }),
 
     // Audio Processing Stages Info
     getAudioStagesInfo: builder.query<any, void>({
-      query: () => 'audio/stages/info',
+      query: () => "audio/stages/info",
     }),
 
     getStageConfig: builder.query<any, string>({
@@ -529,54 +595,54 @@ export const apiSlice = createApi({
     // Bot Analytics endpoints - connecting backend bot analytics APIs
     getBotAnalytics: builder.query<any, string>({
       query: (botId) => `bot/${botId}/analytics`,
-      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+      providesTags: (result, error, botId) => [{ type: "Bot", id: botId }],
     }),
 
     getBotPerformance: builder.query<any, string>({
       query: (botId) => `bot/${botId}/performance`,
-      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+      providesTags: (result, error, botId) => [{ type: "Bot", id: botId }],
     }),
 
     getBotQualityReport: builder.query<any, string>({
       query: (botId) => `bot/${botId}/quality-report`,
-      providesTags: (result, error, botId) => [{ type: 'Bot', id: botId }],
+      providesTags: (result, error, botId) => [{ type: "Bot", id: botId }],
     }),
 
     getSessionAnalytics: builder.query<any, void>({
-      query: () => 'bot/analytics/sessions',
-      providesTags: ['BotSession'],
+      query: () => "bot/analytics/sessions",
+      providesTags: ["BotSession"],
     }),
 
     getQualityAnalytics: builder.query<any, void>({
-      query: () => 'bot/analytics/quality',
-      providesTags: ['SystemMetrics'],
+      query: () => "bot/analytics/quality",
+      providesTags: ["SystemMetrics"],
     }),
 
     // System Analytics endpoints
     getTrendAnalysis: builder.query<any, void>({
-      query: () => 'analytics/trends',
-      providesTags: ['SystemMetrics'],
+      query: () => "analytics/trends",
+      providesTags: ["SystemMetrics"],
     }),
 
     getActiveAlerts: builder.query<any, void>({
-      query: () => 'analytics/alerts',
-      providesTags: ['SystemMetrics'],
+      query: () => "analytics/alerts",
+      providesTags: ["SystemMetrics"],
     }),
 
     getAudioProcessingAnalytics: builder.query<any, void>({
-      query: () => 'analytics/audio/processing',
-      providesTags: ['SystemMetrics'],
+      query: () => "analytics/audio/processing",
+      providesTags: ["SystemMetrics"],
     }),
 
     getWebSocketAnalytics: builder.query<any, void>({
-      query: () => 'analytics/websocket/connections',
-      providesTags: ['SystemMetrics'],
+      query: () => "analytics/websocket/connections",
+      providesTags: ["SystemMetrics"],
     }),
 
     // Translation Analytics
     getTranslationAnalytics: builder.query<any, void>({
-      query: () => 'analytics/translation/performance',
-      providesTags: ['SystemMetrics'],
+      query: () => "analytics/translation/performance",
+      providesTags: ["SystemMetrics"],
     }),
 
     // ============================================
@@ -584,10 +650,13 @@ export const apiSlice = createApi({
     // ============================================
 
     // User management
-    createUser: builder.mutation<any, { user_id: string; email: string; name?: string }>({
+    createUser: builder.mutation<
+      any,
+      { user_id: string; email: string; name?: string }
+    >({
       query: (userData) => ({
-        url: 'chat/users',
-        method: 'POST',
+        url: "chat/users",
+        method: "POST",
         body: userData,
       }),
     }),
@@ -597,10 +666,19 @@ export const apiSlice = createApi({
     }),
 
     // Session management
-    createSession: builder.mutation<any, { user_id: string; session_type?: string; session_title?: string; enable_translation?: boolean; target_languages?: string[] }>({
+    createSession: builder.mutation<
+      any,
+      {
+        user_id: string;
+        session_type?: string;
+        session_title?: string;
+        enable_translation?: boolean;
+        target_languages?: string[];
+      }
+    >({
       query: (sessionData) => ({
-        url: 'chat/sessions',
-        method: 'POST',
+        url: "chat/sessions",
+        method: "POST",
         body: sessionData,
       }),
     }),
@@ -609,16 +687,33 @@ export const apiSlice = createApi({
       query: (sessionId) => `chat/sessions/${sessionId}`,
     }),
 
-    listSessions: builder.query<any, { user_id: string; start_date?: string; end_date?: string; session_type?: string; limit?: number; offset?: number }>({
-      query: ({ user_id, start_date, end_date, session_type, limit = 50, offset = 0 }) => {
+    listSessions: builder.query<
+      any,
+      {
+        user_id: string;
+        start_date?: string;
+        end_date?: string;
+        session_type?: string;
+        limit?: number;
+        offset?: number;
+      }
+    >({
+      query: ({
+        user_id,
+        start_date,
+        end_date,
+        session_type,
+        limit = 50,
+        offset = 0,
+      }) => {
         const params = new URLSearchParams({
           user_id,
           limit: String(limit),
           offset: String(offset),
         });
-        if (start_date) params.append('start_date', start_date);
-        if (end_date) params.append('end_date', end_date);
-        if (session_type) params.append('session_type', session_type);
+        if (start_date) params.append("start_date", start_date);
+        if (end_date) params.append("end_date", end_date);
+        if (session_type) params.append("session_type", session_type);
         return `chat/sessions?${params.toString()}`;
       },
     }),
@@ -626,33 +721,51 @@ export const apiSlice = createApi({
     deleteSession: builder.mutation<void, string>({
       query: (sessionId) => ({
         url: `chat/sessions/${sessionId}`,
-        method: 'DELETE',
+        method: "DELETE",
       }),
     }),
 
     // Message management
-    createMessage: builder.mutation<any, { session_id: string; role: string; content: string; original_language?: string; translated_content?: Record<string, string> }>({
+    createMessage: builder.mutation<
+      any,
+      {
+        session_id: string;
+        role: string;
+        content: string;
+        original_language?: string;
+        translated_content?: Record<string, string>;
+      }
+    >({
       query: (messageData) => ({
-        url: 'chat/messages',
-        method: 'POST',
+        url: "chat/messages",
+        method: "POST",
         body: messageData,
       }),
     }),
 
-    getMessages: builder.query<any, { session_id: string; limit?: number; offset?: number }>({
+    getMessages: builder.query<
+      any,
+      { session_id: string; limit?: number; offset?: number }
+    >({
       query: ({ session_id, limit = 100, offset = 0 }) =>
         `chat/messages/${session_id}?limit=${limit}&offset=${offset}`,
     }),
 
     // Search
-    searchMessages: builder.query<any, { user_id: string; query: string; limit?: number }>({
+    searchMessages: builder.query<
+      any,
+      { user_id: string; query: string; limit?: number }
+    >({
       query: ({ user_id, query, limit = 50 }) =>
         `chat/search?user_id=${user_id}&query=${encodeURIComponent(query)}&limit=${limit}`,
     }),
 
     // Export
-    exportSession: builder.query<any, { session_id: string; format?: 'json' | 'txt' }>({
-      query: ({ session_id, format = 'json' }) =>
+    exportSession: builder.query<
+      any,
+      { session_id: string; format?: "json" | "txt" }
+    >({
+      query: ({ session_id, format = "json" }) =>
         `chat/export/${session_id}?format=${format}`,
     }),
 
@@ -672,7 +785,7 @@ export const {
   useGetAudioProcessingPresetsQuery,
   useTestAudioCaptureMutation,
   useAnalyzeAudioQualityMutation,
-  
+
   // Bot management hooks
   useGetBotsQuery,
   useGetBotQuery,
@@ -683,15 +796,15 @@ export const {
   useGetBotSessionQuery,
   useRunBotSmokeTestMutation,
   useGetBotMemoryStatsQuery,
-  
+
   // Virtual webcam hooks
   useGetWebcamFrameQuery,
   useUpdateWebcamConfigMutation,
-  
+
   // Translation hooks
   useGetTranslationsQuery,
   useTranslateTextMutation,
-  
+
   // Health and system hooks
   useGetSystemHealthQuery,
   useGetServiceHealthQuery,
@@ -700,10 +813,10 @@ export const {
   useUpdateConfigurationMutation,
   useGetLogsQuery,
   useGetStatisticsQuery,
-  
+
   // WebSocket hooks
   useGetWebSocketInfoQuery,
-  
+
   // Feature flag hooks
   useGetFeatureFlagsQuery,
   useUpdateFeatureFlagMutation,

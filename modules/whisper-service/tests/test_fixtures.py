@@ -4,9 +4,10 @@ Test that fixtures are working correctly.
 This file verifies that all audio fixtures are generated and can be loaded.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pytest
-from pathlib import Path
 
 
 def test_hello_world_fixture(hello_world_audio):

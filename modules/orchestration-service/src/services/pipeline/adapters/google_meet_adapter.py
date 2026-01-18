@@ -17,8 +17,8 @@ Expected format (from browser_audio_capture.py):
 }
 """
 
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from .base import ChunkAdapter, TranscriptChunk
 
@@ -61,16 +61,13 @@ class GoogleMeetChunkAdapter(ChunkAdapter):
 
         # Speaker - prefer human name over diarization ID
         speaker = (
-            data.get("speaker_name")
-            or data.get("speaker_id")
-            or data.get("speaker")
-            or "Unknown"
+            data.get("speaker_name") or data.get("speaker_id") or data.get("speaker") or "Unknown"
         )
 
         # Timestamp handling - Google Meet sends Unix timestamps in ms
         timestamp_ms = int(data.get("timestamp", 0))
         if timestamp_ms == 0:
-            timestamp_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
 
         # Calculate seconds for compatibility
         start_time_seconds = timestamp_ms / 1000.0
@@ -101,7 +98,7 @@ class GoogleMeetChunkAdapter(ChunkAdapter):
             },
         )
 
-    def extract_speaker(self, raw_chunk: Any) -> Optional[str]:
+    def extract_speaker(self, raw_chunk: Any) -> str | None:
         """
         Extract best available speaker identifier.
 
@@ -114,9 +111,7 @@ class GoogleMeetChunkAdapter(ChunkAdapter):
                 or raw_chunk.get("speaker")
             )
         # Model/object access
-        return getattr(raw_chunk, "speaker_name", None) or getattr(
-            raw_chunk, "speaker_id", None
-        )
+        return getattr(raw_chunk, "speaker_name", None) or getattr(raw_chunk, "speaker_id", None)
 
     def validate(self, raw_chunk: Any) -> bool:
         """Validate Google Meet chunk has required fields."""
@@ -131,7 +126,7 @@ class GoogleMeetChunkAdapter(ChunkAdapter):
         return hasattr(raw_chunk, "transcript") or hasattr(raw_chunk, "text")
 
     def adapt_with_diarization(
-        self, raw_chunk: Dict, diarization_map: Dict[str, str]
+        self, raw_chunk: dict, diarization_map: dict[str, str]
     ) -> TranscriptChunk:
         """
         Adapt with speaker name lookup from diarization map.

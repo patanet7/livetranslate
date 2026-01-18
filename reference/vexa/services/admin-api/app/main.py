@@ -15,8 +15,8 @@ from pydantic import BaseModel, HttpUrl
 # Import shared models and schemas
 from shared_models.models import User, APIToken, Base, Meeting, Transcription, MeetingSession # Import Base for init_db and Meeting
 from shared_models.schemas import (UserCreate, UserResponse, TokenResponse, UserDetailResponse, UserBase, UserUpdate, MeetingResponse,
-                                 UserTableResponse, MeetingTableResponse, MeetingSessionResponse, TranscriptionStats, 
-                                 MeetingPerformanceMetrics, MeetingTelematicsResponse, UserMeetingStats, 
+                                 UserTableResponse, MeetingTableResponse, MeetingSessionResponse, TranscriptionStats,
+                                 MeetingPerformanceMetrics, MeetingTelematicsResponse, UserMeetingStats,
                                  UserUsagePatterns, UserAnalyticsResponse) # Import analytics schemas
 
 # Database utilities (needs to be created)
@@ -56,7 +56,7 @@ async def verify_admin_token(admin_api_key: str = Security(API_KEY_HEADER)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Admin authentication is not configured on the server."
         )
-    
+
     if not admin_api_key or admin_api_key != ADMIN_API_TOKEN:
         logger.warning(f"Invalid admin token provided.")
         raise HTTPException(
@@ -64,7 +64,7 @@ async def verify_admin_token(admin_api_key: str = Security(API_KEY_HEADER)):
             detail="Invalid or missing admin token."
         )
     logger.info("Admin token verified successfully.")
-    # No need to return anything, just raises exception on failure 
+    # No need to return anything, just raises exception on failure
 
 async def get_current_user(api_key: str = Security(USER_API_KEY_HEADER), db: AsyncSession = Depends(get_db)) -> User:
     """Dependency to verify user API key and return user object."""
@@ -78,7 +78,7 @@ async def get_current_user(api_key: str = Security(USER_API_KEY_HEADER), db: Asy
 
     if not db_token or not db_token.user:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API Key")
-    
+
     return db_token.user
 
 # Router setup (all routes require admin token verification)
@@ -95,7 +95,7 @@ user_router = APIRouter(
     dependencies=[Depends(get_current_user)]
 )
 
-# --- Helper Functions --- 
+# --- Helper Functions ---
 def generate_secure_token(length=40):
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for i in range(length))
@@ -106,8 +106,8 @@ def generate_secure_token(length=40):
              summary="Set user webhook URL",
              description="Set a webhook URL for the authenticated user to receive notifications.")
 async def set_user_webhook(
-    webhook_update: WebhookUpdate, 
-    user: User = Depends(get_current_user), 
+    webhook_update: WebhookUpdate,
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -116,7 +116,7 @@ async def set_user_webhook(
     """
     if user.data is None:
         user.data = {}
-    
+
     user.data['webhook_url'] = str(webhook_update.webhook_url)
 
     # Flag the 'data' field as modified for SQLAlchemy to detect the change
@@ -126,10 +126,10 @@ async def set_user_webhook(
     await db.commit()
     await db.refresh(user)
     logger.info(f"Updated webhook URL for user {user.email}")
-    
+
     return UserResponse.from_orm(user)
 
-# --- Admin Endpoints (Copied and adapted from bot-manager/admin.py) --- 
+# --- Admin Endpoints (Copied and adapted from bot-manager/admin.py) ---
 @admin_router.post("/users",
              response_model=UserResponse,
              status_code=status.HTTP_201_CREATED,
@@ -166,7 +166,7 @@ async def create_user(user_in: UserCreate, response: Response, db: AsyncSession 
     logger.info(f"Admin created user: {db_user.email} (ID: {db_user.id})")
     return UserResponse.from_orm(db_user)
 
-@admin_router.get("/users", 
+@admin_router.get("/users",
             response_model=List[UserResponse], # Use List import
             summary="List all users")
 async def list_users(skip: int = 0, limit: int = 100, db: AsyncSession = Depends(get_db)):
@@ -195,7 +195,7 @@ async def get_user_by_email(user_email: str, db: AsyncSession = Depends(get_db))
     # Return the user object. Pydantic will handle serialization using UserDetailResponse.
     return user
 
-@admin_router.get("/users/{user_id}", 
+@admin_router.get("/users/{user_id}",
             response_model=UserDetailResponse, # Use the detailed response schema
             summary="Get a specific user by ID, including their API tokens")
 async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
@@ -207,13 +207,13 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
         .options(selectinload(User.api_tokens))
     )
     user = result.scalars().first()
-    
+
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-        
+
     # Return the user object. Pydantic will handle serialization using UserDetailResponse.
     return user
 
@@ -228,7 +228,7 @@ async def update_user(user_id: int, user_update: UserUpdate, db: AsyncSession = 
     Requires admin privileges.
     """
     print(f"=== ADMIN PATCH USER {user_id} CALLED ===")
-    
+
     # Fetch the user to update
     result = await db.execute(select(User).where(User.id == user_id))
     db_user = result.scalars().first()
@@ -253,10 +253,10 @@ async def update_user(user_id: int, user_update: UserUpdate, db: AsyncSession = 
         new_data = update_data.pop('data')  # Remove from update_data to handle separately
         if new_data is not None:
             logger.info(f"Admin updating data field for user ID: {user_id}. Current: {db_user.data}, New: {new_data}")
-            
+
             # Replace the data field entirely (rather than merging)
             db_user.data = new_data
-            
+
             # Flag the 'data' field as modified for SQLAlchemy to detect the change
             attributes.flag_modified(db_user, "data")
             updated = True
@@ -288,7 +288,7 @@ async def update_user(user_id: int, user_update: UserUpdate, db: AsyncSession = 
 
     return UserResponse.from_orm(db_user)
 
-@admin_router.post("/users/{user_id}/tokens", 
+@admin_router.post("/users/{user_id}/tokens",
              response_model=TokenResponse,
              status_code=status.HTTP_201_CREATED,
              summary="Generate a new API token for a user")
@@ -296,7 +296,7 @@ async def create_token_for_user(user_id: int, db: AsyncSession = Depends(get_db)
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
+
     token_value = generate_secure_token()
     # Use the APIToken model from shared_models
     db_token = APIToken(token=token_value, user_id=user_id)
@@ -307,34 +307,34 @@ async def create_token_for_user(user_id: int, db: AsyncSession = Depends(get_db)
     # Use TokenResponse for consistency with schema definition (datetime object)
     return TokenResponse.from_orm(db_token)
 
-@admin_router.delete("/tokens/{token_id}", 
+@admin_router.delete("/tokens/{token_id}",
                 status_code=status.HTTP_204_NO_CONTENT,
                 summary="Revoke/Delete an API token by its ID")
 async def delete_token(token_id: int, db: AsyncSession = Depends(get_db)):
     """Deletes an API token by its database ID."""
     # Fetch the token by its primary key ID
     db_token = await db.get(APIToken, token_id)
-    
+
     if not db_token:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Token not found"
         )
-        
+
     # Delete the token
     await db.delete(db_token)
     await db.commit()
     logger.info(f"Admin deleted token ID: {token_id}")
     # No body needed for 204 response
-    return 
+    return
 
 # --- Usage Stats Endpoints ---
 @admin_router.get("/stats/meetings-users",
             response_model=PaginatedMeetingUserStatResponse,
             summary="Get paginated list of meetings joined with users")
 async def list_meetings_with_users(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -363,7 +363,7 @@ async def list_meetings_with_users(
         )
         for meeting in meetings if meeting.user
     ]
-        
+
     return PaginatedMeetingUserStatResponse(total=total, items=response_items)
 
 # --- Analytics Endpoints ---
@@ -371,7 +371,7 @@ async def list_meetings_with_users(
                   response_model=List[UserTableResponse],
                   summary="Get users table structure without sensitive data")
 async def get_users_table(
-    skip: int = 0, 
+    skip: int = 0,
     limit: int = 1000,
     db: AsyncSession = Depends(get_db)
 ):
@@ -384,11 +384,11 @@ async def get_users_table(
     return [UserTableResponse.from_orm(u) for u in users]
 
 @admin_router.get("/analytics/meetings",
-                  response_model=List[MeetingTableResponse], 
+                  response_model=List[MeetingTableResponse],
                   summary="Get meetings table structure without sensitive data")
 async def get_meetings_table(
     skip: int = 0,
-    limit: int = 1000, 
+    limit: int = 1000,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -418,10 +418,10 @@ async def get_meeting_telematics(
     # Get the meeting
     result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
     meeting = result.scalars().first()
-    
+
     if not meeting:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Meeting not found")
-    
+
     # Get sessions if requested
     sessions = []
     if include_sessions:
@@ -429,7 +429,7 @@ async def get_meeting_telematics(
             select(MeetingSession).where(MeetingSession.meeting_id == meeting_id)
         )
         sessions = sessions_result.scalars().all()
-    
+
     # Calculate transcription stats if requested
     transcription_stats = None
     if include_transcriptions:
@@ -437,19 +437,19 @@ async def get_meeting_telematics(
             select(Transcription).where(Transcription.meeting_id == meeting_id)
         )
         transcriptions = transcriptions_result.scalars().all()
-        
+
         if transcriptions:
             total_duration = sum(t.end_time - t.start_time for t in transcriptions)
             unique_speakers = len(set(t.speaker for t in transcriptions if t.speaker))
             languages_detected = list(set(t.language for t in transcriptions if t.language))
-            
+
             transcription_stats = TranscriptionStats(
                 total_transcriptions=len(transcriptions),
                 total_duration=total_duration,
                 unique_speakers=unique_speakers,
                 languages_detected=languages_detected
             )
-    
+
     # Calculate performance metrics
     performance_metrics = None
     if meeting.start_time and meeting.end_time:
@@ -461,7 +461,7 @@ async def get_meeting_telematics(
             admission_time=meeting.data.get('admission_time') if meeting.data else None,
             bot_uptime=meeting.data.get('bot_uptime') if meeting.data else None
         )
-    
+
     return MeetingTelematicsResponse(
         meeting=MeetingResponse.from_orm(meeting),
         sessions=[MeetingSessionResponse.from_orm(s) for s in sessions],
@@ -489,27 +489,27 @@ async def get_user_details(
     query = select(User)
     if include_tokens:
         query = query.options(selectinload(User.api_tokens))
-    
+
     result = await db.execute(query.where(User.id == user_id))
     user = result.scalars().first()
-    
+
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
+
     # Calculate meeting stats
     meetings_result = await db.execute(select(Meeting).where(Meeting.user_id == user_id))
     meetings = meetings_result.scalars().all()
-    
+
     total_meetings = len(meetings)
     completed_meetings = len([m for m in meetings if m.status == 'completed'])
     failed_meetings = len([m for m in meetings if m.status == 'failed'])
     active_meetings = len([m for m in meetings if m.status in ['requested', 'joining', 'awaiting_admission', 'active']])
-    
+
     # Calculate duration stats
     completed_with_duration = [m for m in meetings if m.status == 'completed' and m.start_time and m.end_time]
     total_duration = sum((m.end_time - m.start_time).total_seconds() for m in completed_with_duration) if completed_with_duration else None
     average_duration = total_duration / len(completed_with_duration) if completed_with_duration else None
-    
+
     meeting_stats = UserMeetingStats(
         total_meetings=total_meetings,
         completed_meetings=completed_meetings,
@@ -518,7 +518,7 @@ async def get_user_details(
         total_duration=total_duration,
         average_duration=average_duration
     )
-    
+
     # Calculate usage patterns
     if meetings:
         # Most used platform
@@ -526,18 +526,18 @@ async def get_user_details(
         for meeting in meetings:
             platform_counts[meeting.platform] = platform_counts.get(meeting.platform, 0) + 1
         most_used_platform = max(platform_counts, key=platform_counts.get) if platform_counts else None
-        
+
         # Meetings per day (based on creation date)
         days_since_first = (datetime.utcnow() - min(m.created_at for m in meetings)).days + 1
         meetings_per_day = total_meetings / days_since_first if days_since_first > 0 else 0
-        
+
         # Peak usage hours
         hour_counts = {}
         for meeting in meetings:
             hour = meeting.created_at.hour
             hour_counts[hour] = hour_counts.get(hour, 0) + 1
         peak_usage_hours = sorted(hour_counts.keys(), key=lambda h: hour_counts[h], reverse=True)[:3]
-        
+
         # Last activity
         last_activity = max(m.created_at for m in meetings)
     else:
@@ -545,14 +545,14 @@ async def get_user_details(
         meetings_per_day = 0.0
         peak_usage_hours = []
         last_activity = None
-    
+
     usage_patterns = UserUsagePatterns(
         most_used_platform=most_used_platform,
         meetings_per_day=meetings_per_day,
         peak_usage_hours=peak_usage_hours,
         last_activity=last_activity
     )
-    
+
     return UserAnalyticsResponse(
         user=UserDetailResponse.from_orm(user),
         meeting_stats=meeting_stats,

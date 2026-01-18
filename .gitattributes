@@ -1,0 +1,207 @@
+# Auto-detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Explicitly declare text files
+*.py text eol=lf diff=python
+*.pyx text eol=lf diff=python
+*.pyi text eol=lf diff=python
+*.pyw text eol=lf diff=python
+
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.conf text eol=lf
+
+*.md text eol=lf diff=markdown
+*.txt text eol=lf
+*.rst text eol=lf
+
+*.html text eol=lf diff=html
+*.htm text eol=lf diff=html
+*.css text eol=lf diff=css
+*.scss text eol=lf diff=css
+*.sass text eol=lf diff=css
+*.less text eol=lf diff=css
+
+*.xml text eol=lf
+*.svg text eol=lf
+
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+*.fish text eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.sql text eol=lf
+
+# Docker files
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+*.dockerfile text eol=lf
+.dockerignore text eol=lf
+docker-compose*.yml text eol=lf
+
+# Git files
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.gitmodules text eol=lf
+
+# CI/CD files
+*.github/** text eol=lf
+Makefile text eol=lf
+Jenkinsfile text eol=lf
+
+# Lock files - exact content matters
+package-lock.json text eol=lf -diff
+pnpm-lock.yaml text eol=lf -diff
+yarn.lock text eol=lf -diff
+pdm.lock text eol=lf -diff
+poetry.lock text eol=lf -diff
+Pipfile.lock text eol=lf -diff
+
+# Binary files - do not normalize or diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.bmp binary
+*.tiff binary
+*.tif binary
+
+# Audio files - binary
+*.wav binary
+*.mp3 binary
+*.ogg binary
+*.flac binary
+*.aac binary
+*.m4a binary
+*.wma binary
+*.opus binary
+*.webm binary
+
+# Video files - binary
+*.mp4 binary
+*.avi binary
+*.mov binary
+*.mkv binary
+*.wmv binary
+*.flv binary
+
+# Font files - binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+
+# Archive files - binary
+*.zip binary
+*.tar binary
+*.tar.gz binary
+*.tgz binary
+*.gz binary
+*.bz2 binary
+*.xz binary
+*.7z binary
+*.rar binary
+
+# Compiled Python files - binary
+*.pyc binary
+*.pyo binary
+*.pyd binary
+*.so binary
+
+# Machine learning models - binary
+*.pt binary
+*.pth binary
+*.onnx binary
+*.bin binary
+*.model binary
+*.h5 binary
+*.hdf5 binary
+*.pkl binary
+*.pickle binary
+*.safetensors binary
+
+# Database files - binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Document files - binary
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# Certificate and key files - binary (but stored as text)
+*.pem text eol=lf
+*.crt text eol=lf
+*.key text eol=lf
+*.pub text eol=lf
+
+# Diff settings for specific file types
+*.py diff=python
+*.rb diff=ruby
+*.go diff=golang
+*.rs diff=rust
+*.java diff=java
+*.php diff=php
+*.pl diff=perl
+*.c diff=cpp
+*.cpp diff=cpp
+*.h diff=cpp
+*.hpp diff=cpp
+
+# Mark vendored files
+# vendor/** linguist-vendored
+# node_modules/** linguist-vendored
+
+# Mark generated files
+*.generated.* linguist-generated
+*_generated.* linguist-generated
+*.min.js linguist-generated
+*.min.css linguist-generated
+dist/** linguist-generated
+build/** linguist-generated
+
+# Mark documentation
+docs/** linguist-documentation
+*.md linguist-documentation
+
+# Export-ignore - files not included in archives
+.github export-ignore
+.gitignore export-ignore
+.gitattributes export-ignore
+.editorconfig export-ignore
+.eslintrc* export-ignore
+.prettierrc* export-ignore
+.flake8 export-ignore
+.mypy.ini export-ignore
+.pre-commit-config.yaml export-ignore
+pytest.ini export-ignore
+tox.ini export-ignore
+Makefile export-ignore
+*.test.* export-ignore
+*_test.* export-ignore
+test_* export-ignore
+tests/** export-ignore
+__tests__/** export-ignore

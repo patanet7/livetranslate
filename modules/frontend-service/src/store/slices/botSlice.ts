@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import {
   BotInstance,
   MeetingRequest,
@@ -13,15 +13,15 @@ import {
   WebcamDisplayMode,
   WebcamTheme,
   MeetingPlatform,
-  BotPriority
-} from '@/types';
-import { getCurrentISOTimestamp } from '@/utils/dateTimeUtils';
+  BotPriority,
+} from "@/types";
+import { getCurrentISOTimestamp } from "@/utils/dateTimeUtils";
 
 interface BotState {
   // Bot instances
   bots: Record<string, BotInstance>;
   activeBotIds: string[];
-  
+
   // Bot spawning
   spawnerConfig: {
     maxConcurrentBots: number;
@@ -30,27 +30,30 @@ interface BotState {
     virtualWebcamEnabled: boolean;
     defaultBotConfig: BotConfig;
   };
-  
+
   // Meeting requests
-  meetingRequests: Record<string, {
-    requestId: string;
-    meetingId: string;
-    meetingTitle: string;
-    organizerEmail?: string;
-    targetLanguages: string[];
-    autoTranslation: boolean;
-    priority: 'low' | 'medium' | 'high';
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    createdAt: number;
-    botId?: string;
-  }>;
-  
+  meetingRequests: Record<
+    string,
+    {
+      requestId: string;
+      meetingId: string;
+      meetingTitle: string;
+      organizerEmail?: string;
+      targetLanguages: string[];
+      autoTranslation: boolean;
+      priority: "low" | "medium" | "high";
+      status: "pending" | "processing" | "completed" | "failed";
+      createdAt: number;
+      botId?: string;
+    }
+  >;
+
   // System statistics
   systemStats: SystemStats;
-  
+
   // Health monitoring
   healthMetrics: Record<string, BotHealthMetrics>;
-  
+
   // Real-time data
   realtimeData: {
     audioCapture: Record<string, AudioQualityMetrics>;
@@ -58,25 +61,25 @@ interface BotState {
     translations: Record<string, Translation[]>;
     webcamFrames: Record<string, string>; // botId -> base64 frame
   };
-  
+
   // UI state
   selectedBotId: string | null;
-  dashboardView: 'overview' | 'detailed' | 'performance';
-  
+  dashboardView: "overview" | "detailed" | "performance";
+
   // Error handling
   error: string | null;
   loading: boolean;
 }
 
 const defaultBotConfig: BotConfig = {
-  botId: '',
-  botName: '',
-  targetLanguages: ['en', 'es', 'fr'],
+  botId: "",
+  botName: "",
+  targetLanguages: ["en", "es", "fr"],
   virtualWebcamEnabled: true,
   serviceEndpoints: {
-    whisperService: 'http://localhost:5001',
-    translationService: 'http://localhost:5003',
-    orchestrationService: 'http://localhost:3000',
+    whisperService: "http://localhost:5001",
+    translationService: "http://localhost:5003",
+    orchestrationService: "http://localhost:3000",
   },
   audioConfig: {
     sampleRate: 16000,
@@ -104,17 +107,17 @@ const defaultBotConfig: BotConfig = {
 const initialState: BotState = {
   bots: {},
   activeBotIds: [],
-  
+
   spawnerConfig: {
     maxConcurrentBots: 10,
-    defaultTargetLanguages: ['en', 'es', 'fr'],
+    defaultTargetLanguages: ["en", "es", "fr"],
     autoTranslationEnabled: true,
     virtualWebcamEnabled: true,
     defaultBotConfig,
   },
-  
+
   meetingRequests: {},
-  
+
   systemStats: {
     totalBotsSpawned: 0,
     activeBots: 0,
@@ -122,27 +125,28 @@ const initialState: BotState = {
     errorRate: 0,
     averageSessionDuration: 0,
   },
-  
+
   healthMetrics: {},
-  
+
   realtimeData: {
     audioCapture: {},
     captions: {},
     translations: {},
     webcamFrames: {},
   },
-  
+
   selectedBotId: null,
-  dashboardView: 'overview',
-  
+  dashboardView: "overview",
+
   error: null,
   loading: false,
 };
 
-const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+const generateId = () =>
+  `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 const botSlice = createSlice({
-  name: 'bot',
+  name: "bot",
   initialState,
   reducers: {
     // Bot lifecycle management
@@ -152,24 +156,31 @@ const botSlice = createSlice({
       state.meetingRequests[requestId] = {
         requestId,
         ...action.payload,
-        status: 'pending',
+        status: "pending",
         createdAt: Date.now(),
       };
     },
-    
-    spawnBotSuccess: (state, action: PayloadAction<{ requestId: string; botId: string; botData: Partial<BotInstance> }>) => {
+
+    spawnBotSuccess: (
+      state,
+      action: PayloadAction<{
+        requestId: string;
+        botId: string;
+        botData: Partial<BotInstance>;
+      }>,
+    ) => {
       const { requestId, botId, botData } = action.payload;
       const request = state.meetingRequests[requestId];
-      
+
       if (request) {
-        request.status = 'completed';
+        request.status = "completed";
         request.botId = botId;
-        
+
         // Create bot instance
         const newBot: BotInstance = {
           id: botId,
           botId,
-          status: 'spawning',
+          status: "spawning",
           config: {
             meetingInfo: {
               meetingId: request.meetingId,
@@ -187,15 +198,18 @@ const botSlice = createSlice({
               enableAutoGain: false,
             },
             translation: {
-              targetLanguages: request.targetLanguages || ['en'],
+              targetLanguages: request.targetLanguages || ["en"],
               enableAutoTranslation: request.autoTranslation ?? true,
-              translationQuality: 'balanced',
+              translationQuality: "balanced",
               realTimeTranslation: true,
             },
             webcam: state.spawnerConfig.defaultBotConfig.webcamConfig,
-            priority: (request.priority === 'high' ? BotPriority.HIGH :
-                      request.priority === 'low' ? BotPriority.LOW :
-                      BotPriority.MEDIUM),
+            priority:
+              request.priority === "high"
+                ? BotPriority.HIGH
+                : request.priority === "low"
+                  ? BotPriority.LOW
+                  : BotPriority.MEDIUM,
             enableRecording: true,
             enableTranscription: true,
             enableSpeakerDiarization: true,
@@ -209,7 +223,7 @@ const botSlice = createSlice({
             totalAudioDurationS: 0,
             averageQualityScore: 0,
             lastCaptureTimestamp: getCurrentISOTimestamp(),
-            deviceInfo: '',
+            deviceInfo: "",
             sampleRateActual: 16000,
             channelsActual: 1,
           },
@@ -228,8 +242,12 @@ const botSlice = createSlice({
             averageFps: 0,
             webcamConfig: {
               ...state.spawnerConfig.defaultBotConfig.webcamConfig,
-              fontSize: state.spawnerConfig.defaultBotConfig.webcamConfig.fontSize || 16,
-              backgroundOpacity: state.spawnerConfig.defaultBotConfig.webcamConfig.backgroundOpacity || 0.8,
+              fontSize:
+                state.spawnerConfig.defaultBotConfig.webcamConfig.fontSize ||
+                16,
+              backgroundOpacity:
+                state.spawnerConfig.defaultBotConfig.webcamConfig
+                  .backgroundOpacity || 0.8,
             },
             lastFrameTimestamp: getCurrentISOTimestamp(),
           },
@@ -255,29 +273,35 @@ const botSlice = createSlice({
           lastActiveAt: getCurrentISOTimestamp(),
           ...botData,
         };
-        
+
         state.bots[botId] = newBot;
         state.activeBotIds.push(botId);
         state.systemStats.totalBotsSpawned += 1;
         state.systemStats.activeBots += 1;
       }
-      
+
       state.loading = false;
     },
-    
-    spawnBotFailure: (state, action: PayloadAction<{ requestId: string; error: string }>) => {
+
+    spawnBotFailure: (
+      state,
+      action: PayloadAction<{ requestId: string; error: string }>,
+    ) => {
       const { requestId, error } = action.payload;
       const request = state.meetingRequests[requestId];
-      
+
       if (request) {
-        request.status = 'failed';
+        request.status = "failed";
       }
-      
+
       state.error = error;
       state.loading = false;
     },
-    
-    updateBotStatus: (state, action: PayloadAction<{ botId: string; status: BotStatus; data?: any }>) => {
+
+    updateBotStatus: (
+      state,
+      action: PayloadAction<{ botId: string; status: BotStatus; data?: any }>,
+    ) => {
       const { botId, status, data } = action.payload;
       const bot = state.bots[botId];
 
@@ -294,15 +318,18 @@ const botSlice = createSlice({
         bot.performance.sessionDurationS = (Date.now() - createdTime) / 1000;
       }
     },
-    
+
     terminateBot: (state, action: PayloadAction<string>) => {
       const botId = action.payload;
       const bot = state.bots[botId];
 
       if (bot) {
-        bot.status = 'terminated';
-        state.activeBotIds = state.activeBotIds.filter(id => id !== botId);
-        state.systemStats.activeBots = Math.max(0, state.systemStats.activeBots - 1);
+        bot.status = "terminated";
+        state.activeBotIds = state.activeBotIds.filter((id) => id !== botId);
+        state.systemStats.activeBots = Math.max(
+          0,
+          state.systemStats.activeBots - 1,
+        );
         state.systemStats.completedSessions += 1;
 
         // Calculate final session duration in seconds
@@ -317,26 +344,30 @@ const botSlice = createSlice({
         delete state.healthMetrics[botId];
       }
     },
-    
+
     removeBotFromState: (state, action: PayloadAction<string>) => {
       const botId = action.payload;
       delete state.bots[botId];
-      state.activeBotIds = state.activeBotIds.filter(id => id !== botId);
-      
+      state.activeBotIds = state.activeBotIds.filter((id) => id !== botId);
+
       if (state.selectedBotId === botId) {
         state.selectedBotId = null;
       }
     },
-    
+
     // Audio capture updates
-    updateAudioCapture: (state, action: PayloadAction<{ botId: string; metrics: AudioQualityMetrics }>) => {
+    updateAudioCapture: (
+      state,
+      action: PayloadAction<{ botId: string; metrics: AudioQualityMetrics }>,
+    ) => {
       const { botId, metrics } = action.payload;
       const bot = state.bots[botId];
 
       if (bot) {
         bot.audioCapture.totalChunksCaptured += 1;
         bot.audioCapture.averageQualityScore =
-          (bot.audioCapture.averageQualityScore + (metrics.qualityScore || 0)) / 2;
+          (bot.audioCapture.averageQualityScore + (metrics.qualityScore || 0)) /
+          2;
         bot.audioCapture.lastCaptureTimestamp = getCurrentISOTimestamp();
         bot.lastActiveAt = getCurrentISOTimestamp();
 
@@ -344,11 +375,18 @@ const botSlice = createSlice({
         state.realtimeData.audioCapture[botId] = metrics;
       }
     },
-    
-    setAudioCaptureStatus: (state, action: PayloadAction<{ botId: string; isCapturing: boolean; deviceInfo?: string }>) => {
+
+    setAudioCaptureStatus: (
+      state,
+      action: PayloadAction<{
+        botId: string;
+        isCapturing: boolean;
+        deviceInfo?: string;
+      }>,
+    ) => {
       const { botId, isCapturing, deviceInfo } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         bot.audioCapture.isCapturing = isCapturing;
         if (deviceInfo) {
@@ -356,15 +394,20 @@ const botSlice = createSlice({
         }
       }
     },
-    
+
     // Caption processing updates
-    addCaption: (state, action: PayloadAction<{ botId: string; caption: CaptionSegment }>) => {
+    addCaption: (
+      state,
+      action: PayloadAction<{ botId: string; caption: CaptionSegment }>,
+    ) => {
       const { botId, caption } = action.payload;
       const bot = state.bots[botId];
 
       if (bot) {
         bot.captionProcessor.totalCaptionsProcessed += 1;
-        bot.captionProcessor.lastCaptionTimestamp = new Date(caption.timestamp).toISOString();
+        bot.captionProcessor.lastCaptionTimestamp = new Date(
+          caption.timestamp,
+        ).toISOString();
         bot.lastActiveAt = getCurrentISOTimestamp();
 
         // Store in realtime data
@@ -379,13 +422,18 @@ const botSlice = createSlice({
         }
 
         // Update speaker count
-        const speakerIds = new Set(state.realtimeData.captions[botId].map(c => c.speakerId));
+        const speakerIds = new Set(
+          state.realtimeData.captions[botId].map((c) => c.speakerId),
+        );
         bot.captionProcessor.totalSpeakers = speakerIds.size;
       }
     },
-    
+
     // Translation updates
-    addTranslation: (state, action: PayloadAction<{ botId: string; translation: Translation }>) => {
+    addTranslation: (
+      state,
+      action: PayloadAction<{ botId: string; translation: Translation }>,
+    ) => {
       const { botId, translation } = action.payload;
       const bot = state.bots[botId];
 
@@ -393,7 +441,7 @@ const botSlice = createSlice({
         // Add to virtual webcam current translations (store as simple { language, text })
         const simpleTranslation = {
           language: translation.targetLanguage,
-          text: translation.translatedText
+          text: translation.translatedText,
         };
         bot.virtualWebcam.currentTranslations.push(simpleTranslation);
 
@@ -416,12 +464,19 @@ const botSlice = createSlice({
         bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
-    
+
     // Virtual webcam updates
-    updateWebcamStatus: (state, action: PayloadAction<{ botId: string; isStreaming: boolean; framesGenerated?: number }>) => {
+    updateWebcamStatus: (
+      state,
+      action: PayloadAction<{
+        botId: string;
+        isStreaming: boolean;
+        framesGenerated?: number;
+      }>,
+    ) => {
       const { botId, isStreaming, framesGenerated } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         bot.virtualWebcam.isStreaming = isStreaming;
         if (framesGenerated !== undefined) {
@@ -429,8 +484,11 @@ const botSlice = createSlice({
         }
       }
     },
-    
-    updateWebcamFrame: (state, action: PayloadAction<{ botId: string; frameBase64: string }>) => {
+
+    updateWebcamFrame: (
+      state,
+      action: PayloadAction<{ botId: string; frameBase64: string }>,
+    ) => {
       const { botId, frameBase64 } = action.payload;
       const bot = state.bots[botId];
 
@@ -440,8 +498,11 @@ const botSlice = createSlice({
         bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
-    
-    updateWebcamConfig: (state, action: PayloadAction<{ botId: string; config: Partial<WebcamConfig> }>) => {
+
+    updateWebcamConfig: (
+      state,
+      action: PayloadAction<{ botId: string; config: Partial<WebcamConfig> }>,
+    ) => {
       const { botId, config } = action.payload;
       const bot = state.bots[botId];
 
@@ -449,9 +510,12 @@ const botSlice = createSlice({
         Object.assign(bot.virtualWebcam.webcamConfig, config);
       }
     },
-    
+
     // Health monitoring
-    updateHealthMetrics: (state, action: PayloadAction<{ botId: string; metrics: BotHealthMetrics }>) => {
+    updateHealthMetrics: (
+      state,
+      action: PayloadAction<{ botId: string; metrics: BotHealthMetrics }>,
+    ) => {
       const { botId, metrics } = action.payload;
       state.healthMetrics[botId] = metrics;
 
@@ -462,13 +526,16 @@ const botSlice = createSlice({
     },
 
     // Performance metrics
-    updatePerformanceMetrics: (state, action: PayloadAction<{ 
-      botId: string; 
-      metrics: Partial<BotInstance['performance']> 
-    }>) => {
+    updatePerformanceMetrics: (
+      state,
+      action: PayloadAction<{
+        botId: string;
+        metrics: Partial<BotInstance["performance"]>;
+      }>,
+    ) => {
       const { botId, metrics } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         Object.assign(bot.performance, metrics);
         bot.lastActiveAt = getCurrentISOTimestamp();
@@ -476,65 +543,74 @@ const botSlice = createSlice({
     },
 
     // Time correlation updates
-    updateTimeCorrelation: (state, action: PayloadAction<{
-      botId: string;
-      metrics: Partial<BotInstance['timeCorrelation']>;
-    }>) => {
+    updateTimeCorrelation: (
+      state,
+      action: PayloadAction<{
+        botId: string;
+        metrics: Partial<BotInstance["timeCorrelation"]>;
+      }>,
+    ) => {
       const { botId, metrics } = action.payload;
       const bot = state.bots[botId];
-      
+
       if (bot) {
         Object.assign(bot.timeCorrelation, metrics);
         bot.lastActiveAt = getCurrentISOTimestamp();
       }
     },
-    
+
     // System statistics
     updateSystemStats: (state, action: PayloadAction<Partial<SystemStats>>) => {
       Object.assign(state.systemStats, action.payload);
     },
-    
+
     // Configuration updates
-    updateSpawnerConfig: (state, action: PayloadAction<Partial<BotState['spawnerConfig']>>) => {
+    updateSpawnerConfig: (
+      state,
+      action: PayloadAction<Partial<BotState["spawnerConfig"]>>,
+    ) => {
       Object.assign(state.spawnerConfig, action.payload);
     },
-    
+
     // UI state
     setSelectedBot: (state, action: PayloadAction<string | null>) => {
       state.selectedBotId = action.payload;
     },
-    
-    setDashboardView: (state, action: PayloadAction<'overview' | 'detailed' | 'performance'>) => {
+
+    setDashboardView: (
+      state,
+      action: PayloadAction<"overview" | "detailed" | "performance">,
+    ) => {
       state.dashboardView = action.payload;
     },
-    
+
     // Error handling
     setBotError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
       state.loading = false;
     },
-    
+
     clearBotError: (state) => {
       state.error = null;
     },
-    
+
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
     },
-    
+
     // Additional actions for useBotManager hook
     setBots: (state, action: PayloadAction<Record<string, BotInstance>>) => {
       state.bots = action.payload;
     },
-    
+
     setActiveBotIds: (state, action: PayloadAction<string[]>) => {
       state.activeBotIds = action.payload;
     },
-    
+
     setSystemStats: (state, action: PayloadAction<SystemStats>) => {
       state.systemStats = action.payload;
     },
-    
+
     addBot: (state, action: PayloadAction<BotInstance>) => {
       const bot = action.payload;
       state.bots[bot.botId] = bot;
@@ -542,21 +618,24 @@ const botSlice = createSlice({
         state.activeBotIds.push(bot.botId);
       }
     },
-    
-    updateBot: (state, action: PayloadAction<{ botId: string; updates: Partial<BotInstance> }>) => {
+
+    updateBot: (
+      state,
+      action: PayloadAction<{ botId: string; updates: Partial<BotInstance> }>,
+    ) => {
       const { botId, updates } = action.payload;
       const bot = state.bots[botId];
       if (bot) {
         Object.assign(bot, updates);
       }
     },
-    
+
     removeBot: (state, action: PayloadAction<string>) => {
       const botId = action.payload;
       delete state.bots[botId];
-      state.activeBotIds = state.activeBotIds.filter(id => id !== botId);
+      state.activeBotIds = state.activeBotIds.filter((id) => id !== botId);
     },
-    
+
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
     },

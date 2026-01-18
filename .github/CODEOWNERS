@@ -1,0 +1,80 @@
+# CODEOWNERS - Define code ownership for automated review requests
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+* @livetranslate/maintainers
+
+# Whisper Service - Speech-to-Text Team
+/modules/whisper-service/ @livetranslate/whisper-team
+/modules/whisper-service/src/ @livetranslate/whisper-team
+/modules/whisper-service/tests/ @livetranslate/whisper-team
+
+# Translation Service - Translation Team
+/modules/translation-service/ @livetranslate/translation-team
+/modules/translation-service/src/ @livetranslate/translation-team
+/modules/translation-service/tests/ @livetranslate/translation-team
+
+# Orchestration Service - Backend Team
+/modules/orchestration-service/ @livetranslate/backend-team
+/modules/orchestration-service/src/ @livetranslate/backend-team
+/modules/orchestration-service/src/bot/ @livetranslate/backend-team @livetranslate/bot-team
+/modules/orchestration-service/tests/ @livetranslate/backend-team
+
+# Frontend Service - Frontend Team
+/modules/frontend-service/ @livetranslate/frontend-team
+/modules/frontend-service/src/ @livetranslate/frontend-team
+/modules/frontend-service/tests/ @livetranslate/frontend-team
+
+# Meeting Bot Service (if exists) - Bot Team
+/modules/meeting-bot-service/ @livetranslate/bot-team
+
+# CI/CD and Infrastructure - DevOps Team
+/.github/ @livetranslate/devops-team @livetranslate/maintainers
+/.github/workflows/ @livetranslate/devops-team
+/.github/CODEOWNERS @livetranslate/maintainers
+/docker/ @livetranslate/devops-team
+/docker-compose*.yml @livetranslate/devops-team
+/Dockerfile* @livetranslate/devops-team
+/.dockerignore @livetranslate/devops-team
+
+# Infrastructure as Code
+/terraform/ @livetranslate/devops-team
+/k8s/ @livetranslate/devops-team
+/helm/ @livetranslate/devops-team
+
+# Documentation - All teams can contribute
+/docs/ @livetranslate/maintainers
+/*.md @livetranslate/maintainers
+/modules/*/README.md @livetranslate/maintainers
+/modules/*/CLAUDE.md @livetranslate/maintainers
+
+# Configuration files
+/pyproject.toml @livetranslate/maintainers
+/.gitignore @livetranslate/maintainers
+/.gitattributes @livetranslate/maintainers
+/commitlint.config.js @livetranslate/devops-team
+
+# Security-related files require security team review
+/security/ @livetranslate/security-team @livetranslate/maintainers
+/.github/workflows/security.yml @livetranslate/security-team @livetranslate/devops-team
+/.github/dependabot.yml @livetranslate/security-team @livetranslate/devops-team
+
+# Database schemas and migrations
+/scripts/*schema*.sql @livetranslate/backend-team @livetranslate/maintainers
+/migrations/ @livetranslate/backend-team
+
+# API specifications
+/api/ @livetranslate/backend-team @livetranslate/frontend-team
+/openapi/ @livetranslate/backend-team @livetranslate/frontend-team
+/*.yaml @livetranslate/maintainers
+/*.yml @livetranslate/maintainers
+
+# Python dependency files
+/modules/*/pyproject.toml @livetranslate/maintainers
+/modules/*/pdm.lock @livetranslate/maintainers
+/modules/*/requirements*.txt @livetranslate/maintainers
+
+# Node.js dependency files
+/modules/frontend-service/package.json @livetranslate/frontend-team @livetranslate/maintainers
+/modules/frontend-service/pnpm-lock.yaml @livetranslate/frontend-team
+/modules/meeting-bot-service/package.json @livetranslate/bot-team @livetranslate/maintainers

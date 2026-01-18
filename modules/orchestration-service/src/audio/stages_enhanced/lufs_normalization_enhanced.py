@@ -16,7 +16,8 @@ pyloudnorm reference: https://github.com/csteinmetz1/pyloudnorm
 """
 
 import logging
-from typing import Dict, Any, Tuple
+from typing import Any
+
 import numpy as np
 
 try:
@@ -27,8 +28,8 @@ except ImportError:
     HAS_PYLOUDNORM = False
     pyln = None
 
-from ..stage_components import BaseAudioStage
 from ..config import LUFSNormalizationConfig, LUFSNormalizationMode
+from ..stage_components import BaseAudioStage
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
                 -14.0,  # Default to streaming
             )
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """
         Process audio through LUFS normalization.
 
@@ -209,7 +208,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
                 else normalized_audio
             )
             final_lufs = self.meter.integrated_loudness(final_normalized)
-        except:
+        except Exception:
             final_lufs = current_lufs + gain_db
 
         # Prepare metadata
@@ -229,7 +228,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
 
         return normalized_audio.astype(audio_data.dtype), metadata
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -245,7 +244,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
             "implementation": "pyloudnorm (enhanced)",
         }
 
-    def get_quality_metrics(self) -> Dict[str, Any]:
+    def get_quality_metrics(self) -> dict[str, Any]:
         """Get quality metrics for this stage."""
         return {
             **self.quality_stats,
@@ -256,8 +255,7 @@ class LUFSNormalizationStageEnhanced(BaseAudioStage):
                 else 0.0
             ),
             "target_achievement_rate": (
-                self.quality_stats["target_achieved_count"]
-                / self.total_chunks_processed
+                self.quality_stats["target_achieved_count"] / self.total_chunks_processed
                 if self.total_chunks_processed > 0
                 else 0.0
             ),
@@ -294,7 +292,5 @@ def create_lufs_normalizer(
     Returns:
         Configured LUFSNormalizationStageEnhanced instance
     """
-    config = LUFSNormalizationConfig(
-        enabled=True, mode=mode, target_lufs=target_lufs, **kwargs
-    )
+    config = LUFSNormalizationConfig(enabled=True, mode=mode, target_lufs=target_lufs, **kwargs)
     return LUFSNormalizationStageEnhanced(config, sample_rate)

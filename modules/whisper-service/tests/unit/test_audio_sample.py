@@ -33,7 +33,7 @@ def test_audio_properties(short_speech_audio):
 @pytest.mark.slow
 def test_slow_operation(long_speech_audio):
     """Example of a slow test that can be skipped."""
-    audio, sr = long_speech_audio
+    audio, _sr = long_speech_audio
 
     # Simulate slow processing
     result = np.fft.fft(audio)

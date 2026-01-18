@@ -4,8 +4,8 @@ Middleware Components
 FastAPI middleware for security, logging, and error handling.
 """
 
-from .security import SecurityMiddleware
-from .logging import LoggingMiddleware
 from .error_handling import ErrorHandlingMiddleware
+from .logging import LoggingMiddleware
+from .security import SecurityMiddleware
 
-__all__ = ["SecurityMiddleware", "LoggingMiddleware", "ErrorHandlingMiddleware"]
+__all__ = ["ErrorHandlingMiddleware", "LoggingMiddleware", "SecurityMiddleware"]

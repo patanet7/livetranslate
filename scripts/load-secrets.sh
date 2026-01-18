@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Load secrets from files into environment variables
 # Source this script in your containers or applications
 

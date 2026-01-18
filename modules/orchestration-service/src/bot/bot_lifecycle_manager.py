@@ -14,18 +14,20 @@ Features:
 - SLA monitoring and compliance tracking
 """
 
-import time
-import logging
 import asyncio
+import contextlib
+import json
+import logging
+import statistics
+import time
 import uuid
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, asdict
+from collections import defaultdict, deque
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
-import json
+from typing import Any
+
 import psutil
-import statistics
-from collections import deque, defaultdict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -82,10 +84,10 @@ class LifecycleEvent:
     stage_from: LifecycleStage
     stage_to: LifecycleStage
     timestamp: datetime
-    duration_ms: Optional[float] = None
+    duration_ms: float | None = None
     success: bool = True
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    error_message: str | None = None
+    metadata: dict[str, Any] = None
 
 
 @dataclass
@@ -96,11 +98,11 @@ class HealthMetrics:
     timestamp: datetime
     health_status: HealthStatus
     performance_score: float  # 0.0 - 1.0
-    resource_usage: Dict[str, float]  # CPU, memory, etc.
-    response_times: List[float]  # Recent response times
+    resource_usage: dict[str, float]  # CPU, memory, etc.
+    response_times: list[float]  # Recent response times
     error_rate: float  # 0.0 - 1.0
     uptime_percentage: float  # 0.0 - 1.0
-    quality_metrics: Dict[str, float]  # Translation quality, etc.
+    quality_metrics: dict[str, float]  # Translation quality, etc.
     sla_compliance: bool
     predicted_failure_probability: float  # 0.0 - 1.0
 
@@ -117,20 +119,20 @@ class RecoveryAttempt:
     success: bool
     duration_seconds: float
     resource_cost: float
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
 
 
 class PredictiveAnalyzer:
     """Predictive analytics for bot health and failure prediction."""
 
     def __init__(self):
-        self.health_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
-        self.failure_patterns: Dict[str, List[Dict]] = defaultdict(list)
-        self.performance_baselines: Dict[str, Dict] = {}
+        self.health_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
+        self.failure_patterns: dict[str, list[dict]] = defaultdict(list)
+        self.performance_baselines: dict[str, dict] = {}
 
     def analyze_health_trend(
-        self, bot_id: str, recent_metrics: List[HealthMetrics]
-    ) -> Dict[str, Any]:
+        self, bot_id: str, recent_metrics: list[HealthMetrics]
+    ) -> dict[str, Any]:
         """Analyze health trends and predict future issues."""
         if not recent_metrics:
             return {"trend": "unknown", "prediction": "insufficient_data"}
@@ -186,7 +188,7 @@ class PredictiveAnalyzer:
             ),
         }
 
-    def _calculate_trend(self, values: List[float]) -> float:
+    def _calculate_trend(self, values: list[float]) -> float:
         """Calculate trend using simple linear regression."""
         if len(values) < 2:
             return 0.0
@@ -268,13 +270,11 @@ class ResourceManager:
             "max_concurrent_bots": 10,
             "min_available_memory_gb": 2.0,
         }
-        self.resource_usage_history: Dict[str, deque] = defaultdict(
-            lambda: deque(maxlen=50)
-        )
+        self.resource_usage_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=50))
 
     def check_resource_availability(
-        self, required_resources: Dict[str, float] = None
-    ) -> Tuple[bool, Dict[str, Any]]:
+        self, required_resources: dict[str, float] | None = None
+    ) -> tuple[bool, dict[str, Any]]:
         """Check if resources are available for new bot."""
         try:
             # Get current system resources
@@ -311,9 +311,7 @@ class ResourceManager:
             # Check disk space (warn if < 10GB)
             disk_free_gb = disk.free / (1024**3)
             if disk_free_gb < 10.0:
-                constraints["disk_warning"] = (
-                    f"Low disk space: {disk_free_gb:.1f}GB free"
-                )
+                constraints["disk_warning"] = f"Low disk space: {disk_free_gb:.1f}GB free"
 
             resource_status = {
                 "available": available,
@@ -333,8 +331,8 @@ class ResourceManager:
             return False, {"error": str(e)}
 
     def optimize_bot_resources(
-        self, bot_id: str, current_usage: Dict[str, float]
-    ) -> Dict[str, Any]:
+        self, bot_id: str, current_usage: dict[str, float]
+    ) -> dict[str, Any]:
         """Optimize resource allocation for a bot."""
         # Store usage history
         self.resource_usage_history[bot_id].append(
@@ -369,7 +367,7 @@ class ResourceManager:
             "optimization_score": self._calculate_optimization_score(current_usage),
         }
 
-    def _calculate_optimization_score(self, usage: Dict[str, float]) -> float:
+    def _calculate_optimization_score(self, usage: dict[str, float]) -> float:
         """Calculate optimization score (0.0 - 1.0, higher is better)."""
         cpu = usage.get("cpu_percent", 0)
         memory = usage.get("memory_percent", 0)
@@ -387,28 +385,24 @@ class AdvancedRecoveryManager:
     def __init__(self, bot_manager, resource_manager: ResourceManager):
         self.bot_manager = bot_manager
         self.resource_manager = resource_manager
-        self.recovery_history: Dict[str, List[RecoveryAttempt]] = defaultdict(list)
-        self.strategy_success_rates: Dict[RecoveryStrategy, float] = {}
+        self.recovery_history: dict[str, list[RecoveryAttempt]] = defaultdict(list)
+        self.strategy_success_rates: dict[RecoveryStrategy, float] = {}
 
     async def attempt_recovery(
         self,
         bot_id: str,
         health_metrics: HealthMetrics,
-        prediction_analysis: Dict[str, Any],
+        prediction_analysis: dict[str, Any],
     ) -> RecoveryAttempt:
         """Attempt recovery with the best strategy for the situation."""
         # Determine optimal recovery strategy
-        strategy = self._select_recovery_strategy(
-            bot_id, health_metrics, prediction_analysis
-        )
+        strategy = self._select_recovery_strategy(bot_id, health_metrics, prediction_analysis)
 
         attempt_id = f"recovery_{uuid.uuid4().hex[:8]}"
         start_time = time.time()
 
         try:
-            success = await self._execute_recovery_strategy(
-                bot_id, strategy, health_metrics
-            )
+            success = await self._execute_recovery_strategy(bot_id, strategy, health_metrics)
             duration = time.time() - start_time
 
             # Calculate resource cost (simplified)
@@ -449,7 +443,7 @@ class AdvancedRecoveryManager:
                 bot_id=bot_id,
                 strategy=strategy,
                 timestamp=datetime.now(),
-                reason=f"Recovery failed: {str(e)}",
+                reason=f"Recovery failed: {e!s}",
                 success=False,
                 duration_seconds=duration,
                 resource_cost=1.0,  # High cost for failed attempts
@@ -466,7 +460,7 @@ class AdvancedRecoveryManager:
         self,
         bot_id: str,
         health_metrics: HealthMetrics,
-        prediction_analysis: Dict[str, Any],
+        prediction_analysis: dict[str, Any],
     ) -> RecoveryStrategy:
         """Select the optimal recovery strategy."""
         # Get bot's recovery history
@@ -531,9 +525,7 @@ class AdvancedRecoveryManager:
                 return False
 
         except Exception as e:
-            logger.error(
-                f"Error executing recovery strategy {strategy} for bot {bot_id}: {e}"
-            )
+            logger.error(f"Error executing recovery strategy {strategy} for bot {bot_id}: {e}")
             return False
 
     async def _restart_bot(self, bot_id: str) -> bool:
@@ -606,9 +598,7 @@ class AdvancedRecoveryManager:
             logger.error(f"Error in graceful failure for bot {bot_id}: {e}")
             return False
 
-    async def _escalate_bot_issue(
-        self, bot_id: str, health_metrics: HealthMetrics
-    ) -> bool:
+    async def _escalate_bot_issue(self, bot_id: str, health_metrics: HealthMetrics) -> bool:
         """Escalate bot issue for manual intervention."""
         logger.critical(
             f"Escalating bot {bot_id} for manual intervention - automatic recovery failed"
@@ -666,15 +656,11 @@ class BotLifecycleManager:
         # Component managers
         self.predictive_analyzer = PredictiveAnalyzer()
         self.resource_manager = ResourceManager()
-        self.recovery_manager = AdvancedRecoveryManager(
-            bot_manager, self.resource_manager
-        )
+        self.recovery_manager = AdvancedRecoveryManager(bot_manager, self.resource_manager)
 
         # Lifecycle tracking
-        self.lifecycle_events: Dict[str, List[LifecycleEvent]] = defaultdict(list)
-        self.health_metrics_history: Dict[str, deque] = defaultdict(
-            lambda: deque(maxlen=100)
-        )
+        self.lifecycle_events: dict[str, list[LifecycleEvent]] = defaultdict(list)
+        self.health_metrics_history: dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
 
         # SLA tracking
         self.sla_targets = {
@@ -705,10 +691,8 @@ class BotLifecycleManager:
         self.monitoring_active = False
         if self.monitoring_task:
             self.monitoring_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.monitoring_task
-            except asyncio.CancelledError:
-                pass
         logger.info("Stopped enhanced bot lifecycle monitoring")
 
     async def _monitoring_loop(self):
@@ -744,9 +728,7 @@ class BotLifecycleManager:
 
                     # Check if intervention is needed
                     if self._should_intervene(health_metrics, analysis):
-                        await self._initiate_intervention(
-                            bot.bot_id, health_metrics, analysis
-                        )
+                        await self._initiate_intervention(bot.bot_id, health_metrics, analysis)
 
                     # Optimize resources
                     if health_metrics.health_status in [
@@ -834,9 +816,7 @@ class BotLifecycleManager:
 
         # Factor in activity
         if bot.last_activity:
-            seconds_since_activity = (
-                datetime.now() - bot.last_activity
-            ).total_seconds()
+            seconds_since_activity = (datetime.now() - bot.last_activity).total_seconds()
             if seconds_since_activity > 300:  # 5 minutes
                 score *= 0.5  # Penalize inactivity
 
@@ -850,7 +830,7 @@ class BotLifecycleManager:
 
         return max(0.0, min(1.0, score))
 
-    def _get_resource_usage(self, bot) -> Dict[str, float]:
+    def _get_resource_usage(self, bot) -> dict[str, float]:
         """Get resource usage for a bot (simplified)."""
         return {
             "cpu_percent": 45.0,  # Simulated
@@ -890,7 +870,7 @@ class BotLifecycleManager:
         uptime = max(0, total_time - estimated_downtime)
         return min(100.0, (uptime / total_time) * 100.0)
 
-    def _get_quality_metrics(self, bot) -> Dict[str, float]:
+    def _get_quality_metrics(self, bot) -> dict[str, float]:
         """Get quality metrics for a bot."""
         return {
             "transcription_quality": 0.92,  # Simulated
@@ -900,7 +880,7 @@ class BotLifecycleManager:
         }
 
     def _check_sla_compliance(
-        self, performance_score: float, error_rate: float, response_times: List[float]
+        self, performance_score: float, error_rate: float, response_times: list[float]
     ) -> bool:
         """Check if bot is meeting SLA targets."""
         # Check error rate
@@ -908,10 +888,7 @@ class BotLifecycleManager:
             return False
 
         # Check response times
-        if (
-            response_times
-            and max(response_times) * 1000 > self.sla_targets["response_time_ms"]
-        ):
+        if response_times and max(response_times) * 1000 > self.sla_targets["response_time_ms"]:
             return False
 
         # Check performance
@@ -920,9 +897,7 @@ class BotLifecycleManager:
 
         return True
 
-    def _should_intervene(
-        self, health_metrics: HealthMetrics, analysis: Dict[str, Any]
-    ) -> bool:
+    def _should_intervene(self, health_metrics: HealthMetrics, analysis: dict[str, Any]) -> bool:
         """Determine if intervention is needed."""
         # Critical health status
         if health_metrics.health_status == HealthStatus.CRITICAL:
@@ -937,16 +912,10 @@ class BotLifecycleManager:
             return True
 
         # Poor performance with declining trend
-        if (
-            health_metrics.health_status == HealthStatus.POOR
-            and analysis.get("trend") == "declining"
-        ):
-            return True
-
-        return False
+        return bool(health_metrics.health_status == HealthStatus.POOR and analysis.get("trend") == "declining")
 
     async def _initiate_intervention(
-        self, bot_id: str, health_metrics: HealthMetrics, analysis: Dict[str, Any]
+        self, bot_id: str, health_metrics: HealthMetrics, analysis: dict[str, Any]
     ):
         """Initiate intervention for a problematic bot."""
         logger.warning(
@@ -982,7 +951,7 @@ class BotLifecycleManager:
         else:
             logger.error(f"Intervention failed for bot {bot_id}")
 
-    def get_lifecycle_statistics(self) -> Dict[str, Any]:
+    def get_lifecycle_statistics(self) -> dict[str, Any]:
         """Get comprehensive lifecycle statistics."""
         total_events = sum(len(events) for events in self.lifecycle_events.values())
         total_bots = len(self.lifecycle_events)
@@ -990,16 +959,12 @@ class BotLifecycleManager:
         # Calculate success rates
         intervention_events = []
         for events in self.lifecycle_events.values():
-            intervention_events.extend(
-                [e for e in events if "intervention" in e.event_id]
-            )
+            intervention_events.extend([e for e in events if "intervention" in e.event_id])
 
         intervention_success_rate = 0.0
         if intervention_events:
             successful_interventions = sum(1 for e in intervention_events if e.success)
-            intervention_success_rate = successful_interventions / len(
-                intervention_events
-            )
+            intervention_success_rate = successful_interventions / len(intervention_events)
 
         # Recovery statistics
         all_recoveries = []
@@ -1017,13 +982,9 @@ class BotLifecycleManager:
             "intervention_success_rate": intervention_success_rate,
             "recovery_success_rate": recovery_success_rate,
             "total_recovery_attempts": len(all_recoveries),
-            "strategy_success_rates": dict(
-                self.recovery_manager.strategy_success_rates
-            ),
+            "strategy_success_rates": dict(self.recovery_manager.strategy_success_rates),
             "sla_targets": self.sla_targets,
-            "average_recovery_time": statistics.mean(
-                [r.duration_seconds for r in all_recoveries]
-            )
+            "average_recovery_time": statistics.mean([r.duration_seconds for r in all_recoveries])
             if all_recoveries
             else 0,
         }

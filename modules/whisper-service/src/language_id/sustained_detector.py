@@ -11,9 +11,8 @@ This prevents language flapping and ensures stable language switches.
 """
 
 import logging
-from typing import Dict, Optional
-from dataclasses import dataclass, field
 from collections import deque
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LanguageSwitchEvent:
     """Event representing a sustained language switch"""
+
     from_language: str
     to_language: str
     timestamp: float
@@ -50,7 +50,7 @@ class SustainedLanguageDetector:
         confidence_margin: float = 0.2,
         min_dwell_frames: int = 6,
         min_dwell_ms: float = 250.0,
-        frame_hop_ms: float = 100.0
+        frame_hop_ms: float = 100.0,
     ):
         self.confidence_margin = confidence_margin
         self.min_dwell_frames = min_dwell_frames
@@ -58,9 +58,9 @@ class SustainedLanguageDetector:
         self.frame_hop_ms = frame_hop_ms
 
         # Current state
-        self.current_language: Optional[str] = None
-        self.candidate_language: Optional[str] = None
-        self.candidate_start_time: Optional[float] = None
+        self.current_language: str | None = None
+        self.candidate_language: str | None = None
+        self.candidate_start_time: float | None = None
         self.candidate_frames: deque = deque(maxlen=min_dwell_frames * 2)
 
         # Statistics
@@ -72,11 +72,7 @@ class SustainedLanguageDetector:
             f"min_frames={min_dwell_frames}, min_dwell={min_dwell_ms}ms"
         )
 
-    def update(
-        self,
-        lid_probs: Dict[str, float],
-        timestamp: float
-    ) -> Optional[LanguageSwitchEvent]:
+    def update(self, lid_probs: dict[str, float], timestamp: float) -> LanguageSwitchEvent | None:
         """
         Update with new LID probabilities and check for sustained language change.
 
@@ -107,12 +103,14 @@ class SustainedLanguageDetector:
                 # Valid candidate with sufficient margin
                 if top_language == self.candidate_language:
                     # Same candidate - increment count
-                    self.candidate_frames.append({
-                        'language': top_language,
-                        'timestamp': timestamp,
-                        'margin': margin,
-                        'top_prob': top_prob
-                    })
+                    self.candidate_frames.append(
+                        {
+                            "language": top_language,
+                            "timestamp": timestamp,
+                            "margin": margin,
+                            "top_prob": top_prob,
+                        }
+                    )
 
                     # Check if candidate is sustained
                     if len(self.candidate_frames) >= self.min_dwell_frames:
@@ -127,7 +125,7 @@ class SustainedLanguageDetector:
                                 timestamp=timestamp,
                                 margin=margin,
                                 frames=len(self.candidate_frames),
-                                duration_ms=dwell_duration_ms
+                                duration_ms=dwell_duration_ms,
                             )
 
                             # Update current language
@@ -150,12 +148,14 @@ class SustainedLanguageDetector:
                     self.candidate_language = top_language
                     self.candidate_start_time = timestamp
                     self.candidate_frames.clear()
-                    self.candidate_frames.append({
-                        'language': top_language,
-                        'timestamp': timestamp,
-                        'margin': margin,
-                        'top_prob': top_prob
-                    })
+                    self.candidate_frames.append(
+                        {
+                            "language": top_language,
+                            "timestamp": timestamp,
+                            "margin": margin,
+                            "top_prob": top_prob,
+                        }
+                    )
 
                     logger.debug(
                         f"🔍 New candidate language: {top_language} "
@@ -198,7 +198,7 @@ class SustainedLanguageDetector:
         timestamp: float,
         margin: float,
         frames: int,
-        duration_ms: float
+        duration_ms: float,
     ) -> LanguageSwitchEvent:
         """Create a language switch event"""
         return LanguageSwitchEvent(
@@ -207,7 +207,7 @@ class SustainedLanguageDetector:
             timestamp=timestamp,
             confidence_margin=margin,
             dwell_frames=frames,
-            dwell_duration_ms=duration_ms
+            dwell_duration_ms=duration_ms,
         )
 
     def force_language(self, language: str):
@@ -222,26 +222,27 @@ class SustainedLanguageDetector:
         self.candidate_start_time = None
         self.candidate_frames.clear()
 
-    def get_current_language(self) -> Optional[str]:
+    def get_current_language(self) -> str | None:
         """Get currently stable language"""
         return self.current_language
 
-    def get_candidate_language(self) -> Optional[str]:
+    def get_candidate_language(self) -> str | None:
         """Get current candidate language (if any)"""
         return self.candidate_language
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """Get detection statistics"""
         return {
-            'current_language': self.current_language,
-            'candidate_language': self.candidate_language,
-            'total_switches': self.total_switches,
-            'false_positives_prevented': self.false_positives_prevented,
-            'candidate_frames': len(self.candidate_frames),
-            'candidate_progress': (
+            "current_language": self.current_language,
+            "candidate_language": self.candidate_language,
+            "total_switches": self.total_switches,
+            "false_positives_prevented": self.false_positives_prevented,
+            "candidate_frames": len(self.candidate_frames),
+            "candidate_progress": (
                 f"{len(self.candidate_frames)}/{self.min_dwell_frames} frames"
-                if self.candidate_language else "none"
-            )
+                if self.candidate_language
+                else "none"
+            ),
         }
 
     def reset(self):

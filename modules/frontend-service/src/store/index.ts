@@ -1,13 +1,13 @@
-import { configureStore } from '@reduxjs/toolkit';
-import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import { configureStore } from "@reduxjs/toolkit";
+import { TypedUseSelectorHook, useDispatch, useSelector } from "react-redux";
 
 // Import slices
-import audioSlice from './slices/audioSlice';
-import botSlice from './slices/botSlice';
-import websocketSlice from './slices/websocketSlice';
-import uiSlice from './slices/uiSlice';
-import systemSlice from './slices/systemSlice';
-import { apiSlice } from './slices/apiSlice';
+import audioSlice from "./slices/audioSlice";
+import botSlice from "./slices/botSlice";
+import websocketSlice from "./slices/websocketSlice";
+import uiSlice from "./slices/uiSlice";
+import systemSlice from "./slices/systemSlice";
+import { apiSlice } from "./slices/apiSlice";
 
 export const store = configureStore({
   reducer: {
@@ -23,19 +23,19 @@ export const store = configureStore({
       serializableCheck: {
         // Ignore these action types for serialization check
         ignoredActions: [
-          'audio/setVisualizationData',
-          'bot/updateAudioCapture',
-          'websocket/messageReceived',
+          "audio/setVisualizationData",
+          "bot/updateAudioCapture",
+          "websocket/messageReceived",
         ],
         // Ignore these field paths in the state (keep frequency/time data for visualization)
-        ignoredActionsPaths: ['payload.frequencyData', 'payload.timeData'],
+        ignoredActionsPaths: ["payload.frequencyData", "payload.timeData"],
         ignoredPaths: [
-          'audio.visualization.frequencyData',
-          'audio.visualization.timeData',
+          "audio.visualization.frequencyData",
+          "audio.visualization.timeData",
         ],
       },
     }).concat(apiSlice.middleware),
-  devTools: process.env.NODE_ENV !== 'production',
+  devTools: process.env.NODE_ENV !== "production",
 });
 
 export type RootState = ReturnType<typeof store.getState>;

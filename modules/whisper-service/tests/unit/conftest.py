@@ -8,11 +8,12 @@ Provides:
 - Shared model fixtures (module-scoped)
 """
 
-import pytest
-import torch
 import gc
 import logging
 from pathlib import Path
+
+import pytest
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def cleanup_after_each_test():
 # Shared Model Fixtures (Module-scoped)
 # These load models ONCE per module and share across tests
 
+
 @pytest.fixture(scope="module")
 def shared_vad_model():
     """
@@ -72,17 +74,14 @@ def shared_vad_model():
     logger.info("[FIXTURE] Loading shared Silero VAD model...")
 
     # Set custom cache directory to .models/silero-vad
-    cache_dir = Path(__file__).parent.parent.parent / '.models' / 'silero-vad'
+    cache_dir = Path(__file__).parent.parent.parent / ".models" / "silero-vad"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     # Set torch hub directory to our custom cache
     torch.hub.set_dir(str(cache_dir.parent))
 
-    model, utils = torch.hub.load(
-        repo_or_dir='snakers4/silero-vad',
-        model='silero_vad',
-        force_reload=False,
-        onnx=False
+    model, _utils = torch.hub.load(
+        repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False, onnx=False
     )
     model.eval()
 
@@ -113,8 +112,8 @@ def shared_whisper_manager():
     Returns:
         ModelManager instance with large-v3 model loaded
     """
-    from pathlib import Path
     import sys
+    from pathlib import Path
 
     # Add src to path
     src_path = Path(__file__).parent.parent.parent / "src"
@@ -127,7 +126,7 @@ def shared_whisper_manager():
     models_dir = Path(__file__).parent.parent / ".models"
     manager = ModelManager(models_dir=str(models_dir))
     manager.init_context()
-    model = manager.load_model("large-v3")
+    manager.load_model("large-v3")
 
     logger.info("[FIXTURE] ✓ Shared ModelManager with large-v3 loaded")
 
@@ -150,9 +149,5 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "integration: marks integration tests requiring real models"
-    )
-    config.addinivalue_line(
-        "markers", "stress: marks stress tests (60+ minutes)"
-    )
+    config.addinivalue_line("markers", "integration: marks integration tests requiring real models")
+    config.addinivalue_line("markers", "stress: marks stress tests (60+ minutes)")

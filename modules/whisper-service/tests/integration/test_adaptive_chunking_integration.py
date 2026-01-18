@@ -14,11 +14,12 @@ This is how SimulStreaming achieves computational efficiency!
 NO MOCKS - Only real Silero VAD + Whisper large-v3 models!
 """
 
-import pytest
-import numpy as np
-import torch
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
+import torch
 
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
@@ -49,12 +50,10 @@ class TestAdaptiveChunkingIntegration:
 
         # Load Silero VAD
         vad_model, _ = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False
+            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
         )
 
-        vad = FixedVADIterator(vad_model, threshold=0.5, sampling_rate=16000)
+        FixedVADIterator(vad_model, threshold=0.5, sampling_rate=16000)
 
         # SimulStreaming chunk sizes
         vad_chunk_size = 0.04  # 40ms - fast detection
@@ -63,8 +62,8 @@ class TestAdaptiveChunkingIntegration:
         vad_samples = int(16000 * vad_chunk_size)  # 640 samples
         whisper_samples = int(16000 * whisper_chunk_size)  # 19200 samples
 
-        assert vad_samples == 640, f"VAD chunk should be 640 samples (0.04s)"
-        assert whisper_samples == 19200, f"Whisper chunk should be 19200 samples (1.2s)"
+        assert vad_samples == 640, "VAD chunk should be 640 samples (0.04s)"
+        assert whisper_samples == 19200, "Whisper chunk should be 19200 samples (1.2s)"
 
         # Ratio: Whisper processes 30x larger chunks than VAD detects
         ratio = whisper_samples / vad_samples
@@ -73,7 +72,7 @@ class TestAdaptiveChunkingIntegration:
         print(f"   VAD chunk: {vad_chunk_size}s ({vad_samples} samples)")
         print(f"   Whisper chunk: {whisper_chunk_size}s ({whisper_samples} samples)")
         print(f"   Ratio: {ratio}x")
-        print(f"✅ Chunk size differential verified")
+        print("✅ Chunk size differential verified")
 
     @pytest.mark.integration
     def test_buffering_during_silence(self):
@@ -87,9 +86,7 @@ class TestAdaptiveChunkingIntegration:
         from silero_vad_iterator import FixedVADIterator
 
         vad_model, _ = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False
+            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
         )
 
         vad = FixedVADIterator(vad_model, threshold=0.5)
@@ -101,7 +98,7 @@ class TestAdaptiveChunkingIntegration:
         audio_buffer = []
         vad_events = []
 
-        for i in range(num_chunks):
+        for _i in range(num_chunks):
             chunk = np.zeros(vad_chunk_size, dtype=np.float32)
             audio_buffer.append(chunk)
 
@@ -116,7 +113,7 @@ class TestAdaptiveChunkingIntegration:
 
         # During silence: no speech start/end events (or very few)
         # Audio is buffered, NOT processed by Whisper
-        print(f"✅ Silence buffered without processing")
+        print("✅ Silence buffered without processing")
 
     @pytest.mark.integration
     def test_processing_when_buffer_full(self):
@@ -150,26 +147,20 @@ class TestAdaptiveChunkingIntegration:
             if len(buffer) >= whisper_chunk_size:
                 # Process with Whisper
                 whisper_audio = buffer[:whisper_chunk_size]
-                result = model.transcribe(
-                    audio=whisper_audio,
-                    beam_size=1,
-                    temperature=0.0
-                )
+                result = model.transcribe(audio=whisper_audio, beam_size=1, temperature=0.0)
 
-                processing_events.append({
-                    'chunk_num': i,
-                    'buffer_size': len(buffer),
-                    'text': result['text']
-                })
+                processing_events.append(
+                    {"chunk_num": i, "buffer_size": len(buffer), "text": result["text"]}
+                )
 
                 # Clear processed portion
                 buffer = buffer[whisper_chunk_size:]
 
-        print(f"   Total VAD chunks: 40")
+        print("   Total VAD chunks: 40")
         print(f"   Whisper processing events: {len(processing_events)}")
         assert len(processing_events) == 1, "Should process once when buffer full"
 
-        print(f"✅ Whisper processes at buffer threshold")
+        print("✅ Whisper processes at buffer threshold")
 
     @pytest.mark.integration
     def test_immediate_processing_on_speech_end(self):
@@ -185,11 +176,9 @@ class TestAdaptiveChunkingIntegration:
 
         # Load VAD
         vad_model, _ = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False
+            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
         )
-        vad = FixedVADIterator(vad_model, threshold=0.5)
+        FixedVADIterator(vad_model, threshold=0.5)
 
         # Load Whisper
         models_dir = Path(__file__).parent.parent / ".models"
@@ -203,16 +192,12 @@ class TestAdaptiveChunkingIntegration:
 
         # When VAD detects speech end (is_currently_final = True)
         # Process immediately even though buffer < 1.2s
-        result = model.transcribe(
-            audio=partial_buffer,
-            beam_size=1,
-            temperature=0.0
-        )
+        result = model.transcribe(audio=partial_buffer, beam_size=1, temperature=0.0)
 
         assert result is not None
         print(f"   Buffer size: {len(partial_buffer)} samples (0.5s)")
         print(f"   Processed on speech end: '{result['text']}'")
-        print(f"✅ Speech end triggers immediate processing")
+        print("✅ Speech end triggers immediate processing")
 
     @pytest.mark.integration
     def test_adaptive_behavior_speech_vs_silence(self):
@@ -229,22 +214,20 @@ class TestAdaptiveChunkingIntegration:
 
         # Load models
         vad_model, _ = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False
+            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
         )
-        vad = FixedVADIterator(vad_model, threshold=0.5)
+        FixedVADIterator(vad_model, threshold=0.5)
 
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         # Scenario 1: Dense speech (continuous)
         dense_audio = np.zeros(16000 * 5, dtype=np.float32)  # 5s continuous
         whisper_chunk_size = 19200  # 1.2s
 
         dense_processing_count = len(dense_audio) // whisper_chunk_size
-        print(f"\n   Dense speech (5s continuous):")
+        print("\n   Dense speech (5s continuous):")
         print(f"     Whisper processing events: {dense_processing_count}")
 
         # Scenario 2: Sparse speech (1s speech, 2s silence, 1s speech)
@@ -252,14 +235,14 @@ class TestAdaptiveChunkingIntegration:
         sparse_speech_duration = 2.0
         sparse_processing_count = int(sparse_speech_duration / 1.2) + 1
 
-        print(f"\n   Sparse speech (2s total, 3s silence):")
+        print("\n   Sparse speech (2s total, 3s silence):")
         print(f"     Whisper processing events: {sparse_processing_count}")
 
         # Compute savings
         savings = (dense_processing_count - sparse_processing_count) / dense_processing_count * 100
 
         print(f"\n   Compute savings: {savings:.1f}%")
-        print(f"✅ Adaptive chunking saves compute during silence")
+        print("✅ Adaptive chunking saves compute during silence")
 
     @pytest.mark.integration
     def test_vac_online_processor_pattern(self):
@@ -279,9 +262,7 @@ class TestAdaptiveChunkingIntegration:
 
         # Load models
         vad_model, _ = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False
+            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
         )
         vad = FixedVADIterator(vad_model, threshold=0.5)
 
@@ -294,7 +275,7 @@ class TestAdaptiveChunkingIntegration:
         whisper_chunk_size = 19200  # 1.2s
 
         audio_buffer = np.zeros(0, dtype=np.float32)
-        status = 'nonvoice'  # Initial state
+        status = "nonvoice"  # Initial state
         processing_log = []
 
         # Simulate 20 chunks
@@ -309,36 +290,28 @@ class TestAdaptiveChunkingIntegration:
 
             # VAD event handling
             if vad_result:
-                if 'start' in vad_result:
-                    status = 'voice'
+                if "start" in vad_result:
+                    status = "voice"
                     processing_log.append(f"Chunk {i}: Speech START detected")
-                elif 'end' in vad_result:
-                    status = 'nonvoice'
+                elif "end" in vad_result:
+                    status = "nonvoice"
                     processing_log.append(f"Chunk {i}: Speech END detected")
 
                     # Process immediately on speech end
                     if len(audio_buffer) > 0:
-                        result = model.transcribe(
-                            audio=audio_buffer,
-                            beam_size=1,
-                            temperature=0.0
-                        )
+                        model.transcribe(audio=audio_buffer, beam_size=1, temperature=0.0)
                         processing_log.append(f"  → Processed {len(audio_buffer)} samples")
                         audio_buffer = np.zeros(0, dtype=np.float32)
 
             # Buffer threshold check
-            if status == 'voice' and len(audio_buffer) >= whisper_chunk_size:
+            if status == "voice" and len(audio_buffer) >= whisper_chunk_size:
                 # Process during speech when buffer full
                 whisper_audio = audio_buffer[:whisper_chunk_size]
-                result = model.transcribe(
-                    audio=whisper_audio,
-                    beam_size=1,
-                    temperature=0.0
-                )
+                model.transcribe(audio=whisper_audio, beam_size=1, temperature=0.0)
                 processing_log.append(f"Chunk {i}: Buffer full, processed")
                 audio_buffer = audio_buffer[whisper_chunk_size:]
 
-            elif status == 'nonvoice':
+            elif status == "nonvoice":
                 # During silence: just buffer, NO processing
                 processing_log.append(f"Chunk {i}: Silence, buffering only")
 
@@ -346,7 +319,7 @@ class TestAdaptiveChunkingIntegration:
         for log in processing_log[:10]:  # Show first 10
             print(f"     {log}")
 
-        print(f"✅ VACOnlineASRProcessor pattern verified")
+        print("✅ VACOnlineASRProcessor pattern verified")
 
 
 class TestAdaptiveChunkingSavings:
@@ -414,9 +387,11 @@ class TestAdaptiveChunkingSavings:
             baseline = int(audio_duration / 0.04)  # Process every VAD chunk
             savings = (baseline - processing_count) / baseline * 100
 
-            print(f"   {int(density*100)}% speech density: {processing_count} calls ({savings:.1f}% savings)")
+            print(
+                f"   {int(density*100)}% speech density: {processing_count} calls ({savings:.1f}% savings)"
+            )
 
-        print(f"✅ Adaptive chunking scales with speech density")
+        print("✅ Adaptive chunking scales with speech density")
 
     @pytest.mark.integration
     def test_real_streaming_scenario(self):
@@ -432,27 +407,25 @@ class TestAdaptiveChunkingSavings:
 
         # Load models
         vad_model, _ = torch.hub.load(
-            repo_or_dir='snakers4/silero-vad',
-            model='silero_vad',
-            force_reload=False
+            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
         )
-        vad = FixedVADIterator(vad_model, threshold=0.5)
+        FixedVADIterator(vad_model, threshold=0.5)
 
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         # Simulate: 1s speech, 0.5s pause, 1s speech, 1s pause, 1s speech
         # Total: 10 seconds (4.5s speech, 5.5s silence)
         segments = [
-            ('speech', 1.0),
-            ('silence', 0.5),
-            ('speech', 1.0),
-            ('silence', 1.0),
-            ('speech', 1.0),
-            ('silence', 2.0),
-            ('speech', 1.5),
-            ('silence', 2.0)
+            ("speech", 1.0),
+            ("silence", 0.5),
+            ("speech", 1.0),
+            ("silence", 1.0),
+            ("speech", 1.0),
+            ("silence", 2.0),
+            ("speech", 1.5),
+            ("silence", 2.0),
         ]
 
         vad_chunk_size = 640  # 0.04s
@@ -461,7 +434,7 @@ class TestAdaptiveChunkingSavings:
         audio_buffer = np.zeros(0, dtype=np.float32)
         vad_checks = 0
         whisper_calls = 0
-        status = 'nonvoice'
+        status = "nonvoice"
 
         for segment_type, duration in segments:
             samples = int(16000 * duration)
@@ -472,8 +445,8 @@ class TestAdaptiveChunkingSavings:
                 vad_checks += 1
 
                 # Simulate VAD detection
-                if segment_type == 'speech':
-                    status = 'voice'
+                if segment_type == "speech":
+                    status = "voice"
                     audio_buffer = np.append(audio_buffer, chunk)
 
                     # Process if buffer full
@@ -482,12 +455,12 @@ class TestAdaptiveChunkingSavings:
                         audio_buffer = audio_buffer[whisper_chunk_size:]
 
                 else:  # silence
-                    if status == 'voice':
+                    if status == "voice":
                         # Speech end - process remaining buffer
                         if len(audio_buffer) > 0:
                             whisper_calls += 1
                             audio_buffer = np.zeros(0, dtype=np.float32)
-                        status = 'nonvoice'
+                        status = "nonvoice"
                     # During silence: just buffer (no processing)
 
         print(f"   Total VAD checks: {vad_checks}")
@@ -499,7 +472,7 @@ class TestAdaptiveChunkingSavings:
         savings = (baseline_calls - whisper_calls) / baseline_calls * 100
 
         print(f"   Compute savings: {savings:.1f}%")
-        print(f"✅ Real streaming scenario: adaptive chunking efficient")
+        print("✅ Real streaming scenario: adaptive chunking efficient")
 
 
 class TestChunkingQuality:
@@ -533,19 +506,15 @@ class TestChunkingQuality:
             samples = int(16000 * chunk_size)
             audio = np.zeros(samples, dtype=np.float32)
 
-            result = model.transcribe(
-                audio=audio,
-                beam_size=5,
-                temperature=0.0
-            )
+            result = model.transcribe(audio=audio, beam_size=5, temperature=0.0)
 
-            results[chunk_size] = result['text']
+            results[chunk_size] = result["text"]
             print(f"   {chunk_size}s chunk: '{result['text']}'")
 
         # 1.2s chunk (SimulStreaming default) should work well
         assert results[1.2] is not None
 
-        print(f"✅ 1.2s chunks maintain quality")
+        print("✅ 1.2s chunks maintain quality")
 
     @pytest.mark.integration
     def test_chunking_with_rolling_context(self):
@@ -560,9 +529,7 @@ class TestChunkingQuality:
 
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(
-            models_dir=str(models_dir),
-            static_prompt="Medical terminology:",
-            max_context_tokens=223
+            models_dir=str(models_dir), static_prompt="Medical terminology:", max_context_tokens=223
         )
 
         model = manager.load_model("large-v3")
@@ -583,15 +550,15 @@ class TestChunkingQuality:
                 audio=chunk,
                 beam_size=5,
                 temperature=0.0,
-                initial_prompt=context  # Use rolling context
+                initial_prompt=context,  # Use rolling context
             )
 
             # Append to context
-            manager.append_to_context(result['text'])
+            manager.append_to_context(result["text"])
 
             print(f"   Chunk {i+1}: context length = {len(context)} chars")
 
-        print(f"✅ Adaptive chunking works with rolling context")
+        print("✅ Adaptive chunking works with rolling context")
 
 
 class TestVACOnlineASRProcessor:
@@ -612,9 +579,7 @@ class TestVACOnlineASRProcessor:
         from whisper_service import ModelManager
 
         vac = VACOnlineASRProcessor(
-            online_chunk_size=1.2,
-            vad_threshold=0.5,
-            min_buffered_length=1.0
+            online_chunk_size=1.2, vad_threshold=0.5, min_buffered_length=1.0
         )
 
         models_dir = Path(__file__).parent.parent / ".models"
@@ -625,9 +590,9 @@ class TestVACOnlineASRProcessor:
 
         assert vac.vad is not None, "VAD should be initialized"
         assert vac.model is not None, "Whisper model should be initialized"
-        assert vac.status == 'nonvoice', "Should start in nonvoice state"
+        assert vac.status == "nonvoice", "Should start in nonvoice state"
 
-        print(f"✅ VACOnlineASRProcessor initialized")
+        print("✅ VACOnlineASRProcessor initialized")
 
     @pytest.mark.integration
     def test_vac_streaming_workflow(self):
@@ -663,8 +628,8 @@ class TestVACOnlineASRProcessor:
             # Process iteration
             result = vac.process_iter()
 
-            if result and 'text' in result:
-                transcriptions.append(result['text'])
+            if result and "text" in result:
+                transcriptions.append(result["text"])
                 print(f"   Chunk {i}: '{result['text']}'")
 
         # Get statistics
@@ -673,10 +638,12 @@ class TestVACOnlineASRProcessor:
         print(f"   Whisper calls: {stats['whisper_calls']}")
 
         # During silence: VAD runs on every chunk, Whisper is NOT called
-        assert stats['vad_checks'] == num_chunks, "Should check VAD for every chunk"
-        assert stats['whisper_calls'] == 0, "Should NOT call Whisper during silence (saves compute!)"
+        assert stats["vad_checks"] == num_chunks, "Should check VAD for every chunk"
+        assert (
+            stats["whisper_calls"] == 0
+        ), "Should NOT call Whisper during silence (saves compute!)"
 
-        print(f"✅ Streaming workflow: silence detected, compute saved")
+        print("✅ Streaming workflow: silence detected, compute saved")
 
     @pytest.mark.integration
     def test_vac_compute_savings_verification(self):
@@ -700,7 +667,7 @@ class TestVACOnlineASRProcessor:
         vad_chunk_size = 640
         num_chunks = 250  # 10 seconds
 
-        for i in range(num_chunks):
+        for _i in range(num_chunks):
             chunk = np.zeros(vad_chunk_size, dtype=np.float32)
             vac.insert_audio_chunk(chunk)
             vac.process_iter()
@@ -712,10 +679,10 @@ class TestVACOnlineASRProcessor:
         print(f"   Whisper calls: {stats['whisper_calls']}")
 
         # Verify compute savings: VAD runs, Whisper does NOT
-        assert stats['vad_checks'] == num_chunks, "Should check VAD for every chunk"
-        assert stats['whisper_calls'] == 0, "Should NOT call Whisper during silence"
+        assert stats["vad_checks"] == num_chunks, "Should check VAD for every chunk"
+        assert stats["whisper_calls"] == 0, "Should NOT call Whisper during silence"
 
-        print(f"✅ Compute savings verified: Whisper NOT called during silence")
+        print("✅ Compute savings verified: Whisper NOT called during silence")
 
     @pytest.mark.integration
     def test_vac_buffer_threshold_processing(self):
@@ -734,13 +701,13 @@ class TestVACOnlineASRProcessor:
         vac.init(manager, model_name="large-v3")
 
         # Manually set status to 'voice' (speech detected)
-        vac.status = 'voice'
+        vac.status = "voice"
 
         # Insert audio until buffer full (1.2s = 19200 samples)
         vad_chunk_size = 640
         chunks_needed = 19200 // vad_chunk_size  # 30 chunks
 
-        for i in range(chunks_needed):
+        for _i in range(chunks_needed):
             chunk = np.zeros(vad_chunk_size, dtype=np.float32)
             vac.insert_audio_chunk(chunk)
 
@@ -752,7 +719,7 @@ class TestVACOnlineASRProcessor:
         result = vac.process_iter()
         assert result is not None, "Should process when buffer full"
 
-        print(f"✅ Buffer threshold processing verified")
+        print("✅ Buffer threshold processing verified")
 
     @pytest.mark.integration
     def test_vac_speech_end_immediate_processing(self):
@@ -773,7 +740,7 @@ class TestVACOnlineASRProcessor:
         vac.init(manager, model_name="large-v3")
 
         # Add partial buffer (0.5s, less than 1.2s threshold)
-        vac.status = 'voice'
+        vac.status = "voice"
         vac.online_chunk_buffer = np.zeros(8000, dtype=np.float32)
         vac.current_online_chunk_buffer_size = 8000
 
@@ -784,9 +751,9 @@ class TestVACOnlineASRProcessor:
         result = vac.process_iter()
 
         assert result is not None, "Should process on speech end"
-        assert result.get('is_final', False), "Should be marked as final"
+        assert result.get("is_final", False), "Should be marked as final"
 
-        print(f"✅ Speech end triggers immediate processing")
+        print("✅ Speech end triggers immediate processing")
 
     @pytest.mark.integration
     def test_vac_state_reset(self):
@@ -805,7 +772,7 @@ class TestVACOnlineASRProcessor:
         vac.init(manager, model_name="large-v3")
 
         # Process some audio
-        for i in range(10):
+        for _i in range(10):
             chunk = np.zeros(640, dtype=np.float32)
             vac.insert_audio_chunk(chunk)
 
@@ -815,10 +782,10 @@ class TestVACOnlineASRProcessor:
         # State should be clean
         assert len(vac.audio_buffer) == 0, "Audio buffer should be empty"
         assert len(vac.online_chunk_buffer) == 0, "Online buffer should be empty"
-        assert vac.status == 'nonvoice', "Should be in nonvoice state"
+        assert vac.status == "nonvoice", "Should be in nonvoice state"
         assert not vac.is_currently_final, "Should not be final"
 
-        print(f"✅ State reset successful")
+        print("✅ State reset successful")
 
     @pytest.mark.integration
     def test_vac_statistics_tracking(self):
@@ -840,7 +807,7 @@ class TestVACOnlineASRProcessor:
         vad_chunk_size = 640
         num_chunks = 125
 
-        for i in range(num_chunks):
+        for _i in range(num_chunks):
             chunk = np.zeros(vad_chunk_size, dtype=np.float32)
             vac.insert_audio_chunk(chunk)
             vac.process_iter()
@@ -848,22 +815,22 @@ class TestVACOnlineASRProcessor:
         stats = vac.get_statistics()
 
         # Verify all stats fields exist
-        assert 'vad_checks' in stats
-        assert 'whisper_calls' in stats
-        assert 'total_audio_processed' in stats
-        assert 'total_audio_duration' in stats
-        assert 'compute_efficiency' in stats
-        assert 'savings_percent' in stats
+        assert "vad_checks" in stats
+        assert "whisper_calls" in stats
+        assert "total_audio_processed" in stats
+        assert "total_audio_duration" in stats
+        assert "compute_efficiency" in stats
+        assert "savings_percent" in stats
 
         # Verify correct values
-        assert stats['vad_checks'] == num_chunks
-        assert stats['total_audio_duration'] == 5.0  # 125 * 640 / 16000 = 5s
+        assert stats["vad_checks"] == num_chunks
+        assert stats["total_audio_duration"] == 5.0  # 125 * 640 / 16000 = 5s
 
         print(f"   VAD checks: {stats['vad_checks']}")
         print(f"   Whisper calls: {stats['whisper_calls']}")
         print(f"   Audio duration: {stats['total_audio_duration']:.2f}s")
 
-        print(f"✅ Statistics tracking operational")
+        print("✅ Statistics tracking operational")
 
 
 # Run tests

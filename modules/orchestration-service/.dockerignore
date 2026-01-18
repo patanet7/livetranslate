@@ -1,15 +1,101 @@
-__pycache__
-*.pyc
+# Python
+__pycache__/
+*.py[cod]
 *.pyo
 *.pyd
-*.log
-.venv
-venv
+*.so
+.venv/
+venv/
 .env
+.env.local
 .env.*
-.poetry
-.cache
-.idea
-.vscode
-migrations
-alembic/versions
+
+# PDM
+.pdm-build/
+.pdm-python
+pdm.lock
+
+# Poetry (legacy)
+.poetry/
+poetry.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Tests
+tests/
+*.test.py
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Logs
+logs/
+*.log
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Docker files (not needed inside container)
+Dockerfile*
+docker-compose*.yml
+.docker/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+Jenkinsfile
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database migrations (if using Alembic)
+migrations/
+alembic/versions/
+
+# Temporary data
+tmp/
+temp/
+*.tmp
+
+# Cache directories
+.cache/
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Profiling
+*.prof
+*.lprof
+
+# Mypy
+.mypy_cache/
+
+# Ruff/Linting
+.ruff_cache/
+
+# Session data
+sessions/

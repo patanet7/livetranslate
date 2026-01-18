@@ -30,8 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -55,11 +54,7 @@ def run_alembic_command(command: list[str]) -> tuple[int, str, str]:
     cwd = Path(__file__).parent.parent
 
     result = subprocess.run(
-        ["pdm", "run", "alembic"] + command,
-        cwd=cwd,
-        env=env,
-        capture_output=True,
-        text=True
+        ["pdm", "run", "alembic", *command], cwd=cwd, env=env, capture_output=True, text=True
     )
     return result.returncode, result.stdout, result.stderr
 
@@ -92,7 +87,7 @@ def check_database_connection() -> bool:
     except ImportError:
         # Fall back to alembic check
         logger.info("psycopg2 not available, using alembic for connection check")
-        code, stdout, stderr = run_alembic_command(["current"])
+        code, _stdout, stderr = run_alembic_command(["current"])
         if code == 0:
             logger.info("Database connection successful (via alembic)")
             return True
@@ -142,7 +137,7 @@ def verify_database_schema() -> bool:
     """Verify database schema matches models."""
     logger.info("Verifying database schema...")
 
-    code, stdout, stderr = run_alembic_command(["check"])
+    _code, stdout, stderr = run_alembic_command(["check"])
 
     output = stdout + stderr
 
@@ -212,7 +207,7 @@ def reset_database() -> bool:
 
     # Downgrade to base
     logger.info("Downgrading database to base...")
-    code, stdout, stderr = run_alembic_command(["downgrade", "base"])
+    code, _stdout, stderr = run_alembic_command(["downgrade", "base"])
     if code != 0:
         logger.error(f"Downgrade failed: {stderr}")
         return False
@@ -298,23 +293,15 @@ def main():
     parser.add_argument(
         "--verify-only",
         action="store_true",
-        help="Only verify database schema, don't run migrations"
+        help="Only verify database schema, don't run migrations",
     )
     parser.add_argument(
-        "--create-test-data",
-        action="store_true",
-        help="Create test data after setup"
+        "--create-test-data", action="store_true", help="Create test data after setup"
     )
     parser.add_argument(
-        "--reset",
-        action="store_true",
-        help="Reset database (WARNING: Drops all tables!)"
+        "--reset", action="store_true", help="Reset database (WARNING: Drops all tables!)"
     )
-    parser.add_argument(
-        "--status",
-        action="store_true",
-        help="Print database status and exit"
-    )
+    parser.add_argument("--status", action="store_true", help="Print database status and exit")
 
     args = parser.parse_args()
 
@@ -340,7 +327,7 @@ def main():
     # Step 3: Handle reset if requested
     if args.reset:
         confirm = input("\nThis will DELETE ALL DATA. Type 'yes' to confirm: ")
-        if confirm.lower() == 'yes':
+        if confirm.lower() == "yes":
             if not reset_database():
                 sys.exit(1)
         else:
@@ -355,9 +342,8 @@ def main():
             sys.exit(1)
 
     # Step 5: Verify schema
-    if not verify_database_schema():
-        if not args.verify_only:
-            logger.warning("Schema verification failed after migrations")
+    if not verify_database_schema() and not args.verify_only:
+        logger.warning("Schema verification failed after migrations")
 
     # Step 6: Create test data if requested
     if args.create_test_data:

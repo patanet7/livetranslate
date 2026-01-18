@@ -19,10 +19,11 @@ Future enhancements (Phase 3.3c):
 """
 
 import asyncio
+import contextlib
 import logging
-import time
-from typing import Optional, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AudioConfig:
     """Audio capture configuration"""
+
     sample_rate: int = 16000
     channels: int = 1
     chunk_duration: float = 2.0  # seconds
@@ -57,8 +59,8 @@ class AudioCapture:
 
     def __init__(
         self,
-        config: Optional[AudioConfig] = None,
-        orchestration_client=None  # OrchestrationClient instance
+        config: AudioConfig | None = None,
+        orchestration_client=None,  # OrchestrationClient instance
     ):
         self.config = config or AudioConfig()
         self.orchestration_client = orchestration_client
@@ -66,7 +68,7 @@ class AudioCapture:
         # Audio capture state
         self.is_capturing = False
         self.audio_stream = None
-        self.capture_task: Optional[asyncio.Task] = None
+        self.capture_task: asyncio.Task | None = None
 
         # Audio buffer
         self.audio_buffer = []
@@ -78,7 +80,7 @@ class AudioCapture:
         self.last_audio_time = 0
 
         # Callback for audio events
-        self.on_audio_error: Optional[Callable[[str], None]] = None
+        self.on_audio_error: Callable[[str], None] | None = None
 
     async def initialize(self) -> bool:
         """
@@ -164,10 +166,8 @@ class AudioCapture:
         # Cancel processing task
         if self.capture_task:
             self.capture_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.capture_task
-            except asyncio.CancelledError:
-                pass
 
         # TODO Phase 3.3c: Implement actual cleanup
         # 1. Stop audio stream: self.audio_stream.stop()
@@ -243,8 +243,8 @@ class AudioCapture:
             return
 
         # Extract chunk
-        chunk_data = np.array(self.audio_buffer[:self.chunk_size], dtype=np.float32)
-        self.audio_buffer = self.audio_buffer[self.chunk_size:]
+        chunk_data = np.array(self.audio_buffer[: self.chunk_size], dtype=np.float32)
+        self.audio_buffer = self.audio_buffer[self.chunk_size :]
 
         # Validate audio quality
         if not self._validate_audio_quality(chunk_data):
@@ -260,8 +260,10 @@ class AudioCapture:
                 await self.orchestration_client.send_audio_chunk(audio_bytes)
                 self.total_chunks_sent += 1
                 self.total_audio_duration += self.config.chunk_duration
-                logger.debug(f"Sent audio chunk {self.total_chunks_sent} "
-                           f"({self.total_audio_duration:.1f}s total)")
+                logger.debug(
+                    f"Sent audio chunk {self.total_chunks_sent} "
+                    f"({self.total_audio_duration:.1f}s total)"
+                )
             except Exception as e:
                 logger.error(f"Failed to send audio chunk: {e}")
                 if self.on_audio_error:
@@ -278,7 +280,7 @@ class AudioCapture:
             bool: True if audio quality is acceptable
         """
         # Check for silence (RMS too low)
-        rms = np.sqrt(np.mean(audio_data ** 2))
+        rms = np.sqrt(np.mean(audio_data**2))
         if rms < self.config.quality_threshold:
             return False
 
@@ -327,7 +329,7 @@ class AudioCapture:
             "is_capturing": self.is_capturing,
             "total_chunks_sent": self.total_chunks_sent,
             "total_audio_duration": self.total_audio_duration,
-            "last_audio_time": self.last_audio_time
+            "last_audio_time": self.last_audio_time,
         }
 
 
@@ -341,18 +343,14 @@ async def example_usage():
         orchestration_url="ws://localhost:3000/ws",
         user_token="test-token",
         meeting_id="test-meeting",
-        connection_id="test-connection"
+        connection_id="test-connection",
     )
 
     # Connect to orchestration
     await client.connect()
 
     # Create audio capture
-    config = AudioConfig(
-        sample_rate=16000,
-        channels=1,
-        chunk_duration=2.0
-    )
+    config = AudioConfig(sample_rate=16000, channels=1, chunk_duration=2.0)
 
     capture = AudioCapture(config, client)
 

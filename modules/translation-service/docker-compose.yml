@@ -86,31 +86,31 @@ services:
       - USE_LOCAL_INFERENCE=true
       - USE_LEGACY_APIS=false
       - USE_MOCK_TRANSLATION=false
-      
+
       # Model configuration for CPU
       - TRANSLATION_MODEL=Qwen/Qwen2.5-7B-Instruct-AWQ
       - MAX_TOKENS=512
       - TEMPERATURE=0.1
-      
+
       # Service settings
       - TRANSLATION_TIMEOUT=60  # Longer timeout for CPU
       - RETRY_ATTEMPTS=3
       - CONFIDENCE_THRESHOLD=0.8
-      
+
       # Ollama settings (CPU inference)
       - OLLAMA_BASE_URL=http://ollama:11434
-      
+
       # External API keys (fallback)
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
-      
+
       # Logging
       - LOG_LEVEL=INFO
-      
+
       # Security
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      
+
     volumes:
       - ./config:/app/config:ro
       - ./logs:/app/logs
@@ -229,7 +229,7 @@ volumes:
     driver: local
 
 # Usage examples:
-# 
+#
 # Download models first:
 # docker-compose --profile download-models up model-downloader
 #
@@ -263,4 +263,4 @@ volumes:
 # docker-compose exec integration-service python src/service_integration.py --test-only
 #
 # Stop all services:
-# docker-compose down 
+# docker-compose down

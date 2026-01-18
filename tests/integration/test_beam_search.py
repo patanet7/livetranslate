@@ -4,8 +4,8 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
+
 import pytest
-import numpy as np
 
 
 class TestBeamSearchDecoding:
@@ -40,22 +40,21 @@ class TestBeamSearchDecoding:
         except ImportError:
             pytest.skip("BeamSearchDecoder not implemented yet")
 
-        audio = generate_test_audio(duration=3.0)
-        ground_truth = "test transcription from whisper"
+        generate_test_audio(duration=3.0)
 
         # Greedy decoding (beam_size=1)
-        greedy_decoder = BeamSearchDecoder(beam_size=1)
+        BeamSearchDecoder(beam_size=1)
         # greedy_result = await greedy_decoder.transcribe(audio)
         # greedy_wer = calculate_wer(greedy_result['text'], ground_truth)
 
         # Beam search (beam_size=5)
-        beam_decoder = BeamSearchDecoder(beam_size=5)
+        BeamSearchDecoder(beam_size=5)
         # beam_result = await beam_decoder.transcribe(audio)
         # beam_wer = calculate_wer(beam_result['text'], ground_truth)
 
         # For now, simulate expected improvement
         greedy_wer = 0.30  # 30% WER
-        beam_wer = 0.20    # 20% WER (33% improvement)
+        beam_wer = 0.20  # 20% WER (33% improvement)
 
         improvement = (greedy_wer - beam_wer) / greedy_wer
         assert improvement >= 0.20, f"Expected >=20% improvement, got {improvement*100}%"
@@ -82,8 +81,8 @@ class TestBeamSearchDecoding:
         # EXPECTED TO FAIL - not implemented yet
 
         try:
-            from modules.whisper_service.src.beam_decoder import BeamSearchDecoder
             import torch
+            from modules.whisper_service.src.beam_decoder import BeamSearchDecoder
         except ImportError:
             pytest.skip("BeamSearchDecoder or torch not available")
 
@@ -91,8 +90,8 @@ class TestBeamSearchDecoding:
             pytest.skip("GPU not available")
 
         # Large beam size should not OOM
-        decoder = BeamSearchDecoder(beam_size=10)
-        audio = generate_test_audio(duration=3.0)
+        BeamSearchDecoder(beam_size=10)
+        generate_test_audio(duration=3.0)
 
         # Monitor GPU memory
         torch.cuda.reset_peak_memory_stats()
@@ -113,11 +112,7 @@ class TestBeamSearchDecoding:
         except ImportError:
             pytest.skip("BeamSearchDecoder not implemented yet")
 
-        decoder = BeamSearchDecoder(
-            beam_size=5,
-            patience=1.0,
-            length_penalty=1.0
-        )
+        decoder = BeamSearchDecoder(beam_size=5, patience=1.0, length_penalty=1.0)
 
         assert decoder.beam_size == 5
         assert decoder.patience == 1.0

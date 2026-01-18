@@ -215,7 +215,7 @@ CREATE INDEX IF NOT EXISTS idx_correlations_metadata_gin ON bot_sessions.correla
 -- Views for Common Queries
 -- Complete session overview with statistics
 CREATE OR REPLACE VIEW bot_sessions.session_overview AS
-SELECT 
+SELECT
     s.session_id,
     s.bot_id,
     s.meeting_id,
@@ -238,12 +238,12 @@ LEFT JOIN bot_sessions.transcripts t ON s.session_id = t.session_id
 LEFT JOIN bot_sessions.translations tr ON s.session_id = tr.session_id
 LEFT JOIN bot_sessions.correlations c ON s.session_id = c.session_id
 LEFT JOIN bot_sessions.participants p ON s.session_id = p.session_id
-GROUP BY s.session_id, s.bot_id, s.meeting_id, s.meeting_title, s.status, 
+GROUP BY s.session_id, s.bot_id, s.meeting_id, s.meeting_title, s.status,
          s.start_time, s.end_time, s.participant_count, s.target_languages;
 
 -- Speaker statistics per session
 CREATE OR REPLACE VIEW bot_sessions.speaker_statistics AS
-SELECT 
+SELECT
     t.session_id,
     t.speaker_id,
     t.speaker_name,
@@ -259,7 +259,7 @@ GROUP BY t.session_id, t.speaker_id, t.speaker_name;
 
 -- Translation quality metrics
 CREATE OR REPLACE VIEW bot_sessions.translation_quality AS
-SELECT 
+SELECT
     tr.session_id,
     tr.source_language,
     tr.target_language,
@@ -274,7 +274,7 @@ GROUP BY tr.session_id, tr.source_language, tr.target_language, tr.translation_s
 
 -- Correlation effectiveness
 CREATE OR REPLACE VIEW bot_sessions.correlation_effectiveness AS
-SELECT 
+SELECT
     c.session_id,
     c.correlation_type,
     c.correlation_method,
@@ -295,7 +295,7 @@ BEGIN
     SELECT start_time, end_time INTO session_record
     FROM bot_sessions.sessions
     WHERE session_id = session_id_param;
-    
+
     IF session_record.end_time IS NOT NULL THEN
         RETURN session_record.end_time - session_record.start_time;
     ELSE
@@ -314,7 +314,7 @@ BEGIN
     INTO total_words
     FROM bot_sessions.transcripts
     WHERE session_id = session_id_param;
-    
+
     RETURN COALESCE(total_words, 0);
 END;
 $$ LANGUAGE plpgsql;
@@ -326,7 +326,7 @@ DECLARE
     stats_record RECORD;
 BEGIN
     -- Calculate comprehensive statistics
-    SELECT 
+    SELECT
         EXTRACT(EPOCH FROM bot_sessions.get_session_duration(session_id_param)) as total_duration,
         (SELECT participant_count FROM bot_sessions.sessions WHERE session_id = session_id_param) as total_participants,
         COUNT(DISTINCT t.speaker_id) as unique_speakers,
@@ -338,8 +338,8 @@ BEGIN
         COUNT(DISTINCT tr.translation_id) as total_translations,
         array_agg(DISTINCT tr.target_language) FILTER (WHERE tr.target_language IS NOT NULL) as translation_languages,
         COALESCE(AVG(c.correlation_confidence), 0) as average_correlation_confidence,
-        CASE 
-            WHEN COUNT(c.correlation_id) > 0 THEN 
+        CASE
+            WHEN COUNT(c.correlation_id) > 0 THEN
                 COUNT(CASE WHEN c.correlation_confidence >= 0.7 THEN 1 END)::REAL / COUNT(c.correlation_id)::REAL
             ELSE 0
         END as correlation_success_rate
@@ -351,7 +351,7 @@ BEGIN
     LEFT JOIN bot_sessions.correlations c ON s.session_id = c.session_id
     WHERE s.session_id = session_id_param
     GROUP BY s.session_id;
-    
+
     -- Insert or update statistics
     INSERT INTO bot_sessions.session_statistics (
         session_id, total_duration, total_participants, unique_speakers,
@@ -378,7 +378,7 @@ BEGIN
         correlation_success_rate = EXCLUDED.correlation_success_rate,
         average_correlation_confidence = EXCLUDED.average_correlation_confidence,
         computed_at = NOW();
-    
+
     RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql;
@@ -433,9 +433,9 @@ BEGIN
     FROM bot_sessions.sessions
     WHERE status IN ('ended', 'error')
     AND created_at < NOW() - INTERVAL '1 day' * days_old;
-    
+
     -- TODO: Implement actual archival logic
-    
+
     RETURN archived_count;
 END;
 $$ LANGUAGE plpgsql;

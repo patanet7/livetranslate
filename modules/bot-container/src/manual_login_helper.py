@@ -13,22 +13,19 @@ Usage:
     python manual_login_helper.py --email your@gmail.com --profile-path /app/browser-profile
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from google_meet_automation import GoogleMeetAutomation, BrowserConfig
+from google_meet_automation import BrowserConfig, GoogleMeetAutomation
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +63,7 @@ async def manual_login_setup(email: str, profile_path: str):
         headless=False,  # Show browser window
         user_data_dir=profile_path,
         screenshots_enabled=True,
-        screenshots_path="/tmp/bot-screenshots"
+        screenshots_path="/tmp/bot-screenshots",
     )
 
     automation = GoogleMeetAutomation(config)
@@ -78,14 +75,16 @@ async def manual_login_setup(email: str, profile_path: str):
 
         # Navigate to Google login
         logger.info("📧 Navigating to Google login page...")
-        await automation.page.goto("https://accounts.google.com/ServiceLogin?hl=en&continue=https://www.google.com/")
+        await automation.page.goto(
+            "https://accounts.google.com/ServiceLogin?hl=en&continue=https://www.google.com/"
+        )
 
         # Pre-fill email if provided
         try:
-            await automation.page.wait_for_selector('#identifierId', timeout=5000)
-            await automation.page.fill('#identifierId', email)
+            await automation.page.wait_for_selector("#identifierId", timeout=5000)
+            await automation.page.fill("#identifierId", email)
             logger.info(f"✅ Pre-filled email: {email}")
-        except:
+        except Exception:
             logger.info("⚠️  Could not pre-fill email, please enter manually")
 
         print()
@@ -120,7 +119,7 @@ async def manual_login_setup(email: str, profile_path: str):
             print("You can now use the bot without providing credentials!")
             print()
             print("Example API call:")
-            print(f'''
+            print(f"""
 curl -X POST http://localhost:3000/api/bots/start \\
   -H "Content-Type: application/json" \\
   -d '{{
@@ -129,7 +128,7 @@ curl -X POST http://localhost:3000/api/bots/start \\
     "user_id": "...",
     "user_data_dir": "{profile_path}"
   }}'
-            ''')
+            """)
         else:
             logger.error("❌ Failed to save state file")
             return False
@@ -162,10 +161,7 @@ async def verify_saved_state(profile_path: str):
         logger.error(f"❌ State file not found: {state_file}")
         return False
 
-    config = BrowserConfig(
-        headless=False,
-        user_data_dir=profile_path
-    )
+    config = BrowserConfig(headless=False, user_data_dir=profile_path)
 
     automation = GoogleMeetAutomation(config)
 
@@ -189,7 +185,7 @@ async def verify_saved_state(profile_path: str):
             print()
             print("The bot can now join Google Meet without any credentials!")
             return True
-        except:
+        except Exception:
             logger.warning("⚠️  Could not verify login state")
             return False
 
@@ -202,23 +198,15 @@ async def verify_saved_state(profile_path: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Manual login setup for Google Meet bot"
-    )
-    parser.add_argument(
-        "--email",
-        required=True,
-        help="Google email address"
-    )
+    parser = argparse.ArgumentParser(description="Manual login setup for Google Meet bot")
+    parser.add_argument("--email", required=True, help="Google email address")
     parser.add_argument(
         "--profile-path",
         default="/tmp/bot-browser-profile",
-        help="Path to save browser profile (default: /tmp/bot-browser-profile)"
+        help="Path to save browser profile (default: /tmp/bot-browser-profile)",
     )
     parser.add_argument(
-        "--verify-only",
-        action="store_true",
-        help="Only verify existing saved state"
+        "--verify-only", action="store_true", help="Only verify existing saved state"
     )
 
     args = parser.parse_args()
@@ -232,7 +220,7 @@ def main():
             # Optionally verify
             print()
             verify = input("Would you like to verify the saved state? (y/n): ")
-            if verify.lower() == 'y':
+            if verify.lower() == "y":
                 asyncio.run(verify_saved_state(args.profile_path))
 
     sys.exit(0 if success else 1)

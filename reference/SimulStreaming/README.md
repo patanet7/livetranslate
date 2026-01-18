@@ -212,4 +212,3 @@ Before a pull request will be merged, contributors will be kindly asked to agree
 ## ✉️ Contact
 
 [Dominik Macháček](https://ufal.mff.cuni.cz/dominik-machacek/), machacek@ufal.mff.cuni.cz
-

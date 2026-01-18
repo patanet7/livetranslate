@@ -1,22 +1,22 @@
 import asyncio
+import contextlib
 import json
 import os
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import websockets
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from ..database.seamless_storage import (
-    ensure_schema,
-    open_session,
-    close_session,
-    add_event,
-    list_sessions,
-    get_session,
-    get_events,
-    get_transcripts,
-)
 
+from ..database.seamless_storage import (
+    add_event,
+    close_session,
+    ensure_schema,
+    get_events,
+    get_session,
+    get_transcripts,
+    list_sessions,
+    open_session,
+)
 
 router = APIRouter()
 
@@ -40,14 +40,14 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
     upstream = f"{upstream_url}{sep}session_id={session_id}"
 
     seamless_ws = None
-    forward_task: Optional[asyncio.Task] = None
+    forward_task: asyncio.Task | None = None
 
     try:
         # Ensure schema and open session record
         await ensure_schema()
         await open_session(
             session_id=session_id,
-            created_at_iso=datetime.now(timezone.utc).isoformat(),
+            created_at_iso=datetime.now(UTC).isoformat(),
             source_lang="cmn",
             target_lang="eng",
             client_ip=str(websocket.client.host) if websocket.client else None,
@@ -57,9 +57,7 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
         seamless_ws = await websockets.connect(upstream, max_size=2**24)
 
         # Start forwarder from upstream to client
-        forward_task = asyncio.create_task(
-            _forward_from_seamless_to_client(seamless_ws, websocket)
-        )
+        forward_task = asyncio.create_task(_forward_from_seamless_to_client(seamless_ws, websocket))
 
         # Inform upstream of connection
         await seamless_ws.send(
@@ -85,12 +83,10 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
             # Persist event (throttle client audio chunks if needed)
             etype = msg.get("type", "unknown")
             if etype != "audio_chunk":
-                await add_event(
-                    session_id, etype, msg, int(datetime.now(timezone.utc).timestamp() * 1000)
-                )
+                await add_event(session_id, etype, msg, int(datetime.now(UTC).timestamp() * 1000))
 
     except Exception as e:
-        try:
+        with contextlib.suppress(Exception):
             await websocket.send_text(
                 json.dumps(
                     {
@@ -99,25 +95,17 @@ async def seamless_realtime(websocket: WebSocket, session_id: str):
                     }
                 )
             )
-        except Exception:
-            pass
     finally:
         if forward_task and not forward_task.done():
             forward_task.cancel()
         if seamless_ws is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await seamless_ws.close()
-            except Exception:
-                pass
         # Close session
-        try:
-            await close_session(session_id, datetime.now(timezone.utc).isoformat())
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
+            await close_session(session_id, datetime.now(UTC).isoformat())
+        with contextlib.suppress(Exception):
             await websocket.close()
-        except Exception:
-            pass
 
 
 # Retrieval APIs

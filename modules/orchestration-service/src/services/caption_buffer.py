@@ -16,11 +16,10 @@ Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Caption Output"
 
 import logging
 import threading
-import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -62,7 +61,7 @@ class Caption:
     """A single caption entry for display."""
 
     id: str
-    original_text: Optional[str]
+    original_text: str | None
     translated_text: str
     speaker_name: str
     speaker_color: str
@@ -75,12 +74,12 @@ class Caption:
     @property
     def is_expired(self) -> bool:
         """Check if caption has expired."""
-        return datetime.now(timezone.utc) >= self.expires_at
+        return datetime.now(UTC) >= self.expires_at
 
     @property
     def time_remaining_seconds(self) -> float:
         """Get seconds until expiration."""
-        remaining = (self.expires_at - datetime.now(timezone.utc)).total_seconds()
+        remaining = (self.expires_at - datetime.now(UTC)).total_seconds()
         return max(0.0, remaining)
 
     @property
@@ -88,7 +87,7 @@ class Caption:
         """Get total display duration."""
         return (self.expires_at - self.created_at).total_seconds()
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
             "id": str(self.id),
@@ -116,7 +115,7 @@ class CaptionBufferStats:
     speakers_seen: int = 0
     current_caption_count: int = 0
     average_display_time_seconds: float = 0.0
-    last_caption_time: Optional[datetime] = None
+    last_caption_time: datetime | None = None
 
 
 # =============================================================================
@@ -160,11 +159,11 @@ class CaptionBuffer:
         min_display_time: float = DEFAULT_MIN_DISPLAY_TIME_SECONDS,
         max_caption_chars: int = DEFAULT_MAX_CAPTION_CHARS,
         max_aggregation_time: float = DEFAULT_MAX_AGGREGATION_TIME,
-        speaker_colors: Optional[List[str]] = None,
+        speaker_colors: list[str] | None = None,
         show_original: bool = True,
-        on_caption_added: Optional[Callable[[Caption], None]] = None,
-        on_caption_expired: Optional[Callable[[Caption], None]] = None,
-        on_caption_updated: Optional[Callable[[Caption], None]] = None,
+        on_caption_added: Callable[[Caption], None] | None = None,
+        on_caption_expired: Callable[[Caption], None] | None = None,
+        on_caption_updated: Callable[[Caption], None] | None = None,
         aggregate_speaker_text: bool = True,
         speaker_aggregation_window: float = 5.0,
     ):
@@ -202,13 +201,13 @@ class CaptionBuffer:
         self._captions: OrderedDict[str, Caption] = OrderedDict()
 
         # Speaker -> current caption ID mapping (for aggregation)
-        self._speaker_current_caption: Dict[str, str] = {}
+        self._speaker_current_caption: dict[str, str] = {}
 
         # Track last speaker for out-of-order detection
-        self._last_speaker: Optional[str] = None
+        self._last_speaker: str | None = None
 
         # Speaker -> color mapping
-        self._speaker_color_map: Dict[str, str] = {}
+        self._speaker_color_map: dict[str, str] = {}
         self._next_color_index: int = 0
 
         # Statistics
@@ -230,12 +229,12 @@ class CaptionBuffer:
         self,
         translated_text: str,
         speaker_name: str,
-        original_text: Optional[str] = None,
+        original_text: str | None = None,
         target_language: str = "es",
         confidence: float = 1.0,
-        duration: Optional[float] = None,
+        duration: float | None = None,
         priority: int = 0,
-        caption_id: Optional[str] = None,
+        caption_id: str | None = None,
     ) -> tuple:
         """
         Add a caption to the display queue.
@@ -260,7 +259,7 @@ class CaptionBuffer:
             - was_updated=False if new caption was created
         """
         with self._lock:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             actual_duration = duration if duration is not None else self.default_duration
             actual_duration += priority * 2.0
 
@@ -280,7 +279,7 @@ class CaptionBuffer:
                         # Find next space after truncate point
                         space_idx = new_translated.find(" ", truncate_at)
                         if space_idx > 0:
-                            new_translated = "..." + new_translated[space_idx + 1:]
+                            new_translated = "..." + new_translated[space_idx + 1 :]
                         else:
                             new_translated = "..." + new_translated[truncate_at:]
 
@@ -294,7 +293,7 @@ class CaptionBuffer:
                             truncate_at = excess + 20
                             space_idx = new_original.find(" ", truncate_at)
                             if space_idx > 0:
-                                new_original = "..." + new_original[space_idx + 1:]
+                                new_original = "..." + new_original[space_idx + 1 :]
                             else:
                                 new_original = "..." + new_original[truncate_at:]
                         existing_caption.original_text = new_original
@@ -378,7 +377,7 @@ class CaptionBuffer:
 
             return (caption, False)
 
-    def _get_active_speaker_caption(self, speaker_name: str) -> Optional[Caption]:
+    def _get_active_speaker_caption(self, speaker_name: str) -> Caption | None:
         """
         Get the active caption for a speaker if within aggregation window.
 
@@ -404,7 +403,7 @@ class CaptionBuffer:
             return None
 
         # Check if caption has been alive too long - force new bubble
-        age = (datetime.now(timezone.utc) - caption.created_at).total_seconds()
+        age = (datetime.now(UTC) - caption.created_at).total_seconds()
         if age > self.max_aggregation_time:
             logger.debug(
                 f"Caption {caption_id} exceeded max_aggregation_time ({age:.1f}s > {self.max_aggregation_time}s), "
@@ -422,7 +421,7 @@ class CaptionBuffer:
 
         return caption
 
-    def get_active_captions(self) -> List[Caption]:
+    def get_active_captions(self) -> list[Caption]:
         """
         Get all active (non-expired) captions.
 
@@ -435,7 +434,7 @@ class CaptionBuffer:
 
             return list(self._captions.values())
 
-    def get_caption(self, caption_id: str) -> Optional[Caption]:
+    def get_caption(self, caption_id: str) -> Caption | None:
         """
         Get a specific caption by ID.
 
@@ -511,7 +510,7 @@ class CaptionBuffer:
                 return True
             return False
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """
         Get buffer statistics.
 
@@ -574,7 +573,7 @@ class CaptionBuffer:
     # Iteration and Display
     # =========================================================================
 
-    def get_display_dict(self) -> Dict:
+    def get_display_dict(self) -> dict:
         """
         Get display-ready representation for UI.
 
@@ -587,7 +586,7 @@ class CaptionBuffer:
                 "captions": [c.to_dict() for c in captions],
                 "count": len(captions),
                 "max_captions": self.max_captions,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
     def __len__(self) -> int:
@@ -616,7 +615,7 @@ class CaptionBuffer:
             )
         return self._speaker_color_map[speaker_name]
 
-    def _remove_oldest_caption(self) -> Optional[Caption]:
+    def _remove_oldest_caption(self) -> Caption | None:
         """Remove the oldest caption (respecting priority)."""
         if not self._captions:
             return None
@@ -628,15 +627,15 @@ class CaptionBuffer:
         candidates.sort(
             key=lambda c: (
                 not c.is_expired,  # Expired first
-                c.priority,        # Low priority first
-                c.created_at,      # Oldest first
+                c.priority,  # Low priority first
+                c.created_at,  # Oldest first
             )
         )
 
         victim = candidates[0]
 
         # Don't remove if it hasn't met minimum display time
-        display_time = (datetime.now(timezone.utc) - victim.created_at).total_seconds()
+        display_time = (datetime.now(UTC) - victim.created_at).total_seconds()
         if display_time < self.min_display_time and not victim.is_expired:
             # Skip this one, try next
             if len(candidates) > 1:
@@ -654,10 +653,7 @@ class CaptionBuffer:
 
     def _cleanup_expired_internal(self) -> int:
         """Internal cleanup without lock (caller must hold lock)."""
-        expired_ids = [
-            cid for cid, caption in self._captions.items()
-            if caption.is_expired
-        ]
+        expired_ids = [cid for cid, caption in self._captions.items() if caption.is_expired]
 
         for cid in expired_ids:
             caption = self._captions.pop(cid)
@@ -703,7 +699,7 @@ class SessionCaptionManager:
         """
         self.default_max_captions = default_max_captions
         self.default_duration = default_duration
-        self._sessions: Dict[str, CaptionBuffer] = {}
+        self._sessions: dict[str, CaptionBuffer] = {}
         self._lock = threading.RLock()
 
     def get_buffer(self, session_id: str) -> CaptionBuffer:
@@ -743,12 +739,12 @@ class SessionCaptionManager:
                 return True
             return False
 
-    def get_all_sessions(self) -> List[str]:
+    def get_all_sessions(self) -> list[str]:
         """Get list of active session IDs."""
         with self._lock:
             return list(self._sessions.keys())
 
-    def cleanup_all(self) -> Dict[str, int]:
+    def cleanup_all(self) -> dict[str, int]:
         """
         Cleanup expired captions in all sessions.
 
@@ -768,7 +764,7 @@ class SessionCaptionManager:
 
 
 def create_caption_buffer(
-    config: Optional[Dict] = None,
+    config: dict | None = None,
 ) -> CaptionBuffer:
     """
     Factory function to create a CaptionBuffer with configuration.

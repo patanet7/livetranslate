@@ -13,11 +13,10 @@ Behaviors:
 Run with: pytest tests/fireflies/unit/test_transcript_validation.py -v
 """
 
-import pytest
-from datetime import datetime, timezone
-from typing import List
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add src path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
@@ -47,13 +46,14 @@ def transcript_validator():
 
     This defines the expected behavior - implementation will follow in src/
     """
+
     def validate(
         text: str,
         start_time: float,
         end_time: float,
         session_id: str,
         max_length: int = 10000,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Validate transcript data before storage.
 
@@ -431,11 +431,12 @@ class TestTranslationValidation:
         WHEN: Validating
         THEN: Should return error
         """
+
         def validate_translation(
             translated_text: str,
             transcript_id: str,
             target_language: str,
-        ) -> List[str]:
+        ) -> list[str]:
             errors = []
             if not translated_text or not translated_text.strip():
                 errors.append("Empty translation text")
@@ -459,11 +460,12 @@ class TestTranslationValidation:
         WHEN: Validating
         THEN: Should return error
         """
+
         def validate_translation(
             translated_text: str,
             transcript_id: str,
             target_language: str,
-        ) -> List[str]:
+        ) -> list[str]:
             errors = []
             if not translated_text or not translated_text.strip():
                 errors.append("Empty translation text")
@@ -502,7 +504,21 @@ class TestValidationHelpers:
         WHEN: Checking if valid
         THEN: Should recognize standard codes
         """
-        valid_codes = ["en", "es", "fr", "de", "ja", "zh", "ko", "pt", "it", "ru", "ar", "hi", "auto"]
+        valid_codes = [
+            "en",
+            "es",
+            "fr",
+            "de",
+            "ja",
+            "zh",
+            "ko",
+            "pt",
+            "it",
+            "ru",
+            "ar",
+            "hi",
+            "auto",
+        ]
 
         def is_valid_language_code(code: str) -> bool:
             return code in valid_codes
@@ -517,6 +533,7 @@ class TestValidationHelpers:
         WHEN: Sanitizing for storage
         THEN: Should clean appropriately
         """
+
         def sanitize_text(text: str) -> str:
             if not text:
                 return ""

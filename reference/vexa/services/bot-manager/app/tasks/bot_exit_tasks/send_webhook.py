@@ -50,7 +50,7 @@ async def run(meeting: Meeting, db: AsyncSession):
                 timeout=30.0,
                 headers={'Content-Type': 'application/json'}
             )
-            
+
             if response.status_code >= 200 and response.status_code < 300:
                 logger.info(f"Successfully sent webhook for meeting {meeting.id} to {webhook_url}")
             else:
@@ -59,4 +59,4 @@ async def run(meeting: Meeting, db: AsyncSession):
     except httpx.RequestError as e:
         logger.error(f"Failed to send webhook for meeting {meeting.id}: {e}")
     except Exception as e:
-        logger.error(f"Unexpected error sending webhook for meeting {meeting.id}: {e}", exc_info=True) 
+        logger.error(f"Unexpected error sending webhook for meeting {meeting.id}: {e}", exc_info=True)

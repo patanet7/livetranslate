@@ -1,7 +1,6 @@
 import os
-from functools import lru_cache
+from functools import cache
 from subprocess import CalledProcessError, run
-from typing import Optional, Union
 
 import numpy as np
 import torch
@@ -68,9 +67,7 @@ def pad_or_trim(array, length: int = N_SAMPLES, *, axis: int = -1):
     """
     if torch.is_tensor(array):
         if array.shape[axis] > length:
-            array = array.index_select(
-                dim=axis, index=torch.arange(length, device=array.device)
-            )
+            array = array.index_select(dim=axis, index=torch.arange(length, device=array.device))
 
         if array.shape[axis] < length:
             pad_widths = [(0, 0)] * array.ndim
@@ -88,7 +85,7 @@ def pad_or_trim(array, length: int = N_SAMPLES, *, axis: int = -1):
     return array
 
 
-@lru_cache(maxsize=None)
+@cache
 def mel_filters(device, n_mels: int) -> torch.Tensor:
     """
     load the mel filterbank matrix for projecting STFT into a Mel spectrogram.
@@ -108,10 +105,10 @@ def mel_filters(device, n_mels: int) -> torch.Tensor:
 
 
 def log_mel_spectrogram(
-    audio: Union[str, np.ndarray, torch.Tensor],
+    audio: str | np.ndarray | torch.Tensor,
     n_mels: int = 80,
     padding: int = 0,
-    device: Optional[Union[str, torch.device]] = None,
+    device: str | torch.device | None = None,
 ):
     """
     Compute the log-Mel spectrogram of

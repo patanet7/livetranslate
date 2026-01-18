@@ -7,10 +7,12 @@ Wiener filtering, and adaptive noise estimation. Can be used independently
 or as part of the complete modular audio processing pipeline.
 """
 
+from typing import Any
+
 import numpy as np
-from typing import Dict, Any, Tuple
-from ..stage_components import BaseAudioStage
+
 from ..config import SpectralDenoisingConfig, SpectralDenoisingMode
+from ..stage_components import BaseAudioStage
 
 
 class SpectralDenoisingStage(BaseAudioStage):
@@ -45,9 +47,7 @@ class SpectralDenoisingStage(BaseAudioStage):
 
         self.is_initialized = True
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through spectral denoising."""
         try:
             # Apply input gain
@@ -75,9 +75,7 @@ class SpectralDenoisingStage(BaseAudioStage):
                     output_frames.append(denoised_frame)
 
                     total_noise_reduced += frame_stats.get("noise_reduction_db", 0.0)
-                    spectral_floor_applied += frame_stats.get(
-                        "spectral_floor_applied", 0
-                    )
+                    spectral_floor_applied += frame_stats.get("spectral_floor_applied", 0)
                     frames_processed += 1
 
             # Reconstruct output
@@ -103,9 +101,7 @@ class SpectralDenoisingStage(BaseAudioStage):
 
             # Calculate denoising metrics
             avg_noise_reduction = total_noise_reduced / max(frames_processed, 1)
-            spectral_floor_percent = (
-                spectral_floor_applied / max(frames_processed, 1)
-            ) * 100
+            spectral_floor_percent = (spectral_floor_applied / max(frames_processed, 1)) * 100
 
             metadata = {
                 "mode": self.config.mode.value,
@@ -123,11 +119,9 @@ class SpectralDenoisingStage(BaseAudioStage):
             return processed, metadata
 
         except Exception as e:
-            raise Exception(f"Spectral denoising failed: {e}")
+            raise Exception(f"Spectral denoising failed: {e}") from e
 
-    def _process_spectral_frame(
-        self, frame: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_spectral_frame(self, frame: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process a single frame through spectral denoising."""
         # Apply window
         windowed_frame = frame * self.window
@@ -198,9 +192,7 @@ class SpectralDenoisingStage(BaseAudioStage):
         if frame_energy < energy_threshold or self.noise_estimation_frames < 10:
             # Update noise estimate
             update_rate = self.noise_update_rate
-            self.noise_spectrum = (
-                update_rate * self.noise_spectrum + (1 - update_rate) * magnitude
-            )
+            self.noise_spectrum = update_rate * self.noise_spectrum + (1 - update_rate) * magnitude
             self.noise_power_est = (
                 update_rate * self.noise_power_est + (1 - update_rate) * magnitude**2
             )
@@ -295,7 +287,7 @@ class SpectralDenoisingStage(BaseAudioStage):
 
         return output
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -323,7 +315,7 @@ class SpectralDenoisingStage(BaseAudioStage):
         self.signal_power_est = None
         self.noise_power_est = None
 
-    def get_noise_spectrum(self) -> Dict[str, Any]:
+    def get_noise_spectrum(self) -> dict[str, Any]:
         """Get current noise spectrum for visualization."""
         if self.noise_spectrum is None:
             return {"error": "Noise spectrum not yet estimated"}

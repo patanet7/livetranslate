@@ -10,9 +10,10 @@ Following SimulStreaming reference implementation:
 Reference: SimulStreaming/token_buffer.py and simul_whisper.py
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
@@ -25,6 +26,7 @@ class TestTokenBuffer:
     def test_token_buffer_import(self):
         """Test that TokenBuffer class can be imported"""
         from token_buffer import TokenBuffer
+
         assert TokenBuffer is not None
 
     def test_empty_token_buffer(self):
@@ -50,24 +52,21 @@ class TestTokenBuffer:
 
     def test_token_buffer_with_tokenizer(self):
         """Test TokenBuffer with Whisper tokenizer"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         # Use Whisper's native tokenizer (multilingual)
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
 
-        buffer = TokenBuffer.from_text(
-            "Medical terminology test",
-            tokenizer=tokenizer
-        )
+        buffer = TokenBuffer.from_text("Medical terminology test", tokenizer=tokenizer)
 
         assert buffer.tokenizer is not None
         assert len(buffer.as_token_ids()) > 0
 
     def test_token_buffer_as_token_ids(self):
         """Test converting text to token IDs"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
         text = "Hello world"
@@ -84,17 +83,15 @@ class TestTokenBuffer:
 
     def test_token_buffer_with_prefix_tokens(self):
         """Test TokenBuffer with prefix token IDs (like <|sot_prev|>)"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
         # Use Whisper's special token (e.g., <|startofprev|> token)
         prefix_token_ids = [50361]  # Example Whisper special token
 
         buffer = TokenBuffer.from_text(
-            "Test text",
-            tokenizer=tokenizer,
-            prefix_token_ids=prefix_token_ids
+            "Test text", tokenizer=tokenizer, prefix_token_ids=prefix_token_ids
         )
 
         token_ids = buffer.as_token_ids()
@@ -105,8 +102,8 @@ class TestTokenBuffer:
 
     def test_token_buffer_append_token_ids(self):
         """Test appending token IDs to buffer"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
 
@@ -125,14 +122,11 @@ class TestTokenBufferTrimming:
 
     def test_trim_words_basic(self):
         """Test trimming one word from beginning"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
-        buffer = TokenBuffer.from_text(
-            "First second third fourth",
-            tokenizer=tokenizer
-        )
+        buffer = TokenBuffer.from_text("First second third fourth", tokenizer=tokenizer)
 
         # Trim first word
         tokens_removed = buffer.trim_words(num=1)
@@ -142,14 +136,11 @@ class TestTokenBufferTrimming:
 
     def test_trim_words_multiple(self):
         """Test trimming multiple words"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
-        buffer = TokenBuffer.from_text(
-            "One two three four five",
-            tokenizer=tokenizer
-        )
+        buffer = TokenBuffer.from_text("One two three four five", tokenizer=tokenizer)
 
         # Trim first two words
         buffer.trim_words(num=2)
@@ -158,8 +149,8 @@ class TestTokenBufferTrimming:
 
     def test_trim_words_with_static_prefix(self):
         """Test trimming with preserved static prefix (after parameter)"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
 
@@ -178,8 +169,8 @@ class TestTokenBufferTrimming:
 
     def test_trim_words_empty_buffer(self):
         """Test trimming from empty buffer returns 0"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
         buffer = TokenBuffer.empty(tokenizer=tokenizer)
@@ -191,8 +182,8 @@ class TestTokenBufferTrimming:
 
     def test_trim_words_until_limit(self):
         """Test trimming words until token limit is reached"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
 
@@ -200,7 +191,7 @@ class TestTokenBufferTrimming:
         long_text = " ".join([f"word{i}" for i in range(100)])
         buffer = TokenBuffer.from_text(long_text, tokenizer=tokenizer)
 
-        initial_tokens = len(buffer.as_token_ids())
+        len(buffer.as_token_ids())
         max_tokens = 50
 
         # Trim until under limit
@@ -224,9 +215,9 @@ class TestRollingContextIntegration:
         manager = ModelManager(models_dir=str(models_dir))
 
         # Should have context-related attributes
-        assert hasattr(manager, 'static_prompt'), "Should have static_prompt attribute"
-        assert hasattr(manager, 'rolling_context'), "Should have rolling_context attribute"
-        assert hasattr(manager, 'max_context_tokens'), "Should have max_context_tokens attribute"
+        assert hasattr(manager, "static_prompt"), "Should have static_prompt attribute"
+        assert hasattr(manager, "rolling_context"), "Should have rolling_context attribute"
+        assert hasattr(manager, "max_context_tokens"), "Should have max_context_tokens attribute"
 
     def test_model_manager_init_context(self):
         """Test context initialization in ModelManager"""
@@ -236,7 +227,7 @@ class TestRollingContextIntegration:
         manager = ModelManager(models_dir=str(models_dir))
 
         # Should have init_context method
-        assert hasattr(manager, 'init_context'), "Should have init_context() method"
+        assert hasattr(manager, "init_context"), "Should have init_context() method"
         assert callable(manager.init_context), "init_context should be callable"
 
     def test_init_context_with_static_prompt(self):
@@ -246,10 +237,7 @@ class TestRollingContextIntegration:
         models_dir = Path(__file__).parent.parent / ".models"
         static_prompt = "Medical terms: hypertension, diabetes, cardiomyopathy"
 
-        manager = ModelManager(
-            models_dir=str(models_dir),
-            static_prompt=static_prompt
-        )
+        manager = ModelManager(models_dir=str(models_dir), static_prompt=static_prompt)
 
         manager.init_context()
 
@@ -265,10 +253,7 @@ class TestRollingContextIntegration:
         models_dir = Path(__file__).parent.parent / ".models"
         init_prompt = "Patient presents with chest pain"
 
-        manager = ModelManager(
-            models_dir=str(models_dir),
-            init_prompt=init_prompt
-        )
+        manager = ModelManager(models_dir=str(models_dir), init_prompt=init_prompt)
 
         manager.init_context()
 
@@ -282,7 +267,7 @@ class TestRollingContextIntegration:
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        assert hasattr(manager, 'trim_context'), "Should have trim_context() method"
+        assert hasattr(manager, "trim_context"), "Should have trim_context() method"
         assert callable(manager.trim_context), "trim_context should be callable"
 
     def test_trim_context_preserves_static_prompt(self):
@@ -295,7 +280,7 @@ class TestRollingContextIntegration:
         manager = ModelManager(
             models_dir=str(models_dir),
             static_prompt=static_prompt,
-            max_context_tokens=20  # Small limit to force trimming
+            max_context_tokens=20,  # Small limit to force trimming
         )
 
         manager.init_context()
@@ -325,10 +310,7 @@ class TestRollingContextIntegration:
         from whisper_service import ModelManager
 
         models_dir = Path(__file__).parent.parent / ".models"
-        manager = ModelManager(
-            models_dir=str(models_dir),
-            max_context_tokens=100
-        )
+        manager = ModelManager(models_dir=str(models_dir), max_context_tokens=100)
 
         assert manager.max_context_tokens == 100
 
@@ -380,29 +362,29 @@ class TestContextCarryover:
             audio=segment1_audio,
             prompt=context1,  # Use rolling context
             beam_size=1,
-            temperature=0.0
+            temperature=0.0,
         )
 
         # Append first result to context (simulate real workflow)
-        if result1['text'].strip():
-            manager.append_to_context(result1['text'])
+        if result1["text"].strip():
+            manager.append_to_context(result1["text"])
 
         # Second inference (should have context from first)
         context2 = manager.get_inference_context()
         assert "Medical terminology" in context2  # Static prompt preserved
 
-        result2 = model.transcribe(
+        model.transcribe(
             audio=segment2_audio,
             prompt=context2,  # Rolling context with previous result
             beam_size=1,
-            temperature=0.0
+            temperature=0.0,
         )
 
         # Verify context is being used
         assert manager.rolling_context is not None
         assert len(manager.rolling_context.text) > 0
 
-        print(f"✅ Rolling context integration test passed")
+        print("✅ Rolling context integration test passed")
         print(f"   Context after 2 segments: '{manager.rolling_context.text[:100]}...'")
 
     @pytest.mark.integration
@@ -428,21 +410,16 @@ class TestContextCarryover:
 
         # Simulate 5 audio segments in a medical consultation
         num_segments = 5
-        for i in range(num_segments):
+        for _i in range(num_segments):
             audio = np.zeros(16000, dtype=np.float32)
 
             context = manager.get_inference_context()
 
-            result = model.transcribe(
-                audio=audio,
-                prompt=context,
-                beam_size=1,
-                temperature=0.0
-            )
+            result = model.transcribe(audio=audio, prompt=context, beam_size=1, temperature=0.0)
 
             # Add to rolling context
-            if result['text'].strip():
-                manager.append_to_context(result['text'])
+            if result["text"].strip():
+                manager.append_to_context(result["text"])
 
         # Verify context maintained static prompt
         final_context = manager.get_inference_context()
@@ -481,12 +458,7 @@ class TestContextCarryover:
 
             context = manager.get_inference_context()
 
-            result = model.transcribe(
-                audio=audio,
-                prompt=context,
-                beam_size=1,
-                temperature=0.0
-            )
+            model.transcribe(audio=audio, prompt=context, beam_size=1, temperature=0.0)
 
             # Add segment marker to context (for testing)
             manager.append_to_context(f"segment_{i} ")
@@ -501,13 +473,17 @@ class TestContextCarryover:
         assert "segment_2 " not in final_context
 
         # Recent segments should be preserved
-        assert "segment_18 " in final_context or "segment_19 " in final_context or "segment_19" in final_context
+        assert (
+            "segment_18 " in final_context
+            or "segment_19 " in final_context
+            or "segment_19" in final_context
+        )
 
         # Context should be under limit
         context_tokens = len(manager.rolling_context.as_token_ids())
         assert context_tokens <= manager.max_context_tokens + 10
 
-        print(f"✅ FIFO trimming verified over 20 segments")
+        print("✅ FIFO trimming verified over 20 segments")
         print(f"   Final context: '{final_context}'")
         print(f"   Final tokens: {context_tokens}/{manager.max_context_tokens}")
 
@@ -527,14 +503,11 @@ class TestSimulStreamingCompliance:
 
     def test_fifo_word_level_trimming(self):
         """Test FIFO (first-in-first-out) word-level trimming"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
-        buffer = TokenBuffer.from_text(
-            "first second third fourth fifth",
-            tokenizer=tokenizer
-        )
+        buffer = TokenBuffer.from_text("first second third fourth fifth", tokenizer=tokenizer)
 
         # Trim should remove from beginning (FIFO)
         buffer.trim_words(num=2)
@@ -545,18 +518,15 @@ class TestSimulStreamingCompliance:
 
     def test_static_prompt_never_trimmed(self):
         """Test that static prompt is never trimmed (SimulStreaming behavior)"""
-        from token_buffer import TokenBuffer
         import whisper
+        from token_buffer import TokenBuffer
 
         tokenizer = whisper.tokenizer.get_tokenizer(multilingual=True)
 
         static_part = "Static terminology: "
         rolling_part = "rolling context words here"
 
-        buffer = TokenBuffer.from_text(
-            static_part + rolling_part,
-            tokenizer=tokenizer
-        )
+        buffer = TokenBuffer.from_text(static_part + rolling_part, tokenizer=tokenizer)
 
         # Trim with after parameter
         buffer.trim_words(num=2, after=len(static_part))

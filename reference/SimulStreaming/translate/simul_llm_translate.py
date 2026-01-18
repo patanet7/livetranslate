@@ -51,7 +51,7 @@ class LLMTranslator:
 
     def start_dialog(self):
         return [{'role':'system', 'content': self.system_prompt }]
-    
+
 
     def build_prompt(self, dialog):
         toks = self.tokenizer.apply_chat_template(dialog, tokenize=True, add_generation_prompt=False)
@@ -80,7 +80,7 @@ class LLMTranslator:
             limit_kw = {}
         step_results = self.generator.generate_tokens(
             prompt_tokens,
-            **limit_kw, 
+            **limit_kw,
     #    end_token=tokenizer.eos_token,
     #            sampling_temperature=0.6,
     #            sampling_topk=20,
@@ -212,7 +212,7 @@ class SimulLLM:
     def __init__(self, llmtrans, min_len=0, chunk=1, trimming="sentences", language="ja", init_src="", init_tgt=""):
         self.llmtranslator = llmtrans
 
-        #self.src_buffer = init_src 
+        #self.src_buffer = init_src
         #self.confirmed_tgt = init_tgt
 
         self.buffer = ParallelTextBuffer(self.llmtranslator.tokenizer, self.llmtranslator.max_tokens_to_trim, trimming=trimming, init_src=init_src, init_tgt=init_tgt)
@@ -222,7 +222,7 @@ class SimulLLM:
 
         self.min_len = min_len
 
-        self.step = chunk 
+        self.step = chunk
         self.language = language
         if language in ["ja", "zh"]:
             self.specific_space = ""
@@ -237,7 +237,7 @@ class SimulLLM:
 
     def insert_suffix(self, text):
         '''
-        Insert suffix of a word to the last inserted word. 
+        Insert suffix of a word to the last inserted word.
         It may be because the word was split to multiple parts in the input, each with different timestamps.
         '''
         if self.last_inserted:
@@ -277,7 +277,7 @@ class SimulLLM:
                 src += " " + w
                 run = True
             if not run: break
-            
+
             print("SRC",src,file=sys.stderr)
 
             print("FORCED TGT",forced_tgt,file=sys.stderr)
@@ -312,9 +312,9 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--input-instance', type=str, default=None, help="Filename of instances to simulate input. If not set, txt input is read from stdin.")
 #parser.add_argument('--output_instance', type=str, default=None, help="Write output as instance into this file, while also writing to stdout.")
-parser.add_argument('--min-chunk-size', type=int, default=1, 
+parser.add_argument('--min-chunk-size', type=int, default=1,
                     help='Minimum number of space-delimited words to process in each LocalAgreement update. The more, the higher quality, but slower.')
-parser.add_argument('--min-len', type=int, default=1, 
+parser.add_argument('--min-len', type=int, default=1,
                     help='Minimum number of space-delimited words at the beginning.')
 #parser.add_argument('--start_at', type=int, default=0, help='Skip first N words.')
 
@@ -329,7 +329,7 @@ lan_to_name = {
     "zh-sim": "Chinese Simplified",
     "cs": "Czech",
     }
-parser.add_argument('--lan', '--language', type=str, default="de", 
+parser.add_argument('--lan', '--language', type=str, default="de",
                     help="Target language code.",
                     choices=["de", "ja","zh-tr","zh-sim","cs"])
 
@@ -337,7 +337,7 @@ SrcLang = "English"  # always
 TgtLang = "German"
 default_prompt="You are simultaneous interpreter from {SrcLang} to {TgtLang}. We are at a conference. It is important that you translate " + \
                 "only what you hear, nothing else!"
-parser.add_argument('--sys_prompt', type=str, default=None, 
+parser.add_argument('--sys_prompt', type=str, default=None,
                     help='System prompt. If None, default one is used, depending on the language. The prompt should ')
 
 default_init = "Please, go ahead, you can start with your presentation, we are ready."
@@ -350,7 +350,7 @@ default_inits_tgt = {
     'zh-sim': "请吧，你可以开始发言了，我们已经准备好了。",
     'cs': "Prosím, můžete začít s prezentací, jsme připraveni.",
 }
-parser.add_argument('--init_prompt_src', type=str, default=None, help='Init translation with source text. It should be a complete sentence in the source language. ' 
+parser.add_argument('--init_prompt_src', type=str, default=None, help='Init translation with source text. It should be a complete sentence in the source language. '
                     'It can be context specific for the given input. Default is ')
 parser.add_argument('--init_prompt_tgt', type=str, default=None, help='Init translation with this target. It should be example translation of init_prompt_src. '
                     ' There is default init message, depending on the language.')
@@ -367,7 +367,7 @@ lan_thresholds = {
     'zh-sim': 1.23, # 12115/9817
 #    'cs': I don't know    # guessed
 }
-parser.add_argument('--language-specific-len-threshold', default=False, action="store_true", 
+parser.add_argument('--language-specific-len-threshold', default=False, action="store_true",
                     help='Use language-specific length threshold, e.g. 1.3 for German.')
 
 parser.add_argument("--max-context-length", type=int, default=4096, help="Maximum number of tokens in the model to use.")
@@ -452,7 +452,7 @@ else:
 #i = 0
 for t,b,e,w in yield_ts_words:
     if w.startswith(" "):  # it is suffix of the previous word
-        w = w[1:] 
+        w = w[1:]
         simul.insert_suffix(w)
         continue
     simul.insert(w)

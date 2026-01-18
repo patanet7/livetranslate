@@ -30,7 +30,7 @@ class ASRBase:
 
     def set_translate_task(self):
         raise NotImplemented("must be implemented in the child class")
-    
+
 
 class OnlineProcessorInterface:
 
@@ -38,9 +38,9 @@ class OnlineProcessorInterface:
 
     def insert_audio_chunk(self, audio):
         raise NotImplementedError("must be implemented in child class")
-    
+
     def process_iter(self):
         raise NotImplementedError("must be implemented in child class")
-    
+
     def finish(self):
         raise NotImplementedError("must be implemented in child class")

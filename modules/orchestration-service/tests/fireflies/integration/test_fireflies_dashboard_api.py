@@ -22,9 +22,9 @@ This ensures:
 - Not found errors return 404 properly
 """
 
-import pytest
 import json
 
+import pytest
 
 # =============================================================================
 # Test Fixtures - Using shared fixtures from conftest.py
@@ -59,7 +59,7 @@ class TestTranslationAPI:
             json={
                 "text": "Hello",
                 "target_language": "es",
-            }
+            },
         )
 
         # Assert - endpoint exists (may error due to deps, but not 404)
@@ -77,7 +77,7 @@ class TestTranslationAPI:
             json={
                 "target_language": "es",
                 # Missing 'text' field
-            }
+            },
         )
 
         # Assert - FastAPI validation should return 422
@@ -99,7 +99,7 @@ class TestTranslationAPI:
             json={
                 "text": "Hello world",
                 # Missing 'target_language' field
-            }
+            },
         )
 
         # Assert - FastAPI validation should return 422
@@ -122,14 +122,14 @@ class TestTranslationAPI:
                 "text": "Hello",
                 "target_language": "es",
                 "service": "ollama",  # Correct field name
-            }
+            },
         )
 
         # Request format is valid - should pass validation
         # May fail due to translation service being unavailable, but NOT 422 (validation error)
-        assert response.status_code != 422, (
-            f"Request should be valid, but got validation error: {response.json()}"
-        )
+        assert (
+            response.status_code != 422
+        ), f"Request should be valid, but got validation error: {response.json()}"
 
     def test_translation_error_response_format(self, client):
         """
@@ -140,7 +140,7 @@ class TestTranslationAPI:
         # We expect 422 for invalid request
         response = client.post(
             "/api/translation/translate",
-            json={}  # Invalid - missing all fields
+            json={},  # Invalid - missing all fields
         )
 
         # FastAPI validation should return 422
@@ -236,7 +236,9 @@ class TestGlossaryAPI:
         """
         response = client.get("/api/glossaries")
         # May not be implemented yet, but path should be registered
-        assert response.status_code != 404 or response.status_code == 404, "Testing glossary endpoint"
+        assert (
+            response.status_code != 404 or response.status_code == 404
+        ), "Testing glossary endpoint"
 
     def test_glossary_create_requires_name(self, client):
         """
@@ -249,7 +251,7 @@ class TestGlossaryAPI:
             json={
                 "target_languages": ["es", "fr"],
                 # Missing 'name' field
-            }
+            },
         )
 
         # Either 404 (not implemented) or 422 (validation error)
@@ -298,9 +300,7 @@ class TestFirefliesSessionAPI:
         """
         response = client.get("/fireflies/sessions/nonexistent-session-id")
         # Should return 404 with centralized error
-        assert response.status_code == 404, (
-            f"Expected 404, got {response.status_code}"
-        )
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}"
         data = response.json()
         # Centralized error format
         assert "error" in data
@@ -317,7 +317,7 @@ class TestFirefliesSessionAPI:
             json={
                 "transcript_id": "test-transcript-123",
                 # Missing api_key intentionally to test endpoint exists
-            }
+            },
         )
         # Should not be 404 - might be 400 or 500 due to missing api key
         assert response.status_code != 404, "Connect endpoint not found"
@@ -333,7 +333,7 @@ class TestFirefliesSessionAPI:
             json={
                 "api_key": "test-key",
                 # Missing transcript_id
-            }
+            },
         )
         assert response.status_code == 422
 
@@ -347,13 +347,14 @@ class TestFirefliesSessionAPI:
             "/fireflies/disconnect",
             json={
                 "session_id": "test-session-id",
-            }
+            },
         )
         # 404 is valid - it means endpoint exists but session not found
         # Should not be 405 (method not allowed) or other errors
-        assert response.status_code in [200, 404], (
-            f"Disconnect endpoint should exist, got {response.status_code}"
-        )
+        assert response.status_code in [
+            200,
+            404,
+        ], f"Disconnect endpoint should exist, got {response.status_code}"
 
     def test_health_endpoint_exists(self, client):
         """
@@ -391,7 +392,7 @@ class TestErrorResponseFormat:
         """
         response = client.post(
             "/api/translation/translate",
-            json={}  # Invalid
+            json={},  # Invalid
         )
 
         # FastAPI validation should return 422
@@ -410,7 +411,7 @@ class TestErrorResponseFormat:
         """
         response = client.post(
             "/api/translation/translate",
-            json={"text": "Hello"}  # Missing target_language
+            json={"text": "Hello"},  # Missing target_language
         )
 
         # FastAPI validation should return 422
@@ -430,9 +431,7 @@ class TestErrorResponseFormat:
         response = client.get("/fireflies/sessions/nonexistent-id")
 
         # Should be 404
-        assert response.status_code == 404, (
-            f"Expected 404, got {response.status_code}"
-        )
+        assert response.status_code == 404, f"Expected 404, got {response.status_code}"
         data = response.json()
         # Centralized error format
         assert "error" in data
@@ -462,10 +461,11 @@ class TestCaptionStreamAPI:
         # Note: TestClient doesn't support WebSocket directly
         # This test verifies the HTTP part of the endpoint setup
         from main_fastapi import app
+
         routes = [route.path for route in app.routes]
 
         # Check that captions routes are registered
-        caption_routes = [r for r in routes if "caption" in r.lower()]
+        [r for r in routes if "caption" in r.lower()]
         # At minimum, there should be some caption-related routes
         # WebSocket paths may not appear in regular routes listing
 
@@ -495,7 +495,7 @@ class TestHistoricalTranscriptsAPI:
             json={
                 "api_key": "test-key",
                 "limit": 10,
-            }
+            },
         )
 
         # Should not be 405 Method Not Allowed

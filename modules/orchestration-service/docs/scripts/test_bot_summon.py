@@ -14,27 +14,24 @@ Usage:
     python test_bot_summon.py --meeting-url https://meet.google.com/abc-defg-hij --monitor-time 60
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
-import time
-from typing import Optional, Dict, Any
-import httpx
 import sys
+import time
+from typing import Any
+
+import httpx
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 class BotSummonTest:
     """Test harness for summoning and monitoring Google Meet bots"""
 
-    def __init__(
-        self, orchestration_url: str = "http://localhost:3000", timeout: int = 300
-    ):
+    def __init__(self, orchestration_url: str = "http://localhost:3000", timeout: int = 300):
         self.orchestration_url = orchestration_url
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=timeout)
@@ -56,19 +53,15 @@ class BotSummonTest:
                 )
                 return True
             else:
-                logger.error(
-                    f"❌ Orchestration service returned status {response.status_code}"
-                )
+                logger.error(f"❌ Orchestration service returned status {response.status_code}")
                 return False
 
         except Exception as e:
             logger.error(f"❌ Failed to connect to orchestration service: {e}")
-            logger.error(
-                f"   Make sure the service is running at {self.orchestration_url}"
-            )
+            logger.error(f"   Make sure the service is running at {self.orchestration_url}")
             return False
 
-    async def check_bot_manager_status(self) -> Dict[str, Any]:
+    async def check_bot_manager_status(self) -> dict[str, Any]:
         """Get bot manager statistics"""
         try:
             logger.info("🔍 Checking bot manager status...")
@@ -121,7 +114,7 @@ class BotSummonTest:
         language: str = "en",
         task: str = "transcribe",
         enable_virtual_webcam: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Start a bot to join Google Meet
 
@@ -163,7 +156,7 @@ class BotSummonTest:
                 try:
                     error = response.json()
                     logger.error(f"   Error: {error.get('detail', 'Unknown error')}")
-                except:
+                except Exception:
                     logger.error(f"   Response: {response.text}")
                 return None
 
@@ -171,7 +164,7 @@ class BotSummonTest:
             logger.error(f"❌ Exception starting bot: {e}")
             return None
 
-    async def get_bot_status(self, connection_id: str) -> Optional[Dict[str, Any]]:
+    async def get_bot_status(self, connection_id: str) -> dict[str, Any] | None:
         """Get bot status"""
         try:
             response = await self.client.get(
@@ -214,9 +207,7 @@ class BotSummonTest:
 
                 # Log status changes
                 if current_status != last_status:
-                    logger.info(
-                        f"📊 Bot status changed: {last_status} → {current_status}"
-                    )
+                    logger.info(f"📊 Bot status changed: {last_status} → {current_status}")
 
                     if current_status == "active":
                         logger.info("✅ Bot is now ACTIVE in the meeting!")
@@ -243,7 +234,7 @@ class BotSummonTest:
         logger.info(f"⏱️  Monitoring duration ({duration}s) completed")
         return reached_active
 
-    def _log_detailed_status(self, status: Dict[str, Any]):
+    def _log_detailed_status(self, status: dict[str, Any]):
         """Log detailed bot status information"""
         logger.info("📊 Bot Status Details:")
         logger.info(f"   Connection ID: {status.get('connection_id')}")
@@ -324,9 +315,7 @@ class BotSummonTest:
 
             # Step 5: Monitor bot
             logger.info("")
-            reached_active = await self.monitor_bot(
-                connection_id, duration=monitor_duration
-            )
+            reached_active = await self.monitor_bot(connection_id, duration=monitor_duration)
 
             # Step 6: Get final status
             logger.info("")
@@ -346,9 +335,7 @@ class BotSummonTest:
                 # Check final status
                 stopped_status = await self.get_bot_status(connection_id)
                 if stopped_status:
-                    logger.info(
-                        f"📊 Bot status after stop: {stopped_status.get('status')}"
-                    )
+                    logger.info(f"📊 Bot status after stop: {stopped_status.get('status')}")
 
             # Test result
             logger.info("")
@@ -356,12 +343,8 @@ class BotSummonTest:
             if reached_active:
                 logger.info("✅ TEST PASSED: Bot successfully joined Google Meet!")
             else:
-                logger.warning(
-                    "⚠️  TEST PARTIAL: Bot started but did not reach active state"
-                )
-                logger.warning(
-                    "   This may be normal if the meeting URL requires manual approval"
-                )
+                logger.warning("⚠️  TEST PARTIAL: Bot started but did not reach active state")
+                logger.warning("   This may be normal if the meeting URL requires manual approval")
             logger.info("=" * 70)
 
             return reached_active
@@ -373,9 +356,7 @@ class BotSummonTest:
 
 async def main():
     """Main entry point"""
-    parser = argparse.ArgumentParser(
-        description="Test Google Meet bot summon and monitoring"
-    )
+    parser = argparse.ArgumentParser(description="Test Google Meet bot summon and monitoring")
     parser.add_argument(
         "--meeting-url",
         required=True,
@@ -397,12 +378,8 @@ async def main():
         action="store_true",
         help="Automatically stop the bot after monitoring",
     )
-    parser.add_argument(
-        "--language", default="en", help="Transcription language (default: en)"
-    )
-    parser.add_argument(
-        "--enable-webcam", action="store_true", help="Enable virtual webcam output"
-    )
+    parser.add_argument("--language", default="en", help="Transcription language (default: en)")
+    parser.add_argument("--enable-webcam", action="store_true", help="Enable virtual webcam output")
 
     args = parser.parse_args()
 

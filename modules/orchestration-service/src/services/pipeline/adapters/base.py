@@ -10,7 +10,7 @@ The adapter pattern isolates source-specific parsing logic while keeping the pip
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
@@ -35,7 +35,7 @@ class TranscriptChunk:
     """
 
     text: str
-    speaker_name: Optional[str]
+    speaker_name: str | None
     timestamp_ms: int
     chunk_id: str
     transcript_id: str = ""
@@ -43,7 +43,7 @@ class TranscriptChunk:
     end_time_seconds: float = 0.0
     is_final: bool = False
     confidence: float = 1.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def duration_ms(self) -> float:
@@ -99,7 +99,7 @@ class ChunkAdapter(ABC):
         pass
 
     @abstractmethod
-    def extract_speaker(self, raw_chunk: Any) -> Optional[str]:
+    def extract_speaker(self, raw_chunk: Any) -> str | None:
         """
         Extract speaker name from source-specific format.
 

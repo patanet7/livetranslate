@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -23,7 +23,7 @@ import {
   InputLabel,
   Tooltip,
   IconButton,
-} from '@mui/material';
+} from "@mui/material";
 import {
   ExpandMore,
   Sync,
@@ -34,7 +34,7 @@ import {
   Refresh,
   CloudSync,
   Info,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface ConfigSyncSettingsProps {
   onSave: (message: string, success?: boolean) => void;
@@ -89,35 +89,37 @@ interface SyncResult {
 }
 
 const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
-  const [configuration, setConfiguration] = useState<ServiceConfiguration | null>(null);
+  const [configuration, setConfiguration] =
+    useState<ServiceConfiguration | null>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [compatibilityStatus, setCompatibilityStatus] = useState<CompatibilityStatus | null>(null);
+  const [compatibilityStatus, setCompatibilityStatus] =
+    useState<CompatibilityStatus | null>(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
-  const [selectedPreset, setSelectedPreset] = useState('exact_whisper_match');
+  const [selectedPreset, setSelectedPreset] = useState("exact_whisper_match");
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
 
   // Load unified configuration
   const loadConfiguration = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/settings/sync/unified');
+      const response = await fetch("/api/settings/sync/unified");
       if (response.ok) {
         const config = await response.json();
         setConfiguration(config);
-        
+
         // Check compatibility status
-        const compatResponse = await fetch('/api/settings/sync/compatibility');
+        const compatResponse = await fetch("/api/settings/sync/compatibility");
         if (compatResponse.ok) {
           const compatStatus = await compatResponse.json();
           setCompatibilityStatus(compatStatus);
         }
       } else {
-        onSave('Failed to load configuration', false);
+        onSave("Failed to load configuration", false);
       }
     } catch (error) {
-      console.error('Configuration load error:', error);
-      onSave('Failed to load configuration', false);
+      console.error("Configuration load error:", error);
+      onSave("Failed to load configuration", false);
     } finally {
       setLoading(false);
     }
@@ -127,27 +129,27 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
   const handleForceSync = async () => {
     setSyncing(true);
     try {
-      const response = await fetch('/api/settings/sync/force', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/sync/force", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         setLastSyncResult(result);
-        
+
         if (result.success) {
-          onSave('Configuration synchronization completed successfully');
+          onSave("Configuration synchronization completed successfully");
           await loadConfiguration(); // Reload to get updated config
         } else {
-          onSave(`Synchronization failed: ${result.errors.join(', ')}`, false);
+          onSave(`Synchronization failed: ${result.errors.join(", ")}`, false);
         }
       } else {
-        onSave('Failed to trigger synchronization', false);
+        onSave("Failed to trigger synchronization", false);
       }
     } catch (error) {
-      console.error('Sync error:', error);
-      onSave('Synchronization error occurred', false);
+      console.error("Sync error:", error);
+      onSave("Synchronization error occurred", false);
     } finally {
       setSyncing(false);
     }
@@ -156,34 +158,36 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
   // Apply configuration preset
   const handleApplyPreset = async () => {
     if (!selectedPreset) return;
-    
+
     setLoading(true);
     try {
-      const response = await fetch('/api/settings/sync/preset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/sync/preset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preset_name: selectedPreset }),
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
           onSave(`Applied preset: ${selectedPreset}`);
           await loadConfiguration();
         } else {
-          onSave(`Failed to apply preset: ${result.errors?.join(', ') || 'Unknown error'}`, false);
+          onSave(
+            `Failed to apply preset: ${result.errors?.join(", ") || "Unknown error"}`,
+            false,
+          );
         }
       } else {
-        onSave('Failed to apply preset', false);
+        onSave("Failed to apply preset", false);
       }
     } catch (error) {
-      console.error('Preset application error:', error);
-      onSave('Failed to apply preset', false);
+      console.error("Preset application error:", error);
+      onSave("Failed to apply preset", false);
     } finally {
       setLoading(false);
     }
   };
-
 
   useEffect(() => {
     loadConfiguration();
@@ -191,8 +195,11 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
 
   const getCompatibilityStatusIcon = () => {
     if (!compatibilityStatus) return <Info color="action" />;
-    
-    if (compatibilityStatus.compatible && (compatibilityStatus.issues?.length || 0) === 0) {
+
+    if (
+      compatibilityStatus.compatible &&
+      (compatibilityStatus.issues?.length || 0) === 0
+    ) {
       return <CheckCircle color="success" />;
     } else if ((compatibilityStatus.issues?.length || 0) > 0) {
       return <Error color="error" />;
@@ -203,8 +210,11 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
 
   const getCompatibilityStatusText = () => {
     if (!compatibilityStatus) return "Unknown";
-    
-    if (compatibilityStatus.compatible && (compatibilityStatus.issues?.length || 0) === 0) {
+
+    if (
+      compatibilityStatus.compatible &&
+      (compatibilityStatus.issues?.length || 0) === 0
+    ) {
       return "Fully Compatible";
     } else if ((compatibilityStatus.issues?.length || 0) > 0) {
       return "Compatibility Issues";
@@ -219,8 +229,9 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
         Configuration Synchronization
       </Typography>
       <Typography variant="body2" color="text.secondary" paragraph>
-        Manage configuration synchronization between whisper service, orchestration coordinator, and frontend settings.
-        Ensures all components stay in sync with consistent parameters.
+        Manage configuration synchronization between whisper service,
+        orchestration coordinator, and frontend settings. Ensures all components
+        stay in sync with consistent parameters.
       </Typography>
 
       {loading && <LinearProgress sx={{ mb: 2 }} />}
@@ -228,12 +239,17 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
       {/* Sync Status Overview */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
-          <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="space-between"
+            mb={2}
+          >
             <Typography variant="h6">Synchronization Status</Typography>
             <Box display="flex" gap={1}>
               <Tooltip title="Force sync all configurations">
-                <IconButton 
-                  onClick={handleForceSync} 
+                <IconButton
+                  onClick={handleForceSync}
                   disabled={syncing}
                   color="primary"
                 >
@@ -257,16 +273,16 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
                 </Typography>
               </Box>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Typography variant="body2" color="text.secondary">
-                Last Sync: {configuration?.sync_info?.last_sync 
+                Last Sync:{" "}
+                {configuration?.sync_info?.last_sync
                   ? new Date(configuration.sync_info.last_sync).toLocaleString()
-                  : 'Never'
-                }
+                  : "Never"}
               </Typography>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <FormControlLabel
                 control={
@@ -284,7 +300,9 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
             <Box mt={2}>
               {(compatibilityStatus?.issues?.length || 0) > 0 && (
                 <Alert severity="error" sx={{ mb: 1 }}>
-                  <Typography variant="subtitle2">Configuration Issues:</Typography>
+                  <Typography variant="subtitle2">
+                    Configuration Issues:
+                  </Typography>
                   <List dense>
                     {compatibilityStatus.issues.map((issue, index) => (
                       <ListItem key={index} disablePadding>
@@ -297,7 +315,9 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
 
               {(compatibilityStatus?.warnings?.length || 0) > 0 && (
                 <Alert severity="warning" sx={{ mb: 1 }}>
-                  <Typography variant="subtitle2">Configuration Warnings:</Typography>
+                  <Typography variant="subtitle2">
+                    Configuration Warnings:
+                  </Typography>
                   <List dense>
                     {compatibilityStatus.warnings.map((warning, index) => (
                       <ListItem key={index} disablePadding>
@@ -310,7 +330,8 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
 
               {compatibilityStatus.sync_required && (
                 <Alert severity="info">
-                  Configuration synchronization is recommended to resolve timing mismatches.
+                  Configuration synchronization is recommended to resolve timing
+                  mismatches.
                 </Alert>
               )}
             </Box>
@@ -337,15 +358,20 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
                   onChange={(e) => setSelectedPreset(e.target.value)}
                   label="Configuration Preset"
                 >
-                  {configuration?.presets && Object.entries(configuration.presets).map(([key, _preset]) => (
-                    <MenuItem key={key} value={key}>
-                      {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </MenuItem>
-                  ))}
+                  {configuration?.presets &&
+                    Object.entries(configuration.presets).map(
+                      ([key, _preset]) => (
+                        <MenuItem key={key} value={key}>
+                          {key
+                            .replace(/_/g, " ")
+                            .replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </MenuItem>
+                      ),
+                    )}
                 </Select>
               </FormControl>
             </Grid>
-            
+
             <Grid item xs={12} md={6}>
               <Button
                 variant="contained"
@@ -358,13 +384,15 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
             </Grid>
           </Grid>
 
-          {configuration?.presets && selectedPreset && configuration.presets[selectedPreset] && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              <Typography variant="subtitle2">
-                {configuration.presets[selectedPreset].description}
-              </Typography>
-            </Alert>
-          )}
+          {configuration?.presets &&
+            selectedPreset &&
+            configuration.presets[selectedPreset] && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="subtitle2">
+                  {configuration.presets[selectedPreset].description}
+                </Typography>
+              </Alert>
+            )}
         </CardContent>
       </Card>
 
@@ -384,48 +412,60 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
                       <Typography variant="subtitle1" fontWeight="bold">
                         Whisper Service
                       </Typography>
-                      <Chip 
-                        size="small" 
+                      <Chip
+                        size="small"
                         label={configuration.orchestration_service.service_mode}
-                        color={configuration.orchestration_service.service_mode === 'orchestration' ? 'success' : 'default'}
+                        color={
+                          configuration.orchestration_service.service_mode ===
+                          "orchestration"
+                            ? "success"
+                            : "default"
+                        }
                       />
                     </Box>
-                    
+
                     <List dense>
                       <ListItem>
-                        <ListItemText 
-                          primary="Sample Rate" 
-                          secondary={`${configuration.whisper_service.sample_rate} Hz`} 
+                        <ListItemText
+                          primary="Sample Rate"
+                          secondary={`${configuration.whisper_service.sample_rate} Hz`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Buffer Duration" 
-                          secondary={`${configuration.whisper_service.buffer_duration}s`} 
+                        <ListItemText
+                          primary="Buffer Duration"
+                          secondary={`${configuration.whisper_service.buffer_duration}s`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Inference Interval" 
-                          secondary={`${configuration.whisper_service.inference_interval}s`} 
+                        <ListItemText
+                          primary="Inference Interval"
+                          secondary={`${configuration.whisper_service.inference_interval}s`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Overlap Duration" 
-                          secondary={`${configuration.whisper_service.overlap_duration}s`} 
+                        <ListItemText
+                          primary="Overlap Duration"
+                          secondary={`${configuration.whisper_service.overlap_duration}s`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="VAD Enabled" 
-                          secondary={configuration.whisper_service.enable_vad ? 'Yes' : 'No'} 
+                        <ListItemText
+                          primary="VAD Enabled"
+                          secondary={
+                            configuration.whisper_service.enable_vad
+                              ? "Yes"
+                              : "No"
+                          }
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Max Concurrent Requests" 
-                          secondary={configuration.whisper_service.max_concurrent_requests} 
+                        <ListItemText
+                          primary="Max Concurrent Requests"
+                          secondary={
+                            configuration.whisper_service
+                              .max_concurrent_requests
+                          }
                         />
                       </ListItem>
                     </List>
@@ -437,45 +477,57 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
               <Grid item xs={12} md={6}>
                 <Card variant="outlined">
                   <CardContent>
-                    <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    <Typography
+                      variant="subtitle1"
+                      fontWeight="bold"
+                      gutterBottom
+                    >
                       Orchestration Service
                     </Typography>
-                    
+
                     <List dense>
                       <ListItem>
-                        <ListItemText 
-                          primary="Chunk Duration" 
-                          secondary={`${configuration.orchestration_service.chunking_config.chunk_duration}s`} 
+                        <ListItemText
+                          primary="Chunk Duration"
+                          secondary={`${configuration.orchestration_service.chunking_config.chunk_duration}s`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Overlap Duration" 
-                          secondary={`${configuration.orchestration_service.chunking_config.overlap_duration}s`} 
+                        <ListItemText
+                          primary="Overlap Duration"
+                          secondary={`${configuration.orchestration_service.chunking_config.overlap_duration}s`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Processing Interval" 
-                          secondary={`${configuration.orchestration_service.chunking_config.processing_interval}s`} 
+                        <ListItemText
+                          primary="Processing Interval"
+                          secondary={`${configuration.orchestration_service.chunking_config.processing_interval}s`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Buffer Duration" 
-                          secondary={`${configuration.orchestration_service.chunking_config.buffer_duration}s`} 
+                        <ListItemText
+                          primary="Buffer Duration"
+                          secondary={`${configuration.orchestration_service.chunking_config.buffer_duration}s`}
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Max Concurrent Chunks" 
-                          secondary={configuration.orchestration_service.chunking_config.max_concurrent_chunks} 
+                        <ListItemText
+                          primary="Max Concurrent Chunks"
+                          secondary={
+                            configuration.orchestration_service.chunking_config
+                              .max_concurrent_chunks
+                          }
                         />
                       </ListItem>
                       <ListItem>
-                        <ListItemText 
-                          primary="Speaker Correlation" 
-                          secondary={configuration.orchestration_service.chunking_config.speaker_correlation_enabled ? 'Enabled' : 'Disabled'} 
+                        <ListItemText
+                          primary="Speaker Correlation"
+                          secondary={
+                            configuration.orchestration_service.chunking_config
+                              .speaker_correlation_enabled
+                              ? "Enabled"
+                              : "Disabled"
+                          }
                         />
                       </ListItem>
                     </List>
@@ -494,7 +546,7 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
             <Typography variant="h6" gutterBottom>
               Last Sync Results
             </Typography>
-            
+
             <Box display="flex" alignItems="center" gap={1} mb={2}>
               {lastSyncResult.success ? (
                 <CheckCircle color="success" />
@@ -502,10 +554,12 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
                 <Error color="error" />
               )}
               <Typography variant="body1">
-                {lastSyncResult.success ? 'Synchronization Successful' : 'Synchronization Failed'}
+                {lastSyncResult.success
+                  ? "Synchronization Successful"
+                  : "Synchronization Failed"}
               </Typography>
-              <Chip 
-                size="small" 
+              <Chip
+                size="small"
                 label={new Date(lastSyncResult.sync_time).toLocaleString()}
               />
             </Box>
@@ -517,10 +571,10 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
                 </Typography>
                 <Box display="flex" gap={1} flexWrap="wrap">
                   {lastSyncResult.services_synced.map((service, index) => (
-                    <Chip 
-                      key={index} 
-                      size="small" 
-                      label={service.replace(/_/g, ' ')}
+                    <Chip
+                      key={index}
+                      size="small"
+                      label={service.replace(/_/g, " ")}
                       color="success"
                       variant="outlined"
                     />
@@ -553,9 +607,9 @@ const ConfigSyncSettings: React.FC<ConfigSyncSettingsProps> = ({ onSave }) => {
           disabled={syncing || loading}
           startIcon={syncing ? <CloudSync className="spinning" /> : <Sync />}
         >
-          {syncing ? 'Synchronizing...' : 'Force Sync All'}
+          {syncing ? "Synchronizing..." : "Force Sync All"}
         </Button>
-        
+
         <Button
           variant="outlined"
           onClick={loadConfiguration}

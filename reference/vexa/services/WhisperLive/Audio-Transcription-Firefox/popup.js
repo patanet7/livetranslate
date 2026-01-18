@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", function() {
   let selectedLanguage = null;
   let selectedTask = taskDropdown.value;
   let selectedModelSize = modelSizeDropdown.value;
-  
+
 
   browser.storage.local.get("capturingState")
     .then(function(result) {
@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", function() {
       // Enable the startButton
       startButton.disabled = false;
     });
-  
+
   browser.storage.local.get("useServerState", ({ useServerState }) => {
     if (useServerState !== undefined) {
       useServerCheckbox.checked = useServerState;
@@ -75,9 +75,9 @@ document.addEventListener("DOMContentLoaded", function() {
     browser.tabs.query({ active: true, currentWindow: true })
       .then(function(tabs) {
         browser.tabs.sendMessage(
-          tabs[0].id, 
-          { 
-            action: "startCapture", 
+          tabs[0].id,
+          {
+            action: "startCapture",
             data: {
               host: host,
               port: port,
@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", function() {
               task: selectedTask,
               modelSize: selectedModelSize,
               useVad: useVadCheckbox.checked,
-            } 
+            }
           });
         toggleCaptureButtons(true);
         browser.storage.local.set({ capturingState: { isCapturing: true } })
@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", function() {
     useVadCheckbox.disabled = isCapturing;
     modelSizeDropdown.disabled = isCapturing;
     languageDropdown.disabled = isCapturing;
-    taskDropdown.disabled = isCapturing; 
+    taskDropdown.disabled = isCapturing;
     startButton.classList.toggle("disabled", isCapturing);
     stopButton.classList.toggle("disabled", !isCapturing);
   }
@@ -164,7 +164,7 @@ document.addEventListener("DOMContentLoaded", function() {
   browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "updateSelectedLanguage") {
       const detectedLanguage = request.data;
-  
+
       if (detectedLanguage) {
         languageDropdown.value = detectedLanguage;
         selectedLanguage = detectedLanguage;

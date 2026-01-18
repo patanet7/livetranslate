@@ -10,9 +10,9 @@ https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any, Callable, Awaitable
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 try:
     import obsws_python as obsws
@@ -67,9 +67,9 @@ class OBSOutputConfig:
 
     host: str = "localhost"
     port: int = 4455
-    password: Optional[str] = None
+    password: str | None = None
     caption_source: str = "LiveTranslate Caption"
-    speaker_source: Optional[str] = None
+    speaker_source: str | None = None
     reconnect_interval: float = 5.0
     max_reconnect_attempts: int = 3
     connection_timeout: float = 10.0
@@ -84,7 +84,7 @@ class OBSOutputConfig:
 
 
 def format_caption_text(
-    caption: Optional[CaptionEntry],
+    caption: CaptionEntry | None,
     show_original: bool = False,
     include_speaker: bool = False,
 ) -> str:
@@ -119,7 +119,7 @@ def format_caption_text(
     return "\n".join(parts) if parts else ""
 
 
-def format_speaker_text(caption: Optional[CaptionEntry]) -> str:
+def format_speaker_text(caption: CaptionEntry | None) -> str:
     """
     Format speaker name for OBS display.
 
@@ -152,9 +152,9 @@ class OBSOutput:
         self,
         host: str = "localhost",
         port: int = 4455,
-        password: Optional[str] = None,
+        password: str | None = None,
         caption_source: str = "LiveTranslate Caption",
-        speaker_source: Optional[str] = None,
+        speaker_source: str | None = None,
         auto_reconnect: bool = False,
         create_sources: bool = False,
         show_original: bool = False,
@@ -190,9 +190,9 @@ class OBSOutput:
         self._reconnect_interval = reconnect_interval
         self._max_reconnect_attempts = max_reconnect_attempts
 
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
         self._connected = False
-        self._reconnect_task: Optional[asyncio.Task] = None
+        self._reconnect_task: asyncio.Task | None = None
 
         # Statistics
         self._stats = {
@@ -204,8 +204,7 @@ class OBSOutput:
         }
 
         logger.info(
-            f"OBSOutput initialized: host={host}, port={port}, "
-            f"caption_source={caption_source}"
+            f"OBSOutput initialized: host={host}, port={port}, " f"caption_source={caption_source}"
         )
 
     @property
@@ -232,17 +231,17 @@ class OBSOutput:
             )
             await self._client.connect()
             self._connected = True
-            self._stats["connected_at"] = datetime.now(timezone.utc)
+            self._stats["connected_at"] = datetime.now(UTC)
 
             logger.info(f"Connected to OBS at {self._host}:{self._port}")
 
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             self._connected = False
-            raise OBSConnectionError(f"Connection timeout: {e}")
+            raise OBSConnectionError(f"Connection timeout: {e}") from e
 
         except Exception as e:
             self._connected = False
-            raise OBSConnectionError(f"Failed to connect to OBS: {e}")
+            raise OBSConnectionError(f"Failed to connect to OBS: {e}") from e
 
     async def disconnect(self) -> None:
         """Disconnect from OBS WebSocket server."""
@@ -333,7 +332,7 @@ class OBSOutput:
                 )
 
             self._stats["updates_sent"] += 1
-            self._stats["last_update"] = datetime.now(timezone.utc)
+            self._stats["last_update"] = datetime.now(UTC)
 
             return True
 
@@ -447,7 +446,7 @@ class OBSOutput:
             logger.error(f"Failed to create sources: {e}")
             return False
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get output statistics.
 
@@ -456,7 +455,7 @@ class OBSOutput:
         """
         return self._stats.copy()
 
-    def get_connection_info(self) -> Dict[str, Any]:
+    def get_connection_info(self) -> dict[str, Any]:
         """
         Get connection information.
 
@@ -478,7 +477,7 @@ class OBSOutput:
 # =============================================================================
 
 
-def create_obs_output(config: Optional[OBSOutputConfig] = None) -> OBSOutput:
+def create_obs_output(config: OBSOutputConfig | None = None) -> OBSOutput:
     """
     Create OBS output instance from config.
 

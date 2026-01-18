@@ -24,10 +24,9 @@ Usage:
     )
 """
 
-import re
 import logging
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +34,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # Validation Result
 # =============================================================================
+
 
 @dataclass
 class ValidationResult:
@@ -49,9 +49,9 @@ class ValidationResult:
     """
 
     is_valid: bool
-    errors: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    sanitized_data: Optional[Dict[str, Any]] = None
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    sanitized_data: dict[str, Any] | None = None
 
     def add_error(self, error: str) -> None:
         """Add a validation error."""
@@ -69,9 +69,36 @@ class ValidationResult:
 
 # Valid language codes for transcripts/translations
 VALID_LANGUAGE_CODES = [
-    "en", "es", "fr", "de", "it", "pt", "ja", "zh", "ko", "ru",
-    "ar", "hi", "nl", "sv", "pl", "tr", "vi", "th", "id", "cs",
-    "el", "ro", "hu", "da", "fi", "no", "sk", "uk", "he", "bg",
+    "en",
+    "es",
+    "fr",
+    "de",
+    "it",
+    "pt",
+    "ja",
+    "zh",
+    "ko",
+    "ru",
+    "ar",
+    "hi",
+    "nl",
+    "sv",
+    "pl",
+    "tr",
+    "vi",
+    "th",
+    "id",
+    "cs",
+    "el",
+    "ro",
+    "hu",
+    "da",
+    "fi",
+    "no",
+    "sk",
+    "uk",
+    "he",
+    "bg",
     "auto",  # Special code for auto-detection
 ]
 
@@ -85,6 +112,7 @@ MAX_SEGMENT_DURATION = 300  # 5 minutes
 # =============================================================================
 # Transcript Validator
 # =============================================================================
+
 
 class TranscriptValidator:
     """
@@ -112,7 +140,7 @@ class TranscriptValidator:
         start_time: float,
         end_time: float,
         session_id: str,
-        speaker: Optional[str] = None,
+        speaker: str | None = None,
         sanitize: bool = True,
     ) -> ValidationResult:
         """
@@ -146,9 +174,7 @@ class TranscriptValidator:
 
         # Rule 2b: End time must be >= start time
         if end_time < start_time:
-            result.add_error(
-                f"Invalid timestamps: end ({end_time}) < start ({start_time})"
-            )
+            result.add_error(f"Invalid timestamps: end ({end_time}) < start ({start_time})")
         else:
             sanitized["end_time"] = end_time
 
@@ -160,9 +186,7 @@ class TranscriptValidator:
 
         # Rule 4: Text length limit
         if text and len(text) > self.max_text_length:
-            result.add_error(
-                f"Transcript too long (>{self.max_text_length} chars)"
-            )
+            result.add_error(f"Transcript too long (>{self.max_text_length} chars)")
 
         # Rule 5: Duration check (warning, not error)
         duration = end_time - start_time
@@ -194,10 +218,7 @@ class TranscriptValidator:
             return ""
 
         # Remove null bytes and non-printable control characters
-        cleaned = "".join(
-            c for c in text
-            if c.isprintable() or c in "\n\t"
-        )
+        cleaned = "".join(c for c in text if c.isprintable() or c in "\n\t")
 
         # Normalize whitespace (multiple spaces/tabs to single space)
         cleaned = " ".join(cleaned.split())
@@ -219,7 +240,7 @@ class TranslationValidator:
     def __init__(
         self,
         max_text_length: int = MAX_TEXT_LENGTH,
-        valid_languages: List[str] = None,
+        valid_languages: list[str] | None = None,
     ):
         self.max_text_length = max_text_length
         self.valid_languages = valid_languages or VALID_LANGUAGE_CODES
@@ -229,8 +250,8 @@ class TranslationValidator:
         translated_text: str,
         transcript_id: str,
         target_language: str,
-        source_language: Optional[str] = None,
-        confidence: Optional[float] = None,
+        source_language: str | None = None,
+        confidence: float | None = None,
         sanitize: bool = True,
     ) -> ValidationResult:
         """
@@ -260,9 +281,7 @@ class TranslationValidator:
 
         # Rule 2: Transcript ID is required
         if not transcript_id:
-            result.add_error(
-                "Missing transcript_id (translation must link to transcript)"
-            )
+            result.add_error("Missing transcript_id (translation must link to transcript)")
         else:
             sanitized["transcript_id"] = transcript_id
 
@@ -279,24 +298,18 @@ class TranslationValidator:
 
         # Rule 4: Text length limit
         if translated_text and len(translated_text) > self.max_text_length:
-            result.add_error(
-                f"Translation too long (>{self.max_text_length} chars)"
-            )
+            result.add_error(f"Translation too long (>{self.max_text_length} chars)")
 
         # Validate source language if provided
         if source_language:
             if source_language.lower() not in self.valid_languages:
-                result.add_warning(
-                    f"Unknown source_language: {source_language}"
-                )
+                result.add_warning(f"Unknown source_language: {source_language}")
             sanitized["source_language"] = source_language.lower()
 
         # Validate confidence if provided
         if confidence is not None:
             if not 0.0 <= confidence <= 1.0:
-                result.add_warning(
-                    f"Invalid confidence score: {confidence} (should be 0.0-1.0)"
-                )
+                result.add_warning(f"Invalid confidence score: {confidence} (should be 0.0-1.0)")
             sanitized["confidence"] = max(0.0, min(1.0, confidence))
 
         # Add sanitized data if validation passed
@@ -327,7 +340,7 @@ def validate_transcript(
     start_time: float,
     end_time: float,
     session_id: str,
-    speaker: Optional[str] = None,
+    speaker: str | None = None,
     sanitize: bool = True,
 ) -> ValidationResult:
     """
@@ -349,8 +362,8 @@ def validate_translation(
     translated_text: str,
     transcript_id: str,
     target_language: str,
-    source_language: Optional[str] = None,
-    confidence: Optional[float] = None,
+    source_language: str | None = None,
+    confidence: float | None = None,
     sanitize: bool = True,
 ) -> ValidationResult:
     """

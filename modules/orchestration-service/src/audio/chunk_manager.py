@@ -20,21 +20,23 @@ import hashlib
 import logging
 import time
 from collections import deque
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Optional, Any, Tuple, Callable
+from typing import Any
+
 import numpy as np
 import soundfile as sf
-from datetime import datetime, timezone
 
+from .database_adapter import AudioDatabaseAdapter
 from .models import (
-    AudioChunkMetadata,
     AudioChunkingConfig,
-    QualityMetrics,
+    AudioChunkMetadata,
     ProcessingStatus,
+    QualityMetrics,
     SourceType,
     create_audio_chunk_metadata,
 )
-from .database_adapter import AudioDatabaseAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +93,7 @@ class AudioBuffer:
         self.total_samples_added += len(audio_data)
         return len(audio_data)
 
-    def get_next_chunk(self) -> Optional[Tuple[np.ndarray, Dict[str, Any]]]:
+    def get_next_chunk(self) -> tuple[np.ndarray, dict[str, Any]] | None:
         """
         Extract the next audio chunk with overlap handling.
 
@@ -113,17 +115,13 @@ class AudioBuffer:
         overlap_metadata = {}
         if len(self.overlap_data) > 0 and self.overlap_samples > 0:
             # Apply overlap from previous chunk
-            overlap_len = min(
-                len(self.overlap_data), self.overlap_samples, len(chunk_data)
-            )
+            overlap_len = min(len(self.overlap_data), self.overlap_samples, len(chunk_data))
             if overlap_len > 0:
                 # Blend overlap region
                 blend_factor = np.linspace(1.0, 0.0, overlap_len)
                 chunk_data[:overlap_len] = chunk_data[
                     :overlap_len
-                ] * blend_factor + self.overlap_data[:overlap_len] * (
-                    1.0 - blend_factor
-                )
+                ] * blend_factor + self.overlap_data[:overlap_len] * (1.0 - blend_factor)
 
                 overlap_metadata = {
                     "overlap_applied": True,
@@ -159,7 +157,7 @@ class AudioBuffer:
 
         return chunk_data, chunk_metadata
 
-    def get_buffer_status(self) -> Dict[str, Any]:
+    def get_buffer_status(self) -> dict[str, Any]:
         """Get current buffer status and statistics."""
         return {
             "buffer_samples": len(self.buffer),
@@ -202,9 +200,7 @@ class AudioQualityAnalyzer:
         )  # Human voice fundamental frequency range
         self.formant_ranges = [(300, 3000), (900, 3000)]  # Formant frequency ranges
 
-    def analyze_chunk(
-        self, audio_data: np.ndarray, sample_rate: int = 16000
-    ) -> QualityMetrics:
+    def analyze_chunk(self, audio_data: np.ndarray, sample_rate: int = 16000) -> QualityMetrics:
         """
         Perform comprehensive quality analysis on audio chunk.
 
@@ -236,18 +232,12 @@ class AudioQualityAnalyzer:
             )
 
             # Voice activity detection
-            voice_activity = (
-                rms_level > self.silence_threshold and zcr > 0.01 and snr > -10
-            )
-            voice_confidence = min(
-                1.0, max(0.0, (rms_level - self.silence_threshold) / 0.05)
-            )
+            voice_activity = rms_level > self.silence_threshold and zcr > 0.01 and snr > -10
+            voice_confidence = min(1.0, max(0.0, (rms_level - self.silence_threshold) / 0.05))
 
             # Speaking time ratio (rough estimate)
             speaking_samples = np.sum(np.abs(audio_data) > self.silence_threshold)
-            speaking_ratio = (
-                speaking_samples / len(audio_data) if len(audio_data) > 0 else 0.0
-            )
+            speaking_ratio = speaking_samples / len(audio_data) if len(audio_data) > 0 else 0.0
 
             # Clipping detection
             clipping_threshold = 0.95
@@ -273,9 +263,7 @@ class AudioQualityAnalyzer:
 
                     # Spectral centroid
                     if np.sum(power_spectrum) > 0:
-                        spectral_centroid = np.sum(freqs * power_spectrum) / np.sum(
-                            power_spectrum
-                        )
+                        spectral_centroid = np.sum(freqs * power_spectrum) / np.sum(power_spectrum)
 
                         # Spectral bandwidth
                         spectral_bandwidth = np.sqrt(
@@ -294,12 +282,8 @@ class AudioQualityAnalyzer:
 
             # Overall quality score computation
             quality_factors = {
-                "level_factor": min(
-                    1.0, rms_level / 0.1
-                ),  # Normalize to reasonable speech level
-                "snr_factor": min(
-                    1.0, max(0.0, (snr + 10) / 30)
-                ),  # SNR from -10 to 20 dB
+                "level_factor": min(1.0, rms_level / 0.1),  # Normalize to reasonable speech level
+                "snr_factor": min(1.0, max(0.0, (snr + 10) / 30)),  # SNR from -10 to 20 dB
                 "voice_factor": voice_confidence,
                 "distortion_factor": 1.0 - distortion_level,
                 "noise_factor": 1.0 - noise_level,
@@ -335,7 +319,7 @@ class AudioQualityAnalyzer:
                 overall_quality_score=float(overall_quality),
                 quality_factors=quality_factors,
                 analysis_method="comprehensive",
-                analysis_timestamp=datetime.now(timezone.utc),
+                analysis_timestamp=datetime.now(UTC),
             )
 
         except Exception as e:
@@ -354,7 +338,7 @@ class AudioQualityAnalyzer:
                 overall_quality_score=0.0,
                 quality_factors={},
                 analysis_method="failed",
-                analysis_timestamp=datetime.now(timezone.utc),
+                analysis_timestamp=datetime.now(UTC),
             )
 
 
@@ -378,8 +362,8 @@ class ChunkFileManager:
         chunk_sequence: int,
         audio_data: np.ndarray,
         sample_rate: int = 16000,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[str, str, int]:
+        metadata: dict[str, Any] | None = None,
+    ) -> tuple[str, str, int]:
         """
         Store audio chunk to file.
 
@@ -496,9 +480,9 @@ class ChunkManager:
         self.average_quality_score = 0.0
 
         # Callbacks
-        self.on_chunk_ready: Optional[Callable] = None
-        self.on_quality_alert: Optional[Callable] = None
-        self.on_error: Optional[Callable] = None
+        self.on_chunk_ready: Callable | None = None
+        self.on_quality_alert: Callable | None = None
+        self.on_error: Callable | None = None
 
         # Performance tracking
         self.start_time = None
@@ -506,13 +490,11 @@ class ChunkManager:
 
         logger.info(f"ChunkManager initialized for session {session_id}")
 
-    def set_chunk_ready_callback(
-        self, callback: Callable[[AudioChunkMetadata, np.ndarray], None]
-    ):
+    def set_chunk_ready_callback(self, callback: Callable[[AudioChunkMetadata, np.ndarray], None]):
         """Set callback for when chunks are ready for processing."""
         self.on_chunk_ready = callback
 
-    def set_quality_alert_callback(self, callback: Callable[[Dict[str, Any]], None]):
+    def set_quality_alert_callback(self, callback: Callable[[dict[str, Any]], None]):
         """Set callback for quality alerts."""
         self.on_quality_alert = callback
 
@@ -531,7 +513,7 @@ class ChunkManager:
             logger.error(f"Failed to start ChunkManager: {e}")
             return False
 
-    async def stop(self) -> Dict[str, Any]:
+    async def stop(self) -> dict[str, Any]:
         """Stop the chunk manager and return final statistics."""
         self.is_active = False
 
@@ -604,9 +586,7 @@ class ChunkManager:
         logger.info("Processing remaining chunks...")
         await self._process_available_chunks()
 
-    async def _process_single_chunk(
-        self, audio_data: np.ndarray, chunk_metadata: Dict[str, Any]
-    ):
+    async def _process_single_chunk(self, audio_data: np.ndarray, chunk_metadata: dict[str, Any]):
         """Process a single audio chunk through the complete pipeline."""
         process_start_time = time.time()
 
@@ -615,10 +595,7 @@ class ChunkManager:
             quality_metrics = self.quality_analyzer.analyze_chunk(audio_data)
 
             # Quality-based filtering
-            if (
-                quality_metrics.overall_quality_score
-                < self.config.min_quality_threshold
-            ):
+            if quality_metrics.overall_quality_score < self.config.min_quality_threshold:
                 self.chunks_rejected += 1
 
                 if self.on_quality_alert:
@@ -676,9 +653,7 @@ class ChunkManager:
             )
 
             # Store in database
-            chunk_id = await self.database_adapter.store_audio_chunk(
-                audio_chunk_metadata
-            )
+            chunk_id = await self.database_adapter.store_audio_chunk(audio_chunk_metadata)
 
             if chunk_id:
                 # Update statistics
@@ -704,9 +679,7 @@ class ChunkManager:
 
                 # Notify callback
                 if self.on_chunk_ready:
-                    audio_chunk_metadata.chunk_id = (
-                        chunk_id  # Update with actual stored ID
-                    )
+                    audio_chunk_metadata.chunk_id = chunk_id  # Update with actual stored ID
                     self.on_chunk_ready(audio_chunk_metadata, audio_data)
 
                 logger.debug(
@@ -726,7 +699,7 @@ class ChunkManager:
             if self.on_error:
                 self.on_error(f"Chunk processing error: {e}")
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current chunk manager status and statistics."""
         return {
             "session_id": self.session_id,
@@ -762,6 +735,7 @@ def create_chunk_manager(
 async def main():
     """Example usage of the chunk manager."""
     import os
+
     from .database_adapter import create_audio_database_adapter
     from .models import get_default_chunking_config
 
@@ -788,9 +762,7 @@ async def main():
 
         # Set callbacks
         def on_chunk_ready(metadata, audio_data):
-            print(
-                f"Chunk ready: {metadata.chunk_id}, quality: {metadata.audio_quality_score:.3f}"
-            )
+            print(f"Chunk ready: {metadata.chunk_id}, quality: {metadata.audio_quality_score:.3f}")
 
         def on_quality_alert(alert):
             print(f"Quality alert: {alert}")
@@ -808,9 +780,7 @@ async def main():
         for i in range(100):  # 10 seconds of audio
             # Generate test audio (sine wave + noise)
             t = np.arange(chunk_size) / sample_rate + i * 0.1
-            audio = 0.1 * np.sin(2 * np.pi * 440 * t) + 0.01 * np.random.randn(
-                chunk_size
-            )
+            audio = 0.1 * np.sin(2 * np.pi * 440 * t) + 0.01 * np.random.randn(chunk_size)
 
             await chunk_manager.add_audio_data(audio.astype(np.float32))
             await asyncio.sleep(0.05)  # Simulate real-time

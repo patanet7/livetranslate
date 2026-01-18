@@ -25,4 +25,3 @@ export async function callLeaveCallback(botConfig: any, reason: string = "manual
   // This function is kept for backward compatibility but may not be used
   log(`Leave callback requested with reason: ${reason} - handled by exit callback`);
 }
-

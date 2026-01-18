@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -33,7 +33,7 @@ import {
   TableHead,
   TableRow,
   LinearProgress,
-} from '@mui/material';
+} from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
   Add as AddIcon,
@@ -45,9 +45,9 @@ import {
   ContentCopy as CopyIcon,
   PlayArrow as TestIcon,
   TrendingUp as TrendingUpIcon,
-} from '@mui/icons-material';
-import { useApiClient } from '@/hooks/useApiClient';
-import { TabPanel } from '@/components/ui';
+} from "@mui/icons-material";
+import { useApiClient } from "@/hooks/useApiClient";
+import { TabPanel } from "@/components/ui";
 
 interface PromptTemplate {
   id: string;
@@ -56,7 +56,14 @@ interface PromptTemplate {
   template: string;
   systemMessage?: string;
   languagePairs: string[];
-  category: 'general' | 'technical' | 'medical' | 'legal' | 'conversational' | 'creative' | 'formal';
+  category:
+    | "general"
+    | "technical"
+    | "medical"
+    | "legal"
+    | "conversational"
+    | "creative"
+    | "formal";
   version: string;
   isActive: boolean;
   isDefault: boolean;
@@ -84,75 +91,81 @@ interface PromptTemplate {
 interface PromptVariable {
   name: string;
   description: string;
-  type: 'text' | 'language' | 'number' | 'boolean';
+  type: "text" | "language" | "number" | "boolean";
   required: boolean;
   defaultValue?: string;
 }
 
-
 export const PromptManagementSettings: React.FC = () => {
   const { apiRequest } = useApiClient();
-  
+
   const [tabValue, setTabValue] = useState(0);
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
-  const [selectedPrompt, setSelectedPrompt] = useState<PromptTemplate | null>(null);
-  const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(null);
+  const [selectedPrompt, setSelectedPrompt] = useState<PromptTemplate | null>(
+    null,
+  );
+  const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(
+    null,
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [testInProgress, setTestInProgress] = useState(false);
-  
+
   // Dialog states
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [promptToDelete, setPromptToDelete] = useState<PromptTemplate | null>(null);
+  const [promptToDelete, setPromptToDelete] = useState<PromptTemplate | null>(
+    null,
+  );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
-  
+
   // Test configuration
-  const [testText, setTestText] = useState('Hello world! How are you today?');
-  const [testSourceLang, setTestSourceLang] = useState('en');
-  const [testTargetLang, setTestTargetLang] = useState('es');
+  const [testText, setTestText] = useState("Hello world! How are you today?");
+  const [testSourceLang, setTestSourceLang] = useState("en");
+  const [testTargetLang, setTestTargetLang] = useState("es");
   const [testResults, setTestResults] = useState<any>(null);
 
   const supportedLanguages = [
-    { code: 'en', name: 'English', flag: '🇺🇸' },
-    { code: 'es', name: 'Spanish', flag: '🇪🇸' },
-    { code: 'fr', name: 'French', flag: '🇫🇷' },
-    { code: 'de', name: 'German', flag: '🇩🇪' },
-    { code: 'it', name: 'Italian', flag: '🇮🇹' },
-    { code: 'pt', name: 'Portuguese', flag: '🇵🇹' },
-    { code: 'ja', name: 'Japanese', flag: '🇯🇵' },
-    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-    { code: 'zh', name: 'Chinese', flag: '🇨🇳' },
-    { code: 'ru', name: 'Russian', flag: '🇷🇺' },
-    { code: 'ar', name: 'Arabic', flag: '🇸🇦' },
+    { code: "en", name: "English", flag: "🇺🇸" },
+    { code: "es", name: "Spanish", flag: "🇪🇸" },
+    { code: "fr", name: "French", flag: "🇫🇷" },
+    { code: "de", name: "German", flag: "🇩🇪" },
+    { code: "it", name: "Italian", flag: "🇮🇹" },
+    { code: "pt", name: "Portuguese", flag: "🇵🇹" },
+    { code: "ja", name: "Japanese", flag: "🇯🇵" },
+    { code: "ko", name: "Korean", flag: "🇰🇷" },
+    { code: "zh", name: "Chinese", flag: "🇨🇳" },
+    { code: "ru", name: "Russian", flag: "🇷🇺" },
+    { code: "ar", name: "Arabic", flag: "🇸🇦" },
   ];
 
   const promptCategories = [
-    { value: 'general', label: 'General Purpose', color: 'primary' },
-    { value: 'conversational', label: 'Conversational', color: 'success' },
-    { value: 'technical', label: 'Technical', color: 'info' },
-    { value: 'medical', label: 'Medical', color: 'warning' },
-    { value: 'legal', label: 'Legal', color: 'error' },
-    { value: 'creative', label: 'Creative', color: 'secondary' },
-    { value: 'formal', label: 'Formal', color: 'default' },
+    { value: "general", label: "General Purpose", color: "primary" },
+    { value: "conversational", label: "Conversational", color: "success" },
+    { value: "technical", label: "Technical", color: "info" },
+    { value: "medical", label: "Medical", color: "warning" },
+    { value: "legal", label: "Legal", color: "error" },
+    { value: "creative", label: "Creative", color: "secondary" },
+    { value: "formal", label: "Formal", color: "default" },
   ];
 
   const defaultPrompts: PromptTemplate[] = [
     {
-      id: 'default',
-      name: 'Default Translation',
-      description: 'Standard translation prompt for general use',
-      template: 'Translate the following text from {source_language} to {target_language}. Provide only the translation without any explanation:\n\n{text}',
-      languagePairs: ['*'],
-      category: 'general',
-      version: '1.0',
+      id: "default",
+      name: "Default Translation",
+      description: "Standard translation prompt for general use",
+      template:
+        "Translate the following text from {source_language} to {target_language}. Provide only the translation without any explanation:\n\n{text}",
+      languagePairs: ["*"],
+      category: "general",
+      version: "1.0",
       isActive: true,
       isDefault: true,
       metadata: {
         createdAt: Date.now() - 86400000 * 30,
         updatedAt: Date.now() - 86400000 * 7,
-        createdBy: 'system',
-        tags: ['basic', 'general']
+        createdBy: "system",
+        tags: ["basic", "general"],
       },
       performanceMetrics: {
         avgQuality: 0.85,
@@ -160,25 +173,27 @@ export const PromptManagementSettings: React.FC = () => {
         avgConfidence: 0.82,
         usageCount: 156,
         successRate: 0.94,
-        lastUsed: Date.now() - 3600000
-      }
+        lastUsed: Date.now() - 3600000,
+      },
     },
     {
-      id: 'conversational',
-      name: 'Conversational Style',
-      description: 'Natural conversational translation with context awareness',
-      template: 'Translate this conversational text naturally, maintaining the tone and style from {source_language} to {target_language}:\n\n{text}\n\nKeep the natural flow and cultural context appropriate for casual conversation.',
-      systemMessage: 'You are a skilled translator specializing in natural, conversational language. Maintain cultural context and informal tone.',
-      languagePairs: ['en-es', 'en-fr', 'zh-en', 'ja-en'],
-      category: 'conversational',
-      version: '1.2',
+      id: "conversational",
+      name: "Conversational Style",
+      description: "Natural conversational translation with context awareness",
+      template:
+        "Translate this conversational text naturally, maintaining the tone and style from {source_language} to {target_language}:\n\n{text}\n\nKeep the natural flow and cultural context appropriate for casual conversation.",
+      systemMessage:
+        "You are a skilled translator specializing in natural, conversational language. Maintain cultural context and informal tone.",
+      languagePairs: ["en-es", "en-fr", "zh-en", "ja-en"],
+      category: "conversational",
+      version: "1.2",
       isActive: true,
       isDefault: false,
       metadata: {
         createdAt: Date.now() - 86400000 * 15,
         updatedAt: Date.now() - 86400000 * 2,
-        createdBy: 'admin',
-        tags: ['conversational', 'natural', 'context-aware']
+        createdBy: "admin",
+        tags: ["conversational", "natural", "context-aware"],
       },
       performanceMetrics: {
         avgQuality: 0.92,
@@ -186,25 +201,28 @@ export const PromptManagementSettings: React.FC = () => {
         avgConfidence: 0.89,
         usageCount: 89,
         successRate: 0.96,
-        lastUsed: Date.now() - 1800000
-      }
+        lastUsed: Date.now() - 1800000,
+      },
     },
     {
-      id: 'technical',
-      name: 'Technical Documentation',
-      description: 'Specialized translation for technical documentation and manuals',
-      template: 'Translate this technical documentation from {source_language} to {target_language}, maintaining technical accuracy and terminology:\n\n{text}\n\nPreserve technical terms, maintain precision, and ensure clarity for technical audience.',
-      systemMessage: 'You are a technical translator with expertise in software, engineering, and scientific documentation. Prioritize accuracy and consistency of technical terminology.',
-      languagePairs: ['en-de', 'en-ja', 'en-zh'],
-      category: 'technical',
-      version: '2.0',
+      id: "technical",
+      name: "Technical Documentation",
+      description:
+        "Specialized translation for technical documentation and manuals",
+      template:
+        "Translate this technical documentation from {source_language} to {target_language}, maintaining technical accuracy and terminology:\n\n{text}\n\nPreserve technical terms, maintain precision, and ensure clarity for technical audience.",
+      systemMessage:
+        "You are a technical translator with expertise in software, engineering, and scientific documentation. Prioritize accuracy and consistency of technical terminology.",
+      languagePairs: ["en-de", "en-ja", "en-zh"],
+      category: "technical",
+      version: "2.0",
       isActive: true,
       isDefault: false,
       metadata: {
         createdAt: Date.now() - 86400000 * 20,
         updatedAt: Date.now() - 86400000 * 1,
-        createdBy: 'tech_team',
-        tags: ['technical', 'documentation', 'precision']
+        createdBy: "tech_team",
+        tags: ["technical", "documentation", "precision"],
       },
       performanceMetrics: {
         avgQuality: 0.94,
@@ -212,20 +230,61 @@ export const PromptManagementSettings: React.FC = () => {
         avgConfidence: 0.91,
         usageCount: 67,
         successRate: 0.98,
-        lastUsed: Date.now() - 7200000
-      }
-    }
+        lastUsed: Date.now() - 7200000,
+      },
+    },
   ];
 
   const availableVariables: PromptVariable[] = [
-    { name: 'text', description: 'The text to be translated', type: 'text', required: true },
-    { name: 'source_language', description: 'Source language code or name', type: 'language', required: true },
-    { name: 'target_language', description: 'Target language code or name', type: 'language', required: true },
-    { name: 'context', description: 'Additional context for translation', type: 'text', required: false },
-    { name: 'style', description: 'Translation style (formal, casual, etc.)', type: 'text', required: false },
-    { name: 'domain', description: 'Domain/field (medical, legal, technical)', type: 'text', required: false },
-    { name: 'max_length', description: 'Maximum length of translation', type: 'number', required: false },
-    { name: 'preserve_formatting', description: 'Whether to preserve text formatting', type: 'boolean', required: false, defaultValue: 'true' },
+    {
+      name: "text",
+      description: "The text to be translated",
+      type: "text",
+      required: true,
+    },
+    {
+      name: "source_language",
+      description: "Source language code or name",
+      type: "language",
+      required: true,
+    },
+    {
+      name: "target_language",
+      description: "Target language code or name",
+      type: "language",
+      required: true,
+    },
+    {
+      name: "context",
+      description: "Additional context for translation",
+      type: "text",
+      required: false,
+    },
+    {
+      name: "style",
+      description: "Translation style (formal, casual, etc.)",
+      type: "text",
+      required: false,
+    },
+    {
+      name: "domain",
+      description: "Domain/field (medical, legal, technical)",
+      type: "text",
+      required: false,
+    },
+    {
+      name: "max_length",
+      description: "Maximum length of translation",
+      type: "number",
+      required: false,
+    },
+    {
+      name: "preserve_formatting",
+      description: "Whether to preserve text formatting",
+      type: "boolean",
+      required: false,
+      defaultValue: "true",
+    },
   ];
 
   // Initialize with default prompts
@@ -236,7 +295,7 @@ export const PromptManagementSettings: React.FC = () => {
   const loadPrompts = useCallback(async () => {
     try {
       // Try to load from API first
-      const response = await apiRequest('/api/settings/prompts') as any;
+      const response = (await apiRequest("/api/settings/prompts")) as any;
       if (response && response.data?.prompts) {
         setPrompts(response.data.prompts);
       } else {
@@ -244,49 +303,56 @@ export const PromptManagementSettings: React.FC = () => {
         setPrompts(defaultPrompts);
       }
     } catch (error) {
-      console.error('Failed to load prompts, using defaults:', error);
+      console.error("Failed to load prompts, using defaults:", error);
       setPrompts(defaultPrompts);
     }
   }, [apiRequest, defaultPrompts]);
 
-  const savePrompts = useCallback(async (updatedPrompts: PromptTemplate[]) => {
-    setSaveInProgress(true);
-    try {
-      await apiRequest('/api/settings/prompts', {
-        method: 'POST',
-        body: JSON.stringify({ prompts: updatedPrompts })
-      });
-      setPrompts(updatedPrompts);
-    } catch (error) {
-      console.error('Failed to save prompts:', error);
-    } finally {
-      setSaveInProgress(false);
-    }
-  }, [apiRequest]);
+  const savePrompts = useCallback(
+    async (updatedPrompts: PromptTemplate[]) => {
+      setSaveInProgress(true);
+      try {
+        await apiRequest("/api/settings/prompts", {
+          method: "POST",
+          body: JSON.stringify({ prompts: updatedPrompts }),
+        });
+        setPrompts(updatedPrompts);
+      } catch (error) {
+        console.error("Failed to save prompts:", error);
+      } finally {
+        setSaveInProgress(false);
+      }
+    },
+    [apiRequest],
+  );
 
-  const handleTabChange = useCallback((_event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  }, []);
+  const handleTabChange = useCallback(
+    (_event: React.SyntheticEvent, newValue: number) => {
+      setTabValue(newValue);
+    },
+    [],
+  );
 
   const handleCreatePrompt = useCallback(() => {
     const newPrompt: PromptTemplate = {
       id: `custom-${Date.now()}`,
-      name: 'New Prompt Template',
-      description: 'Custom translation prompt',
-      template: 'Translate the following text from {source_language} to {target_language}:\n\n{text}',
-      languagePairs: ['*'],
-      category: 'general',
-      version: '1.0',
+      name: "New Prompt Template",
+      description: "Custom translation prompt",
+      template:
+        "Translate the following text from {source_language} to {target_language}:\n\n{text}",
+      languagePairs: ["*"],
+      category: "general",
+      version: "1.0",
       isActive: true,
       isDefault: false,
       metadata: {
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        createdBy: 'user',
-        tags: ['custom']
-      }
+        createdBy: "user",
+        tags: ["custom"],
+      },
     };
-    
+
     setEditingPrompt(newPrompt);
     setIsCreating(true);
     setCreateDialogOpen(true);
@@ -294,14 +360,24 @@ export const PromptManagementSettings: React.FC = () => {
 
   const handleSavePrompt = useCallback(async () => {
     if (!editingPrompt) return;
-    
-    const updatedPrompts = isCreating 
-      ? [...prompts, { ...editingPrompt, metadata: { ...editingPrompt.metadata, updatedAt: Date.now() } }]
-      : prompts.map(p => p.id === editingPrompt.id 
-          ? { ...editingPrompt, metadata: { ...editingPrompt.metadata, updatedAt: Date.now() } }
-          : p
+
+    const updatedPrompts = isCreating
+      ? [
+          ...prompts,
+          {
+            ...editingPrompt,
+            metadata: { ...editingPrompt.metadata, updatedAt: Date.now() },
+          },
+        ]
+      : prompts.map((p) =>
+          p.id === editingPrompt.id
+            ? {
+                ...editingPrompt,
+                metadata: { ...editingPrompt.metadata, updatedAt: Date.now() },
+              }
+            : p,
         );
-    
+
     await savePrompts(updatedPrompts);
     setEditingPrompt(null);
     setIsCreating(false);
@@ -310,8 +386,8 @@ export const PromptManagementSettings: React.FC = () => {
 
   const handleDeletePrompt = useCallback(async () => {
     if (!promptToDelete) return;
-    
-    const updatedPrompts = prompts.filter(p => p.id !== promptToDelete.id);
+
+    const updatedPrompts = prompts.filter((p) => p.id !== promptToDelete.id);
     await savePrompts(updatedPrompts);
     setPromptToDelete(null);
     setDeleteDialogOpen(false);
@@ -322,33 +398,38 @@ export const PromptManagementSettings: React.FC = () => {
 
     setTestInProgress(true);
     try {
-      const response = await apiRequest('/api/translation/test', {
-        method: 'POST',
+      const response = (await apiRequest("/api/translation/test", {
+        method: "POST",
         body: JSON.stringify({
           text: testText,
           source_language: testSourceLang,
           target_language: testTargetLang,
           prompt_id: selectedPrompt.id,
           prompt_template: selectedPrompt.template,
-          system_message: selectedPrompt.systemMessage
-        })
-      }) as any;
+          system_message: selectedPrompt.systemMessage,
+        }),
+      })) as any;
 
       setTestResults(response.data || response);
     } catch (error) {
-      console.error('Prompt test failed:', error);
-      setTestResults({ error: 'Test failed. Please check your configuration.' });
+      console.error("Prompt test failed:", error);
+      setTestResults({
+        error: "Test failed. Please check your configuration.",
+      });
     } finally {
       setTestInProgress(false);
     }
   }, [selectedPrompt, testText, testSourceLang, testTargetLang, apiRequest]);
 
-  const handleTogglePrompt = useCallback(async (promptId: string, isActive: boolean) => {
-    const updatedPrompts = prompts.map(p => 
-      p.id === promptId ? { ...p, isActive } : p
-    );
-    await savePrompts(updatedPrompts);
-  }, [prompts, savePrompts]);
+  const handleTogglePrompt = useCallback(
+    async (promptId: string, isActive: boolean) => {
+      const updatedPrompts = prompts.map((p) =>
+        p.id === promptId ? { ...p, isActive } : p,
+      );
+      await savePrompts(updatedPrompts);
+    },
+    [prompts, savePrompts],
+  );
 
   const handleCopyPrompt = useCallback((prompt: PromptTemplate) => {
     navigator.clipboard.writeText(prompt.template);
@@ -356,35 +437,41 @@ export const PromptManagementSettings: React.FC = () => {
 
   const exportPrompts = useCallback(() => {
     const dataStr = JSON.stringify(prompts, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = `translation-prompts-${new Date().toISOString().split('T')[0]}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
+    const dataUri =
+      "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+    const exportFileDefaultName = `translation-prompts-${new Date().toISOString().split("T")[0]}.json`;
+
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", dataUri);
+    linkElement.setAttribute("download", exportFileDefaultName);
     linkElement.click();
   }, [prompts]);
 
-  const importPrompts = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const importedPrompts = JSON.parse(e.target?.result as string);
-        if (Array.isArray(importedPrompts)) {
-          setPrompts(prev => [...prev, ...importedPrompts]);
+  const importPrompts = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedPrompts = JSON.parse(e.target?.result as string);
+          if (Array.isArray(importedPrompts)) {
+            setPrompts((prev) => [...prev, ...importedPrompts]);
+          }
+        } catch (error) {
+          console.error("Failed to import prompts:", error);
         }
-      } catch (error) {
-        console.error('Failed to import prompts:', error);
-      }
-    };
-    reader.readAsText(file);
-  }, []);
+      };
+      reader.readAsText(file);
+    },
+    [],
+  );
 
   const getCategoryConfig = useCallback((category: string) => {
-    return promptCategories.find(c => c.value === category) || promptCategories[0];
+    return (
+      promptCategories.find((c) => c.value === category) || promptCategories[0]
+    );
   }, []);
 
   return (
@@ -393,38 +480,39 @@ export const PromptManagementSettings: React.FC = () => {
         🛠️ Prompt Management Settings
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Create, edit, and manage translation prompt templates with advanced testing and performance analytics
+        Create, edit, and manage translation prompt templates with advanced
+        testing and performance analytics
       </Typography>
 
-      <Paper sx={{ width: '100%', mb: 3 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={handleTabChange} 
+      <Paper sx={{ width: "100%", mb: 3 }}>
+        <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
             aria-label="prompt management tabs"
             variant="scrollable"
             scrollButtons="auto"
           >
-            <Tab 
-              label="Prompt Library" 
+            <Tab
+              label="Prompt Library"
               id="prompt-management-tab-0"
               icon={<CodeIcon />}
               iconPosition="start"
             />
-            <Tab 
-              label="Create/Edit" 
+            <Tab
+              label="Create/Edit"
               id="prompt-management-tab-1"
               icon={<EditIcon />}
               iconPosition="start"
             />
-            <Tab 
-              label="Testing" 
+            <Tab
+              label="Testing"
               id="prompt-management-tab-2"
               icon={<TestIcon />}
               iconPosition="start"
             />
-            <Tab 
-              label="Analytics" 
+            <Tab
+              label="Analytics"
               id="prompt-management-tab-3"
               icon={<TrendingUpIcon />}
               iconPosition="start"
@@ -433,7 +521,7 @@ export const PromptManagementSettings: React.FC = () => {
         </Box>
 
         <TabPanel value={tabValue} index={0} idPrefix="prompt-management">
-          <Box sx={{ mb: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Box sx={{ mb: 3, display: "flex", gap: 2, alignItems: "center" }}>
             <Button
               variant="contained"
               onClick={handleCreatePrompt}
@@ -471,40 +559,50 @@ export const PromptManagementSettings: React.FC = () => {
                 <Grid item xs={12} key={prompt.id}>
                   <Accordion>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, width: '100%' }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          width: "100%",
+                        }}
+                      >
                         <Typography variant="h6" fontWeight="bold">
                           {prompt.name}
                         </Typography>
                         {prompt.isDefault && (
                           <Chip label="Default" size="small" color="primary" />
                         )}
-                        <Chip 
-                          label={categoryConfig.label} 
-                          size="small" 
+                        <Chip
+                          label={categoryConfig.label}
+                          size="small"
                           color={categoryConfig.color as any}
                         />
-                        <Chip 
-                          label={`v${prompt.version}`} 
-                          size="small"
-                        />
+                        <Chip label={`v${prompt.version}`} size="small" />
                         <Switch
                           checked={prompt.isActive}
-                          onChange={(e) => handleTogglePrompt(prompt.id, e.target.checked)}
+                          onChange={(e) =>
+                            handleTogglePrompt(prompt.id, e.target.checked)
+                          }
                           size="small"
                           onClick={(e) => e.stopPropagation()}
                         />
                         {prompt.performanceMetrics && (
-                          <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-                            <Chip 
+                          <Box sx={{ display: "flex", gap: 1, ml: "auto" }}>
+                            <Chip
                               label={`Quality: ${(prompt.performanceMetrics.avgQuality * 100).toFixed(0)}%`}
                               size="small"
-                              color={prompt.performanceMetrics.avgQuality > 0.8 ? "success" : "warning"}
+                              color={
+                                prompt.performanceMetrics.avgQuality > 0.8
+                                  ? "success"
+                                  : "warning"
+                              }
                             />
-                            <Chip 
+                            <Chip
                               label={`${prompt.performanceMetrics.avgSpeed}ms`}
                               size="small"
                             />
-                            <Chip 
+                            <Chip
                               label={`${prompt.performanceMetrics.usageCount} uses`}
                               size="small"
                             />
@@ -515,10 +613,14 @@ export const PromptManagementSettings: React.FC = () => {
                     <AccordionDetails>
                       <Grid container spacing={2}>
                         <Grid item xs={12} md={8}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{ mb: 2 }}
+                          >
                             {prompt.description}
                           </Typography>
-                          
+
                           <TextField
                             fullWidth
                             multiline
@@ -529,7 +631,7 @@ export const PromptManagementSettings: React.FC = () => {
                             sx={{ mb: 2 }}
                             variant="outlined"
                           />
-                          
+
                           {prompt.systemMessage && (
                             <TextField
                               fullWidth
@@ -542,22 +644,45 @@ export const PromptManagementSettings: React.FC = () => {
                               variant="outlined"
                             />
                           )}
-                          
-                          <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                            <Typography variant="caption" sx={{ mr: 1 }}>Languages:</Typography>
+
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 1,
+                              mb: 2,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ mr: 1 }}>
+                              Languages:
+                            </Typography>
                             {prompt.languagePairs.map((pair, index) => (
                               <Chip key={index} label={pair} size="small" />
                             ))}
                           </Box>
-                          
-                          <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                            <Typography variant="caption" sx={{ mr: 1 }}>Tags:</Typography>
+
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 1,
+                              mb: 2,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <Typography variant="caption" sx={{ mr: 1 }}>
+                              Tags:
+                            </Typography>
                             {prompt.metadata.tags.map((tag, index) => (
-                              <Chip key={index} label={tag} size="small" variant="outlined" />
+                              <Chip
+                                key={index}
+                                label={tag}
+                                size="small"
+                                variant="outlined"
+                              />
                             ))}
                           </Box>
                         </Grid>
-                        
+
                         <Grid item xs={12} md={4}>
                           {prompt.performanceMetrics && (
                             <Card variant="outlined" sx={{ mb: 2 }}>
@@ -565,34 +690,102 @@ export const PromptManagementSettings: React.FC = () => {
                                 <Typography variant="subtitle2" gutterBottom>
                                   Performance Metrics
                                 </Typography>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <Typography variant="caption">Quality:</Typography>
-                                    <Typography variant="caption" fontWeight="bold">
-                                      {(prompt.performanceMetrics.avgQuality * 100).toFixed(1)}%
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 1,
+                                  }}
+                                >
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <Typography variant="caption">
+                                      Quality:
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight="bold"
+                                    >
+                                      {(
+                                        prompt.performanceMetrics.avgQuality *
+                                        100
+                                      ).toFixed(1)}
+                                      %
                                     </Typography>
                                   </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <Typography variant="caption">Speed:</Typography>
-                                    <Typography variant="caption" fontWeight="bold">
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <Typography variant="caption">
+                                      Speed:
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight="bold"
+                                    >
                                       {prompt.performanceMetrics.avgSpeed}ms
                                     </Typography>
                                   </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <Typography variant="caption">Confidence:</Typography>
-                                    <Typography variant="caption" fontWeight="bold">
-                                      {(prompt.performanceMetrics.avgConfidence * 100).toFixed(1)}%
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <Typography variant="caption">
+                                      Confidence:
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight="bold"
+                                    >
+                                      {(
+                                        prompt.performanceMetrics
+                                          .avgConfidence * 100
+                                      ).toFixed(1)}
+                                      %
                                     </Typography>
                                   </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <Typography variant="caption">Success Rate:</Typography>
-                                    <Typography variant="caption" fontWeight="bold">
-                                      {(prompt.performanceMetrics.successRate * 100).toFixed(1)}%
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <Typography variant="caption">
+                                      Success Rate:
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight="bold"
+                                    >
+                                      {(
+                                        prompt.performanceMetrics.successRate *
+                                        100
+                                      ).toFixed(1)}
+                                      %
                                     </Typography>
                                   </Box>
-                                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                                    <Typography variant="caption">Usage:</Typography>
-                                    <Typography variant="caption" fontWeight="bold">
+                                  <Box
+                                    sx={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                    }}
+                                  >
+                                    <Typography variant="caption">
+                                      Usage:
+                                    </Typography>
+                                    <Typography
+                                      variant="caption"
+                                      fontWeight="bold"
+                                    >
                                       {prompt.performanceMetrics.usageCount}
                                     </Typography>
                                   </Box>
@@ -600,27 +793,52 @@ export const PromptManagementSettings: React.FC = () => {
                               </CardContent>
                             </Card>
                           )}
-                          
+
                           <Card variant="outlined">
                             <CardContent>
                               <Typography variant="subtitle2" gutterBottom>
                                 Metadata
                               </Typography>
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 1,
+                                }}
+                              >
                                 <Box>
-                                  <Typography variant="caption" color="text.secondary">Created:</Typography>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    Created:
+                                  </Typography>
                                   <Typography variant="caption" display="block">
-                                    {new Date(prompt.metadata.createdAt).toLocaleDateString()}
+                                    {new Date(
+                                      prompt.metadata.createdAt,
+                                    ).toLocaleDateString()}
                                   </Typography>
                                 </Box>
                                 <Box>
-                                  <Typography variant="caption" color="text.secondary">Updated:</Typography>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    Updated:
+                                  </Typography>
                                   <Typography variant="caption" display="block">
-                                    {new Date(prompt.metadata.updatedAt).toLocaleDateString()}
+                                    {new Date(
+                                      prompt.metadata.updatedAt,
+                                    ).toLocaleDateString()}
                                   </Typography>
                                 </Box>
                                 <Box>
-                                  <Typography variant="caption" color="text.secondary">Author:</Typography>
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                  >
+                                    Author:
+                                  </Typography>
                                   <Typography variant="caption" display="block">
                                     {prompt.metadata.createdBy}
                                   </Typography>
@@ -630,10 +848,10 @@ export const PromptManagementSettings: React.FC = () => {
                           </Card>
                         </Grid>
                       </Grid>
-                      
+
                       <Divider sx={{ my: 2 }} />
-                      
-                      <Box sx={{ display: 'flex', gap: 2 }}>
+
+                      <Box sx={{ display: "flex", gap: 2 }}>
                         <Button
                           variant="outlined"
                           onClick={() => {
@@ -692,10 +910,15 @@ export const PromptManagementSettings: React.FC = () => {
                 📝 Available Template Variables
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Use these variables in your prompt templates. Required variables must be included.
+                Use these variables in your prompt templates. Required variables
+                must be included.
               </Typography>
-              
-              <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+
+              <TableContainer
+                component={Paper}
+                variant="outlined"
+                sx={{ mb: 3 }}
+              >
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -718,8 +941,8 @@ export const PromptManagementSettings: React.FC = () => {
                           <Chip label={variable.type} size="small" />
                         </TableCell>
                         <TableCell>
-                          <Chip 
-                            label={variable.required ? "Required" : "Optional"} 
+                          <Chip
+                            label={variable.required ? "Required" : "Optional"}
                             size="small"
                             color={variable.required ? "error" : "default"}
                           />
@@ -731,7 +954,7 @@ export const PromptManagementSettings: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" fontFamily="monospace">
-                            {variable.defaultValue || '-'}
+                            {variable.defaultValue || "-"}
                           </Typography>
                         </TableCell>
                       </TableRow>
@@ -739,14 +962,17 @@ export const PromptManagementSettings: React.FC = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
-              
+
               <Alert severity="info">
                 <Typography variant="body2">
-                  <strong>Template Tips:</strong><br />
-                  • Use {`{text}`} for the source text to translate<br />
-                  • Use {`{source_language}`} and {`{target_language}`} for language context<br />
-                  • Add specific instructions for your use case<br />
-                  • Test your prompts thoroughly before using in production
+                  <strong>Template Tips:</strong>
+                  <br />• Use {`{text}`} for the source text to translate
+                  <br />• Use {`{source_language}`} and {`{target_language}`}{" "}
+                  for language context
+                  <br />
+                  • Add specific instructions for your use case
+                  <br />• Test your prompts thoroughly before using in
+                  production
                 </Typography>
               </Alert>
             </CardContent>
@@ -760,29 +986,34 @@ export const PromptManagementSettings: React.FC = () => {
                 🧪 Prompt Testing Interface
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Test your prompt templates with sample text to evaluate performance
+                Test your prompt templates with sample text to evaluate
+                performance
               </Typography>
-              
+
               <Grid container spacing={3}>
                 <Grid item xs={12} md={6}>
                   <FormControl fullWidth sx={{ mb: 2 }}>
                     <InputLabel>Select Prompt to Test</InputLabel>
                     <Select
-                      value={selectedPrompt?.id || ''}
+                      value={selectedPrompt?.id || ""}
                       label="Select Prompt to Test"
                       onChange={(e) => {
-                        const prompt = prompts.find(p => p.id === e.target.value);
+                        const prompt = prompts.find(
+                          (p) => p.id === e.target.value,
+                        );
                         setSelectedPrompt(prompt || null);
                       }}
                     >
-                      {prompts.filter(p => p.isActive).map((prompt) => (
-                        <MenuItem key={prompt.id} value={prompt.id}>
-                          {prompt.name} (v{prompt.version})
-                        </MenuItem>
-                      ))}
+                      {prompts
+                        .filter((p) => p.isActive)
+                        .map((prompt) => (
+                          <MenuItem key={prompt.id} value={prompt.id}>
+                            {prompt.name} (v{prompt.version})
+                          </MenuItem>
+                        ))}
                     </Select>
                   </FormControl>
-                  
+
                   <TextField
                     fullWidth
                     multiline
@@ -792,7 +1023,7 @@ export const PromptManagementSettings: React.FC = () => {
                     onChange={(e) => setTestText(e.target.value)}
                     sx={{ mb: 2 }}
                   />
-                  
+
                   <Grid container spacing={2} sx={{ mb: 2 }}>
                     <Grid item xs={6}>
                       <FormControl fullWidth>
@@ -827,57 +1058,71 @@ export const PromptManagementSettings: React.FC = () => {
                       </FormControl>
                     </Grid>
                   </Grid>
-                  
+
                   <Button
                     variant="contained"
                     onClick={handleTestPrompt}
-                    disabled={!selectedPrompt || !testText.trim() || testInProgress}
+                    disabled={
+                      !selectedPrompt || !testText.trim() || testInProgress
+                    }
                     fullWidth
-                    startIcon={testInProgress ? <LinearProgress /> : <TestIcon />}
+                    startIcon={
+                      testInProgress ? <LinearProgress /> : <TestIcon />
+                    }
                   >
-                    {testInProgress ? 'Testing...' : 'Test Prompt'}
+                    {testInProgress ? "Testing..." : "Test Prompt"}
                   </Button>
                 </Grid>
-                
+
                 <Grid item xs={12} md={6}>
                   <Typography variant="subtitle1" gutterBottom>
                     Test Results
                   </Typography>
-                  
+
                   {testResults ? (
                     testResults.error ? (
-                      <Alert severity="error">
-                        {testResults.error}
-                      </Alert>
+                      <Alert severity="error">{testResults.error}</Alert>
                     ) : (
                       <Box>
-                        <Paper sx={{ p: 2, mb: 2, backgroundColor: 'primary.50' }}>
+                        <Paper
+                          sx={{ p: 2, mb: 2, backgroundColor: "primary.50" }}
+                        >
                           <Typography variant="h6" gutterBottom>
                             Translation Result
                           </Typography>
                           <Typography variant="body1" sx={{ mb: 2 }}>
                             {testResults.translated_text}
                           </Typography>
-                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                            <Chip 
+                          <Box
+                            sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}
+                          >
+                            <Chip
                               label={`Confidence: ${(testResults.confidence * 100).toFixed(1)}%`}
-                              color={testResults.confidence > 0.8 ? "success" : "warning"}
+                              color={
+                                testResults.confidence > 0.8
+                                  ? "success"
+                                  : "warning"
+                              }
                               size="small"
                             />
-                            <Chip 
+                            <Chip
                               label={`Time: ${testResults.processing_time}ms`}
                               size="small"
                             />
                             {testResults.quality_score && (
-                              <Chip 
+                              <Chip
                                 label={`Quality: ${(testResults.quality_score * 100).toFixed(1)}%`}
-                                color={testResults.quality_score > 0.8 ? "success" : "warning"}
+                                color={
+                                  testResults.quality_score > 0.8
+                                    ? "success"
+                                    : "warning"
+                                }
                                 size="small"
                               />
                             )}
                           </Box>
                         </Paper>
-                        
+
                         {testResults.prompt_analysis && (
                           <Card variant="outlined">
                             <CardContent>
@@ -907,7 +1152,7 @@ export const PromptManagementSettings: React.FC = () => {
           <Grid container spacing={3}>
             <Grid item xs={12} md={4}>
               <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
+                <CardContent sx={{ textAlign: "center" }}>
                   <Typography variant="h4" color="primary">
                     {prompts.length}
                   </Typography>
@@ -917,12 +1162,12 @@ export const PromptManagementSettings: React.FC = () => {
                 </CardContent>
               </Card>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
+                <CardContent sx={{ textAlign: "center" }}>
                   <Typography variant="h4" color="success.main">
-                    {prompts.filter(p => p.isActive).length}
+                    {prompts.filter((p) => p.isActive).length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Active Prompts
@@ -930,12 +1175,15 @@ export const PromptManagementSettings: React.FC = () => {
                 </CardContent>
               </Card>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Card>
-                <CardContent sx={{ textAlign: 'center' }}>
+                <CardContent sx={{ textAlign: "center" }}>
                   <Typography variant="h4" color="info.main">
-                    {prompts.reduce((sum, p) => sum + (p.performanceMetrics?.usageCount || 0), 0)}
+                    {prompts.reduce(
+                      (sum, p) => sum + (p.performanceMetrics?.usageCount || 0),
+                      0,
+                    )}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Usage
@@ -943,14 +1191,14 @@ export const PromptManagementSettings: React.FC = () => {
                 </CardContent>
               </Card>
             </Grid>
-            
+
             <Grid item xs={12}>
               <Card>
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
                     📊 Prompt Performance Comparison
                   </Typography>
-                  
+
                   <TableContainer>
                     <Table>
                       <TableHead>
@@ -966,47 +1214,74 @@ export const PromptManagementSettings: React.FC = () => {
                       </TableHead>
                       <TableBody>
                         {prompts
-                          .filter(p => p.performanceMetrics)
-                          .sort((a, b) => (b.performanceMetrics?.usageCount || 0) - (a.performanceMetrics?.usageCount || 0))
+                          .filter((p) => p.performanceMetrics)
+                          .sort(
+                            (a, b) =>
+                              (b.performanceMetrics?.usageCount || 0) -
+                              (a.performanceMetrics?.usageCount || 0),
+                          )
                           .map((prompt) => (
                             <TableRow key={prompt.id}>
                               <TableCell>
                                 <Typography variant="body2" fontWeight="bold">
                                   {prompt.name}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                >
                                   v{prompt.version}
                                 </Typography>
                               </TableCell>
                               <TableCell>
-                                <Chip 
-                                  label={getCategoryConfig(prompt.category).label}
+                                <Chip
+                                  label={
+                                    getCategoryConfig(prompt.category).label
+                                  }
                                   size="small"
-                                  color={getCategoryConfig(prompt.category).color as any}
+                                  color={
+                                    getCategoryConfig(prompt.category)
+                                      .color as any
+                                  }
                                 />
                               </TableCell>
-                              <TableCell>{prompt.performanceMetrics?.usageCount || 0}</TableCell>
                               <TableCell>
-                                <Chip 
+                                {prompt.performanceMetrics?.usageCount || 0}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
                                   label={`${((prompt.performanceMetrics?.avgQuality || 0) * 100).toFixed(1)}%`}
                                   size="small"
-                                  color={(prompt.performanceMetrics?.avgQuality || 0) > 0.8 ? "success" : "warning"}
+                                  color={
+                                    (prompt.performanceMetrics?.avgQuality ||
+                                      0) > 0.8
+                                      ? "success"
+                                      : "warning"
+                                  }
                                 />
                               </TableCell>
-                              <TableCell>{prompt.performanceMetrics?.avgSpeed || 0}ms</TableCell>
                               <TableCell>
-                                <Chip 
+                                {prompt.performanceMetrics?.avgSpeed || 0}ms
+                              </TableCell>
+                              <TableCell>
+                                <Chip
                                   label={`${((prompt.performanceMetrics?.successRate || 0) * 100).toFixed(1)}%`}
                                   size="small"
-                                  color={(prompt.performanceMetrics?.successRate || 0) > 0.9 ? "success" : "warning"}
+                                  color={
+                                    (prompt.performanceMetrics?.successRate ||
+                                      0) > 0.9
+                                      ? "success"
+                                      : "warning"
+                                  }
                                 />
                               </TableCell>
                               <TableCell>
                                 <Typography variant="caption">
-                                  {prompt.performanceMetrics?.lastUsed 
-                                    ? new Date(prompt.performanceMetrics.lastUsed).toLocaleDateString()
-                                    : 'Never'
-                                  }
+                                  {prompt.performanceMetrics?.lastUsed
+                                    ? new Date(
+                                        prompt.performanceMetrics.lastUsed,
+                                      ).toLocaleDateString()
+                                    : "Never"}
                                 </Typography>
                               </TableCell>
                             </TableRow>
@@ -1022,14 +1297,14 @@ export const PromptManagementSettings: React.FC = () => {
       </Paper>
 
       {/* Create/Edit Dialog */}
-      <Dialog 
-        open={createDialogOpen} 
+      <Dialog
+        open={createDialogOpen}
         onClose={() => setCreateDialogOpen(false)}
         maxWidth="md"
         fullWidth
       >
         <DialogTitle>
-          {isCreating ? 'Create New Prompt Template' : 'Edit Prompt Template'}
+          {isCreating ? "Create New Prompt Template" : "Edit Prompt Template"}
         </DialogTitle>
         <DialogContent>
           {editingPrompt && (
@@ -1038,18 +1313,26 @@ export const PromptManagementSettings: React.FC = () => {
                 fullWidth
                 label="Prompt Name"
                 value={editingPrompt.name}
-                onChange={(e) => setEditingPrompt(prev => prev ? { ...prev, name: e.target.value } : null)}
+                onChange={(e) =>
+                  setEditingPrompt((prev) =>
+                    prev ? { ...prev, name: e.target.value } : null,
+                  )
+                }
                 sx={{ mb: 2 }}
               />
-              
+
               <TextField
                 fullWidth
                 label="Description"
                 value={editingPrompt.description}
-                onChange={(e) => setEditingPrompt(prev => prev ? { ...prev, description: e.target.value } : null)}
+                onChange={(e) =>
+                  setEditingPrompt((prev) =>
+                    prev ? { ...prev, description: e.target.value } : null,
+                  )
+                }
                 sx={{ mb: 2 }}
               />
-              
+
               <Grid container spacing={2} sx={{ mb: 2 }}>
                 <Grid item xs={6}>
                   <FormControl fullWidth>
@@ -1057,7 +1340,13 @@ export const PromptManagementSettings: React.FC = () => {
                     <Select
                       value={editingPrompt.category}
                       label="Category"
-                      onChange={(e) => setEditingPrompt(prev => prev ? { ...prev, category: e.target.value as any } : null)}
+                      onChange={(e) =>
+                        setEditingPrompt((prev) =>
+                          prev
+                            ? { ...prev, category: e.target.value as any }
+                            : null,
+                        )
+                      }
                     >
                       {promptCategories.map((category) => (
                         <MenuItem key={category.value} value={category.value}>
@@ -1072,38 +1361,54 @@ export const PromptManagementSettings: React.FC = () => {
                     fullWidth
                     label="Version"
                     value={editingPrompt.version}
-                    onChange={(e) => setEditingPrompt(prev => prev ? { ...prev, version: e.target.value } : null)}
+                    onChange={(e) =>
+                      setEditingPrompt((prev) =>
+                        prev ? { ...prev, version: e.target.value } : null,
+                      )
+                    }
                   />
                 </Grid>
               </Grid>
-              
+
               <TextField
                 fullWidth
                 multiline
                 rows={8}
                 label="Prompt Template"
                 value={editingPrompt.template}
-                onChange={(e) => setEditingPrompt(prev => prev ? { ...prev, template: e.target.value } : null)}
+                onChange={(e) =>
+                  setEditingPrompt((prev) =>
+                    prev ? { ...prev, template: e.target.value } : null,
+                  )
+                }
                 sx={{ mb: 2 }}
                 helperText="Use {text}, {source_language}, {target_language} as placeholders"
               />
-              
+
               <TextField
                 fullWidth
                 multiline
                 rows={3}
                 label="System Message (Optional)"
-                value={editingPrompt.systemMessage || ''}
-                onChange={(e) => setEditingPrompt(prev => prev ? { ...prev, systemMessage: e.target.value } : null)}
+                value={editingPrompt.systemMessage || ""}
+                onChange={(e) =>
+                  setEditingPrompt((prev) =>
+                    prev ? { ...prev, systemMessage: e.target.value } : null,
+                  )
+                }
                 sx={{ mb: 2 }}
                 helperText="Additional context or instructions for the AI model"
               />
-              
+
               <FormControlLabel
                 control={
                   <Switch
                     checked={editingPrompt.isActive}
-                    onChange={(e) => setEditingPrompt(prev => prev ? { ...prev, isActive: e.target.checked } : null)}
+                    onChange={(e) =>
+                      setEditingPrompt((prev) =>
+                        prev ? { ...prev, isActive: e.target.checked } : null,
+                      )
+                    }
                   />
                 }
                 label="Active"
@@ -1112,15 +1417,13 @@ export const PromptManagementSettings: React.FC = () => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button 
+          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+          <Button
             onClick={handleSavePrompt}
             variant="contained"
             disabled={saveInProgress}
           >
-            {saveInProgress ? 'Saving...' : 'Save'}
+            {saveInProgress ? "Saving..." : "Save"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1133,15 +1436,17 @@ export const PromptManagementSettings: React.FC = () => {
         <DialogTitle>Delete Prompt Template</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete the prompt template "{promptToDelete?.name}"? 
-            This action cannot be undone.
+            Are you sure you want to delete the prompt template "
+            {promptToDelete?.name}"? This action cannot be undone.
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleDeletePrompt} color="error" variant="contained">
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleDeletePrompt}
+            color="error"
+            variant="contained"
+          >
             Delete
           </Button>
         </DialogActions>
@@ -1166,7 +1471,7 @@ export const PromptManagementSettings: React.FC = () => {
               onChange={(e) => setTestText(e.target.value)}
               sx={{ mb: 2 }}
             />
-            
+
             <Grid container spacing={2} sx={{ mb: 2 }}>
               <Grid item xs={6}>
                 <FormControl fullWidth>
@@ -1201,19 +1506,19 @@ export const PromptManagementSettings: React.FC = () => {
                 </FormControl>
               </Grid>
             </Grid>
-            
+
             {testResults && !testResults.error && (
-              <Paper sx={{ p: 2, backgroundColor: 'primary.50' }}>
+              <Paper sx={{ p: 2, backgroundColor: "primary.50" }}>
                 <Typography variant="body1" sx={{ mb: 1 }}>
                   {testResults.translated_text}
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Chip 
+                <Box sx={{ display: "flex", gap: 1 }}>
+                  <Chip
                     label={`${(testResults.confidence * 100).toFixed(1)}% confidence`}
                     size="small"
                     color={testResults.confidence > 0.8 ? "success" : "warning"}
                   />
-                  <Chip 
+                  <Chip
                     label={`${testResults.processing_time}ms`}
                     size="small"
                   />
@@ -1223,15 +1528,13 @@ export const PromptManagementSettings: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTestDialogOpen(false)}>
-            Close
-          </Button>
-          <Button 
+          <Button onClick={() => setTestDialogOpen(false)}>Close</Button>
+          <Button
             onClick={handleTestPrompt}
             variant="contained"
             disabled={!testText.trim() || testInProgress}
           >
-            {testInProgress ? 'Testing...' : 'Run Test'}
+            {testInProgress ? "Testing..." : "Run Test"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -10,8 +10,8 @@ import asyncio
 import json
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Dict, Optional
 
 try:
     import redis.asyncio as redis
@@ -39,38 +39,32 @@ class RedisStreamConsumer:
     def __init__(
         self,
         config: ConsumerConfig,
-        handler: Callable[[Dict[str, str]], Awaitable[None]],
+        handler: Callable[[dict[str, str]], Awaitable[None]],
         *,
-        redis_url: Optional[str] = None,
+        redis_url: str | None = None,
     ) -> None:
         if redis is None:
             raise RuntimeError("redis-py not installed; cannot start consumer")
 
         self.config = config
         self.handler = handler
-        resolved_url = redis_url or os.getenv(
-            "EVENT_BUS_REDIS_URL", "redis://localhost:6379/0"
-        )
+        resolved_url = redis_url or os.getenv("EVENT_BUS_REDIS_URL", "redis://localhost:6379/0")
         if not resolved_url:
             resolved_url = "redis://localhost:6379/0"
         elif "://" not in resolved_url:
             resolved_url = f"redis://{resolved_url}"
 
         self.redis_url = resolved_url
-        self.client: Optional[redis.Redis] = None  # type: ignore
+        self.client: redis.Redis | None = None  # type: ignore
         self._shutdown = asyncio.Event()
 
     async def setup(self) -> None:
-        self.client = redis.from_url(
-            self.redis_url, encoding="utf-8", decode_responses=True
-        )
+        self.client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
         try:
             await self.client.xgroup_create(
                 self.config.stream, self.config.group, id="$", mkstream=True
             )
-            logger.info(
-                "Created consumer group %s on %s", self.config.group, self.config.stream
-            )
+            logger.info("Created consumer group %s on %s", self.config.group, self.config.stream)
         except redis.ResponseError as exc:  # type: ignore[attr-defined]
             if "BUSYGROUP" in str(exc):
                 logger.debug("Consumer group %s already exists", self.config.group)
@@ -103,9 +97,7 @@ class RedisStreamConsumer:
                     payload = self._decode_payload(data)
                     try:
                         await self.handler(payload)
-                        await self.client.xack(
-                            stream_name, self.config.group, message_id
-                        )
+                        await self.client.xack(stream_name, self.config.group, message_id)
                     except Exception as exc:  # pragma: no cover - handler failure
                         logger.exception("Handler failure for %s: %s", message_id, exc)
 
@@ -115,7 +107,7 @@ class RedisStreamConsumer:
             await self.client.close()
 
     @staticmethod
-    def _decode_payload(data: Dict[str, str]) -> Dict[str, str]:
+    def _decode_payload(data: dict[str, str]) -> dict[str, str]:
         if "data" in data:
             try:
                 return json.loads(data["data"])
@@ -124,7 +116,7 @@ class RedisStreamConsumer:
         return data
 
 
-async def example_handler(event: Dict[str, str]) -> None:
+async def example_handler(event: dict[str, str]) -> None:
     """Simple handler used for documentation/testing."""
     logger.info("Received event: %s", event)
 

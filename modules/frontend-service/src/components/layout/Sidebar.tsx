@@ -1,5 +1,5 @@
-import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Drawer,
   List,
@@ -14,7 +14,7 @@ import {
   IconButton,
   useTheme,
   alpha,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Dashboard,
   SmartToy,
@@ -26,13 +26,13 @@ import {
   Analytics,
   Hub,
   Monitor,
-} from '@mui/icons-material';
-import { useAppDispatch, useAppSelector } from '@/store';
-import { 
-  setSidebarOpen, 
+} from "@mui/icons-material";
+import { useAppDispatch, useAppSelector } from "@/store";
+import {
+  setSidebarOpen,
   toggleSidebarCollapsed,
-  setActiveTab 
-} from '@/store/slices/uiSlice';
+  setActiveTab,
+} from "@/store/slices/uiSlice";
 
 interface NavigationItem {
   id: string;
@@ -40,7 +40,7 @@ interface NavigationItem {
   path: string;
   icon: React.ReactNode;
   badge?: string | number;
-  badgeColor?: 'primary' | 'secondary' | 'success' | 'warning' | 'error';
+  badgeColor?: "primary" | "secondary" | "success" | "warning" | "error";
   children?: NavigationItem[];
 }
 
@@ -50,64 +50,58 @@ export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  const { 
-    sidebarOpen, 
-    sidebarCollapsed, 
-    isMobile 
-  } = useAppSelector(state => state.ui);
-  
-  const { 
-    activeBots 
-  } = useAppSelector(state => state.bot.systemStats);
-  
-  const { 
-    isConnected 
-  } = useAppSelector(state => state.websocket.connection);
+  const { sidebarOpen, sidebarCollapsed, isMobile } = useAppSelector(
+    (state) => state.ui,
+  );
+
+  const { activeBots } = useAppSelector((state) => state.bot.systemStats);
+
+  const { isConnected } = useAppSelector((state) => state.websocket.connection);
 
   const [expandedSections, setExpandedSections] = React.useState<string[]>([]);
 
   // Navigation structure - Consolidated from 13 pages to 6 main pages
   const navigationItems: NavigationItem[] = [
     {
-      id: 'dashboard',
-      label: 'Dashboard',
-      path: '/',
+      id: "dashboard",
+      label: "Dashboard",
+      path: "/",
       icon: <Dashboard />,
     },
     {
-      id: 'audio-hub',
-      label: 'Audio Processing Hub',
-      path: '/audio-hub',
+      id: "audio-hub",
+      label: "Audio Processing Hub",
+      path: "/audio-hub",
       icon: <Hub />,
-      badge: 'ALL-IN-ONE',
-      badgeColor: 'primary',
+      badge: "ALL-IN-ONE",
+      badgeColor: "primary",
     },
     {
-      id: 'bots',
-      label: 'Bot Management',
-      path: '/bot-management',
+      id: "bots",
+      label: "Bot Management",
+      path: "/bot-management",
       icon: <SmartToy />,
       badge: activeBots > 0 ? activeBots.toString() : undefined,
-      badgeColor: 'success',
+      badgeColor: "success",
     },
     {
-      id: 'analytics',
-      label: 'Analytics Dashboard',
-      path: '/analytics',
+      id: "analytics",
+      label: "Analytics Dashboard",
+      path: "/analytics",
       icon: <Analytics />,
     },
     {
-      id: 'system-analytics',
-      label: 'System Analytics',
-      path: '/system-analytics',
+      id: "system-analytics",
+      label: "System Analytics",
+      path: "/system-analytics",
       icon: <Monitor />,
-      badge: 'PRO',
-      badgeColor: 'secondary',
+      badge: "PRO",
+      badgeColor: "secondary",
     },
     {
-      id: 'settings',
-      label: 'Settings',
-      path: '/settings',
+      id: "settings",
+      label: "Settings",
+      path: "/settings",
       icon: <Settings />,
     },
   ];
@@ -121,7 +115,7 @@ export const Sidebar: React.FC = () => {
   const handleNavigate = (path: string, id: string) => {
     navigate(path);
     dispatch(setActiveTab(id));
-    
+
     // Close sidebar on mobile after navigation
     if (isMobile) {
       dispatch(setSidebarOpen(false));
@@ -129,18 +123,18 @@ export const Sidebar: React.FC = () => {
   };
 
   const handleToggleSection = (sectionId: string) => {
-    setExpandedSections(prev => 
-      prev.includes(sectionId) 
-        ? prev.filter(id => id !== sectionId)
-        : [...prev, sectionId]
+    setExpandedSections((prev) =>
+      prev.includes(sectionId)
+        ? prev.filter((id) => id !== sectionId)
+        : [...prev, sectionId],
     );
   };
 
   const isActiveRoute = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/';
+    if (path === "/") {
+      return location.pathname === "/";
     }
-    return location.pathname.startsWith(path.split('#')[0]);
+    return location.pathname.startsWith(path.split("#")[0]);
   };
 
   const renderNavigationItem = (item: NavigationItem, depth = 0) => {
@@ -153,7 +147,7 @@ export const Sidebar: React.FC = () => {
         <ListItem
           disablePadding
           sx={{
-            display: 'block',
+            display: "block",
             paddingLeft: depth > 0 ? theme.spacing(2) : 0,
           }}
         >
@@ -168,18 +162,20 @@ export const Sidebar: React.FC = () => {
             selected={isActive}
             sx={{
               minHeight: 48,
-              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+              justifyContent: sidebarCollapsed ? "center" : "flex-start",
               borderRadius: 1,
-              margin: '4px 8px',
-              backgroundColor: isActive ? alpha(theme.palette.primary.main, 0.12) : 'transparent',
-              '&:hover': {
-                backgroundColor: isActive 
+              margin: "4px 8px",
+              backgroundColor: isActive
+                ? alpha(theme.palette.primary.main, 0.12)
+                : "transparent",
+              "&:hover": {
+                backgroundColor: isActive
                   ? alpha(theme.palette.primary.main, 0.16)
                   : alpha(theme.palette.action.hover, 0.08),
               },
-              '&.Mui-selected': {
+              "&.Mui-selected": {
                 backgroundColor: alpha(theme.palette.primary.main, 0.12),
-                '&:hover': {
+                "&:hover": {
                   backgroundColor: alpha(theme.palette.primary.main, 0.16),
                 },
               },
@@ -189,44 +185,41 @@ export const Sidebar: React.FC = () => {
               sx={{
                 minWidth: 0,
                 mr: sidebarCollapsed ? 0 : 3,
-                justifyContent: 'center',
-                color: isActive ? theme.palette.primary.main : 'inherit',
+                justifyContent: "center",
+                color: isActive ? theme.palette.primary.main : "inherit",
               }}
             >
               {item.icon}
             </ListItemIcon>
-            
+
             {!sidebarCollapsed && (
               <>
-                <ListItemText 
+                <ListItemText
                   primary={item.label}
                   sx={{
                     opacity: 1,
-                    '& .MuiListItemText-primary': {
-                      color: isActive ? theme.palette.primary.main : 'inherit',
+                    "& .MuiListItemText-primary": {
+                      color: isActive ? theme.palette.primary.main : "inherit",
                       fontWeight: isActive ? 600 : 400,
                     },
                   }}
                 />
-                
+
                 {item.badge && (
                   <Chip
                     label={item.badge}
                     size="small"
-                    color={item.badgeColor || 'default'}
-                    sx={{ 
-                      height: 20, 
-                      fontSize: '0.75rem',
+                    color={item.badgeColor || "default"}
+                    sx={{
+                      height: 20,
+                      fontSize: "0.75rem",
                       marginRight: hasChildren ? 1 : 0,
                     }}
                   />
                 )}
-                
+
                 {hasChildren && (
-                  <IconButton
-                    size="small"
-                    sx={{ padding: 0.5 }}
-                  >
+                  <IconButton size="small" sx={{ padding: 0.5 }}>
                     {isExpanded ? <ExpandLess /> : <ExpandMore />}
                   </IconButton>
                 )}
@@ -239,8 +232,8 @@ export const Sidebar: React.FC = () => {
         {hasChildren && !sidebarCollapsed && (
           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
             <List component="div" disablePadding>
-              {item.children!.map(child => 
-                renderNavigationItem(child, depth + 1)
+              {item.children!.map((child) =>
+                renderNavigationItem(child, depth + 1),
               )}
             </List>
           </Collapse>
@@ -251,43 +244,46 @@ export const Sidebar: React.FC = () => {
 
   return (
     <Drawer
-      variant={isMobile ? 'temporary' : 'persistent'}
+      variant={isMobile ? "temporary" : "persistent"}
       anchor="left"
       open={sidebarOpen}
       onClose={() => dispatch(setSidebarOpen(false))}
       sx={{
         width: sidebarWidth,
         flexShrink: 0,
-        '& .MuiDrawer-paper': {
+        "& .MuiDrawer-paper": {
           width: sidebarWidth,
-          boxSizing: 'border-box',
+          boxSizing: "border-box",
           backgroundColor: theme.palette.background.default,
           borderRight: `1px solid ${theme.palette.divider}`,
-          transition: theme.transitions.create('width', {
+          transition: theme.transitions.create("width", {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
           }),
-          overflowX: 'hidden',
+          overflowX: "hidden",
         },
       }}
     >
       {/* Sidebar header */}
       <Box
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: sidebarCollapsed ? 'center' : 'space-between',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: sidebarCollapsed ? "center" : "space-between",
           padding: theme.spacing(1, 2),
           minHeight: 64, // Match AppBar height
           borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         {!sidebarCollapsed && (
-          <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.primary.main }}>
+          <Typography
+            variant="h6"
+            sx={{ fontWeight: 600, color: theme.palette.primary.main }}
+          >
             LiveTranslate
           </Typography>
         )}
-        
+
         {!isMobile && (
           <IconButton
             onClick={handleToggleCollapse}
@@ -303,10 +299,8 @@ export const Sidebar: React.FC = () => {
       </Box>
 
       {/* Navigation list */}
-      <Box sx={{ flexGrow: 1, overflow: 'auto', paddingY: 1 }}>
-        <List>
-          {navigationItems.map(item => renderNavigationItem(item))}
-        </List>
+      <Box sx={{ flexGrow: 1, overflow: "auto", paddingY: 1 }}>
+        <List>{navigationItems.map((item) => renderNavigationItem(item))}</List>
       </Box>
 
       {/* Sidebar footer */}
@@ -322,7 +316,7 @@ export const Sidebar: React.FC = () => {
             Version 1.0.0
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {isConnected ? 'Connected' : 'Disconnected'}
+            {isConnected ? "Connected" : "Disconnected"}
           </Typography>
         </Box>
       )}

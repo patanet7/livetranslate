@@ -1,36 +1,36 @@
 # Bot Container Dependencies
 # Phase 3.3a: Simplified Bot Architecture
 
-# WebSocket client (same version as orchestration)
-websockets==15.0.1
-
-# HTTP client for callbacks to bot manager
-httpx==0.28.1
-
-# Redis for command listening
-redis==6.4.0
 
 # Async support
 asyncio-mqtt==0.16.2
 
+# HTTP client for callbacks to bot manager
+httpx==0.28.1
+
+# Logging
+loguru==0.7.3
+
 # Audio processing
 numpy==2.3.4
-scipy==1.16.2
-
-# Browser automation - UNDETECTED for Google bot bypass
-playwright==1.49.1
-undetected-playwright==0.3.0
 
 # Virtual webcam and video processing
 opencv-python==4.12.0.88
-pyvirtualcam==0.14.0
 pillow==12.0.0
+
+# Browser automation - UNDETECTED for Google bot bypass
+playwright==1.49.1
 
 # Testing
 pytest==8.4.2
 pytest-asyncio==1.2.0
 pytest-cov==7.0.0
 pytest-mock==3.15.1
+pyvirtualcam==0.14.0
 
-# Logging
-loguru==0.7.3
+# Redis for command listening
+redis==6.4.0
+scipy==1.16.2
+undetected-playwright==0.3.0
+# WebSocket client (same version as orchestration)
+websockets==15.0.1

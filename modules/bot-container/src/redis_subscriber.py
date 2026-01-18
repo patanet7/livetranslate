@@ -18,10 +18,12 @@ Future enhancements (Phase 3.3c):
 """
 
 import asyncio
-import logging
+import contextlib
 import json
-from typing import Optional, Callable, Dict, Any
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RedisConfig:
     """Redis configuration"""
+
     url: str = "redis://localhost:6379"
     channel_prefix: str = "bot_commands"
     reconnect_delay: float = 5.0
@@ -38,7 +41,7 @@ class RedisConfig:
 class Command:
     """Command received from bot manager"""
 
-    def __init__(self, action: str, data: Optional[Dict[str, Any]] = None):
+    def __init__(self, action: str, data: dict[str, Any] | None = None):
         self.action = action
         self.data = data or {}
 
@@ -47,20 +50,14 @@ class Command:
         """Parse command from JSON string"""
         try:
             data = json.loads(json_str)
-            return cls(
-                action=data.get("action", "unknown"),
-                data=data
-            )
+            return cls(action=data.get("action", "unknown"), data=data)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse command JSON: {e}")
             return cls(action="invalid")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert command to dictionary"""
-        return {
-            "action": self.action,
-            **self.data
-        }
+        return {"action": self.action, **self.data}
 
 
 class RedisSubscriber:
@@ -83,11 +80,7 @@ class RedisSubscriber:
         await subscriber.stop()
     """
 
-    def __init__(
-        self,
-        config: Optional[RedisConfig] = None,
-        connection_id: Optional[str] = None
-    ):
+    def __init__(self, config: RedisConfig | None = None, connection_id: str | None = None):
         self.config = config or RedisConfig()
         self.connection_id = connection_id
 
@@ -95,11 +88,11 @@ class RedisSubscriber:
         self.redis_client = None
         self.pubsub = None
         self.is_listening = False
-        self.listener_task: Optional[asyncio.Task] = None
+        self.listener_task: asyncio.Task | None = None
 
         # Callbacks
-        self.command_callback: Optional[Callable[[Command], None]] = None
-        self.error_callback: Optional[Callable[[str], None]] = None
+        self.command_callback: Callable[[Command], None] | None = None
+        self.error_callback: Callable[[str], None] | None = None
 
         # Statistics
         self.total_commands_received = 0
@@ -160,10 +153,8 @@ class RedisSubscriber:
         # Cancel listener task
         if self.listener_task:
             self.listener_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.listener_task
-            except asyncio.CancelledError:
-                pass
 
         # TODO Phase 3.3c: Implement actual cleanup
         # 1. Unsubscribe: await self.pubsub.unsubscribe()
@@ -263,7 +254,7 @@ class RedisSubscriber:
         except Exception as e:
             logger.error(f"Redis simulation failed: {e}")
 
-    async def publish_response(self, response: Dict[str, Any]):
+    async def publish_response(self, response: dict[str, Any]):
         """
         Publish response to manager
 
@@ -280,23 +271,20 @@ class RedisSubscriber:
         # await self.redis_client.publish(response_channel, response_json)
         logger.debug(f"Would publish response: {response} (stub)")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get subscriber statistics"""
         return {
             "is_listening": self.is_listening,
             "total_commands_received": self.total_commands_received,
             "reconnect_attempts": self.reconnect_attempts,
-            "connection_id": self.connection_id
+            "connection_id": self.connection_id,
         }
 
 
 # Example usage
 async def example_usage():
     """Example of using Redis subscriber"""
-    config = RedisConfig(
-        url="redis://localhost:6379",
-        channel_prefix="bot_commands"
-    )
+    config = RedisConfig(url="redis://localhost:6379", channel_prefix="bot_commands")
 
     subscriber = RedisSubscriber(config, connection_id="test-bot-123")
 

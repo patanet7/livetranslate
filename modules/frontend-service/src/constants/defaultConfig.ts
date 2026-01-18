@@ -8,12 +8,12 @@
  * - AudioTesting/index.tsx
  */
 
-import { ProcessingConfig, StreamingStats } from '@/types/streaming';
+import { ProcessingConfig, StreamingStats } from "@/types/streaming";
 
 /**
  * Default target languages for translation
  */
-export const DEFAULT_TARGET_LANGUAGES = ['es', 'fr', 'de'] as const;
+export const DEFAULT_TARGET_LANGUAGES = ["es", "fr", "de"] as const;
 
 /**
  * Default processing configuration
@@ -23,8 +23,8 @@ export const DEFAULT_PROCESSING_CONFIG: ProcessingConfig = {
   enableTranslation: true,
   enableDiarization: true,
   enableVAD: true,
-  whisperModel: 'whisper-base',
-  translationQuality: 'balanced',
+  whisperModel: "whisper-base",
+  translationQuality: "balanced",
   audioProcessing: true,
   noiseReduction: false,
   speechEnhancement: true,
@@ -49,18 +49,18 @@ export const DEFAULT_CHUNK_DURATION_MS = 2000;
  * Available Whisper models
  */
 export const WHISPER_MODELS = [
-  'whisper-tiny',
-  'whisper-base',
-  'whisper-small',
-  'whisper-medium',
-  'whisper-large',
+  "whisper-tiny",
+  "whisper-base",
+  "whisper-small",
+  "whisper-medium",
+  "whisper-large",
 ] as const;
 
 /**
  * Translation quality options
  */
 export const TRANSLATION_QUALITY_OPTIONS = [
-  { value: 'fast', label: 'Fast' },
-  { value: 'balanced', label: 'Balanced' },
-  { value: 'quality', label: 'Quality' },
+  { value: "fast", label: "Fast" },
+  { value: "balanced", label: "Balanced" },
+  { value: "quality", label: "Quality" },
 ] as const;

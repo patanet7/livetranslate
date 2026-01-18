@@ -10,10 +10,11 @@ Tests for pipeline processing endpoints including:
 - Concurrent sessions
 """
 
-import pytest
 import json
 import wave
+
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -97,9 +98,7 @@ def noise_reduction_pipeline_config():
 class TestPipelineBatchProcessing:
     """Tests for batch audio processing through pipeline"""
 
-    def test_process_pipeline_batch_simple(
-        self, client, test_audio_file, simple_pipeline_config
-    ):
+    def test_process_pipeline_batch_simple(self, client, test_audio_file, simple_pipeline_config):
         """Test simple batch audio processing"""
         with open(test_audio_file, "rb") as audio_file:
             response = client.post(
@@ -140,9 +139,7 @@ class TestPipelineBatchProcessing:
         assert "stage_metrics" in data["metrics"]
         assert "noise_reduction" in data["metrics"]["stage_metrics"]
 
-    def test_process_pipeline_invalid_audio(
-        self, client, tmp_path, simple_pipeline_config
-    ):
+    def test_process_pipeline_invalid_audio(self, client, tmp_path, simple_pipeline_config):
         """Test pipeline with invalid audio file"""
         invalid_file = tmp_path / "invalid.wav"
         invalid_file.write_text("not audio data")
@@ -251,7 +248,7 @@ class TestRealtimeSessionManagement:
         """Test retrieving active sessions"""
         # Start multiple sessions
         session_ids = []
-        for i in range(3):
+        for _i in range(3):
             response = client.post(
                 "/api/pipeline/realtime/start",
                 json={"pipeline_config": simple_pipeline_config},
@@ -295,9 +292,7 @@ class TestPipelineValidation:
             "connections": [],
         }
 
-        response = client.post(
-            "/api/pipeline/validate", json={"pipeline_config": invalid_config}
-        )
+        response = client.post("/api/pipeline/validate", json={"pipeline_config": invalid_config})
 
         assert response.status_code == 200
         data = response.json()
@@ -318,9 +313,7 @@ class TestPipelineValidation:
             ],
         }
 
-        response = client.post(
-            "/api/pipeline/validate", json={"pipeline_config": invalid_config}
-        )
+        response = client.post("/api/pipeline/validate", json={"pipeline_config": invalid_config})
 
         assert response.status_code == 200
         data = response.json()
@@ -343,17 +336,12 @@ class TestPipelineValidation:
             ],
         }
 
-        response = client.post(
-            "/api/pipeline/validate", json={"pipeline_config": circular_config}
-        )
+        response = client.post("/api/pipeline/validate", json={"pipeline_config": circular_config})
 
         assert response.status_code == 200
         data = response.json()
         # Should detect circular dependency
-        assert (
-            data["valid"] is False
-            or "circular" in str(data.get("warnings", [])).lower()
-        )
+        assert data["valid"] is False or "circular" in str(data.get("warnings", [])).lower()
 
 
 class TestConcurrentSessions:
@@ -395,12 +383,8 @@ class TestConcurrentSessions:
         config1 = {**simple_pipeline_config, "pipeline_id": "session-1"}
         config2 = {**simple_pipeline_config, "pipeline_id": "session-2"}
 
-        response1 = client.post(
-            "/api/pipeline/realtime/start", json={"pipeline_config": config1}
-        )
-        response2 = client.post(
-            "/api/pipeline/realtime/start", json={"pipeline_config": config2}
-        )
+        response1 = client.post("/api/pipeline/realtime/start", json={"pipeline_config": config1})
+        response2 = client.post("/api/pipeline/realtime/start", json={"pipeline_config": config2})
 
         assert response1.status_code == 200
         assert response2.status_code == 200
@@ -449,9 +433,7 @@ class TestPipelineMetrics:
         if "stage_metrics" in metrics:
             assert isinstance(metrics["stage_metrics"], dict)
 
-    def test_quality_metrics(
-        self, client, test_audio_file, noise_reduction_pipeline_config
-    ):
+    def test_quality_metrics(self, client, test_audio_file, noise_reduction_pipeline_config):
         """Test that quality metrics are calculated"""
         with open(test_audio_file, "rb") as audio_file:
             response = client.post(

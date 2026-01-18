@@ -265,5 +265,3 @@ Quick sanity test:
 ### Working Notes
 - Keep this document updated during implementation with any deviations and their rationale.
 - Log any API contract adjustments here and in code-level docstrings.
-
-

@@ -1,0 +1,151 @@
+# Gitleaks Configuration for LiveTranslate
+# https://github.com/gitleaks/gitleaks
+
+title = "LiveTranslate Gitleaks Configuration"
+
+# Global allowlist for specific patterns, commits, paths
+[allowlist]
+description = "Global allowlist"
+
+# Paths to ignore
+paths = [
+    '''\.secrets\.baseline$''',
+    '''\.gitleaks\.toml$''',
+    '''\.env\.example$''',
+    '''pnpm-lock\.yaml$''',
+    '''package-lock\.json$''',
+    '''\.lock$''',
+    '''\.min\.(js|css)$''',
+    '''reference/''',
+    '''deprecated/''',
+    '''node_modules/''',
+    '''\.venv/''',
+    '''venv/''',
+    '''__pycache__/''',
+    '''\.pytest_cache/''',
+    '''\.mypy_cache/''',
+    '''\.ruff_cache/''',
+    '''dist/''',
+    '''build/''',
+    '''htmlcov/''',
+    '''\.coverage''',
+]
+
+# Regex patterns to allow (false positives)
+regexes = [
+    # Example API keys and placeholders
+    '''your[-_]?api[-_]?key[-_]?here''',
+    '''your[-_]?secret[-_]?key[-_]?here''',
+    '''change[-_]?in[-_]?production''',
+    '''your[-_]?(groq|openai|together|custom)[-_]?api[-_]?key[-_]?here''',
+    # Test/mock data patterns
+    '''test[-_]?(key|secret|token|password)''',
+    '''mock[-_]?(key|secret|token|password)''',
+    '''fake[-_]?(key|secret|token|password)''',
+    '''dummy[-_]?(key|secret|token|password)''',
+    '''example[-_]?(key|secret|token|password)''',
+    # Localhost URLs with ports
+    '''localhost:\d+''',
+    '''127\.0\.0\.1:\d+''',
+    '''0\.0\.0\.0:\d+''',
+    # UUID patterns (not secrets)
+    '''[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}''',
+    # Generic placeholder patterns
+    '''<[A-Z_]+>''',
+    '''\$\{[A-Z_]+\}''',
+    '''%[A-Z_]+%''',
+]
+
+# Custom rules for LiveTranslate specific patterns
+[[rules]]
+id = "livetranslate-jwt-secret"
+description = "Detects potential JWT secrets"
+regex = '''(?i)(jwt[_-]?secret|jwt[_-]?key)\s*[=:]\s*["']([^"']{32,})["']'''
+secretGroup = 2
+keywords = ["jwt"]
+
+[[rules]]
+id = "livetranslate-database-url"
+description = "Detects database connection strings with credentials"
+regex = '''(postgres(ql)?|mysql|mongodb(\+srv)?):\/\/[^:]+:[^@]+@[^\/]+\/'''
+keywords = ["postgres", "mysql", "mongodb"]
+
+[[rules]]
+id = "livetranslate-redis-url"
+description = "Detects Redis connection strings with credentials"
+regex = '''redis:\/\/[^:]+:[^@]+@[^\/]+'''
+keywords = ["redis"]
+
+[[rules]]
+id = "livetranslate-api-key"
+description = "Detects hardcoded API keys"
+regex = '''(?i)(api[_-]?key|apikey)\s*[=:]\s*["']([a-zA-Z0-9_\-]{20,})["']'''
+secretGroup = 2
+keywords = ["api_key", "apikey"]
+
+[[rules]]
+id = "livetranslate-groq-key"
+description = "Detects Groq API keys"
+regex = '''gsk_[a-zA-Z0-9]{50,}'''
+keywords = ["gsk_"]
+
+[[rules]]
+id = "livetranslate-openai-key"
+description = "Detects OpenAI API keys"
+regex = '''sk-[a-zA-Z0-9]{40,}'''
+keywords = ["sk-"]
+
+[[rules]]
+id = "livetranslate-google-api-key"
+description = "Detects Google API keys"
+regex = '''AIza[0-9A-Za-z_-]{35}'''
+keywords = ["AIza"]
+
+[[rules]]
+id = "livetranslate-aws-access-key"
+description = "Detects AWS access keys"
+regex = '''AKIA[0-9A-Z]{16}'''
+keywords = ["AKIA"]
+
+[[rules]]
+id = "livetranslate-private-key"
+description = "Detects private key headers"
+regex = '''-----BEGIN (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----'''
+keywords = ["PRIVATE KEY"]
+
+[[rules]]
+id = "livetranslate-github-token"
+description = "Detects GitHub tokens"
+regex = '''(gh[ps]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})'''
+keywords = ["ghp_", "ghs_", "github_pat_"]
+
+[[rules]]
+id = "livetranslate-slack-token"
+description = "Detects Slack tokens"
+regex = '''xox[baprs]-[0-9]{12}-[0-9]{12}-[a-zA-Z0-9]{24}'''
+keywords = ["xoxb-", "xoxa-", "xoxp-", "xoxr-", "xoxs-"]
+
+[[rules]]
+id = "livetranslate-discord-token"
+description = "Detects Discord bot tokens"
+regex = '''[MN][A-Za-z\d]{23,}\.[\w-]{6}\.[\w-]{27}'''
+keywords = ["discord"]
+
+# Rule allowlists for specific files
+[[rules]]
+id = "generic-api-key"
+description = "Generic API key pattern"
+regex = '''(?i)(api[_-]?key|apikey|api_secret|api-secret)\s*[=:]\s*["']([^"']+)["']'''
+secretGroup = 2
+[rules.allowlist]
+paths = [
+    '''\.env\.example$''',
+    '''docs/''',
+    '''README\.md$''',
+    '''CONTRIBUTING\.md$''',
+]
+
+# Extend default rules
+[extend]
+# Use default gitleaks rules
+useDefault = true

@@ -13,25 +13,27 @@ Author: LiveTranslate Team
 Version: 1.0
 """
 
-import sys
-import pytest
 import asyncio
+import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+import contextlib
+
+from src.database.bot_session_manager import (
+    DatabaseConfig,
+    TranslationRecord,
+)
 from src.pipeline.data_pipeline import (
     TranscriptionDataPipeline,
     TranscriptionResult,
     TranslationResult,
 )
-from src.database.bot_session_manager import (
-    DatabaseConfig,
-    TranslationRecord,
-)
-
 
 # ============================================================================
 # TEST: NULL SAFETY IN TIMELINE QUERIES
@@ -563,9 +565,7 @@ async def test_rate_limited_operation_timeout():
         return "slow"
 
     # Start first operation (holds semaphore)
-    task1 = asyncio.create_task(
-        manager._rate_limited_db_operation(slow_operation, "slow_op")
-    )
+    task1 = asyncio.create_task(manager._rate_limited_db_operation(slow_operation, "slow_op"))
 
     # Give it time to acquire semaphore
     await asyncio.sleep(0.05)
@@ -579,10 +579,8 @@ async def test_rate_limited_operation_timeout():
 
     # Cleanup
     task1.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task1
-    except asyncio.CancelledError:
-        pass
 
 
 # ============================================================================

@@ -15,15 +15,14 @@ Usage:
 
 import asyncio
 import sys
-import httpx
 from datetime import datetime
+
+import httpx
 
 # Test configuration
 MEETING_BOT_SERVICE_URL = "http://localhost:5005"
 ORCHESTRATION_SERVICE_URL = "http://localhost:3000"
-TEST_MEETING_URL = (
-    sys.argv[1] if len(sys.argv) > 1 else "https://meet.google.com/oss-kqzr-ztg"
-)
+TEST_MEETING_URL = sys.argv[1] if len(sys.argv) > 1 else "https://meet.google.com/oss-kqzr-ztg"
 
 
 async def check_service_health(service_name: str, url: str) -> bool:
@@ -122,9 +121,7 @@ async def monitor_audio_streaming(bot_id: str, duration_seconds: int = 30):
             if state == "streaming":
                 print("      ✅ Audio streaming is ACTIVE!")
         else:
-            print(
-                f"   [{i * 5:2d}s] Could not get bot status: {status_result.get('error')}"
-            )
+            print(f"   [{i * 5:2d}s] Could not get bot status: {status_result.get('error')}")
 
 
 async def leave_meeting(bot_id: str):
@@ -158,12 +155,8 @@ async def main():
     # Step 1: Check services are running
     print("\n📡 Checking services...")
 
-    bot_service_ok = await check_service_health(
-        "Meeting Bot Service", MEETING_BOT_SERVICE_URL
-    )
-    orch_service_ok = await check_service_health(
-        "Orchestration Service", ORCHESTRATION_SERVICE_URL
-    )
+    bot_service_ok = await check_service_health("Meeting Bot Service", MEETING_BOT_SERVICE_URL)
+    orch_service_ok = await check_service_health("Orchestration Service", ORCHESTRATION_SERVICE_URL)
 
     if not bot_service_ok:
         print("\n❌ Meeting Bot Service is not running!")

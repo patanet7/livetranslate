@@ -6,24 +6,25 @@ Tests for all audio processing data models including validation,
 serialization, and factory functions.
 """
 
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
 from pydantic import ValidationError
 
 from src.audio.models import (
-    AudioChunkMetadata,
-    SpeakerCorrelation,
-    ProcessingResult,
     AudioChunkingConfig,
-    QualityMetrics,
-    AudioStreamingSession,
+    AudioChunkMetadata,
     AudioFormat,
-    ProcessingStatus,
-    SourceType,
+    AudioStreamingSession,
     CorrelationType,
+    ProcessingResult,
+    ProcessingStatus,
+    QualityMetrics,
+    SourceType,
+    SpeakerCorrelation,
     create_audio_chunk_metadata,
-    create_speaker_correlation,
     create_processing_result,
+    create_speaker_correlation,
     get_default_chunking_config,
 )
 
@@ -204,8 +205,8 @@ class TestProcessingResult:
                 session_id="test",
                 processing_stage="test",
                 status=ProcessingStatus.COMPLETED,
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime(2020, 1, 1, tzinfo=timezone.utc),  # Before start
+                started_at=datetime.now(UTC),
+                completed_at=datetime(2020, 1, 1, tzinfo=UTC),  # Before start
             )
 
 
@@ -284,7 +285,7 @@ class TestQualityMetrics:
         assert metrics.rms_level == 0.1
         assert metrics.peak_level == 0.5
         assert metrics.signal_to_noise_ratio == 15.0
-        assert metrics.voice_activity_detected == True
+        assert metrics.voice_activity_detected
         assert metrics.overall_quality_score == 0.75
 
     def test_quality_metrics_range_validation(self):
@@ -330,8 +331,8 @@ class TestAudioStreamingSession:
         assert session.bot_session_id == "bot_123"
         assert session.source_type == SourceType.BOT_AUDIO
         assert session.target_languages == ["en", "es", "fr"]
-        assert session.real_time_processing == True
-        assert session.speaker_correlation_enabled == True
+        assert session.real_time_processing
+        assert session.speaker_correlation_enabled
         assert session.stream_status == "initialized"
         assert session.chunks_processed == 0
 

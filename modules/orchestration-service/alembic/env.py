@@ -1,18 +1,19 @@
 import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
+
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-from alembic import context
-import sys
-from pathlib import Path
 
 # Add the src directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Import your models here
-from src.database.models import Base
 from src.config import get_settings
+from src.database.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -36,6 +37,7 @@ target_metadata = Base.metadata
 def get_database_url():
     """Get database URL from settings or env var, converted for asyncpg"""
     import os
+
     # Try DATABASE_URL env var directly first
     url = os.environ.get("DATABASE_URL")
     if not url:

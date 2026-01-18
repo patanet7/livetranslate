@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -21,7 +21,7 @@ import {
   DialogActions,
   Tabs,
   Tab,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Videocam as VideocamIcon,
   VideocamOff as VideocamOffIcon,
@@ -30,10 +30,10 @@ import {
   Download as DownloadIcon,
   Refresh as RefreshIcon,
   Language as LanguageIcon,
-} from '@mui/icons-material';
-import { BotInstance } from '@/types';
-import { WebcamConfig, WebcamDisplayMode, WebcamTheme } from '@/types/bot';
-import { TabPanel } from '@/components/ui';
+} from "@mui/icons-material";
+import { BotInstance } from "@/types";
+import { WebcamConfig, WebcamDisplayMode, WebcamTheme } from "@/types/bot";
+import { TabPanel } from "@/components/ui";
 
 interface VirtualWebcamProps {
   bots: Record<string, BotInstance>;
@@ -46,7 +46,7 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
   activeBotIds,
   onWebcamUpdate,
 }) => {
-  const [selectedBotId, setSelectedBotId] = useState<string>('');
+  const [selectedBotId, setSelectedBotId] = useState<string>("");
   const [webcamConfig, setWebcamConfig] = useState<WebcamConfig>({
     width: 1920,
     height: 1080,
@@ -59,7 +59,7 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
-  const [currentFrame, setCurrentFrame] = useState<string>('');
+  const [currentFrame, setCurrentFrame] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -82,9 +82,12 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
   useEffect(() => {
     // Start frame polling when bot is selected and streaming
     if (selectedBotId && isStreaming) {
-      intervalRef.current = setInterval(fetchLatestFrame, 1000 / webcamConfig.fps);
+      intervalRef.current = setInterval(
+        fetchLatestFrame,
+        1000 / webcamConfig.fps,
+      );
     }
-    
+
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -94,7 +97,7 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
 
   const fetchLatestFrame = async () => {
     if (!selectedBotId) return;
-    
+
     try {
       const response = await fetch(`/api/bot/${selectedBotId}/webcam/frame`);
       if (response.ok) {
@@ -102,14 +105,14 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
         setCurrentFrame(frameData);
       }
     } catch (error) {
-      console.error('Failed to fetch webcam frame:', error);
+      console.error("Failed to fetch webcam frame:", error);
     }
   };
 
   const handleConfigChange = (field: keyof WebcamConfig, value: any) => {
     const newConfig = { ...webcamConfig, [field]: value };
     setWebcamConfig(newConfig);
-    
+
     if (selectedBotId) {
       onWebcamUpdate(selectedBotId, newConfig);
     }
@@ -117,43 +120,43 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
 
   const handleStartStreaming = async () => {
     if (!selectedBotId) return;
-    
+
     try {
       const response = await fetch(`/api/bot/${selectedBotId}/webcam/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ config: webcamConfig }),
       });
-      
+
       if (response.ok) {
         setIsStreaming(true);
       }
     } catch (error) {
-      console.error('Failed to start webcam streaming:', error);
+      console.error("Failed to start webcam streaming:", error);
     }
   };
 
   const handleStopStreaming = async () => {
     if (!selectedBotId) return;
-    
+
     try {
       const response = await fetch(`/api/bot/${selectedBotId}/webcam/stop`, {
-        method: 'POST',
+        method: "POST",
       });
-      
+
       if (response.ok) {
         setIsStreaming(false);
-        setCurrentFrame('');
+        setCurrentFrame("");
       }
     } catch (error) {
-      console.error('Failed to stop webcam streaming:', error);
+      console.error("Failed to stop webcam streaming:", error);
     }
   };
 
   const handleDownloadFrame = () => {
     if (!currentFrame) return;
-    
-    const a = document.createElement('a');
+
+    const a = document.createElement("a");
     a.href = `data:image/png;base64,${currentFrame}`;
     a.download = `webcam_frame_${Date.now()}.png`;
     document.body.appendChild(a);
@@ -161,16 +164,21 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
     document.body.removeChild(a);
   };
 
-  const activeBots = activeBotIds.map(id => bots[id]).filter((bot): bot is BotInstance => Boolean(bot));
+  const activeBots = activeBotIds
+    .map((id) => bots[id])
+    .filter((bot): bot is BotInstance => Boolean(bot));
   const selectedBot = selectedBotId ? bots[selectedBotId] : null;
-  const recentTranslations = selectedBot?.virtualWebcam?.currentTranslations || [];
+  const recentTranslations =
+    selectedBot?.virtualWebcam?.currentTranslations || [];
 
   if (activeBots.length === 0) {
     return (
       <Card>
         <CardContent>
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <VideocamOffIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+          <Box sx={{ textAlign: "center", py: 4 }}>
+            <VideocamOffIcon
+              sx={{ fontSize: 64, color: "text.secondary", mb: 2 }}
+            />
             <Typography variant="h6" color="text.secondary" gutterBottom>
               No Active Bots
             </Typography>
@@ -185,9 +193,16 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h6">
-          <VideocamIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          <VideocamIcon sx={{ mr: 1, verticalAlign: "middle" }} />
           Virtual Webcam Manager
         </Typography>
         <Stack direction="row" spacing={2}>
@@ -200,7 +215,9 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
             >
               {activeBots.map((bot) => (
                 <MenuItem key={bot.botId} value={bot.botId}>
-                  {bot.config?.meetingInfo?.meetingTitle || bot.config?.meetingInfo?.meetingId || bot.botId}
+                  {bot.config?.meetingInfo?.meetingTitle ||
+                    bot.config?.meetingInfo?.meetingId ||
+                    bot.botId}
                 </MenuItem>
               ))}
             </Select>
@@ -221,15 +238,22 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
           <Grid item xs={12} lg={8}>
             <Card>
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">
-                    Live Webcam Preview
-                  </Typography>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 2,
+                  }}
+                >
+                  <Typography variant="h6">Live Webcam Preview</Typography>
                   <Stack direction="row" spacing={1}>
                     <Chip
-                      label={isStreaming ? 'Streaming' : 'Stopped'}
-                      color={isStreaming ? 'success' : 'error'}
-                      icon={isStreaming ? <VideocamIcon /> : <VideocamOffIcon />}
+                      label={isStreaming ? "Streaming" : "Stopped"}
+                      color={isStreaming ? "success" : "error"}
+                      icon={
+                        isStreaming ? <VideocamIcon /> : <VideocamOffIcon />
+                      }
                     />
                     <Chip
                       label={`${webcamConfig.width}x${webcamConfig.height} @ ${webcamConfig.fps}fps`}
@@ -238,36 +262,51 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                   </Stack>
                 </Box>
 
-                <Box sx={{ position: 'relative', width: '100%', bgcolor: 'black', borderRadius: 1 }}>
+                <Box
+                  sx={{
+                    position: "relative",
+                    width: "100%",
+                    bgcolor: "black",
+                    borderRadius: 1,
+                  }}
+                >
                   {currentFrame ? (
                     <img
                       src={`data:image/png;base64,${currentFrame}`}
                       alt="Virtual Webcam"
                       style={{
-                        width: '100%',
-                        height: 'auto',
+                        width: "100%",
+                        height: "auto",
                         borderRadius: 4,
                       }}
                     />
                   ) : (
                     <Box
                       sx={{
-                        width: '100%',
+                        width: "100%",
                         height: 400,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'white',
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "white",
                       }}
                     >
                       <Typography variant="h6">
-                        {isStreaming ? 'Loading preview...' : 'Webcam not active'}
+                        {isStreaming
+                          ? "Loading preview..."
+                          : "Webcam not active"}
                       </Typography>
                     </Box>
                   )}
                 </Box>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    mt: 2,
+                  }}
+                >
                   <Stack direction="row" spacing={1}>
                     {isStreaming ? (
                       <Button
@@ -310,7 +349,7 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                       startIcon={<FullscreenIcon />}
                       onClick={() => {
                         if (currentFrame) {
-                          const newWindow = window.open('', '_blank');
+                          const newWindow = window.open("", "_blank");
                           if (newWindow) {
                             newWindow.document.write(`
                               <html>
@@ -338,20 +377,22 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  <LanguageIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  <LanguageIcon sx={{ mr: 1, verticalAlign: "middle" }} />
                   Live Translations
                 </Typography>
-                
+
                 <Box sx={{ mb: 2 }}>
                   <Typography variant="body2" color="text.secondary">
-                    Frames Generated: {selectedBot?.virtualWebcam?.framesGenerated?.toLocaleString() || '0'}
+                    Frames Generated:{" "}
+                    {selectedBot?.virtualWebcam?.framesGenerated?.toLocaleString() ||
+                      "0"}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Active Translations: {recentTranslations.length}
                   </Typography>
                 </Box>
 
-                <Box sx={{ maxHeight: 400, overflowY: 'auto' }}>
+                <Box sx={{ maxHeight: 400, overflowY: "auto" }}>
                   {recentTranslations.length === 0 ? (
                     <Alert severity="info">
                       No recent translations to display
@@ -360,15 +401,24 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                     <Stack spacing={1}>
                       {recentTranslations.map((translation, index) => (
                         <Paper key={`translation-${index}`} sx={{ p: 2 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              mb: 1,
+                            }}
+                          >
                             <Chip
-                              label={translation.language?.toUpperCase() || 'Unknown'}
+                              label={
+                                translation.language?.toUpperCase() || "Unknown"
+                              }
                               size="small"
                               variant="outlined"
                             />
                           </Box>
                           <Typography variant="body2" color="primary">
-                            {translation.text || 'No translation available'}
+                            {translation.text || "No translation available"}
                           </Typography>
                         </Paper>
                       ))}
@@ -382,10 +432,18 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
       )}
 
       {/* Settings Dialog */}
-      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle>Virtual Webcam Settings</DialogTitle>
         <DialogContent>
-          <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+          <Tabs
+            value={tabValue}
+            onChange={(_, newValue) => setTabValue(newValue)}
+          >
             <Tab label="Video Settings" />
             <Tab label="Display Settings" />
             <Tab label="Translation Settings" />
@@ -403,9 +461,11 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                     value={`${webcamConfig.width}x${webcamConfig.height}`}
                     label="Resolution Preset"
                     onChange={(e) => {
-                      const [width, height] = e.target.value.split('x').map(Number);
-                      handleConfigChange('width', width);
-                      handleConfigChange('height', height);
+                      const [width, height] = e.target.value
+                        .split("x")
+                        .map(Number);
+                      handleConfigChange("width", width);
+                      handleConfigChange("height", height);
                     }}
                   >
                     <MenuItem value="1920x1080">1920x1080 (Full HD)</MenuItem>
@@ -421,14 +481,14 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                 </Typography>
                 <Slider
                   value={webcamConfig.fps}
-                  onChange={(_, value) => handleConfigChange('fps', value)}
+                  onChange={(_, value) => handleConfigChange("fps", value)}
                   min={15}
                   max={60}
                   step={5}
                   marks={[
-                    { value: 15, label: '15' },
-                    { value: 30, label: '30' },
-                    { value: 60, label: '60' },
+                    { value: 15, label: "15" },
+                    { value: 30, label: "30" },
+                    { value: 60, label: "60" },
                   ]}
                   valueLabelDisplay="auto"
                 />
@@ -444,12 +504,25 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                   <Select
                     value={webcamConfig.displayMode}
                     label="Display Mode"
-                    onChange={(e) => handleConfigChange('displayMode', e.target.value as WebcamDisplayMode)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "displayMode",
+                        e.target.value as WebcamDisplayMode,
+                      )
+                    }
                   >
-                    <MenuItem value={WebcamDisplayMode.OVERLAY}>Overlay on Video</MenuItem>
-                    <MenuItem value={WebcamDisplayMode.SIDEBAR}>Sidebar Panel</MenuItem>
-                    <MenuItem value={WebcamDisplayMode.FULLSCREEN}>Fullscreen Translations</MenuItem>
-                    <MenuItem value={WebcamDisplayMode.PICTURE_IN_PICTURE}>Picture-in-Picture</MenuItem>
+                    <MenuItem value={WebcamDisplayMode.OVERLAY}>
+                      Overlay on Video
+                    </MenuItem>
+                    <MenuItem value={WebcamDisplayMode.SIDEBAR}>
+                      Sidebar Panel
+                    </MenuItem>
+                    <MenuItem value={WebcamDisplayMode.FULLSCREEN}>
+                      Fullscreen Translations
+                    </MenuItem>
+                    <MenuItem value={WebcamDisplayMode.PICTURE_IN_PICTURE}>
+                      Picture-in-Picture
+                    </MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -459,7 +532,9 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
                   <Select
                     value={webcamConfig.theme}
                     label="Theme"
-                    onChange={(e) => handleConfigChange('theme', e.target.value as WebcamTheme)}
+                    onChange={(e) =>
+                      handleConfigChange("theme", e.target.value as WebcamTheme)
+                    }
                   >
                     <MenuItem value={WebcamTheme.LIGHT}>Light</MenuItem>
                     <MenuItem value={WebcamTheme.DARK}>Dark</MenuItem>
@@ -475,18 +550,21 @@ export const VirtualWebcam: React.FC<VirtualWebcamProps> = ({
             <Grid container spacing={3}>
               <Grid item xs={12}>
                 <Typography variant="subtitle2" gutterBottom>
-                  Max Translations Displayed: {webcamConfig.maxTranslationsDisplayed}
+                  Max Translations Displayed:{" "}
+                  {webcamConfig.maxTranslationsDisplayed}
                 </Typography>
                 <Slider
                   value={webcamConfig.maxTranslationsDisplayed}
-                  onChange={(_, value) => handleConfigChange('maxTranslationsDisplayed', value)}
+                  onChange={(_, value) =>
+                    handleConfigChange("maxTranslationsDisplayed", value)
+                  }
                   min={1}
                   max={10}
                   step={1}
                   marks={[
-                    { value: 1, label: '1' },
-                    { value: 5, label: '5' },
-                    { value: 10, label: '10' },
+                    { value: 1, label: "1" },
+                    { value: 5, label: "5" },
+                    { value: 10, label: "10" },
                   ]}
                   valueLabelDisplay="auto"
                 />

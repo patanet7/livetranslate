@@ -37,21 +37,20 @@ GPU/MPS → NPU → CPU
 
 # Phase 2: Base Protocol and Factory
 from .base_model import WhisperModel, WhisperModelExtended
-from .model_factory import ModelFactory, create_model, OPENVINO_AVAILABLE
+from .model_factory import OPENVINO_AVAILABLE, ModelFactory, create_model
+from .openvino_manager import ModelManager as OpenVINOModelManagerAlias, OpenVINOModelManager
 
 # Phase 1: Concrete Implementations
-from .pytorch_manager import PyTorchModelManager, ModelManager as PyTorchModelManagerAlias
-from .openvino_manager import OpenVINOModelManager, ModelManager as OpenVINOModelManagerAlias
+from .pytorch_manager import ModelManager as PyTorchModelManagerAlias, PyTorchModelManager
 
 __all__ = [
-    # Phase 2: Protocol and Factory (Recommended)
-    'WhisperModel',
-    'WhisperModelExtended',
-    'ModelFactory',
-    'create_model',
-    'OPENVINO_AVAILABLE',
-
+    "OPENVINO_AVAILABLE",
+    "ModelFactory",
+    "OpenVINOModelManager",
     # Phase 1: Concrete Implementations
-    'PyTorchModelManager',
-    'OpenVINOModelManager',
+    "PyTorchModelManager",
+    # Phase 2: Protocol and Factory (Recommended)
+    "WhisperModel",
+    "WhisperModelExtended",
+    "create_model",
 ]

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -14,7 +14,7 @@ import {
   Chip,
   Stack,
   Alert,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Analytics as AnalyticsIcon,
   TrendingUp as TrendingUpIcon,
@@ -22,7 +22,7 @@ import {
   People as PeopleIcon,
   Speed as SpeedIcon,
   Refresh as RefreshIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 import {
   XAxis,
   YAxis,
@@ -37,9 +37,9 @@ import {
   Cell,
   Area,
   AreaChart,
-} from 'recharts';
-import { BotInstance, SystemStats } from '@/types';
-import { format } from 'date-fns';
+} from "recharts";
+import { BotInstance, SystemStats } from "@/types";
+import { format } from "date-fns";
 
 interface BotAnalyticsProps {
   systemStats: SystemStats;
@@ -62,15 +62,24 @@ interface LanguageStats {
   percentage: number;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+const COLORS = [
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#8884D8",
+  "#82CA9D",
+];
 
 export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
   systemStats,
   bots,
   onRefresh,
 }) => {
-  const [timeRange, setTimeRange] = useState('24h');
-  const [performanceData, setPerformanceData] = useState<PerformanceMetric[]>([]);
+  const [timeRange, setTimeRange] = useState("24h");
+  const [performanceData, setPerformanceData] = useState<PerformanceMetric[]>(
+    [],
+  );
   const [languageStats, setLanguageStats] = useState<LanguageStats[]>([]);
 
   useEffect(() => {
@@ -86,11 +95,14 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
         setLanguageStats(data.languages || []);
       }
     } catch (error) {
-      console.error('Failed to load analytics:', error);
+      console.error("Failed to load analytics:", error);
     }
   };
 
-  const calculateTrend = (data: PerformanceMetric[], metric: keyof PerformanceMetric) => {
+  const calculateTrend = (
+    data: PerformanceMetric[],
+    metric: keyof PerformanceMetric,
+  ) => {
     if (data.length < 2) return 0;
 
     const recent = data.slice(-5);
@@ -98,21 +110,23 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
 
     if (recent.length === 0 || older.length === 0) return 0;
 
-    const recentAvg = recent.reduce((sum, item) => {
-      const value = item[metric];
-      return sum + (typeof value === 'number' ? value : 0);
-    }, 0) / recent.length;
-    const olderAvg = older.reduce((sum, item) => {
-      const value = item[metric];
-      return sum + (typeof value === 'number' ? value : 0);
-    }, 0) / older.length;
+    const recentAvg =
+      recent.reduce((sum, item) => {
+        const value = item[metric];
+        return sum + (typeof value === "number" ? value : 0);
+      }, 0) / recent.length;
+    const olderAvg =
+      older.reduce((sum, item) => {
+        const value = item[metric];
+        return sum + (typeof value === "number" ? value : 0);
+      }, 0) / older.length;
 
     return ((recentAvg - olderAvg) / olderAvg) * 100;
   };
 
   const formatTrend = (trend: number) => {
     const isPositive = trend > 0;
-    const color: 'success' | 'error' = isPositive ? 'success' : 'error';
+    const color: "success" | "error" = isPositive ? "success" : "error";
     const icon = isPositive ? <TrendingUpIcon /> : <TrendingDownIcon />;
 
     return (
@@ -126,23 +140,40 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
     );
   };
 
-  const activeBots = Object.values(bots).filter(bot => bot?.status === 'active');
-  const averageLatency = activeBots.length > 0
-    ? activeBots.reduce((sum, bot) => sum + (bot?.performance?.averageLatencyMs || 0), 0) / activeBots.length
-    : 0;
-  const averageQuality = activeBots.length > 0
-    ? activeBots.reduce((sum, bot) => sum + (bot?.audioCapture?.averageQualityScore || 0), 0) / activeBots.length
-    : 0;
+  const activeBots = Object.values(bots).filter(
+    (bot) => bot?.status === "active",
+  );
+  const averageLatency =
+    activeBots.length > 0
+      ? activeBots.reduce(
+          (sum, bot) => sum + (bot?.performance?.averageLatencyMs || 0),
+          0,
+        ) / activeBots.length
+      : 0;
+  const averageQuality =
+    activeBots.length > 0
+      ? activeBots.reduce(
+          (sum, bot) => sum + (bot?.audioCapture?.averageQualityScore || 0),
+          0,
+        ) / activeBots.length
+      : 0;
 
-  const latencyTrend = calculateTrend(performanceData, 'averageLatency');
-  const qualityTrend = calculateTrend(performanceData, 'qualityScore');
-  const errorTrend = calculateTrend(performanceData, 'errorRate');
+  const latencyTrend = calculateTrend(performanceData, "averageLatency");
+  const qualityTrend = calculateTrend(performanceData, "qualityScore");
+  const errorTrend = calculateTrend(performanceData, "errorRate");
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h6">
-          <AnalyticsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          <AnalyticsIcon sx={{ mr: 1, verticalAlign: "middle" }} />
           Bot Performance Analytics
         </Typography>
         <Stack direction="row" spacing={2}>
@@ -177,16 +208,20 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <Box>
                   <Typography variant="body2" color="text.secondary">
                     Active Bots
                   </Typography>
-                  <Typography variant="h4">
-                    {systemStats.activeBots}
-                  </Typography>
+                  <Typography variant="h4">{systemStats.activeBots}</Typography>
                 </Box>
-                <PeopleIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+                <PeopleIcon sx={{ fontSize: 40, color: "primary.main" }} />
               </Box>
               <Box sx={{ mt: 2 }}>
                 <Typography variant="body2" color="text.secondary">
@@ -200,7 +235,13 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <Box>
                   <Typography variant="body2" color="text.secondary">
                     Avg Latency
@@ -209,11 +250,9 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                     {Math.round(averageLatency)}ms
                   </Typography>
                 </Box>
-                <SpeedIcon sx={{ fontSize: 40, color: 'warning.main' }} />
+                <SpeedIcon sx={{ fontSize: 40, color: "warning.main" }} />
               </Box>
-              <Box sx={{ mt: 2 }}>
-                {formatTrend(latencyTrend)}
-              </Box>
+              <Box sx={{ mt: 2 }}>{formatTrend(latencyTrend)}</Box>
             </CardContent>
           </Card>
         </Grid>
@@ -221,7 +260,13 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <Box>
                   <Typography variant="body2" color="text.secondary">
                     Quality Score
@@ -230,11 +275,9 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                     {Math.round(averageQuality * 100)}%
                   </Typography>
                 </Box>
-                <AnalyticsIcon sx={{ fontSize: 40, color: 'success.main' }} />
+                <AnalyticsIcon sx={{ fontSize: 40, color: "success.main" }} />
               </Box>
-              <Box sx={{ mt: 2 }}>
-                {formatTrend(qualityTrend)}
-              </Box>
+              <Box sx={{ mt: 2 }}>{formatTrend(qualityTrend)}</Box>
             </CardContent>
           </Card>
         </Grid>
@@ -242,7 +285,13 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
         <Grid item xs={12} sm={6} md={3}>
           <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <Box>
                   <Typography variant="body2" color="text.secondary">
                     Error Rate
@@ -251,11 +300,9 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                     {(systemStats.errorRate * 100).toFixed(1)}%
                   </Typography>
                 </Box>
-                <TrendingDownIcon sx={{ fontSize: 40, color: 'error.main' }} />
+                <TrendingDownIcon sx={{ fontSize: 40, color: "error.main" }} />
               </Box>
-              <Box sx={{ mt: 2 }}>
-                {formatTrend(errorTrend)}
-              </Box>
+              <Box sx={{ mt: 2 }}>{formatTrend(errorTrend)}</Box>
             </CardContent>
           </Card>
         </Grid>
@@ -272,14 +319,16 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={performanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
+                  <XAxis
                     dataKey="timestamp"
-                    tickFormatter={(value) => format(new Date(value), 'HH:mm')}
+                    tickFormatter={(value) => format(new Date(value), "HH:mm")}
                   />
                   <YAxis yAxisId="left" />
                   <YAxis yAxisId="right" orientation="right" />
-                  <Tooltip 
-                    labelFormatter={(value) => format(new Date(value), 'MMM dd, HH:mm')}
+                  <Tooltip
+                    labelFormatter={(value) =>
+                      format(new Date(value), "MMM dd, HH:mm")
+                    }
                   />
                   <Legend />
                   <Area
@@ -329,13 +378,18 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ language, percentage }) => `${language}: ${percentage.toFixed(1)}%`}
+                      label={({ language, percentage }) =>
+                        `${language}: ${percentage.toFixed(1)}%`
+                      }
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="count"
                     >
                       {languageStats.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
                       ))}
                     </Pie>
                     <Tooltip />
@@ -357,16 +411,22 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={performanceData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
+                  <XAxis
                     dataKey="timestamp"
-                    tickFormatter={(value) => format(new Date(value), 'HH:mm')}
+                    tickFormatter={(value) => format(new Date(value), "HH:mm")}
                   />
                   <YAxis />
-                  <Tooltip 
-                    labelFormatter={(value) => format(new Date(value), 'MMM dd, HH:mm')}
+                  <Tooltip
+                    labelFormatter={(value) =>
+                      format(new Date(value), "MMM dd, HH:mm")
+                    }
                   />
                   <Legend />
-                  <Bar dataKey="totalTranslations" fill="#8884d8" name="Total Translations" />
+                  <Bar
+                    dataKey="totalTranslations"
+                    fill="#8884d8"
+                    name="Total Translations"
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -387,22 +447,34 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                   Session Statistics
                 </Typography>
                 <Stack spacing={1}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
                     <Typography variant="body2">Completed Sessions:</Typography>
-                    <Typography variant="body2">{systemStats.completedSessions}</Typography>
+                    <Typography variant="body2">
+                      {systemStats.completedSessions}
+                    </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
                     <Typography variant="body2">Average Duration:</Typography>
-                    <Typography variant="body2">{Math.round(systemStats.averageSessionDuration / 60)}min</Typography>
+                    <Typography variant="body2">
+                      {Math.round(systemStats.averageSessionDuration / 60)}min
+                    </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "space-between" }}
+                  >
                     <Typography variant="body2">Success Rate:</Typography>
-                    <Typography variant="body2">{((1 - systemStats.errorRate) * 100).toFixed(1)}%</Typography>
+                    <Typography variant="body2">
+                      {((1 - systemStats.errorRate) * 100).toFixed(1)}%
+                    </Typography>
                   </Box>
                 </Stack>
               </Paper>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -410,14 +482,23 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                 </Typography>
                 <Stack spacing={1}>
                   {activeBots.slice(0, 3).map((bot) => (
-                    <Box key={bot.botId} sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Box
+                      key={bot.botId}
+                      sx={{ display: "flex", justifyContent: "space-between" }}
+                    >
                       <Typography variant="body2" noWrap>
-                        {bot?.config?.meetingInfo?.meetingTitle || bot?.config?.meetingInfo?.meetingId || bot.botId}
+                        {bot?.config?.meetingInfo?.meetingTitle ||
+                          bot?.config?.meetingInfo?.meetingId ||
+                          bot.botId}
                       </Typography>
                       <Chip
                         label={`${Math.round((bot?.audioCapture?.averageQualityScore || 0) * 100)}%`}
                         size="small"
-                        color={(bot?.audioCapture?.averageQualityScore || 0) > 0.8 ? 'success' : 'warning'}
+                        color={
+                          (bot?.audioCapture?.averageQualityScore || 0) > 0.8
+                            ? "success"
+                            : "warning"
+                        }
                       />
                     </Box>
                   ))}
@@ -429,7 +510,7 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                 </Stack>
               </Paper>
             </Grid>
-            
+
             <Grid item xs={12} md={4}>
               <Paper sx={{ p: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
@@ -451,11 +532,13 @@ export const BotAnalytics: React.FC<BotAnalyticsProps> = ({
                       High error rate
                     </Alert>
                   )}
-                  {systemStats.errorRate <= 0.05 && averageLatency <= 500 && averageQuality >= 0.8 && (
-                    <Alert severity="success" sx={{ py: 0 }}>
-                      All systems performing well
-                    </Alert>
-                  )}
+                  {systemStats.errorRate <= 0.05 &&
+                    averageLatency <= 500 &&
+                    averageQuality >= 0.8 && (
+                      <Alert severity="success" sx={{ py: 0 }}>
+                        All systems performing well
+                      </Alert>
+                    )}
                 </Stack>
               </Paper>
             </Grid>

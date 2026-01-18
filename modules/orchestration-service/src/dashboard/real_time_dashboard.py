@@ -6,11 +6,11 @@ Provides real-time performance metrics, analytics, and visualization
 for the orchestration service dashboard.
 """
 
-import time
 import logging
 import threading
-from typing import Dict, Any, List, Optional
-from collections import deque, defaultdict
+import time
+from collections import defaultdict, deque
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class MetricsCollector:
         self.current_metrics = {}
         self._lock = threading.RLock()
 
-    def record_metric(self, name: str, value: float, timestamp: Optional[float] = None):
+    def record_metric(self, name: str, value: float, timestamp: float | None = None):
         """Record a metric value"""
         timestamp = timestamp or time.time()
 
@@ -33,9 +33,7 @@ class MetricsCollector:
             self.metrics_history[name].append({"timestamp": timestamp, "value": value})
             self.current_metrics[name] = value
 
-    def get_metric_history(
-        self, name: str, duration_seconds: Optional[int] = None
-    ) -> List[Dict]:
+    def get_metric_history(self, name: str, duration_seconds: int | None = None) -> list[dict]:
         """Get metric history for a given duration"""
         with self._lock:
             history = list(self.metrics_history[name])
@@ -46,7 +44,7 @@ class MetricsCollector:
 
             return history
 
-    def get_current_metrics(self) -> Dict[str, float]:
+    def get_current_metrics(self) -> dict[str, float]:
         """Get current metric values"""
         with self._lock:
             return self.current_metrics.copy()
@@ -89,7 +87,7 @@ class PerformanceAnalyzer:
             "memory_usage": {"warning": 0.8, "critical": 0.95},  # 80%, 95%
         }
 
-    def analyze_performance(self) -> Dict[str, Any]:
+    def analyze_performance(self) -> dict[str, Any]:
         """Analyze current performance and generate insights"""
         current_metrics = self.metrics_collector.get_current_metrics()
         insights = {
@@ -138,23 +136,19 @@ class PerformanceAnalyzer:
 
         return insights
 
-    def _generate_recommendations(self, metrics: Dict[str, float]) -> List[str]:
+    def _generate_recommendations(self, metrics: dict[str, float]) -> list[str]:
         """Generate performance recommendations"""
         recommendations = []
 
         # Response time recommendations
         response_time = metrics.get("avg_response_time", 0)
         if response_time > 2000:
-            recommendations.append(
-                "Consider optimizing API endpoints or adding caching"
-            )
+            recommendations.append("Consider optimizing API endpoints or adding caching")
 
         # Error rate recommendations
         error_rate = metrics.get("error_rate", 0)
         if error_rate > 0.05:
-            recommendations.append(
-                "Investigate error causes and improve error handling"
-            )
+            recommendations.append("Investigate error causes and improve error handling")
 
         # Connection recommendations
         active_connections = metrics.get("active_connections", 0)
@@ -165,29 +159,21 @@ class PerformanceAnalyzer:
         # Memory recommendations
         memory_usage = metrics.get("memory_usage", 0)
         if memory_usage > 0.8:
-            recommendations.append(
-                "Monitor memory usage and consider garbage collection tuning"
-            )
+            recommendations.append("Monitor memory usage and consider garbage collection tuning")
 
         return recommendations
 
-    def get_performance_trends(self, duration_minutes: int = 60) -> Dict[str, Any]:
+    def get_performance_trends(self, duration_minutes: int = 60) -> dict[str, Any]:
         """Get performance trends over time"""
         duration_seconds = duration_minutes * 60
         trends = {}
 
         for metric_name in ["response_time", "error_rate", "active_connections"]:
-            history = self.metrics_collector.get_metric_history(
-                metric_name, duration_seconds
-            )
+            history = self.metrics_collector.get_metric_history(metric_name, duration_seconds)
             if len(history) >= 2:
                 trend_direction = "stable"
-                recent_avg = sum(h["value"] for h in history[-10:]) / min(
-                    10, len(history)
-                )
-                older_avg = sum(h["value"] for h in history[:10]) / min(
-                    10, len(history)
-                )
+                recent_avg = sum(h["value"] for h in history[-10:]) / min(10, len(history))
+                older_avg = sum(h["value"] for h in history[:10]) / min(10, len(history))
 
                 if recent_avg > older_avg * 1.1:
                     trend_direction = "increasing"
@@ -208,7 +194,7 @@ class PerformanceAnalyzer:
 class RealTimeDashboard:
     """Real-time dashboard with metrics collection and analysis"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize real-time dashboard"""
         self.config = config
         self.refresh_interval = config.get("refresh_interval", 5)
@@ -246,9 +232,7 @@ class RealTimeDashboard:
         self.running = True
 
         if self.enable_real_time:
-            self._collection_thread = threading.Thread(
-                target=self._collection_loop, daemon=True
-            )
+            self._collection_thread = threading.Thread(target=self._collection_loop, daemon=True)
             self._collection_thread.start()
 
         logger.info("Real-time dashboard started")
@@ -296,18 +280,14 @@ class RealTimeDashboard:
 
             # Health Monitor metrics
             if hasattr(orchestration_service, "health_monitor"):
-                service_status = (
-                    orchestration_service.health_monitor.get_all_service_status()
-                )
+                service_status = orchestration_service.health_monitor.get_all_service_status()
 
                 # Overall system health score
                 summary = service_status.get("summary", {})
                 total_services = summary.get("total_services", 1)
                 healthy_services = summary.get("healthy_services", 0)
                 health_score = (healthy_services / total_services) * 100
-                self.metrics_collector.record_metric(
-                    "system_health_score", health_score
-                )
+                self.metrics_collector.record_metric("system_health_score", health_score)
 
             # Update dashboard data
             self._update_dashboard_data(orchestration_service)
@@ -351,25 +331,21 @@ class RealTimeDashboard:
             )
 
             # Trends
-            self.dashboard_data["trends"] = (
-                self.performance_analyzer.get_performance_trends()
-            )
+            self.dashboard_data["trends"] = self.performance_analyzer.get_performance_trends()
 
         except Exception as e:
             logger.error(f"Failed to update dashboard data: {e}")
 
-    def get_dashboard_data(self) -> Dict[str, Any]:
+    def get_dashboard_data(self) -> dict[str, Any]:
         """Get current dashboard data"""
         return self.dashboard_data.copy()
 
-    def get_metric_history(
-        self, metric_name: str, duration_minutes: int = 60
-    ) -> List[Dict]:
+    def get_metric_history(self, metric_name: str, duration_minutes: int = 60) -> list[dict]:
         """Get metric history for charting"""
         duration_seconds = duration_minutes * 60
         return self.metrics_collector.get_metric_history(metric_name, duration_seconds)
 
-    def get_real_time_metrics(self) -> Dict[str, Any]:
+    def get_real_time_metrics(self) -> dict[str, Any]:
         """Get real-time metrics for WebSocket updates"""
         return {
             "current_metrics": self.metrics_collector.get_current_metrics(),
@@ -397,14 +373,12 @@ class RealTimeDashboard:
                             }
                         )
                     except Exception as e:
-                        logger.error(
-                            f"Failed to send metrics update to {connection_id}: {e}"
-                        )
+                        logger.error(f"Failed to send metrics update to {connection_id}: {e}")
 
             except Exception as e:
                 logger.error(f"Failed to broadcast metrics update: {e}")
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get dashboard status"""
         return {
             "component": "real_time_dashboard",
@@ -417,18 +391,16 @@ class RealTimeDashboard:
             },
             "metrics_count": len(self.metrics_collector.current_metrics),
             "data_points": sum(
-                len(history)
-                for history in self.metrics_collector.metrics_history.values()
+                len(history) for history in self.metrics_collector.metrics_history.values()
             ),
         }
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get dashboard metrics"""
         return {
             "metrics_collected": len(self.metrics_collector.current_metrics),
             "total_data_points": sum(
-                len(history)
-                for history in self.metrics_collector.metrics_history.values()
+                len(history) for history in self.metrics_collector.metrics_history.values()
             ),
             "performance_score": self.performance_analyzer.analyze_performance().get(
                 "performance_score", 100

@@ -42,4 +42,3 @@ This extension requires an internet connection to stream audio and receive trans
 
 ## Note
 The extension relies on a properly running transcription server with multilingual support. Please follow the server documentation for setup and configuration.
-

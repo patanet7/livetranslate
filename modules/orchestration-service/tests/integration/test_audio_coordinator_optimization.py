@@ -20,18 +20,17 @@ into translation_batches or translation_cache_stats tables without a parent sess
 """
 
 import asyncio
-import pytest
-import time
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+import time
 
+import pytest
 
 # Test configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/1")
 # Database URL for reference (actual DB operations are mocked)
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
 )
 TEST_SESSION_ID = "test_coordinator_opt"
 
@@ -164,9 +163,9 @@ class TestAudioCoordinatorCacheIntegration:
         print(
             f"First request: {duration_first * 1000:.2f}ms, Second (cached): {duration_second * 1000:.2f}ms"
         )
-        assert duration_second < duration_first * 0.5, (
-            "Cached request should be at least 50% faster"
-        )
+        assert (
+            duration_second < duration_first * 0.5
+        ), "Cached request should be at least 50% faster"
 
         await coordinator.cleanup()
 
@@ -226,17 +225,15 @@ class TestAudioCoordinatorCacheIntegration:
         # - Each language translation takes ~300-500ms with real LLM inference
         # - With batching/parallelization, 3 languages should complete in ~1-2s
         # - Allow up to 3s to account for network latency and cold starts
-        print(
-            f"Batch translation time: {duration_ms:.2f}ms for {len(target_languages)} languages"
-        )
-        assert duration_ms < BATCH_TRANSLATION_TIMEOUT_MS, (
-            f"Batch translation too slow: {duration_ms:.2f}ms (threshold: {BATCH_TRANSLATION_TIMEOUT_MS}ms)"
-        )
+        print(f"Batch translation time: {duration_ms:.2f}ms for {len(target_languages)} languages")
+        assert (
+            duration_ms < BATCH_TRANSLATION_TIMEOUT_MS
+        ), f"Batch translation too slow: {duration_ms:.2f}ms (threshold: {BATCH_TRANSLATION_TIMEOUT_MS}ms)"
 
         # Verify translation_opt_adapter is None (as expected with no database)
-        assert coordinator.translation_opt_adapter is None, (
-            "translation_opt_adapter should be None when database_url is None"
-        )
+        assert (
+            coordinator.translation_opt_adapter is None
+        ), "translation_opt_adapter should be None when database_url is None"
 
         await coordinator.cleanup()
 
@@ -295,7 +292,7 @@ class TestAudioCoordinatorCacheIntegration:
         # Repeat each phrase 5 times
         total_requests = 0
         for phrase in phrases:
-            for repetition in range(5):
+            for _repetition in range(5):
                 transcript_result = {
                     "text": phrase,
                     "language": "en",
@@ -323,11 +320,9 @@ class TestAudioCoordinatorCacheIntegration:
             f"Expected: ~{((total_requests - len(phrases)) / total_requests) * 100:.0f}% hit rate"
         )
 
-        # Expected: 10 misses (first occurrence), 40 hits (4 repetitions × 10 phrases)
+        # Expected: 10 misses (first occurrence), 40 hits (4 repetitions x 10 phrases)
         # Hit rate: 40/50 = 80%
-        assert stats["hit_rate"] > 0.5, (
-            f"Cache hit rate too low: {stats['hit_rate']:.1%}"
-        )
+        assert stats["hit_rate"] > 0.5, f"Cache hit rate too low: {stats['hit_rate']:.1%}"
 
         await coordinator.cleanup()
 

@@ -11,14 +11,15 @@ Supports:
 All these services expose the same OpenAI chat completions API format.
 """
 
-import os
-import logging
 import asyncio
-from typing import Dict, List, Optional, Any
+import json
+import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
+
 import httpx
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class OpenAICompatibleConfig:
     """Configuration for OpenAI-compatible API endpoint"""
+
     name: str  # Friendly name (e.g., "ollama-local", "groq-cloud")
     base_url: str  # Base URL (e.g., "http://localhost:11434/v1", "https://api.groq.com/openai/v1")
-    api_key: Optional[str] = None  # API key (optional for local services like Ollama)
+    api_key: str | None = None  # API key (optional for local services like Ollama)
     model: str = "llama3.1:8b"  # Model name
     temperature: float = 0.3  # Lower for more consistent translation
     max_tokens: int = 2048
@@ -48,8 +50,8 @@ class OpenAICompatibleConfig:
     retry_delay: float = 1.0
 
     # Service-specific settings
-    extra_headers: Dict[str, str] = field(default_factory=dict)
-    extra_params: Dict[str, Any] = field(default_factory=dict)
+    extra_headers: dict[str, str] = field(default_factory=dict)
+    extra_params: dict[str, Any] = field(default_factory=dict)
 
 
 class OpenAICompatibleTranslator:
@@ -94,7 +96,7 @@ class OpenAICompatibleTranslator:
     def __init__(self, config: OpenAICompatibleConfig):
         self.config = config
         self.is_ready = False
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
         logger.info(f"Initialized OpenAI-compatible translator: {config.name} ({config.base_url})")
 
@@ -116,7 +118,7 @@ class OpenAICompatibleTranslator:
             self._http_client = httpx.AsyncClient(
                 base_url=self.config.base_url,
                 headers=headers,
-                timeout=httpx.Timeout(self.config.timeout)
+                timeout=httpx.Timeout(self.config.timeout),
             )
 
             # Test connection with a simple request
@@ -134,7 +136,7 @@ class OpenAICompatibleTranslator:
             logger.error(f"Failed to initialize {self.config.name}: {e}")
             return False
 
-    async def get_available_models(self) -> List[str]:
+    async def get_available_models(self) -> list[str]:
         """
         Get list of available models from the endpoint.
 
@@ -172,7 +174,9 @@ class OpenAICompatibleTranslator:
                         data = response.json()
                         logger.info(f"🔍 Ollama /api/tags raw response: {data}")
                         models = [model["name"] for model in data.get("models", [])]
-                        logger.info(f"📋 {self.config.name} available models (Ollama format): {models}")
+                        logger.info(
+                            f"📋 {self.config.name} available models (Ollama format): {models}"
+                        )
                         return models
             except Exception as e:
                 logger.warning(f"Ollama /api/tags failed: {e}")
@@ -208,7 +212,9 @@ class OpenAICompatibleTranslator:
         # Check partial match (e.g., "llama3.1:8b" contains "llama3.1")
         for available_model in available_models:
             if model_name in available_model or available_model in model_name:
-                logger.info(f"Model '{model_name}' matched with available model '{available_model}'")
+                logger.info(
+                    f"Model '{model_name}' matched with available model '{available_model}'"
+                )
                 return True
 
         logger.warning(f"Model '{model_name}' not found in available models: {available_models}")
@@ -221,23 +227,20 @@ class OpenAICompatibleTranslator:
             # For Ollama, test with a very simple short translation
             test_payload = {
                 "model": self.config.model,
-                "messages": [
-                    {"role": "user", "content": "Hi"}
-                ],
+                "messages": [{"role": "user", "content": "Hi"}],
                 "max_tokens": 10,
-                "temperature": 0.1
+                "temperature": 0.1,
             }
 
-            response = await self._http_client.post(
-                "/chat/completions",
-                json=test_payload
-            )
+            response = await self._http_client.post("/chat/completions", json=test_payload)
 
             if response.status_code == 200:
                 logger.info(f"Connection test passed for {self.config.name}")
                 return True
             else:
-                logger.warning(f"Connection test failed for {self.config.name}: HTTP {response.status_code}")
+                logger.warning(
+                    f"Connection test failed for {self.config.name}: HTTP {response.status_code}"
+                )
                 return False
 
         except Exception as e:
@@ -249,9 +252,9 @@ class OpenAICompatibleTranslator:
         text: str,
         source_language: str,
         target_language: str,
-        context: Optional[str] = None,
-        model_override: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        context: str | None = None,
+        model_override: str | None = None,
+    ) -> dict[str, Any] | None:
         """
         Translate text using OpenAI-compatible chat completions API.
 
@@ -281,14 +284,8 @@ class OpenAICompatibleTranslator:
             payload = {
                 "model": model_to_use,
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": self.config.system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "system", "content": self.config.system_prompt},
+                    {"role": "user", "content": prompt},
                 ],
                 "temperature": self.config.temperature,
                 "max_tokens": self.config.max_tokens,
@@ -321,8 +318,8 @@ class OpenAICompatibleTranslator:
                     "backend_used": self.config.name,
                     "model_used": model_to_use,
                     "processing_time": processing_time,
-                    "api_response": response_data
-                }
+                    "api_response": response_data,
+                },
             }
 
         except Exception as e:
@@ -330,11 +327,8 @@ class OpenAICompatibleTranslator:
             return None
 
     async def translate_batch(
-        self,
-        texts: List[str],
-        source_language: str,
-        target_language: str
-    ) -> List[Optional[Dict[str, Any]]]:
+        self, texts: list[str], source_language: str, target_language: str
+    ) -> list[dict[str, Any] | None]:
         """
         Translate multiple texts in parallel.
 
@@ -346,26 +340,20 @@ class OpenAICompatibleTranslator:
         Returns:
             List of translation results
         """
-        tasks = [
-            self.translate(text, source_language, target_language)
-            for text in texts
-        ]
+        tasks = [self.translate(text, source_language, target_language) for text in texts]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Convert exceptions to None
-        return [
-            result if not isinstance(result, Exception) else None
-            for result in results
-        ]
+        return [result if not isinstance(result, Exception) else None for result in results]
 
     async def generate_from_prompt(
         self,
         prompt: str,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        system_prompt: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        system_prompt: str | None = None,
+    ) -> dict[str, Any] | None:
         """
         Generate text from a raw prompt - NO prompt building, just send directly to LLM.
 
@@ -392,15 +380,9 @@ class OpenAICompatibleTranslator:
             messages = []
 
             if system_prompt:
-                messages.append({
-                    "role": "system",
-                    "content": system_prompt
-                })
+                messages.append({"role": "system", "content": system_prompt})
 
-            messages.append({
-                "role": "user",
-                "content": prompt
-            })
+            messages.append({"role": "user", "content": prompt})
 
             # Prepare the request payload
             payload = {
@@ -435,7 +417,7 @@ class OpenAICompatibleTranslator:
                 "processing_time_ms": round(processing_time_ms, 2),
                 "backend_used": self.config.name,
                 "model_used": self.config.model,
-                "tokens_used": response_data.get("usage", {}).get("completion_tokens", 0)
+                "tokens_used": response_data.get("usage", {}).get("completion_tokens", 0),
             }
 
         except Exception as e:
@@ -445,9 +427,9 @@ class OpenAICompatibleTranslator:
     async def generate_from_prompt_stream(
         self,
         prompt: str,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        system_prompt: Optional[str] = None
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        system_prompt: str | None = None,
     ):
         """
         Stream text generation from a raw prompt.
@@ -475,15 +457,9 @@ class OpenAICompatibleTranslator:
             messages = []
 
             if system_prompt:
-                messages.append({
-                    "role": "system",
-                    "content": system_prompt
-                })
+                messages.append({"role": "system", "content": system_prompt})
 
-            messages.append({
-                "role": "user",
-                "content": prompt
-            })
+            messages.append({"role": "user", "content": prompt})
 
             # Prepare the request payload with streaming enabled
             payload = {
@@ -502,7 +478,7 @@ class OpenAICompatibleTranslator:
                 "POST",
                 "/chat/completions",
                 json=payload,
-                timeout=httpx.Timeout(self.config.timeout * 2)  # Longer timeout for streaming
+                timeout=httpx.Timeout(self.config.timeout * 2),  # Longer timeout for streaming
             ) as response:
                 if response.status_code != 200:
                     yield {"error": f"HTTP {response.status_code}", "done": True}
@@ -513,12 +489,14 @@ class OpenAICompatibleTranslator:
                         data_str = line[6:]  # Remove "data: " prefix
 
                         if data_str.strip() == "[DONE]":
-                            processing_time_ms = (datetime.now() - start_time).total_seconds() * 1000
+                            processing_time_ms = (
+                                datetime.now() - start_time
+                            ).total_seconds() * 1000
                             yield {
                                 "done": True,
                                 "processing_time_ms": round(processing_time_ms, 2),
                                 "backend_used": self.config.name,
-                                "model_used": self.config.model
+                                "model_used": self.config.model,
                             }
                             return
 
@@ -536,14 +514,11 @@ class OpenAICompatibleTranslator:
             logger.error(f"Streaming generation failed with {self.config.name}: {e}")
             yield {"error": str(e), "done": True}
 
-    async def _make_request_with_retry(self, payload: Dict) -> Optional[Dict]:
+    async def _make_request_with_retry(self, payload: dict) -> dict | None:
         """Make API request with exponential backoff retry"""
         for attempt in range(self.config.retry_count):
             try:
-                response = await self._http_client.post(
-                    "/chat/completions",
-                    json=payload
-                )
+                response = await self._http_client.post("/chat/completions", json=payload)
 
                 if response.status_code == 200:
                     return response.json()
@@ -562,23 +537,19 @@ class OpenAICompatibleTranslator:
 
             # Wait before retry (exponential backoff)
             if attempt < self.config.retry_count - 1:
-                await asyncio.sleep(self.config.retry_delay * (2 ** attempt))
+                await asyncio.sleep(self.config.retry_delay * (2**attempt))
 
         logger.error(f"All {self.config.retry_count} retry attempts failed for {self.config.name}")
         return None
 
     def _build_translation_prompt(
-        self,
-        text: str,
-        source_language: str,
-        target_language: str,
-        context: Optional[str] = None
+        self, text: str, source_language: str, target_language: str, context: str | None = None
     ) -> str:
         """Build the translation prompt - returns ONLY the translated text, no commentary"""
         prompt = f"Translate from {source_language} to {target_language}:\n\n{text}"
         return prompt
 
-    def _extract_translation(self, response_data: Dict) -> Optional[str]:
+    def _extract_translation(self, response_data: dict) -> str | None:
         """Extract translation from OpenAI API response format and clean up commentary"""
         try:
             # Standard OpenAI response format:
@@ -608,7 +579,8 @@ class OpenAICompatibleTranslator:
 
             # Remove parenthetical explanations at the end
             import re
-            content = re.sub(r'\s*\([^)]*\)\s*$', '', content)
+
+            content = re.sub(r"\s*\([^)]*\)\s*$", "", content)
 
             return content.strip()
 
@@ -616,7 +588,7 @@ class OpenAICompatibleTranslator:
             logger.error(f"Failed to extract translation: {e}")
             return None
 
-    def _estimate_confidence(self, response_data: Dict) -> float:
+    def _estimate_confidence(self, response_data: dict) -> float:
         """
         Estimate confidence from API response.
 
@@ -649,9 +621,9 @@ class OpenAICompatibleTranslator:
 # FACTORY FUNCTIONS FOR COMMON SERVICES
 # =============================================================================
 
+
 def create_ollama_translator(
-    model: str = "llama3.1:8b",
-    base_url: str = "http://localhost:11434/v1"
+    model: str = "llama3.1:8b", base_url: str = "http://localhost:11434/v1"
 ) -> OpenAICompatibleTranslator:
     """Create translator for local Ollama instance"""
     config = OpenAICompatibleConfig(
@@ -659,14 +631,13 @@ def create_ollama_translator(
         base_url=base_url,
         model=model,
         api_key=None,  # Ollama doesn't require API key
-        temperature=0.3
+        temperature=0.3,
     )
     return OpenAICompatibleTranslator(config)
 
 
 def create_groq_translator(
-    model: str = "llama-3.1-8b-instant",
-    api_key: Optional[str] = None
+    model: str = "llama-3.1-8b-instant", api_key: str | None = None
 ) -> OpenAICompatibleTranslator:
     """Create translator for Groq cloud service"""
     api_key = api_key or os.getenv("GROQ_API_KEY")
@@ -676,14 +647,13 @@ def create_groq_translator(
         base_url="https://api.groq.com/openai/v1",
         model=model,
         api_key=api_key,
-        temperature=0.3
+        temperature=0.3,
     )
     return OpenAICompatibleTranslator(config)
 
 
 def create_together_translator(
-    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-    api_key: Optional[str] = None
+    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", api_key: str | None = None
 ) -> OpenAICompatibleTranslator:
     """Create translator for Together AI service"""
     api_key = api_key or os.getenv("TOGETHER_API_KEY")
@@ -693,14 +663,13 @@ def create_together_translator(
         base_url="https://api.together.xyz/v1",
         model=model,
         api_key=api_key,
-        temperature=0.3
+        temperature=0.3,
     )
     return OpenAICompatibleTranslator(config)
 
 
 def create_vllm_server_translator(
-    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct",
-    base_url: str = "http://localhost:8000/v1"
+    model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct", base_url: str = "http://localhost:8000/v1"
 ) -> OpenAICompatibleTranslator:
     """Create translator for vLLM server instance"""
     config = OpenAICompatibleConfig(
@@ -708,14 +677,13 @@ def create_vllm_server_translator(
         base_url=base_url,
         model=model,
         api_key=None,  # vLLM server typically doesn't require API key
-        temperature=0.3
+        temperature=0.3,
     )
     return OpenAICompatibleTranslator(config)
 
 
 def create_openai_translator(
-    model: str = "gpt-4o-mini",
-    api_key: Optional[str] = None
+    model: str = "gpt-4o-mini", api_key: str | None = None
 ) -> OpenAICompatibleTranslator:
     """Create translator for actual OpenAI API"""
     api_key = api_key or os.getenv("OPENAI_API_KEY")
@@ -725,7 +693,7 @@ def create_openai_translator(
         base_url="https://api.openai.com/v1",
         model=model,
         api_key=api_key,
-        temperature=0.3
+        temperature=0.3,
     )
     return OpenAICompatibleTranslator(config)
 
@@ -734,9 +702,10 @@ def create_openai_translator(
 # CONFIGURATION LOADER
 # =============================================================================
 
+
 def load_openai_compatible_translators_from_config(
-    config_file: Optional[str] = None
-) -> List[OpenAICompatibleTranslator]:
+    config_file: str | None = None,
+) -> list[OpenAICompatibleTranslator]:
     """
     Load multiple OpenAI-compatible translators from configuration.
 
@@ -773,6 +742,7 @@ def load_openai_compatible_translators_from_config(
 # USAGE EXAMPLE
 # =============================================================================
 
+
 async def example_usage():
     """Example of how to use OpenAI-compatible translator"""
 
@@ -782,9 +752,7 @@ async def example_usage():
 
     if ollama.is_ready:
         result = await ollama.translate(
-            text="Hello, how are you?",
-            source_language="en",
-            target_language="es"
+            text="Hello, how are you?", source_language="en", target_language="es"
         )
         print(f"Ollama translation: {result}")
 
@@ -795,9 +763,7 @@ async def example_usage():
 
         if groq.is_ready:
             result = await groq.translate(
-                text="Good morning",
-                source_language="en",
-                target_language="fr"
+                text="Good morning", source_language="en", target_language="fr"
             )
             print(f"Groq translation: {result}")
 
@@ -806,16 +772,14 @@ async def example_usage():
         name="my-custom-server",
         base_url="http://my-server.com/v1",
         model="my-model",
-        api_key="my-secret-key"
+        api_key="my-secret-key",
     )
     custom = OpenAICompatibleTranslator(custom_config)
     await custom.initialize()
 
     if custom.is_ready:
         result = await custom.translate(
-            text="Thank you",
-            source_language="en",
-            target_language="de"
+            text="Thank you", source_language="en", target_language="de"
         )
         print(f"Custom translation: {result}")
 

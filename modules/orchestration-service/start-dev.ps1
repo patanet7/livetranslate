@@ -100,7 +100,7 @@ $backendJob = Start-Job -ScriptBlock {
     } else {
         & source venv/bin/activate
     }
-    
+
     Set-Location backend
     python main.py
 }
@@ -151,12 +151,12 @@ try {
     # Cleanup: Stop backend job
     Write-Host ""
     Write-Host "🛑 Stopping services..." -ForegroundColor Yellow
-    
+
     Stop-Job $backendJob -ErrorAction SilentlyContinue
     Remove-Job $backendJob -ErrorAction SilentlyContinue
-    
+
     Stop-Job $browserJob -ErrorAction SilentlyContinue
     Remove-Job $browserJob -ErrorAction SilentlyContinue
-    
+
     Write-Host "✅ All services stopped" -ForegroundColor Green
 }

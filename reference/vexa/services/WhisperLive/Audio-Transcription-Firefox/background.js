@@ -22,7 +22,7 @@ browser.runtime.onMessage.addListener(async function(request, sender, sendRespon
       console.error("Error updateSelectedLanguage:", error);
     }
   }
-  if (action === "toggleCaptureButtons") {    
+  if (action === "toggleCaptureButtons") {
     try {
       await browser.storage.local.set({ capturingState: { isCapturing: false } });
       browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
@@ -41,12 +41,12 @@ browser.runtime.onMessage.addListener(async function(request, sender, sendRespon
         })
         .catch((error) => {
           console.error("Error retrieving active tab:", error);
-        }); 
+        });
     } catch (error) {
       console.error(error);
     }
   }
-  
+
   if (action === "showPopup") {
     try{
       await browser.tabs.query({ active: true, currentWindow: true })
@@ -62,4 +62,3 @@ browser.runtime.onMessage.addListener(async function(request, sender, sendRespon
     }
   }
 });
-

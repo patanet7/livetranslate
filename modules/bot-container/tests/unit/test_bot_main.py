@@ -12,10 +12,10 @@ Bot container is a "headless frontend" that:
 Following TDD: RED → GREEN → REFACTOR
 """
 
-import pytest
-import asyncio
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -32,7 +32,7 @@ class TestBotInitialization:
             meeting_url="https://meet.google.com/test-meeting",
             connection_id="test-connection-123",
             user_token="test-token-456",
-            orchestration_url="ws://localhost:3000/ws"
+            orchestration_url="ws://localhost:3000/ws",
         )
 
         assert bot.meeting_url == "https://meet.google.com/test-meeting"
@@ -43,6 +43,7 @@ class TestBotInitialization:
     def test_bot_reads_config_from_env(self):
         """Test bot can read configuration from environment variables"""
         import os
+
         from bot_main import Bot
 
         # Set environment variables
@@ -77,25 +78,27 @@ class TestBotLifecycle:
         5. Start audio capture
         6. Notify bot manager (active callback)
         """
+        from unittest.mock import AsyncMock, patch
+
         from bot_main import Bot
-        from unittest.mock import AsyncMock, patch, MagicMock
 
         bot = Bot(
             meeting_url="https://meet.google.com/test",
             connection_id="test-123",
             user_token="token",
             orchestration_url="ws://localhost:3000/ws",
-            bot_manager_url="http://manager:8080"
+            bot_manager_url="http://manager:8080",
         )
 
         # Mock components
-        with patch.object(bot, '_connect_to_orchestration', new_callable=AsyncMock) as mock_connect, \
-             patch.object(bot, '_notify_manager', new_callable=AsyncMock) as mock_notify, \
-             patch.object(bot, '_join_meeting', new_callable=AsyncMock) as mock_join, \
-             patch.object(bot, '_start_audio_stream', new_callable=AsyncMock) as mock_audio, \
-             patch.object(bot, '_main_loop', new_callable=AsyncMock) as mock_loop, \
-             patch.object(bot, '_cleanup', new_callable=AsyncMock) as mock_cleanup:
-
+        with (
+            patch.object(bot, "_connect_to_orchestration", new_callable=AsyncMock) as mock_connect,
+            patch.object(bot, "_notify_manager", new_callable=AsyncMock) as mock_notify,
+            patch.object(bot, "_join_meeting", new_callable=AsyncMock),
+            patch.object(bot, "_start_audio_stream", new_callable=AsyncMock),
+            patch.object(bot, "_main_loop", new_callable=AsyncMock) as mock_loop,
+            patch.object(bot, "_cleanup", new_callable=AsyncMock) as mock_cleanup,
+        ):
             # Mock main loop to exit immediately
             mock_loop.return_value = None
 
@@ -131,15 +134,16 @@ class TestBotLifecycle:
         3. Disconnect from orchestration
         4. Notify bot manager (completed callback)
         """
-        from bot_main import Bot
         from unittest.mock import AsyncMock, MagicMock
+
+        from bot_main import Bot
 
         bot = Bot(
             meeting_url="https://meet.google.com/test",
             connection_id="test-123",
             user_token="token",
             orchestration_url="ws://localhost:3000/ws",
-            bot_manager_url="http://manager:8080"
+            bot_manager_url="http://manager:8080",
         )
 
         # Setup bot state (simulating running bot)
@@ -164,7 +168,7 @@ class TestBotLifecycle:
         bot._notify_manager.assert_called_once_with("completed")
 
         # 3. Bot status updated
-        assert bot.running == False
+        assert not bot.running
         assert bot.status == "stopped"
 
 
@@ -200,23 +204,25 @@ class TestBotManagerCallbacks:
             "container_id": "..."
         }
         """
-        from bot_main import Bot
         from unittest.mock import AsyncMock, patch
-        import httpx
+
+        from bot_main import Bot
 
         bot = Bot(
             meeting_url="https://meet.google.com/test",
             connection_id="test-123",
             user_token="token",
             orchestration_url="ws://localhost:3000/ws",
-            bot_manager_url="http://manager:8080"
+            bot_manager_url="http://manager:8080",
         )
 
         # Mock httpx
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=mock_response
+            )
 
             await bot._notify_manager("started")
 
@@ -228,9 +234,9 @@ class TestBotManagerCallbacks:
             assert call_args[0][0] == "http://manager:8080/bots/internal/callback/started"
 
             # Check payload
-            payload = call_args[1]['json']
-            assert payload['connection_id'] == "test-123"
-            assert 'container_id' in payload
+            payload = call_args[1]["json"]
+            assert payload["connection_id"] == "test-123"
+            assert "container_id" in payload
 
     @pytest.mark.asyncio
     async def test_bot_sends_joining_callback(self):
@@ -238,21 +244,24 @@ class TestBotManagerCallbacks:
         Test bot sends joining callback when entering meeting:
         POST /bots/internal/callback/joining
         """
-        from bot_main import Bot
         from unittest.mock import AsyncMock, patch
+
+        from bot_main import Bot
 
         bot = Bot(
             meeting_url="https://meet.google.com/test",
             connection_id="test-123",
             user_token="token",
             orchestration_url="ws://localhost:3000/ws",
-            bot_manager_url="http://manager:8080"
+            bot_manager_url="http://manager:8080",
         )
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=mock_response
+            )
 
             await bot._notify_manager("joining")
 
@@ -266,21 +275,24 @@ class TestBotManagerCallbacks:
         Test bot sends active callback when in meeting:
         POST /bots/internal/callback/active
         """
-        from bot_main import Bot
         from unittest.mock import AsyncMock, patch
+
+        from bot_main import Bot
 
         bot = Bot(
             meeting_url="https://meet.google.com/test",
             connection_id="test-123",
             user_token="token",
             orchestration_url="ws://localhost:3000/ws",
-            bot_manager_url="http://manager:8080"
+            bot_manager_url="http://manager:8080",
         )
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=mock_response
+            )
 
             await bot._notify_manager("active")
 
@@ -294,21 +306,24 @@ class TestBotManagerCallbacks:
         Test bot sends completed callback on clean exit:
         POST /bots/internal/callback/completed
         """
-        from bot_main import Bot
         from unittest.mock import AsyncMock, patch
+
+        from bot_main import Bot
 
         bot = Bot(
             meeting_url="https://meet.google.com/test",
             connection_id="test-123",
             user_token="token",
             orchestration_url="ws://localhost:3000/ws",
-            bot_manager_url="http://manager:8080"
+            bot_manager_url="http://manager:8080",
         )
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=mock_response
+            )
 
             await bot._notify_manager("completed")
 
@@ -327,21 +342,24 @@ class TestBotManagerCallbacks:
             "error": "..."
         }
         """
-        from bot_main import Bot
         from unittest.mock import AsyncMock, patch
+
+        from bot_main import Bot
 
         bot = Bot(
             meeting_url="https://meet.google.com/test",
             connection_id="test-123",
             user_token="token",
             orchestration_url="ws://localhost:3000/ws",
-            bot_manager_url="http://manager:8080"
+            bot_manager_url="http://manager:8080",
         )
 
-        with patch('httpx.AsyncClient') as mock_client:
+        with patch("httpx.AsyncClient") as mock_client:
             mock_response = AsyncMock()
             mock_response.raise_for_status = AsyncMock()
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+                return_value=mock_response
+            )
 
             await bot._notify_manager("failed", error="Test error message")
 
@@ -350,9 +368,9 @@ class TestBotManagerCallbacks:
             assert call_args[0][0] == "http://manager:8080/bots/internal/callback/failed"
 
             # Check error payload
-            payload = call_args[1]['json']
-            assert payload['error'] == "Test error message"
-            assert payload['exit_code'] == 1
+            payload = call_args[1]["json"]
+            assert payload["error"] == "Test error message"
+            assert payload["exit_code"] == 1
 
 
 class TestBotRedisCommands:
@@ -364,27 +382,27 @@ class TestBotRedisCommands:
         Test bot subscribes to its command channel:
         bot_commands:{connection_id}
         """
-        from redis_subscriber import RedisSubscriber, RedisConfig
-        from unittest.mock import AsyncMock, MagicMock
+
+        from redis_subscriber import RedisConfig, RedisSubscriber
 
         config = RedisConfig(url="redis://localhost:6379")
         subscriber = RedisSubscriber(config, connection_id="test-bot-123")
 
         # Verify initialization
         assert subscriber.connection_id == "test-bot-123"
-        assert subscriber.is_listening == False
+        assert not subscriber.is_listening
 
         # Start (stub mode)
         await subscriber.start()
 
         # Verify started
-        assert subscriber.is_listening == True
+        assert subscriber.is_listening
 
         # Stop
         await subscriber.stop()
 
         # Verify stopped
-        assert subscriber.is_listening == False
+        assert not subscriber.is_listening
 
     @pytest.mark.asyncio
     async def test_bot_handles_leave_command(self):
@@ -392,8 +410,8 @@ class TestBotRedisCommands:
         Test bot handles leave command:
         {"action": "leave"}
         """
-        from redis_subscriber import RedisSubscriber, Command
-        from unittest.mock import AsyncMock
+
+        from redis_subscriber import Command, RedisSubscriber
 
         subscriber = RedisSubscriber(connection_id="test-bot-123")
 
@@ -422,8 +440,8 @@ class TestBotRedisCommands:
         Test bot handles reconfigure command:
         {"action": "reconfigure", "language": "es", "task": "translate"}
         """
-        from redis_subscriber import RedisSubscriber, Command
-        from unittest.mock import AsyncMock
+
+        from redis_subscriber import Command, RedisSubscriber
 
         subscriber = RedisSubscriber(connection_id="test-bot-123")
 
@@ -437,8 +455,7 @@ class TestBotRedisCommands:
 
         # Simulate receiving reconfigure command
         reconfigure_command = Command(
-            action="reconfigure",
-            data={"language": "es", "task": "translate"}
+            action="reconfigure", data={"language": "es", "task": "translate"}
         )
         await subscriber.command_callback(reconfigure_command)
 

@@ -15,8 +15,8 @@ Exception Hierarchy:
     └── ExternalServiceError (502)
 """
 
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 
 class APIError(Exception):
@@ -44,21 +44,21 @@ class APIError(Exception):
         status_code: int = 500,
         code: str = "INTERNAL_ERROR",
         message: str = "An unexpected error occurred",
-        details: Optional[Dict[str, Any]] = None,
-        original_exception: Optional[Exception] = None,
+        details: dict[str, Any] | None = None,
+        original_exception: Exception | None = None,
     ):
         self.status_code = status_code
         self.code = code
         self.message = message
         self.details = details or {}
         self.original_exception = original_exception
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = datetime.now(UTC)
         super().__init__(message)
 
-    def to_dict(self, include_timestamp: bool = True) -> Dict[str, Any]:
+    def to_dict(self, include_timestamp: bool = True) -> dict[str, Any]:
         """Convert to dictionary for JSON response."""
         # Ensure code is a string (handles Enum values)
-        code_value = str(self.code.value) if hasattr(self.code, 'value') else str(self.code)
+        code_value = str(self.code.value) if hasattr(self.code, "value") else str(self.code)
 
         result = {
             "code": code_value,
@@ -135,7 +135,7 @@ class NotFoundError(APIError):
         self,
         resource_type: str,
         resource_id: Any,
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = {
             "resource_type": resource_type,
@@ -168,7 +168,7 @@ class AuthenticationError(APIError):
     def __init__(
         self,
         message: str = "Authentication required",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(
             status_code=401,
@@ -192,8 +192,8 @@ class AuthorizationError(APIError):
     def __init__(
         self,
         message: str = "Access denied",
-        required_role: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        required_role: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if required_role:
@@ -221,8 +221,8 @@ class RateLimitError(APIError):
     def __init__(
         self,
         retry_after: int = 60,
-        limit: Optional[int] = None,
-        window: Optional[int] = None,
+        limit: int | None = None,
+        window: int | None = None,
     ):
         details = {"retry_after_seconds": retry_after}
         if limit is not None:
@@ -253,8 +253,8 @@ class ServiceUnavailableError(APIError):
     def __init__(
         self,
         service_name: str,
-        retry_after: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
+        retry_after: int | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = {"service": service_name}
         if retry_after is not None:
@@ -286,8 +286,8 @@ class DatabaseError(APIError):
     def __init__(
         self,
         message: str = "Database operation failed",
-        operation: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        operation: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = details or {}
         if operation:
@@ -316,8 +316,8 @@ class ExternalServiceError(APIError):
         self,
         service_name: str,
         message: str,
-        upstream_status: Optional[int] = None,
-        details: Optional[Dict[str, Any]] = None,
+        upstream_status: int | None = None,
+        details: dict[str, Any] | None = None,
     ):
         error_details = {"service": service_name}
         if upstream_status is not None:

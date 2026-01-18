@@ -37,5 +37,3 @@ fi
 echo "[INFO] Using python: $PY_BIN (version $MAJ.$MIN)"
 echo "[INFO] Starting Seamless demo service on :5007"
 exec "$PY_BIN" -m uvicorn src.server:app --host 0.0.0.0 --port 5007
-
-

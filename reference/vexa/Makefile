@@ -34,7 +34,7 @@ check_docker:
 	fi
 	@echo "---> Docker is running."
 
-# Include .env file if it exists for environment variables 
+# Include .env file if it exists for environment variables
 -include .env
 
 # Create .env file from example

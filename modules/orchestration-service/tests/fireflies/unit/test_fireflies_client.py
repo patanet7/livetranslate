@@ -7,7 +7,7 @@ Tests the real client classes, message parsing, and state management.
 
 import sys
 from pathlib import Path
-import json
+
 import pytest
 
 # Add src to path
@@ -16,19 +16,18 @@ src_path = orchestration_root / "src"
 sys.path.insert(0, str(src_path))
 
 from clients.fireflies_client import (
-    FirefliesGraphQLClient,
-    FirefliesRealtimeClient,
-    FirefliesClient,
-    FirefliesAPIError,
-    FirefliesConnectionError,
-    FirefliesAuthError,
+    ACTIVE_MEETINGS_QUERY,
     DEFAULT_GRAPHQL_ENDPOINT,
     DEFAULT_WEBSOCKET_ENDPOINT,
     DEFAULT_WEBSOCKET_PATH,
     MAX_RECONNECTION_ATTEMPTS,
-    ACTIVE_MEETINGS_QUERY,
+    FirefliesAPIError,
+    FirefliesAuthError,
+    FirefliesClient,
+    FirefliesConnectionError,
+    FirefliesGraphQLClient,
+    FirefliesRealtimeClient,
 )
-
 from models.fireflies import (
     FirefliesConnectionStatus,
 )
@@ -71,9 +70,7 @@ class TestFirefliesGraphQLClient:
 
     def test_custom_endpoint(self):
         """Test client with custom endpoint."""
-        client = FirefliesGraphQLClient(
-            api_key="key", endpoint="https://custom.api/graphql"
-        )
+        client = FirefliesGraphQLClient(api_key="key", endpoint="https://custom.api/graphql")
         assert client.endpoint == "https://custom.api/graphql"
 
     def test_custom_timeout(self):

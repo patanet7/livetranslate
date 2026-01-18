@@ -15,7 +15,7 @@ Modules:
 
 from fastapi import APIRouter
 
-from . import general, audio, translation, bot, sync, prompts
+from . import audio, bot, general, prompts, sync, translation
 
 # Aggregate router that combines all sub-routers
 # Note: No prefix here since main_fastapi.py adds /api/settings
@@ -41,11 +41,11 @@ router.include_router(sync.router)
 router.include_router(prompts.router)
 
 __all__ = [
-    "router",
-    "general",
     "audio",
-    "translation",
     "bot",
-    "sync",
+    "general",
     "prompts",
+    "router",
+    "sync",
+    "translation",
 ]

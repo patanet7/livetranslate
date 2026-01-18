@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -22,23 +22,23 @@ import {
   Alert,
   IconButton,
   Tooltip,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import RestoreIcon from '@mui/icons-material/Restore';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+} from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import RestoreIcon from "@mui/icons-material/Restore";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 
 interface AudioProcessingConfig {
   // VAD Configuration
   vad: {
     enabled: boolean;
-    mode: 'basic' | 'webrtc' | 'aggressive' | 'silero';
+    mode: "basic" | "webrtc" | "aggressive" | "silero";
     aggressiveness: number;
     energy_threshold: number;
     sensitivity: number;
     voice_freq_min: number;
     voice_freq_max: number;
   };
-  
+
   // Voice Filter Configuration
   voice_filter: {
     enabled: boolean;
@@ -49,16 +49,16 @@ interface AudioProcessingConfig {
     formant1_min: number;
     formant1_max: number;
   };
-  
+
   // Noise Reduction Configuration
   noise_reduction: {
     enabled: boolean;
-    mode: 'light' | 'moderate' | 'aggressive' | 'adaptive';
+    mode: "light" | "moderate" | "aggressive" | "adaptive";
     strength: number;
     voice_protection: boolean;
     adaptation_rate: number;
   };
-  
+
   // Voice Enhancement Configuration
   voice_enhancement: {
     enabled: boolean;
@@ -67,18 +67,18 @@ interface AudioProcessingConfig {
     normalize: boolean;
     sibilance_enhancement: number;
   };
-  
+
   // Compression Configuration
   compression: {
     enabled: boolean;
-    mode: 'soft_knee' | 'hard_knee' | 'adaptive';
+    mode: "soft_knee" | "hard_knee" | "adaptive";
     threshold: number;
     ratio: number;
     knee: number;
     attack_time: number;
     release_time: number;
   };
-  
+
   // Limiter Configuration
   limiter: {
     enabled: boolean;
@@ -86,7 +86,7 @@ interface AudioProcessingConfig {
     release_time: number;
     soft_clip: boolean;
   };
-  
+
   // Pipeline Configuration
   pipeline: {
     enabled_stages: string[];
@@ -94,7 +94,7 @@ interface AudioProcessingConfig {
     bypass_on_low_quality: boolean;
     quality_threshold: number;
   };
-  
+
   // General Configuration
   general: {
     preset_name: string;
@@ -111,7 +111,7 @@ interface AudioProcessingSettingsProps {
 const defaultConfig: AudioProcessingConfig = {
   vad: {
     enabled: true,
-    mode: 'webrtc',
+    mode: "webrtc",
     aggressiveness: 2,
     energy_threshold: 0.01,
     sensitivity: 0.7,
@@ -129,7 +129,7 @@ const defaultConfig: AudioProcessingConfig = {
   },
   noise_reduction: {
     enabled: true,
-    mode: 'moderate',
+    mode: "moderate",
     strength: 0.7,
     voice_protection: true,
     adaptation_rate: 0.1,
@@ -143,7 +143,7 @@ const defaultConfig: AudioProcessingConfig = {
   },
   compression: {
     enabled: true,
-    mode: 'soft_knee',
+    mode: "soft_knee",
     threshold: -20,
     ratio: 3.0,
     knee: 2.0,
@@ -157,13 +157,20 @@ const defaultConfig: AudioProcessingConfig = {
     soft_clip: true,
   },
   pipeline: {
-    enabled_stages: ['vad', 'voice_filter', 'noise_reduction', 'voice_enhancement', 'compression', 'limiter'],
+    enabled_stages: [
+      "vad",
+      "voice_filter",
+      "noise_reduction",
+      "voice_enhancement",
+      "compression",
+      "limiter",
+    ],
     pause_after_stage: {},
     bypass_on_low_quality: false,
     quality_threshold: 0.3,
   },
   general: {
-    preset_name: 'default',
+    preset_name: "default",
     sample_rate: 16000,
     buffer_duration: 5.0,
     processing_timeout: 30000,
@@ -171,15 +178,17 @@ const defaultConfig: AudioProcessingConfig = {
 };
 
 const presets = {
-  default: 'Default Processing',
-  voice_optimized: 'Voice Optimized',
-  noisy_environment: 'Noisy Environment',
-  music_mode: 'Music Mode',
-  minimal_processing: 'Minimal Processing',
-  aggressive_cleanup: 'Aggressive Cleanup',
+  default: "Default Processing",
+  voice_optimized: "Voice Optimized",
+  noisy_environment: "Noisy Environment",
+  music_mode: "Music Mode",
+  minimal_processing: "Minimal Processing",
+  aggressive_cleanup: "Aggressive Cleanup",
 };
 
-const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSave }) => {
+const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({
+  onSave,
+}) => {
   const [config, setConfig] = useState<AudioProcessingConfig>(defaultConfig);
   const [testingAudio, setTestingAudio] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
@@ -188,21 +197,25 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
   useEffect(() => {
     const loadConfiguration = async () => {
       try {
-        const response = await fetch('/api/settings/audio');
+        const response = await fetch("/api/settings/audio");
         if (response.ok) {
           const currentConfig = await response.json();
           setConfig({ ...defaultConfig, ...currentConfig });
         }
       } catch (error) {
-        console.error('Failed to load audio configuration:', error);
+        console.error("Failed to load audio configuration:", error);
       }
     };
-    
+
     loadConfiguration();
   }, []);
 
-  const handleConfigChange = (section: keyof AudioProcessingConfig, key: string, value: any) => {
-    setConfig(prev => ({
+  const handleConfigChange = (
+    section: keyof AudioProcessingConfig,
+    key: string,
+    value: any,
+  ) => {
+    setConfig((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
@@ -212,13 +225,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
   };
 
   const handleStageToggle = (stage: string, enabled: boolean) => {
-    setConfig(prev => ({
+    setConfig((prev) => ({
       ...prev,
       pipeline: {
         ...prev.pipeline,
-        enabled_stages: enabled 
+        enabled_stages: enabled
           ? [...prev.pipeline.enabled_stages, stage]
-          : prev.pipeline.enabled_stages.filter(s => s !== stage),
+          : prev.pipeline.enabled_stages.filter((s) => s !== stage),
       },
     }));
   };
@@ -228,48 +241,51 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       const response = await fetch(`/api/settings/audio/presets/${presetName}`);
       if (response.ok) {
         const presetConfig = await response.json();
-        setConfig({ ...presetConfig, general: { ...config.general, preset_name: presetName } });
+        setConfig({
+          ...presetConfig,
+          general: { ...config.general, preset_name: presetName },
+        });
         onSave(`Applied ${presets[presetName as keyof typeof presets]} preset`);
       }
     } catch (error) {
-      onSave('Failed to load preset', false);
+      onSave("Failed to load preset", false);
     }
   };
 
   const handleSave = async () => {
     try {
-      const response = await fetch('/api/settings/audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-      
+
       if (response.ok) {
-        onSave('Audio processing settings saved successfully');
+        onSave("Audio processing settings saved successfully");
       } else {
-        onSave('Failed to save audio processing settings', false);
+        onSave("Failed to save audio processing settings", false);
       }
     } catch (error) {
-      onSave('Error saving audio processing settings', false);
+      onSave("Error saving audio processing settings", false);
     }
   };
 
   const handleTestAudio = async () => {
     setTestingAudio(true);
     try {
-      const response = await fetch('/api/settings/audio/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/audio/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-      
+
       if (response.ok) {
-        onSave('Audio processing test completed successfully');
+        onSave("Audio processing test completed successfully");
       } else {
-        onSave('Audio processing test failed', false);
+        onSave("Audio processing test failed", false);
       }
     } catch (error) {
-      onSave('Error testing audio processing', false);
+      onSave("Error testing audio processing", false);
     } finally {
       setTestingAudio(false);
     }
@@ -277,12 +293,17 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
 
   const handleResetToDefaults = () => {
     setConfig(defaultConfig);
-    onSave('Configuration reset to defaults');
+    onSave("Configuration reset to defaults");
   };
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
+      >
         <Typography variant="h5" component="h2">
           Audio Processing Configuration
         </Typography>
@@ -299,7 +320,7 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
             disabled={testingAudio}
             sx={{ mr: 2 }}
           >
-            {testingAudio ? 'Testing...' : 'Test Configuration'}
+            {testingAudio ? "Testing..." : "Test Configuration"}
           </Button>
           <Button variant="contained" onClick={handleSave}>
             Save Settings
@@ -308,8 +329,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       </Box>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Configure advanced audio processing parameters for optimal speech recognition and quality.
-        Changes are applied in real-time with preview mode.
+        Configure advanced audio processing parameters for optimal speech
+        recognition and quality. Changes are applied in real-time with preview
+        mode.
       </Alert>
 
       {/* Preset Selection */}
@@ -326,7 +348,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                   onChange={(e) => handlePresetChange(e.target.value)}
                 >
                   {Object.entries(presets).map(([key, label]) => (
-                    <MenuItem key={key} value={key}>{label}</MenuItem>
+                    <MenuItem key={key} value={key}>
+                      {label}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -354,12 +378,28 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
             Configure which processing stages are active and their order
           </Typography>
           <Box sx={{ mb: 2 }}>
-            {['vad', 'voice_filter', 'noise_reduction', 'voice_enhancement', 'compression', 'limiter'].map((stage) => (
+            {[
+              "vad",
+              "voice_filter",
+              "noise_reduction",
+              "voice_enhancement",
+              "compression",
+              "limiter",
+            ].map((stage) => (
               <Chip
                 key={stage}
-                label={stage.replace('_', ' ').toUpperCase()}
-                color={config.pipeline.enabled_stages.includes(stage) ? 'primary' : 'default'}
-                onClick={() => handleStageToggle(stage, !config.pipeline.enabled_stages.includes(stage))}
+                label={stage.replace("_", " ").toUpperCase()}
+                color={
+                  config.pipeline.enabled_stages.includes(stage)
+                    ? "primary"
+                    : "default"
+                }
+                onClick={() =>
+                  handleStageToggle(
+                    stage,
+                    !config.pipeline.enabled_stages.includes(stage),
+                  )
+                }
                 sx={{ mr: 1, mb: 1 }}
               />
             ))}
@@ -370,17 +410,27 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.pipeline.bypass_on_low_quality}
-                    onChange={(e) => handleConfigChange('pipeline', 'bypass_on_low_quality', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "pipeline",
+                        "bypass_on_low_quality",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Bypass on Low Quality"
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Quality Threshold: {config.pipeline.quality_threshold}</Typography>
+              <Typography gutterBottom>
+                Quality Threshold: {config.pipeline.quality_threshold}
+              </Typography>
               <Slider
                 value={config.pipeline.quality_threshold}
-                onChange={(_, value) => handleConfigChange('pipeline', 'quality_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("pipeline", "quality_threshold", value)
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -395,9 +445,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Voice Activity Detection (VAD)</Typography>
-          <Chip 
-            label={config.vad.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.vad.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.vad.enabled ? "Enabled" : "Disabled"}
+            color={config.vad.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -409,7 +459,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.vad.enabled}
-                    onChange={(e) => handleConfigChange('vad', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange("vad", "enabled", e.target.checked)
+                    }
                   />
                 }
                 label="Enable Voice Activity Detection"
@@ -421,7 +473,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 <Select
                   value={config.vad.mode}
                   label="VAD Mode"
-                  onChange={(e) => handleConfigChange('vad', 'mode', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("vad", "mode", e.target.value)
+                  }
                   disabled={!config.vad.enabled}
                 >
                   <MenuItem value="basic">Basic Energy-based</MenuItem>
@@ -432,10 +486,14 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
               </FormControl>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Aggressiveness: {config.vad.aggressiveness}</Typography>
+              <Typography gutterBottom>
+                Aggressiveness: {config.vad.aggressiveness}
+              </Typography>
               <Slider
                 value={config.vad.aggressiveness}
-                onChange={(_, value) => handleConfigChange('vad', 'aggressiveness', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("vad", "aggressiveness", value)
+                }
                 min={0}
                 max={3}
                 step={1}
@@ -444,10 +502,14 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Energy Threshold: {config.vad.energy_threshold}</Typography>
+              <Typography gutterBottom>
+                Energy Threshold: {config.vad.energy_threshold}
+              </Typography>
               <Slider
                 value={config.vad.energy_threshold}
-                onChange={(_, value) => handleConfigChange('vad', 'energy_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("vad", "energy_threshold", value)
+                }
                 min={0.001}
                 max={0.1}
                 step={0.001}
@@ -455,10 +517,14 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Sensitivity: {config.vad.sensitivity}</Typography>
+              <Typography gutterBottom>
+                Sensitivity: {config.vad.sensitivity}
+              </Typography>
               <Slider
                 value={config.vad.sensitivity}
-                onChange={(_, value) => handleConfigChange('vad', 'sensitivity', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("vad", "sensitivity", value)
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -473,9 +539,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Voice Frequency Filter</Typography>
-          <Chip 
-            label={config.voice_filter.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.voice_filter.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.voice_filter.enabled ? "Enabled" : "Disabled"}
+            color={config.voice_filter.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -487,7 +553,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.voice_filter.enabled}
-                    onChange={(e) => handleConfigChange('voice_filter', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "voice_filter",
+                        "enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Voice Frequency Filtering"
@@ -499,7 +571,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 label="Fundamental Min (Hz)"
                 type="number"
                 value={config.voice_filter.fundamental_min}
-                onChange={(e) => handleConfigChange('voice_filter', 'fundamental_min', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "voice_filter",
+                    "fundamental_min",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.voice_filter.enabled}
               />
             </Grid>
@@ -509,15 +587,25 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 label="Fundamental Max (Hz)"
                 type="number"
                 value={config.voice_filter.fundamental_max}
-                onChange={(e) => handleConfigChange('voice_filter', 'fundamental_max', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "voice_filter",
+                    "fundamental_max",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.voice_filter.enabled}
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Voice Band Gain: {config.voice_filter.voice_band_gain}</Typography>
+              <Typography gutterBottom>
+                Voice Band Gain: {config.voice_filter.voice_band_gain}
+              </Typography>
               <Slider
                 value={config.voice_filter.voice_band_gain}
-                onChange={(_, value) => handleConfigChange('voice_filter', 'voice_band_gain', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("voice_filter", "voice_band_gain", value)
+                }
                 min={0.5}
                 max={2.0}
                 step={0.1}
@@ -529,7 +617,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.voice_filter.preserve_formants}
-                    onChange={(e) => handleConfigChange('voice_filter', 'preserve_formants', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "voice_filter",
+                        "preserve_formants",
+                        e.target.checked,
+                      )
+                    }
                     disabled={!config.voice_filter.enabled}
                   />
                 }
@@ -544,9 +638,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Noise Reduction</Typography>
-          <Chip 
-            label={config.noise_reduction.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.noise_reduction.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.noise_reduction.enabled ? "Enabled" : "Disabled"}
+            color={config.noise_reduction.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -558,7 +652,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.noise_reduction.enabled}
-                    onChange={(e) => handleConfigChange('noise_reduction', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "noise_reduction",
+                        "enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Noise Reduction"
@@ -570,7 +670,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 <Select
                   value={config.noise_reduction.mode}
                   label="Noise Reduction Mode"
-                  onChange={(e) => handleConfigChange('noise_reduction', 'mode', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange(
+                      "noise_reduction",
+                      "mode",
+                      e.target.value,
+                    )
+                  }
                   disabled={!config.noise_reduction.enabled}
                 >
                   <MenuItem value="light">Light</MenuItem>
@@ -581,10 +687,14 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
               </FormControl>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Strength: {config.noise_reduction.strength}</Typography>
+              <Typography gutterBottom>
+                Strength: {config.noise_reduction.strength}
+              </Typography>
               <Slider
                 value={config.noise_reduction.strength}
-                onChange={(_, value) => handleConfigChange('noise_reduction', 'strength', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("noise_reduction", "strength", value)
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -596,7 +706,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.noise_reduction.voice_protection}
-                    onChange={(e) => handleConfigChange('noise_reduction', 'voice_protection', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "noise_reduction",
+                        "voice_protection",
+                        e.target.checked,
+                      )
+                    }
                     disabled={!config.noise_reduction.enabled}
                   />
                 }
@@ -611,9 +727,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Voice Enhancement</Typography>
-          <Chip 
-            label={config.voice_enhancement.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.voice_enhancement.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.voice_enhancement.enabled ? "Enabled" : "Disabled"}
+            color={config.voice_enhancement.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -625,17 +741,32 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.voice_enhancement.enabled}
-                    onChange={(e) => handleConfigChange('voice_enhancement', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "voice_enhancement",
+                        "enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Voice Enhancement"
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Clarity Enhancement: {config.voice_enhancement.clarity_enhancement}</Typography>
+              <Typography gutterBottom>
+                Clarity Enhancement:{" "}
+                {config.voice_enhancement.clarity_enhancement}
+              </Typography>
               <Slider
                 value={config.voice_enhancement.clarity_enhancement}
-                onChange={(_, value) => handleConfigChange('voice_enhancement', 'clarity_enhancement', value)}
+                onChange={(_, value) =>
+                  handleConfigChange(
+                    "voice_enhancement",
+                    "clarity_enhancement",
+                    value,
+                  )
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -643,10 +774,18 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Presence Boost: {config.voice_enhancement.presence_boost}</Typography>
+              <Typography gutterBottom>
+                Presence Boost: {config.voice_enhancement.presence_boost}
+              </Typography>
               <Slider
                 value={config.voice_enhancement.presence_boost}
-                onChange={(_, value) => handleConfigChange('voice_enhancement', 'presence_boost', value)}
+                onChange={(_, value) =>
+                  handleConfigChange(
+                    "voice_enhancement",
+                    "presence_boost",
+                    value,
+                  )
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -658,7 +797,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.voice_enhancement.normalize}
-                    onChange={(e) => handleConfigChange('voice_enhancement', 'normalize', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "voice_enhancement",
+                        "normalize",
+                        e.target.checked,
+                      )
+                    }
                     disabled={!config.voice_enhancement.enabled}
                   />
                 }
@@ -673,9 +818,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Dynamic Range Compression</Typography>
-          <Chip 
-            label={config.compression.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.compression.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.compression.enabled ? "Enabled" : "Disabled"}
+            color={config.compression.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -687,7 +832,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.compression.enabled}
-                    onChange={(e) => handleConfigChange('compression', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "compression",
+                        "enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Dynamic Compression"
@@ -699,7 +850,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 <Select
                   value={config.compression.mode}
                   label="Compression Mode"
-                  onChange={(e) => handleConfigChange('compression', 'mode', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("compression", "mode", e.target.value)
+                  }
                   disabled={!config.compression.enabled}
                 >
                   <MenuItem value="soft_knee">Soft Knee</MenuItem>
@@ -714,15 +867,25 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 label="Threshold (dB)"
                 type="number"
                 value={config.compression.threshold}
-                onChange={(e) => handleConfigChange('compression', 'threshold', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "compression",
+                    "threshold",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.compression.enabled}
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Ratio: {config.compression.ratio}</Typography>
+              <Typography gutterBottom>
+                Ratio: {config.compression.ratio}
+              </Typography>
               <Slider
                 value={config.compression.ratio}
-                onChange={(_, value) => handleConfigChange('compression', 'ratio', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("compression", "ratio", value)
+                }
                 min={1}
                 max={10}
                 step={0.5}
@@ -730,10 +893,14 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Knee: {config.compression.knee}</Typography>
+              <Typography gutterBottom>
+                Knee: {config.compression.knee}
+              </Typography>
               <Slider
                 value={config.compression.knee}
-                onChange={(_, value) => handleConfigChange('compression', 'knee', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("compression", "knee", value)
+                }
                 min={0}
                 max={5}
                 step={0.5}
@@ -748,9 +915,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Audio Limiter</Typography>
-          <Chip 
-            label={config.limiter.enabled ? 'Enabled' : 'Disabled'} 
-            color={config.limiter.enabled ? 'success' : 'default'}
+          <Chip
+            label={config.limiter.enabled ? "Enabled" : "Disabled"}
+            color={config.limiter.enabled ? "success" : "default"}
             size="small"
             sx={{ ml: 2 }}
           />
@@ -762,7 +929,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.limiter.enabled}
-                    onChange={(e) => handleConfigChange('limiter', 'enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange("limiter", "enabled", e.target.checked)
+                    }
                   />
                 }
                 label="Enable Audio Limiting"
@@ -774,7 +943,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 label="Threshold (dB)"
                 type="number"
                 value={config.limiter.threshold}
-                onChange={(e) => handleConfigChange('limiter', 'threshold', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "limiter",
+                    "threshold",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.limiter.enabled}
               />
             </Grid>
@@ -784,7 +959,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 label="Release Time (ms)"
                 type="number"
                 value={config.limiter.release_time}
-                onChange={(e) => handleConfigChange('limiter', 'release_time', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "limiter",
+                    "release_time",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.limiter.enabled}
               />
             </Grid>
@@ -793,7 +974,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 control={
                   <Switch
                     checked={config.limiter.soft_clip}
-                    onChange={(e) => handleConfigChange('limiter', 'soft_clip', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "limiter",
+                        "soft_clip",
+                        e.target.checked,
+                      )
+                    }
                     disabled={!config.limiter.enabled}
                   />
                 }
@@ -817,7 +1004,9 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 <Select
                   value={config.general.sample_rate}
                   label="Sample Rate"
-                  onChange={(e) => handleConfigChange('general', 'sample_rate', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("general", "sample_rate", e.target.value)
+                  }
                 >
                   <MenuItem value={8000}>8 kHz</MenuItem>
                   <MenuItem value={16000}>16 kHz</MenuItem>
@@ -833,7 +1022,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 label="Buffer Duration (seconds)"
                 type="number"
                 value={config.general.buffer_duration}
-                onChange={(e) => handleConfigChange('general', 'buffer_duration', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "general",
+                    "buffer_duration",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -842,7 +1037,13 @@ const AudioProcessingSettings: React.FC<AudioProcessingSettingsProps> = ({ onSav
                 label="Processing Timeout (ms)"
                 type="number"
                 value={config.general.processing_timeout}
-                onChange={(e) => handleConfigChange('general', 'processing_timeout', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "general",
+                    "processing_timeout",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
           </Grid>

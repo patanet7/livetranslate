@@ -8,13 +8,14 @@ and integration with the translation pipeline.
 Uses in-memory SQLite database for isolated testing.
 """
 
-import sys
 import os
-from pathlib import Path
-from uuid import uuid4
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
 import re
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
 import pytest
 
 # Prevent FastAPI app import issues
@@ -26,10 +27,21 @@ src_path = orchestration_root / "src"
 sys.path.insert(0, str(orchestration_root))
 sys.path.insert(0, str(src_path))
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, Float, ForeignKey, Index, select, and_, or_
-from sqlalchemy.orm import sessionmaker, Session, declarative_base, relationship, selectinload
-from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 import uuid as uuid_module
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+    or_,
+)
+from sqlalchemy.orm import Session, declarative_base, relationship, selectinload, sessionmaker
 
 # =============================================================================
 # Test-Local Model Definitions (to avoid import chain issues)
@@ -51,14 +63,21 @@ class MockGlossary(MockBase):
     target_languages = Column(JSON, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     is_default = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
     created_by = Column(String(255), nullable=True)
     entry_count = Column(Integer, nullable=False, default=0)
 
-    entries = relationship("MockGlossaryEntry", back_populates="glossary", cascade="all, delete-orphan")
+    entries = relationship(
+        "MockGlossaryEntry", back_populates="glossary", cascade="all, delete-orphan"
+    )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "glossary_id": str(self.glossary_id),
             "name": self.name,
@@ -89,12 +108,17 @@ class MockGlossaryEntry(MockBase):
     case_sensitive = Column(Boolean, nullable=False, default=False)
     match_whole_word = Column(Boolean, nullable=False, default=True)
     priority = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
 
     glossary = relationship("MockGlossary", back_populates="entries")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "entry_id": str(self.entry_id),
             "glossary_id": str(self.glossary_id),
@@ -109,7 +133,7 @@ class MockGlossaryEntry(MockBase):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
-    def get_translation(self, target_language: str) -> Optional[str]:
+    def get_translation(self, target_language: str) -> str | None:
         if self.translations and target_language in self.translations:
             return self.translations[target_language]
         return None
@@ -131,12 +155,12 @@ class MockGlossaryService:
     def create_glossary(
         self,
         name: str,
-        target_languages: List[str],
-        description: Optional[str] = None,
-        domain: Optional[str] = None,
+        target_languages: list[str],
+        description: str | None = None,
+        domain: str | None = None,
         source_language: str = "en",
         is_default: bool = False,
-        created_by: Optional[str] = None,
+        created_by: str | None = None,
     ) -> MockGlossary:
         glossary = MockGlossary(
             name=name,
@@ -152,21 +176,28 @@ class MockGlossaryService:
         self.db.refresh(glossary)
         return glossary
 
-    def get_glossary(self, glossary_id) -> Optional[MockGlossary]:
-        return self.db.query(MockGlossary).filter(MockGlossary.glossary_id == str(glossary_id)).first()
+    def get_glossary(self, glossary_id) -> MockGlossary | None:
+        return (
+            self.db.query(MockGlossary).filter(MockGlossary.glossary_id == str(glossary_id)).first()
+        )
 
-    def get_glossary_with_entries(self, glossary_id) -> Optional[MockGlossary]:
-        return self.db.query(MockGlossary).options(selectinload(MockGlossary.entries)).filter(MockGlossary.glossary_id == str(glossary_id)).first()
+    def get_glossary_with_entries(self, glossary_id) -> MockGlossary | None:
+        return (
+            self.db.query(MockGlossary)
+            .options(selectinload(MockGlossary.entries))
+            .filter(MockGlossary.glossary_id == str(glossary_id))
+            .first()
+        )
 
     def list_glossaries(
         self,
-        domain: Optional[str] = None,
-        source_language: Optional[str] = None,
+        domain: str | None = None,
+        source_language: str | None = None,
         active_only: bool = True,
-    ) -> List[MockGlossary]:
+    ) -> list[MockGlossary]:
         query = self.db.query(MockGlossary)
         if active_only:
-            query = query.filter(MockGlossary.is_active == True)
+            query = query.filter(MockGlossary.is_active)
         if domain:
             query = query.filter(MockGlossary.domain == domain)
         if source_language:
@@ -176,12 +207,12 @@ class MockGlossaryService:
     def update_glossary(
         self,
         glossary_id,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        domain: Optional[str] = None,
-        target_languages: Optional[List[str]] = None,
-        is_active: Optional[bool] = None,
-    ) -> Optional[MockGlossary]:
+        name: str | None = None,
+        description: str | None = None,
+        domain: str | None = None,
+        target_languages: list[str] | None = None,
+        is_active: bool | None = None,
+    ) -> MockGlossary | None:
         glossary = self.get_glossary(glossary_id)
         if not glossary:
             return None
@@ -213,13 +244,13 @@ class MockGlossaryService:
         self,
         glossary_id,
         source_term: str,
-        translations: Dict[str, str],
-        context: Optional[str] = None,
-        notes: Optional[str] = None,
+        translations: dict[str, str],
+        context: str | None = None,
+        notes: str | None = None,
         case_sensitive: bool = False,
         match_whole_word: bool = True,
         priority: int = 0,
-    ) -> Optional[MockGlossaryEntry]:
+    ) -> MockGlossaryEntry | None:
         glossary = self.get_glossary(glossary_id)
         if not glossary:
             return None
@@ -240,17 +271,24 @@ class MockGlossaryService:
         self.db.refresh(entry)
         return entry
 
-    def get_entry(self, entry_id) -> Optional[MockGlossaryEntry]:
-        return self.db.query(MockGlossaryEntry).filter(MockGlossaryEntry.entry_id == str(entry_id)).first()
+    def get_entry(self, entry_id) -> MockGlossaryEntry | None:
+        return (
+            self.db.query(MockGlossaryEntry)
+            .filter(MockGlossaryEntry.entry_id == str(entry_id))
+            .first()
+        )
 
     def list_entries(
         self,
         glossary_id,
-        target_language: Optional[str] = None,
-    ) -> List[MockGlossaryEntry]:
-        entries = self.db.query(MockGlossaryEntry).filter(
-            MockGlossaryEntry.glossary_id == str(glossary_id)
-        ).order_by(MockGlossaryEntry.priority.desc(), MockGlossaryEntry.source_term).all()
+        target_language: str | None = None,
+    ) -> list[MockGlossaryEntry]:
+        entries = (
+            self.db.query(MockGlossaryEntry)
+            .filter(MockGlossaryEntry.glossary_id == str(glossary_id))
+            .order_by(MockGlossaryEntry.priority.desc(), MockGlossaryEntry.source_term)
+            .all()
+        )
         if target_language:
             entries = [e for e in entries if target_language in (e.translations or {})]
         return entries
@@ -258,14 +296,14 @@ class MockGlossaryService:
     def update_entry(
         self,
         entry_id,
-        source_term: Optional[str] = None,
-        translations: Optional[Dict[str, str]] = None,
-        context: Optional[str] = None,
-        notes: Optional[str] = None,
-        case_sensitive: Optional[bool] = None,
-        match_whole_word: Optional[bool] = None,
-        priority: Optional[int] = None,
-    ) -> Optional[MockGlossaryEntry]:
+        source_term: str | None = None,
+        translations: dict[str, str] | None = None,
+        context: str | None = None,
+        notes: str | None = None,
+        case_sensitive: bool | None = None,
+        match_whole_word: bool | None = None,
+        priority: int | None = None,
+    ) -> MockGlossaryEntry | None:
         entry = self.get_entry(entry_id)
         if not entry:
             return None
@@ -304,7 +342,7 @@ class MockGlossaryService:
     def import_entries(
         self,
         glossary_id,
-        entries: List[Dict],
+        entries: list[dict],
     ) -> tuple:
         glossary = self.get_glossary(glossary_id)
         if not glossary:
@@ -343,17 +381,23 @@ class MockGlossaryService:
         self,
         glossary_id,
         target_language: str,
-        domain: Optional[str] = None,
+        domain: str | None = None,
         include_default: bool = True,
-    ) -> Dict[str, str]:
-        terms: Dict[str, str] = {}
+    ) -> dict[str, str]:
+        terms: dict[str, str] = {}
         if include_default:
-            query = self.db.query(MockGlossary).options(selectinload(MockGlossary.entries)).filter(
-                MockGlossary.is_active == True,
-                MockGlossary.is_default == True,
+            query = (
+                self.db.query(MockGlossary)
+                .options(selectinload(MockGlossary.entries))
+                .filter(
+                    MockGlossary.is_active,
+                    MockGlossary.is_default,
+                )
             )
             if domain:
-                query = query.filter(or_(MockGlossary.domain == domain, MockGlossary.domain.is_(None)))
+                query = query.filter(
+                    or_(MockGlossary.domain == domain, MockGlossary.domain.is_(None))
+                )
             for glossary in query.all():
                 for entry in glossary.entries:
                     translation = entry.get_translation(target_language)
@@ -373,13 +417,17 @@ class MockGlossaryService:
         text: str,
         glossary_id,
         target_language: str,
-        domain: Optional[str] = None,
-    ) -> List[tuple]:
+        domain: str | None = None,
+    ) -> list[tuple]:
         matches = []
         entries = []
-        query = self.db.query(MockGlossary).options(selectinload(MockGlossary.entries)).filter(
-            MockGlossary.is_active == True,
-            MockGlossary.is_default == True,
+        query = (
+            self.db.query(MockGlossary)
+            .options(selectinload(MockGlossary.entries))
+            .filter(
+                MockGlossary.is_active,
+                MockGlossary.is_default,
+            )
         )
         for glossary in query.all():
             for entry in glossary.entries:
@@ -406,13 +454,13 @@ class MockGlossaryService:
         matches.sort(key=lambda m: m[2])
         return matches
 
-    def get_glossary_stats(self, glossary_id) -> Optional[Dict]:
+    def get_glossary_stats(self, glossary_id) -> dict | None:
         glossary = self.get_glossary_with_entries(glossary_id)
         if not glossary:
             return None
-        language_counts: Dict[str, int] = {}
+        language_counts: dict[str, int] = {}
         for entry in glossary.entries:
-            for lang in (entry.translations or {}):
+            for lang in entry.translations or {}:
                 language_counts[lang] = language_counts.get(lang, 0) + 1
         return {
             "glossary_id": str(glossary.glossary_id),
@@ -451,8 +499,8 @@ def db_engine():
 @pytest.fixture
 def db_session(db_engine):
     """Create database session for testing."""
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
-    session = SessionLocal()
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    session = session_local()
     try:
         yield session
     finally:
@@ -606,9 +654,7 @@ class TestGlossaryRead:
 
     def test_get_glossary_with_entries(self, glossary_service, sample_glossary):
         """Test retrieving glossary with entries loaded."""
-        retrieved = glossary_service.get_glossary_with_entries(
-            sample_glossary.glossary_id
-        )
+        retrieved = glossary_service.get_glossary_with_entries(sample_glossary.glossary_id)
 
         assert retrieved is not None
         assert len(retrieved.entries) == 3
@@ -843,7 +889,7 @@ class TestEntryUpdate:
     def test_update_entry_source_term(self, glossary_service, sample_glossary):
         """Test updating entry source term."""
         entries = glossary_service.list_entries(sample_glossary.glossary_id)
-        entry = [e for e in entries if e.source_term == "API"][0]
+        entry = next(e for e in entries if e.source_term == "API")
 
         updated = glossary_service.update_entry(
             entry_id=entry.entry_id,
@@ -857,7 +903,7 @@ class TestEntryUpdate:
     def test_update_entry_translations(self, glossary_service, sample_glossary):
         """Test updating entry translations."""
         entries = glossary_service.list_entries(sample_glossary.glossary_id)
-        entry = [e for e in entries if e.source_term == "backend"][0]
+        entry = next(e for e in entries if e.source_term == "backend")
 
         updated = glossary_service.update_entry(
             entry_id=entry.entry_id,
@@ -870,7 +916,7 @@ class TestEntryUpdate:
     def test_update_entry_priority(self, glossary_service, sample_glossary):
         """Test updating entry priority."""
         entries = glossary_service.list_entries(sample_glossary.glossary_id)
-        entry = [e for e in entries if e.source_term == "backend"][0]
+        entry = next(e for e in entries if e.source_term == "backend")
 
         updated = glossary_service.update_entry(
             entry_id=entry.entry_id,
@@ -937,9 +983,7 @@ class TestBulkImport:
             {"source_term": "term3", "translations": {"es": "término3"}},
         ]
 
-        successful, failed = glossary_service.import_entries(
-            glossary.glossary_id, entries_data
-        )
+        successful, failed = glossary_service.import_entries(glossary.glossary_id, entries_data)
 
         assert successful == 3
         assert failed == 0
@@ -970,9 +1014,7 @@ class TestBulkImport:
             },
         ]
 
-        successful, _ = glossary_service.import_entries(
-            glossary.glossary_id, entries_data
-        )
+        successful, _ = glossary_service.import_entries(glossary.glossary_id, entries_data)
         assert successful == 1
 
         entries = glossary_service.list_entries(glossary.glossary_id)
@@ -995,9 +1037,7 @@ class TestBulkImport:
             {"source_term": "good2", "translations": {"es": "bueno2"}},
         ]
 
-        successful, failed = glossary_service.import_entries(
-            glossary.glossary_id, entries_data
-        )
+        successful, failed = glossary_service.import_entries(glossary.glossary_id, entries_data)
 
         assert successful == 2
         assert failed == 2
@@ -1168,10 +1208,10 @@ class TestFindMatchingTerms:
         )
 
         assert len(matches) >= 1
-        api_match = [m for m in matches if m[0] == "API"][0]
+        api_match = next(m for m in matches if m[0] == "API")
 
         # Check positions
-        source_term, translation, start, end = api_match
+        _source_term, _translation, start, end = api_match
         assert text[start:end] == "API"
 
     def test_find_matching_terms_case_insensitive(self, glossary_service, sample_glossary):
@@ -1213,7 +1253,10 @@ class TestFindMatchingTerms:
 
         # Should only match "end" as standalone word
         assert len(matches) == 1
-        assert "end point" in text[matches[0][2] - 1 : matches[0][3] + 6] or text[matches[0][2]:matches[0][3]] == "end"
+        assert (
+            "end point" in text[matches[0][2] - 1 : matches[0][3] + 6]
+            or text[matches[0][2] : matches[0][3]] == "end"
+        )
 
     def test_find_matching_terms_no_matches(self, glossary_service, sample_glossary):
         """Test when no terms match."""

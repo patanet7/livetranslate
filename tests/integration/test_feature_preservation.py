@@ -4,6 +4,7 @@ Tests for existing LiveTranslate features
 
 Status: 🟢 Should PASS (testing existing features)
 """
+
 import pytest
 
 
@@ -27,9 +28,10 @@ class TestFeaturePreservation:
         manager = GoogleMeetBotManager()
 
         # Verify manager has core methods
-        assert hasattr(manager, 'create_bot_session'), "Missing create_bot_session method"
-        assert hasattr(manager, 'join_meeting') or hasattr(manager, 'start_bot'), \
-            "Missing bot start methods"
+        assert hasattr(manager, "create_bot_session"), "Missing create_bot_session method"
+        assert hasattr(manager, "join_meeting") or hasattr(
+            manager, "start_bot"
+        ), "Missing bot start methods"
 
     @pytest.mark.integration
     @pytest.mark.feature_preservation
@@ -45,7 +47,7 @@ class TestFeaturePreservation:
         webcam = VirtualWebcamSystem()
 
         # Verify core methods exist
-        assert hasattr(webcam, 'generate_frame'), "Missing generate_frame method"
+        assert hasattr(webcam, "generate_frame"), "Missing generate_frame method"
 
     @pytest.mark.integration
     @pytest.mark.feature_preservation
@@ -62,8 +64,9 @@ class TestFeaturePreservation:
         diarizer = SpeakerDiarization()
 
         # Verify core methods
-        assert hasattr(diarizer, 'identify_speakers') or hasattr(diarizer, 'diarize'), \
-            "Missing speaker identification methods"
+        assert hasattr(diarizer, "identify_speakers") or hasattr(
+            diarizer, "diarize"
+        ), "Missing speaker identification methods"
 
     @pytest.mark.integration
     @pytest.mark.feature_preservation
@@ -79,7 +82,7 @@ class TestFeaturePreservation:
         engine = TimeCorrelationEngine()
 
         # Verify core methods
-        assert hasattr(engine, 'correlate'), "Missing correlate method"
+        assert hasattr(engine, "correlate"), "Missing correlate method"
 
     @pytest.mark.integration
     @pytest.mark.feature_preservation
@@ -96,7 +99,7 @@ class TestFeaturePreservation:
         # Actual NPU may not be available in test environment
         service = WhisperService(device="cpu")  # Use CPU for testing
 
-        assert hasattr(service, 'device'), "Missing device attribute"
+        assert hasattr(service, "device"), "Missing device attribute"
         assert service.device in ["npu", "gpu", "cpu"], f"Invalid device: {service.device}"
 
     @pytest.mark.integration
@@ -113,8 +116,9 @@ class TestFeaturePreservation:
         manager = ConfigurationSyncManager()
 
         # Verify core methods
-        assert hasattr(manager, 'update_config') or hasattr(manager, 'sync_config'), \
-            "Missing config sync methods"
+        assert hasattr(manager, "update_config") or hasattr(
+            manager, "sync_config"
+        ), "Missing config sync methods"
 
     @pytest.mark.integration
     @pytest.mark.feature_preservation
@@ -133,7 +137,7 @@ class TestFeaturePreservation:
             bot_id="test_bot_123",
             meeting_id="test_meeting_123",
             bot_type="google_meet",
-            status="pending"
+            status="pending",
         )
 
         db_session.add(session)
@@ -157,8 +161,9 @@ class TestFeaturePreservation:
         coordinator = AudioCoordinator()
 
         # Verify core methods
-        assert hasattr(coordinator, 'process_audio_chunk') or hasattr(coordinator, 'process_audio'), \
-            "Missing audio processing methods"
+        assert hasattr(coordinator, "process_audio_chunk") or hasattr(
+            coordinator, "process_audio"
+        ), "Missing audio processing methods"
 
     @pytest.mark.integration
     @pytest.mark.feature_preservation
@@ -190,5 +195,4 @@ class TestFeaturePreservation:
         service = WhisperService()
 
         # Should fall back to available device
-        assert service.device in ["npu", "gpu", "cpu"], \
-            f"Invalid device: {service.device}"
+        assert service.device in ["npu", "gpu", "cpu"], f"Invalid device: {service.device}"

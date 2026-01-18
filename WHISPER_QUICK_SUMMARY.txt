@@ -9,7 +9,7 @@ KEY FINDINGS:
    - Each session has its own VAD state: session_vad_states[session_id]
    - Each session has its own stability tracker: session_stability_trackers[session_id]
    - Language is stored per-session: streaming_sessions[session_id]["language"]
-   
+
 2. LANGUAGE CONFIGURATION: ✅ PER-SESSION (NOT GLOBALLY LOCKED)
    - Language is set via API parameter when creating session
    - Each transcription request receives language from session config
@@ -21,7 +21,7 @@ KEY FINDINGS:
    - Same Whisper model handles all 99 languages
    - Max 3 models cached (LRU eviction)
    - Language does NOT increase memory footprint
-   
+
 4. ROLLING CONTEXT: ⚠️ GLOBAL (LIMITATION)
    - Rolling context stored at ModelManager level, NOT per-session
    - If two sessions use context carryover, they'll share the same context
@@ -66,21 +66,21 @@ MEMORY FOOTPRINT (English + Chinese concurrent sessions):
     - Tokenizer:                       5 MB
     - Service infrastructure:          100 MB
     Subtotal:                          2.805 GB
-  
+
   Per-Session English:
     - Audio buffer (6 sec @ 16kHz):    192 KB
     - Rolling context (223 tokens):    1 KB
     - VAD state:                       100 bytes
     - Stability tracker:               10 KB
     Subtotal:                          ~200 KB
-  
+
   Per-Session Chinese:
     - Audio buffer (6 sec @ 16kHz):    192 KB
     - Rolling context (223 tokens):    1 KB
     - VAD state:                       100 bytes
     - Stability tracker:               10 KB
     Subtotal:                          ~200 KB
-  
+
   TOTAL: ~2.805 GB (language doesn't add significant overhead)
 
 ═════════════════════════════════════════════════════════════════════════════
@@ -156,12 +156,12 @@ IMPLEMENTATION EFFORT ESTIMATE:
     Time: 1-2 days
     Impact: Fixes multi-language context corruption
     Risk: Low (isolated change to ModelManager/SessionManager)
-  
+
   Tier 2 (Recommended): Add language validation
     Time: 1 hour
     Impact: Prevents configuration errors
     Risk: Very low (validation logic only)
-  
+
   Tier 3 (Optional): Async parallel inference
     Time: 2-3 days
     Impact: True concurrent transcription for multiple sessions
@@ -182,4 +182,3 @@ One significant limitation:
 
 Current Status: ✅ WORKS for concurrent English + Chinese
 With Fix:      ✅✅ WORKS ROBUSTLY for concurrent English + Chinese
-

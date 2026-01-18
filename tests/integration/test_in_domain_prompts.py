@@ -4,17 +4,12 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
+
 import pytest
 
 
 class TestInDomainPrompts:
     """Test domain-specific terminology injection"""
-
-    # Medical terminology for testing
-    MEDICAL_TERMS = [
-        "MRI", "CT scan", "diagnosis", "prognosis", "pathology",
-        "radiology", "oncology", "cardiology", "neurology", "ECG"
-    ]
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -33,11 +28,11 @@ class TestInDomainPrompts:
         manager.set_domain("medical")
 
         # Test with medical audio (simulated)
-        audio = generate_test_audio(duration=3.0)
+        generate_test_audio(duration=3.0)
 
         # Simulate results
         errors_baseline = 10  # Without domain prompt
-        errors_domain = 4     # With medical prompt (60% reduction)
+        errors_domain = 4  # With medical prompt (60% reduction)
 
         error_reduction = (errors_baseline - errors_domain) / errors_baseline
         assert error_reduction >= 0.40, f"Expected >=40% reduction, got {error_reduction*100}%"
@@ -126,7 +121,7 @@ class TestInDomainPrompts:
 
         # Set static domain
         manager.set_domain("technical")
-        static_portion = manager.get_init_prompt()
+        manager.get_init_prompt()
 
         # Add scrolling context
         manager.update_context("Docker containers are running")

@@ -18,22 +18,21 @@ Usage:
     ffmpeg -f avfoundation -i ":0" -f s16le -ar 16000 -ac 1 - | python test_audio_streaming.py --stdin
 """
 
-import asyncio
-import websockets
-import json
-import sys
 import argparse
+import asyncio
 import base64
-import subprocess
-import time
-from datetime import datetime, timezone
-from typing import Optional
+import contextlib
+import json
 import logging
+import subprocess
+import sys
+import time
+from datetime import UTC, datetime
+
+import websockets
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -51,8 +50,8 @@ class AudioStreamingTester:
         self,
         orchestration_url: str = "ws://localhost:3000/api/audio/stream",
         chunk_duration_ms: int = 100,
-        session_id: Optional[str] = None,
-        config: Optional[dict] = None,
+        session_id: str | None = None,
+        config: dict | None = None,
     ):
         """
         Initialize audio streaming tester
@@ -165,7 +164,7 @@ class AudioStreamingTester:
         chunk_msg = {
             "type": "audio_chunk",
             "audio": audio_base64,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         await self.ws.send(json.dumps(chunk_msg))
@@ -359,9 +358,7 @@ async def stream_from_microphone(tester: AudioStreamingTester):
     sample_rate = 16000
     bytes_per_sample = 2  # S16LE
     channels = 1
-    chunk_size = int(
-        sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000
-    )
+    chunk_size = int(sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000)
 
     logger.info(f"📦 Chunk size: {chunk_size} bytes ({tester.chunk_duration_ms}ms)")
 
@@ -423,9 +420,7 @@ async def stream_from_file(tester: AudioStreamingTester, audio_file: str):
     sample_rate = 16000
     bytes_per_sample = 2  # S16LE
     channels = 1
-    chunk_size = int(
-        sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000
-    )
+    chunk_size = int(sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000)
 
     logger.info(f"📦 Chunk size: {chunk_size} bytes ({tester.chunk_duration_ms}ms)")
 
@@ -467,9 +462,7 @@ async def stream_from_stdin(tester: AudioStreamingTester):
     sample_rate = 16000
     bytes_per_sample = 2  # S16LE
     channels = 1
-    chunk_size = int(
-        sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000
-    )
+    chunk_size = int(sample_rate * bytes_per_sample * channels * tester.chunk_duration_ms / 1000)
 
     logger.info(f"📦 Chunk size: {chunk_size} bytes ({tester.chunk_duration_ms}ms)")
 
@@ -504,9 +497,7 @@ async def main():
 
     # Input source options
     input_group = parser.add_mutually_exclusive_group(required=True)
-    input_group.add_argument(
-        "--mic", action="store_true", help="Stream from microphone"
-    )
+    input_group.add_argument("--mic", action="store_true", help="Stream from microphone")
     input_group.add_argument("--file", type=str, help="Stream from audio file")
     input_group.add_argument("--stdin", action="store_true", help="Stream from stdin")
 
@@ -536,9 +527,7 @@ async def main():
 
     # Feature flags
     parser.add_argument("--no-vad", action="store_true", help="Disable VAD")
-    parser.add_argument(
-        "--no-diarization", action="store_true", help="Disable speaker diarization"
-    )
+    parser.add_argument("--no-diarization", action="store_true", help="Disable speaker diarization")
     parser.add_argument("--no-cif", action="store_true", help="Disable CIF")
     parser.add_argument(
         "--code-switching",
@@ -620,9 +609,7 @@ async def main():
             if tester.last_segment_time is not None:
                 time_since_last_segment = time.time() - tester.last_segment_time
                 if time_since_last_segment > segment_timeout:
-                    logger.info(
-                        f"✅ No segments for {segment_timeout}s, processing complete"
-                    )
+                    logger.info(f"✅ No segments for {segment_timeout}s, processing complete")
                     break
 
             await asyncio.sleep(0.5)  # Check every 500ms
@@ -634,10 +621,8 @@ async def main():
 
         # Cancel receiver task
         receiver_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await receiver_task
-        except asyncio.CancelledError:
-            pass
 
     except KeyboardInterrupt:
         logger.info("\n⏹️ Interrupted by user")

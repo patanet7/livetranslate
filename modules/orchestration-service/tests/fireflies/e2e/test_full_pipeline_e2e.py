@@ -14,17 +14,13 @@ Verifies:
 import asyncio
 import json
 import logging
-import os
-import pytest
 import re
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
+import pytest
 import websockets
 
 # Add parent paths for imports
@@ -35,10 +31,9 @@ sys.path.insert(0, str(orchestration_root / "src"))
 sys.path.insert(0, str(tests_root))
 
 from fireflies.fixtures.meeting_transcript_5min import (
-    MEETING_TRANSCRIPT,
     GLOSSARY_TERMS,
     GLOSSARY_VERIFICATION_CASES,
-    TranscriptEntry,
+    MEETING_TRANSCRIPT,
     get_expected_context_count,
     get_transcript_duration_seconds,
 )
@@ -67,17 +62,19 @@ class PromptCapture:
     """Captures prompts sent to translation service for verification."""
 
     def __init__(self):
-        self.prompts: List[Dict] = []
+        self.prompts: list[dict] = []
         self.lock = asyncio.Lock()
 
-    async def capture(self, prompt: str, metadata: Dict = None):
+    async def capture(self, prompt: str, metadata: dict | None = None):
         """Record a captured prompt."""
         async with self.lock:
-            self.prompts.append({
-                "prompt": prompt,
-                "timestamp": time.time(),
-                "metadata": metadata or {},
-            })
+            self.prompts.append(
+                {
+                    "prompt": prompt,
+                    "timestamp": time.time(),
+                    "metadata": metadata or {},
+                }
+            )
 
     def get_context_sentence_count(self, prompt: str) -> int:
         """
@@ -89,11 +86,7 @@ class PromptCapture:
             return 0
 
         # Extract context section
-        match = re.search(
-            r"Previous context.*?:\n(.*?)\n---",
-            prompt,
-            re.DOTALL
-        )
+        match = re.search(r"Previous context.*?:\n(.*?)\n---", prompt, re.DOTALL)
         if not match:
             return 0
 
@@ -118,13 +111,13 @@ class CaptionCollector:
     """Collects captions from WebSocket stream."""
 
     def __init__(self):
-        self.captions: List[Dict] = []
-        self.events: List[Dict] = []
+        self.captions: list[dict] = []
+        self.events: list[dict] = []
         self.lock = asyncio.Lock()
         self._connected = False
         self._ws = None
 
-    async def connect(self, session_id: str, target_language: str = None):
+    async def connect(self, session_id: str, target_language: str | None = None):
         """Connect to caption WebSocket stream."""
         url = f"ws://localhost:3000/api/captions/stream/{session_id}"
         if target_language:
@@ -143,10 +136,7 @@ class CaptionCollector:
 
         while time.time() < end_time:
             try:
-                msg = await asyncio.wait_for(
-                    self._ws.recv(),
-                    timeout=1.0
-                )
+                msg = await asyncio.wait_for(self._ws.recv(), timeout=1.0)
                 data = json.loads(msg)
                 async with self.lock:
                     self.events.append(data)
@@ -161,7 +151,7 @@ class CaptionCollector:
                                 self.captions[i] = data.get("caption", {})
                                 break
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
             except websockets.ConnectionClosed:
                 logger.warning("WebSocket connection closed")
@@ -173,7 +163,7 @@ class CaptionCollector:
             await self._ws.close()
             self._connected = False
 
-    def get_caption_with_text(self, text_fragment: str) -> Optional[Dict]:
+    def get_caption_with_text(self, text_fragment: str) -> dict | None:
         """Find caption containing text fragment."""
         for caption in self.captions:
             if text_fragment.lower() in caption.get("translated_text", "").lower():
@@ -182,7 +172,7 @@ class CaptionCollector:
                 return caption
         return None
 
-    def get_speaker_captions(self, speaker_name: str) -> List[Dict]:
+    def get_speaker_captions(self, speaker_name: str) -> list[dict]:
         """Get all captions for a specific speaker."""
         return [c for c in self.captions if c.get("speaker_name") == speaker_name]
 
@@ -372,8 +362,9 @@ Translation:""",
         for i, prompt in enumerate(test_prompts):
             context_count = prompt_capture.get_context_sentence_count(prompt)
             expected_count = get_expected_context_count(i)
-            assert context_count == expected_count, \
-                f"Prompt {i}: expected {expected_count} context sentences, got {context_count}"
+            assert (
+                context_count == expected_count
+            ), f"Prompt {i}: expected {expected_count} context sentences, got {context_count}"
 
         logger.info("Context window building verification passed")
 
@@ -430,7 +421,7 @@ Translation:"""
                         "backend": "ollama",
                         "max_tokens": 100,
                         "temperature": 0.3,
-                    }
+                    },
                 ) as resp:
                     if resp.status != 200:
                         error_text = await resp.text()
@@ -443,8 +434,10 @@ Translation:"""
 
                     # Verify glossary terms were applied
                     # Note: We check for Spanish terms in the output
-                    assert "punto de acceso" in translated.lower() or "despliegue" in translated.lower(), \
-                        f"Glossary terms not applied. Got: {translated}"
+                    assert (
+                        "punto de acceso" in translated.lower()
+                        or "despliegue" in translated.lower()
+                    ), f"Glossary terms not applied. Got: {translated}"
 
             except aiohttp.ClientError as e:
                 pytest.skip(f"Translation service not available: {e}")
@@ -490,12 +483,12 @@ Translation:"""
 
     async def test_transcript_fixture_validity(self):
         """Verify our test transcript fixture is valid."""
-        assert len(MEETING_TRANSCRIPT) >= 60, \
-            f"Expected ~60 sentences, got {len(MEETING_TRANSCRIPT)}"
+        assert (
+            len(MEETING_TRANSCRIPT) >= 60
+        ), f"Expected ~60 sentences, got {len(MEETING_TRANSCRIPT)}"
 
         duration = get_transcript_duration_seconds()
-        assert duration >= 300, \
-            f"Expected 5+ minute transcript, got {duration:.1f}s"
+        assert duration >= 300, f"Expected 5+ minute transcript, got {duration:.1f}s"
 
         # Verify all entries have required fields
         for entry in MEETING_TRANSCRIPT:
@@ -505,21 +498,24 @@ Translation:"""
             assert entry.expected_translation, "Missing expected translation"
 
         # Verify glossary terms appear in transcript
-        for term in GLOSSARY_TERMS.keys():
+        for term in GLOSSARY_TERMS:
             found = any(term.lower() in e.text.lower() for e in MEETING_TRANSCRIPT)
             assert found, f"Glossary term '{term}' not found in transcript"
 
-        logger.info(f"Transcript fixture valid: {len(MEETING_TRANSCRIPT)} sentences, {duration:.1f}s")
+        logger.info(
+            f"Transcript fixture valid: {len(MEETING_TRANSCRIPT)} sentences, {duration:.1f}s"
+        )
 
     async def test_glossary_terms_coverage(self):
         """Verify all glossary terms are covered in verification cases."""
-        verification_terms = set(term for _, term, _ in GLOSSARY_VERIFICATION_CASES)
+        verification_terms = {term for _, term, _ in GLOSSARY_VERIFICATION_CASES}
 
         # At least half of glossary terms should be in verification cases
         glossary_terms = set(GLOSSARY_TERMS.keys())
         coverage = len(verification_terms & glossary_terms) / len(glossary_terms)
-        assert coverage >= 0.5, \
-            f"Only {coverage:.0%} of glossary terms covered in verification cases"
+        assert (
+            coverage >= 0.5
+        ), f"Only {coverage:.0%} of glossary terms covered in verification cases"
 
         logger.info(f"Glossary coverage: {coverage:.0%}")
 
@@ -544,7 +540,7 @@ async def run_quick_integration_test():
                     print("   ✓ Orchestration service healthy")
                 else:
                     print(f"   ✗ Orchestration service unhealthy: {resp.status}")
-        except:
+        except Exception:
             print("   ✗ Orchestration service not available")
 
         try:
@@ -553,7 +549,7 @@ async def run_quick_integration_test():
                     print("   ✓ Translation service healthy")
                 else:
                     print(f"   ✗ Translation service unhealthy: {resp.status}")
-        except:
+        except Exception:
             print("   ✗ Translation service not available")
 
     # 2. Test V3 translation
@@ -566,7 +562,7 @@ async def run_quick_integration_test():
                     "prompt": "Translate to Spanish: The endpoint is ready.",
                     "backend": "ollama",
                     "max_tokens": 50,
-                }
+                },
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -585,8 +581,8 @@ async def run_quick_integration_test():
     # 4. Show sample translations
     print("\n[4] Sample expected translations:")
     for entry in MEETING_TRANSCRIPT[:3]:
-        print(f"   {entry.speaker}: \"{entry.text[:40]}...\"")
-        print(f"   → \"{entry.expected_translation[:40]}...\"")
+        print(f'   {entry.speaker}: "{entry.text[:40]}..."')
+        print(f'   → "{entry.expected_translation[:40]}..."')
         print()
 
     print("=" * 60)

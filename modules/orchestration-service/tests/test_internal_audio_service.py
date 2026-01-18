@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 import pytest
-
 from audio.audio_coordinator import ServiceClientPool
 from audio.models import (
     AudioChunkMetadata,
@@ -21,8 +20,8 @@ from clients.translation_service_client import (
 )
 from internal_services import audio as audio_module
 from internal_services.audio import (
-    get_unified_audio_service,
     UnifiedAudioError,
+    get_unified_audio_service,
 )
 
 
@@ -65,7 +64,7 @@ async def test_audio_client_uses_embedded(monkeypatch):
             self.confidence_score = 0.87
             self.processing_time = 0.05
             self.session_id = "session"
-            self.timestamp = datetime.now(timezone.utc).isoformat()
+            self.timestamp = datetime.now(UTC).isoformat()
 
     class DummyWhisperService:
         async def transcribe(self, request):
@@ -132,9 +131,7 @@ async def test_service_client_pool_uses_embedded_audio_client():
     )
 
     class StubAudioClient:
-        async def transcribe_stream(
-            self, audio_bytes: bytes, request: TranscriptionRequest
-        ):
+        async def transcribe_stream(self, audio_bytes: bytes, request: TranscriptionRequest):
             assert isinstance(request, TranscriptionRequest)
             assert len(audio_bytes) > 0
             return TranscriptionResponse(
@@ -152,9 +149,7 @@ async def test_service_client_pool_uses_embedded_audio_client():
     )
 
     audio_chunk = np.zeros(1600, dtype=np.float32)
-    result = await pool.send_to_whisper_service(
-        "session-1", audio_metadata, audio_chunk
-    )
+    result = await pool.send_to_whisper_service("session-1", audio_metadata, audio_chunk)
 
     assert result is not None
     assert result["text"] == "hello there"

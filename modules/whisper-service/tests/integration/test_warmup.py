@@ -10,17 +10,17 @@ Following SimulStreaming reference implementation:
 Reference: SimulStreaming/whisper_streaming/whisper_server.py lines 149-161
 """
 
-import pytest
-import numpy as np
+import sys
 import time
 from pathlib import Path
-import sys
 
 # Add src directory to path (adjusted for tests/integration/ location)
 # tests/integration/test_warmup.py → tests/integration → tests → whisper-service root → src
 SRC_DIR = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+import numpy as np
+import pytest
 from whisper_service import ModelManager
 
 # Root directory for all paths (tests/integration → tests → whisper-service root)
@@ -45,7 +45,7 @@ class TestWarmupSystem:
         models_dir = ROOT_DIR / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        assert hasattr(manager, 'warmup'), "ModelManager should have warmup() method"
+        assert hasattr(manager, "warmup"), "ModelManager should have warmup() method"
         assert callable(manager.warmup), "warmup should be callable"
 
     def test_warmup_runs_successfully(self):
@@ -72,7 +72,7 @@ class TestWarmupSystem:
         manager = ModelManager(models_dir=str(models_dir))
 
         # Should not be warmed up initially
-        assert hasattr(manager, 'is_warmed_up'), "ModelManager should have is_warmed_up attribute"
+        assert hasattr(manager, "is_warmed_up"), "ModelManager should have is_warmed_up attribute"
         assert manager.is_warmed_up is False, "Should not be warmed up initially"
 
         # Run warmup
@@ -93,8 +93,9 @@ class TestWarmupSystem:
         manager.warmup(warmup_audio)
 
         # Default model should be loaded
-        assert manager.default_model in manager.models, \
-            f"Default model '{manager.default_model}' should be loaded after warmup"
+        assert (
+            manager.default_model in manager.models
+        ), f"Default model '{manager.default_model}' should be loaded after warmup"
 
     @pytest.mark.integration
     def test_first_inference_fast_after_warmup(self):
@@ -116,16 +117,17 @@ class TestWarmupSystem:
         test_audio = np.zeros(16000, dtype=np.float32)
 
         start_time = time.time()
-        result = manager.safe_inference(
+        manager.safe_inference(
             model_name="base",  # Small model for quick smoke test
             audio_data=test_audio,
-            beam_size=1  # Greedy for speed
+            beam_size=1,  # Greedy for speed
         )
         inference_time = time.time() - start_time
 
         # Should be fast (< 10 seconds even with model download on first run)
-        assert inference_time < 10.0, \
-            f"First inference took {inference_time:.2f}s, expected <10s after warmup"
+        assert (
+            inference_time < 10.0
+        ), f"First inference took {inference_time:.2f}s, expected <10s after warmup"
 
         print(f"✅ First inference after warmup: {inference_time:.2f}s")
 
@@ -145,7 +147,7 @@ class TestWarmupSystem:
         # Check hooks on decoder blocks
         hook_count = 0
         for block in model.decoder.blocks:
-            if hasattr(block, 'cross_attn') and hasattr(block.cross_attn, '_forward_hooks'):
+            if hasattr(block, "cross_attn") and hasattr(block.cross_attn, "_forward_hooks"):
                 hook_count += len(block.cross_attn._forward_hooks)
 
         assert hook_count > 0, "Attention hooks should be installed during warmup"
@@ -191,12 +193,9 @@ class TestWarmupConfiguration:
         models_dir = ROOT_DIR / ".models"
 
         # Should accept warmup_file parameter
-        manager = ModelManager(
-            models_dir=str(models_dir),
-            warmup_file=str(ROOT_DIR / "warmup.wav")
-        )
+        manager = ModelManager(models_dir=str(models_dir), warmup_file=str(ROOT_DIR / "warmup.wav"))
 
-        assert hasattr(manager, 'warmup_file'), "Should have warmup_file attribute"
+        assert hasattr(manager, "warmup_file"), "Should have warmup_file attribute"
 
     def test_auto_warmup_on_startup(self):
         """Test auto-warmup on ModelManager initialization"""
@@ -205,14 +204,13 @@ class TestWarmupConfiguration:
 
         # Should support auto_warmup parameter
         manager = ModelManager(
-            models_dir=str(models_dir),
-            warmup_file=str(warmup_file),
-            auto_warmup=True
+            models_dir=str(models_dir), warmup_file=str(warmup_file), auto_warmup=True
         )
 
         # Should be warmed up automatically
-        assert manager.is_warmed_up is True, \
-            "ModelManager with auto_warmup=True should warmup on initialization"
+        assert (
+            manager.is_warmed_up is True
+        ), "ModelManager with auto_warmup=True should warmup on initialization"
 
 
 class TestWarmupPerformance:
@@ -231,16 +229,16 @@ class TestWarmupPerformance:
         warmup_time = time.time() - start_time
 
         # Warmup should complete in <10 seconds (even on CPU)
-        assert warmup_time < 10.0, \
-            f"Warmup took {warmup_time:.2f}s, expected <10s"
+        assert warmup_time < 10.0, f"Warmup took {warmup_time:.2f}s, expected <10s"
 
         print(f"✅ Warmup completed in {warmup_time:.2f}s")
 
     @pytest.mark.integration
     def test_warmup_memory_overhead_minimal(self):
         """Test that warmup doesn't cause significant memory overhead"""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
 
@@ -259,8 +257,9 @@ class TestWarmupPerformance:
 
         # Memory increase should be reasonable (model loading + working memory)
         # Large-v3 is ~3GB, so allow up to 4GB increase
-        assert mem_increase < 4096, \
-            f"Warmup caused {mem_increase:.1f}MB memory increase, expected <4096MB"
+        assert (
+            mem_increase < 4096
+        ), f"Warmup caused {mem_increase:.1f}MB memory increase, expected <4096MB"
 
         print(f"✅ Warmup memory increase: {mem_increase:.1f}MB")
 

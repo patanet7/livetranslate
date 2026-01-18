@@ -13,13 +13,10 @@ pipeline, ensuring:
 These tests use the Fireflies mock server for transcript data.
 """
 
-import pytest
-import asyncio
 import logging
-import json
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-import httpx
+
+import pytest
 
 logger = logging.getLogger(__name__)
 
@@ -119,13 +116,15 @@ def large_transcript_data():
     speakers = ["Alice", "Bob", "Charlie", "Diana"]
 
     for i in range(100):
-        sentences.append({
-            "text": f"This is sentence number {i + 1} in our test transcript.",
-            "speaker_name": speakers[i % len(speakers)],
-            "speaker_id": f"speaker_{i % len(speakers)}",
-            "start_time": i * 3.0,
-            "end_time": (i * 3.0) + 2.5,
-        })
+        sentences.append(
+            {
+                "text": f"This is sentence number {i + 1} in our test transcript.",
+                "speaker_name": speakers[i % len(speakers)],
+                "speaker_id": f"speaker_{i % len(speakers)}",
+                "start_time": i * 3.0,
+                "end_time": (i * 3.0) + 2.5,
+            }
+        )
 
     return {
         "id": "large_transcript_001",
@@ -145,13 +144,10 @@ class TestImportTranscriptAPIUnit:
     """Unit tests for the import API endpoint logic."""
 
     @pytest.mark.asyncio
-    async def test_import_creates_session_with_correct_config(
-        self, sample_transcript_data
-    ):
+    async def test_import_creates_session_with_correct_config(self, sample_transcript_data):
         """Import creates session with correct configuration."""
         from routers.fireflies import (
             FirefliesSessionManager,
-            ImportTranscriptRequest,
         )
 
         manager = FirefliesSessionManager()
@@ -276,13 +272,12 @@ class TestImportTranscriptAPIIntegration:
         self, sample_transcript_data, mock_fireflies_client
     ):
         """Test successful import flow."""
-        from routers.fireflies import (
-            import_transcript_to_db,
-            ImportTranscriptRequest,
-            FirefliesSessionManager,
-            get_session_manager,
-        )
         from config import FirefliesSettings
+        from routers.fireflies import (
+            ImportTranscriptRequest,
+            get_session_manager,
+            import_transcript_to_db,
+        )
 
         # Create request
         request = ImportTranscriptRequest(
@@ -294,9 +289,10 @@ class TestImportTranscriptAPIIntegration:
         # Mock dependencies
         ff_config = FirefliesSettings(api_key="default_key")
 
-        with patch("routers.fireflies.FirefliesClient", return_value=mock_fireflies_client), \
-             patch("routers.fireflies.get_data_pipeline", return_value=None):
-
+        with (
+            patch("routers.fireflies.FirefliesClient", return_value=mock_fireflies_client),
+            patch("routers.fireflies.get_data_pipeline", return_value=None),
+        ):
             result = await import_transcript_to_db(
                 transcript_id="test_transcript_001",
                 request=request,
@@ -318,13 +314,14 @@ class TestImportTranscriptAPIIntegration:
     @pytest.mark.asyncio
     async def test_import_endpoint_missing_api_key(self):
         """Test import fails without API key."""
+        from unittest.mock import MagicMock
+
+        from fastapi import HTTPException
         from routers.fireflies import (
-            import_transcript_to_db,
             ImportTranscriptRequest,
             get_session_manager,
+            import_transcript_to_db,
         )
-        from fastapi import HTTPException
-        from unittest.mock import MagicMock
 
         request = ImportTranscriptRequest(
             api_key=None,  # No API key
@@ -349,13 +346,13 @@ class TestImportTranscriptAPIIntegration:
     @pytest.mark.asyncio
     async def test_import_endpoint_transcript_not_found(self, mock_fireflies_client):
         """Test import handles transcript not found."""
-        from routers.fireflies import (
-            import_transcript_to_db,
-            ImportTranscriptRequest,
-            get_session_manager,
-        )
         from config import FirefliesSettings
         from fastapi import HTTPException
+        from routers.fireflies import (
+            ImportTranscriptRequest,
+            get_session_manager,
+            import_transcript_to_db,
+        )
 
         # Mock client to return None (not found)
         mock_fireflies_client.get_transcript_detail = AsyncMock(return_value=None)
@@ -382,20 +379,22 @@ class TestImportTranscriptAPIIntegration:
     @pytest.mark.asyncio
     async def test_import_endpoint_empty_transcript(self, mock_fireflies_client):
         """Test import handles empty transcript."""
-        from routers.fireflies import (
-            import_transcript_to_db,
-            ImportTranscriptRequest,
-            get_session_manager,
-        )
         from config import FirefliesSettings
         from fastapi import HTTPException
+        from routers.fireflies import (
+            ImportTranscriptRequest,
+            get_session_manager,
+            import_transcript_to_db,
+        )
 
         # Mock client to return empty transcript
-        mock_fireflies_client.get_transcript_detail = AsyncMock(return_value={
-            "id": "empty_transcript",
-            "title": "Empty Meeting",
-            "sentences": [],
-        })
+        mock_fireflies_client.get_transcript_detail = AsyncMock(
+            return_value={
+                "id": "empty_transcript",
+                "title": "Empty Meeting",
+                "sentences": [],
+            }
+        )
 
         request = ImportTranscriptRequest(
             api_key="test_key",
@@ -496,7 +495,7 @@ class TestImportSessionDRYParity:
 
         manager = FirefliesSessionManager()
 
-        session_id, coordinator = await manager.create_import_session(
+        session_id, _coordinator = await manager.create_import_session(
             transcript_id=sample_transcript_data["id"],
             transcript_title=sample_transcript_data["title"],
             target_languages=["es"],
@@ -567,9 +566,27 @@ class TestImportErrorHandling:
 
         # Process valid chunks with one invalid
         sentences = [
-            {"text": "Valid sentence 1.", "speaker_name": "Alice", "start_time": 0.0, "end_time": 1.0, "index": 0},
-            {"text": "", "speaker_name": "Bob", "start_time": 1.0, "end_time": 2.0, "index": 1},  # Empty text
-            {"text": "Valid sentence 2.", "speaker_name": "Alice", "start_time": 2.0, "end_time": 3.0, "index": 2},
+            {
+                "text": "Valid sentence 1.",
+                "speaker_name": "Alice",
+                "start_time": 0.0,
+                "end_time": 1.0,
+                "index": 0,
+            },
+            {
+                "text": "",
+                "speaker_name": "Bob",
+                "start_time": 1.0,
+                "end_time": 2.0,
+                "index": 1,
+            },  # Empty text
+            {
+                "text": "Valid sentence 2.",
+                "speaker_name": "Alice",
+                "start_time": 2.0,
+                "end_time": 3.0,
+                "index": 2,
+            },
         ]
 
         errors = 0
@@ -593,7 +610,7 @@ class TestImportErrorHandling:
 
         manager = FirefliesSessionManager()
 
-        session_id, coordinator = await manager.create_import_session(
+        session_id, _coordinator = await manager.create_import_session(
             transcript_id="test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
