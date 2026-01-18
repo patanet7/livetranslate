@@ -1,12 +1,115 @@
 # Orchestration Service - Development Plan
 
 **Last Updated**: 2026-01-17
-**Current Status**: Session-Based Import Pipeline Complete
+**Current Status**: DRY Pipeline Phase 3 Complete - All Sources Use Unified Pipeline
 **Module**: `modules/orchestration-service/`
 
 ---
 
-## 📋 Current Work: Session-Based Import Pipeline (2026-01-17)
+## 📋 Current Work: DRY Pipeline Phase 3 - Audio & Bot Integration (2026-01-17)
+
+### What Was Done
+
+**Goal**: ALL transcript sources (Fireflies, audio upload, Google Meet bot) must flow through the IDENTICAL pipeline after receiving transcription data.
+
+**Before Phase 3**:
+- Fireflies Live/Import: ✅ Used `TranscriptionPipelineCoordinator`
+- Audio Upload: ❌ Bypassed pipeline via `AudioCoordinator` direct translation
+- Google Meet Bot: ❌ Separate implementation, direct translation calls
+
+**After Phase 3**:
+- Fireflies Live/Import: ✅ Uses `TranscriptionPipelineCoordinator`
+- Audio Upload: ✅ Routes through `TranscriptionPipelineCoordinator` with `AudioUploadChunkAdapter`
+- Google Meet Bot: ✅ Routes through `TranscriptionPipelineCoordinator` with `GoogleMeetChunkAdapter`
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `src/routers/audio/audio_core.py` | Modified `_process_uploaded_file()` to route Whisper segments through pipeline coordinator |
+| `src/bot/bot_integration.py` | Added pipeline coordinator initialization, modified `_handle_transcription_result()` to route through pipeline |
+
+### Implementation Details
+
+**audio_core.py Changes**:
+1. Added imports for `TranscriptionPipelineCoordinator`, `PipelineConfig`, `AudioUploadChunkAdapter`
+2. Modified `_process_uploaded_file()`:
+   - Disables translation in AudioCoordinator (pipeline handles it)
+   - After Whisper returns segments, creates pipeline coordinator
+   - Processes each segment through `coordinator.process_raw_chunk()`
+   - Pipeline handles aggregation, translation, database storage
+   - Returns consolidated translations from pipeline
+
+**bot_integration.py Changes**:
+1. Added imports for pipeline components + `SimpleTranslationClient` + `CaptionBuffer`
+2. Added `pipeline_coordinator` and `caption_buffer` members
+3. Modified `_initialize_bot_components()`:
+   - Creates `CaptionBuffer` for captions
+   - Creates `PipelineConfig` with session/meeting info
+   - Creates `GoogleMeetChunkAdapter`
+   - Creates `TranscriptionPipelineCoordinator` with translation client
+   - Sets up pipeline callbacks to update virtual webcam
+4. Modified `_handle_transcription_result()`:
+   - Still displays original transcription immediately in virtual webcam
+   - Routes chunk through pipeline for aggregation + translation
+   - Fallback to legacy `_process_correlations()` if pipeline unavailable
+5. Added new methods:
+   - `_process_through_pipeline()` - async wrapper for pipeline processing
+   - `_handle_pipeline_translation()` - callback to update virtual webcam with translations
+   - `_handle_pipeline_error()` - error handling callback
+6. Modified `_cleanup_session()` - properly flushes and cleans up pipeline
+
+### Data Flow (After Phase 3)
+
+```
+ALL TRANSCRIPT SOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+│
+├─ Fireflies Live ────┐
+│  (Socket.IO)        │
+│                     ├──→ ChunkAdapter (source-specific)
+├─ Fireflies Import ──┤          │
+│  (GraphQL batch)    │          ↓
+│                     │   TranscriptChunk (UNIFIED FORMAT)
+├─ Audio Upload ──────┤          │
+│  (Whisper result)   │          ↓
+│                     │   TranscriptionPipelineCoordinator
+├─ Google Meet Bot ───┘          │
+   (Whisper stream)              ├─→ SentenceAggregator
+                                 │
+                                 ├─→ RollingWindowTranslator
+                                 │   └─→ GlossaryService
+                                 │   └─→ TranslationServiceClient
+                                 │
+                                 ├─→ CaptionBuffer (real-time display)
+                                 │
+                                 └─→ BotSessionDatabaseManager
+                                     ├─→ TranscriptManager.store()
+                                     └─→ TranslationManager.store()
+```
+
+### Test Results
+
+```
+tests/fireflies/ - 555 passed, 1 skipped ✅
+tests/fireflies/integration/test_pipeline_dry_integration.py - 20 passed ✅
+```
+
+### DRY Audit Score: ~95-100% (up from 75-80%)
+
+| Component | Status |
+|-----------|--------|
+| Sentence Aggregation | ✅ DRY - Single `SentenceAggregator` |
+| Adapters | ✅ DRY - Clean pattern, no duplication |
+| Fireflies (Live/Import) | ✅ DRY - Uses `TranscriptionPipelineCoordinator` |
+| Audio Upload | ✅ DRY - Now uses `TranscriptionPipelineCoordinator` |
+| Google Meet Bot | ✅ DRY - Now uses `TranscriptionPipelineCoordinator` |
+| Translation | ✅ DRY - All paths use `RollingWindowTranslator` |
+| Database Storage | ✅ DRY - All paths use same storage methods |
+
+---
+
+## 📋 Previous Work: Session-Based Import Pipeline (2026-01-17)
 
 ### What Was Done
 

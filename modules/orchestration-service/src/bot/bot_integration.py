@@ -44,6 +44,15 @@ from .google_meet_automation import (
     create_google_meet_automation,
 )
 
+# Import pipeline components for DRY processing
+from services.pipeline import (
+    TranscriptionPipelineCoordinator,
+    PipelineConfig,
+    GoogleMeetChunkAdapter,
+)
+from services.caption_buffer import CaptionBuffer
+from clients.simple_translation_client import SimpleTranslationClient
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -277,6 +286,8 @@ class GoogleMeetBotIntegration:
         self.correlation_engine = None
         self.virtual_webcam = None
         self.meet_automation = None
+        self.pipeline_coordinator = None  # DRY pipeline for translation
+        self.caption_buffer = None  # Shared caption buffer
 
         # Session management
         self.active_sessions: Dict[str, BotSession] = {}
@@ -534,6 +545,51 @@ class GoogleMeetBotIntegration:
 
                 # Set webcam callbacks
                 self.virtual_webcam.on_error = self._handle_webcam_error
+
+            # Initialize DRY pipeline for translation
+            # Creates caption buffer and pipeline coordinator for unified processing
+            self.caption_buffer = CaptionBuffer(
+                max_captions=50,
+                default_duration_seconds=8.0,
+            )
+
+            # Configure pipeline
+            import os
+            pipeline_config = PipelineConfig(
+                session_id=session_id,
+                transcript_id=meeting_info.meeting_id,
+                target_languages=self.config.target_languages,
+                source_language="auto",
+                domain="meeting",
+            )
+
+            # Create translation client for pipeline
+            translation_base_url = os.getenv(
+                "TRANSLATION_SERVICE_URL",
+                self.config.service_endpoints.translation_service
+            )
+            simple_translation_client = SimpleTranslationClient(base_url=translation_base_url)
+
+            # Create adapter for Google Meet transcripts
+            adapter = GoogleMeetChunkAdapter()
+
+            # Create pipeline coordinator
+            self.pipeline_coordinator = TranscriptionPipelineCoordinator(
+                config=pipeline_config,
+                adapter=adapter,
+                simple_translation_client=simple_translation_client,
+                caption_buffer=self.caption_buffer,
+                db_manager=self.database_manager,
+            )
+
+            # Initialize pipeline
+            await self.pipeline_coordinator.initialize()
+
+            # Set pipeline callbacks to update virtual webcam
+            self.pipeline_coordinator.on_translation_ready(self._handle_pipeline_translation)
+            self.pipeline_coordinator.on_error(self._handle_pipeline_error)
+
+            logger.info(f"Pipeline coordinator initialized for session {session_id}")
 
             # Initialize Google Meet automation
             meet_config = GoogleMeetConfig(
@@ -802,11 +858,17 @@ class GoogleMeetBotIntegration:
                 await self.browser_audio_capture.shutdown()
                 self.browser_audio_capture = None
 
+            # Flush and clean up pipeline
+            if self.pipeline_coordinator:
+                await self.pipeline_coordinator.flush()
+                self.pipeline_coordinator = None
+
             # Clean up components
             self.audio_capture = None
             self.caption_processor = None
             self.correlation_engine = None
             self.virtual_webcam = None
+            self.caption_buffer = None
 
             # Remove from active sessions
             with self.lock:
@@ -817,12 +879,23 @@ class GoogleMeetBotIntegration:
             logger.error(f"Error cleaning up session: {e}")
 
     def _handle_transcription_result(self, result: Dict):
-        """Handle transcription result from audio capture."""
+        """
+        Handle transcription result from audio capture.
+
+        Routes through DRY pipeline for aggregation, translation, and storage.
+        The pipeline handles:
+        - Sentence aggregation
+        - Translation via RollingWindowTranslator
+        - Database storage
+        - Caption buffer updates
+
+        Virtual webcam is updated via pipeline callback.
+        """
         try:
             if not result.get("clean_text"):
                 return
 
-            # Create internal transcription result
+            # Create internal transcription result for correlation engine
             internal_result = InternalTranscriptionResult(
                 segment_id=result.get("segment_id", str(uuid.uuid4())),
                 text=result["clean_text"],
@@ -834,30 +907,23 @@ class GoogleMeetBotIntegration:
                 processing_metadata=result,
             )
 
-            # Store in database if manager available
-            if self.database_manager and self.current_session_id:
-                asyncio.create_task(
-                    self._store_transcription_to_database(internal_result, result)
-                )
-
-            # Add to correlation engine for speaker attribution
+            # Add to correlation engine for speaker attribution (keeps timeline correlation)
             if self.correlation_engine:
                 self.correlation_engine.add_internal_result(internal_result)
 
-            # Also display transcription directly in virtual webcam with fallback speaker info
+            # Extract speaker info for pipeline chunk
+            speaker_id = result.get("speaker_id", "unknown_speaker")
+            speaker_name = result.get("speaker_name", "Unknown Speaker")
+
+            if "diarization" in result and result["diarization"]:
+                diarization_info = result["diarization"]
+                if "speaker_id" in diarization_info:
+                    speaker_id = diarization_info["speaker_id"]
+                if "speaker_label" in diarization_info:
+                    speaker_name = diarization_info["speaker_label"]
+
+            # Display original transcription in virtual webcam immediately
             if self.virtual_webcam:
-                # Extract speaker info from result or use fallback
-                speaker_id = result.get("speaker_id", "unknown_speaker")
-                speaker_name = result.get("speaker_name", "Unknown Speaker")
-
-                # Check for diarization info in result
-                if "diarization" in result and result["diarization"]:
-                    diarization_info = result["diarization"]
-                    if "speaker_id" in diarization_info:
-                        speaker_id = diarization_info["speaker_id"]
-                    if "speaker_label" in diarization_info:
-                        speaker_name = diarization_info["speaker_label"]
-
                 transcription_data = {
                     "session_id": self.current_session_id,
                     "correlation_id": f"direct_{internal_result.segment_id}",
@@ -870,15 +936,33 @@ class GoogleMeetBotIntegration:
                     "start_timestamp": internal_result.start_timestamp,
                     "end_timestamp": internal_result.end_timestamp,
                     "correlation_confidence": internal_result.confidence,
-                    "translation_confidence": internal_result.confidence,  # Use actual Whisper confidence
+                    "translation_confidence": internal_result.confidence,
                     "timestamp": time.time(),
                     "is_original_transcription": True,
                 }
-
                 self.virtual_webcam.add_translation(transcription_data)
 
-            # Try to get correlations and process them for translation
-            asyncio.create_task(self._process_correlations())
+            # Route through DRY pipeline for aggregation + translation
+            # Pipeline handles: aggregation → translation → DB storage → caption buffer
+            if self.pipeline_coordinator:
+                # Build chunk in Google Meet format for the adapter
+                pipeline_chunk = {
+                    "transcript": internal_result.text,  # GoogleMeetChunkAdapter expects "transcript"
+                    "text": internal_result.text,
+                    "speaker_id": speaker_id,
+                    "speaker_name": speaker_name,
+                    "timestamp": int(internal_result.start_timestamp * 1000),
+                    "duration_ms": int((internal_result.end_timestamp - internal_result.start_timestamp) * 1000),
+                    "confidence": internal_result.confidence,
+                    "meeting_id": self.current_session_id,
+                    "chunk_id": internal_result.segment_id,
+                }
+
+                # Process through pipeline asynchronously
+                asyncio.create_task(self._process_through_pipeline(pipeline_chunk))
+            else:
+                # Fallback: use legacy correlation-based translation
+                asyncio.create_task(self._process_correlations())
 
             # Notify transcription callback
             if self.on_transcription_ready:
@@ -897,6 +981,16 @@ class GoogleMeetBotIntegration:
             logger.error(f"Error handling transcription result: {e}")
             if self.on_error:
                 self.on_error(f"Transcription handling error: {e}")
+
+    async def _process_through_pipeline(self, chunk: Dict):
+        """Process a chunk through the DRY pipeline."""
+        try:
+            if self.pipeline_coordinator:
+                await self.pipeline_coordinator.process_raw_chunk(chunk)
+        except Exception as e:
+            logger.error(f"Error processing chunk through pipeline: {e}")
+            # Fallback to legacy processing
+            await self._process_correlations()
 
     def _handle_caption_segment(self, caption):
         """Handle caption segment from Google Meet."""
@@ -1179,6 +1273,62 @@ class GoogleMeetBotIntegration:
 
         if self.on_error:
             self.on_error(f"Webcam error: {error}")
+
+    async def _handle_pipeline_translation(self, unit, translation_result):
+        """Handle translation result from DRY pipeline - update virtual webcam."""
+        try:
+            if not translation_result:
+                return
+
+            # Build translation data for virtual webcam
+            translation_data = {
+                "session_id": self.current_session_id,
+                "correlation_id": f"pipeline_{unit.unit_id if hasattr(unit, 'unit_id') else uuid.uuid4().hex[:8]}",
+                "speaker_id": unit.speaker_name if hasattr(unit, 'speaker_name') else "unknown",
+                "speaker_name": unit.speaker_name if hasattr(unit, 'speaker_name') else "Unknown Speaker",
+                "original_text": unit.text if hasattr(unit, 'text') else "",
+                "translated_text": translation_result.translated,
+                "source_language": translation_result.source_language,
+                "target_language": translation_result.target_language,
+                "start_timestamp": unit.start_time if hasattr(unit, 'start_time') else time.time(),
+                "end_timestamp": unit.end_time if hasattr(unit, 'end_time') else time.time(),
+                "correlation_confidence": translation_result.confidence or 0.9,
+                "translation_confidence": translation_result.confidence or 0.9,
+                "timestamp": time.time(),
+                "is_original_transcription": False,
+            }
+
+            # Add to virtual webcam if enabled
+            if self.virtual_webcam:
+                self.virtual_webcam.add_translation(translation_data)
+
+            # Notify external callback
+            if self.on_translation_ready:
+                self.on_translation_ready(translation_data)
+
+            # Update session statistics
+            with self.lock:
+                if self.current_session_id in self.active_sessions:
+                    self.active_sessions[self.current_session_id].messages_processed += 1
+                    self.total_messages_processed += 1
+
+            logger.debug(
+                f"Pipeline translation delivered: {translation_result.target_language} - "
+                f"{len(translation_result.translated)} chars"
+            )
+
+        except Exception as e:
+            logger.error(f"Error handling pipeline translation: {e}")
+
+    async def _handle_pipeline_error(self, error: str):
+        """Handle error from DRY pipeline."""
+        logger.error(f"Pipeline error: {error}")
+        if self.current_session_id and self.current_session_id in self.active_sessions:
+            with self.lock:
+                self.active_sessions[self.current_session_id].errors_count += 1
+
+        if self.on_error:
+            self.on_error(f"Pipeline error: {error}")
 
     def get_session_status(self, session_id: str = None) -> Optional[Dict]:
         """Get status of a bot session."""
