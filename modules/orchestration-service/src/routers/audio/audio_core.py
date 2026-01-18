@@ -47,6 +47,13 @@ from dependencies import (
     get_event_publisher,
     get_translation_service_client,
 )
+
+# Import pipeline components for DRY processing
+from services.pipeline import (
+    TranscriptionPipelineCoordinator,
+    PipelineConfig,
+    AudioUploadChunkAdapter,
+)
 from utils.audio_errors import (
     error_boundary,
     AudioProcessingError,
@@ -597,25 +604,148 @@ async def _process_uploaded_file(
     """
     Core uploaded file processing logic - processes audio through the full orchestration pipeline.
 
-    This now uses the complete AudioCoordinator streaming infrastructure for real transcription
-    and translation, replacing the previous placeholder implementation.
+    This uses AudioCoordinator for Whisper transcription (no translation), then routes
+    the segments through TranscriptionPipelineCoordinator for DRY translation and storage.
+
+    Pipeline flow:
+        Audio → AudioCoordinator (Whisper) → Segments → Pipeline (Aggregation + Translation) → DB
     """
     try:
         logger.info(
-            f"[{correlation_id}] Processing uploaded file through AudioCoordinator"
+            f"[{correlation_id}] Processing uploaded file through unified pipeline"
         )
 
-        # Use audio coordinator for complete processing
+        session_id = request_data.get("session_id", correlation_id)
+
+        # Step 1: Use AudioCoordinator for Whisper transcription ONLY (disable translation)
+        transcription_config = {
+            **request_data,
+            "enable_translation": False,  # Pipeline handles translation
+        }
+
         result = await audio_coordinator.process_audio_file(
-            session_id=request_data.get("session_id", "unknown"),
+            session_id=session_id,
             audio_file_path=temp_file_path,
-            config=request_data,
+            config=transcription_config,
             request_id=correlation_id,
         )
 
         logger.info(
-            f"[{correlation_id}] Audio coordinator processing complete: status={result.get('status')}"
+            f"[{correlation_id}] Whisper transcription complete: status={result.get('status')}"
         )
+
+        # Step 2: If transcription successful and segments available, process through pipeline
+        segments = result.get("segments", [])
+        enable_translation = request_data.get("enable_translation", False)
+        target_languages = request_data.get("target_languages", [])
+
+        if result.get("status") == "processed" and segments and enable_translation and target_languages:
+            logger.info(
+                f"[{correlation_id}] Routing {len(segments)} segments through DRY pipeline for translation"
+            )
+
+            # Parse target_languages if string
+            if isinstance(target_languages, str):
+                try:
+                    target_languages = json.loads(target_languages)
+                except json.JSONDecodeError:
+                    target_languages = [lang.strip() for lang in target_languages.split(",")]
+
+            # Create adapter and pipeline config
+            adapter = AudioUploadChunkAdapter(session_id=session_id)
+
+            pipeline_config = PipelineConfig(
+                session_id=session_id,
+                transcript_id=correlation_id,
+                target_languages=target_languages,
+                source_language=result.get("language", "auto"),
+                domain=request_data.get("domain", "general"),
+            )
+
+            # Get translation client for pipeline
+            from clients.simple_translation_client import SimpleTranslationClient
+            import os
+            translation_base_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+            simple_translation_client = SimpleTranslationClient(base_url=translation_base_url)
+
+            # Create pipeline coordinator
+            coordinator = TranscriptionPipelineCoordinator(
+                config=pipeline_config,
+                adapter=adapter,
+                simple_translation_client=simple_translation_client,
+            )
+
+            # Initialize pipeline
+            await coordinator.initialize()
+
+            # Track translations from pipeline
+            pipeline_translations = {}
+
+            # Set callback to capture translations
+            async def capture_translation(unit, translation_result):
+                if translation_result:
+                    target_lang = translation_result.target_language
+                    if target_lang not in pipeline_translations:
+                        pipeline_translations[target_lang] = {
+                            "texts": [],
+                            "confidence": 0.0,
+                            "count": 0,
+                        }
+                    pipeline_translations[target_lang]["texts"].append(
+                        translation_result.translated
+                    )
+                    pipeline_translations[target_lang]["confidence"] += (
+                        translation_result.confidence or 0.0
+                    )
+                    pipeline_translations[target_lang]["count"] += 1
+
+            coordinator.on_translation_ready(capture_translation)
+
+            # Process each segment through the pipeline
+            for segment in segments:
+                # Ensure segment has required fields for adapter
+                if not segment.get("text"):
+                    continue
+
+                # Add session context if missing
+                segment["session_id"] = session_id
+                segment["transcript_id"] = correlation_id
+
+                # Process through pipeline
+                await coordinator.process_raw_chunk(segment)
+
+            # Flush any remaining content
+            await coordinator.flush()
+
+            # Get pipeline stats
+            pipeline_stats = coordinator.get_stats()
+            logger.info(
+                f"[{correlation_id}] Pipeline processing complete: "
+                f"chunks={pipeline_stats.get('chunks_received', 0)}, "
+                f"sentences={pipeline_stats.get('sentences_produced', 0)}, "
+                f"translations={len(pipeline_translations)}"
+            )
+
+            # Consolidate translations into result
+            if pipeline_translations:
+                result["translations"] = {}
+                for lang, data in pipeline_translations.items():
+                    avg_confidence = (
+                        data["confidence"] / data["count"] if data["count"] > 0 else 0.0
+                    )
+                    result["translations"][lang] = {
+                        "text": " ".join(data["texts"]),
+                        "confidence": avg_confidence,
+                        "service": "pipeline_v3",
+                        "sentences_translated": data["count"],
+                    }
+
+            result["pipeline_stats"] = pipeline_stats
+
+        elif enable_translation and not segments:
+            logger.warning(
+                f"[{correlation_id}] Translation requested but no segments available from Whisper"
+            )
 
         return result
 
