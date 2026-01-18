@@ -6,23 +6,43 @@ This module provides a comprehensive Google Meet bot system that captures audio 
 
 ## 🏗️ Architecture Overview
 
-### Complete Audio Pipeline
+### Complete Audio Pipeline (DRY Architecture)
+
+**As of 2026-01-17, the Google Meet bot uses the unified `TranscriptionPipelineCoordinator`.**
+
 ```
 Google Meet Browser → Browser Audio Capture → Orchestration Service
     ↓
-Whisper Service (NPU) → Speaker Diarization → Time Correlation
+Whisper Service (NPU) → Speaker Diarization
     ↓
-Translation Service → Virtual Webcam Generation → Professional Display
+GoogleMeetChunkAdapter → TranscriptChunk (unified format)
+    ↓
+TranscriptionPipelineCoordinator
+    ├─→ SentenceAggregator (sentence boundary detection)
+    ├─→ RollingWindowTranslator + GlossaryService
+    ├─→ CaptionBuffer (real-time display)
+    └─→ BotSessionDatabaseManager (persistence)
+    ↓
+Virtual Webcam Generation → Professional Display
 ```
+
+This unified architecture ensures the Google Meet bot uses the exact same translation and storage logic as Fireflies and audio uploads.
 
 ### Key Components
 
 #### 1. **Bot Integration Pipeline** (`bot_integration.py`)
 - **Main orchestration class** that coordinates all bot functionality
-- **Complete audio pipeline** from Google Meet to virtual webcam output
+- **Unified pipeline integration** - uses `TranscriptionPipelineCoordinator` with `GoogleMeetChunkAdapter`
+- **Pipeline callbacks** - `_handle_pipeline_translation()` for virtual webcam updates
 - **Service coordination** with whisper and translation services
 - **Session management** with database persistence
 - **Error handling** and automatic recovery
+
+Key pipeline-related members added in 2026-01-17 refactoring:
+- `pipeline_coordinator: TranscriptionPipelineCoordinator` - Main pipeline instance
+- `caption_buffer: CaptionBuffer` - For real-time caption display
+- `_handle_pipeline_translation()` - Callback for translation results
+- `_handle_pipeline_error()` - Error handling callback
 
 #### 2. **Google Meet Browser Automation** (`google_meet_automation.py`)
 - **Headless Chrome integration** for Google Meet session management

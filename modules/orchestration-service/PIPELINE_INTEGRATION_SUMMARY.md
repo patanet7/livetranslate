@@ -1,7 +1,62 @@
 # Data Pipeline Integration Summary
 
+**Last Updated**: 2026-01-17
+
 ## Overview
-Successfully integrated the TranscriptionDataPipeline with GoogleMeetBotManager for complete data persistence across the bot → orchestration → transcription → translation → orchestration → bot_captions flow.
+
+This document describes the unified transcription pipeline architecture after the DRY (Don't Repeat Yourself) refactoring completed on 2026-01-17.
+
+**Key Achievement**: ALL transcript sources (Fireflies, audio upload, Google Meet bot) now flow through the IDENTICAL `TranscriptionPipelineCoordinator`, eliminating code duplication and ensuring consistent behavior.
+
+## Unified Pipeline Architecture (2026-01-17)
+
+### What Changed
+
+**Before DRY Refactoring**:
+- Fireflies Live/Import: Used `TranscriptionPipelineCoordinator`
+- Audio Upload: Bypassed pipeline via `AudioCoordinator` direct translation
+- Google Meet Bot: Separate implementation, direct translation calls
+
+**After DRY Refactoring**:
+- Fireflies Live/Import: Uses `TranscriptionPipelineCoordinator`
+- Audio Upload: Routes through `TranscriptionPipelineCoordinator` with `AudioUploadChunkAdapter`
+- Google Meet Bot: Routes through `TranscriptionPipelineCoordinator` with `GoogleMeetChunkAdapter`
+
+### Pipeline Components
+
+```
+src/services/pipeline/
+├── __init__.py                    # Module exports
+├── config.py                      # PipelineConfig, PipelineStats dataclasses
+├── coordinator.py                 # TranscriptionPipelineCoordinator (main orchestrator)
+└── adapters/
+    ├── __init__.py               # Adapter exports
+    ├── base.py                   # ChunkAdapter ABC + TranscriptChunk unified format
+    ├── fireflies_adapter.py      # FirefliesChunkAdapter
+    ├── import_adapter.py         # ImportChunkAdapter
+    ├── audio_adapter.py          # AudioUploadChunkAdapter
+    └── google_meet_adapter.py    # GoogleMeetChunkAdapter
+```
+
+### Key Files Modified in DRY Refactoring
+
+| File | Change |
+|------|--------|
+| `src/routers/audio/audio_core.py` | Modified `_process_uploaded_file()` to route Whisper segments through pipeline |
+| `src/bot/bot_integration.py` | Added pipeline coordinator initialization, routes transcriptions through pipeline |
+| `src/clients/fireflies_client.py` | Rewrote to use `socketio.AsyncClient()` instead of raw WebSocket |
+| `static/fireflies-dashboard.html` | Fixed saved transcripts loading to include all prefixes |
+| `src/routers/data_query.py` | Added `GET /sessions` endpoint with filtering |
+
+### Legacy Code Removed (1,884 lines)
+
+| File | Lines | Reason |
+|------|-------|--------|
+| `src/streaming_coordinator.py` | ~1,200 | Replaced by `TranscriptionPipelineCoordinator` |
+| `src/speaker_grouper.py` | ~200 | Functionality merged into `SentenceAggregator` |
+| `src/segment_deduplicator.py` | ~300 | Deduplication handled via unique `chunk_id` tracking |
+
+---
 
 ## Integration Points
 
