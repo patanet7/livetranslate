@@ -109,6 +109,49 @@ tests/fireflies/integration/test_pipeline_dry_integration.py - 20 passed ✅
 
 ---
 
+## 📋 Phase 5: Legacy Code Cleanup (2026-01-17)
+
+### What Was Done
+
+Moved deprecated modules that were replaced by the unified pipeline architecture.
+
+### Audit Findings
+
+| File | Usage | Action |
+|------|-------|--------|
+| `streaming_coordinator.py` | NOT imported anywhere in production | Moved to `src/deprecated/` |
+| `speaker_grouper.py` | Only imported by `streaming_coordinator.py` | Moved to `src/deprecated/` |
+| `segment_deduplicator.py` | Only imported by `streaming_coordinator.py` | Moved to `src/deprecated/` |
+
+### Files Moved
+
+**Source → Deprecated:**
+- `src/streaming_coordinator.py` → `src/deprecated/streaming_coordinator.py`
+- `src/speaker_grouper.py` → `src/deprecated/speaker_grouper.py`
+- `src/segment_deduplicator.py` → `src/deprecated/segment_deduplicator.py`
+
+**Tests → Deprecated:**
+- `tests/test_speaker_grouping_integration.py` → `tests/deprecated/test_speaker_grouping_integration.py`
+- `tests/test_segment_deduplication_integration.py` → `tests/deprecated/test_segment_deduplication_integration.py`
+
+### Files Created
+
+- `src/deprecated/__init__.py` - Module marker
+- `src/deprecated/README.md` - Documentation explaining deprecation and migration guide
+
+### Replacement Architecture
+
+All deprecated functionality is now handled by:
+- `TranscriptionPipelineCoordinator` - Central processing coordinator
+- `SentenceAggregator` - Handles sentence boundary detection and speaker grouping
+- Source adapters - Handle deduplication via unique `chunk_id` tracking
+
+### Test Results
+
+All 555 fireflies tests pass after cleanup.
+
+---
+
 ## 📋 Previous Work: Session-Based Import Pipeline (2026-01-17)
 
 ### What Was Done
