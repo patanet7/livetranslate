@@ -45,8 +45,8 @@ def transcribe(
     condition_on_previous_text: bool = True,
     initial_prompt: str | None = None,
     word_timestamps: bool = False,
-    prepend_punctuations: str = "\"'\"\u00bf([{-",
-    append_punctuations: str = "\"'.\u3002,\uff0c!\uff01?\uff1f:\uff1a\")]}、",
+    prepend_punctuations: str = '"\'"\u00bf([{-',
+    append_punctuations: str = '"\'.\u3002,\uff0c!\uff01?\uff1f:\uff1a")]}、',
     **decode_options,
 ):
     """
@@ -399,7 +399,8 @@ def cli():
     if model_name.endswith(".en") and args["language"] not in {"en", "English"}:
         if args["language"] is not None:
             warnings.warn(
-                f"{model_name} is an English-only model but receipted '{args['language']}'; using English instead.", stacklevel=2
+                f"{model_name} is an English-only model but receipted '{args['language']}'; using English instead.",
+                stacklevel=2,
             )
         args["language"] = "en"
 

@@ -179,7 +179,7 @@ class TestMultiLanguage:
 
 
 # Usage:
-"""
+_USAGE_INSTRUCTIONS = """
 To run these tests:
 
 # Run all real speech tests

@@ -929,9 +929,7 @@ class TimingCoordinator:
                 del self.detected_drifts[session_id]
 
             # Clear correction offsets for this session
-            keys_to_remove = [
-                k for k in self.correction_offsets if k.startswith(f"{session_id}_")
-            ]
+            keys_to_remove = [k for k in self.correction_offsets if k.startswith(f"{session_id}_")]
             for key in keys_to_remove:
                 del self.correction_offsets[key]
 

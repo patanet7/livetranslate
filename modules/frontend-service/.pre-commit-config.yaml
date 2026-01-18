@@ -99,7 +99,7 @@ repos:
       - id: no-hardcoded-secrets-js
         name: No hardcoded secrets in JS/TS
         language: pygrep
-        entry: '(api[_-]?key|apiKey|secret|password|token)\s*[:=]\s*["\'][^"\']{10,}["\']'
+        entry: "(api[_-]?key|apiKey|secret|password|token)\\s*[:=]\\s*[\"'][^\"']{10,}[\"']"
         files: '^src/.*\.(ts|tsx|js|jsx)$'
         exclude: '\.test\.(ts|tsx|js|jsx)$|\.spec\.(ts|tsx|js|jsx)$'
 

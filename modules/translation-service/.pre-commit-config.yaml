@@ -100,7 +100,7 @@ repos:
       - id: cuda-memory-check
         name: Check CUDA memory safety patterns
         language: pygrep
-        entry: '(torch\.cuda\.empty_cache\(\)|\.cuda\(\)|\.to\(["\']cuda["\'])'
+        entry: "(torch\\.cuda\\.empty_cache\\(\\)|\\.cuda\\(\\)|\\.to\\([\"']cuda[\"']\\))"
         files: '^src/.*\.py$'
         exclude: '^(tests/|\.venv/|src/gpu/)'
         types: [python]

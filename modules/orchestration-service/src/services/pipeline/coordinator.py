@@ -261,9 +261,7 @@ class TranscriptionPipelineCoordinator:
             try:
                 asyncio.get_running_loop()
                 # Already in async context - schedule coroutine with proper tracking
-                task = asyncio.create_task(
-                    self._handle_sentence_ready(unit)
-                )
+                task = asyncio.create_task(self._handle_sentence_ready(unit))
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
             except RuntimeError:

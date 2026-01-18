@@ -480,10 +480,13 @@ class APIGateway:
                     circuit_breaker.record_failure()
 
                 # Don't retry on certain errors
-                if isinstance(
-                    e,
-                    (requests.exceptions.ConnectionError, requests.exceptions.Timeout),
-                ) and attempt < self.retries - 1:
+                if (
+                    isinstance(
+                        e,
+                        (requests.exceptions.ConnectionError, requests.exceptions.Timeout),
+                    )
+                    and attempt < self.retries - 1
+                ):
                     time.sleep(0.5 * (attempt + 1))  # Exponential backoff
                     continue
 

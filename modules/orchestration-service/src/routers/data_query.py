@@ -196,9 +196,7 @@ def get_pipeline():
             loop = asyncio.get_event_loop()
             if loop.is_running():
                 # Schedule initialization with proper task tracking
-                task = asyncio.create_task(
-                    _pipeline_instance.db_manager.initialize()
-                )
+                task = asyncio.create_task(_pipeline_instance.db_manager.initialize())
                 _background_tasks.add(task)
                 task.add_done_callback(_background_tasks.discard)
             else:

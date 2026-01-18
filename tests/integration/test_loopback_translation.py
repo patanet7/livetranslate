@@ -84,9 +84,13 @@ class LoopbackAudioCapture:
             name = info["name"].lower()
 
             # Look for common loopback device names
-            if any(
-                keyword in name for keyword in ["blackhole", "soundflower", "loopback", "virtual"]
-            ) and info["maxInputChannels"] > 0:
+            if (
+                any(
+                    keyword in name
+                    for keyword in ["blackhole", "soundflower", "loopback", "virtual"]
+                )
+                and info["maxInputChannels"] > 0
+            ):
                 logger.info(f"✅ Found loopback device: {info['name']} (index {i})")
                 self.loopback_device_index = i
                 return True

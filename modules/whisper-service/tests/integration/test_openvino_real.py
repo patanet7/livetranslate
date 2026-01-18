@@ -341,7 +341,7 @@ class TestOpenVINOPerformanceREAL:
 
 
 # Usage instructions
-"""
+_USAGE_INSTRUCTIONS = """
 To run these tests (Linux/Windows with OpenVINO):
 
 # Run all OpenVINO integration tests

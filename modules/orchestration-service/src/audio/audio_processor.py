@@ -368,7 +368,9 @@ class AudioPipelineProcessor:
         """Reset all pipeline and stage statistics."""
         self.pipeline.reset_all_statistics()
 
-    def get_database_statistics(self, hours: int = 24, session_id: str | None = None) -> dict[str, Any]:
+    def get_database_statistics(
+        self, hours: int = 24, session_id: str | None = None
+    ) -> dict[str, Any]:
         """Get processing statistics from database."""
         if self.metrics_manager:
             return self.metrics_manager.get_processing_statistics(hours, session_id)

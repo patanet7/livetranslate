@@ -119,7 +119,7 @@ repos:
       - id: sqlalchemy-injection-check
         name: Check SQL injection patterns
         language: pygrep
-        entry: '(execute|text)\([^)]*f["\']|\.format\([^)]*\)|%\s*["\'].*%'
+        entry: "(execute|text)\\([^)]*f[\"']|\\.format\\([^)]*\\)|%\\s*[\"'].*%"
         files: '^src/.*\.py$'
         exclude: '^(tests/|\.venv/)'
         types: [python]
@@ -136,7 +136,7 @@ repos:
       - id: no-hardcoded-secrets
         name: No hardcoded secrets
         language: pygrep
-        entry: '(password|secret|api_key|token)\s*=\s*["\'][^"\']+["\']'
+        entry: "(password|secret|api_key|token)\\s*=\\s*[\"'][^\"']+[\"']"
         files: '^src/.*\.py$'
         exclude: '^(tests/|\.venv/|config/)'
         types: [python]

@@ -264,9 +264,12 @@ class WhisperTranslationBridge:
     async def check_whisper_health(self) -> bool:
         """Check if Whisper service is healthy"""
         try:
-            async with aiohttp.ClientSession() as session, session.get(
-                f"{self.whisper_url}/api/health", timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
+                    f"{self.whisper_url}/api/health", timeout=aiohttp.ClientTimeout(total=5)
+                ) as response,
+            ):
                 return response.status == 200
         except Exception:
             return False

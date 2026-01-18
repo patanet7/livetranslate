@@ -43,8 +43,8 @@ def transcribe(
     condition_on_previous_text: bool = True,
     initial_prompt: str | None = None,
     word_timestamps: bool = False,
-    prepend_punctuations: str = "\"'\"\u00bf([{-",
-    append_punctuations: str = "\"'.\u3002,\uff0c!\uff01?\uff1f:\uff1a\")]}、",
+    prepend_punctuations: str = '"\'"\u00bf([{-',
+    append_punctuations: str = '"\'.\u3002,\uff0c!\uff01?\uff1f:\uff1a")]}、',
     **decode_options,
 ):
     """
@@ -121,7 +121,9 @@ def transcribe(
         audio, padding=0
     )  # log_mel_spectrogram(audio, padding=N_SAMPLES) # adds 16000*30 = 480000 points
     # mel = pad_or_trim(mel, 3000)
-    content_frames = mel.shape[-1]  # - N_FRAMES # corresponds to 3000 frames; actual content excludes trailing 3000
+    content_frames = mel.shape[
+        -1
+    ]  # - N_FRAMES # corresponds to 3000 frames; actual content excludes trailing 3000
 
     # Detect language
     if decode_options.get("language") is None:
@@ -236,8 +238,12 @@ def transcribe(
             segment_size = min(
                 N_FRAMES, content_frames - seek
             )  # segment_size: real length excluding padding; content_frames: actual content length, truncated if < N_FRAMES
-            segment_duration = segment_size * HOP_LENGTH / SAMPLE_RATE  # Duration of current segment
-            mel_segment = mel_segment.to(model.device).to(
+            segment_duration = (
+                segment_size * HOP_LENGTH / SAMPLE_RATE
+            )  # Duration of current segment
+            mel_segment = mel_segment.to(
+                model.device
+            ).to(
                 dtype
             )  # pad_or_trim(mel_segment, N_FRAMES).to(model.device).to(dtype) # pad to mel_segment frames
 
@@ -442,7 +448,8 @@ def cli():
     if model_name.endswith(".en") and args["language"] not in {"en", "English"}:
         if args["language"] is not None:
             warnings.warn(
-                f"{model_name} is an English-only model but receipted '{args['language']}'; using English instead.", stacklevel=2
+                f"{model_name} is an English-only model but receipted '{args['language']}'; using English instead.",
+                stacklevel=2,
             )
         args["language"] = "en"
 

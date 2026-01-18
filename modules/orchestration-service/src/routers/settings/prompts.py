@@ -97,7 +97,9 @@ async def get_prompt_statistics():
         raise
     except Exception as e:
         logger.error(f"Error retrieving prompt statistics: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve prompt statistics: {e!s}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve prompt statistics: {e!s}"
+        ) from e
 
 
 @router.get("/prompts/categories")
@@ -129,7 +131,9 @@ async def get_prompt_categories():
         raise
     except Exception as e:
         logger.error(f"Error retrieving prompt categories: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve prompt categories: {e!s}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve prompt categories: {e!s}"
+        ) from e
 
 
 @router.get("/prompts/variables")
@@ -161,7 +165,9 @@ async def get_prompt_variables():
         raise
     except Exception as e:
         logger.error(f"Error retrieving prompt variables: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve prompt variables: {e!s}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve prompt variables: {e!s}"
+        ) from e
 
 
 @router.post("/prompts/compare")

@@ -956,14 +956,18 @@ class PyTorchModelManager:
                                 "Out of GPU memory. Try using base or small model instead of large models."
                             ) from device_error
                         else:
-                            raise Exception("Out of GPU memory. Cache cleared - please try again.") from device_error
+                            raise Exception(
+                                "Out of GPU memory. Cache cleared - please try again."
+                            ) from device_error
 
                     elif "device" in error_msg.lower():
                         logger.error(f"[INFERENCE] Device error - attempting recovery: {error_msg}")
                         # Clear the model to force reload
                         if model_name in self.models:
                             del self.models[model_name]
-                        raise Exception("Device error - model will be reloaded on next request") from device_error
+                        raise Exception(
+                            "Device error - model will be reloaded on next request"
+                        ) from device_error
 
                     else:
                         logger.error(f"[INFERENCE] Runtime error: {error_msg}")

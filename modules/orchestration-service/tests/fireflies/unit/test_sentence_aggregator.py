@@ -558,6 +558,7 @@ class TestSentenceCallback:
     def test_callback_receives_translation_unit(self, session_id, transcript_id, default_config):
         """Callback should receive TranslationUnit objects"""
         received = []
+
         def callback(unit):
             return received.append(unit)
 

@@ -439,7 +439,7 @@ class TestPyTorchPerformanceREAL:
 
 
 # Usage instructions
-"""
+_USAGE_INSTRUCTIONS = """
 To run these tests:
 
 # Run all integration tests (SLOW!)

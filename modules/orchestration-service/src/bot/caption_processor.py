@@ -231,9 +231,7 @@ class SpeakerTimelineManager:
             # Store in database if available
             if self.bot_manager and self.database_manager:
                 try:
-                    task = asyncio.create_task(
-                        self._store_participant_data(speaker_info)
-                    )
+                    task = asyncio.create_task(self._store_participant_data(speaker_info))
                     self._background_tasks.add(task)
                     task.add_done_callback(self._background_tasks.discard)
                 except Exception as e:
@@ -290,9 +288,7 @@ class SpeakerTimelineManager:
                 # Store caption as transcript in database
                 if self.bot_manager and self.database_manager:
                     try:
-                        task = asyncio.create_task(
-                            self._store_caption_transcript(caption)
-                        )
+                        task = asyncio.create_task(self._store_caption_transcript(caption))
                         self._background_tasks.add(task)
                         task.add_done_callback(self._background_tasks.discard)
                     except Exception as e:
@@ -365,9 +361,7 @@ class SpeakerTimelineManager:
                 # Store event in database
                 if self.bot_manager and self.database_manager:
                     try:
-                        task = asyncio.create_task(
-                            self._store_timeline_event(event)
-                        )
+                        task = asyncio.create_task(self._store_timeline_event(event))
                         self._background_tasks.add(task)
                         task.add_done_callback(self._background_tasks.discard)
                     except Exception as e:
@@ -423,7 +417,9 @@ class SpeakerTimelineManager:
             )
             self.timeline_events.append(speaking_event)
 
-    def get_speaker_timeline(self, start_time: float | None = None, end_time: float | None = None) -> list[dict]:
+    def get_speaker_timeline(
+        self, start_time: float | None = None, end_time: float | None = None
+    ) -> list[dict]:
         """Get speaker timeline for a time range."""
         with self.lock:
             timeline = []
@@ -447,7 +443,10 @@ class SpeakerTimelineManager:
             return sorted(timeline, key=lambda x: x["timestamp"])
 
     def get_speaker_segments(
-        self, speaker_id: str | None = None, start_time: float | None = None, end_time: float | None = None
+        self,
+        speaker_id: str | None = None,
+        start_time: float | None = None,
+        end_time: float | None = None,
     ) -> list[dict]:
         """Get caption segments for a speaker or time range."""
         with self.lock:

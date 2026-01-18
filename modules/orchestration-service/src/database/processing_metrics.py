@@ -252,7 +252,9 @@ class ProcessingMetricsManager:
             except Exception as e:
                 logger.error(f"Failed to store stage metrics for {stage_name}: {e}")
 
-    def get_processing_statistics(self, hours: int = 24, session_id: str | None = None) -> dict[str, Any]:
+    def get_processing_statistics(
+        self, hours: int = 24, session_id: str | None = None
+    ) -> dict[str, Any]:
         """Get processing statistics for the specified time period."""
         try:
             with self.SessionLocal() as session:

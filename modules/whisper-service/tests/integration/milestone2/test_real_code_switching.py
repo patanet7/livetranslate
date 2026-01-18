@@ -26,6 +26,7 @@ sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(tests_path))
 
 from session_restart import SessionRestartTranscriber
+
 from tests.test_utils import (
     concatenate_transcription_segments,
     print_wer_results,

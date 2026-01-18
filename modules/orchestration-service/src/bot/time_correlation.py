@@ -286,9 +286,7 @@ class TimeCorrelationEngine:
                 # Store correlations in database if available
                 if correlations_made and self.bot_manager and self.database_manager:
                     for correlation in correlations_made:
-                        task = asyncio.create_task(
-                            self._store_correlation(correlation)
-                        )
+                        task = asyncio.create_task(self._store_correlation(correlation))
                         self._background_tasks.add(task)
                         task.add_done_callback(self._background_tasks.discard)
 
@@ -529,7 +527,9 @@ class TimeCorrelationEngine:
             alpha = 0.1
             self.average_confidence = (1 - alpha) * self.average_confidence + alpha * new_confidence
 
-    def get_correlations(self, start_time: float | None = None, end_time: float | None = None) -> list[dict]:
+    def get_correlations(
+        self, start_time: float | None = None, end_time: float | None = None
+    ) -> list[dict]:
         """Get correlations for a time range."""
         with self.lock:
             filtered = []

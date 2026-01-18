@@ -172,9 +172,7 @@ class TestCompleteE2EFlow:
                 # Metrics should show parameter change took effect
                 updated_metrics = chunk2_data.get("metrics", {})
                 if "stage_metrics" in updated_metrics:
-                    updated_metrics["stage_metrics"].get(
-                        "noise_reduction", {}
-                    )
+                    updated_metrics["stage_metrics"].get("noise_reduction", {})
                     # Verify stronger noise reduction was applied
 
         finally:

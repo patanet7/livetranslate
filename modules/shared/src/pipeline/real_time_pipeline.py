@@ -323,9 +323,12 @@ class RealTimePipeline:
                 "context": {"transcription": transcription, "speaker": speaker},
             }
 
-            async with aiohttp.ClientSession() as session, session.post(
-                f"{self.config.translation_url}/translate", json=translation_request
-            ) as response:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.post(
+                    f"{self.config.translation_url}/translate", json=translation_request
+                ) as response,
+            ):
                 if response.status == 200:
                     result = await response.json()
 
@@ -339,9 +342,7 @@ class RealTimePipeline:
                     return result
                 else:
                     error_text = await response.text()
-                    logger.warning(
-                        f"Translation service error: {response.status} - {error_text}"
-                    )
+                    logger.warning(f"Translation service error: {response.status} - {error_text}")
                     return None
 
         except Exception as e:

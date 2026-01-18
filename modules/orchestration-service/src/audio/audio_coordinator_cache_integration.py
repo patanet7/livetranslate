@@ -21,15 +21,13 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # STEP 1: ADD THESE IMPORTS TO audio_coordinator.py
 # =============================================================================
-"""
-from .translation_cache import TranslationResultCache
-from database.translation_optimization_adapter import TranslationOptimizationAdapter
-"""
+# from .translation_cache import TranslationResultCache
+# from database.translation_optimization_adapter import TranslationOptimizationAdapter
 
 # =============================================================================
 # STEP 2: ADD TO AudioCoordinator.__init__()
 # =============================================================================
-"""
+#  Example:
 def __init__(self, ...):
     # ... existing initialization ...
 
@@ -67,7 +65,7 @@ def __init__(self, ...):
             self.translation_cache = None
     else:
         logger.info("Translation cache disabled by configuration")
-"""
+# End Example
 
 # =============================================================================
 # STEP 3: REPLACE _request_translations METHOD
@@ -362,7 +360,7 @@ async def cleanup_cache(self):
 # USAGE EXAMPLE
 # =============================================================================
 
-"""
+_USAGE_EXAMPLE = """
 # In audio_coordinator.py, update the __init__ and methods:
 
 class AudioCoordinator:

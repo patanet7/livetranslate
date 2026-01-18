@@ -28,27 +28,34 @@ from src.audio.models import SourceType, get_default_chunking_config
 try:
     from src.audio.audio_coordinator import create_audio_coordinator
 except ImportError:
+
     def create_audio_coordinator(**kwargs):
         """Placeholder - AudioCoordinator not yet implemented."""
         raise NotImplementedError("AudioCoordinator not yet implemented")
 
+
 try:
     from src.audio.chunk_manager import create_chunk_manager
 except ImportError:
+
     def create_chunk_manager(*args, **kwargs):
         """Placeholder - ChunkManager not yet implemented."""
         raise NotImplementedError("ChunkManager not yet implemented")
 
+
 try:
     from src.audio.audio_processor import create_audio_pipeline_processor
 except ImportError:
+
     def create_audio_pipeline_processor(config):
         """Placeholder - AudioPipelineProcessor not yet implemented."""
         raise NotImplementedError("AudioPipelineProcessor not yet implemented")
 
+
 try:
     from src.audio.config import get_default_audio_processing_config
 except ImportError:
+
     def get_default_audio_processing_config():
         """Placeholder - Audio config not yet implemented."""
         return {}

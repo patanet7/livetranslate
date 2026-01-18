@@ -444,7 +444,9 @@ class SimpleVLLMTranslationServer:
 
             # Remove common artifacts
             translation = translation.replace("Translation:", "").strip()
-            translation = translation.replace("\u7ffb\u8bd1\uff1a", "").strip()  # "Translation:" in Chinese
+            translation = translation.replace(
+                "\u7ffb\u8bd1\uff1a", ""
+            ).strip()  # "Translation:" in Chinese
 
             processing_time = time.time() - start_time
 

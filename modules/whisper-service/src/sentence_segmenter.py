@@ -154,7 +154,7 @@ class SentenceSegmenter:
         # Strip trailing quotes, parentheses, brackets
         # Common patterns: ."  ?"  !)  etc.
 
-        trailing_chars = "\"'\"\u2018\u2019`\u300d\u300f\uff09\u3011\u3015])\u007d\u203a\u00bb"
+        trailing_chars = '"\'"\u2018\u2019`\u300d\u300f\uff09\u3011\u3015])\u007d\u203a\u00bb'
         while text and text[-1] in trailing_chars:
             text = text[:-1]
 
