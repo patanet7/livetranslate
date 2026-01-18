@@ -13,26 +13,26 @@ services:
       - WHISPER_MODELS_DIR=/app/models
       - WHISPER_DEFAULT_MODEL=whisper-base
       - OPENVINO_DEVICE=${OPENVINO_DEVICE:-AUTO}
-      
+
       # Audio settings
       - SAMPLE_RATE=16000
       - BUFFER_DURATION=6.0
       - INFERENCE_INTERVAL=3.0
       - ENABLE_VAD=true
-      
+
       # Performance settings
       - MIN_INFERENCE_INTERVAL=0.2
       - MAX_CONCURRENT_REQUESTS=10
-      
+
       # Session settings
       - SESSION_DIR=/app/session_data
-      
+
       # Logging
       - LOG_LEVEL=INFO
-      
+
       # Security
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      
+
     volumes:
       - ./models:/app/models
       - ./session_data:/app/session_data
@@ -63,7 +63,7 @@ services:
           memory: 2G
     profiles:
       - npu
-    
+
   # GPU-accelerated service for CUDA systems
   whisper-service-gpu:
     build:
@@ -108,7 +108,7 @@ services:
       start_period: 60s
     profiles:
       - gpu
-      
+
   # CPU-only service for compatibility
   whisper-service-cpu:
     build:
@@ -154,7 +154,7 @@ services:
       start_period: 60s
     profiles:
       - cpu
-      
+
   # Redis for session management and caching
   redis:
     image: redis:7-alpine
@@ -167,7 +167,7 @@ services:
     networks:
       - whisper-network
     command: redis-server --appendonly yes
-    
+
   # Model downloader service
   model-downloader:
     image: python:3.11-slim
@@ -207,4 +207,4 @@ networks:
 
 volumes:
   redis_data:
-    name: livetranslate-whisper-redis 
+    name: livetranslate-whisper-redis

@@ -16,11 +16,12 @@ Pedalboard reference: https://github.com/spotify/pedalboard
 """
 
 import logging
-from typing import Dict, Any, Tuple
+from typing import Any
+
 import numpy as np
 
 try:
-    from pedalboard import Pedalboard, Compressor
+    from pedalboard import Compressor, Pedalboard
 
     HAS_PEDALBOARD = True
 except ImportError:
@@ -28,8 +29,8 @@ except ImportError:
     Pedalboard = None
     Compressor = None
 
-from ..stage_components import BaseAudioStage
 from ..config import CompressionConfig, CompressionMode
+from ..stage_components import BaseAudioStage
 
 logger = logging.getLogger(__name__)
 
@@ -112,9 +113,7 @@ class CompressionStageEnhanced(BaseAudioStage):
             release_ms=self.config.release_time,
         )
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """
         Process audio through compression.
 
@@ -152,10 +151,7 @@ class CompressionStageEnhanced(BaseAudioStage):
             compressed = self.compressor(audio_2d, self.sample_rate)
 
             # Reshape back to original format
-            if audio_float.ndim == 1:
-                compressed_audio = compressed.reshape(-1)
-            else:
-                compressed_audio = compressed.T
+            compressed_audio = compressed.reshape(-1) if audio_float.ndim == 1 else compressed.T
 
         except Exception as e:
             logger.error(f"Pedalboard compression failed: {e}")
@@ -198,15 +194,9 @@ class CompressionStageEnhanced(BaseAudioStage):
         # Prepare metadata
         metadata = {
             "input_rms_db": float(20 * np.log10(input_rms)) if input_rms > 0 else -80.0,
-            "output_rms_db": float(20 * np.log10(output_rms))
-            if output_rms > 0
-            else -80.0,
-            "input_peak_db": float(20 * np.log10(input_peak))
-            if input_peak > 0
-            else -80.0,
-            "output_peak_db": float(20 * np.log10(output_peak))
-            if output_peak > 0
-            else -80.0,
+            "output_rms_db": float(20 * np.log10(output_rms)) if output_rms > 0 else -80.0,
+            "input_peak_db": float(20 * np.log10(input_peak)) if input_peak > 0 else -80.0,
+            "output_peak_db": float(20 * np.log10(output_peak)) if output_peak > 0 else -80.0,
             "gain_reduction_db": float(gain_reduction_db),
             "threshold_db": float(self.config.threshold),
             "ratio": float(self.config.ratio),
@@ -216,7 +206,7 @@ class CompressionStageEnhanced(BaseAudioStage):
 
         return compressed_audio.astype(audio_data.dtype), metadata
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -239,13 +229,12 @@ class CompressionStageEnhanced(BaseAudioStage):
         self._apply_mode_settings()
         self._create_compressor()
 
-    def get_quality_metrics(self) -> Dict[str, Any]:
+    def get_quality_metrics(self) -> dict[str, Any]:
         """Get quality metrics for this stage."""
         return {
             **self.quality_stats,
             "gain_reduction_rate": (
-                abs(self.quality_stats["gain_reduction_db_max"])
-                / abs(self.config.threshold)
+                abs(self.quality_stats["gain_reduction_db_max"]) / abs(self.config.threshold)
                 if self.config.threshold < 0
                 else 0.0
             ),

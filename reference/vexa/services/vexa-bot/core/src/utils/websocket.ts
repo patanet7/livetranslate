@@ -87,7 +87,7 @@ export class WebSocketManager {
         this.clearConnectionTimeout();
         this.connecting = false;
         log(`[WebSocket] Connection to ${url} closed. Code: ${event.code}, Reason: ${event.reason}`);
-        
+
         // Handle retry logic
         if (this.shouldRetry(event.code)) {
           if (getNextCandidate) {
@@ -105,13 +105,13 @@ export class WebSocketManager {
       this.clearConnectionTimeout();
       this.connecting = false;
       log(`[WebSocket] Critical error creating WebSocket connection: ${error.message}`);
-      
+
       if (getNextCandidate) {
         return this.retryWithNextCandidate(url, handlers, getNextCandidate);
       } else {
         this.retryConnection(url, handlers);
       }
-      
+
       return null;
     }
   }
@@ -127,9 +127,9 @@ export class WebSocketManager {
 
     this.retryCount++;
     const delay = this.config.retryDelayMs * Math.pow(2, this.retryCount - 1);
-    
+
     log(`[WebSocket] Retrying connection to ${url} in ${delay}ms (attempt ${this.retryCount}/${this.config.maxRetries})`);
-    
+
     setTimeout(() => {
       this.connect(url, handlers);
     }, delay);
@@ -144,10 +144,10 @@ export class WebSocketManager {
     getNextCandidate: (failedUrl: string | null) => Promise<string | null>
   ): Promise<WebSocket | null> {
     log(`[WebSocket] Getting next candidate after failed URL: ${failedUrl}`);
-    
+
     try {
       const nextUrl = await getNextCandidate(failedUrl);
-      
+
       if (nextUrl) {
         log(`[WebSocket] Got next candidate: ${nextUrl}. Retrying in ${this.config.retryDelayMs}ms`);
         setTimeout(() => {
@@ -178,7 +178,7 @@ export class WebSocketManager {
     if (closeCode === 1000 || closeCode === 1002 || closeCode === 1003) {
       return false;
     }
-    
+
     // Retry for network issues, server errors, etc.
     return this.retryCount < this.config.maxRetries;
   }

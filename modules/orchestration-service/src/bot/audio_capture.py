@@ -14,20 +14,22 @@ Features:
 - Virtual audio device handling
 """
 
-import time
-import logging
 import asyncio
-import threading
-from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, asdict
-from datetime import datetime
+import io
 import json
+import logging
+import threading
+import time
+from collections import deque
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from typing import Any
+
+import httpx
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-import io
-import httpx
-from collections import deque
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +44,7 @@ class AudioConfig:
     channels: int = 1
     dtype: str = "float32"
     blocksize: int = 1024
-    device_name: Optional[str] = None
+    device_name: str | None = None
     audio_format: str = "wav"
     chunk_duration: float = 1.0  # seconds
     quality_threshold: float = 0.7
@@ -53,11 +55,11 @@ class MeetingInfo:
     """Google Meet meeting information."""
 
     meeting_id: str
-    meeting_title: Optional[str] = None
-    meeting_uri: Optional[str] = None
-    organizer_email: Optional[str] = None
+    meeting_title: str | None = None
+    meeting_uri: str | None = None
+    organizer_email: str | None = None
     participant_count: int = 0
-    scheduled_start: Optional[datetime] = None
+    scheduled_start: datetime | None = None
 
 
 class AudioBuffer:
@@ -73,7 +75,7 @@ class AudioBuffer:
         with self.lock:
             self.buffer.append(audio_chunk.copy())
 
-    def get_chunks(self, num_chunks: int) -> List[np.ndarray]:
+    def get_chunks(self, num_chunks: int) -> list[np.ndarray]:
         """Get specified number of recent chunks."""
         with self.lock:
             if len(self.buffer) < num_chunks:
@@ -109,7 +111,7 @@ class AudioQualityAnalyzer:
         self.noise_threshold = 0.01
         self.silence_threshold = 0.005
 
-    def analyze_chunk(self, audio_chunk: np.ndarray) -> Dict[str, float]:
+    def analyze_chunk(self, audio_chunk: np.ndarray) -> dict[str, float]:
         """Analyze audio chunk quality."""
         try:
             # RMS level
@@ -199,20 +201,23 @@ class GoogleMeetAudioCapture:
         self.on_quality_alert = None
         self.on_error = None
 
+        # Background task tracking (prevents garbage collection and enables cleanup)
+        self._background_tasks: set[asyncio.Task] = set()
+
         logger.info("Google Meet Audio Capture initialized")
         logger.info(f"  Sample rate: {config.sample_rate}Hz")
         logger.info(f"  Channels: {config.channels}")
         logger.info(f"  Chunk duration: {config.chunk_duration}s")
 
-    def set_transcription_callback(self, callback: Callable[[Dict], None]):
+    def set_transcription_callback(self, callback: Callable[[dict], None]):
         """Set callback for transcription results."""
         self.on_transcription_ready = callback
 
-    def set_audio_chunk_callback(self, callback: Callable[[np.ndarray, Dict], None]):
+    def set_audio_chunk_callback(self, callback: Callable[[np.ndarray, dict], None]):
         """Set callback for raw audio chunks."""
         self.on_audio_chunk = callback
 
-    def set_quality_alert_callback(self, callback: Callable[[Dict], None]):
+    def set_quality_alert_callback(self, callback: Callable[[dict], None]):
         """Set callback for audio quality alerts."""
         self.on_quality_alert = callback
 
@@ -243,9 +248,7 @@ class GoogleMeetAudioCapture:
 
             # Start capture thread
             self.is_capturing = True
-            self.capture_thread = threading.Thread(
-                target=self._capture_loop, daemon=True
-            )
+            self.capture_thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.capture_thread.start()
 
             logger.info(f"Started audio capture for meeting: {meeting_info.meeting_id}")
@@ -315,13 +318,9 @@ class GoogleMeetAudioCapture:
             if device_id is None:
                 # Use default input device
                 device_id = sd.default.device[0]
-                logger.info(
-                    f"Using default audio input device: {devices[device_id]['name']}"
-                )
+                logger.info(f"Using default audio input device: {devices[device_id]['name']}")
             else:
-                logger.info(
-                    f"Using specified audio device: {devices[device_id]['name']}"
-                )
+                logger.info(f"Using specified audio device: {devices[device_id]['name']}")
 
             # Create audio stream
             self.audio_stream = sd.InputStream(
@@ -379,15 +378,14 @@ class GoogleMeetAudioCapture:
                         }
                     )
 
-            if quality_metrics["clipping_detected"]:
-                if self.on_quality_alert:
-                    self.on_quality_alert(
-                        {
-                            "session_id": self.session_id,
-                            "alert_type": "clipping_detected",
-                            "peak_level": quality_metrics["peak_level"],
-                        }
-                    )
+            if quality_metrics["clipping_detected"] and self.on_quality_alert:
+                self.on_quality_alert(
+                    {
+                        "session_id": self.session_id,
+                        "alert_type": "clipping_detected",
+                        "peak_level": quality_metrics["peak_level"],
+                    }
+                )
 
             # Callback for raw audio
             if self.on_audio_chunk:
@@ -412,10 +410,12 @@ class GoogleMeetAudioCapture:
                     audio_data = self.audio_buffer.get_duration_audio(chunk_interval)
 
                     if len(audio_data) > 0:
-                        # Process chunk
-                        asyncio.create_task(
+                        # Process chunk asynchronously
+                        task = asyncio.create_task(
                             self._process_audio_chunk(audio_data, current_time)
                         )
+                        self._background_tasks.add(task)
+                        task.add_done_callback(self._background_tasks.discard)
 
                     last_process_time = current_time
 
@@ -441,8 +441,7 @@ class GoogleMeetAudioCapture:
                         self.session_id,
                         audio_bytes,
                         metadata={
-                            "duration_seconds": len(audio_data)
-                            / self.config.sample_rate,
+                            "duration_seconds": len(audio_data) / self.config.sample_rate,
                             "sample_rate": self.config.sample_rate,
                             "channels": self.config.channels,
                             "chunk_start_time": timestamp - self.config.chunk_duration,
@@ -504,9 +503,7 @@ class GoogleMeetAudioCapture:
                     logger.info(f"Created whisper session: {self.session_id}")
                     return True
                 else:
-                    logger.error(
-                        f"Failed to create whisper session: {response.status_code}"
-                    )
+                    logger.error(f"Failed to create whisper session: {response.status_code}")
                     return False
 
         except Exception as e:
@@ -546,15 +543,11 @@ class GoogleMeetAudioCapture:
                                     "window_start_time",
                                     timestamp - self.config.chunk_duration,
                                 ),
-                                "end_timestamp": result.get(
-                                    "window_end_time", timestamp
-                                ),
+                                "end_timestamp": result.get("window_end_time", timestamp),
                                 "speaker_info": result.get("speaker_info"),
                                 "metadata": {
                                     "confidence_score": result.get("confidence", 0.0),
-                                    "processing_time": result.get(
-                                        "processing_time", 0.0
-                                    ),
+                                    "processing_time": result.get("processing_time", 0.0),
                                     "chunk_id": result.get("segment_id"),
                                 },
                             }
@@ -594,14 +587,12 @@ class GoogleMeetAudioCapture:
                 if response.status_code == 200:
                     logger.info(f"Closed whisper session: {self.session_id}")
                 else:
-                    logger.warning(
-                        f"Failed to close whisper session: {response.status_code}"
-                    )
+                    logger.warning(f"Failed to close whisper session: {response.status_code}")
 
         except Exception as e:
             logger.warning(f"Error closing whisper session: {e}")
 
-    def get_capture_stats(self) -> Dict[str, Any]:
+    def get_capture_stats(self) -> dict[str, Any]:
         """Get comprehensive capture statistics."""
         duration = time.time() - self.start_time if self.start_time else 0
 
@@ -625,9 +616,7 @@ def create_audio_capture(
     database_manager=None,
 ) -> GoogleMeetAudioCapture:
     """Create a Google Meet audio capture instance."""
-    return GoogleMeetAudioCapture(
-        config, whisper_service_url, bot_manager, database_manager
-    )
+    return GoogleMeetAudioCapture(config, whisper_service_url, bot_manager, database_manager)
 
 
 # Example usage
@@ -637,18 +626,14 @@ async def main():
 
     capture = create_audio_capture(config, "http://localhost:5001")
 
-    meeting = MeetingInfo(
-        meeting_id="test-meeting-123", meeting_title="Test Audio Capture"
-    )
+    meeting = MeetingInfo(meeting_id="test-meeting-123", meeting_title="Test Audio Capture")
 
     # Set callbacks
     def on_transcription(result):
         print(f"Transcription: {result.get('clean_text', 'No text')}")
 
     def on_quality_alert(alert):
-        print(
-            f"Quality alert: {alert['alert_type']} - Score: {alert.get('quality_score', 'N/A')}"
-        )
+        print(f"Quality alert: {alert['alert_type']} - Score: {alert.get('quality_score', 'N/A')}")
 
     capture.set_transcription_callback(on_transcription)
     capture.set_quality_alert_callback(on_quality_alert)

@@ -16,18 +16,19 @@ Features:
 - File cleanup and archival management
 """
 
-import time
-import logging
 import asyncio
-import json
-import uuid
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
-from datetime import datetime
-import asyncpg
-import aiofiles
-from pathlib import Path
 import hashlib
+import json
+import logging
+import time
+import uuid
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import aiofiles
+import asyncpg
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,17 +42,17 @@ class BotSessionRecord:
     session_id: str
     bot_id: str
     meeting_id: str
-    meeting_title: Optional[str]
-    meeting_uri: Optional[str]
-    google_meet_space_id: Optional[str]
-    conference_record_id: Optional[str]
+    meeting_title: str | None
+    meeting_uri: str | None
+    google_meet_space_id: str | None
+    conference_record_id: str | None
     status: str  # 'spawning', 'active', 'paused', 'ended', 'error'
     start_time: datetime
-    end_time: Optional[datetime] = None
+    end_time: datetime | None = None
     participant_count: int = 0
-    target_languages: List[str] = None
-    session_metadata: Dict[str, Any] = None
-    performance_stats: Dict[str, Any] = None
+    target_languages: list[str] = None
+    session_metadata: dict[str, Any] = None
+    performance_stats: dict[str, Any] = None
     created_at: datetime = None
     updated_at: datetime = None
 
@@ -66,15 +67,15 @@ class AudioFileRecord:
     file_name: str
     file_size: int
     file_format: str
-    duration_seconds: Optional[float]
-    sample_rate: Optional[int]
-    channels: Optional[int]
-    chunk_start_time: Optional[float]
-    chunk_end_time: Optional[float]
-    audio_quality_score: Optional[float]
+    duration_seconds: float | None
+    sample_rate: int | None
+    channels: int | None
+    chunk_start_time: float | None
+    chunk_end_time: float | None
+    audio_quality_score: float | None
     processing_status: str  # 'pending', 'processing', 'completed', 'failed'
-    file_hash: Optional[str]
-    metadata: Dict[str, Any] = None
+    file_hash: str | None
+    metadata: dict[str, Any] = None
     created_at: datetime = None
     updated_at: datetime = None
 
@@ -90,13 +91,13 @@ class TranscriptRecord:
     language_code: str
     start_timestamp: float
     end_timestamp: float
-    speaker_id: Optional[str]
-    speaker_name: Optional[str]
-    confidence_score: Optional[float]
+    speaker_id: str | None
+    speaker_name: str | None
+    confidence_score: float | None
     segment_index: int
-    audio_file_id: Optional[str]
-    google_transcript_entry_id: Optional[str]
-    processing_metadata: Dict[str, Any] = None
+    audio_file_id: str | None
+    google_transcript_entry_id: str | None
+    processing_metadata: dict[str, Any] = None
     created_at: datetime = None
     updated_at: datetime = None
 
@@ -111,13 +112,13 @@ class TranslationRecord:
     translated_text: str
     source_language: str
     target_language: str
-    translation_confidence: Optional[float]
+    translation_confidence: float | None
     translation_service: str  # 'translation_service', 'google_translate', 'manual'
-    speaker_id: Optional[str]
-    speaker_name: Optional[str]
+    speaker_id: str | None
+    speaker_name: str | None
     start_timestamp: float
     end_timestamp: float
-    processing_metadata: Dict[str, Any] = None
+    processing_metadata: dict[str, Any] = None
     created_at: datetime = None
     updated_at: datetime = None
 
@@ -128,16 +129,16 @@ class CorrelationRecord:
 
     correlation_id: str
     session_id: str
-    google_transcript_id: Optional[str]
-    inhouse_transcript_id: Optional[str]
+    google_transcript_id: str | None
+    inhouse_transcript_id: str | None
     correlation_confidence: float
     timing_offset: float
     correlation_type: str  # 'exact', 'interpolated', 'inferred'
     correlation_method: str
-    speaker_id: Optional[str]
+    speaker_id: str | None
     start_timestamp: float
     end_timestamp: float
-    correlation_metadata: Dict[str, Any] = None
+    correlation_metadata: dict[str, Any] = None
     created_at: datetime = None
 
 
@@ -157,9 +158,7 @@ class DatabaseConfig:
         self.connection_timeout = kwargs.get("connection_timeout", 30.0)
         self.command_timeout = kwargs.get("command_timeout", 60.0)
         # Pool behavior
-        self.max_queries = kwargs.get(
-            "max_queries", 50000
-        )  # Recycle connection after N queries
+        self.max_queries = kwargs.get("max_queries", 50000)  # Recycle connection after N queries
         self.max_inactive_connection_lifetime = kwargs.get(
             "max_inactive_connection_lifetime",
             300.0,  # 5 minutes
@@ -179,7 +178,7 @@ class AudioFileManager:
         session_id: str,
         audio_data: bytes,
         file_format: str = "wav",
-        metadata: Dict = None,
+        metadata: dict | None = None,
     ) -> str:
         """Store audio file and create database record."""
         try:
@@ -246,7 +245,7 @@ class AudioFileManager:
             logger.error(f"Error storing audio file: {e}")
             return None
 
-    async def get_audio_file_info(self, file_id: str) -> Optional[AudioFileRecord]:
+    async def get_audio_file_info(self, file_id: str) -> AudioFileRecord | None:
         """Get audio file information."""
         try:
             async with self.db_pool.acquire() as conn:
@@ -283,14 +282,14 @@ class AudioFileManager:
             logger.error(f"Error getting audio file info: {e}")
             return None
 
-    async def list_session_audio_files(self, session_id: str) -> List[AudioFileRecord]:
+    async def list_session_audio_files(self, session_id: str) -> list[AudioFileRecord]:
         """List all audio files for a session."""
         try:
             async with self.db_pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT * FROM bot_sessions.audio_files 
-                    WHERE session_id = $1 
+                    SELECT * FROM bot_sessions.audio_files
+                    WHERE session_id = $1
                     ORDER BY created_at ASC
                 """,
                     session_id,
@@ -338,9 +337,9 @@ class TranscriptManager:
         language_code: str,
         start_timestamp: float,
         end_timestamp: float,
-        speaker_info: Dict = None,
-        audio_file_id: str = None,
-        processing_metadata: Dict = None,
+        speaker_info: dict | None = None,
+        audio_file_id: str | None = None,
+        processing_metadata: dict | None = None,
     ) -> str:
         """Store transcript record."""
         try:
@@ -349,14 +348,10 @@ class TranscriptManager:
             speaker_id = speaker_info.get("speaker_id") if speaker_info else None
             speaker_name = speaker_info.get("speaker_name") if speaker_info else None
             confidence_score = (
-                processing_metadata.get("confidence_score")
-                if processing_metadata
-                else None
+                processing_metadata.get("confidence_score") if processing_metadata else None
             )
             segment_index = (
-                processing_metadata.get("segment_index", 0)
-                if processing_metadata
-                else 0
+                processing_metadata.get("segment_index", 0) if processing_metadata else 0
             )
             google_entry_id = (
                 processing_metadata.get("google_transcript_entry_id")
@@ -400,12 +395,12 @@ class TranscriptManager:
             return None
 
     async def get_session_transcripts(
-        self, session_id: str, source_type: str = None
-    ) -> List[TranscriptRecord]:
+        self, session_id: str, source_type: str | None = None
+    ) -> list[TranscriptRecord]:
         """Get transcripts for a session."""
         try:
             query = """
-                SELECT * FROM bot_sessions.transcripts 
+                SELECT * FROM bot_sessions.transcripts
                 WHERE session_id = $1
             """
             params = [session_id]
@@ -449,15 +444,15 @@ class TranscriptManager:
 
     async def get_transcript_by_timerange(
         self, session_id: str, start_time: float, end_time: float
-    ) -> List[TranscriptRecord]:
+    ) -> list[TranscriptRecord]:
         """Get transcripts within a time range."""
         try:
             async with self.db_pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT * FROM bot_sessions.transcripts 
-                    WHERE session_id = $1 
-                    AND start_timestamp >= $2 
+                    SELECT * FROM bot_sessions.transcripts
+                    WHERE session_id = $1
+                    AND start_timestamp >= $2
                     AND end_timestamp <= $3
                     ORDER BY start_timestamp ASC
                 """,
@@ -509,9 +504,9 @@ class TranslationManager:
         source_language: str,
         target_language: str,
         translation_service: str,
-        speaker_info: Dict = None,
-        timing_info: Dict = None,
-        processing_metadata: Dict = None,
+        speaker_info: dict | None = None,
+        timing_info: dict | None = None,
+        processing_metadata: dict | None = None,
     ) -> str:
         """Store translation record."""
         try:
@@ -520,9 +515,7 @@ class TranslationManager:
             speaker_id = speaker_info.get("speaker_id") if speaker_info else None
             speaker_name = speaker_info.get("speaker_name") if speaker_info else None
             confidence = (
-                processing_metadata.get("translation_confidence")
-                if processing_metadata
-                else None
+                processing_metadata.get("translation_confidence") if processing_metadata else None
             )
             start_timestamp = timing_info.get("start_timestamp") if timing_info else 0.0
             end_timestamp = timing_info.get("end_timestamp") if timing_info else 0.0
@@ -564,12 +557,12 @@ class TranslationManager:
             return None
 
     async def get_session_translations(
-        self, session_id: str, target_language: str = None
-    ) -> List[TranslationRecord]:
+        self, session_id: str, target_language: str | None = None
+    ) -> list[TranslationRecord]:
         """Get translations for a session."""
         try:
             query = """
-                SELECT * FROM bot_sessions.translations 
+                SELECT * FROM bot_sessions.translations
                 WHERE session_id = $1
             """
             params = [session_id]
@@ -620,16 +613,16 @@ class CorrelationManager:
     async def store_correlation(
         self,
         session_id: str,
-        google_transcript_id: str = None,
-        inhouse_transcript_id: str = None,
+        google_transcript_id: str | None = None,
+        inhouse_transcript_id: str | None = None,
         correlation_confidence: float = 0.0,
         timing_offset: float = 0.0,
         correlation_type: str = "unknown",
         correlation_method: str = "unknown",
-        speaker_id: str = None,
+        speaker_id: str | None = None,
         start_timestamp: float = 0.0,
         end_timestamp: float = 0.0,
-        correlation_metadata: Dict = None,
+        correlation_metadata: dict | None = None,
     ) -> str:
         """Store correlation record."""
         try:
@@ -666,16 +659,14 @@ class CorrelationManager:
             logger.error(f"Error storing correlation: {e}")
             return None
 
-    async def get_session_correlations(
-        self, session_id: str
-    ) -> List[CorrelationRecord]:
+    async def get_session_correlations(self, session_id: str) -> list[CorrelationRecord]:
         """Get correlations for a session."""
         try:
             async with self.db_pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
-                    SELECT * FROM bot_sessions.correlations 
-                    WHERE session_id = $1 
+                    SELECT * FROM bot_sessions.correlations
+                    WHERE session_id = $1
                     ORDER BY start_timestamp ASC
                 """,
                     session_id,
@@ -791,7 +782,7 @@ class BotSessionDatabaseManager:
         if self.db_pool:
             await self.db_pool.close()
 
-    async def create_bot_session(self, session_data: Dict[str, Any]) -> str:
+    async def create_bot_session(self, session_data: dict[str, Any]) -> str:
         """Create a new bot session record."""
         try:
             session_id = session_data.get("session_id") or f"session_{uuid.uuid4().hex}"
@@ -802,7 +793,7 @@ class BotSessionDatabaseManager:
                     INSERT INTO bot_sessions.sessions (
                         session_id, bot_id, meeting_id, meeting_title, meeting_uri,
                         google_meet_space_id, conference_record_id, status, start_time,
-                        participant_count, target_languages, session_metadata, 
+                        participant_count, target_languages, session_metadata,
                         performance_stats, created_at, updated_at
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                 """,
@@ -831,9 +822,7 @@ class BotSessionDatabaseManager:
             logger.error(f"Error creating bot session: {e}")
             return None
 
-    async def update_bot_session(
-        self, session_id: str, updates: Dict[str, Any]
-    ) -> bool:
+    async def update_bot_session(self, session_id: str, updates: dict[str, Any]) -> bool:
         """Update bot session record."""
         try:
             # Build dynamic UPDATE query
@@ -853,7 +842,7 @@ class BotSessionDatabaseManager:
             params.append(session_id)  # For WHERE clause
 
             query = f"""
-                UPDATE bot_sessions.sessions 
+                UPDATE bot_sessions.sessions
                 SET {", ".join(set_clauses)}
                 WHERE session_id = ${param_count + 1}
             """
@@ -868,7 +857,7 @@ class BotSessionDatabaseManager:
             logger.error(f"Error updating bot session: {e}")
             return False
 
-    async def get_bot_session(self, session_id: str) -> Optional[BotSessionRecord]:
+    async def get_bot_session(self, session_id: str) -> BotSessionRecord | None:
         """Get bot session record."""
         try:
             async with self.db_pool.acquire() as conn:
@@ -910,7 +899,7 @@ class BotSessionDatabaseManager:
             logger.error(f"Error getting bot session: {e}")
             return None
 
-    async def get_comprehensive_session_data(self, session_id: str) -> Dict[str, Any]:
+    async def get_comprehensive_session_data(self, session_id: str) -> dict[str, Any]:
         """Get comprehensive session data including all related records."""
         try:
             # Get session record
@@ -920,23 +909,13 @@ class BotSessionDatabaseManager:
 
             # Get all related data
             audio_files = await self.audio_manager.list_session_audio_files(session_id)
-            transcripts = await self.transcript_manager.get_session_transcripts(
-                session_id
-            )
-            translations = await self.translation_manager.get_session_translations(
-                session_id
-            )
-            correlations = await self.correlation_manager.get_session_correlations(
-                session_id
-            )
+            transcripts = await self.transcript_manager.get_session_transcripts(session_id)
+            translations = await self.translation_manager.get_session_translations(session_id)
+            correlations = await self.correlation_manager.get_session_correlations(session_id)
 
             # Organize transcripts by source
-            google_transcripts = [
-                t for t in transcripts if t.source_type == "google_meet"
-            ]
-            inhouse_transcripts = [
-                t for t in transcripts if t.source_type == "whisper_service"
-            ]
+            google_transcripts = [t for t in transcripts if t.source_type == "google_meet"]
+            inhouse_transcripts = [t for t in transcripts if t.source_type == "whisper_service"]
 
             # Organize translations by language
             translations_by_language = {}
@@ -956,23 +935,18 @@ class BotSessionDatabaseManager:
                 },
                 "translations": {
                     "by_language": {
-                        k: [asdict(t) for t in v]
-                        for k, v in translations_by_language.items()
+                        k: [asdict(t) for t in v] for k, v in translations_by_language.items()
                     },
                     "total_count": len(translations),
                 },
                 "correlations": [asdict(c) for c in correlations],
                 "statistics": {
                     "audio_files_count": len(audio_files),
-                    "total_audio_duration": sum(
-                        af.duration_seconds or 0 for af in audio_files
-                    ),
+                    "total_audio_duration": sum(af.duration_seconds or 0 for af in audio_files),
                     "transcripts_count": len(transcripts),
                     "translations_count": len(translations),
                     "correlations_count": len(correlations),
-                    "languages_detected": list(
-                        set(t.language_code for t in transcripts)
-                    ),
+                    "languages_detected": list({t.language_code for t in transcripts}),
                     "target_languages": list(translations_by_language.keys()),
                 },
             }
@@ -981,16 +955,12 @@ class BotSessionDatabaseManager:
             logger.error(f"Error getting comprehensive session data: {e}")
             return None
 
-    async def cleanup_session(
-        self, session_id: str, remove_files: bool = False
-    ) -> bool:
+    async def cleanup_session(self, session_id: str, remove_files: bool = False) -> bool:
         """Clean up session data and optionally remove files."""
         try:
             if remove_files:
                 # Get audio files to remove
-                audio_files = await self.audio_manager.list_session_audio_files(
-                    session_id
-                )
+                audio_files = await self.audio_manager.list_session_audio_files(session_id)
 
                 # Remove physical files
                 for audio_file in audio_files:
@@ -999,9 +969,7 @@ class BotSessionDatabaseManager:
                         if file_path.exists():
                             file_path.unlink()
                     except Exception as e:
-                        logger.warning(
-                            f"Failed to remove audio file {audio_file.file_path}: {e}"
-                        )
+                        logger.warning(f"Failed to remove audio file {audio_file.file_path}: {e}")
 
                 # Remove session directory if empty
                 session_dir = Path(self.audio_storage_path) / session_id
@@ -1015,9 +983,7 @@ class BotSessionDatabaseManager:
                     session_id,
                 )
 
-            logger.info(
-                f"Cleaned up session: {session_id} (files_removed: {remove_files})"
-            )
+            logger.info(f"Cleaned up session: {session_id} (files_removed: {remove_files})")
             return True
 
         except Exception as e:
@@ -1050,34 +1016,25 @@ class BotSessionDatabaseManager:
         try:
             async with self.db_pool.acquire() as conn:
                 self.total_sessions = (
-                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.sessions")
-                    or 0
+                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.sessions") or 0
                 )
                 self.total_audio_files = (
-                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.audio_files")
-                    or 0
+                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.audio_files") or 0
                 )
                 self.total_transcripts = (
-                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.transcripts")
-                    or 0
+                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.transcripts") or 0
                 )
                 self.total_translations = (
-                    await conn.fetchval(
-                        "SELECT COUNT(*) FROM bot_sessions.translations"
-                    )
-                    or 0
+                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.translations") or 0
                 )
                 self.total_correlations = (
-                    await conn.fetchval(
-                        "SELECT COUNT(*) FROM bot_sessions.correlations"
-                    )
-                    or 0
+                    await conn.fetchval("SELECT COUNT(*) FROM bot_sessions.correlations") or 0
                 )
 
         except Exception as e:
             logger.warning(f"Failed to update statistics: {e}")
 
-    async def get_database_statistics(self) -> Dict[str, Any]:
+    async def get_database_statistics(self) -> dict[str, Any]:
         """Get comprehensive database statistics."""
         await self._update_statistics()
 
@@ -1087,7 +1044,7 @@ class BotSessionDatabaseManager:
                 recent_sessions = (
                     await conn.fetchval(
                         """
-                    SELECT COUNT(*) FROM bot_sessions.sessions 
+                    SELECT COUNT(*) FROM bot_sessions.sessions
                     WHERE created_at >= NOW() - INTERVAL '24 hours'
                 """
                     )
@@ -1098,7 +1055,7 @@ class BotSessionDatabaseManager:
                 active_sessions = (
                     await conn.fetchval(
                         """
-                    SELECT COUNT(*) FROM bot_sessions.sessions 
+                    SELECT COUNT(*) FROM bot_sessions.sessions
                     WHERE status IN ('spawning', 'active', 'paused')
                 """
                     )
@@ -1141,7 +1098,7 @@ class BotSessionDatabaseManager:
 
 # Factory function
 def create_bot_session_manager(
-    database_config: Dict[str, Any], audio_storage_path: str
+    database_config: dict[str, Any], audio_storage_path: str
 ) -> BotSessionDatabaseManager:
     """Create a bot session database manager."""
     config = DatabaseConfig(**database_config)
@@ -1218,9 +1175,7 @@ async def main():
 
     # Get comprehensive data
     comprehensive_data = await manager.get_comprehensive_session_data(session_id)
-    print(
-        f"Comprehensive data: {json.dumps(comprehensive_data, indent=2, default=str)}"
-    )
+    print(f"Comprehensive data: {json.dumps(comprehensive_data, indent=2, default=str)}")
 
     # Get statistics
     stats = await manager.get_database_statistics()

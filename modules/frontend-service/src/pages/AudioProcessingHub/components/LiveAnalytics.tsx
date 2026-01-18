@@ -1,6 +1,6 @@
 /**
  * LiveAnalytics - Real-time System Monitoring and Metrics
- * 
+ *
  * Provides comprehensive real-time monitoring of:
  * - System health and service status
  * - Performance metrics and trends
@@ -9,7 +9,7 @@
  * - Error tracking and alerts
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Grid,
@@ -24,7 +24,7 @@ import {
   Button,
   useTheme,
   alpha,
-} from '@mui/material';
+} from "@mui/material";
 import {
   TrendingUp,
   TrendingDown,
@@ -37,20 +37,28 @@ import {
   Refresh,
   Notifications,
   Timeline,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 // Import chart components (we'll use simple implementations for now)
-import { XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+} from "recharts";
 
-import { useUnifiedAudio } from '@/hooks/useUnifiedAudio';
-import { useAnalytics } from '@/hooks/useAnalytics';
-import { useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
+import { useUnifiedAudio } from "@/hooks/useUnifiedAudio";
+import { useAnalytics } from "@/hooks/useAnalytics";
+import { useAppDispatch } from "@/store";
+import { addNotification } from "@/store/slices/uiSlice";
 
 // Component-specific service health interface
 interface ServiceHealthDisplay {
   name: string;
-  status: 'healthy' | 'degraded' | 'down';
+  status: "healthy" | "degraded" | "down";
   responseTime: number;
   lastCheck: Date;
   uptime: number;
@@ -85,11 +93,14 @@ const LiveAnalytics: React.FC = () => {
   // State
   const [services, setServices] = useState<ServiceHealthDisplay[]>([]);
   const [metrics, setMetrics] = useState<SystemMetrics[]>([]);
-  const [processingStats, setProcessingStats] = useState<ProcessingStats | null>(null);
+  const [processingStats, setProcessingStats] =
+    useState<ProcessingStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [hasError, setHasError] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connected" | "disconnected" | "connecting"
+  >("connecting");
 
   // Use analytics hook
   const analyticsHook = useAnalytics();
@@ -114,15 +125,21 @@ const LiveAnalytics: React.FC = () => {
       errorRate: systemMetricsData?.performance?.errorRate || 0,
     };
 
-    const serviceHealth: ServiceHealthDisplay[] = serviceHealthData.map(service => ({
-      name: service.name,
-      status: service.status === 'healthy' ? 'healthy' : 
-             service.status === 'degraded' ? 'degraded' : 'down',
-      responseTime: service.responseTime || 0,
-      lastCheck: new Date(),
-      uptime: service.uptime || 0,
-      version: service.version || 'unknown',
-    }));
+    const serviceHealth: ServiceHealthDisplay[] = serviceHealthData.map(
+      (service) => ({
+        name: service.name,
+        status:
+          service.status === "healthy"
+            ? "healthy"
+            : service.status === "degraded"
+              ? "degraded"
+              : "down",
+        responseTime: service.responseTime || 0,
+        lastCheck: new Date(),
+        uptime: service.uptime || 0,
+        version: service.version || "unknown",
+      }),
+    );
 
     const processingStats: ProcessingStats = {
       totalRequests: analyticsOverviewData?.totalRequests || 0,
@@ -145,27 +162,32 @@ const LiveAnalytics: React.FC = () => {
 
       setServices(serviceHealth);
       // Add new metrics to the array, keeping last 20 entries
-      setMetrics(prevMetrics => {
+      setMetrics((prevMetrics) => {
         const newMetrics = [...prevMetrics, systemMetrics].slice(-20);
         return newMetrics;
       });
       setProcessingStats(processingStats);
       setLastUpdate(new Date());
       setHasError(false);
-      setConnectionStatus(connectionStatusData?.isConnected ? 'connected' : 'disconnected');
+      setConnectionStatus(
+        connectionStatusData?.isConnected ? "connected" : "disconnected",
+      );
     } catch (error: unknown) {
-      console.error('Failed to load analytics data:', error);
+      console.error("Failed to load analytics data:", error);
       setHasError(true);
-      setConnectionStatus('disconnected');
+      setConnectionStatus("disconnected");
 
-      const errorMessage = (error as Error)?.message || 'Unable to load system analytics data';
-      dispatch(addNotification({
-        type: 'error',
-        title: 'Analytics Load Failed',
-        message: errorMessage,
-        autoHide: true,
-      }));
-      
+      const errorMessage =
+        (error as Error)?.message || "Unable to load system analytics data";
+      dispatch(
+        addNotification({
+          type: "error",
+          title: "Analytics Load Failed",
+          message: errorMessage,
+          autoHide: true,
+        }),
+      );
+
       // Keep existing data when API is unavailable (don't clear it)
       // Only clear on first load if no data exists
       if (services.length === 0) {
@@ -191,29 +213,29 @@ const LiveAnalytics: React.FC = () => {
   }, [refreshAnalyticsData]);
 
   // Helper functions
-  const getStatusIcon = (status: ServiceHealthDisplay['status']) => {
+  const getStatusIcon = (status: ServiceHealthDisplay["status"]) => {
     switch (status) {
-      case 'healthy':
+      case "healthy":
         return <CheckCircle color="success" />;
-      case 'degraded':
+      case "degraded":
         return <Warning color="warning" />;
-      case 'down':
+      case "down":
         return <Error color="error" />;
       default:
         return <Warning color="disabled" />;
     }
   };
 
-  const getStatusColor = (status: ServiceHealthDisplay['status']) => {
+  const getStatusColor = (status: ServiceHealthDisplay["status"]) => {
     switch (status) {
-      case 'healthy':
-        return 'success';
-      case 'degraded':
-        return 'warning';
-      case 'down':
-        return 'error';
+      case "healthy":
+        return "success";
+      case "degraded":
+        return "warning";
+      case "down":
+        return "error";
       default:
-        return 'default';
+        return "default";
     }
   };
 
@@ -225,15 +247,15 @@ const LiveAnalytics: React.FC = () => {
   const previousMetrics = metrics[metrics.length - 2];
 
   const getTrend = (current: number, previous: number) => {
-    if (!previous) return 'stable';
-    return current > previous ? 'up' : current < previous ? 'down' : 'stable';
+    if (!previous) return "stable";
+    return current > previous ? "up" : current < previous ? "down" : "stable";
   };
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
-      case 'up':
+      case "up":
         return <TrendingUp color="error" />;
-      case 'down':
+      case "down":
         return <TrendingDown color="success" />;
       default:
         return <Timeline color="disabled" />;
@@ -243,7 +265,9 @@ const LiveAnalytics: React.FC = () => {
   if (isLoading) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography variant="h6" gutterBottom>Loading Analytics...</Typography>
+        <Typography variant="h6" gutterBottom>
+          Loading Analytics...
+        </Typography>
         <LinearProgress />
       </Box>
     );
@@ -257,7 +281,8 @@ const LiveAnalytics: React.FC = () => {
             Unable to Connect to Analytics API
           </Typography>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            The analytics dashboard cannot connect to the backend services. Please check:
+            The analytics dashboard cannot connect to the backend services.
+            Please check:
           </Typography>
           <Box component="ul" sx={{ ml: 2 }}>
             <li>Backend orchestration service is running on port 3000</li>
@@ -265,9 +290,9 @@ const LiveAnalytics: React.FC = () => {
             <li>Network connectivity to the API endpoints</li>
           </Box>
         </Alert>
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-          <Button 
-            variant="contained" 
+        <Box sx={{ display: "flex", justifyContent: "center", gap: 2 }}>
+          <Button
+            variant="contained"
             onClick={handleRefresh}
             disabled={isLoading}
             startIcon={<Refresh />}
@@ -282,11 +307,18 @@ const LiveAnalytics: React.FC = () => {
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
           Live System Analytics
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
           {hasError && (
             <Alert severity="warning" sx={{ py: 0.5, px: 1 }}>
               <Typography variant="caption">
@@ -299,10 +331,14 @@ const LiveAnalytics: React.FC = () => {
             label={`Last Update: ${lastUpdate.toLocaleTimeString()}`}
             variant="outlined"
             size="small"
-            color={connectionStatus === 'connected' ? 'success' : 'error'}
+            color={connectionStatus === "connected" ? "success" : "error"}
           />
           <Tooltip title="Refresh Data">
-            <IconButton onClick={handleRefresh} size="small" disabled={isLoading}>
+            <IconButton
+              onClick={handleRefresh}
+              size="small"
+              disabled={isLoading}
+            >
               <Refresh />
             </IconButton>
           </Tooltip>
@@ -318,12 +354,21 @@ const LiveAnalytics: React.FC = () => {
           <Grid container spacing={2}>
             {services.map((service) => (
               <Grid item xs={12} sm={6} md={3} key={service.name}>
-                <Card sx={{ 
-                  bgcolor: alpha(theme.palette.background.paper, 0.7),
-                  backdropFilter: 'blur(10px)',
-                }}>
+                <Card
+                  sx={{
+                    bgcolor: alpha(theme.palette.background.paper, 0.7),
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
                   <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        mb: 1,
+                      }}
+                    >
                       <Typography variant="subtitle2" sx={{ fontWeight: 500 }}>
                         {service.name}
                       </Typography>
@@ -355,10 +400,12 @@ const LiveAnalytics: React.FC = () => {
 
         {/* System Metrics */}
         <Grid item xs={12} md={8}>
-          <Card sx={{ 
-            bgcolor: alpha(theme.palette.background.paper, 0.7),
-            backdropFilter: 'blur(10px)',
-          }}>
+          <Card
+            sx={{
+              bgcolor: alpha(theme.palette.background.paper, 0.7),
+              backdropFilter: "blur(10px)",
+            }}
+          >
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
                 System Performance
@@ -367,26 +414,33 @@ const LiveAnalytics: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={metrics}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="timestamp" 
-                      tickFormatter={(value) => new Date(value).toLocaleTimeString()}
+                    <XAxis
+                      dataKey="timestamp"
+                      tickFormatter={(value) =>
+                        new Date(value).toLocaleTimeString()
+                      }
                     />
                     <YAxis />
-                    <RechartsTooltip 
-                      labelFormatter={(value) => new Date(value).toLocaleString()}
-                      formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
+                    <RechartsTooltip
+                      labelFormatter={(value) =>
+                        new Date(value).toLocaleString()
+                      }
+                      formatter={(value: number, name: string) => [
+                        `${value.toFixed(1)}%`,
+                        name,
+                      ]}
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="cpu" 
-                      stroke={theme.palette.primary.main} 
+                    <Area
+                      type="monotone"
+                      dataKey="cpu"
+                      stroke={theme.palette.primary.main}
                       fill={alpha(theme.palette.primary.main, 0.3)}
                       name="CPU"
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="memory" 
-                      stroke={theme.palette.secondary.main} 
+                    <Area
+                      type="monotone"
+                      dataKey="memory"
+                      stroke={theme.palette.secondary.main}
                       fill={alpha(theme.palette.secondary.main, 0.3)}
                       name="Memory"
                     />
@@ -400,64 +454,132 @@ const LiveAnalytics: React.FC = () => {
         {/* Current Metrics */}
         <Grid item xs={12} md={4}>
           <Grid container spacing={2}>
-            {currentMetrics && [
-              { label: 'CPU Usage', value: currentMetrics.cpu, unit: '%', icon: <Speed />, trend: getTrend(currentMetrics.cpu, previousMetrics?.cpu || 0) },
-              { label: 'Memory', value: currentMetrics.memory, unit: '%', icon: <Memory />, trend: getTrend(currentMetrics.memory, previousMetrics?.memory || 0) },
-              { label: 'Active Connections', value: currentMetrics.activeConnections, unit: '', icon: <NetworkCheck />, trend: getTrend(currentMetrics.activeConnections, previousMetrics?.activeConnections || 0) },
-              { label: 'Requests/sec', value: currentMetrics.requestsPerSecond, unit: '', icon: <TrendingUp />, trend: getTrend(currentMetrics.requestsPerSecond, previousMetrics?.requestsPerSecond || 0) },
-            ].map((metric, index) => (
-              <Grid item xs={6} key={index}>
-                <Card sx={{ 
-                  bgcolor: alpha(theme.palette.background.paper, 0.7),
-                  backdropFilter: 'blur(10px)',
-                }}>
-                  <CardContent sx={{ pb: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                      {metric.icon}
-                      {getTrendIcon(metric.trend)}
-                    </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                      {Math.round(metric.value)}{metric.unit}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      {metric.label}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
+            {currentMetrics &&
+              [
+                {
+                  label: "CPU Usage",
+                  value: currentMetrics.cpu,
+                  unit: "%",
+                  icon: <Speed />,
+                  trend: getTrend(
+                    currentMetrics.cpu,
+                    previousMetrics?.cpu || 0,
+                  ),
+                },
+                {
+                  label: "Memory",
+                  value: currentMetrics.memory,
+                  unit: "%",
+                  icon: <Memory />,
+                  trend: getTrend(
+                    currentMetrics.memory,
+                    previousMetrics?.memory || 0,
+                  ),
+                },
+                {
+                  label: "Active Connections",
+                  value: currentMetrics.activeConnections,
+                  unit: "",
+                  icon: <NetworkCheck />,
+                  trend: getTrend(
+                    currentMetrics.activeConnections,
+                    previousMetrics?.activeConnections || 0,
+                  ),
+                },
+                {
+                  label: "Requests/sec",
+                  value: currentMetrics.requestsPerSecond,
+                  unit: "",
+                  icon: <TrendingUp />,
+                  trend: getTrend(
+                    currentMetrics.requestsPerSecond,
+                    previousMetrics?.requestsPerSecond || 0,
+                  ),
+                },
+              ].map((metric, index) => (
+                <Grid item xs={6} key={index}>
+                  <Card
+                    sx={{
+                      bgcolor: alpha(theme.palette.background.paper, 0.7),
+                      backdropFilter: "blur(10px)",
+                    }}
+                  >
+                    <CardContent sx={{ pb: 2 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          mb: 1,
+                        }}
+                      >
+                        {metric.icon}
+                        {getTrendIcon(metric.trend)}
+                      </Box>
+                      <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        {Math.round(metric.value)}
+                        {metric.unit}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {metric.label}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
           </Grid>
         </Grid>
 
         {/* Processing Statistics */}
         {processingStats && (
           <Grid item xs={12} md={6}>
-            <Card sx={{ 
-              bgcolor: alpha(theme.palette.background.paper, 0.7),
-              backdropFilter: 'blur(10px)',
-            }}>
+            <Card
+              sx={{
+                bgcolor: alpha(theme.palette.background.paper, 0.7),
+                backdropFilter: "blur(10px)",
+              }}
+            >
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
                   Audio Processing Statistics
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="textSecondary">Total Requests</Typography>
-                    <Typography variant="h6">{processingStats.totalRequests.toLocaleString()}</Typography>
-                  </Grid>
-                  <Grid item xs={6}>
-                    <Typography variant="body2" color="textSecondary">Success Rate</Typography>
-                    <Typography variant="h6" color="success.main">
-                      {((processingStats.successfulRequests / processingStats.totalRequests) * 100).toFixed(1)}%
+                    <Typography variant="body2" color="textSecondary">
+                      Total Requests
+                    </Typography>
+                    <Typography variant="h6">
+                      {processingStats.totalRequests.toLocaleString()}
                     </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="textSecondary">Avg Processing Time</Typography>
-                    <Typography variant="h6">{Math.round(processingStats.averageProcessingTime)}ms</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Success Rate
+                    </Typography>
+                    <Typography variant="h6" color="success.main">
+                      {(
+                        (processingStats.successfulRequests /
+                          processingStats.totalRequests) *
+                        100
+                      ).toFixed(1)}
+                      %
+                    </Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2" color="textSecondary">Active Streams</Typography>
-                    <Typography variant="h6" color="primary.main">{processingStats.activeStreams}</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Avg Processing Time
+                    </Typography>
+                    <Typography variant="h6">
+                      {Math.round(processingStats.averageProcessingTime)}ms
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="textSecondary">
+                      Active Streams
+                    </Typography>
+                    <Typography variant="h6" color="primary.main">
+                      {processingStats.activeStreams}
+                    </Typography>
                   </Grid>
                 </Grid>
               </CardContent>
@@ -467,25 +589,32 @@ const LiveAnalytics: React.FC = () => {
 
         {/* Error Log */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ 
-            bgcolor: alpha(theme.palette.background.paper, 0.7),
-            backdropFilter: 'blur(10px)',
-          }}>
+          <Card
+            sx={{
+              bgcolor: alpha(theme.palette.background.paper, 0.7),
+              backdropFilter: "blur(10px)",
+            }}
+          >
             <CardContent>
               <Typography variant="h6" gutterBottom sx={{ fontWeight: 500 }}>
                 Recent Alerts
               </Typography>
-              <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
-                {services.filter(s => s.status !== 'healthy').map((service, index) => (
-                  <Alert 
-                    key={index}
-                    severity={service.status === 'down' ? 'error' : 'warning'}
-                    sx={{ mb: 1, fontSize: '0.875rem' }}
-                  >
-                    {service.name}: {service.status === 'down' ? 'Service unavailable' : 'Performance degraded'}
-                  </Alert>
-                ))}
-                {services.every(s => s.status === 'healthy') && (
+              <Box sx={{ maxHeight: 200, overflow: "auto" }}>
+                {services
+                  .filter((s) => s.status !== "healthy")
+                  .map((service, index) => (
+                    <Alert
+                      key={index}
+                      severity={service.status === "down" ? "error" : "warning"}
+                      sx={{ mb: 1, fontSize: "0.875rem" }}
+                    >
+                      {service.name}:{" "}
+                      {service.status === "down"
+                        ? "Service unavailable"
+                        : "Performance degraded"}
+                    </Alert>
+                  ))}
+                {services.every((s) => s.status === "healthy") && (
                   <Alert severity="success">All systems operational</Alert>
                 )}
               </Box>

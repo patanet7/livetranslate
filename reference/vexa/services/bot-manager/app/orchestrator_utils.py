@@ -128,7 +128,7 @@ async def _record_session_start(meeting_id: int, session_uid: str):
         async with async_session_local() as db_session:
             new_session = MeetingSession(
                 meeting_id=meeting_id,
-                session_uid=session_uid, 
+                session_uid=session_uid,
                 session_start_time=datetime.now(timezone.utc) # Record timestamp
             )
             db_session.add(new_session)
@@ -163,13 +163,13 @@ async def start_bot_container(
         native_meeting_id: The platform-specific meeting ID (e.g., 'xyz-abc-pdq').
         language: Optional language code for transcription.
         task: Optional transcription task ('transcribe' or 'translate').
-        
+
     Returns:
         A tuple (container_id, connection_id) if successful, None otherwise.
     """
     # Concurrency limit is now checked in request_bot (fast-fail). Keep minimal here.
 
-    # --- Original start_bot_container logic (using requests_unixsocket) --- 
+    # --- Original start_bot_container logic (using requests_unixsocket) ---
     session = get_socket_session()
     if not session:
         logger.error("Cannot start bot container, requests_unixsocket session not available.")
@@ -269,7 +269,7 @@ async def start_bot_container(
             return None, None
 
         logger.info(f"Successfully started container {container_id} for meeting: {meeting_id}")
-        
+
         # *** REMOVED Session Recording Call - To be handled by caller ***
         # try:
         #     asyncio.run(_record_session_start(meeting_id, connection_id))
@@ -302,7 +302,7 @@ def stop_bot_container(container_id: str) -> bool:
     socket_path_abs = f"/{socket_path_relative}"
     socket_path_encoded = socket_path_abs.replace("/", "%2F")
     socket_url_base = f'http+unix://{socket_path_encoded}'
-    
+
     stop_url = f'{socket_url_base}/containers/{container_id}/stop'
     # Since AutoRemove=True, we don't need a separate remove call
 
@@ -310,8 +310,8 @@ def stop_bot_container(container_id: str) -> bool:
         logger.info(f"Attempting to stop container {container_id} via socket ({stop_url})...") # Log stop URL
         # Send POST request to stop the container. Docker waits for it to stop.
         # Timeout can be added via query param `t` (e.g., ?t=10 for 10 seconds)
-        response = session.post(f"{stop_url}?t=10") 
-        
+        response = session.post(f"{stop_url}?t=10")
+
         # Check status code: 204 No Content (success), 304 Not Modified (already stopped), 404 Not Found
         if response.status_code == 204:
             logger.info(f"Successfully sent stop command to container {container_id}.")
@@ -321,7 +321,7 @@ def stop_bot_container(container_id: str) -> bool:
             return True
         elif response.status_code == 404:
             logger.warning(f"Container {container_id} not found, assuming already stopped/removed.")
-            return True 
+            return True
         else:
             # Raise exception for other errors (like 500)
             logger.error(f"Error stopping container {container_id}. Status: {response.status_code}, Body: {response.text}")
@@ -337,17 +337,17 @@ def stop_bot_container(container_id: str) -> bool:
         return False
     except Exception as e:
         logger.error(f"Unexpected error stopping container {container_id}: {e}", exc_info=True)
-        return False 
+        return False
 
-# --- ADDED: Get Running Bot Status --- 
+# --- ADDED: Get Running Bot Status ---
 # Make the function async
 async def get_running_bots_status(user_id: int) -> List[Dict[str, Any]]:
     """Gets status of RUNNING bot containers for a user using labels via socket API, including DB lookup for meeting details."""
     session = get_socket_session()
     if not session:
         logger.error("[Bot Status] Cannot get status, requests_unixsocket session not available.")
-        return [] 
-        
+        return []
+
     bots_status = []
     running_containers = [] # Initialize
     try:
@@ -356,18 +356,18 @@ async def get_running_bots_status(user_id: int) -> List[Dict[str, Any]]:
             "label": [f"vexa.user_id={user_id}"],
             "status": ["running"]
         })
-        
+
         # Make request to list containers endpoint
         socket_path_relative = DOCKER_HOST.split('//', 1)[1]
         socket_path_abs = f"/{socket_path_relative}"
         socket_path_encoded = socket_path_abs.replace("/", "%2F")
         socket_url_base = f'http+unix://{socket_path_encoded}'
         list_url = f'{socket_url_base}/containers/json'
-        
+
         logger.debug(f"[Bot Status] Querying {list_url} with filters: {filters}")
         response = session.get(list_url, params={"filters": filters, "all": "false"})
         response.raise_for_status()
-        
+
         running_containers = response.json()
         logger.info(f"[Bot Status] Found {len(running_containers)} running containers for user {user_id}")
 
@@ -377,21 +377,21 @@ async def get_running_bots_status(user_id: int) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"[Bot Status] Unexpected error listing containers for user {user_id}: {e}", exc_info=True)
         return []
-        
+
     # Perform DB lookups asynchronously for each container
     async with async_session_local() as db_session:
         for container_info in running_containers:
             platform = None
             native_meeting_id = None
             meeting_id_int = None
-            
+
             container_id = container_info.get('Id')
             name = container_info.get('Names', ['N/A'])[0].lstrip('/')
             created_at_unix = container_info.get('Created')
             created_at = datetime.fromtimestamp(created_at_unix, timezone.utc).isoformat() if created_at_unix else None
             status = container_info.get('Status')
             labels = container_info.get('Labels', {})
-            
+
             # Parse meeting_id from name: vexa-bot-{meeting_id}-{uuid}
             meeting_id_from_name = "unknown"
             try:
@@ -403,7 +403,7 @@ async def get_running_bots_status(user_id: int) -> List[Dict[str, Any]]:
             except (ValueError, IndexError, Exception) as parse_err:
                  logger.warning(f"[Bot Status] Could not parse meeting ID from container name '{name}': {parse_err}")
                  meeting_id_int = None # Ensure it's None if parsing fails
-            
+
             # If we have a valid meeting ID, query the DB
             if meeting_id_int is not None:
                 try:
@@ -416,7 +416,7 @@ async def get_running_bots_status(user_id: int) -> List[Dict[str, Any]]:
                         logger.warning(f"[Bot Status] No meeting found in DB for ID {meeting_id_int} parsed from container '{name}'")
                 except Exception as db_err:
                     logger.error(f"[Bot Status] DB error fetching meeting {meeting_id_int}: {db_err}", exc_info=True)
-            
+
             # Map a normalized status from Docker's human string
             normalized_status = None
             try:
@@ -442,9 +442,9 @@ async def get_running_bots_status(user_id: int) -> List[Dict[str, Any]]:
                 "labels": labels,
                 "meeting_id_from_name": meeting_id_from_name
             })
-            
+
     return bots_status
-# --- END: Get Running Bot Status --- 
+# --- END: Get Running Bot Status ---
 
 async def verify_container_running(container_id: str) -> bool:
     """Verify if a container exists and is running via the Docker socket API."""
@@ -456,13 +456,13 @@ async def verify_container_running(container_id: str) -> bool:
     # Construct the correct base URL for socket requests
     # This logic should mirror how other Docker API calls are made in this file
     # For example, if DOCKER_HOST is 'unix:///var/run/docker.sock'
-    socket_path_relative = DOCKER_HOST.split('//', 1)[1] 
+    socket_path_relative = DOCKER_HOST.split('//', 1)[1]
     socket_path_abs = f"/{socket_path_relative}"
     socket_path_encoded = socket_path_abs.replace("/", "%2F")
     socket_url_base = f'http+unix://{socket_path_encoded}'
-    
+
     inspect_url = f'{socket_url_base}/containers/{container_id}/json'
-    
+
     try:
         logger.debug(f"[Verify Container] Inspecting container {container_id} via URL: {inspect_url}")
         # Make the request asynchronously. Requires session to be an AIOHTTP client or similar.
@@ -470,7 +470,7 @@ async def verify_container_running(container_id: str) -> bool:
         # Assuming for now that session can handle async requests or this will be wrapped.
         # For a synchronous session, it would be:
         # response = await asyncio.to_thread(session.get, inspect_url)
-        
+
         # If get_socket_session() returns a regular requests.Session:
         import asyncio
         loop = asyncio.get_event_loop()
@@ -479,14 +479,14 @@ async def verify_container_running(container_id: str) -> bool:
         if response.status_code == 404:
             logger.info(f"[Verify Container] Container {container_id} not found (404).")
             return False
-        
+
         response.raise_for_status() # Raise an exception for other bad status codes (500, etc.)
-        
+
         container_info = response.json()
         is_running = container_info.get('State', {}).get('Running', False)
         logger.info(f"[Verify Container] Container {container_id} found. Running: {is_running}")
         return is_running
-        
+
     except requests.exceptions.RequestException as e: # Catching requests-specific exceptions
         if hasattr(e, 'response') and e.response is not None and e.response.status_code == 404:
              logger.warning(f"[Verify Container] Container {container_id} not found during request (exception check).")

@@ -17,8 +17,8 @@ Fireflies chunk format (from WebSocket):
 }
 """
 
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from .base import ChunkAdapter, TranscriptChunk
 
@@ -62,7 +62,7 @@ class FirefliesChunkAdapter(ChunkAdapter):
         start_time = float(data.get("start_time", 0))
         end_time = float(data.get("end_time", start_time))
         transcript_id = data.get("transcript_id", "")
-        chunk_id = data.get("chunk_id", f"ff_{datetime.now(timezone.utc).timestamp()}")
+        chunk_id = data.get("chunk_id", f"ff_{datetime.now(UTC).timestamp()}")
 
         # Calculate timestamp in milliseconds
         timestamp_ms = int(start_time * 1000)
@@ -84,7 +84,7 @@ class FirefliesChunkAdapter(ChunkAdapter):
             },
         )
 
-    def extract_speaker(self, raw_chunk: Any) -> Optional[str]:
+    def extract_speaker(self, raw_chunk: Any) -> str | None:
         """Extract speaker from Fireflies chunk."""
         if hasattr(raw_chunk, "speaker_name"):
             return raw_chunk.speaker_name

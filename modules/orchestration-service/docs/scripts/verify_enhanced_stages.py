@@ -42,7 +42,6 @@ def test_configs():
     """Test that config classes can be imported."""
     print("Config classes:")
     try:
-
         print("  ✓ LUFSNormalizationConfig")
         print("  ✓ CompressionConfig")
         print("  ✓ LimiterConfig")

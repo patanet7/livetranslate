@@ -8,12 +8,14 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime
-from typing import Dict, Set, Optional, Any, Callable, List
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
-from fastapi import WebSocket
+from typing import Any
 from uuid import uuid4
+
+from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +55,12 @@ class ConnectionInfo:
     user_agent: str
     connected_at: float
     last_ping: float
-    session_id: Optional[str] = None
-    user_id: Optional[str] = None
+    session_id: str | None = None
+    user_id: str | None = None
     state: ConnectionState = ConnectionState.CONNECTING
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             "connection_id": self.connection_id,
@@ -81,10 +83,10 @@ class SessionInfo:
     session_id: str
     created_at: float
     last_activity: float
-    connection_ids: Set[str] = field(default_factory=set)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    connection_ids: set[str] = field(default_factory=set)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization"""
         return {
             "session_id": self.session_id,
@@ -102,7 +104,7 @@ class WebSocketManager:
     Enterprise-grade WebSocket connection manager
     """
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         self.config = config or {}
         self.max_connections = self.config.get("max_connections", 1000)
         self.heartbeat_interval = self.config.get("heartbeat_interval", 30)
@@ -110,18 +112,18 @@ class WebSocketManager:
         self.ping_timeout = self.config.get("ping_timeout", 10)
 
         # Connection storage
-        self.connections: Dict[str, ConnectionInfo] = {}
-        self.sessions: Dict[str, SessionInfo] = {}
-        self.user_connections: Dict[str, Set[str]] = {}
+        self.connections: dict[str, ConnectionInfo] = {}
+        self.sessions: dict[str, SessionInfo] = {}
+        self.user_connections: dict[str, set[str]] = {}
 
         # Event handlers
-        self.message_handlers: Dict[MessageType, List[Callable]] = {
+        self.message_handlers: dict[MessageType, list[Callable]] = {
             msg_type: [] for msg_type in MessageType
         }
 
         # Background tasks
-        self._heartbeat_task: Optional[asyncio.Task] = None
-        self._cleanup_task: Optional[asyncio.Task] = None
+        self._heartbeat_task: asyncio.Task | None = None
+        self._cleanup_task: asyncio.Task | None = None
         self._running = False
 
         # Statistics
@@ -163,9 +165,7 @@ class WebSocketManager:
 
         logger.info("WebSocket manager stopped")
 
-    async def connect(
-        self, websocket: WebSocket, client_ip: str, user_agent: str
-    ) -> str:
+    async def connect(self, websocket: WebSocket, client_ip: str, user_agent: str) -> str:
         """
         Handle new WebSocket connection
 
@@ -226,19 +226,16 @@ class WebSocketManager:
             await self._leave_session(connection_id, connection_info.session_id)
 
         # Remove from user connections
-        if connection_info.user_id:
-            if connection_info.user_id in self.user_connections:
-                self.user_connections[connection_info.user_id].discard(connection_id)
-                if not self.user_connections[connection_info.user_id]:
-                    del self.user_connections[connection_info.user_id]
+        if connection_info.user_id and connection_info.user_id in self.user_connections:
+            self.user_connections[connection_info.user_id].discard(connection_id)
+            if not self.user_connections[connection_info.user_id]:
+                del self.user_connections[connection_info.user_id]
 
         # Close WebSocket if not already closed
         try:
             from starlette.websockets import WebSocketState
 
-            if connection_info.websocket.client_state not in [
-                WebSocketState.DISCONNECTED
-            ]:
+            if connection_info.websocket.client_state not in [WebSocketState.DISCONNECTED]:
                 await connection_info.websocket.close()
         except Exception as e:
             logger.warning(f"Error closing WebSocket {connection_id}: {e}")
@@ -248,7 +245,7 @@ class WebSocketManager:
 
         logger.info(f"WebSocket disconnected: {connection_id} - {reason}")
 
-    async def handle_message(self, connection_id: str, message: Dict[str, Any]):
+    async def handle_message(self, connection_id: str, message: dict[str, Any]):
         """
         Handle incoming WebSocket message
         """
@@ -289,21 +286,19 @@ class WebSocketManager:
 
         except ValueError:
             # Invalid message type
-            await self._send_error(
-                connection_id, f"Invalid message type: {message.get('type')}"
-            )
+            await self._send_error(connection_id, f"Invalid message type: {message.get('type')}")
         except Exception as e:
             logger.error(f"Error handling message from {connection_id}: {e}")
             await self._send_error(connection_id, "Internal error processing message")
             self.stats["total_errors"] += 1
 
-    async def _handle_ping(self, connection_id: str, message: Dict[str, Any]):
+    async def _handle_ping(self, connection_id: str, message: dict[str, Any]):
         """Handle ping message"""
         await self._send_message(
             connection_id, {"type": MessageType.PONG.value, "timestamp": time.time()}
         )
 
-    async def _handle_join_session(self, connection_id: str, message: Dict[str, Any]):
+    async def _handle_join_session(self, connection_id: str, message: dict[str, Any]):
         """Handle join session message"""
         session_id = message.get("session_id")
         if not session_id:
@@ -312,7 +307,7 @@ class WebSocketManager:
 
         await self._join_session(connection_id, session_id, message.get("metadata", {}))
 
-    async def _handle_leave_session(self, connection_id: str, message: Dict[str, Any]):
+    async def _handle_leave_session(self, connection_id: str, message: dict[str, Any]):
         """Handle leave session message"""
         session_id = message.get("session_id")
         if not session_id:
@@ -321,7 +316,7 @@ class WebSocketManager:
 
         await self._leave_session(connection_id, session_id)
 
-    async def _handle_broadcast(self, connection_id: str, message: Dict[str, Any]):
+    async def _handle_broadcast(self, connection_id: str, message: dict[str, Any]):
         """Handle broadcast message"""
         session_id = message.get("session_id")
         if not session_id:
@@ -332,7 +327,7 @@ class WebSocketManager:
             session_id, message.get("data", {}), exclude_connection=connection_id
         )
 
-    async def _handle_direct_message(self, connection_id: str, message: Dict[str, Any]):
+    async def _handle_direct_message(self, connection_id: str, message: dict[str, Any]):
         """Handle direct message"""
         target_connection = message.get("target_connection")
         if not target_connection:
@@ -349,9 +344,7 @@ class WebSocketManager:
             },
         )
 
-    async def _handle_service_message(
-        self, connection_id: str, message: Dict[str, Any]
-    ):
+    async def _handle_service_message(self, connection_id: str, message: dict[str, Any]):
         """Handle service message (placeholder for service integration)"""
         target_service = message.get("target_service")
         if not target_service:
@@ -370,7 +363,7 @@ class WebSocketManager:
         )
 
     async def _join_session(
-        self, connection_id: str, session_id: str, metadata: Dict[str, Any] = None
+        self, connection_id: str, session_id: str, metadata: dict[str, Any] | None = None
     ):
         """Join a session"""
         if connection_id not in self.connections:
@@ -440,7 +433,7 @@ class WebSocketManager:
         )
 
     async def broadcast_to_session(
-        self, session_id: str, data: Dict[str, Any], exclude_connection: str = None
+        self, session_id: str, data: dict[str, Any], exclude_connection: str | None = None
     ):
         """Broadcast message to all connections in a session"""
         if session_id not in self.sessions:
@@ -459,7 +452,7 @@ class WebSocketManager:
             if connection_id != exclude_connection:
                 await self._send_message(connection_id, message)
 
-    async def broadcast_to_all(self, data: Dict[str, Any]):
+    async def broadcast_to_all(self, data: dict[str, Any]):
         """Broadcast message to all connections"""
         message = {
             "type": MessageType.BROADCAST.value,
@@ -471,7 +464,7 @@ class WebSocketManager:
         for connection_id in self.connections:
             await self._send_message(connection_id, message)
 
-    async def _send_message(self, connection_id: str, message: Dict[str, Any]):
+    async def _send_message(self, connection_id: str, message: dict[str, Any]):
         """Send message to specific connection"""
         if connection_id not in self.connections:
             return
@@ -522,9 +515,7 @@ class WebSocketManager:
                             "type": "system:heartbeat",
                             "data": {
                                 "timestamp": int(current_time * 1000),
-                                "server_time": datetime.fromtimestamp(
-                                    current_time
-                                ).isoformat(),
+                                "server_time": datetime.fromtimestamp(current_time).isoformat(),
                             },
                             "timestamp": int(current_time * 1000),
                             "messageId": f"heartbeat-{int(current_time * 1000)}-{connection_id[:8]}",
@@ -577,62 +568,54 @@ class WebSocketManager:
         """Add message handler for specific message type"""
         self.message_handlers[message_type].append(handler)
 
-    def get_connection_info(self, connection_id: str) -> Optional[ConnectionInfo]:
+    def get_connection_info(self, connection_id: str) -> ConnectionInfo | None:
         """Get connection information"""
         return self.connections.get(connection_id)
 
-    def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
+    def get_session_info(self, session_id: str) -> SessionInfo | None:
         """Get session information"""
         return self.sessions.get(session_id)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get WebSocket manager statistics"""
         return {
             **self.stats,
             "active_connections": len(self.connections),
             "active_sessions": len(self.sessions),
             "connections_by_state": {
-                state.value: sum(
-                    1 for conn in self.connections.values() if conn.state == state
-                )
+                state.value: sum(1 for conn in self.connections.values() if conn.state == state)
                 for state in ConnectionState
             },
         }
 
-    def get_all_connections(self) -> List[Dict[str, Any]]:
+    def get_all_connections(self) -> list[dict[str, Any]]:
         """Get all connection information"""
         return [conn.to_dict() for conn in self.connections.values()]
 
-    def get_all_sessions(self) -> List[Dict[str, Any]]:
+    def get_all_sessions(self) -> list[dict[str, Any]]:
         """Get all session information"""
         return [session.to_dict() for session in self.sessions.values()]
 
-    async def get_connection_stats(self) -> Dict[str, Any]:
+    async def get_connection_stats(self) -> dict[str, Any]:
         """Get WebSocket connection statistics for analytics API"""
         current_time = time.time()
 
         # Calculate connection metrics
         total_connections = len(self.connections)
         active_connections = sum(
-            1
-            for conn in self.connections.values()
-            if conn.state == ConnectionState.CONNECTED
+            1 for conn in self.connections.values() if conn.state == ConnectionState.CONNECTED
         )
 
         # Calculate session metrics
         total_sessions = len(self.sessions)
-        active_sessions = sum(
-            1 for session in self.sessions.values() if session.connection_ids
-        )
+        active_sessions = sum(1 for session in self.sessions.values() if session.connection_ids)
 
         # Calculate uptime metrics
         connection_uptimes = [
             current_time - conn.connected_at for conn in self.connections.values()
         ]
         avg_connection_uptime = (
-            sum(connection_uptimes) / len(connection_uptimes)
-            if connection_uptimes
-            else 0
+            sum(connection_uptimes) / len(connection_uptimes) if connection_uptimes else 0
         )
 
         # Calculate message rates (approximate based on total messages)
@@ -664,9 +647,7 @@ class WebSocketManager:
             "heartbeat_interval": self.heartbeat_interval,
             "session_timeout": self.session_timeout,
             "connections_by_state": {
-                state.value: sum(
-                    1 for conn in self.connections.values() if conn.state == state
-                )
+                state.value: sum(1 for conn in self.connections.values() if conn.state == state)
                 for state in ConnectionState
             },
             "timestamp": current_time,

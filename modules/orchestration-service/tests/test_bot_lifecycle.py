@@ -16,15 +16,16 @@ Test Categories:
 - Error handling and recovery
 """
 
-import pytest
 import asyncio
-import time
-import tempfile
-import numpy as np
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime
 import os
 import sys
+import tempfile
+import time
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+
+import numpy as np
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -40,6 +41,70 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 # Skip all tests in this file until bot components are implemented
 pytestmark = pytest.mark.skip(reason="Bot components not yet implemented")
+
+# Placeholder classes for type checking (actual imports are unavailable)
+# These are only used for test signature purposes - tests are skipped
+try:
+    from bot.audio_capture import AudioConfig, GoogleMeetAudioCapture, MeetingInfo
+    from bot.bot_integration import BotConfig, GoogleMeetBotIntegration, ServiceEndpoints
+    from bot.bot_manager import BotStatus, GoogleMeetBotManager, MeetingRequest
+    from bot.caption_processor import GoogleMeetCaptionProcessor
+    from bot.time_correlation import (
+        CorrelationConfig,
+        ExternalSpeakerEvent,
+        InternalTranscriptionResult,
+        TimeCorrelationEngine,
+    )
+    from bot.virtual_webcam import DisplayMode, Theme, VirtualWebcamManager, WebcamConfig
+    from database.bot_session_manager import BotSessionDatabaseManager
+except ImportError:
+    # Placeholder classes for when imports are unavailable
+    class GoogleMeetBotManager:  # type: ignore[no-redef]
+        def __init__(self, config): pass
+        async def initialize(self): pass
+        async def shutdown(self): pass
+        async def spawn_bot(self, request): return "bot-id"
+        def get_active_bots(self): return []
+        async def get_bot_status(self, bot_id): return None
+        async def complete_bot(self, bot_id): pass
+    class BotStatus:  # type: ignore[no-redef]
+        SPAWNING = "spawning"
+        ACTIVE = "active"
+        COMPLETED = "completed"
+    class MeetingRequest:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class AudioConfig:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class MeetingInfo:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class GoogleMeetAudioCapture:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class GoogleMeetCaptionProcessor:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class TimeCorrelationEngine:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class CorrelationConfig:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class ExternalSpeakerEvent:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class InternalTranscriptionResult:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class VirtualWebcamManager:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class WebcamConfig:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class DisplayMode:  # type: ignore[no-redef]
+        pass
+    class Theme:  # type: ignore[no-redef]
+        pass
+    class GoogleMeetBotIntegration:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class BotConfig:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class ServiceEndpoints:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class BotSessionDatabaseManager:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
 
 
 class TestBotLifecycle:
@@ -163,9 +228,7 @@ class TestAudioCapture:
     @pytest.fixture
     def audio_config(self):
         """Create audio configuration for testing."""
-        return AudioConfig(
-            sample_rate=16000, channels=1, chunk_duration=1.0, quality_threshold=0.5
-        )
+        return AudioConfig(sample_rate=16000, channels=1, chunk_duration=1.0, quality_threshold=0.5)
 
     @pytest.fixture
     def meeting_info(self):
@@ -204,9 +267,7 @@ class TestAudioCapture:
         return audio.astype(np.float32)
 
     @pytest.mark.asyncio
-    async def test_audio_capture_initialization(
-        self, audio_config, mock_whisper_service
-    ):
+    async def test_audio_capture_initialization(self, audio_config, mock_whisper_service):
         """Test audio capture initialization."""
         capture = GoogleMeetAudioCapture(
             config=audio_config, whisper_service_url="http://localhost:5001"
@@ -257,9 +318,7 @@ class TestAudioCapture:
                 chunk = test_audio[i : i + chunk_size]
                 if len(chunk) == chunk_size:
                     # Simulate the audio callback
-                    capture._audio_callback(
-                        chunk.reshape(-1, 1), len(chunk), None, None
-                    )
+                    capture._audio_callback(chunk.reshape(-1, 1), len(chunk), None, None)
 
             # Wait for processing
             await asyncio.sleep(2.0)
@@ -274,7 +333,7 @@ class TestAudioCapture:
         assert capture.total_chunks_captured > 0
 
         # Verify audio quality analysis
-        for chunk, quality_metrics in processed_chunks:
+        for _chunk, quality_metrics in processed_chunks:
             assert "rms_level" in quality_metrics
             assert "voice_activity" in quality_metrics
             assert "quality_score" in quality_metrics
@@ -716,9 +775,7 @@ class TestBotIntegration:
             assert success is True
 
             # Verify leave event
-            leave_events = [
-                event for event in session_events if event[0] == "meeting_left"
-            ]
+            leave_events = [event for event in session_events if event[0] == "meeting_left"]
             assert len(leave_events) > 0
 
             # Get final statistics
@@ -785,9 +842,7 @@ class TestDatabaseIntegration:
         }
 
         # Store audio file
-        file_id = await database_manager.store_audio_file(
-            session_id, audio_bytes, metadata
-        )
+        file_id = await database_manager.store_audio_file(session_id, audio_bytes, metadata)
         assert file_id is not None
 
         # Retrieve audio file info
@@ -814,9 +869,7 @@ class TestDatabaseIntegration:
         }
 
         # Store transcript
-        transcript_id = await database_manager.store_transcript(
-            session_id, transcript_data
-        )
+        transcript_id = await database_manager.store_transcript(session_id, transcript_data)
         assert transcript_id is not None
 
         # Store translation
@@ -832,9 +885,7 @@ class TestDatabaseIntegration:
             "end_timestamp": transcript_data["end_timestamp"],
         }
 
-        translation_id = await database_manager.store_translation(
-            session_id, translation_data
-        )
+        translation_id = await database_manager.store_translation(session_id, translation_data)
         assert translation_id is not None
 
         # Retrieve transcript with translations

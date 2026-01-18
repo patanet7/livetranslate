@@ -6,14 +6,15 @@ Simple health monitoring implementation that provides real system data.
 
 import asyncio
 import logging
-import time
-import psutil
-import aiohttp
 import ssl
-from typing import Dict, Any, List, Optional
+import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
 from enum import Enum
+from typing import Any
+
+import aiohttp
+import psutil
 
 logger = logging.getLogger(__name__)
 # Set health monitor to only show warnings and errors to reduce console noise
@@ -40,17 +41,17 @@ class ServiceHealth:
     last_check: float
     response_time: float
     error_count: int = 0
-    last_error: Optional[str] = None
+    last_error: str | None = None
 
 
 @dataclass
 class SystemMetrics:
     """System performance metrics"""
 
-    cpu: Dict[str, float]
-    memory: Dict[str, float]
-    disk: Dict[str, float]
-    network: Dict[str, int]
+    cpu: dict[str, float]
+    memory: dict[str, float]
+    disk: dict[str, float]
+    network: dict[str, int]
     timestamp: float
 
 
@@ -103,7 +104,7 @@ class HealthMonitor:
             f"Health monitor initialized with service URLs: {[config['url'] for config in self.service_configs.values()]}"
         )
 
-    async def get_system_health(self) -> Dict[str, Any]:
+    async def get_system_health(self) -> dict[str, Any]:
         """Get overall system health"""
         try:
             # Check all services
@@ -121,12 +122,8 @@ class HealthMonitor:
             else:
                 overall_status = "unknown"
 
-            services_dict = {
-                name: asdict(service) for name, service in self.services.items()
-            }
-            logger.debug(
-                f"Health check returning services: {list(services_dict.keys())}"
-            )
+            services_dict = {name: asdict(service) for name, service in self.services.items()}
+            logger.debug(f"Health check returning services: {list(services_dict.keys())}")
 
             return {
                 "status": overall_status,
@@ -195,7 +192,7 @@ class HealthMonitor:
     async def _check_all_services(self):
         """Check health of all services"""
         tasks = []
-        for name in self.services.keys():
+        for name in self.services:
             tasks.append(self._check_service_health(name))
 
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -222,17 +219,15 @@ class HealthMonitor:
             return
 
         # Skip health checks for embedded/internal services
-        if config["url"] in ("embedded", "internal", "local", None) or not config[
-            "url"
-        ].startswith("http"):
+        if config["url"] in ("embedded", "internal", "local", None) or not config["url"].startswith(
+            "http"
+        ):
             service.status = "embedded"
             service.error_count = 0
             service.last_error = None
             service.response_time = 0
             service.last_check = time.time()
-            logger.debug(
-                f"Service {service_name} is using embedded mode - skipping health check"
-            )
+            logger.debug(f"Service {service_name} is using embedded mode - skipping health check")
             return
 
         health_url = f"{config['url']}{config['health_endpoint']}"
@@ -297,7 +292,7 @@ class HealthMonitor:
                         service.response_time = response_time
                         service.last_check = time.time()
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             service.status = "unhealthy"
             service.error_count += 1
             service.last_error = "Connection timeout"
@@ -317,9 +312,7 @@ class HealthMonitor:
                 service.status = "unhealthy"
                 service.error_count += 1
                 service.last_error = f"Service unavailable: {service_name} not running"
-                logger.warning(
-                    f"Service {service_name} appears to be down: {health_url}"
-                )
+                logger.warning(f"Service {service_name} appears to be down: {health_url}")
                 logger.debug(f"  Connection error: {error_msg}")
             # Check if this is an SSL error on an HTTP endpoint
             elif "ssl" in error_msg.lower() and health_url.startswith("http://"):
@@ -334,9 +327,7 @@ class HealthMonitor:
                 service.status = "unhealthy"
                 service.error_count += 1
                 service.last_error = f"Connection error: {error_msg}"
-                logger.error(
-                    f"Connection error for {service_name} at {health_url}: {error_msg}"
-                )
+                logger.error(f"Connection error for {service_name} at {health_url}: {error_msg}")
 
             service.response_time = 0
             service.last_check = time.time()
@@ -344,12 +335,12 @@ class HealthMonitor:
         except Exception as e:
             service.status = "unhealthy"
             service.error_count += 1
-            service.last_error = f"{e.__class__.__name__}: {str(e)}"
+            service.last_error = f"{e.__class__.__name__}: {e!s}"
             service.response_time = 0
             service.last_check = time.time()
             logger.error(f"Service {service_name} health check error: {health_url}")
             logger.error(f"  Error type: {e.__class__.__name__}")
-            logger.error(f"  Error details: {str(e)}")
+            logger.error(f"  Error details: {e!s}")
 
             # Additional debug info for SSL errors
             if "ssl" in str(e).lower():
@@ -357,18 +348,18 @@ class HealthMonitor:
                 logger.error(f"  URL scheme: {health_url.split('://')[0]}")
                 logger.error("  If using HTTP, ensure no HTTPS redirect is happening")
 
-    async def get_all_services_status(self) -> List[Dict[str, Any]]:
+    async def get_all_services_status(self) -> list[dict[str, Any]]:
         """Get status of all services"""
         await self._check_all_services()
         return [asdict(service) for service in self.services.values()]
 
-    async def get_service_status(self, service_name: str) -> Optional[Dict[str, Any]]:
+    async def get_service_status(self, service_name: str) -> dict[str, Any] | None:
         """Get status of specific service"""
         await self._check_service_health(service_name)
         service = self.services.get(service_name)
         return asdict(service) if service else None
 
-    async def get_detailed_health(self) -> Dict[str, Any]:
+    async def get_detailed_health(self) -> dict[str, Any]:
         """Get detailed health information"""
         system_health = await self.get_system_health()
         return {
@@ -378,7 +369,7 @@ class HealthMonitor:
             "last_updated": datetime.now().isoformat(),
         }
 
-    async def restart_service(self, service_name: str) -> Dict[str, Any]:
+    async def restart_service(self, service_name: str) -> dict[str, Any]:
         """Restart a service (placeholder implementation)"""
         return {
             "service": service_name,
@@ -387,7 +378,7 @@ class HealthMonitor:
             "note": "Service restart not implemented",
         }
 
-    async def get_system_config(self) -> Dict[str, Any]:
+    async def get_system_config(self) -> dict[str, Any]:
         """Get system configuration"""
         return {
             "services": self.service_configs,
@@ -395,9 +386,7 @@ class HealthMonitor:
             "timestamp": time.time(),
         }
 
-    async def update_system_config(
-        self, config_update: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def update_system_config(self, config_update: dict[str, Any]) -> dict[str, Any]:
         """Update system configuration"""
         return {
             "updated_keys": list(config_update.keys()),
@@ -405,19 +394,19 @@ class HealthMonitor:
             "timestamp": time.time(),
         }
 
-    async def start_maintenance_mode(self) -> Dict[str, Any]:
+    async def start_maintenance_mode(self) -> dict[str, Any]:
         """Start maintenance mode"""
         return {"maintenance_mode": True, "started_at": time.time()}
 
-    async def stop_maintenance_mode(self) -> Dict[str, Any]:
+    async def stop_maintenance_mode(self) -> dict[str, Any]:
         """Stop maintenance mode"""
         return {"maintenance_mode": False, "stopped_at": time.time()}
 
-    async def get_maintenance_status(self) -> Dict[str, Any]:
+    async def get_maintenance_status(self) -> dict[str, Any]:
         """Get maintenance status"""
         return {"maintenance_mode": False, "timestamp": time.time()}
 
-    async def get_service_metrics(self) -> Dict[str, Any]:
+    async def get_service_metrics(self) -> dict[str, Any]:
         """Get service-specific metrics for analytics API"""
         try:
             # Get current service statuses
@@ -425,23 +414,15 @@ class HealthMonitor:
 
             # Calculate service metrics
             total_services = len(self.services)
-            healthy_services = sum(
-                1 for s in self.services.values() if s.status == "healthy"
-            )
-            unhealthy_services = sum(
-                1 for s in self.services.values() if s.status == "unhealthy"
-            )
-            degraded_services = sum(
-                1 for s in self.services.values() if s.status == "degraded"
-            )
+            healthy_services = sum(1 for s in self.services.values() if s.status == "healthy")
+            unhealthy_services = sum(1 for s in self.services.values() if s.status == "unhealthy")
+            degraded_services = sum(1 for s in self.services.values() if s.status == "degraded")
 
             # Calculate average response time
             response_times = [
                 s.response_time for s in self.services.values() if s.response_time > 0
             ]
-            avg_response_time = (
-                sum(response_times) / len(response_times) if response_times else 0
-            )
+            avg_response_time = sum(response_times) / len(response_times) if response_times else 0
 
             # Calculate total error count
             total_errors = sum(s.error_count for s in self.services.values())

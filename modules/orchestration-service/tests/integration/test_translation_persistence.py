@@ -13,19 +13,19 @@ Requirements:
 - PostgreSQL running with livetranslate database
 """
 
-import pytest
-import uuid
 import os
+import uuid
+
 import httpx
 import psycopg2
-
+import pytest
 
 # Test configuration
 ORCHESTRATION_URL = "http://localhost:3000"
 # Port 5433 is the livetranslate-postgres container
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
 )
 
 
@@ -98,9 +98,7 @@ class TestTranslationPersistence:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
-    async def test_translation_with_session_persistence(
-        self, test_session_id, db_connection
-    ):
+    async def test_translation_with_session_persistence(self, test_session_id, db_connection):
         """Test translation with session ID persists to database"""
         test_text = "Good morning, how are you today?"
         target_lang = "es"
@@ -212,12 +210,10 @@ class TestTranslationPersistence:
 
         count, unique_languages = cursor.fetchone()
 
-        assert count == len(test_cases), (
-            f"Expected {len(test_cases)} translations, found {count}"
-        )
-        assert unique_languages == len(test_cases), (
-            f"Expected {len(test_cases)} languages, found {unique_languages}"
-        )
+        assert count == len(test_cases), f"Expected {len(test_cases)} translations, found {count}"
+        assert unique_languages == len(
+            test_cases
+        ), f"Expected {len(test_cases)} languages, found {unique_languages}"
 
         # Get details of all translations
         cursor.execute(
@@ -278,7 +274,7 @@ class TestTranslationPersistence:
         cursor.close()
 
         assert row is not None
-        session_id, count, total_words, total_chars, avg_conf, languages = row
+        _session_id, count, total_words, total_chars, avg_conf, languages = row
 
         assert count == 3
         assert total_words > 0
@@ -314,9 +310,7 @@ class TestTranslationPersistence:
             assert response.status_code == 200
             result = response.json()
             assert "translated_text" in result
-            print(
-                f"✅ API handles invalid session gracefully: {result['translated_text']}"
-            )
+            print(f"✅ API handles invalid session gracefully: {result['translated_text']}")
 
         # Verify nothing was persisted for invalid session
         cursor = db_connection.cursor()

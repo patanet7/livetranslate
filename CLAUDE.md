@@ -81,30 +81,48 @@ LiveTranslate is a real-time speech-to-text transcription and translation system
 
 ### Quick Start
 ```bash
-# Complete development environment
-./start-development.ps1
+# Complete development environment (cross-platform)
+./start-development.sh        # macOS/Linux
+./start-development.ps1       # Windows
 
 # Individual services
-cd modules/frontend-service && ./start-frontend.ps1
-cd modules/orchestration-service && ./start-backend.ps1
+cd modules/frontend-service && ./start-frontend.sh
+cd modules/orchestration-service && ./start-backend.sh
+
+# Using just (recommended)
+just compose-up               # Start all services with Docker
+just dev                      # Start development environment
 ```
 
 ### Service-Specific Commands
 ```bash
 # Whisper Service (NPU/GPU optimized)
 cd modules/whisper-service
-poetry install
-poetry run python src/main.py --device=npu
+pdm install
+pdm run python src/main.py --device=npu
 
 # Translation Service (GPU optimized)
 cd modules/translation-service
-poetry install
-poetry run python src/api_server.py
+pdm install
+pdm run python src/api_server.py
 
 # Orchestration Service with bot management
 cd modules/orchestration-service
-poetry install
-poetry run python src/main_fastapi.py
+pdm install
+pdm run python src/main_fastapi.py
+```
+
+### Justfile Commands
+```bash
+just help              # Show all available commands
+just test-orchestration    # Run orchestration tests
+just test-whisper          # Run whisper tests
+just test-translation      # Run translation tests
+just coverage-backend      # Generate coverage reports
+just docker-build-all      # Build all Docker images
+just clean                 # Clean build artifacts
+just install-all           # Install all dependencies
+just db-up / db-down       # Database management
 ```
 
 ## File Structure Conventions
@@ -164,29 +182,93 @@ Virtual Webcam Generation → Real-time Display → Speaker Attribution
 
 ## Testing Strategy
 
+### CRITICAL: Behavioral Tests with NO MOCKS
+
+All tests in this repository **MUST** be behavioral/integration tests that test real system behavior:
+
+1. **NO MOCKING** - Do not mock services, databases, or external dependencies
+2. **Real Services** - Tests should spin up real service instances (use docker-compose)
+3. **Real Data Flow** - Test actual data flowing through the system
+4. **Test Outputs** - All test results go to `tests/output/` with timestamp format: `TIMESTAMP_test_XXX_results.log`
+
+### Test Output Locations
+- Backend tests: `modules/<service>/tests/output/`
+- Frontend tests: `modules/frontend-service/tests/output/`
+
+### Example Behavioral Test Pattern
+```python
+# CORRECT: Behavioral test with real services
+@pytest.mark.integration
+@pytest.mark.behavioral
+async def test_audio_upload_and_transcription():
+    """Test real audio upload through the entire pipeline."""
+    output_path = get_test_output_path("audio_upload")
+
+    # Start real services
+    async with ServiceTestContext() as ctx:
+        # Upload real audio file
+        response = await ctx.client.post("/api/audio/upload", files={"file": audio_bytes})
+        assert response.status_code == 200
+
+        # Wait for real transcription
+        result = await ctx.wait_for_transcription(response.json()["session_id"])
+        assert result["text"] is not None
+        assert len(result["text"]) > 0
+
+        # Log results to output file
+        with open(output_path, "w") as f:
+            f.write(f"Test passed: {result}")
+
+# INCORRECT: Mocked test (DO NOT USE)
+# def test_audio_upload_mocked():
+#     with patch("services.whisper") as mock_whisper:  # NO!
+#         mock_whisper.transcribe.return_value = "fake"  # NO!
+```
+
 ### Service-Specific Tests
 - **Whisper**: NPU fallback, real-time performance, edge cases
 - **Translation**: GPU memory management, quality metrics
 - **Orchestration**: Service coordination, health monitoring
-- **Frontend**: Component testing, integration tests
+- **Frontend**: Component testing, E2E tests with Playwright
 
 ### Test Commands
 ```bash
 # Full system testing
 python tests/run_all_tests.py --comprehensive
 
-# Service-specific
-cd modules/whisper-service && python tests/run_tests.py --all --device=npu
-cd modules/orchestration-service && python tests/run_tests.py --all
+# Service-specific (using PDM)
+cd modules/orchestration-service && pdm run pytest -m "behavioral"
+cd modules/whisper-service && pdm run pytest -m "integration"
+cd modules/translation-service && pdm run pytest -m "behavioral"
+
+# Run with coverage
+pdm run pytest --cov=src --cov-report=html
+
+# Using just commands
+just test-orchestration
+just test-whisper
+just test-translation
+just coverage-backend
 ```
+
+### Test Markers
+- `@pytest.mark.behavioral` - Behavioral tests (no mocks)
+- `@pytest.mark.integration` - Integration tests
+- `@pytest.mark.e2e` - End-to-end tests
+- `@pytest.mark.slow` - Slow tests (skip with `-m "not slow"`)
+- `@pytest.mark.gpu` - Requires GPU
+- `@pytest.mark.npu` - Requires Intel NPU
 
 ## Important Notes
 
-- **Windows environment**: Use PowerShell commands (`.ps1` scripts)
+- **Cross-platform support**: Bash scripts (`.sh`) for macOS/Linux, PowerShell (`.ps1`) for Windows
+- **Dependency management**: Use PDM (not Poetry or pip directly)
 - **Audio resampling**: Fixed 48kHz to 16kHz conversion with librosa fallback
 - **Production deployment**: Services can run on separate machines
 - **Real-time processing**: < 100ms latency target
 - **Concurrent support**: 1000+ WebSocket connections
+- **Code quality**: Ruff for linting/formatting, mypy for type checking
+- **Pre-commit hooks**: Run `pre-commit install` after cloning
 
 ## Latest Critical Fixes (Audio Flow Resolution)
 

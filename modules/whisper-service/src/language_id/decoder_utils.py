@@ -7,12 +7,12 @@ without side effects (no KV cache mutations, no state changes).
 """
 
 import contextlib
+
 import torch
-from typing import Optional, List
 
 
 @contextlib.contextmanager
-def disable_kv_cache(decoder, prompt_length: Optional[int] = None):
+def disable_kv_cache(decoder, prompt_length: int | None = None):
     """
     Context manager to disable KV cache mutations during decoder forward pass.
 
@@ -77,10 +77,7 @@ def disable_kv_cache(decoder, prompt_length: Optional[int] = None):
 
 
 def decoder_first_step_readonly(
-    decoder,
-    encoder_output: torch.Tensor,
-    prompt: torch.Tensor,
-    device: torch.device
+    decoder, encoder_output: torch.Tensor, prompt: torch.Tensor, device: torch.device
 ) -> torch.Tensor:
     """
     Run a single read-only decoder step with no side effects.
@@ -109,6 +106,6 @@ def decoder_first_step_readonly(
             logits = decoder(
                 x=prompt.to(device),
                 xa=encoder_output.to(device),
-                kv_cache=None  # Explicitly no cache
+                kv_cache=None,  # Explicitly no cache
             )
             return logits

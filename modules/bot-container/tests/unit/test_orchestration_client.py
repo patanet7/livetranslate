@@ -9,14 +9,11 @@ Following TDD: RED → GREEN → REFACTOR
 Write tests FIRST, then implement!
 """
 
-import pytest
-import asyncio
-import json
-import base64
-import numpy as np
-from datetime import datetime, timezone
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -33,7 +30,7 @@ class TestOrchestrationClientInitialization:
             orchestration_url="ws://localhost:3000/ws",
             user_token="test-token-123",
             meeting_id="test-meeting-456",
-            connection_id="test-connection-789"
+            connection_id="test-connection-789",
         )
 
         assert client.orchestration_url == "ws://localhost:3000/ws"
@@ -50,9 +47,7 @@ class TestOrchestrationClientInitialization:
         # Should fail without orchestration_url
         with pytest.raises(TypeError):
             OrchestrationClient(
-                user_token="test-token",
-                meeting_id="test-meeting",
-                connection_id="test-connection"
+                user_token="test-token", meeting_id="test-meeting", connection_id="test-connection"
             )
 
 
@@ -79,7 +74,7 @@ class TestOrchestrationClientConnection:
             orchestration_url="ws://localhost:3000/ws",
             user_token="test-token",
             meeting_id="test-meeting",
-            connection_id="test-connection"
+            connection_id="test-connection",
         )
 
         await client.connect()
@@ -109,11 +104,11 @@ class TestOrchestrationClientAudioStreaming:
         """Test client can send audio chunks in correct format"""
         from orchestration_client import OrchestrationClient
 
-        client = OrchestrationClient(
+        OrchestrationClient(
             orchestration_url="ws://localhost:3000/ws",
             user_token="test-token",
             meeting_id="test-meeting",
-            connection_id="test-connection"
+            connection_id="test-connection",
         )
 
         # Generate test audio (1 second at 16kHz)
@@ -130,15 +125,15 @@ class TestOrchestrationClientAudioStreaming:
         """Test audio chunks are formatted correctly for orchestration"""
         from orchestration_client import OrchestrationClient
 
-        client = OrchestrationClient(
+        OrchestrationClient(
             orchestration_url="ws://localhost:3000/ws",
             user_token="test-token",
             meeting_id="test-meeting",
-            connection_id="test-connection"
+            connection_id="test-connection",
         )
 
         # Test audio
-        test_audio = np.random.randn(16000).astype(np.float32).tobytes()
+        np.random.randn(16000).astype(np.float32).tobytes()
 
         # Expected format (same as frontend):
         # {
@@ -147,7 +142,6 @@ class TestOrchestrationClientAudioStreaming:
         #   "timestamp": "2025-01-15T10:30:00.000Z"
         # }
 
-        expected_keys = ["type", "audio", "timestamp"]
         # We'll verify this when implementing _format_audio_message method
 
 
@@ -168,7 +162,7 @@ class TestOrchestrationClientSegmentReception:
             orchestration_url="ws://localhost:3000/ws",
             user_token="test-token",
             meeting_id="test-meeting",
-            connection_id="test-connection"
+            connection_id="test-connection",
         )
 
         # Register callback
@@ -200,7 +194,7 @@ class TestOrchestrationClientErrorHandling:
             orchestration_url="ws://invalid-host:9999/ws",
             user_token="test-token",
             meeting_id="test-meeting",
-            connection_id="test-connection"
+            connection_id="test-connection",
         )
 
         # Should return False on connection failure (not raise exception)

@@ -16,19 +16,20 @@ through a clean repository pattern with specialized method groups.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import uuid
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from audio.models import SpeakerCorrelation  # Pydantic model
 
 from .database import DatabaseManager
 from .models import (
-    BotSession,
     AudioFile,
+    BotSession,
     Transcript,
     Translation,
 )
-from audio.models import SpeakerCorrelation  # Pydantic model
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +88,9 @@ class UnifiedBotSessionRepository:
         self,
         session_id: str,
         meeting_url: str,
-        bot_config: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[BotSession]:
+        bot_config: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
+    ) -> BotSession | None:
         """Create a new bot session."""
         try:
             session = BotSession(
@@ -98,7 +99,7 @@ class UnifiedBotSessionRepository:
                 status="initializing",
                 bot_config=bot_config,
                 metadata=metadata or {},
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             async with self.db.get_session() as db_session:
@@ -113,7 +114,7 @@ class UnifiedBotSessionRepository:
             logger.error(f"Failed to create bot session {session_id}: {e}")
             return None
 
-    async def session_get(self, session_id: str) -> Optional[BotSession]:
+    async def session_get(self, session_id: str) -> BotSession | None:
         """Get bot session by ID."""
         try:
             async with self.db.get_session() as db_session:
@@ -136,7 +137,7 @@ class UnifiedBotSessionRepository:
             async with self.db.get_session() as db_session:
                 await db_session.execute(
                     "UPDATE bot_sessions SET status = ?, updated_at = ? WHERE session_id = ?",
-                    (status, datetime.now(timezone.utc), session_id),
+                    (status, datetime.now(UTC), session_id),
                 )
                 await db_session.commit()
 
@@ -147,7 +148,7 @@ class UnifiedBotSessionRepository:
             logger.error(f"Failed to update session status: {e}")
             return False
 
-    async def session_list_active(self) -> List[BotSession]:
+    async def session_list_active(self) -> list[BotSession]:
         """List all active bot sessions."""
         try:
             async with self.db.get_session() as db_session:
@@ -165,7 +166,7 @@ class UnifiedBotSessionRepository:
     async def session_cleanup_old(self, older_than_hours: int = 24) -> int:
         """Clean up old completed sessions."""
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
+            cutoff_time = datetime.now(UTC) - timedelta(hours=older_than_hours)
 
             async with self.db.get_session() as db_session:
                 result = await db_session.execute(
@@ -191,8 +192,8 @@ class UnifiedBotSessionRepository:
         session_id: str,
         file_path: str,
         file_type: str = "wav",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
         """Store audio file information in database."""
         try:
             file_id = str(uuid.uuid4())
@@ -202,11 +203,9 @@ class UnifiedBotSessionRepository:
                 session_id=session_id,
                 file_path=file_path,
                 file_type=file_type,
-                file_size=Path(file_path).stat().st_size
-                if Path(file_path).exists()
-                else 0,
+                file_size=Path(file_path).stat().st_size if Path(file_path).exists() else 0,
                 metadata=metadata or {},
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             async with self.db.get_session() as db_session:
@@ -220,7 +219,7 @@ class UnifiedBotSessionRepository:
             logger.error(f"Failed to store audio file: {e}")
             return None
 
-    async def audio_get_files(self, session_id: str) -> List[AudioFile]:
+    async def audio_get_files(self, session_id: str) -> list[AudioFile]:
         """Get all audio files for a session."""
         try:
             async with self.db.get_session() as db_session:
@@ -260,9 +259,7 @@ class UnifiedBotSessionRepository:
                         if Path(file_path).exists():
                             Path(file_path).unlink()
                     except Exception as file_e:
-                        logger.warning(
-                            f"Failed to delete physical file {file_path}: {file_e}"
-                        )
+                        logger.warning(f"Failed to delete physical file {file_path}: {file_e}")
 
                     logger.debug(f"Deleted audio file {file_id}")
                     return True
@@ -281,11 +278,11 @@ class UnifiedBotSessionRepository:
         self,
         session_id: str,
         text: str,
-        speaker_id: Optional[str] = None,
-        timestamp: Optional[datetime] = None,
+        speaker_id: str | None = None,
+        timestamp: datetime | None = None,
         confidence: float = 1.0,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
         """Store transcript segment."""
         try:
             transcript_id = str(uuid.uuid4())
@@ -295,10 +292,10 @@ class UnifiedBotSessionRepository:
                 session_id=session_id,
                 text=text,
                 speaker_id=speaker_id,
-                timestamp=timestamp or datetime.now(timezone.utc),
+                timestamp=timestamp or datetime.now(UTC),
                 confidence=confidence,
                 metadata=metadata or {},
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             async with self.db.get_session() as db_session:
@@ -313,8 +310,8 @@ class UnifiedBotSessionRepository:
             return None
 
     async def transcript_get_by_session(
-        self, session_id: str, speaker_id: Optional[str] = None
-    ) -> List[Transcript]:
+        self, session_id: str, speaker_id: str | None = None
+    ) -> list[Transcript]:
         """Get transcripts for a session, optionally filtered by speaker."""
         try:
             query = "SELECT * FROM transcripts WHERE session_id = ?"
@@ -336,12 +333,10 @@ class UnifiedBotSessionRepository:
             logger.error(f"Failed to get transcripts for session {session_id}: {e}")
             return []
 
-    async def transcript_get_recent(
-        self, session_id: str, minutes: int = 5
-    ) -> List[Transcript]:
+    async def transcript_get_recent(self, session_id: str, minutes: int = 5) -> list[Transcript]:
         """Get recent transcripts from the last N minutes."""
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+            cutoff_time = datetime.now(UTC) - timedelta(minutes=minutes)
 
             async with self.db.get_session() as db_session:
                 result = await db_session.execute(
@@ -366,8 +361,8 @@ class UnifiedBotSessionRepository:
         target_language: str,
         translated_text: str,
         confidence: float = 1.0,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
         """Store translation for a transcript."""
         try:
             translation_id = str(uuid.uuid4())
@@ -379,25 +374,21 @@ class UnifiedBotSessionRepository:
                 translated_text=translated_text,
                 confidence=confidence,
                 metadata=metadata or {},
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             async with self.db.get_session() as db_session:
                 db_session.add(translation)
                 await db_session.commit()
 
-            logger.debug(
-                f"Stored translation {translation_id} for transcript {transcript_id}"
-            )
+            logger.debug(f"Stored translation {translation_id} for transcript {transcript_id}")
             return translation_id
 
         except Exception as e:
             logger.error(f"Failed to store translation: {e}")
             return None
 
-    async def translation_get_by_transcript(
-        self, transcript_id: str
-    ) -> List[Translation]:
+    async def translation_get_by_transcript(self, transcript_id: str) -> list[Translation]:
         """Get all translations for a transcript."""
         try:
             async with self.db.get_session() as db_session:
@@ -410,14 +401,12 @@ class UnifiedBotSessionRepository:
                 return [Translation(**dict(row)) for row in rows]
 
         except Exception as e:
-            logger.error(
-                f"Failed to get translations for transcript {transcript_id}: {e}"
-            )
+            logger.error(f"Failed to get translations for transcript {transcript_id}: {e}")
             return []
 
     async def translation_get_by_language(
         self, session_id: str, target_language: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get all translations for a session in a specific language."""
         try:
             query = """
@@ -448,8 +437,8 @@ class UnifiedBotSessionRepository:
         whisper_speaker_id: str,
         meet_speaker_name: str,
         confidence: float = 1.0,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        metadata: dict[str, Any] | None = None,
+    ) -> str | None:
         """Store speaker correlation between Whisper and Google Meet."""
         try:
             correlation_id = str(uuid.uuid4())
@@ -461,7 +450,7 @@ class UnifiedBotSessionRepository:
                 meet_speaker_name=meet_speaker_name,
                 confidence=confidence,
                 metadata=metadata or {},
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
 
             async with self.db.get_session() as db_session:
@@ -475,9 +464,7 @@ class UnifiedBotSessionRepository:
             logger.error(f"Failed to store speaker correlation: {e}")
             return None
 
-    async def correlation_get_by_session(
-        self, session_id: str
-    ) -> List[SpeakerCorrelation]:
+    async def correlation_get_by_session(self, session_id: str) -> list[SpeakerCorrelation]:
         """Get all speaker correlations for a session."""
         try:
             async with self.db.get_session() as db_session:
@@ -495,7 +482,7 @@ class UnifiedBotSessionRepository:
 
     async def correlation_resolve_speaker(
         self, session_id: str, whisper_speaker_id: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Resolve Whisper speaker ID to Google Meet speaker name."""
         try:
             async with self.db.get_session() as db_session:
@@ -515,7 +502,7 @@ class UnifiedBotSessionRepository:
     # UTILITY AND ANALYTICS METHODS
     # =============================================================================
 
-    async def get_session_statistics(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_statistics(self, session_id: str) -> dict[str, Any]:
         """Get comprehensive statistics for a session."""
         try:
             stats = {
@@ -550,12 +537,8 @@ class UnifiedBotSessionRepository:
                     (session_id,),
                 )
                 translation_data = result.fetchall()
-                stats["translations_count"] = sum(
-                    row["count"] for row in translation_data
-                )
-                stats["languages"] = [
-                    row["target_language"] for row in translation_data
-                ]
+                stats["translations_count"] = sum(row["count"] for row in translation_data)
+                stats["languages"] = [row["target_language"] for row in translation_data]
 
                 # Correlations count and speakers
                 result = await db_session.execute(
@@ -563,12 +546,8 @@ class UnifiedBotSessionRepository:
                     (session_id,),
                 )
                 correlation_data = result.fetchall()
-                stats["correlations_count"] = sum(
-                    row["count"] for row in correlation_data
-                )
-                stats["speakers"] = [
-                    row["meet_speaker_name"] for row in correlation_data
-                ]
+                stats["correlations_count"] = sum(row["count"] for row in correlation_data)
+                stats["speakers"] = [row["meet_speaker_name"] for row in correlation_data]
 
             return stats
 
@@ -576,14 +555,14 @@ class UnifiedBotSessionRepository:
             logger.error(f"Failed to get session statistics: {e}")
             return {"error": str(e)}
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Perform health check on the repository."""
         try:
             health_status = {
                 "status": "healthy",
                 "database_connected": False,
                 "tables_accessible": False,
-                "last_check": datetime.now(timezone.utc).isoformat(),
+                "last_check": datetime.now(UTC).isoformat(),
             }
 
             # Check database connection
@@ -610,12 +589,12 @@ class UnifiedBotSessionRepository:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "last_check": datetime.now(timezone.utc).isoformat(),
+                "last_check": datetime.now(UTC).isoformat(),
             }
 
 
 # Global repository instance
-_unified_repository: Optional[UnifiedBotSessionRepository] = None
+_unified_repository: UnifiedBotSessionRepository | None = None
 
 
 async def get_unified_bot_session_repository() -> UnifiedBotSessionRepository:

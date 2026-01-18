@@ -21,16 +21,16 @@ Architecture:
                                   Stream segments back
 """
 
-import pytest
 import asyncio
-import websockets
-import json
-import numpy as np
 import base64
-from datetime import datetime, timezone
-from typing import Dict, Any
+import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+
+import numpy as np
+import pytest
+import websockets
 
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
@@ -62,15 +62,15 @@ class TestWebSocketStreamServer:
 
         try:
             # Try to connect
-            async with websockets.connect("ws://localhost:5001/stream") as ws:
+            async with websockets.connect("ws://localhost:5001/stream"):
                 # Connection is open if we're in this context
-                print(f"   ✅ Connected to ws://localhost:5001/stream")
+                print("   ✅ Connected to ws://localhost:5001/stream")
 
         finally:
             await server.stop()
             server_task.cancel()
 
-        print(f"✅ WebSocket server startup working")
+        print("✅ WebSocket server startup working")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -103,8 +103,8 @@ class TestWebSocketStreamServer:
                         "model": "large-v3",
                         "language": "en",
                         "enable_vad": True,
-                        "enable_cif": True
-                    }
+                        "enable_cif": True,
+                    },
                 }
 
                 await ws.send(json.dumps(start_message))
@@ -119,7 +119,7 @@ class TestWebSocketStreamServer:
 
                 print(f"   Session ID: {response['session_id']}")
                 print(f"   Timestamp: {response['timestamp']}")
-                print(f"✅ Session creation working")
+                print("✅ Session creation working")
 
         finally:
             await server.stop()
@@ -150,25 +150,25 @@ class TestWebSocketStreamServer:
                         "language": "es",  # Spanish
                         "enable_vad": False,
                         "enable_cif": False,
-                        "beam_size": 5
-                    }
+                        "beam_size": 5,
+                    },
                 }
 
                 await ws.send(json.dumps(start_message))
                 response_raw = await ws.recv()
-                response = json.loads(response_raw)
+                json.loads(response_raw)
 
                 # Configuration should be reflected in session
                 session = server.get_session("config-test-session")
                 assert session is not None
                 assert session.config["language"] == "es"
-                assert session.config["enable_vad"] == False
+                assert not session.config["enable_vad"]
                 assert session.config["beam_size"] == 5
 
                 print(f"   Language: {session.config['language']}")
                 print(f"   VAD enabled: {session.config['enable_vad']}")
                 print(f"   Beam size: {session.config['beam_size']}")
-                print(f"✅ Session configuration working")
+                print("✅ Session configuration working")
 
         finally:
             await server.stop()
@@ -207,23 +207,27 @@ class TestAudioChunkProcessing:
         try:
             async with websockets.connect("ws://localhost:5004/stream") as ws:
                 # Start session
-                await ws.send(json.dumps({
-                    "action": "start_stream",
-                    "session_id": "audio-test-session",
-                    "config": {"model": "large-v3"}
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "action": "start_stream",
+                            "session_id": "audio-test-session",
+                            "config": {"model": "large-v3"},
+                        }
+                    )
+                )
                 await ws.recv()  # Ack
 
                 # Create test audio (1 second of silence)
                 audio = np.zeros(16000, dtype=np.float32)
-                audio_base64 = base64.b64encode(audio.tobytes()).decode('utf-8')
+                audio_base64 = base64.b64encode(audio.tobytes()).decode("utf-8")
 
                 # Send audio chunk
                 audio_message = {
                     "type": "audio_chunk",
                     "session_id": "audio-test-session",
                     "audio": audio_base64,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
 
                 await ws.send(json.dumps(audio_message))
@@ -237,7 +241,7 @@ class TestAudioChunkProcessing:
 
                 print(f"   Audio size: {len(audio)} samples")
                 print(f"   Base64 size: {len(audio_base64)} bytes")
-                print(f"✅ Audio chunk reception working")
+                print("✅ Audio chunk reception working")
 
         finally:
             await server.stop()
@@ -271,16 +275,20 @@ class TestAudioChunkProcessing:
         try:
             async with websockets.connect("ws://localhost:5005/stream") as ws:
                 # Start session
-                await ws.send(json.dumps({
-                    "action": "start_stream",
-                    "session_id": "whisper-test-session",
-                    "config": {
-                        "model": "large-v3",
-                        "language": "en",
-                        "enable_vad": True,
-                        "enable_cif": True
-                    }
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "action": "start_stream",
+                            "session_id": "whisper-test-session",
+                            "config": {
+                                "model": "large-v3",
+                                "language": "en",
+                                "enable_vad": True,
+                                "enable_cif": True,
+                            },
+                        }
+                    )
+                )
                 await ws.recv()  # Ack
 
                 # Create test audio with speech
@@ -289,15 +297,19 @@ class TestAudioChunkProcessing:
                 sample_rate = 16000
                 audio = np.random.randn(int(duration * sample_rate)).astype(np.float32) * 0.1
 
-                audio_base64 = base64.b64encode(audio.tobytes()).decode('utf-8')
+                audio_base64 = base64.b64encode(audio.tobytes()).decode("utf-8")
 
                 # Send audio chunk
-                await ws.send(json.dumps({
-                    "type": "audio_chunk",
-                    "session_id": "whisper-test-session",
-                    "audio": audio_base64,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "audio_chunk",
+                            "session_id": "whisper-test-session",
+                            "audio": audio_base64,
+                            "timestamp": datetime.now(UTC).isoformat(),
+                        }
+                    )
+                )
 
                 # Wait for processing
                 await ws.recv()  # audio_received ack
@@ -318,7 +330,7 @@ class TestAudioChunkProcessing:
                     print(f"   Start: {response['absolute_start_time']}")
                     print(f"   End: {response['absolute_end_time']}")
 
-                print(f"✅ Real Whisper processing working")
+                print("✅ Real Whisper processing working")
 
         finally:
             await server.stop()
@@ -351,16 +363,15 @@ class TestSegmentStreaming:
         # Segment from Whisper (relative timestamps)
         segment = {
             "text": "Hello everyone",
-            "start": 0.0,   # Relative to chunk start
+            "start": 0.0,  # Relative to chunk start
             "end": 3.0,
-            "speaker": "SPEAKER_00"
+            "speaker": "SPEAKER_00",
         }
 
         # Add absolute timestamps
-        chunk_start_time = datetime.now(timezone.utc)
+        chunk_start_time = datetime.now(UTC)
         timestamped = timestamper.add_absolute_timestamps(
-            segment=segment,
-            chunk_start_time=chunk_start_time
+            segment=segment, chunk_start_time=chunk_start_time
         )
 
         # Verify ISO 8601 format
@@ -368,15 +379,15 @@ class TestSegmentStreaming:
         assert "absolute_end_time" in timestamped
 
         # Parse to verify format
-        start_dt = datetime.fromisoformat(timestamped["absolute_start_time"].replace('Z', '+00:00'))
-        end_dt = datetime.fromisoformat(timestamped["absolute_end_time"].replace('Z', '+00:00'))
+        start_dt = datetime.fromisoformat(timestamped["absolute_start_time"].replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(timestamped["absolute_end_time"].replace("Z", "+00:00"))
 
         assert end_dt > start_dt, "End should be after start"
 
         print(f"   Start: {timestamped['absolute_start_time']}")
         print(f"   End: {timestamped['absolute_end_time']}")
         print(f"   Duration: {(end_dt - start_dt).total_seconds()}s")
-        print(f"✅ ISO 8601 timestamps working")
+        print("✅ ISO 8601 timestamps working")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -399,12 +410,11 @@ class TestSegmentStreaming:
             "start": 0.0,
             "end": 2.0,
             "speaker": "SPEAKER_01",  # From diarization
-            "confidence": 0.95
+            "confidence": 0.95,
         }
 
         timestamped = timestamper.add_absolute_timestamps(
-            segment=segment,
-            chunk_start_time=datetime.now(timezone.utc)
+            segment=segment, chunk_start_time=datetime.now(UTC)
         )
 
         assert timestamped["speaker"] == "SPEAKER_01"
@@ -412,7 +422,7 @@ class TestSegmentStreaming:
 
         print(f"   Speaker: {timestamped['speaker']}")
         print(f"   Confidence: {timestamped['confidence']}")
-        print(f"✅ Speaker attribution working")
+        print("✅ Speaker attribution working")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -432,24 +442,24 @@ class TestSegmentStreaming:
         # Mutable segment (being updated)
         mutable = timestamper.add_absolute_timestamps(
             segment={"text": "Hello", "start": 0.0, "end": 1.0},
-            chunk_start_time=datetime.now(timezone.utc),
-            is_final=False
+            chunk_start_time=datetime.now(UTC),
+            is_final=False,
         )
 
-        assert mutable["is_final"] == False
+        assert not mutable["is_final"]
 
         # Final segment
         final = timestamper.add_absolute_timestamps(
             segment={"text": "Hello world", "start": 0.0, "end": 2.0},
-            chunk_start_time=datetime.now(timezone.utc),
-            is_final=True
+            chunk_start_time=datetime.now(UTC),
+            is_final=True,
         )
 
-        assert final["is_final"] == True
+        assert final["is_final"]
 
         print(f"   Mutable segment: is_final={mutable['is_final']}")
         print(f"   Final segment: is_final={final['is_final']}")
-        print(f"✅ is_final flag working")
+        print("✅ is_final flag working")
 
 
 class TestErrorHandlingAndReconnection:
@@ -476,12 +486,16 @@ class TestErrorHandlingAndReconnection:
         try:
             async with websockets.connect("ws://localhost:5006/stream") as ws:
                 # Send audio without starting session
-                await ws.send(json.dumps({
-                    "type": "audio_chunk",
-                    "session_id": "non-existent-session",
-                    "audio": "dGVzdA==",  # "test" in base64
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "audio_chunk",
+                            "session_id": "non-existent-session",
+                            "audio": "dGVzdA==",  # "test" in base64
+                            "timestamp": datetime.now(UTC).isoformat(),
+                        }
+                    )
+                )
 
                 # Should receive error
                 response_raw = await ws.recv()
@@ -491,7 +505,7 @@ class TestErrorHandlingAndReconnection:
                 assert "session" in response["error"].lower()
 
                 print(f"   Error: {response['error']}")
-                print(f"✅ Invalid session handling working")
+                print("✅ Invalid session handling working")
 
         finally:
             await server.stop()
@@ -514,11 +528,15 @@ class TestErrorHandlingAndReconnection:
         try:
             # Connect and start session
             async with websockets.connect("ws://localhost:5007/stream") as ws:
-                await ws.send(json.dumps({
-                    "action": "start_stream",
-                    "session_id": "cleanup-test-session",
-                    "config": {"model": "large-v3"}
-                }))
+                await ws.send(
+                    json.dumps(
+                        {
+                            "action": "start_stream",
+                            "session_id": "cleanup-test-session",
+                            "config": {"model": "large-v3"},
+                        }
+                    )
+                )
                 await ws.recv()  # Ack
 
                 # Verify session exists
@@ -532,8 +550,8 @@ class TestErrorHandlingAndReconnection:
             # Session should be cleaned up
             session = server.get_session("cleanup-test-session")
             assert session is None
-            print(f"   Session cleaned up after disconnect")
-            print(f"✅ Session cleanup working")
+            print("   Session cleaned up after disconnect")
+            print("✅ Session cleanup working")
 
         finally:
             await server.stop()
@@ -560,27 +578,35 @@ class TestErrorHandlingAndReconnection:
         try:
             # First connection
             async with websockets.connect("ws://localhost:5008/stream") as ws1:
-                await ws1.send(json.dumps({
-                    "action": "start_stream",
-                    "session_id": "reconnect-session",
-                    "config": {"model": "large-v3"}
-                }))
+                await ws1.send(
+                    json.dumps(
+                        {
+                            "action": "start_stream",
+                            "session_id": "reconnect-session",
+                            "config": {"model": "large-v3"},
+                        }
+                    )
+                )
                 await ws1.recv()
 
             # Second connection with same session ID
             async with websockets.connect("ws://localhost:5008/stream") as ws2:
-                await ws2.send(json.dumps({
-                    "action": "start_stream",
-                    "session_id": "reconnect-session",
-                    "config": {"model": "large-v3"}
-                }))
+                await ws2.send(
+                    json.dumps(
+                        {
+                            "action": "start_stream",
+                            "session_id": "reconnect-session",
+                            "config": {"model": "large-v3"},
+                        }
+                    )
+                )
                 response_raw = await ws2.recv()
                 response = json.loads(response_raw)
 
                 # Should either resume or replace
                 assert response["type"] in ["session_started", "session_resumed"]
                 print(f"   Response: {response['type']}")
-                print(f"✅ Reconnection handling working")
+                print("✅ Reconnection handling working")
 
         finally:
             await server.stop()

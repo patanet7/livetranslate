@@ -26,7 +26,7 @@ scrape_configs:
     metrics_path: /metrics
 
   # === ORCHESTRATION SERVICE MONITORING ===
-  
+
   # Orchestration Service (Main Hub)
   - job_name: 'orchestration-service'
     static_configs:
@@ -39,7 +39,7 @@ scrape_configs:
       format: ['prometheus']
 
   # === LIVETRANSLATE CORE SERVICES ===
-  
+
   # Audio Service (NPU/GPU Optimized)
   - job_name: 'audio-service'
     static_configs:
@@ -77,7 +77,7 @@ scrape_configs:
     metrics_path: /metrics
 
   # === INFRASTRUCTURE SERVICES ===
-  
+
   # Redis (Session and Cache Storage)
   - job_name: 'redis'
     static_configs:
@@ -87,7 +87,7 @@ scrape_configs:
     scrape_timeout: 10s
 
   # === MONITORING STACK ===
-  
+
   # Grafana
   - job_name: 'grafana'
     static_configs:
@@ -120,7 +120,7 @@ scrape_configs:
     metrics_path: /api/websocket/metrics
     scrape_timeout: 5s
 
-  # API Gateway Metrics  
+  # API Gateway Metrics
   - job_name: 'gateway-metrics'
     static_configs:
       - targets: ['orchestration-service:3000']

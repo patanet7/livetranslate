@@ -1,8 +1,8 @@
 """
 Translation Service Module
 
-This module provides translation capabilities using local inference (vLLM, Ollama) 
-with fallback to external APIs. It integrates with the shared inference infrastructure 
+This module provides translation capabilities using local inference (vLLM, Ollama)
+with fallback to external APIs. It integrates with the shared inference infrastructure
 for efficient model management.
 
 Key Components:
@@ -13,58 +13,59 @@ Key Components:
 
 Usage:
     from translation_service import create_translation_service, TranslationRequest
-    
+
     # Create service
     service = await create_translation_service()
-    
+
     # Create request
     request = TranslationRequest(
         text="Hello world",
         target_language="es"
     )
-    
+
     # Translate
     result = await service.translate(request)
     print(result.translated_text)
 """
 
+from .api_server import create_app
+from .legacy_wrapper import LegacyTranslationWrapper
+from .local_translation import LocalTranslationService
 from .translation_service import (
-    TranslationService,
     TranslationRequest,
     TranslationResult,
-    create_translation_service
+    TranslationService,
+    create_translation_service,
 )
-
-from .local_translation import LocalTranslationService
-from .legacy_wrapper import LegacyTranslationWrapper
-from .api_server import create_app
 
 __version__ = "1.0.0"
 __author__ = "LiveTranslate Team"
 
 # Public API
 __all__ = [
-    "TranslationService",
-    "TranslationRequest", 
-    "TranslationResult",
-    "LocalTranslationService",
     "LegacyTranslationWrapper",
+    "LocalTranslationService",
+    "TranslationRequest",
+    "TranslationResult",
+    "TranslationService",
+    "create_app",
     "create_translation_service",
-    "create_app"
 ]
+
 
 # Factory function for easy module usage
 async def create_service(config=None):
     """
     Convenience factory function to create a translation service
-    
+
     Args:
         config: Optional configuration dictionary
-        
+
     Returns:
         Initialized TranslationService instance
     """
     return await create_translation_service(config)
+
 
 # Module-level configuration
 DEFAULT_CONFIG = {
@@ -75,5 +76,5 @@ DEFAULT_CONFIG = {
     "temperature": 0.1,
     "timeout": 30,
     "retry_attempts": 3,
-    "confidence_threshold": 0.8
-} 
+    "confidence_threshold": 0.8,
+}

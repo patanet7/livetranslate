@@ -11,11 +11,12 @@ Following SimulStreaming specification:
 NO MOCKS - Only real model loading and inference!
 """
 
-import pytest
-import numpy as np
-import torch
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
+import torch
 
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
@@ -41,17 +42,17 @@ class TestCIFModelLoading:
         cif_model, always_fire, never_fire = load_cif(
             cif_ckpt_path=None,
             n_audio_state=1280,  # Whisper large-v3
-            device=torch.device("cpu")
+            device=torch.device("cpu"),
         )
 
         assert cif_model is not None, "CIF model should be created"
         assert isinstance(cif_model, torch.nn.Linear), "Should be Linear layer"
         assert cif_model.in_features == 1280, "Should match encoder dimension"
         assert cif_model.out_features == 1, "Should output single value"
-        assert always_fire == True, "Should use fallback mode"
-        assert never_fire == False, "Should not be in never_fire mode"
+        assert always_fire, "Should use fallback mode"
+        assert not never_fire, "Should not be in never_fire mode"
 
-        print(f"✅ CIF fallback mode initialized")
+        print("✅ CIF fallback mode initialized")
 
     @pytest.mark.integration
     def test_cif_model_dimensions(self):
@@ -70,20 +71,18 @@ class TestCIFModelLoading:
             "medium": 1024,
             "large": 1280,
             "large-v2": 1280,
-            "large-v3": 1280
+            "large-v3": 1280,
         }
 
         for model_name, dim in model_dims.items():
             cif_model, _, _ = load_cif(
-                cif_ckpt_path=None,
-                n_audio_state=dim,
-                device=torch.device("cpu")
+                cif_ckpt_path=None, n_audio_state=dim, device=torch.device("cpu")
             )
 
             assert cif_model.in_features == dim, f"{model_name} dimension mismatch"
             print(f"   {model_name}: {dim} dims ✓")
 
-        print(f"✅ CIF supports all Whisper model sizes")
+        print("✅ CIF supports all Whisper model sizes")
 
     @pytest.mark.integration
     def test_cif_device_placement(self):
@@ -97,15 +96,15 @@ class TestCIFModelLoading:
         # Test CPU
         cif_cpu, _, _ = load_cif(device=torch.device("cpu"))
         assert next(cif_cpu.parameters()).device.type == "cpu"
-        print(f"   CPU placement: ✓")
+        print("   CPU placement: ✓")
 
         # Test CUDA if available
         if torch.cuda.is_available():
             cif_cuda, _, _ = load_cif(device=torch.device("cuda"))
             assert next(cif_cuda.parameters()).device.type == "cuda"
-            print(f"   CUDA placement: ✓")
+            print("   CUDA placement: ✓")
 
-        print(f"✅ CIF device placement working")
+        print("✅ CIF device placement working")
 
 
 class TestCIFBoundaryDetection:
@@ -122,9 +121,9 @@ class TestCIFBoundaryDetection:
         """
         print("\n[CIF BOUNDARY] Testing basic boundary detection...")
 
-        from eow_detection import load_cif, fire_at_boundary
+        from eow_detection import fire_at_boundary, load_cif
 
-        cif_model, always_fire, _ = load_cif()
+        cif_model, _always_fire, _ = load_cif()
 
         # Simulate encoder features (B=1, T=1500, D=1280)
         encoder_features = torch.randn(1, 1500, 1280)
@@ -134,7 +133,7 @@ class TestCIFBoundaryDetection:
         assert isinstance(is_boundary, bool), "Should return boolean"
         print(f"   Encoder shape: {encoder_features.shape}")
         print(f"   At boundary: {is_boundary}")
-        print(f"✅ Boundary detection working")
+        print("✅ Boundary detection working")
 
     @pytest.mark.integration
     def test_fire_at_boundary_varying_lengths(self):
@@ -143,7 +142,7 @@ class TestCIFBoundaryDetection:
         """
         print("\n[CIF BOUNDARY] Testing varying audio lengths...")
 
-        from eow_detection import load_cif, fire_at_boundary
+        from eow_detection import fire_at_boundary, load_cif
 
         cif_model, _, _ = load_cif()
 
@@ -157,7 +156,7 @@ class TestCIFBoundaryDetection:
             assert isinstance(is_boundary, bool)
             print(f"   {length} frames: boundary={is_boundary}")
 
-        print(f"✅ Handles varying lengths")
+        print("✅ Handles varying lengths")
 
     @pytest.mark.integration
     def test_fire_at_boundary_deterministic(self):
@@ -166,7 +165,7 @@ class TestCIFBoundaryDetection:
         """
         print("\n[CIF BOUNDARY] Testing determinism...")
 
-        from eow_detection import load_cif, fire_at_boundary
+        from eow_detection import fire_at_boundary, load_cif
 
         cif_model, _, _ = load_cif()
 
@@ -178,7 +177,7 @@ class TestCIFBoundaryDetection:
         result2 = fire_at_boundary(encoder_features, cif_model)
 
         assert result1 == result2, "Should be deterministic"
-        print(f"✅ Boundary detection is deterministic")
+        print("✅ Boundary detection is deterministic")
 
 
 class TestCIFAlphaResize:
@@ -205,7 +204,7 @@ class TestCIFAlphaResize:
         print(f"   Original sum: {original.item():.4f}")
         print(f"   Target: {target_lengths.item()}")
         print(f"   Resized sum: {resized.sum().item():.4f}")
-        print(f"✅ Resize maintains target sum")
+        print("✅ Resize maintains target sum")
 
     @pytest.mark.integration
     def test_resize_threshold_clipping(self):
@@ -225,8 +224,8 @@ class TestCIFAlphaResize:
         # No value should exceed threshold
         assert (resized <= 0.999).all(), "All values should be <= threshold"
         print(f"   Max value: {resized.max().item():.4f}")
-        print(f"   Threshold: 0.999")
-        print(f"✅ Threshold clipping working")
+        print("   Threshold: 0.999")
+        print("✅ Threshold clipping working")
 
     @pytest.mark.integration
     def test_resize_batch_processing(self):
@@ -238,21 +237,19 @@ class TestCIFAlphaResize:
         from eow_detection import resize
 
         # Batch of 3 sequences
-        alphas = torch.tensor([
-            [0.1, 0.2, 0.3, 0.4],
-            [0.5, 0.6, 0.7, 0.8],
-            [0.1, 0.1, 0.1, 0.1]
-        ])
+        alphas = torch.tensor([[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8], [0.1, 0.1, 0.1, 0.1]])
         target_lengths = torch.tensor([2, 3, 1])
 
-        resized, original = resize(alphas, target_lengths)
+        resized, _original = resize(alphas, target_lengths)
 
         # Check each sequence
         for i in range(3):
             assert torch.isclose(resized[i].sum(), target_lengths[i].float(), atol=0.01)
-            print(f"   Sequence {i}: sum={resized[i].sum().item():.4f}, target={target_lengths[i].item()}")
+            print(
+                f"   Sequence {i}: sum={resized[i].sum().item():.4f}, target={target_lengths[i].item()}"
+            )
 
-        print(f"✅ Batch processing working")
+        print("✅ Batch processing working")
 
 
 class TestCIFWithRealWhisper:
@@ -269,22 +266,22 @@ class TestCIFWithRealWhisper:
         """
         print("\n[CIF+WHISPER] Testing with real encoder...")
 
-        from eow_detection import load_cif, fire_at_boundary
+        from eow_detection import fire_at_boundary, load_cif
         from whisper_service import ModelManager
 
         # Load Whisper model
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         # Load CIF
-        cif_model, always_fire, _ = load_cif(
+        cif_model, _always_fire, _ = load_cif(
             n_audio_state=1280,  # large-v3 encoder dimension
-            device=torch.device("cpu")
+            device=torch.device("cpu"),
         )
 
         # Create test audio
-        audio = np.zeros(16000, dtype=np.float32)  # 1 second
+        np.zeros(16000, dtype=np.float32)  # 1 second
 
         # Get encoder features (this would normally come from model.encoder())
         # For now, simulate with correct dimensions
@@ -293,10 +290,10 @@ class TestCIFWithRealWhisper:
         # Test boundary detection
         is_boundary = fire_at_boundary(encoder_features, cif_model)
 
-        print(f"   Whisper model: large-v3")
+        print("   Whisper model: large-v3")
         print(f"   Encoder dims: {encoder_features.shape}")
         print(f"   At boundary: {is_boundary}")
-        print(f"✅ CIF works with real Whisper")
+        print("✅ CIF works with real Whisper")
 
     @pytest.mark.integration
     def test_cif_fallback_mode_behavior(self):
@@ -309,19 +306,19 @@ class TestCIFWithRealWhisper:
 
         from eow_detection import load_cif
 
-        cif_model, always_fire, never_fire = load_cif()
+        _cif_model, always_fire, never_fire = load_cif()
 
         # In fallback mode:
         # - always_fire = True
         # - This means we should emit chunks at fixed intervals
         # - CIF boundary detection is bypassed
 
-        assert always_fire == True, "Should be in fallback mode"
-        assert never_fire == False, "Should not be in never_fire mode"
+        assert always_fire, "Should be in fallback mode"
+        assert not never_fire, "Should not be in never_fire mode"
 
         print(f"   Always fire: {always_fire}")
-        print(f"   Behavior: emit at fixed intervals (no CIF)")
-        print(f"✅ Fallback mode configured correctly")
+        print("   Behavior: emit at fixed intervals (no CIF)")
+        print("✅ Fallback mode configured correctly")
 
 
 class TestCIFPerformance:
@@ -341,7 +338,8 @@ class TestCIFPerformance:
         print("\n[CIF PERFORMANCE] Testing inference speed...")
 
         import time
-        from eow_detection import load_cif, fire_at_boundary
+
+        from eow_detection import fire_at_boundary, load_cif
 
         cif_model, _, _ = load_cif()
 
@@ -406,7 +404,7 @@ class TestCIFEdgeCases:
         """
         print("\n[CIF EDGE CASES] Testing short audio...")
 
-        from eow_detection import load_cif, fire_at_boundary
+        from eow_detection import fire_at_boundary, load_cif
 
         cif_model, _, _ = load_cif()
 
@@ -418,7 +416,7 @@ class TestCIFEdgeCases:
 
         assert isinstance(is_boundary, bool)
         print(f"   Short audio (10 frames): boundary={is_boundary}")
-        print(f"✅ Handles short audio")
+        print("✅ Handles short audio")
 
     @pytest.mark.integration
     def test_cif_never_fire_mode(self):
@@ -429,17 +427,14 @@ class TestCIFEdgeCases:
 
         from eow_detection import load_cif
 
-        cif_model, always_fire, never_fire = load_cif(
-            cif_ckpt_path=None,
-            never_fire=True
-        )
+        _cif_model, always_fire, never_fire = load_cif(cif_ckpt_path=None, never_fire=True)
 
-        assert always_fire == False, "Should not be in always_fire mode"
-        assert never_fire == True, "Should be in never_fire mode"
+        assert not always_fire, "Should not be in always_fire mode"
+        assert never_fire, "Should be in never_fire mode"
 
         print(f"   Never fire mode: {never_fire}")
-        print(f"   Behavior: never emit at boundaries (testing only)")
-        print(f"✅ Never fire mode configured")
+        print("   Behavior: never emit at boundaries (testing only)")
+        print("✅ Never fire mode configured")
 
 
 # Run tests

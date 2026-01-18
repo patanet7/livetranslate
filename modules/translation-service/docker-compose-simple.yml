@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   translation-api:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: livetranslate-translation-simple
@@ -30,4 +30,4 @@ services:
 
 networks:
   default:
-    driver: bridge 
+    driver: bridge

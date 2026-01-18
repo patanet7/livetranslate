@@ -1,11 +1,11 @@
 /**
  * Comprehensive Loading Components
- * 
+ *
  * Provides various loading states with skeleton components,
  * progress indicators, and user-friendly loading messages
  */
 
-import React from 'react';
+import React from "react";
 import {
   Box,
   CircularProgress,
@@ -17,14 +17,14 @@ import {
   Fade,
   Backdrop,
   Alert,
-} from '@mui/material';
+} from "@mui/material";
 import {
   CloudUpload as UploadIcon,
   Psychology as ProcessingIcon,
   Translate as TranslateIcon,
   AudioFile as AudioIcon,
   Analytics as AnalyticsIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 // ============================================================================
 // Loading Screen Component
@@ -33,8 +33,8 @@ import {
 interface LoadingScreenProps {
   message?: string;
   progress?: number;
-  type?: 'circular' | 'linear' | 'skeleton';
-  size?: 'small' | 'medium' | 'large';
+  type?: "circular" | "linear" | "skeleton";
+  size?: "small" | "medium" | "large";
   fullScreen?: boolean;
   showProgress?: boolean;
   icon?: React.ReactNode;
@@ -42,10 +42,10 @@ interface LoadingScreenProps {
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
-  message = 'Loading...',
+  message = "Loading...",
   progress,
-  type = 'circular',
-  size = 'medium',
+  type = "circular",
+  size = "medium",
   fullScreen = false,
   showProgress = false,
   icon,
@@ -64,51 +64,50 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   const getSize = () => {
     switch (size) {
-      case 'small': return 24;
-      case 'large': return 64;
-      default: return 40;
+      case "small":
+        return 24;
+      case "large":
+        return 64;
+      default:
+        return 40;
     }
   };
 
   const content = (
     <Box
       sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
         p: 4,
-        minHeight: fullScreen ? '100vh' : '200px',
+        minHeight: fullScreen ? "100vh" : "200px",
         gap: 2,
       }}
     >
       {/* Icon */}
-      {icon && (
-        <Box sx={{ mb: 1, color: 'primary.main' }}>
-          {icon}
-        </Box>
-      )}
+      {icon && <Box sx={{ mb: 1, color: "primary.main" }}>{icon}</Box>}
 
       {/* Loading Indicator */}
-      {type === 'circular' && (
+      {type === "circular" && (
         <CircularProgress
           size={getSize()}
-          variant={progress !== undefined ? 'determinate' : 'indeterminate'}
+          variant={progress !== undefined ? "determinate" : "indeterminate"}
           value={progress}
         />
       )}
 
-      {type === 'linear' && (
-        <Box sx={{ width: '100%', maxWidth: 300 }}>
+      {type === "linear" && (
+        <Box sx={{ width: "100%", maxWidth: 300 }}>
           <LinearProgress
-            variant={progress !== undefined ? 'determinate' : 'indeterminate'}
+            variant={progress !== undefined ? "determinate" : "indeterminate"}
             value={progress}
           />
         </Box>
       )}
 
-      {type === 'skeleton' && (
-        <Box sx={{ width: '100%', maxWidth: 300 }}>
+      {type === "skeleton" && (
+        <Box sx={{ width: "100%", maxWidth: 300 }}>
           <Skeleton variant="text" width="80%" />
           <Skeleton variant="text" width="60%" />
           <Skeleton variant="rectangular" width="100%" height={60} />
@@ -117,7 +116,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
       {/* Message */}
       <Typography
-        variant={size === 'large' ? 'h6' : 'body1'}
+        variant={size === "large" ? "h6" : "body1"}
         color="text.secondary"
         textAlign="center"
       >
@@ -146,7 +145,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   if (fullScreen) {
     return (
-      <Backdrop open sx={{ color: '#fff', zIndex: 9999 }}>
+      <Backdrop open sx={{ color: "#fff", zIndex: 9999 }}>
         <Paper elevation={3} sx={{ borderRadius: 2 }}>
           {content}
         </Paper>
@@ -164,7 +163,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 export const AudioProcessingSkeleton: React.FC = () => (
   <Paper elevation={1} sx={{ p: 3 }}>
     <Stack spacing={2}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
         <Skeleton variant="circular" width={40} height={40} />
         <Box sx={{ flex: 1 }}>
           <Skeleton variant="text" width="40%" />
@@ -172,7 +171,7 @@ export const AudioProcessingSkeleton: React.FC = () => (
         </Box>
       </Box>
       <Skeleton variant="rectangular" width="100%" height={60} />
-      <Box sx={{ display: 'flex', gap: 1 }}>
+      <Box sx={{ display: "flex", gap: 1 }}>
         <Skeleton variant="rectangular" width={80} height={36} />
         <Skeleton variant="rectangular" width={80} height={36} />
         <Skeleton variant="rectangular" width={80} height={36} />
@@ -184,11 +183,17 @@ export const AudioProcessingSkeleton: React.FC = () => (
 export const AnalyticsSkeleton: React.FC = () => (
   <Stack spacing={2}>
     {/* Metrics Cards */}
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+        gap: 2,
+      }}
+    >
       {[1, 2, 3, 4].map((i) => (
         <Paper key={i} elevation={1} sx={{ p: 2 }}>
           <Stack spacing={1}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Skeleton variant="circular" width={24} height={24} />
               <Skeleton variant="text" width="60%" />
             </Box>
@@ -198,7 +203,7 @@ export const AnalyticsSkeleton: React.FC = () => (
         </Paper>
       ))}
     </Box>
-    
+
     {/* Chart Area */}
     <Paper elevation={1} sx={{ p: 3 }}>
       <Skeleton variant="text" width="30%" height={24} sx={{ mb: 2 }} />
@@ -210,17 +215,29 @@ export const AnalyticsSkeleton: React.FC = () => (
 export const BotManagementSkeleton: React.FC = () => (
   <Stack spacing={3}>
     {/* Header */}
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+      }}
+    >
       <Skeleton variant="text" width="200px" height={32} />
       <Skeleton variant="rectangular" width={120} height={36} />
     </Box>
-    
+
     {/* Bot Cards */}
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 2 }}>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+        gap: 2,
+      }}
+    >
       {[1, 2, 3].map((i) => (
         <Paper key={i} elevation={1} sx={{ p: 3 }}>
           <Stack spacing={2}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Skeleton variant="circular" width={48} height={48} />
               <Box sx={{ flex: 1 }}>
                 <Skeleton variant="text" width="70%" />
@@ -228,7 +245,7 @@ export const BotManagementSkeleton: React.FC = () => (
               </Box>
             </Box>
             <Skeleton variant="rectangular" width="100%" height={80} />
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: "flex", gap: 1 }}>
               <Skeleton variant="rectangular" width={80} height={32} />
               <Skeleton variant="rectangular" width={80} height={32} />
             </Box>
@@ -239,30 +256,37 @@ export const BotManagementSkeleton: React.FC = () => (
   </Stack>
 );
 
-export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({ 
-  rows = 5, 
-  columns = 4 
+export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({
+  rows = 5,
+  columns = 4,
 }) => (
   <Paper elevation={1}>
     <Box sx={{ p: 2 }}>
       {/* Header */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 2, mb: 2 }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${columns}, 1fr)`,
+          gap: 2,
+          mb: 2,
+        }}
+      >
         {Array.from({ length: columns }).map((_, i) => (
           <Skeleton key={i} variant="text" width="80%" />
         ))}
       </Box>
-      
+
       {/* Rows */}
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <Box 
-          key={rowIndex} 
-          sx={{ 
-            display: 'grid', 
-            gridTemplateColumns: `repeat(${columns}, 1fr)`, 
-            gap: 2, 
+        <Box
+          key={rowIndex}
+          sx={{
+            display: "grid",
+            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gap: 2,
             py: 1,
-            borderBottom: rowIndex < rows - 1 ? '1px solid' : 'none',
-            borderColor: 'divider'
+            borderBottom: rowIndex < rows - 1 ? "1px solid" : "none",
+            borderColor: "divider",
           }}
         >
           {Array.from({ length: columns }).map((_, colIndex) => (
@@ -278,7 +302,9 @@ export const TableSkeleton: React.FC<{ rows?: number; columns?: number }> = ({
 // Specialized Loading Components
 // ============================================================================
 
-export const AudioUploadLoading: React.FC<{ progress?: number }> = ({ progress }) => (
+export const AudioUploadLoading: React.FC<{ progress?: number }> = ({
+  progress,
+}) => (
   <LoadingScreen
     message="Uploading audio file..."
     progress={progress}
@@ -289,9 +315,11 @@ export const AudioUploadLoading: React.FC<{ progress?: number }> = ({ progress }
   />
 );
 
-export const AudioProcessingLoading: React.FC<{ stage?: string }> = ({ stage }) => (
+export const AudioProcessingLoading: React.FC<{ stage?: string }> = ({
+  stage,
+}) => (
   <LoadingScreen
-    message={stage ? `Processing: ${stage}` : 'Processing audio...'}
+    message={stage ? `Processing: ${stage}` : "Processing audio..."}
     type="circular"
     icon={<ProcessingIcon sx={{ fontSize: 48 }} />}
     timeout={15000}
@@ -307,9 +335,15 @@ export const TranscriptionLoading: React.FC = () => (
   />
 );
 
-export const TranslationLoading: React.FC<{ languages?: string[] }> = ({ languages }) => (
+export const TranslationLoading: React.FC<{ languages?: string[] }> = ({
+  languages,
+}) => (
   <LoadingScreen
-    message={languages ? `Translating to ${languages.join(', ')}...` : 'Translating text...'}
+    message={
+      languages
+        ? `Translating to ${languages.join(", ")}...`
+        : "Translating text..."
+    }
     type="circular"
     icon={<TranslateIcon sx={{ fontSize: 48 }} />}
     timeout={10000}
@@ -339,36 +373,36 @@ interface LoadingOverlayProps {
 export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   loading,
   children,
-  message = 'Loading...',
+  message = "Loading...",
   blur = false,
 }) => (
-  <Box sx={{ position: 'relative' }}>
+  <Box sx={{ position: "relative" }}>
     {children}
     {loading && (
       <Box
         sx={{
-          position: 'absolute',
+          position: "absolute",
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(255, 255, 255, 0.8)',
-          backdropFilter: blur ? 'blur(2px)' : 'none',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          backgroundColor: "rgba(255, 255, 255, 0.8)",
+          backdropFilter: blur ? "blur(2px)" : "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           zIndex: 1000,
         }}
       >
         <Box
           sx={{
-            backgroundColor: 'background.paper',
+            backgroundColor: "background.paper",
             borderRadius: 2,
             p: 3,
             boxShadow: 3,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
             gap: 2,
           }}
         >

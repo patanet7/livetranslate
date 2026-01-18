@@ -14,15 +14,16 @@ Features:
 - Integration with bot session management and database
 """
 
-import time
-import logging
 import asyncio
-import threading
-from typing import Dict, List, Optional, Callable, Any, Tuple
-from dataclasses import dataclass, asdict
-from datetime import datetime
 import json
+import logging
 import re
+import threading
+import time
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from typing import Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -35,10 +36,10 @@ class SpeakerInfo:
 
     speaker_id: str
     display_name: str
-    email: Optional[str] = None
-    role: Optional[str] = None  # 'organizer', 'participant', 'guest'
-    join_time: Optional[float] = None
-    leave_time: Optional[float] = None
+    email: str | None = None
+    role: str | None = None  # 'organizer', 'participant', 'guest'
+    join_time: float | None = None
+    leave_time: float | None = None
     is_active: bool = True
     total_speaking_time: float = 0.0
     utterance_count: int = 0
@@ -52,10 +53,10 @@ class CaptionSegment:
     speaker_name: str
     text: str
     start_timestamp: float
-    end_timestamp: Optional[float] = None
+    end_timestamp: float | None = None
     confidence: float = 1.0
     caption_source: str = "google_meet"
-    segment_id: Optional[str] = None
+    segment_id: str | None = None
 
 
 @dataclass
@@ -65,8 +66,8 @@ class SpeakerTimelineEvent:
     event_type: str  # 'speaking_start', 'speaking_end', 'join', 'leave', 'role_change'
     speaker_id: str
     timestamp: float
-    duration: Optional[float] = None
-    metadata: Dict[str, Any] = None
+    duration: float | None = None
+    metadata: dict[str, Any] = None
 
 
 class GoogleMeetCaptionParser:
@@ -97,7 +98,7 @@ class GoogleMeetCaptionParser:
 
     def parse_caption(
         self, caption_text: str, timestamp: float
-    ) -> Tuple[Optional[CaptionSegment], Optional[SpeakerTimelineEvent]]:
+    ) -> tuple[CaptionSegment | None, SpeakerTimelineEvent | None]:
         """
         Parse a caption line and extract speaker and text information.
 
@@ -141,9 +142,7 @@ class GoogleMeetCaptionParser:
         logger.debug(f"Unmatched caption format: {caption_text}")
         return None, None
 
-    def _parse_system_message(
-        self, text: str, timestamp: float
-    ) -> Optional[SpeakerTimelineEvent]:
+    def _parse_system_message(self, text: str, timestamp: float) -> SpeakerTimelineEvent | None:
         """Parse system messages for timeline events."""
         for pattern in self.system_patterns:
             match = pattern.match(text)
@@ -170,9 +169,7 @@ class GoogleMeetCaptionParser:
                     speaker_name = match.group(1).strip()
                     speaker_id = self._generate_speaker_id(speaker_name)
                     event_type = (
-                        "start_presenting"
-                        if "is presenting" in text
-                        else "stop_presenting"
+                        "start_presenting" if "is presenting" in text else "stop_presenting"
                     )
                     return SpeakerTimelineEvent(
                         event_type=event_type,
@@ -200,12 +197,12 @@ class SpeakerTimelineManager:
         self.database_manager = database_manager
 
         # Speaker and timeline management
-        self.speakers: Dict[str, SpeakerInfo] = {}
-        self.timeline_events: List[SpeakerTimelineEvent] = []
-        self.caption_segments: List[CaptionSegment] = []
+        self.speakers: dict[str, SpeakerInfo] = {}
+        self.timeline_events: list[SpeakerTimelineEvent] = []
+        self.caption_segments: list[CaptionSegment] = []
 
         # Current speaking state
-        self.current_speakers: Dict[str, float] = {}  # speaker_id -> start_time
+        self.current_speakers: dict[str, float] = {}  # speaker_id -> start_time
 
         # Performance tracking
         self.total_captions = 0
@@ -214,6 +211,9 @@ class SpeakerTimelineManager:
 
         # Thread safety
         self.lock = threading.RLock()
+
+        # Background task management (prevents fire-and-forget)
+        self._background_tasks: set[asyncio.Task] = set()
 
         logger.info(f"SpeakerTimelineManager initialized for session: {session_id}")
 
@@ -231,7 +231,11 @@ class SpeakerTimelineManager:
             # Store in database if available
             if self.bot_manager and self.database_manager:
                 try:
-                    asyncio.create_task(self._store_participant_data(speaker_info))
+                    task = asyncio.create_task(
+                        self._store_participant_data(speaker_info)
+                    )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
                 except Exception as e:
                     logger.warning(f"Failed to store participant data: {e}")
 
@@ -286,7 +290,11 @@ class SpeakerTimelineManager:
                 # Store caption as transcript in database
                 if self.bot_manager and self.database_manager:
                     try:
-                        asyncio.create_task(self._store_caption_transcript(caption))
+                        task = asyncio.create_task(
+                            self._store_caption_transcript(caption)
+                        )
+                        self._background_tasks.add(task)
+                        task.add_done_callback(self._background_tasks.discard)
                     except Exception as e:
                         logger.warning(f"Failed to store caption transcript: {e}")
 
@@ -294,9 +302,7 @@ class SpeakerTimelineManager:
                 speaker = self.speakers[caption.speaker_id]
                 speaker.utterance_count += 1
 
-                logger.debug(
-                    f"Processed caption: {caption.speaker_name} - {caption.text[:50]}..."
-                )
+                logger.debug(f"Processed caption: {caption.speaker_name} - {caption.text[:50]}...")
                 return True
 
             except Exception as e:
@@ -359,7 +365,11 @@ class SpeakerTimelineManager:
                 # Store event in database
                 if self.bot_manager and self.database_manager:
                     try:
-                        asyncio.create_task(self._store_timeline_event(event))
+                        task = asyncio.create_task(
+                            self._store_timeline_event(event)
+                        )
+                        self._background_tasks.add(task)
+                        task.add_done_callback(self._background_tasks.discard)
                     except Exception as e:
                         logger.warning(f"Failed to store timeline event: {e}")
 
@@ -413,9 +423,7 @@ class SpeakerTimelineManager:
             )
             self.timeline_events.append(speaking_event)
 
-    def get_speaker_timeline(
-        self, start_time: float = None, end_time: float = None
-    ) -> List[Dict]:
+    def get_speaker_timeline(self, start_time: float | None = None, end_time: float | None = None) -> list[dict]:
         """Get speaker timeline for a time range."""
         with self.lock:
             timeline = []
@@ -439,8 +447,8 @@ class SpeakerTimelineManager:
             return sorted(timeline, key=lambda x: x["timestamp"])
 
     def get_speaker_segments(
-        self, speaker_id: str = None, start_time: float = None, end_time: float = None
-    ) -> List[Dict]:
+        self, speaker_id: str | None = None, start_time: float | None = None, end_time: float | None = None
+    ) -> list[dict]:
         """Get caption segments for a speaker or time range."""
         with self.lock:
             segments = []
@@ -467,7 +475,7 @@ class SpeakerTimelineManager:
 
             return sorted(segments, key=lambda x: x["start_timestamp"])
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get comprehensive timeline statistics."""
         with self.lock:
             runtime = time.time() - self.session_start_time
@@ -490,9 +498,7 @@ class SpeakerTimelineManager:
                 "session_id": self.session_id,
                 "runtime_seconds": runtime,
                 "total_speakers": self.total_speakers,
-                "active_speakers": sum(
-                    1 for s in self.speakers.values() if s.is_active
-                ),
+                "active_speakers": sum(1 for s in self.speakers.values() if s.is_active),
                 "total_captions": self.total_captions,
                 "total_timeline_events": len(self.timeline_events),
                 "current_speakers": list(self.current_speakers.keys()),
@@ -513,9 +519,7 @@ class GoogleMeetCaptionProcessor:
 
         # Components
         self.parser = GoogleMeetCaptionParser()
-        self.timeline_manager = SpeakerTimelineManager(
-            session_id, bot_manager, database_manager
-        )
+        self.timeline_manager = SpeakerTimelineManager(session_id, bot_manager, database_manager)
 
         # State management
         self.is_processing = False
@@ -528,9 +532,7 @@ class GoogleMeetCaptionProcessor:
 
         logger.info(f"GoogleMeetCaptionProcessor initialized for session: {session_id}")
 
-    def set_speaker_event_callback(
-        self, callback: Callable[[SpeakerTimelineEvent], None]
-    ):
+    def set_speaker_event_callback(self, callback: Callable[[SpeakerTimelineEvent], None]):
         """Set callback for speaker timeline events."""
         self.on_speaker_event = callback
 
@@ -552,9 +554,7 @@ class GoogleMeetCaptionProcessor:
             self.is_processing = True
 
             # Start processing thread
-            self.processing_thread = threading.Thread(
-                target=self._processing_loop, daemon=True
-            )
+            self.processing_thread = threading.Thread(target=self._processing_loop, daemon=True)
             self.processing_thread.start()
 
             logger.info("Started Google Meet caption processing")
@@ -604,22 +604,18 @@ class GoogleMeetCaptionProcessor:
                 "severity": "info",
             }
 
-            await self.bot_manager.store_session_event(
-                self.session_id, final_event_data
-            )
+            await self.bot_manager.store_session_event(self.session_id, final_event_data)
 
         except Exception as e:
             logger.error(f"Error finalizing timeline data: {e}")
 
-    def process_caption_line(self, caption_text: str, timestamp: float = None) -> bool:
+    def process_caption_line(self, caption_text: str, timestamp: float | None = None) -> bool:
         """Process a single caption line."""
         try:
             timestamp = timestamp or time.time()
 
             # Parse caption
-            caption_segment, timeline_event = self.parser.parse_caption(
-                caption_text, timestamp
-            )
+            caption_segment, timeline_event = self.parser.parse_caption(caption_text, timestamp)
 
             # Process caption segment
             if caption_segment:
@@ -665,7 +661,7 @@ class GoogleMeetCaptionProcessor:
 
         logger.info("Caption processing loop ended")
 
-    def _capture_google_meet_captions(self) -> Optional[List[Tuple[str, float]]]:
+    def _capture_google_meet_captions(self) -> list[tuple[str, float]] | None:
         """
         Capture captions from Google Meet.
 
@@ -675,7 +671,7 @@ class GoogleMeetCaptionProcessor:
         # For now, return empty to test the pipeline
         return []
 
-    def get_current_timeline(self) -> Dict[str, Any]:
+    def get_current_timeline(self) -> dict[str, Any]:
         """Get current speaker timeline data."""
         return {
             "session_id": self.session_id,

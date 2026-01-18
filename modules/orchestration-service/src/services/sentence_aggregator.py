@@ -14,10 +14,10 @@ Produces TranslationUnit objects ready for the RollingWindowTranslator.
 Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Sentence Aggregation System"
 """
 
-import re
 import logging
-from datetime import datetime, timezone
-from typing import Callable, Optional
+import re
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from models.fireflies import (
     FirefliesChunk,
@@ -83,16 +83,18 @@ ABBREVIATIONS = frozenset(
 )
 
 # Sentence-ending punctuation (including Unicode variants)
-SENTENCE_ENDINGS = frozenset({
-    ".",
-    "!",
-    "?",
-    "。",  # Chinese/Japanese period
-    "！",  # Chinese/Japanese exclamation
-    "？",  # Chinese/Japanese question
-    "¿",   # Spanish opening question (pair marker)
-    "¡",   # Spanish opening exclamation (pair marker)
-})
+SENTENCE_ENDINGS = frozenset(
+    {
+        ".",
+        "!",
+        "?",
+        "\u3002",  # Chinese/Japanese period
+        "\uff01",  # Chinese/Japanese exclamation
+        "\uff1f",  # Chinese/Japanese question
+        "¿",  # Spanish opening question (pair marker)
+        "¡",  # Spanish opening exclamation (pair marker)
+    }
+)
 
 # Pattern for decimal numbers (should not split on period)
 DECIMAL_PATTERN = re.compile(r"\d+\.\d+")
@@ -164,8 +166,8 @@ class SentenceAggregator:
         self,
         session_id: str,
         transcript_id: str,
-        config: Optional[FirefliesSessionConfig] = None,
-        on_sentence_ready: Optional[Callable[[TranslationUnit], None]] = None,
+        config: FirefliesSessionConfig | None = None,
+        on_sentence_ready: Callable[[TranslationUnit], None] | None = None,
     ):
         """
         Initialize the sentence aggregator.
@@ -180,14 +182,10 @@ class SentenceAggregator:
         self.transcript_id = transcript_id
 
         # Configuration
-        self.pause_threshold_ms = (
-            config.pause_threshold_ms if config else 800.0
-        )
+        self.pause_threshold_ms = config.pause_threshold_ms if config else 800.0
         self.max_buffer_words = config.max_buffer_words if config else 30
         self.max_buffer_seconds = config.max_buffer_seconds if config else 5.0
-        self.min_words_for_translation = (
-            config.min_words_for_translation if config else 3
-        )
+        self.min_words_for_translation = config.min_words_for_translation if config else 3
         self.use_nlp = config.use_nlp_boundary_detection if config else True
         self.nlp_threshold_words = 10  # Only run NLP when buffer has this many words
 
@@ -200,7 +198,7 @@ class SentenceAggregator:
         # Statistics
         self.chunks_processed = 0
         self.sentences_produced = 0
-        self.last_speaker: Optional[str] = None
+        self.last_speaker: str | None = None
 
         logger.info(
             f"SentenceAggregator initialized: session={session_id}, "
@@ -284,7 +282,7 @@ class SentenceAggregator:
         Returns all remaining text as TranslationUnits.
         """
         results: list[TranslationUnit] = []
-        for speaker, buffer in self.buffers.items():
+        for _speaker, buffer in self.buffers.items():
             if buffer.chunks:
                 flushed = self._flush_buffer(buffer, "session_end")
                 results.extend(flushed)
@@ -311,7 +309,7 @@ class SentenceAggregator:
 
     def _is_pause(
         self,
-        last_chunk: Optional[FirefliesChunk],
+        last_chunk: FirefliesChunk | None,
         new_chunk: FirefliesChunk,
     ) -> bool:
         """
@@ -331,9 +329,7 @@ class SentenceAggregator:
 
         return is_pause
 
-    def _extract_punctuated_sentences(
-        self, buffer: SpeakerBuffer
-    ) -> list[TranslationUnit]:
+    def _extract_punctuated_sentences(self, buffer: SpeakerBuffer) -> list[TranslationUnit]:
         """
         Extract complete sentences ending with sentence punctuation.
 
@@ -346,9 +342,8 @@ class SentenceAggregator:
         # Find all sentence boundaries
         boundaries = []
         for i, char in enumerate(text):
-            if char in SENTENCE_ENDINGS:
-                if self._is_real_sentence_boundary(text, i):
-                    boundaries.append(i)
+            if char in SENTENCE_ENDINGS and self._is_real_sentence_boundary(text, i):
+                boundaries.append(i)
 
         if not boundaries:
             return results
@@ -420,7 +415,7 @@ class SentenceAggregator:
         while end < len(text) and text[end].isalnum():
             end += 1
 
-        word_with_punct = text[start : end].lower()
+        word_with_punct = text[start:end].lower()
 
         # Check for abbreviation
         if char == "." and word_with_punct in ABBREVIATIONS:
@@ -434,10 +429,7 @@ class SentenceAggregator:
                 return False
 
         # Check if followed by lowercase letter (likely not sentence end)
-        if position + 1 < len(text) and text[position + 1].islower():
-            return False
-
-        return True
+        return not (position + 1 < len(text) and text[position + 1].islower())
 
     def _extract_nlp_sentences(self, buffer: SpeakerBuffer) -> list[TranslationUnit]:
         """
@@ -484,14 +476,18 @@ class SentenceAggregator:
             buffer.clear()
 
         if results:
-            logger.debug(f"NLP extracted {len(results)} sentences, remainder: '{remainder[:30]}...'")
+            logger.debug(
+                f"NLP extracted {len(results)} sentences, remainder: '{remainder[:30]}...'"
+            )
 
         return results
 
     def _exceeds_limits(self, buffer: SpeakerBuffer) -> bool:
         """Check if buffer exceeds word or time limits"""
         if buffer.word_count >= self.max_buffer_words:
-            logger.debug(f"Buffer exceeds word limit: {buffer.word_count} >= {self.max_buffer_words}")
+            logger.debug(
+                f"Buffer exceeds word limit: {buffer.word_count} >= {self.max_buffer_words}"
+            )
             return True
 
         if buffer.duration_seconds >= self.max_buffer_seconds:
@@ -502,9 +498,7 @@ class SentenceAggregator:
 
         return False
 
-    def _flush_buffer(
-        self, buffer: SpeakerBuffer, boundary_type: str
-    ) -> list[TranslationUnit]:
+    def _flush_buffer(self, buffer: SpeakerBuffer, boundary_type: str) -> list[TranslationUnit]:
         """
         Flush the entire buffer contents as a TranslationUnit.
 
@@ -574,5 +568,5 @@ class SentenceAggregator:
             transcript_id=self.transcript_id,
             chunk_ids=[c.chunk_id for c in buffer.chunks],
             boundary_type=boundary_type,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )

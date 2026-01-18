@@ -6,11 +6,13 @@ Modular voice enhancement implementation that can be used independently
 or as part of the complete audio processing pipeline.
 """
 
+from typing import Any
+
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple
-from ..stage_components import BaseAudioStage
+
 from ..config import VoiceEnhancementConfig
+from ..stage_components import BaseAudioStage
 
 
 class VoiceEnhancementStage(BaseAudioStage):
@@ -47,15 +49,11 @@ class VoiceEnhancementStage(BaseAudioStage):
         if abs(self.config.brightness_adjustment) > 0.01:
             brightness_freq = 5000 / nyquist
             brightness_freq = min(brightness_freq, 0.99)
-            self.brightness_filter = scipy.signal.butter(
-                2, brightness_freq, btype="high"
-            )
+            self.brightness_filter = scipy.signal.butter(2, brightness_freq, btype="high")
         else:
             self.brightness_filter = None
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through voice enhancement."""
         try:
             processed = audio_data.copy()
@@ -75,10 +73,7 @@ class VoiceEnhancementStage(BaseAudioStage):
                 enhancements_applied.append("presence")
 
             # Warmth adjustment
-            if (
-                abs(self.config.warmth_adjustment) > 0.01
-                and self.warmth_filter is not None
-            ):
+            if abs(self.config.warmth_adjustment) > 0.01 and self.warmth_filter is not None:
                 warmth_component = scipy.signal.filtfilt(
                     self.warmth_filter[0], self.warmth_filter[1], processed
                 )
@@ -86,16 +81,11 @@ class VoiceEnhancementStage(BaseAudioStage):
                 enhancements_applied.append("warmth")
 
             # Brightness adjustment
-            if (
-                abs(self.config.brightness_adjustment) > 0.01
-                and self.brightness_filter is not None
-            ):
+            if abs(self.config.brightness_adjustment) > 0.01 and self.brightness_filter is not None:
                 brightness_component = scipy.signal.filtfilt(
                     self.brightness_filter[0], self.brightness_filter[1], processed
                 )
-                processed = (
-                    processed + brightness_component * self.config.brightness_adjustment
-                )
+                processed = processed + brightness_component * self.config.brightness_adjustment
                 enhancements_applied.append("brightness")
 
             # Sibilance control
@@ -121,7 +111,7 @@ class VoiceEnhancementStage(BaseAudioStage):
             return processed, metadata
 
         except Exception as e:
-            raise Exception(f"Voice enhancement failed: {e}")
+            raise Exception(f"Voice enhancement failed: {e}") from e
 
     def _enhance_clarity(self, audio_data: np.ndarray) -> np.ndarray:
         """Enhance clarity using harmonic enhancement."""
@@ -156,9 +146,7 @@ class VoiceEnhancementStage(BaseAudioStage):
             )
 
             # Apply gentle compression to sibilance
-            compressed_sibilance = sibilance_component * (
-                1 - self.config.sibilance_control
-            )
+            compressed_sibilance = sibilance_component * (1 - self.config.sibilance_control)
 
             # Reconstruct audio
             return audio_data - sibilance_component + compressed_sibilance
@@ -178,7 +166,7 @@ class VoiceEnhancementStage(BaseAudioStage):
 
         return audio_data
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,

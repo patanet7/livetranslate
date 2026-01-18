@@ -10,8 +10,6 @@ Utility functions for analyzing transcription text:
 Extracted from whisper_service.py for better modularity and testability.
 """
 
-from typing import List, Tuple
-
 
 def detect_hallucination(text: str, confidence: float) -> bool:
     """
@@ -33,9 +31,15 @@ def detect_hallucination(text: str, confidence: float) -> bool:
     # Only flag very obvious hallucination patterns
     obvious_noise_patterns = [
         # Very short repetitive patterns
-        'aaaa', 'bbbb', 'cccc', 'dddd', 'eeee',
+        "aaaa",
+        "bbbb",
+        "cccc",
+        "dddd",
+        "eeee",
         # Common Whisper artifacts (but be more selective)
-        'mbc 뉴스', '김정진입니다', 'thanks for watching our channel',
+        "mbc 뉴스",
+        "김정진입니다",
+        "thanks for watching our channel",
     ]
 
     # Check for obvious noise only
@@ -53,13 +57,21 @@ def detect_hallucination(text: str, confidence: float) -> bool:
             return True
 
     # Check for single character repetition
-    if len(text_lower) > 10 and len(set(text_lower.replace(' ', ''))) < 3:
+    if len(text_lower) > 10 and len(set(text_lower.replace(" ", ""))) < 3:
         return True
 
     # Don't flag educational content about language learning
     educational_phrases = [
-        'english phrase', 'language', 'learning', 'practice', 'exercise',
-        'get in shape', 'happened to you', 'trying to think', 'word', 'vocabulary'
+        "english phrase",
+        "language",
+        "learning",
+        "practice",
+        "exercise",
+        "get in shape",
+        "happened to you",
+        "trying to think",
+        "word",
+        "vocabulary",
     ]
 
     for phrase in educational_phrases:
@@ -69,7 +81,7 @@ def detect_hallucination(text: str, confidence: float) -> bool:
     return False
 
 
-def find_stable_word_prefix(text_history: List[Tuple[str, float]], current_text: str) -> str:
+def find_stable_word_prefix(text_history: list[tuple[str, float]], current_text: str) -> str:
     """
     Find the stable word prefix from text history.
 
@@ -117,7 +129,9 @@ def find_stable_word_prefix(text_history: List[Tuple[str, float]], current_text:
     return ""
 
 
-def calculate_text_stability_score(text_history: List[Tuple[str, float]], stable_prefix: str) -> float:
+def calculate_text_stability_score(
+    text_history: list[tuple[str, float]], stable_prefix: str
+) -> float:
     """
     Calculate stability score based on text consistency.
 
@@ -154,11 +168,8 @@ def calculate_text_stability_score(text_history: List[Tuple[str, float]], stable
     consistency_score = consistency / min(5, len(text_history))
 
     # Factor 3: Age bonus (longer stable = higher score)
-    if len(text_history) >= 3:
-        age_bonus = min(0.2, len(text_history) * 0.05)
-    else:
-        age_bonus = 0.0
+    age_bonus = min(0.2, len(text_history) * 0.05) if len(text_history) >= 3 else 0.0
 
     # Combine factors
-    score = (stable_ratio * 0.5 + consistency_score * 0.4 + age_bonus)
+    score = stable_ratio * 0.5 + consistency_score * 0.4 + age_bonus
     return min(1.0, max(0.0, score))

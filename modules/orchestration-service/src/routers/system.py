@@ -9,21 +9,21 @@ FastAPI router for system-wide management endpoints including:
 """
 
 import logging
-from typing import Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-import psutil
 import time
 from datetime import datetime
+from typing import Any
 
+import psutil
 from dependencies import (
     get_health_monitor,
     get_websocket_manager,
 )
+from fastapi import APIRouter, Depends, HTTPException, status
 from models.system import (
     ServiceHealth,
     SystemMetrics,
 )
+from pydantic import BaseModel
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class SystemStatsResponse(BaseModel):
     cpu_usage: float
     memory_usage: float
     disk_usage: float
-    network_io: Dict[str, int]
+    network_io: dict[str, int]
     process_count: int
     uptime: float
     timestamp: datetime
@@ -52,7 +52,7 @@ class ServiceHealthSummary(BaseModel):
     healthy_services: int
     unhealthy_services: int
     degraded_services: int
-    services: List[List[ServiceHealth]]
+    services: list[list[ServiceHealth]]
 
 
 class SystemMetricsResponse(BaseModel):
@@ -60,7 +60,7 @@ class SystemMetricsResponse(BaseModel):
 
     performance: SystemMetrics
     services: ServiceHealthSummary
-    websocket_stats: Dict[str, Any]
+    websocket_stats: dict[str, Any]
     system_stats: SystemStatsResponse
 
 
@@ -103,8 +103,8 @@ async def get_system_health(
         logger.error(f"Failed to get system health: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get system health: {str(e)}",
-        )
+            detail=f"Failed to get system health: {e!s}",
+        ) from e
 
 
 @router.get("/health/detailed")
@@ -128,8 +128,8 @@ async def get_detailed_health(
         logger.error(f"Failed to get detailed health: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get detailed health: {str(e)}",
-        )
+            detail=f"Failed to get detailed health: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -154,9 +154,7 @@ async def get_services_status(
         # Calculate summary statistics
         total = len(services_status)
         healthy = sum(1 for service in services_status if service.status == "healthy")
-        unhealthy = sum(
-            1 for service in services_status if service.status == "unhealthy"
-        )
+        unhealthy = sum(1 for service in services_status if service.status == "unhealthy")
         degraded = sum(1 for service in services_status if service.status == "degraded")
 
         return ServiceHealthSummary(
@@ -171,8 +169,8 @@ async def get_services_status(
         logger.error(f"Failed to get services status: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get services status: {str(e)}",
-        )
+            detail=f"Failed to get services status: {e!s}",
+        ) from e
 
 
 @router.get("/services/{service_name}")
@@ -204,8 +202,8 @@ async def get_service_status(
         logger.error(f"Failed to get service status: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get service status: {str(e)}",
-        )
+            detail=f"Failed to get service status: {e!s}",
+        ) from e
 
 
 @router.post("/services/{service_name}/restart")
@@ -246,8 +244,8 @@ async def restart_service(
         logger.error(f"Failed to restart service: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to restart service: {str(e)}",
-        )
+            detail=f"Failed to restart service: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -316,8 +314,8 @@ async def get_system_metrics(
         logger.error(f"Failed to get system metrics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get system metrics: {str(e)}",
-        )
+            detail=f"Failed to get system metrics: {e!s}",
+        ) from e
 
 
 @router.get("/metrics/performance")
@@ -340,8 +338,8 @@ async def get_performance_metrics(
         logger.error(f"Failed to get performance metrics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get performance metrics: {str(e)}",
-        )
+            detail=f"Failed to get performance metrics: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -364,10 +362,10 @@ async def get_ui_config():
     All dashboards and UIs should fetch from this endpoint.
     """
     from system_constants import (
-        SUPPORTED_LANGUAGES,
-        GLOSSARY_DOMAINS,
         DEFAULT_CONFIG,
+        GLOSSARY_DOMAINS,
         PROMPT_TEMPLATE_VARIABLES,
+        SUPPORTED_LANGUAGES,
     )
 
     # Fetch translation models from translation service (if available)
@@ -375,6 +373,7 @@ async def get_ui_config():
     translation_service_available = False
     try:
         from clients.translation_service_client import TranslationServiceClient
+
         client = TranslationServiceClient()
         translation_models = await client.get_models()
         translation_service_available = True
@@ -387,18 +386,20 @@ async def get_ui_config():
     try:
         import aiohttp
         from config import get_settings
-        settings = get_settings()
-        translation_url = getattr(settings, 'translation_service_url', 'http://localhost:5003')
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{translation_url}/prompts",
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                if resp.status == 200:
-                    prompts_data = await resp.json()
-                    prompt_templates = prompts_data.get("prompts", [])
-                    prompts_available = True
+        settings = get_settings()
+        translation_url = getattr(settings, "translation_service_url", "http://localhost:5003")
+
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                f"{translation_url}/prompts", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp,
+        ):
+            if resp.status == 200:
+                prompts_data = await resp.json()
+                prompt_templates = prompts_data.get("prompts", [])
+                prompts_available = True
     except Exception as e:
         logger.debug(f"Could not fetch prompts: {e}")
 
@@ -409,20 +410,18 @@ async def get_ui_config():
         "domains": GLOSSARY_DOMAINS,
         "defaults": DEFAULT_CONFIG,
         "prompt_variables": PROMPT_TEMPLATE_VARIABLES,
-
         # Dynamic configuration (from services)
         "translation_models": translation_models,
         "translation_service_available": translation_service_available,
         "prompt_templates": prompt_templates,
         "prompts_available": prompts_available,
-
         # Metadata
         "config_version": "1.0",
         "source": "orchestration-service",
     }
 
 
-@router.get("/config", response_model=Dict[str, Any])
+@router.get("/config", response_model=dict[str, Any])
 async def get_system_config(
     health_monitor=Depends(get_health_monitor),
     # Authentication will be handled by middleware
@@ -437,19 +436,19 @@ async def get_system_config(
     try:
         config = await health_monitor.get_system_config()
 
-        return Dict[str, Any](**config)
+        return dict[str, Any](**config)
 
     except Exception as e:
         logger.error(f"Failed to get system config: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get system config: {str(e)}",
-        )
+            detail=f"Failed to get system config: {e!s}",
+        ) from e
 
 
 @router.post("/config")
 async def update_system_config(
-    config_update: Dict[str, Any],
+    config_update: dict[str, Any],
     health_monitor=Depends(get_health_monitor),
     # Authentication will be handled by middleware
     # Rate limiting will be handled by middleware
@@ -476,8 +475,8 @@ async def update_system_config(
         logger.error(f"Failed to update system config: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update system config: {str(e)}",
-        )
+            detail=f"Failed to update system config: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -508,8 +507,8 @@ async def start_maintenance_mode(
         logger.error(f"Failed to start maintenance mode: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start maintenance mode: {str(e)}",
-        )
+            detail=f"Failed to start maintenance mode: {e!s}",
+        ) from e
 
 
 @router.post("/maintenance/stop")
@@ -534,8 +533,8 @@ async def stop_maintenance_mode(
         logger.error(f"Failed to stop maintenance mode: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to stop maintenance mode: {str(e)}",
-        )
+            detail=f"Failed to stop maintenance mode: {e!s}",
+        ) from e
 
 
 @router.get("/maintenance/status")
@@ -557,8 +556,8 @@ async def get_maintenance_status(
         logger.error(f"Failed to get maintenance status: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get maintenance status: {str(e)}",
-        )
+            detail=f"Failed to get maintenance status: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -641,4 +640,4 @@ async def get_system_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="System status check failed",
-        )
+        ) from e

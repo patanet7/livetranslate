@@ -76,7 +76,7 @@ check_docker() {
         log_error "❌ Docker not found. Please install Docker."
         exit 1
     fi
-    
+
     if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
         log_error "❌ Docker Compose not found. Please install Docker Compose."
         exit 1
@@ -92,19 +92,19 @@ test_database() {
 wait_for_database() {
     local max_attempts=30
     local delay=2
-    
+
     log_warning "🔄 Waiting for database to be ready..."
-    
+
     for ((i=1; i<=max_attempts; i++)); do
         if test_database; then
             log_success "✅ Database is ready!"
             return 0
         fi
-        
+
         echo "   Attempt $i/$max_attempts - waiting..."
         sleep $delay
     done
-    
+
     log_error "❌ Database failed to start within expected time"
     return 1
 }
@@ -113,10 +113,10 @@ wait_for_database() {
 show_database_info() {
     log_info "\n📊 Database Service Information"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     # Check container status
     local containers=("livetranslate-postgres" "livetranslate-redis" "livetranslate-pgadmin")
-    
+
     for container in "${containers[@]}"; do
         if docker ps --filter "name=$container" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -q "$container"; then
             docker ps --filter "name=$container" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep "$container"
@@ -124,7 +124,7 @@ show_database_info() {
             log_error "❌ $container: Not running"
         fi
     done
-    
+
     echo ""
     echo "🔗 Connection Information:"
     echo "   PostgreSQL: localhost:5432"
@@ -152,7 +152,7 @@ show_useful_commands() {
 create_config_files() {
     # Create directories
     mkdir -p docker/postgres docker/redis docker/pgadmin
-    
+
     # PostgreSQL configuration
     cat > docker/postgres/postgresql.conf << 'EOF'
 # PostgreSQL Configuration for LiveTranslate
@@ -234,20 +234,20 @@ EOF
 main() {
     log_success "🚀 Starting LiveTranslate Database Services"
     log_info "Mode: $MODE"
-    
+
     # Check Docker installation
     check_docker
-    
+
     # Navigate to project root
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
     cd "$PROJECT_ROOT"
-    
+
     log_info "📁 Working directory: $PROJECT_ROOT"
-    
+
     # Create configuration files
     create_config_files
-    
+
     # Set environment variables based on mode
     if [[ "$MODE" == "prod" ]]; then
         export POSTGRES_PASSWORD="secure_production_password_change_me"
@@ -256,14 +256,14 @@ main() {
         export POSTGRES_PASSWORD="livetranslate_dev_password"
         export PGADMIN_PASSWORD="admin"
     fi
-    
+
     export PGADMIN_EMAIL="admin@livetranslate.local"
-    
+
     # Clean volumes if requested
     if [[ "$CLEAN" == true ]]; then
         log_warning "🧹 Cleaning existing data volumes..."
         docker-compose -f docker-compose.database.yml down -v --remove-orphans 2>/dev/null || true
-        
+
         # Remove named volumes explicitly
         local volumes=("livetranslate_postgres_data" "livetranslate_redis_data" "livetranslate_pgadmin_data")
         for volume in "${volumes[@]}"; do
@@ -271,7 +271,7 @@ main() {
             log_warning "   Removed volume: $volume"
         done
     fi
-    
+
     # Start services
     log_warning "🐳 Starting Docker containers..."
     if docker-compose -f docker-compose.database.yml up -d --remove-orphans; then
@@ -280,30 +280,30 @@ main() {
         log_error "❌ Failed to start Docker containers"
         exit 1
     fi
-    
+
     # Wait for database to be ready
     if ! wait_for_database; then
         log_error "❌ Database startup failed"
         log_warning "💡 Try running with --clean flag to reset data"
         exit 1
     fi
-    
+
     # Give services a moment to fully initialize
     sleep 5
-    
+
     # Show service information
     show_database_info
     show_useful_commands
-    
+
     log_success "🎉 Database services started successfully!"
     log_info "💡 Use pgAdmin at http://localhost:8080 to manage the database"
-    
+
     # Show logs if requested
     if [[ "$SHOW_LOGS" == true ]]; then
         log_info "\n📋 Showing real-time logs (Ctrl+C to exit)..."
         docker-compose -f docker-compose.database.yml logs -f
     fi
-    
+
     log_success "\n✅ Database startup complete!"
 }
 

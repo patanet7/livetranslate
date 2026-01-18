@@ -6,9 +6,9 @@ Tests focused on manual testing workflow, loopback audio, and graceful fallbacks
 These tests verify the system works properly for your testing scenarios.
 """
 
-import unittest
 import asyncio
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,10 +19,10 @@ sys.path.insert(0, str(orchestration_root))
 sys.path.insert(0, str(src_path))
 
 from src.audio.speaker_correlator import (
-    SpeakerCorrelationManager,
-    ManualSpeakerMapping,
-    LoopbackSpeakerInfo,
     CorrelationMethod,
+    LoopbackSpeakerInfo,
+    ManualSpeakerMapping,
+    SpeakerCorrelationManager,
     create_speaker_correlation_manager,
 )
 
@@ -48,9 +48,7 @@ class TestManualSpeakerMapping(unittest.TestCase):
 
     def test_manual_mapping_defaults(self):
         """Test manual mapping with default values."""
-        mapping = ManualSpeakerMapping(
-            whisper_speaker_id="speaker_1", display_name="Test User 2"
-        )
+        mapping = ManualSpeakerMapping(whisper_speaker_id="speaker_1", display_name="Test User 2")
 
         self.assertEqual(mapping.whisper_speaker_id, "speaker_1")
         self.assertEqual(mapping.display_name, "Test User 2")
@@ -60,9 +58,7 @@ class TestManualSpeakerMapping(unittest.TestCase):
 
     def test_mapping_to_dict(self):
         """Test converting mapping to dictionary."""
-        mapping = ManualSpeakerMapping(
-            whisper_speaker_id="speaker_0", display_name="Test User"
-        )
+        mapping = ManualSpeakerMapping(whisper_speaker_id="speaker_0", display_name="Test User")
 
         result = mapping.to_dict()
 
@@ -103,9 +99,7 @@ class TestLoopbackSpeakerInfo(unittest.TestCase):
 
     def test_loopback_to_dict(self):
         """Test converting loopback info to dictionary."""
-        info = LoopbackSpeakerInfo(
-            estimated_speaker_count=3, primary_speaker_name="Test Primary"
-        )
+        info = LoopbackSpeakerInfo(estimated_speaker_count=3, primary_speaker_name="Test Primary")
 
         result = info.to_dict()
 
@@ -187,12 +181,8 @@ class TestManualSpeakerCorrelation(unittest.TestCase):
         self.assertTrue(result)
         self.assertIn(session_id, self.manager.manual_mappings)
         self.assertEqual(len(self.manager.manual_mappings[session_id]), 2)
-        self.assertEqual(
-            self.manager.manual_mappings[session_id][0].display_name, "Alice"
-        )
-        self.assertEqual(
-            self.manager.manual_mappings[session_id][1].display_name, "Bob"
-        )
+        self.assertEqual(self.manager.manual_mappings[session_id][0].display_name, "Alice")
+        self.assertEqual(self.manager.manual_mappings[session_id][1].display_name, "Bob")
 
     def test_manual_correlation_with_mappings(self):
         """Test correlation using manual mappings."""
@@ -229,9 +219,7 @@ class TestManualSpeakerCorrelation(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(result.method_used, CorrelationMethod.MANUAL)
         self.assertEqual(len(result.correlations), 2)
-        self.assertEqual(
-            result.confidence_score, 1.0
-        )  # Manual mappings have full confidence
+        self.assertEqual(result.confidence_score, 1.0)  # Manual mappings have full confidence
 
         # Check individual correlations
         correlations = result.correlations
@@ -453,9 +441,7 @@ class TestCorrelationMethodSelection(unittest.TestCase):
         result = asyncio.run(run_test())
 
         self.assertEqual(result.method_used, CorrelationMethod.GOOGLE_MEET_API)
-        self.assertEqual(
-            result.correlations[0].external_speaker_name, "Google Meet User"
-        )
+        self.assertEqual(result.correlations[0].external_speaker_name, "Google Meet User")
 
     def test_fallback_method_selection(self):
         """Test fallback method when others not available."""
@@ -574,9 +560,7 @@ class TestCorrelationStatistics(unittest.TestCase):
         async def run_test():
             # Set manual mappings for multiple sessions
             for i in range(3):
-                await self.manager.set_manual_speaker_mapping(
-                    f"{session_id}_{i}", mappings
-                )
+                await self.manager.set_manual_speaker_mapping(f"{session_id}_{i}", mappings)
 
             # Perform multiple correlations
             for i in range(3):
@@ -679,9 +663,7 @@ class TestSessionManagement(unittest.TestCase):
             )
 
             # Verify correlations exist
-            correlations_before = await self.manager.get_session_correlations(
-                session_id
-            )
+            correlations_before = await self.manager.get_session_correlations(session_id)
 
             # Clear correlations
             await self.manager.clear_session_correlations(session_id)
@@ -718,12 +700,8 @@ class TestCorrelationIntegration(unittest.TestCase):
         async def run_test():
             # 1. Set up manual speaker mappings
             mappings = [
-                ManualSpeakerMapping(
-                    "speaker_0", "Alice", "Alice Johnson", "Primary test speaker"
-                ),
-                ManualSpeakerMapping(
-                    "speaker_1", "Bob", "Bob Smith", "Secondary test speaker"
-                ),
+                ManualSpeakerMapping("speaker_0", "Alice", "Alice Johnson", "Primary test speaker"),
+                ManualSpeakerMapping("speaker_1", "Bob", "Bob Smith", "Secondary test speaker"),
             ]
 
             await manager.set_manual_speaker_mapping(session_id, mappings)

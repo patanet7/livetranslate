@@ -92,7 +92,7 @@ Write-Host "🚀 Starting backend service..." -ForegroundColor Yellow
 $backendJob = Start-Job -ScriptBlock {
     Set-Location $using:PWD
     Set-Location "modules/orchestration-service"
-    
+
     # Install dependencies via Poetry (includes dev/audio extras)
     poetry install --with dev,audio --no-root --no-interaction
 
@@ -165,13 +165,13 @@ try {
     # Cleanup: Stop backend job
     Write-Host ""
     Write-Host "🛑 Stopping all services..." -ForegroundColor Yellow
-    
+
     Stop-Job $backendJob -ErrorAction SilentlyContinue
     Remove-Job $backendJob -ErrorAction SilentlyContinue
-    
+
     Stop-Job $browserJob -ErrorAction SilentlyContinue
     Remove-Job $browserJob -ErrorAction SilentlyContinue
-    
+
     Write-Host "✅ All services stopped" -ForegroundColor Green
     Write-Host ""
     Write-Host "Thank you for using LiveTranslate! 🎉" -ForegroundColor Cyan

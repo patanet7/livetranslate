@@ -9,12 +9,11 @@ These tests validate that:
 This ensures the Fireflies integration isn't a "surprise" to the translation service.
 """
 
-import asyncio
-import pytest
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
+
+import pytest
 
 # Add src to path
 orchestration_root = Path(__file__).parent.parent.parent.parent
@@ -24,17 +23,12 @@ sys.path.insert(0, str(orchestration_root))
 
 # Import ACTUAL contracts from production code
 from clients.translation_service_client import (
-    TranslationServiceClient,
     TranslationRequest,
     TranslationResponse,
 )
 from models.fireflies import (
     TranslationUnit,
-    TranslationContext,
-    TranslationResult,
-    FirefliesSessionConfig,
 )
-
 
 # =============================================================================
 # Contract Validation Helpers
@@ -78,7 +72,7 @@ class ContractValidatingTranslationClient:
     3. Contract violations are detected immediately
     """
 
-    def __init__(self, translations: dict = None):
+    def __init__(self, translations: dict | None = None):
         self.translations = translations or {}
         self.requests_received = []
         self.call_count = 0
@@ -92,8 +86,7 @@ class ContractValidatingTranslationClient:
 
         # Generate response
         translated_text = self.translations.get(
-            request.text,
-            f"[{request.target_language}] {request.text}"
+            request.text, f"[{request.target_language}] {request.text}"
         )
 
         # BUILD RESPONSE USING ACTUAL CONTRACT
@@ -106,7 +99,7 @@ class ContractValidatingTranslationClient:
             model_used=request.model,
             backend_used="contract_test",
             session_id=request.session_id,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         # VALIDATE OUTPUT CONTRACT
@@ -275,7 +268,7 @@ class TestRollingWindowTranslatorContracts:
         )
 
         # WHEN: Translating
-        result = await translator.translate(
+        await translator.translate(
             unit=translation_unit,
             target_language="es",
             source_language="en",
@@ -341,7 +334,7 @@ class TestRollingWindowTranslatorContracts:
                 chunk_ids=[f"chunk-{i:03d}"],
                 boundary_type="punctuation",
             )
-            result = await translator.translate(unit, target_language="es")
+            await translator.translate(unit, target_language="es")
 
         # THEN: All requests were valid
         assert contract_client.call_count == 3

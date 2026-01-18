@@ -22,16 +22,16 @@ Usage:
 """
 
 import asyncio
-import json
 import base64
+import json
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Any, Set, Optional
-import websockets
-from websockets.asyncio.server import ServerConnection
+from datetime import UTC, datetime
+from typing import Any
 
-from stream_session_manager import StreamSessionManager
+import websockets
 from segment_timestamper import SegmentTimestamper
+from stream_session_manager import StreamSessionManager
+from websockets.asyncio.server import ServerConnection
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +43,7 @@ class WebSocketStreamServer:
     Manages WebSocket connections and routes messages to session manager
     """
 
-    def __init__(
-        self,
-        host: str = "0.0.0.0",
-        port: int = 5001,
-        model_manager=None
-    ):
+    def __init__(self, host: str = "0.0.0.0", port: int = 5001, model_manager=None):
         """
         Initialize WebSocket stream server
 
@@ -66,8 +61,8 @@ class WebSocketStreamServer:
         self.timestamper = SegmentTimestamper()
 
         # WebSocket connection tracking
-        self.connections: Set[ServerConnection] = set()
-        self.session_to_ws: Dict[str, ServerConnection] = {}
+        self.connections: set[ServerConnection] = set()
+        self.session_to_ws: dict[str, ServerConnection] = {}
 
         # Server instance
         self.server = None
@@ -84,11 +79,7 @@ class WebSocketStreamServer:
         self.running = True
 
         async with websockets.serve(
-            self.handle_connection,
-            self.host,
-            self.port,
-            ping_interval=30,
-            ping_timeout=10
+            self.handle_connection, self.host, self.port, ping_interval=30, ping_timeout=10
         ) as self.server:
             logger.info(f"✅ WebSocket server started on ws://{self.host}:{self.port}/stream")
 
@@ -137,10 +128,7 @@ class WebSocketStreamServer:
             self.connections.discard(websocket)
 
             # Clean up sessions for this connection
-            sessions_to_close = [
-                sid for sid, ws in self.session_to_ws.items()
-                if ws == websocket
-            ]
+            sessions_to_close = [sid for sid, ws in self.session_to_ws.items() if ws == websocket]
             for session_id in sessions_to_close:
                 await self.session_manager.close_session(session_id)
                 del self.session_to_ws[session_id]
@@ -175,7 +163,7 @@ class WebSocketStreamServer:
             logger.error(f"Error handling message: {e}")
             await self.send_error(websocket, f"Server error: {e}")
 
-    async def handle_start_stream(self, websocket: ServerConnection, data: Dict[str, Any]):
+    async def handle_start_stream(self, websocket: ServerConnection, data: dict[str, Any]):
         """
         Handle start_stream action
 
@@ -208,10 +196,7 @@ class WebSocketStreamServer:
             return
 
         # Create session
-        session = await self.session_manager.create_session(
-            session_id=session_id,
-            config=config
-        )
+        await self.session_manager.create_session(session_id=session_id, config=config)
 
         # Track connection
         self.session_to_ws[session_id] = websocket
@@ -220,14 +205,14 @@ class WebSocketStreamServer:
         response = {
             "type": "session_started",
             "session_id": session_id,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
         await websocket.send(json.dumps(response))
 
         logger.info(f"Started streaming session: {session_id}")
 
-    async def handle_audio_chunk(self, websocket: ServerConnection, data: Dict[str, Any]):
+    async def handle_audio_chunk(self, websocket: ServerConnection, data: dict[str, Any]):
         """
         Handle audio_chunk message
 
@@ -257,7 +242,7 @@ class WebSocketStreamServer:
         if timestamp_str:
             timestamp = self.timestamper.parse_timestamp(timestamp_str)
         else:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now(UTC)
 
         # Decode audio
         try:
@@ -268,9 +253,7 @@ class WebSocketStreamServer:
 
         # Add to session buffer
         success = await self.session_manager.add_audio_chunk(
-            session_id=session_id,
-            audio_data=audio_bytes,
-            timestamp=timestamp
+            session_id=session_id, audio_data=audio_bytes, timestamp=timestamp
         )
 
         if not success:
@@ -284,21 +267,15 @@ class WebSocketStreamServer:
         for segment in segments:
             # Add absolute timestamps
             timestamped_segment = self.timestamper.add_absolute_timestamps(
-                segment=segment,
-                chunk_start_time=timestamp,
-                is_final=False
+                segment=segment, chunk_start_time=timestamp, is_final=False
             )
 
             # Send segment
-            response = {
-                "type": "segment",
-                "session_id": session_id,
-                **timestamped_segment
-            }
+            response = {"type": "segment", "session_id": session_id, **timestamped_segment}
 
             await websocket.send(json.dumps(response))
 
-    async def handle_close_stream(self, websocket: ServerConnection, data: Dict[str, Any]):
+    async def handle_close_stream(self, websocket: ServerConnection, data: dict[str, Any]):
         """
         Handle close_stream action
 
@@ -333,7 +310,7 @@ class WebSocketStreamServer:
         response = {
             "type": "session_closed",
             "session_id": session_id,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
         await websocket.send(json.dumps(response))
@@ -351,7 +328,7 @@ class WebSocketStreamServer:
         response = {
             "type": "error",
             "error": error_message,
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         }
 
         await websocket.send(json.dumps(response))
@@ -388,9 +365,9 @@ if __name__ == "__main__":
         print("=" * 50)
 
         # Create server
-        server = WebSocketStreamServer(host="localhost", port=5001)
+        WebSocketStreamServer(host="localhost", port=5001)
 
-        print(f"\n[TEST] Starting server on ws://localhost:5001/stream")
+        print("\n[TEST] Starting server on ws://localhost:5001/stream")
 
         # Start server (would run forever in production)
         # In test, we'd need to connect with a client
@@ -399,8 +376,10 @@ if __name__ == "__main__":
         print("\n✅ WebSocket Stream Server Ready")
         print("\nTo test:")
         print("  1. Connect: ws://localhost:5001/stream")
-        print("  2. Send: {\"action\": \"start_stream\", \"session_id\": \"test\", \"config\": {}}")
-        print("  3. Send: {\"type\": \"audio_chunk\", \"session_id\": \"test\", \"audio\": \"<base64>\", \"timestamp\": \"...\"}")
-        print("  4. Receive: {\"type\": \"segment\", ...}")
+        print('  2. Send: {"action": "start_stream", "session_id": "test", "config": {}}')
+        print(
+            '  3. Send: {"type": "audio_chunk", "session_id": "test", "audio": "<base64>", "timestamp": "..."}'
+        )
+        print('  4. Receive: {"type": "segment", ...}')
 
     asyncio.run(test_server())

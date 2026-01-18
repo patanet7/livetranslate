@@ -93,7 +93,7 @@ async function startRecord(option) {
     const socket = new WebSocket(`ws://${option.host}:${option.port}/`);
     let isServerReady = false;
     let language = option.language;
-    socket.onopen = function(e) { 
+    socket.onopen = function(e) {
       socket.send(
         JSON.stringify({
           uid: uuid,
@@ -109,25 +109,25 @@ async function startRecord(option) {
       const data = JSON.parse(event.data);
       if (data["uid"] !== uuid)
         return;
-      
+
       if (data["status"] === "WAIT"){
         await sendMessageToTab(option.currentTabId, {
           type: "showWaitPopup",
           data: data["message"],
         });
-        chrome.runtime.sendMessage({ action: "toggleCaptureButtons", data: false }) 
+        chrome.runtime.sendMessage({ action: "toggleCaptureButtons", data: false })
         chrome.runtime.sendMessage({ action: "stopCapture" })
         return;
       }
-        
+
       if (isServerReady === false){
         isServerReady = true;
         return;
       }
-      
+
       if (language === null) {
         language = data["language"];
-        
+
         // send message to popup.js to update dropdown
         // console.log(language);
         chrome.runtime.sendMessage({
@@ -139,7 +139,7 @@ async function startRecord(option) {
       }
 
       if (data["message"] === "DISCONNECT"){
-        chrome.runtime.sendMessage({ action: "toggleCaptureButtons", data: false })        
+        chrome.runtime.sendMessage({ action: "toggleCaptureButtons", data: false })
         return;
       }
 
@@ -149,7 +149,7 @@ async function startRecord(option) {
       });
     };
 
-    
+
     const audioDataCache = [];
     const context = new AudioContext();
     const mediaStream = context.createMediaStreamSource(stream);

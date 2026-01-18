@@ -1,5 +1,5 @@
 """Infrastructure utilities for orchestration service."""
 
-from .queue import EventPublisher, DEFAULT_STREAMS, QueuePublishResult  # noqa
+from .queue import DEFAULT_STREAMS, EventPublisher, QueuePublishResult
 
-__all__ = ["EventPublisher", "DEFAULT_STREAMS", "QueuePublishResult"]
+__all__ = ["DEFAULT_STREAMS", "EventPublisher", "QueuePublishResult"]

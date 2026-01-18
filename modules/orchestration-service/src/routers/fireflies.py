@@ -14,35 +14,34 @@ with source_type='fireflies'.
 
 import logging
 import uuid
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, status, Depends, BackgroundTasks
-from pydantic import BaseModel, Field
-
+from clients.fireflies_client import (
+    FirefliesAPIError,
+    FirefliesClient,
+)
+from config import FirefliesSettings, get_settings
+from dependencies import get_data_pipeline
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from models.fireflies import (
+    ActiveMeetingsResponse,
     FirefliesChunk,
-    FirefliesSession,
-    FirefliesSessionConfig,
     FirefliesConnectionStatus,
     FirefliesConnectResponse,
-    ActiveMeetingsResponse,
+    FirefliesSession,
+    FirefliesSessionConfig,
 )
-from clients.fireflies_client import (
-    FirefliesClient,
-    FirefliesAPIError,
-)
-from config import get_settings, FirefliesSettings
-from dependencies import get_data_pipeline
+from pydantic import BaseModel, Field
+from services.caption_buffer import CaptionBuffer
 
 # Pipeline imports (DRY coordinator)
 from services.pipeline import (
-    TranscriptionPipelineCoordinator,
-    PipelineConfig,
     FirefliesChunkAdapter,
     ImportChunkAdapter,
+    PipelineConfig,
+    TranscriptionPipelineCoordinator,
 )
-from services.caption_buffer import CaptionBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -66,22 +65,22 @@ class FirefliesSessionManager:
     """
 
     def __init__(self):
-        self._sessions: Dict[str, FirefliesSession] = {}
-        self._clients: Dict[str, FirefliesClient] = {}
-        self._transcript_handlers: Dict[str, Any] = {}
+        self._sessions: dict[str, FirefliesSession] = {}
+        self._clients: dict[str, FirefliesClient] = {}
+        self._transcript_handlers: dict[str, Any] = {}
         # Pipeline coordinators (DRY - same for all sources)
-        self._coordinators: Dict[str, TranscriptionPipelineCoordinator] = {}
-        self._caption_buffers: Dict[str, CaptionBuffer] = {}
+        self._coordinators: dict[str, TranscriptionPipelineCoordinator] = {}
+        self._caption_buffers: dict[str, CaptionBuffer] = {}
 
-    def get_session(self, session_id: str) -> Optional[FirefliesSession]:
+    def get_session(self, session_id: str) -> FirefliesSession | None:
         """Get session by ID"""
         return self._sessions.get(session_id)
 
-    def get_all_sessions(self) -> List[FirefliesSession]:
+    def get_all_sessions(self) -> list[FirefliesSession]:
         """Get all active sessions"""
         return list(self._sessions.values())
 
-    def get_client(self, session_id: str) -> Optional[FirefliesClient]:
+    def get_client(self, session_id: str) -> FirefliesClient | None:
         """Get Fireflies client for session"""
         return self._clients.get(session_id)
 
@@ -170,7 +169,7 @@ class FirefliesSessionManager:
 
         async def handle_transcript(chunk: FirefliesChunk):
             session.chunks_received += 1
-            session.last_chunk_time = datetime.now(timezone.utc)
+            session.last_chunk_time = datetime.now(UTC)
             session.last_chunk_id = chunk.chunk_id
 
             # Track unique speakers
@@ -192,12 +191,10 @@ class FirefliesSessionManager:
             if on_transcript:
                 await on_transcript(session_id, chunk)
 
-        async def handle_status(
-            new_status: FirefliesConnectionStatus, message: Optional[str]
-        ):
+        async def handle_status(new_status: FirefliesConnectionStatus, message: str | None):
             session.connection_status = new_status
             if new_status == FirefliesConnectionStatus.CONNECTED:
-                session.connected_at = datetime.now(timezone.utc)
+                session.connected_at = datetime.now(UTC)
             elif new_status == FirefliesConnectionStatus.ERROR:
                 session.error_count += 1
                 session.last_error = message
@@ -205,7 +202,7 @@ class FirefliesSessionManager:
             if on_status_change:
                 await on_status_change(session_id, new_status, message)
 
-        async def handle_error(message: str, exception: Optional[Exception]):
+        async def handle_error(message: str, exception: Exception | None):
             session.error_count += 1
             session.last_error = message
 
@@ -257,11 +254,11 @@ class FirefliesSessionManager:
         logger.info(f"Disconnected Fireflies session: {session_id}")
         return True
 
-    def get_coordinator(self, session_id: str) -> Optional[TranscriptionPipelineCoordinator]:
+    def get_coordinator(self, session_id: str) -> TranscriptionPipelineCoordinator | None:
         """Get pipeline coordinator for session"""
         return self._coordinators.get(session_id)
 
-    def get_caption_buffer(self, session_id: str) -> Optional[CaptionBuffer]:
+    def get_caption_buffer(self, session_id: str) -> CaptionBuffer | None:
         """Get caption buffer for session"""
         return self._caption_buffers.get(session_id)
 
@@ -269,9 +266,9 @@ class FirefliesSessionManager:
         self,
         transcript_id: str,
         transcript_title: str,
-        target_languages: List[str],
-        glossary_id: Optional[str] = None,
-        domain: Optional[str] = None,
+        target_languages: list[str],
+        glossary_id: str | None = None,
+        domain: str | None = None,
         db_manager=None,
         translation_client=None,
         simple_translation_client=None,
@@ -345,7 +342,7 @@ class FirefliesSessionManager:
 
         return session_id, coordinator
 
-    async def finalize_import_session(self, session_id: str) -> Dict[str, Any]:
+    async def finalize_import_session(self, session_id: str) -> dict[str, Any]:
         """
         Finalize an import session after all sentences have been processed.
 
@@ -377,7 +374,7 @@ class FirefliesSessionManager:
 
 
 # Global session manager instance
-_session_manager: Optional[FirefliesSessionManager] = None
+_session_manager: FirefliesSessionManager | None = None
 
 
 def get_session_manager() -> FirefliesSessionManager:
@@ -393,7 +390,7 @@ def get_fireflies_config() -> FirefliesSettings:
     return get_settings().fireflies
 
 
-def get_api_key_from_config() -> Optional[str]:
+def get_api_key_from_config() -> str | None:
     """Get API key from config if available"""
     config = get_fireflies_config()
     return config.api_key if config.has_api_key() else None
@@ -407,28 +404,26 @@ def get_api_key_from_config() -> Optional[str]:
 class ConnectRequest(BaseModel):
     """Request to connect to Fireflies realtime"""
 
-    api_key: Optional[str] = Field(
+    api_key: str | None = Field(
         default=None,
         description="Fireflies API key (optional, uses .env if not provided)",
     )
     transcript_id: str = Field(..., description="Transcript ID from active_meetings")
-    target_languages: Optional[List[str]] = Field(
+    target_languages: list[str] | None = Field(
         default=None,
         description="Target languages for translation (optional, uses .env default)",
     )
-    glossary_id: Optional[str] = Field(default=None, description="Optional glossary ID")
-    domain: Optional[str] = Field(
-        default=None, description="Domain for glossary filtering"
-    )
-    translation_model: Optional[str] = Field(
+    glossary_id: str | None = Field(default=None, description="Optional glossary ID")
+    domain: str | None = Field(default=None, description="Domain for glossary filtering")
+    translation_model: str | None = Field(
         default=None,
         description="Translation model/service to use (ollama, groq, etc.)",
     )
 
     # Sentence aggregation config (all optional, uses .env defaults)
-    pause_threshold_ms: Optional[float] = Field(default=None)
-    max_buffer_words: Optional[int] = Field(default=None)
-    context_window_size: Optional[int] = Field(default=None)
+    pause_threshold_ms: float | None = Field(default=None)
+    max_buffer_words: int | None = Field(default=None)
+    context_window_size: int | None = Field(default=None)
 
 
 class SessionResponse(BaseModel):
@@ -440,10 +435,10 @@ class SessionResponse(BaseModel):
     chunks_received: int
     sentences_produced: int
     translations_completed: int
-    speakers_detected: List[str]
-    connected_at: Optional[datetime]
+    speakers_detected: list[str]
+    connected_at: datetime | None
     error_count: int
-    last_error: Optional[str]
+    last_error: str | None
 
 
 class DisconnectRequest(BaseModel):
@@ -455,11 +450,11 @@ class DisconnectRequest(BaseModel):
 class GetMeetingsRequest(BaseModel):
     """Request to get active meetings"""
 
-    api_key: Optional[str] = Field(
+    api_key: str | None = Field(
         default=None,
         description="Fireflies API key (optional, uses .env if not provided)",
     )
-    email: Optional[str] = Field(default=None, description="Filter by email")
+    email: str | None = Field(default=None, description="Filter by email")
 
 
 # =============================================================================
@@ -505,16 +500,13 @@ async def connect_to_fireflies(
         config = FirefliesSessionConfig(
             api_key=api_key,
             transcript_id=request.transcript_id,
-            target_languages=request.target_languages
-            or ff_config.default_target_languages,
+            target_languages=request.target_languages or ff_config.default_target_languages,
             glossary_id=request.glossary_id,
             domain=request.domain,
             translation_model=request.translation_model,  # Pass through model selection
-            pause_threshold_ms=request.pause_threshold_ms
-            or ff_config.pause_threshold_ms,
+            pause_threshold_ms=request.pause_threshold_ms or ff_config.pause_threshold_ms,
             max_buffer_words=request.max_buffer_words or ff_config.max_buffer_words,
-            context_window_size=request.context_window_size
-            or ff_config.context_window_size,
+            context_window_size=request.context_window_size or ff_config.context_window_size,
         )
 
         logger.info(
@@ -529,7 +521,9 @@ async def connect_to_fireflies(
         if db_manager:
             logger.info("Database manager connected - transcripts and translations will be stored")
         else:
-            logger.warning("No database manager - transcripts and translations will NOT be persisted")
+            logger.warning(
+                "No database manager - transcripts and translations will NOT be persisted"
+            )
 
         # Create session with transcript handling and database persistence
         session = await manager.create_session(
@@ -554,14 +548,14 @@ async def connect_to_fireflies(
         logger.error(f"Fireflies API error: {e}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Fireflies API error: {str(e)}",
-        )
+            detail=f"Fireflies API error: {e!s}",
+        ) from e
     except Exception as e:
         logger.exception(f"Failed to connect to Fireflies: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to connect: {str(e)}",
-        )
+            detail=f"Failed to connect: {e!s}",
+        ) from e
 
 
 @router.post(
@@ -591,7 +585,7 @@ async def disconnect_from_fireflies(
 
 @router.get(
     "/sessions",
-    response_model=List[SessionResponse],
+    response_model=list[SessionResponse],
     summary="Get all active Fireflies sessions",
 )
 async def get_sessions(
@@ -604,7 +598,9 @@ async def get_sessions(
         SessionResponse(
             session_id=s.session_id,
             transcript_id=s.fireflies_transcript_id,
-            connection_status=s.connection_status.value if hasattr(s.connection_status, 'value') else str(s.connection_status),
+            connection_status=s.connection_status.value
+            if hasattr(s.connection_status, "value")
+            else str(s.connection_status),
             chunks_received=s.chunks_received,
             sentences_produced=s.sentences_produced,
             translations_completed=s.translations_completed,
@@ -631,12 +627,15 @@ async def get_session(
 
     if not session:
         from errors import NotFoundError
+
         raise NotFoundError("Session", session_id)
 
     return SessionResponse(
         session_id=session.session_id,
         transcript_id=session.fireflies_transcript_id,
-        connection_status=session.connection_status.value if hasattr(session.connection_status, 'value') else str(session.connection_status),
+        connection_status=session.connection_status.value
+        if hasattr(session.connection_status, "value")
+        else str(session.connection_status),
         chunks_received=session.chunks_received,
         sentences_produced=session.sentences_produced,
         translations_completed=session.translations_completed,
@@ -690,14 +689,14 @@ async def get_active_meetings(
         logger.error(f"Fireflies API error: {e}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Fireflies API error: {str(e)}",
-        )
+            detail=f"Fireflies API error: {e!s}",
+        ) from e
     except Exception as e:
         logger.exception(f"Failed to get active meetings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get meetings: {str(e)}",
-        )
+            detail=f"Failed to get meetings: {e!s}",
+        ) from e
 
 
 @router.get(
@@ -709,11 +708,7 @@ async def health_check(
 ):
     """Check the health of Fireflies integration"""
     sessions = manager.get_all_sessions()
-    connected = [
-        s
-        for s in sessions
-        if s.connection_status == FirefliesConnectionStatus.CONNECTED
-    ]
+    connected = [s for s in sessions if s.connection_status == FirefliesConnectionStatus.CONNECTED]
 
     return {
         "status": "healthy",
@@ -722,7 +717,9 @@ async def health_check(
         "sessions": [
             {
                 "session_id": s.session_id,
-                "status": s.connection_status.value if hasattr(s.connection_status, 'value') else str(s.connection_status),
+                "status": s.connection_status.value
+                if hasattr(s.connection_status, "value")
+                else str(s.connection_status),
                 "chunks_received": s.chunks_received,
             }
             for s in sessions
@@ -738,7 +735,7 @@ async def health_check(
 class GetTranscriptsRequest(BaseModel):
     """Request to get past transcripts from Fireflies"""
 
-    api_key: Optional[str] = None
+    api_key: str | None = None
     limit: int = Field(default=20, ge=1, le=100, description="Max transcripts to return")
     skip: int = Field(default=0, ge=0, description="Pagination offset")
 
@@ -747,7 +744,7 @@ class TranscriptsResponse(BaseModel):
     """Response containing past transcripts"""
 
     success: bool
-    transcripts: List[Dict[str, Any]]
+    transcripts: list[dict[str, Any]]
     count: int
 
 
@@ -795,20 +792,20 @@ async def get_past_transcripts(
         logger.error(f"Fireflies API error: {e}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Fireflies API error: {str(e)}",
-        )
+            detail=f"Fireflies API error: {e!s}",
+        ) from e
     except Exception as e:
         logger.exception(f"Failed to get transcripts: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get transcripts: {str(e)}",
-        )
+            detail=f"Failed to get transcripts: {e!s}",
+        ) from e
 
 
 class GetTranscriptDetailRequest(BaseModel):
     """Request to get transcript details"""
 
-    api_key: Optional[str] = None
+    api_key: str | None = None
 
 
 @router.post(
@@ -857,14 +854,14 @@ async def get_transcript_detail(
         logger.error(f"Fireflies API error: {e}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Fireflies API error: {str(e)}",
-        )
+            detail=f"Fireflies API error: {e!s}",
+        ) from e
     except Exception as e:
         logger.exception(f"Failed to get transcript: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get transcript: {str(e)}",
-        )
+            detail=f"Failed to get transcript: {e!s}",
+        ) from e
 
 
 # =============================================================================
@@ -874,15 +871,17 @@ async def get_transcript_detail(
 
 class ImportTranscriptRequest(BaseModel):
     """Request to import a Fireflies transcript to local database"""
-    api_key: Optional[str] = None
+
+    api_key: str | None = None
     include_translations: bool = True  # Default to including translations
-    target_language: Optional[str] = Field(default="en", description="Target language for translation")
-    glossary_id: Optional[str] = None
-    domain: Optional[str] = None
+    target_language: str | None = Field(default="en", description="Target language for translation")
+    glossary_id: str | None = None
+    domain: str | None = None
 
 
 class ImportProgress(BaseModel):
     """Progress update for import"""
+
     session_id: str
     total_sentences: int
     processed: int
@@ -956,6 +955,7 @@ async def import_transcript_to_db(
         if request.include_translations:
             try:
                 from clients.translation_service_client import TranslationServiceClient
+
                 translation_client = TranslationServiceClient()
             except Exception as e:
                 logger.warning(f"Translation client unavailable: {e}")
@@ -1026,8 +1026,8 @@ async def import_transcript_to_db(
         logger.exception(f"Failed to import transcript: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to import transcript: {str(e)}",
-        )
+            detail=f"Failed to import transcript: {e!s}",
+        ) from e
 
 
 # =============================================================================
@@ -1059,10 +1059,10 @@ async def get_dashboard_config():
     """
     # Import from centralized system constants
     from system_constants import (
-        SUPPORTED_LANGUAGES,
-        GLOSSARY_DOMAINS,
         DEFAULT_CONFIG,
+        GLOSSARY_DOMAINS,
         PROMPT_TEMPLATE_VARIABLES,
+        SUPPORTED_LANGUAGES,
     )
 
     config = {
@@ -1093,21 +1093,22 @@ async def get_dashboard_config():
         from config import get_settings
 
         settings = get_settings()
-        translation_url = getattr(settings, 'translation_service_url', 'http://localhost:5003')
+        translation_url = getattr(settings, "translation_service_url", "http://localhost:5003")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{translation_url}/prompts",
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                if resp.status == 200:
-                    prompts_data = await resp.json()
-                    config["prompt_templates"] = prompts_data.get("prompts", [])
-                    config["prompts_available"] = True
-                else:
-                    config["prompt_templates"] = []
-                    config["prompts_available"] = False
-                    config["prompts_error"] = f"HTTP {resp.status}"
+        async with (
+            aiohttp.ClientSession() as session,
+            session.get(
+                f"{translation_url}/prompts", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp,
+        ):
+            if resp.status == 200:
+                prompts_data = await resp.json()
+                config["prompt_templates"] = prompts_data.get("prompts", [])
+                config["prompts_available"] = True
+            else:
+                config["prompt_templates"] = []
+                config["prompts_available"] = False
+                config["prompts_error"] = f"HTTP {resp.status}"
     except Exception as e:
         logger.warning(f"Could not fetch prompts: {e}")
         config["prompt_templates"] = []

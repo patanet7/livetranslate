@@ -172,4 +172,4 @@ async def get_container_id_for_meeting(meeting_id: str) -> Optional[str]:
             return None
     except Exception as e:
         logger.error(f"Failed to get container mapping for {meeting_id}: {e}", exc_info=True)
-        return None 
+        return None

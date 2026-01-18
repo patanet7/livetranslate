@@ -10,26 +10,25 @@ Tests the complete flow:
 """
 
 import asyncio
+
+# Import database components
+import sys
 import uuid
-from typing import List
+from pathlib import Path
 
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Import database components
-import sys
-from pathlib import Path
-
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from config import get_settings
 from database import (
-    DatabaseManager,
-    DatabaseConfig,
     BotSession,
+    DatabaseConfig,
+    DatabaseManager,
     Translation,
 )
-from config import get_settings
 
 settings = get_settings()
 
@@ -83,9 +82,7 @@ async def create_test_session(db: AsyncSession) -> str:
     return str(session.session_id)
 
 
-async def test_translation_with_session(
-    session_id: str, text: str, target_lang: str
-) -> dict:
+async def test_translation_with_session(session_id: str, text: str, target_lang: str) -> dict:
     """Test translation API with session ID"""
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -114,9 +111,7 @@ async def test_translation_with_session(
         return result
 
 
-async def verify_database_persistence(
-    db: AsyncSession, session_id: str
-) -> List[Translation]:
+async def verify_database_persistence(db: AsyncSession, session_id: str) -> list[Translation]:
     """Verify translations were persisted to database"""
     session_uuid = uuid.UUID(session_id)
 
@@ -158,13 +153,11 @@ async def verify_session_statistics(db: AsyncSession, session_id: str):
         return
 
     # Get translation counts
-    result = await db.execute(
-        select(Translation).where(Translation.session_id == session_uuid)
-    )
+    result = await db.execute(select(Translation).where(Translation.session_id == session_uuid))
     translations = result.scalars().all()
 
     # Get unique languages
-    target_languages = set(t.target_language for t in translations)
+    target_languages = {t.target_language for t in translations}
 
     print("\n📈 Session Statistics:")
     print(f"   Session: {session.meeting_title}")
@@ -260,9 +253,7 @@ async def run_integration_test():
     if stored_count == expected_count:
         print("\n🎉 SUCCESS: All translations were persisted to database!")
     else:
-        print(
-            f"\n⚠️  WARNING: Expected {expected_count} translations but found {stored_count}"
-        )
+        print(f"\n⚠️  WARNING: Expected {expected_count} translations but found {stored_count}")
 
     # Verify data integrity
     print("\n🔍 Data Integrity Checks:")
@@ -272,9 +263,7 @@ async def run_integration_test():
         has_confidence = trans.confidence is not None
         has_counts = trans.word_count > 0 and trans.character_count > 0
 
-        status = (
-            "✅" if all([has_text, has_languages, has_confidence, has_counts]) else "❌"
-        )
+        status = "✅" if all([has_text, has_languages, has_confidence, has_counts]) else "❌"
         print(
             f"   {status} Translation {trans.translation_id}: "
             f"text={has_text}, languages={has_languages}, "

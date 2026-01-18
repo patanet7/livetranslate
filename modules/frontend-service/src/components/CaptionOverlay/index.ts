@@ -7,5 +7,5 @@
  * <CaptionOverlay sessionId="my-session" />
  */
 
-export { CaptionOverlay, default } from './CaptionOverlay';
-export type { CaptionOverlayProps, Caption } from './CaptionOverlay';
+export { CaptionOverlay, default } from "./CaptionOverlay";
+export type { CaptionOverlayProps, Caption } from "./CaptionOverlay";

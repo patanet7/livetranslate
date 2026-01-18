@@ -10,17 +10,19 @@ These tests verify the COMPLETE END-TO-END functionality with NO MOCKS.
 Run with: pytest tests/integration/test_pipeline_streaming.py -v -s
 """
 
-import pytest
 import asyncio
 import base64
+import builtins
+import contextlib
 import json
 import time
 import wave
 from pathlib import Path
+
+import numpy as np
+import pytest
 import websockets
 from httpx import AsyncClient
-import numpy as np
-
 
 # Test Configuration
 BASE_URL = "http://localhost:3000"
@@ -102,10 +104,8 @@ class PipelineStreamingIntegrationTest:
         yield session
 
         # Cleanup: Stop session
-        try:
+        with contextlib.suppress(builtins.BaseException):
             await http_client.delete(f"/api/pipeline/realtime/{session['session_id']}")
-        except:
-            pass
 
     @pytest.fixture(scope="function")
     def generate_test_audio(self):
@@ -135,9 +135,7 @@ class PipelineStreamingIntegrationTest:
     def create_wav_file(self, tmp_path):
         """Create real WAV file"""
 
-        def _create(
-            audio_data: bytes, sample_rate: int = 16000, channels: int = 1
-        ) -> Path:
+        def _create(audio_data: bytes, sample_rate: int = 16000, channels: int = 1) -> Path:
             """Create WAV file from audio data"""
             wav_path = tmp_path / f"test_audio_{int(time.time())}.wav"
 
@@ -197,9 +195,7 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
             assert message["type"] == "pong", "Should receive pong response"
 
-    async def test_websocket_audio_chunk_processing(
-        self, pipeline_session, generate_test_audio
-    ):
+    async def test_websocket_audio_chunk_processing(self, pipeline_session, generate_test_audio):
         """
         TEST: Audio chunks are processed through pipeline
         VERIFY: Send audio chunk, receive processed audio + metrics
@@ -208,9 +204,7 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
         ws_url = f"{WS_BASE_URL}/api/pipeline/realtime/{session_id}"
 
         # Generate real audio (100ms @ 16kHz = 1600 samples)
-        audio_data = generate_test_audio(
-            duration_seconds=0.1, frequency=440, sample_rate=16000
-        )
+        audio_data = generate_test_audio(duration_seconds=0.1, frequency=440, sample_rate=16000)
         audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
         async with websockets.connect(ws_url) as websocket:
@@ -236,9 +230,7 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                     response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
                     message = json.loads(response)
                     responses.append(message)
-                    print(
-                        f"Received message type: {message.get('type')}, keys: {message.keys()}"
-                    )
+                    print(f"Received message type: {message.get('type')}, keys: {message.keys()}")
 
                     if message["type"] == "processed_audio":
                         processed_audio_received = True
@@ -248,9 +240,7 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
                         # Verify can decode
                         processed_bytes = base64.b64decode(message["audio"])
-                        assert len(processed_bytes) > 0, (
-                            "Processed audio should have content"
-                        )
+                        assert len(processed_bytes) > 0, "Processed audio should have content"
 
                     elif message["type"] == "metrics":
                         metrics_received = True
@@ -259,37 +249,29 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                         metrics = message["metrics"]
 
                         assert "total_latency" in metrics, "Should have total_latency"
-                        assert "chunks_processed" in metrics, (
-                            "Should have chunks_processed"
-                        )
-                        assert "average_latency" in metrics, (
-                            "Should have average_latency"
-                        )
-                        assert "quality_metrics" in metrics, (
-                            "Should have quality_metrics"
-                        )
+                        assert "chunks_processed" in metrics, "Should have chunks_processed"
+                        assert "average_latency" in metrics, "Should have average_latency"
+                        assert "quality_metrics" in metrics, "Should have quality_metrics"
 
                         # Verify latency is reasonable (<500ms)
-                        assert metrics["total_latency"] < 500, (
-                            f"Latency too high: {metrics['total_latency']}ms"
-                        )
-                        assert metrics["chunks_processed"] >= 1, (
-                            "Should have processed at least 1 chunk"
-                        )
+                        assert (
+                            metrics["total_latency"] < 500
+                        ), f"Latency too high: {metrics['total_latency']}ms"
+                        assert (
+                            metrics["chunks_processed"] >= 1
+                        ), "Should have processed at least 1 chunk"
 
                     # Break if we got both
                     if processed_audio_received and metrics_received:
                         break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass  # Expected after receiving all messages
 
             # Assertions
             assert processed_audio_received, "Should receive processed audio"
             assert metrics_received, "Should receive metrics"
 
-    async def test_multiple_chunks_streaming(
-        self, pipeline_session, generate_test_audio
-    ):
+    async def test_multiple_chunks_streaming(self, pipeline_session, generate_test_audio):
         """
         TEST: Multiple audio chunks can be streamed continuously
         VERIFY: Process 10 consecutive chunks, verify metrics increase
@@ -306,9 +288,7 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
             for i in range(num_chunks):
                 # Generate unique audio (different frequency each time)
                 frequency = 440 + (i * 50)  # 440Hz, 490Hz, 540Hz, etc.
-                audio_data = generate_test_audio(
-                    duration_seconds=0.1, frequency=frequency
-                )
+                audio_data = generate_test_audio(duration_seconds=0.1, frequency=frequency)
                 audio_b64 = base64.b64encode(audio_data).decode("utf-8")
 
                 # Send chunk
@@ -335,13 +315,13 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                                 chunks_processed_count = current_count
                                 last_chunks_count = current_count
                                 break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     break
 
             # Verify all chunks were processed
-            assert chunks_processed_count >= num_chunks, (
-                f"Expected {num_chunks} chunks processed, got {chunks_processed_count}"
-            )
+            assert (
+                chunks_processed_count >= num_chunks
+            ), f"Expected {num_chunks} chunks processed, got {chunks_processed_count}"
 
     async def test_live_parameter_update(self, pipeline_session):
         """
@@ -367,13 +347,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
             response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
             message = json.loads(response)
 
-            assert message["type"] == "config_updated", (
-                "Should receive config update confirmation"
-            )
+            assert message["type"] == "config_updated", "Should receive config update confirmation"
             assert message["success"] is True, "Update should succeed"
-            assert message["stage_id"] == "noise_reduction", (
-                "Should confirm correct stage"
-            )
+            assert message["stage_id"] == "noise_reduction", "Should confirm correct stage"
 
     async def test_error_handling_invalid_chunk(self, pipeline_session):
         """
@@ -463,7 +439,7 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
                     message = json.loads(response)
                     if message["type"] in ["processed_audio", "metrics"]:
                         responses_received[i] = True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
             # At least some sessions should respond
@@ -472,18 +448,12 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
         finally:
             # Cleanup
             for ws in websockets_list:
-                try:
+                with contextlib.suppress(builtins.BaseException):
                     await ws.close()
-                except:
-                    pass
 
             for session in sessions:
-                try:
-                    await http_client.delete(
-                        f"/api/pipeline/realtime/{session['session_id']}"
-                    )
-                except:
-                    pass
+                with contextlib.suppress(builtins.BaseException):
+                    await http_client.delete(f"/api/pipeline/realtime/{session['session_id']}")
 
 
 @pytest.mark.asyncio
@@ -550,9 +520,7 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
         # Verify response structure
         assert result["success"] is True, "Processing should succeed"
         assert "processed_audio" in result, "Should return processed audio"
-        assert result["processed_audio"] is not None, (
-            "Processed audio should not be None"
-        )
+        assert result["processed_audio"] is not None, "Processed audio should not be None"
         assert "metrics" in result, "Should return metrics"
 
         # Verify metrics
@@ -564,9 +532,7 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
         # Verify can decode processed audio
         processed_audio_bytes = base64.b64decode(result["processed_audio"])
         assert len(processed_audio_bytes) > 0, "Processed audio should have content"
-        assert len(processed_audio_bytes) > 1000, (
-            "Processed audio should be substantial"
-        )
+        assert len(processed_audio_bytes) > 1000, "Processed audio should be substantial"
 
     async def test_single_stage_processing(self, http_client, generate_test_audio):
         """
@@ -589,9 +555,7 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
         result = response.json()
 
         # Verify result
-        assert "data" in result or "processed_audio" in result, (
-            "Should return processed audio"
-        )
+        assert "data" in result or "processed_audio" in result, "Should return processed audio"
 
 
 @pytest.mark.asyncio
@@ -638,7 +602,7 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
                             latency_ms = (end_time - start_time) * 1000
                             latencies.append(latency_ms)
                             break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     latencies.append(2000)  # Timeout = 2000ms
 
         # Calculate statistics
@@ -655,9 +619,7 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
         assert avg_latency < 150, f"Average latency too high: {avg_latency:.1f}ms"
         assert p95_latency < 300, f"P95 latency too high: {p95_latency:.1f}ms"
 
-    async def test_sustained_streaming_1_minute(
-        self, pipeline_session, generate_test_audio
-    ):
+    async def test_sustained_streaming_1_minute(self, pipeline_session, generate_test_audio):
         """
         TEST: System can handle sustained streaming for 1 minute
         VERIFY: No crashes, consistent performance
@@ -695,13 +657,11 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
 
                     # Try to receive (non-blocking)
                     try:
-                        response = await asyncio.wait_for(
-                            websocket.recv(), timeout=0.01
-                        )
+                        response = await asyncio.wait_for(websocket.recv(), timeout=0.01)
                         message = json.loads(response)
                         if message["type"] == "metrics":
                             chunks_processed = message["metrics"]["chunks_processed"]
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         pass
 
                     # Wait for next interval
@@ -720,9 +680,7 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
 
         # Assertions
         assert chunks_sent >= expected_chunks * 0.9, "Should send most expected chunks"
-        assert chunks_processed >= chunks_sent * 0.8, (
-            "Should process at least 80% of chunks"
-        )
+        assert chunks_processed >= chunks_sent * 0.8, "Should process at least 80% of chunks"
         assert errors < chunks_sent * 0.05, "Error rate should be under 5%"
 
 

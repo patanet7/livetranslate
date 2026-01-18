@@ -59,13 +59,13 @@ export class WhisperLiveService {
 
     try {
       const socket = new WebSocket(this.connection.allocatedServerUrl);
-      
+
       // Set up event handlers
       socket.onopen = () => {
         log(`[WhisperLive] Connected to ${this.connection!.allocatedServerUrl}`);
         this.connection!.sessionUid = this.generateUUID();
         this.connection!.isServerReady = false;
-        
+
         // Send initial configuration
         this.sendInitialConfig(socket, botConfig);
       };
@@ -267,26 +267,26 @@ export class WhisperLiveService {
    */
   async initializeWithStubbornReconnection(platform: string): Promise<string> {
     let whisperLiveUrl = await this.initialize();
-    
+
     // STUBBORN MODE: NEVER GIVE UP! Keep trying until we get a WhisperLive connection
     let retryCount = 0;
     while (!whisperLiveUrl) {
       retryCount++;
       const delay = Math.min(2000 * Math.pow(1.5, Math.min(retryCount, 10)), 10000); // Exponential backoff, max 10s
       log(`[STUBBORN] ❌ Could not initialize WhisperLive service for ${platform} (attempt ${retryCount}). NEVER GIVING UP! Retrying in ${delay}ms...`);
-      
+
       // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, delay));
-      
+
       // Try again with the current service instance
       whisperLiveUrl = await this.initialize();
-      
+
       if (whisperLiveUrl) {
         log(`[STUBBORN] ✅ WhisperLive service initialized successfully for ${platform} after ${retryCount} attempts!`);
         break;
       }
     }
-    
+
     return whisperLiveUrl;
   }
 

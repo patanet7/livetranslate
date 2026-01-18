@@ -27,13 +27,13 @@ Usage:
     print(f"VAD p95: {stats['vad_processing']['p95']:.2f}ms")
 """
 
-import time
-import numpy as np
 import logging
-from typing import Dict, Optional, List
+import time
+from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from collections import defaultdict
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +41,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class OperationStats:
     """Statistics for a single operation type."""
+
     name: str
     count: int = 0
     total_time: float = 0.0
-    min_time: float = float('inf')
+    min_time: float = float("inf")
     max_time: float = 0.0
-    samples: List[float] = field(default_factory=list)
+    samples: list[float] = field(default_factory=list)
 
     def add_sample(self, duration: float, max_samples: int = 1000) -> None:
         """Add timing sample and update statistics."""
@@ -83,27 +84,27 @@ class OperationStats:
         samples_ms = np.array(self.samples) * 1000
         return float(np.percentile(samples_ms, p))
 
-    def get_statistics(self) -> Dict[str, float]:
+    def get_statistics(self) -> dict[str, float]:
         """Get comprehensive statistics."""
         if self.count == 0:
             return {
-                'count': 0,
-                'mean': 0.0,
-                'min': 0.0,
-                'max': 0.0,
-                'p50': 0.0,
-                'p95': 0.0,
-                'p99': 0.0
+                "count": 0,
+                "mean": 0.0,
+                "min": 0.0,
+                "max": 0.0,
+                "p50": 0.0,
+                "p95": 0.0,
+                "p99": 0.0,
             }
 
         return {
-            'count': self.count,
-            'mean': self.get_mean(),
-            'min': self.min_time * 1000,
-            'max': self.max_time * 1000,
-            'p50': self.get_percentile(50),
-            'p95': self.get_percentile(95),
-            'p99': self.get_percentile(99)
+            "count": self.count,
+            "mean": self.get_mean(),
+            "min": self.min_time * 1000,
+            "max": self.max_time * 1000,
+            "p50": self.get_percentile(50),
+            "p95": self.get_percentile(95),
+            "p99": self.get_percentile(99),
         }
 
 
@@ -124,14 +125,20 @@ class PerformanceMetrics:
         active_timers: Dict of operation name to start time
     """
 
-    __slots__ = ('max_samples', 'enable_logging', 'log_interval_seconds',
-                 'operations', 'active_timers', '_last_log_time')
+    __slots__ = (
+        "_last_log_time",
+        "active_timers",
+        "enable_logging",
+        "log_interval_seconds",
+        "max_samples",
+        "operations",
+    )
 
     def __init__(
         self,
         max_samples: int = 1000,
         enable_logging: bool = True,
-        log_interval_seconds: float = 60.0
+        log_interval_seconds: float = 60.0,
     ):
         """Initialize performance metrics tracker."""
         self.max_samples = max_samples
@@ -139,12 +146,10 @@ class PerformanceMetrics:
         self.log_interval_seconds = log_interval_seconds
 
         # Operation statistics
-        self.operations: Dict[str, OperationStats] = defaultdict(
-            lambda: OperationStats(name='')
-        )
+        self.operations: dict[str, OperationStats] = defaultdict(lambda: OperationStats(name=""))
 
         # Active timers (for manual timing)
-        self.active_timers: Dict[str, float] = {}
+        self.active_timers: dict[str, float] = {}
 
         # Logging state
         self._last_log_time = time.time()
@@ -194,8 +199,7 @@ class PerformanceMetrics:
         """
         if operation_name not in self.active_timers:
             logger.warning(
-                f"Timer '{operation_name}' was never started, "
-                f"cannot stop. Recording 0.0s."
+                f"Timer '{operation_name}' was never started, " f"cannot stop. Recording 0.0s."
             )
             return 0.0
 
@@ -227,10 +231,7 @@ class PerformanceMetrics:
                 self._log_statistics()
                 self._last_log_time = current_time
 
-    def get_statistics(
-        self,
-        operation_name: Optional[str] = None
-    ) -> Dict[str, Dict[str, float]]:
+    def get_statistics(self, operation_name: str | None = None) -> dict[str, dict[str, float]]:
         """
         Get performance statistics.
 
@@ -246,10 +247,7 @@ class PerformanceMetrics:
             return {operation_name: self.operations[operation_name].get_statistics()}
 
         # Return all operations
-        return {
-            name: stats.get_statistics()
-            for name, stats in self.operations.items()
-        }
+        return {name: stats.get_statistics() for name, stats in self.operations.items()}
 
     def get_summary(self) -> str:
         """
@@ -306,7 +304,7 @@ class PerformanceMetrics:
 
         return "\n".join(lines)
 
-    def reset(self, operation_name: Optional[str] = None) -> None:
+    def reset(self, operation_name: str | None = None) -> None:
         """
         Reset metrics.
 
@@ -363,7 +361,7 @@ class TimingContext:
                 lid_result = process_lid()
     """
 
-    __slots__ = ('metrics', 'operation_name', 'start_time')
+    __slots__ = ("metrics", "operation_name", "start_time")
 
     def __init__(self, metrics: PerformanceMetrics, operation_name: str):
         """Initialize timing context."""

@@ -8,17 +8,16 @@ This module provides:
 - Graceful handling of missing dependencies
 """
 
-import os
 import sys
 from pathlib import Path
-from typing import Generator, Dict, Tuple
-import numpy as np
-import soundfile as sf
-import pytest
 
 # Add src directory to path for imports
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
+
+import numpy as np
+import pytest
+import soundfile as sf
 
 # Test constants
 SAMPLE_RATE = 16000
@@ -36,28 +35,21 @@ FIXTURES_DIR.mkdir(parents=True, exist_ok=True)
 # Pytest Markers
 # ============================================================================
 
+
 def pytest_configure(config):
     """Register custom markers."""
-    config.addinivalue_line(
-        "markers", "openvino: requires OpenVINO (skip if not installed)"
-    )
-    config.addinivalue_line(
-        "markers", "gpu: requires GPU (skip if not available)"
-    )
-    config.addinivalue_line(
-        "markers", "slow: slow running tests (skip with -m 'not slow')"
-    )
+    config.addinivalue_line("markers", "openvino: requires OpenVINO (skip if not installed)")
+    config.addinivalue_line("markers", "gpu: requires GPU (skip if not available)")
+    config.addinivalue_line("markers", "slow: slow running tests (skip with -m 'not slow')")
 
 
 # ============================================================================
 # Audio Generation Helpers
 # ============================================================================
 
+
 def generate_sine_wave(
-    frequency: float,
-    duration: float,
-    sample_rate: int = SAMPLE_RATE,
-    amplitude: float = 0.5
+    frequency: float, duration: float, sample_rate: int = SAMPLE_RATE, amplitude: float = 0.5
 ) -> np.ndarray:
     """
     Generate a sine wave audio signal.
@@ -76,10 +68,7 @@ def generate_sine_wave(
     return audio.astype(AUDIO_DTYPE)
 
 
-def generate_speech_like_audio(
-    duration: float,
-    sample_rate: int = SAMPLE_RATE
-) -> np.ndarray:
+def generate_speech_like_audio(duration: float, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """
     Generate speech-like audio with multiple frequency components.
 
@@ -110,10 +99,7 @@ def generate_speech_like_audio(
     return audio.astype(AUDIO_DTYPE)
 
 
-def generate_silence(
-    duration: float,
-    sample_rate: int = SAMPLE_RATE
-) -> np.ndarray:
+def generate_silence(duration: float, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
     """
     Generate silence (zeros).
 
@@ -129,9 +115,7 @@ def generate_silence(
 
 
 def generate_white_noise(
-    duration: float,
-    sample_rate: int = SAMPLE_RATE,
-    amplitude: float = 0.1
+    duration: float, sample_rate: int = SAMPLE_RATE, amplitude: float = 0.1
 ) -> np.ndarray:
     """
     Generate white noise.
@@ -149,10 +133,7 @@ def generate_white_noise(
     return noise.astype(AUDIO_DTYPE)
 
 
-def add_noise(
-    audio: np.ndarray,
-    snr_db: float = 10.0
-) -> np.ndarray:
+def add_noise(audio: np.ndarray, snr_db: float = 10.0) -> np.ndarray:
     """
     Add white noise to audio at specified SNR.
 
@@ -163,7 +144,7 @@ def add_noise(
     Returns:
         Noisy audio samples
     """
-    signal_power = np.mean(audio ** 2)
+    signal_power = np.mean(audio**2)
     snr_linear = 10 ** (snr_db / 10)
     noise_power = signal_power / snr_linear
     noise = np.random.randn(len(audio)) * np.sqrt(noise_power)
@@ -173,6 +154,7 @@ def add_noise(
 # ============================================================================
 # Fixture Generation (Run once per test session)
 # ============================================================================
+
 
 @pytest.fixture(scope="session", autouse=True)
 def generate_audio_fixtures():
@@ -199,7 +181,9 @@ def generate_audio_fixtures():
     for filename, audio in fixtures.items():
         filepath = FIXTURES_DIR / filename
         sf.write(filepath, audio, SAMPLE_RATE)
-        print(f"Generated fixture: {filepath} ({len(audio)} samples, {len(audio)/SAMPLE_RATE:.2f}s)")
+        print(
+            f"Generated fixture: {filepath} ({len(audio)} samples, {len(audio)/SAMPLE_RATE:.2f}s)"
+        )
 
     yield
 
@@ -213,8 +197,9 @@ def generate_audio_fixtures():
 # Audio Loading Fixtures
 # ============================================================================
 
+
 @pytest.fixture
-def hello_world_audio() -> Tuple[np.ndarray, int]:
+def hello_world_audio() -> tuple[np.ndarray, int]:
     """
     Load hello_world.wav fixture.
 
@@ -227,7 +212,7 @@ def hello_world_audio() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def silence_audio() -> Tuple[np.ndarray, int]:
+def silence_audio() -> tuple[np.ndarray, int]:
     """
     Load silence.wav fixture.
 
@@ -240,7 +225,7 @@ def silence_audio() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def noisy_audio() -> Tuple[np.ndarray, int]:
+def noisy_audio() -> tuple[np.ndarray, int]:
     """
     Load noisy.wav fixture.
 
@@ -253,7 +238,7 @@ def noisy_audio() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def short_speech_audio() -> Tuple[np.ndarray, int]:
+def short_speech_audio() -> tuple[np.ndarray, int]:
     """
     Load short_speech.wav fixture.
 
@@ -266,7 +251,7 @@ def short_speech_audio() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def long_speech_audio() -> Tuple[np.ndarray, int]:
+def long_speech_audio() -> tuple[np.ndarray, int]:
     """
     Load long_speech.wav fixture.
 
@@ -279,7 +264,7 @@ def long_speech_audio() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def white_noise_audio() -> Tuple[np.ndarray, int]:
+def white_noise_audio() -> tuple[np.ndarray, int]:
     """
     Load white_noise.wav fixture.
 
@@ -292,7 +277,7 @@ def white_noise_audio() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def all_audio_fixtures() -> Dict[str, Tuple[np.ndarray, int]]:
+def all_audio_fixtures() -> dict[str, tuple[np.ndarray, int]]:
     """
     Load all audio fixtures as a dictionary.
 
@@ -310,6 +295,7 @@ def all_audio_fixtures() -> Dict[str, Tuple[np.ndarray, int]]:
 # Hardware Detection Fixtures
 # ============================================================================
 
+
 @pytest.fixture(scope="session")
 def has_openvino() -> bool:
     """
@@ -318,11 +304,9 @@ def has_openvino() -> bool:
     Returns:
         True if OpenVINO can be imported, False otherwise
     """
-    try:
-        import openvino as ov
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+
+    return importlib.util.find_spec("openvino") is not None
 
 
 @pytest.fixture(scope="session")
@@ -335,6 +319,7 @@ def has_gpu() -> bool:
     """
     try:
         import torch
+
         return torch.cuda.is_available()
     except ImportError:
         return False
@@ -364,38 +349,33 @@ def device_type(has_openvino: bool, has_gpu: bool) -> str:
 # Skip Conditions (Decorators for use in tests)
 # ============================================================================
 
+
 def _check_openvino():
     """Check if OpenVINO is available."""
-    try:
-        import openvino
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+
+    return importlib.util.find_spec("openvino") is not None
 
 
 def _check_gpu():
     """Check if GPU is available."""
     try:
         import torch
+
         return torch.cuda.is_available()
     except ImportError:
         return False
 
 
-skip_if_no_openvino = pytest.mark.skipif(
-    not _check_openvino(),
-    reason="OpenVINO not available"
-)
+skip_if_no_openvino = pytest.mark.skipif(not _check_openvino(), reason="OpenVINO not available")
 
-skip_if_no_gpu = pytest.mark.skipif(
-    not _check_gpu(),
-    reason="GPU not available"
-)
+skip_if_no_gpu = pytest.mark.skipif(not _check_gpu(), reason="GPU not available")
 
 
 # ============================================================================
 # Temporary Directory Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def temp_audio_dir(tmp_path: Path) -> Path:
@@ -416,6 +396,7 @@ def temp_audio_dir(tmp_path: Path) -> Path:
 # ============================================================================
 # Mock Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_whisper_model():
@@ -456,6 +437,7 @@ def mock_whisper_model():
 # Configuration Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def default_whisper_config() -> dict:
     """
@@ -481,6 +463,7 @@ def default_whisper_config() -> dict:
 # ============================================================================
 # Session Info
 # ============================================================================
+
 
 @pytest.fixture(scope="session", autouse=True)
 def print_test_environment():
@@ -524,14 +507,15 @@ def print_test_environment():
 # REAL Speech Audio Fixtures
 # ============================================================================
 
+
 @pytest.fixture
-def jfk_audio() -> Tuple[np.ndarray, int]:
+def jfk_audio() -> tuple[np.ndarray, int]:
     """
     Load JFK speech audio (REAL English speech!)
 
     Content: "And so, my fellow Americans, ask not what your country can do for you;
               ask what you can do for your country."
-    
+
     Duration: 11 seconds
     Sample Rate: 16kHz (Whisper native)
     Language: English
@@ -545,7 +529,7 @@ def jfk_audio() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def chinese_audio_1() -> Tuple[np.ndarray, int]:
+def chinese_audio_1() -> tuple[np.ndarray, int]:
     """
     Load Chinese audio sample 1 (REAL Mandarin speech!)
 
@@ -561,6 +545,7 @@ def chinese_audio_1() -> Tuple[np.ndarray, int]:
     if sr != SAMPLE_RATE:
         try:
             import librosa
+
             audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
             sr = SAMPLE_RATE
         except ImportError:
@@ -569,7 +554,7 @@ def chinese_audio_1() -> Tuple[np.ndarray, int]:
 
 
 @pytest.fixture
-def chinese_audio_2() -> Tuple[np.ndarray, int]:
+def chinese_audio_2() -> tuple[np.ndarray, int]:
     """Load Chinese audio sample 2"""
     filepath = FIXTURES_DIR / "OSR_cn_000_0073_8k.wav"
     if not filepath.exists():
@@ -577,13 +562,14 @@ def chinese_audio_2() -> Tuple[np.ndarray, int]:
     audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
     if sr != SAMPLE_RATE:
         import librosa
+
         audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
         sr = SAMPLE_RATE
     return audio, sr
 
 
 @pytest.fixture
-def chinese_audio_3() -> Tuple[np.ndarray, int]:
+def chinese_audio_3() -> tuple[np.ndarray, int]:
     """Load Chinese audio sample 3"""
     filepath = FIXTURES_DIR / "OSR_cn_000_0074_8k.wav"
     if not filepath.exists():
@@ -591,13 +577,14 @@ def chinese_audio_3() -> Tuple[np.ndarray, int]:
     audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
     if sr != SAMPLE_RATE:
         import librosa
+
         audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
         sr = SAMPLE_RATE
     return audio, sr
 
 
 @pytest.fixture
-def chinese_audio_4() -> Tuple[np.ndarray, int]:
+def chinese_audio_4() -> tuple[np.ndarray, int]:
     """Load Chinese audio sample 4"""
     filepath = FIXTURES_DIR / "OSR_cn_000_0075_8k.wav"
     if not filepath.exists():
@@ -605,6 +592,7 @@ def chinese_audio_4() -> Tuple[np.ndarray, int]:
     audio, sr = sf.read(filepath, dtype=AUDIO_DTYPE)
     if sr != SAMPLE_RATE:
         import librosa
+
         audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
         sr = SAMPLE_RATE
     return audio, sr

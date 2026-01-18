@@ -14,24 +14,23 @@ Key Features:
 - Thread-safe concurrent inference
 """
 
-import os
-import time
-import threading
 import logging
-from typing import Dict, List, Optional, Any
+import os
+import threading
+import time
 from queue import Queue
+from typing import Any
 
+import librosa
 import numpy as np
 import soundfile as sf
-import librosa
 import torch
-import whisper
 import torch.nn.functional as F
+import whisper
+from alignatt_decoder import AlignAttDecoder
 
 # Phase 2: SimulStreaming components
-from beam_decoder import BeamSearchDecoder, BeamSearchConfig
-from alignatt_decoder import AlignAttDecoder, AlignAttConfig, AlignAttState
-from domain_prompt_manager import DomainPromptManager, create_domain_prompt
+from domain_prompt_manager import DomainPromptManager
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +43,12 @@ class PyTorchModelManager:
 
     def __init__(
         self,
-        models_dir: Optional[str] = None,
-        warmup_file: Optional[str] = None,
+        models_dir: str | None = None,
+        warmup_file: str | None = None,
         auto_warmup: bool = False,
-        static_prompt: Optional[str] = None,
-        init_prompt: Optional[str] = None,
-        max_context_tokens: int = 223
+        static_prompt: str | None = None,
+        init_prompt: str | None = None,
+        max_context_tokens: int = 223,
     ):
         """
         Initialize model manager with PyTorch device detection
@@ -79,7 +78,9 @@ class PyTorchModelManager:
             self.models_dir = models_dir
 
         self.models = {}  # Store loaded models
-        self.default_model = os.getenv("WHISPER_DEFAULT_MODEL", "large-v3-turbo")  # Use turbo model from local .models
+        self.default_model = os.getenv(
+            "WHISPER_DEFAULT_MODEL", "large-v3-turbo"
+        )  # Use turbo model from local .models
         self.device = self._detect_best_device()
 
         # Phase 2: Beam search configuration
@@ -114,17 +115,19 @@ class PyTorchModelManager:
         # CRITICAL: Per-session rolling context isolation for multi-language support
         # Each session gets its own context and tokenizer to prevent cross-contamination
         # Example: Session 1 (English) and Session 2 (Chinese) have separate contexts
-        self.session_rolling_contexts: Dict[str, Any] = {}  # session_id -> TokenBuffer
-        self.session_tokenizers: Dict[str, Any] = {}  # session_id -> tokenizer
-        self.session_static_prompts: Dict[str, str] = {}  # session_id -> static prompt
-        self.session_languages: Dict[str, str] = {}  # session_id -> language
+        self.session_rolling_contexts: dict[str, Any] = {}  # session_id -> TokenBuffer
+        self.session_tokenizers: dict[str, Any] = {}  # session_id -> tokenizer
+        self.session_static_prompts: dict[str, str] = {}  # session_id -> static prompt
+        self.session_languages: dict[str, str] = {}  # session_id -> language
         self.rolling_contexts_lock = threading.Lock()
 
         # Legacy single rolling context for backwards compatibility (non-session mode)
         self.rolling_context = None  # TokenBuffer, initialized by init_context()
         self._init_prompt = init_prompt  # Store for init_context()
 
-        logger.info(f"PyTorchModelManager initialized - Device: {self.device}, Models: {self.models_dir}")
+        logger.info(
+            f"PyTorchModelManager initialized - Device: {self.device}, Models: {self.models_dir}"
+        )
         logger.info("Using PyTorch Whisper (openai-whisper) with SimulStreaming enhancements")
 
         # Ensure models directory exists
@@ -180,7 +183,7 @@ class PyTorchModelManager:
             logger.error(f"[DEVICE] Error detecting devices: {e}")
             return "cpu"
 
-    def warmup(self, audio_data: np.ndarray, model_name: Optional[str] = None):
+    def warmup(self, audio_data: np.ndarray, model_name: str | None = None):
         """
         Warm up the model to eliminate cold start delay
 
@@ -220,11 +223,11 @@ class PyTorchModelManager:
             # - Memory allocation for tensors
             # - Attention hook initialization
             # - KV cache setup
-            result = model.transcribe(
+            model.transcribe(
                 audio=audio_data,
                 beam_size=1,  # Greedy for warmup speed
                 temperature=0.0,  # Deterministic
-                fp16=torch.cuda.is_available()  # FP16 on GPU
+                fp16=torch.cuda.is_available(),  # FP16 on GPU
             )
 
             warmup_time = time.time() - start_time
@@ -238,7 +241,12 @@ class PyTorchModelManager:
             logger.warning("[WARMUP] First request may experience cold start delay (~20s)")
             raise
 
-    def init_context(self, session_id: Optional[str] = None, language: Optional[str] = None, static_prompt: Optional[str] = None):
+    def init_context(
+        self,
+        session_id: str | None = None,
+        language: str | None = None,
+        static_prompt: str | None = None,
+    ):
         """
         Initialize rolling context system (per-session or legacy global)
 
@@ -268,9 +276,7 @@ class PyTorchModelManager:
             self.load_model(self.default_model)
 
         model = self.models[self.default_model]
-        tokenizer = whisper.tokenizer.get_tokenizer(
-            multilingual=model.is_multilingual
-        )
+        tokenizer = whisper.tokenizer.get_tokenizer(multilingual=model.is_multilingual)
 
         # Determine static prompt to use
         prompt = static_prompt if static_prompt is not None else self.static_prompt
@@ -288,8 +294,7 @@ class PyTorchModelManager:
         if session_id is not None:
             with self.rolling_contexts_lock:
                 self.session_rolling_contexts[session_id] = TokenBuffer.from_text(
-                    text=initial_text,
-                    tokenizer=tokenizer
+                    text=initial_text, tokenizer=tokenizer
                 )
                 self.session_tokenizers[session_id] = tokenizer
                 self.session_static_prompts[session_id] = prompt
@@ -301,16 +306,13 @@ class PyTorchModelManager:
                 logger.info(f"[CONTEXT] Session static prompt: '{prompt}'")
         else:
             # Legacy global context (backwards compatibility)
-            self.rolling_context = TokenBuffer.from_text(
-                text=initial_text,
-                tokenizer=tokenizer
-            )
+            self.rolling_context = TokenBuffer.from_text(text=initial_text, tokenizer=tokenizer)
 
-            logger.info(f"[CONTEXT] ✓ Rolling context initialized (legacy mode)")
+            logger.info("[CONTEXT] ✓ Rolling context initialized (legacy mode)")
             logger.info(f"[CONTEXT] Static prompt: '{self.static_prompt}'")
             logger.info(f"[CONTEXT] Max context tokens: {self.max_context_tokens}")
 
-    def trim_context(self, session_id: Optional[str] = None):
+    def trim_context(self, session_id: str | None = None):
         """
         Trim rolling context when over token limit (per-session or legacy global)
 
@@ -349,10 +351,7 @@ class PyTorchModelManager:
                         break
 
                     # Trim one word at a time (FIFO)
-                    words_removed = context.trim_words(
-                        num=1,
-                        after=static_prefix_len
-                    )
+                    words_removed = context.trim_words(num=1, after=static_prefix_len)
 
                     if words_removed == 0:
                         # No more words to trim
@@ -361,7 +360,9 @@ class PyTorchModelManager:
                     total_trimmed += 1
 
                 if total_trimmed > 0:
-                    logger.debug(f"[CONTEXT] Session {session_id}: Trimmed {total_trimmed} words to stay under {self.max_context_tokens} tokens")
+                    logger.debug(
+                        f"[CONTEXT] Session {session_id}: Trimmed {total_trimmed} words to stay under {self.max_context_tokens} tokens"
+                    )
 
                 return total_trimmed
         else:
@@ -384,10 +385,7 @@ class PyTorchModelManager:
                     break
 
                 # Trim one word at a time (FIFO)
-                words_removed = self.rolling_context.trim_words(
-                    num=1,
-                    after=static_prefix_len
-                )
+                words_removed = self.rolling_context.trim_words(num=1, after=static_prefix_len)
 
                 if words_removed == 0:
                     # No more words to trim
@@ -396,11 +394,13 @@ class PyTorchModelManager:
                 total_trimmed += 1
 
             if total_trimmed > 0:
-                logger.debug(f"[CONTEXT] Trimmed {total_trimmed} words to stay under {self.max_context_tokens} tokens")
+                logger.debug(
+                    f"[CONTEXT] Trimmed {total_trimmed} words to stay under {self.max_context_tokens} tokens"
+                )
 
             return total_trimmed
 
-    def append_to_context(self, text: str, session_id: Optional[str] = None):
+    def append_to_context(self, text: str, session_id: str | None = None):
         """
         Append completed transcription segment to rolling context (per-session or legacy global)
 
@@ -452,7 +452,7 @@ class PyTorchModelManager:
             # Trim if necessary
             self.trim_context()
 
-    def get_inference_context(self, session_id: Optional[str] = None) -> str:
+    def get_inference_context(self, session_id: str | None = None) -> str:
         """
         Get rolling context text for next inference (per-session or legacy global)
 
@@ -517,7 +517,9 @@ class PyTorchModelManager:
                 removed_items.append("language")
 
             if removed_items:
-                logger.info(f"[CONTEXT] ✓ Cleaned up session {session_id}: {', '.join(removed_items)}")
+                logger.info(
+                    f"[CONTEXT] ✓ Cleaned up session {session_id}: {', '.join(removed_items)}"
+                )
 
     def load_model(self, model_name: str):
         """
@@ -535,16 +537,18 @@ class PyTorchModelManager:
                 # Load model using openai-whisper
                 # Downloads if not in cache, otherwise loads from cache
                 model = whisper.load_model(
-                    name=model_name,
-                    device=self.device,
-                    download_root=self.models_dir
+                    name=model_name, device=self.device, download_root=self.models_dir
                 )
 
                 load_time = time.time() - start_load_time
                 self.models[model_name] = model
 
-                logger.info(f"[MODEL] ✅ Model {model_name} loaded successfully on {self.device} in {load_time:.2f}s")
-                logger.info(f"[MODEL] 📊 Total loaded models: {len(self.models)} ({list(self.models.keys())})")
+                logger.info(
+                    f"[MODEL] ✅ Model {model_name} loaded successfully on {self.device} in {load_time:.2f}s"
+                )
+                logger.info(
+                    f"[MODEL] 📊 Total loaded models: {len(self.models)} ({list(self.models.keys())})"
+                )
 
                 # Install AlignAtt attention hooks for Phase 2
                 self._install_attention_hooks(model)
@@ -552,20 +556,22 @@ class PyTorchModelManager:
             except Exception as e:
                 if self.device != "cpu":
                     # Try CPU fallback
-                    logger.warning(f"[MODEL] ⚠️ Failed to load on {self.device}, trying CPU fallback: {e}")
+                    logger.warning(
+                        f"[MODEL] ⚠️ Failed to load on {self.device}, trying CPU fallback: {e}"
+                    )
                     try:
                         start_fallback_time = time.time()
                         model = whisper.load_model(
-                            name=model_name,
-                            device="cpu",
-                            download_root=self.models_dir
+                            name=model_name, device="cpu", download_root=self.models_dir
                         )
                         fallback_time = time.time() - start_fallback_time
 
                         self.models[model_name] = model
                         self.device = "cpu"  # Update device for this session
 
-                        logger.info(f"[MODEL] ✅ Model {model_name} loaded on CPU fallback in {fallback_time:.2f}s")
+                        logger.info(
+                            f"[MODEL] ✅ Model {model_name} loaded on CPU fallback in {fallback_time:.2f}s"
+                        )
 
                         # Install hooks
                         self._install_attention_hooks(model)
@@ -599,13 +605,13 @@ class PyTorchModelManager:
 
         # Install hook on each decoder block's cross-attention layer
         for idx, block in enumerate(model.decoder.blocks):
-            if hasattr(block, 'cross_attn'):
+            if hasattr(block, "cross_attn"):
                 block.cross_attn.register_forward_hook(layer_hook)
                 logger.debug(f"[STREAMING] Installed hook on decoder block {idx}")
 
         logger.info(f"[STREAMING] Installed {len(model.decoder.blocks)} attention hooks")
 
-    def list_models(self) -> List[str]:
+    def list_models(self) -> list[str]:
         """
         List available Whisper models
 
@@ -642,8 +648,8 @@ class PyTorchModelManager:
                     # Move model to CPU before deletion to free GPU memory
                     if model_name in self.models:
                         model = self.models[model_name]
-                        if hasattr(model, 'to'):
-                            model.to('cpu')
+                        if hasattr(model, "to"):
+                            model.to("cpu")
                         del self.models[model_name]
                     logger.debug(f"[MODEL] Cleared model {model_name}")
                 except Exception as e:
@@ -661,6 +667,7 @@ class PyTorchModelManager:
 
             # Force garbage collection
             import gc
+
             gc.collect()
 
             logger.info("[MODEL] ✓ Model cache cleared")
@@ -668,12 +675,7 @@ class PyTorchModelManager:
         except Exception as e:
             logger.error(f"[MODEL] Error clearing model cache: {e}")
 
-    def _tag_language_segments(
-        self,
-        result: Dict,
-        model: Any,
-        audio_data: np.ndarray
-    ) -> Dict:
+    def _tag_language_segments(self, result: dict, model: Any, audio_data: np.ndarray) -> dict:
         """
         Tag each segment with detected language for code-switching support.
 
@@ -701,7 +703,7 @@ class PyTorchModelManager:
         import whisper
         from whisper.audio import log_mel_spectrogram, pad_or_trim
 
-        segments = result.get('segments', [])
+        segments = result.get("segments", [])
 
         if not segments:
             logger.debug("[CODE-SWITCHING] No segments to tag")
@@ -710,18 +712,20 @@ class PyTorchModelManager:
         logger.info(f"[CODE-SWITCHING] Tagging {len(segments)} segments with language detection")
 
         for i, segment in enumerate(segments):
-            start = segment.get('start', 0)
-            end = segment.get('end', 0)
-            text = segment.get('text', '')
+            start = segment.get("start", 0)
+            end = segment.get("end", 0)
+            text = segment.get("text", "")
 
             # Extract audio for this segment
             start_sample = int(start * 16000)
             end_sample = int(end * 16000)
 
             if end_sample <= start_sample:
-                logger.warning(f"[CODE-SWITCHING] Segment {i}: Invalid time range ({start:.2f}s - {end:.2f}s)")
-                segment['detected_language'] = 'unknown'
-                segment['language_confidence'] = 0.0
+                logger.warning(
+                    f"[CODE-SWITCHING] Segment {i}: Invalid time range ({start:.2f}s - {end:.2f}s)"
+                )
+                segment["detected_language"] = "unknown"
+                segment["language_confidence"] = 0.0
                 continue
 
             segment_audio = audio_data[start_sample:end_sample]
@@ -729,8 +733,8 @@ class PyTorchModelManager:
             # Skip if segment is too short
             if len(segment_audio) < 1600:  # < 0.1 second
                 logger.debug(f"[CODE-SWITCHING] Segment {i}: Too short, skipping LID")
-                segment['detected_language'] = 'unknown'
-                segment['language_confidence'] = 0.0
+                segment["detected_language"] = "unknown"
+                segment["language_confidence"] = 0.0
                 continue
 
             try:
@@ -748,25 +752,33 @@ class PyTorchModelManager:
                 confidence = language_probs[0][detected_lang]
 
                 # Tag segment
-                segment['detected_language'] = detected_lang
-                segment['language_confidence'] = float(confidence)
+                segment["detected_language"] = detected_lang
+                segment["language_confidence"] = float(confidence)
 
-                logger.info(f"[CODE-SWITCHING] Segment {i}: '{text[:30]}...' → {detected_lang} (conf: {confidence:.2f})")
+                logger.info(
+                    f"[CODE-SWITCHING] Segment {i}: '{text[:30]}...' → {detected_lang} (conf: {confidence:.2f})"
+                )
 
             except Exception as e:
                 logger.warning(f"[CODE-SWITCHING] Segment {i}: Language detection failed: {e}")
-                segment['detected_language'] = 'unknown'
-                segment['language_confidence'] = 0.0
+                segment["detected_language"] = "unknown"
+                segment["language_confidence"] = 0.0
 
         # Add summary to result
-        languages_detected = set(seg.get('detected_language', 'unknown') for seg in segments if seg.get('detected_language') != 'unknown')
-        result['code_switching_detected'] = len(languages_detected) > 1
-        result['languages_in_audio'] = list(languages_detected)
+        languages_detected = {
+            seg.get("detected_language", "unknown")
+            for seg in segments
+            if seg.get("detected_language") != "unknown"
+        }
+        result["code_switching_detected"] = len(languages_detected) > 1
+        result["languages_in_audio"] = list(languages_detected)
 
-        if result['code_switching_detected']:
+        if result["code_switching_detected"]:
             logger.info(f"[CODE-SWITCHING] ✓ Code-switching detected: {list(languages_detected)}")
         else:
-            logger.info(f"[CODE-SWITCHING] No code-switching detected (single language: {list(languages_detected)})")
+            logger.info(
+                f"[CODE-SWITCHING] No code-switching detected (single language: {list(languages_detected)})"
+            )
 
         return result
 
@@ -775,14 +787,14 @@ class PyTorchModelManager:
         model_name: str,
         audio_data: np.ndarray,
         beam_size: int = 5,
-        initial_prompt: Optional[str] = None,
-        language: Optional[str] = None,
+        initial_prompt: str | None = None,
+        language: str | None = None,
         temperature: float = 0.0,
         streaming_policy: str = "alignatt",
         task: str = "transcribe",
         target_language: str = "en",
-        session_id: Optional[str] = None,
-        enable_code_switching: bool = False
+        session_id: str | None = None,
+        enable_code_switching: bool = False,
     ):
         """
         Thread-safe inference with PyTorch Whisper and Phase 2 SimulStreaming enhancements
@@ -837,7 +849,9 @@ class PyTorchModelManager:
                         # Get session-specific rolling context
                         initial_prompt = self.get_inference_context(session_id=session_id)
                         if initial_prompt:
-                            logger.info(f"[CONTEXT] Using session {session_id} rolling context ({len(initial_prompt)} chars)")
+                            logger.info(
+                                f"[CONTEXT] Using session {session_id} rolling context ({len(initial_prompt)} chars)"
+                            )
 
                     # Phase 2: In-domain prompting
                     if initial_prompt:
@@ -849,8 +863,12 @@ class PyTorchModelManager:
                     if enable_code_switching:
                         # Remove language pinning to allow intra-sentence language switching
                         decode_options["language"] = None
-                        logger.info(f"[CODE-SWITCHING] Dynamic language detection enabled (no language pinning)")
-                        logger.info(f"[CODE-SWITCHING] Whisper will auto-detect and switch languages within sentence")
+                        logger.info(
+                            "[CODE-SWITCHING] Dynamic language detection enabled (no language pinning)"
+                        )
+                        logger.info(
+                            "[CODE-SWITCHING] Whisper will auto-detect and switch languages within sentence"
+                        )
                     else:
                         # Standard behavior: pin to specified language
                         if language:
@@ -866,20 +884,26 @@ class PyTorchModelManager:
 
                     # CRITICAL: Whisper translate ONLY works for English target
                     # For other target languages, we must use external translation service
-                    if task == 'translate':
-                        if target_language.lower() in ['en', 'eng', 'english']:
+                    if task == "translate":
+                        if target_language.lower() in ["en", "eng", "english"]:
                             # Use Whisper's built-in translate (any source → English)
                             decode_options["task"] = "translate"
-                            logger.info(f"[TASK] Using Whisper translate: {language or 'auto'} → English (beam_size={beam_size})")
+                            logger.info(
+                                f"[TASK] Using Whisper translate: {language or 'auto'} → English (beam_size={beam_size})"
+                            )
                         else:
                             # Cannot translate to non-English in Whisper - transcribe instead
                             # External translation service will handle source → target_lang
                             decode_options["task"] = "transcribe"
-                            logger.info(f"[TASK] Transcribing to {language or 'source'} (target={target_language} requires external translation)")
+                            logger.info(
+                                f"[TASK] Transcribing to {language or 'source'} (target={target_language} requires external translation)"
+                            )
                     else:
                         # Standard transcription (source lang → source lang)
                         decode_options["task"] = "transcribe"
-                        logger.info(f"[TASK] Transcribing to {language or 'source language'} (beam_size={beam_size})")
+                        logger.info(
+                            f"[TASK] Transcribing to {language or 'source language'} (beam_size={beam_size})"
+                        )
 
                     # Phase 2: AlignAtt streaming policy
                     if streaming_policy == "alignatt":
@@ -891,15 +915,16 @@ class PyTorchModelManager:
                         audio_frames = len(audio_data) // 160  # 10ms per frame at 16kHz
                         self.alignatt_decoder.set_max_attention_frame(audio_frames)
 
-                        logger.info(f"[STREAMING] AlignAtt policy enabled (max_frame: {self.alignatt_decoder.max_frame})")
+                        logger.info(
+                            f"[STREAMING] AlignAtt policy enabled (max_frame: {self.alignatt_decoder.max_frame})"
+                        )
 
-                    logger.info(f"[BEAM_SEARCH] PyTorch Whisper inference with beam_size={beam_size}")
+                    logger.info(
+                        f"[BEAM_SEARCH] PyTorch Whisper inference with beam_size={beam_size}"
+                    )
 
                     # Perform transcription with PyTorch Whisper
-                    result = model.transcribe(
-                        audio=audio_data,
-                        **decode_options
-                    )
+                    result = model.transcribe(audio=audio_data, **decode_options)
 
                     inference_time = time.time() - start_time
                     self.last_inference_time = time.time()
@@ -927,16 +952,18 @@ class PyTorchModelManager:
 
                         # Suggest smaller model
                         if "large" in model_name:
-                            raise Exception("Out of GPU memory. Try using base or small model instead of large models.")
+                            raise Exception(
+                                "Out of GPU memory. Try using base or small model instead of large models."
+                            ) from device_error
                         else:
-                            raise Exception("Out of GPU memory. Cache cleared - please try again.")
+                            raise Exception("Out of GPU memory. Cache cleared - please try again.") from device_error
 
                     elif "device" in error_msg.lower():
                         logger.error(f"[INFERENCE] Device error - attempting recovery: {error_msg}")
                         # Clear the model to force reload
                         if model_name in self.models:
                             del self.models[model_name]
-                        raise Exception("Device error - model will be reloaded on next request")
+                        raise Exception("Device error - model will be reloaded on next request") from device_error
 
                     else:
                         logger.error(f"[INFERENCE] Runtime error: {error_msg}")

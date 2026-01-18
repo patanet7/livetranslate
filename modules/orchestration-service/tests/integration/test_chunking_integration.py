@@ -6,16 +6,16 @@ This tests ACTUAL chunking through the live orchestration service.
 No mocks - real WebSocket connection, real audio, real chunking.
 """
 
-import pytest
 import asyncio
 import base64
 import json
 import time
+
 import numpy as np
+import pytest
 import websockets
 from httpx import AsyncClient
 from timecode import Timecode
-
 
 # Test Configuration
 BASE_URL = "http://localhost:3000"
@@ -69,18 +69,14 @@ class TestActualChunking:
                 },
             )
 
-            assert response.status_code == 200, (
-                f"Failed to create session: {response.text}"
-            )
+            assert response.status_code == 200, f"Failed to create session: {response.text}"
             session = response.json()
             session_id = session.get("session_id")
             print(f"   ✅ Session created: {session_id}")
 
         # 2. Generate test audio (5 seconds)
         print("\n2️⃣ Generating 5 seconds of test audio...")
-        audio_data = generate_test_audio(
-            duration_seconds=5.0, sample_rate=16000, frequency=440
-        )
+        audio_data = generate_test_audio(duration_seconds=5.0, sample_rate=16000, frequency=440)
         print(f"   ✅ Generated {len(audio_data)} bytes of audio data")
 
         # 3. Chunk audio with SMPTE timecode
@@ -172,7 +168,7 @@ class TestActualChunking:
                             f"   📥 Response for chunk {chunk['index']}: {response_data.get('type')}"
                         )
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass  # No response yet, continue
 
                 # Small delay between chunks
@@ -194,7 +190,7 @@ class TestActualChunking:
                             f"   📊 Metrics: {response_data.get('metrics', {}).get('chunks_processed', 0)} chunks processed"
                         )
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     break
 
             print(f"   ✅ Received {responses_received} responses from service")
@@ -227,9 +223,9 @@ class TestActualChunking:
         for i in range(1, len(chunks)):
             overlap_time = chunks[i - 1]["end_time"] - chunks[i]["start_time"]
             overlap_ms_actual = overlap_time * 1000
-            assert 90 <= overlap_ms_actual <= 110, (
-                f"Overlap should be ~100ms, got {overlap_ms_actual:.1f}ms"
-            )
+            assert (
+                90 <= overlap_ms_actual <= 110
+            ), f"Overlap should be ~100ms, got {overlap_ms_actual:.1f}ms"
 
         print("\n✅ REAL INTEGRATION TEST PASSED!")
         print("   - Audio chunked with SMPTE timecode")
@@ -241,4 +237,4 @@ class TestActualChunking:
 if __name__ == "__main__":
     import sys
 
-    pytest.main([__file__, "-v", "-s"] + sys.argv[1:])
+    pytest.main([__file__, "-v", "-s", *sys.argv[1:]])

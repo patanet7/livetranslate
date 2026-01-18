@@ -27,7 +27,7 @@ MODULES_TO_FIX = [
 def fix_imports_in_file(file_path: Path) -> bool:
     """Fix imports in a single file."""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         original_content = content
@@ -47,17 +47,13 @@ def fix_imports_in_file(file_path: Path) -> bool:
                 # Fix: from models import X
                 pattern1 = f"^(\\s*)from {module} import"
                 if re.match(pattern1, line):
-                    fixed_line = re.sub(
-                        f"from {module} import", f"from src.{module} import", line
-                    )
+                    fixed_line = re.sub(f"from {module} import", f"from src.{module} import", line)
                     break
 
                 # Fix: from models.submodule import X
                 pattern2 = f"^(\\s*)from {module}\\."
                 if re.match(pattern2, line):
-                    fixed_line = re.sub(
-                        f"from {module}\\.", f"from src.{module}.", line
-                    )
+                    fixed_line = re.sub(f"from {module}\\.", f"from src.{module}.", line)
                     break
 
             fixed_lines.append(fixed_line)

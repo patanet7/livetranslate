@@ -12,11 +12,11 @@ Usage:
     python tests/fireflies/run_fireflies_tests.py -v
 """
 
-import sys
-from pathlib import Path
-from datetime import datetime
-import subprocess
 import argparse
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
 
 # Get paths
 SCRIPT_DIR = Path(__file__).parent
@@ -28,7 +28,7 @@ OUTPUT_DIR = TESTS_DIR / "output"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def run_tests(test_type: str = "all", verbose: bool = False, output_file: str = None):
+def run_tests(test_type: str = "all", verbose: bool = False, output_file: str | None = None):
     """
     Run Fireflies tests.
 

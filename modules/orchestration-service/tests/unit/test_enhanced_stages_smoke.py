@@ -8,20 +8,21 @@ and perform basic processing without the enhanced libraries installed.
 If libraries are available, more comprehensive tests are run.
 """
 
-import pytest
-import numpy as np
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from audio.config import (
-    LUFSNormalizationConfig,
-    LUFSNormalizationMode,
     CompressionConfig,
     CompressionMode,
     LimiterConfig,
+    LUFSNormalizationConfig,
+    LUFSNormalizationMode,
 )
 
 
@@ -35,9 +36,7 @@ class TestEnhancedStagesAvailability:
 
             assert hasattr(stages_enhanced, "AVAILABLE_FEATURES")
             assert hasattr(stages_enhanced, "__version__")
-            print(
-                f"✓ stages_enhanced module imported (version {stages_enhanced.__version__})"
-            )
+            print(f"✓ stages_enhanced module imported (version {stages_enhanced.__version__})")
         except ImportError as e:
             pytest.fail(f"Could not import stages_enhanced module: {e}")
 
@@ -84,6 +83,7 @@ class TestLUFSNormalizationEnhanced:
         try:
             from audio.stages_enhanced import LUFSNormalizationStageEnhanced
 
+            assert isinstance(LUFSNormalizationStageEnhanced, type)
             print("✓ LUFSNormalizationStageEnhanced imported successfully")
             return True
         except ImportError as e:
@@ -159,6 +159,7 @@ class TestCompressionEnhanced:
         try:
             from audio.stages_enhanced import CompressionStageEnhanced
 
+            assert isinstance(CompressionStageEnhanced, type)
             print("✓ CompressionStageEnhanced imported successfully")
             return True
         except ImportError as e:
@@ -222,15 +223,14 @@ class TestLimiterEnhanced:
     @pytest.fixture
     def limiter_config(self):
         """Create default limiter config."""
-        return LimiterConfig(
-            enabled=True, threshold=-1.0, release_time=50.0, soft_clip=True
-        )
+        return LimiterConfig(enabled=True, threshold=-1.0, release_time=50.0, soft_clip=True)
 
     def test_limiter_import(self):
         """Test that limiter stage can be imported."""
         try:
             from audio.stages_enhanced import LimiterStageEnhanced
 
+            assert isinstance(LimiterStageEnhanced, type)
             print("✓ LimiterStageEnhanced imported successfully")
             return True
         except ImportError as e:
@@ -296,9 +296,9 @@ class TestIntegration:
         """Test processing through all enhanced stages."""
         try:
             from audio.stages_enhanced import (
-                LUFSNormalizationStageEnhanced,
                 CompressionStageEnhanced,
                 LimiterStageEnhanced,
+                LUFSNormalizationStageEnhanced,
             )
 
             # Create stages

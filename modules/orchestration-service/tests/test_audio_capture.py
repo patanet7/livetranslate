@@ -17,18 +17,19 @@ Test Categories:
 - Performance under load
 """
 
-import pytest
 import asyncio
-import time
-import numpy as np
-import threading
-import tempfile
-from unittest.mock import Mock, AsyncMock, patch
 
 # import sounddevice as sd  # Missing dependency - commented out
 # import soundfile as sf    # Missing dependency - commented out
 import os
 import sys
+import tempfile
+import threading
+import time
+from unittest.mock import AsyncMock, Mock, patch
+
+import numpy as np
+import pytest
 
 # Skip tests until audio capture dependencies are available
 pytestmark = pytest.mark.skip(
@@ -42,6 +43,36 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 #     GoogleMeetAudioCapture, AudioConfig, MeetingInfo,
 #     AudioBuffer, AudioQualityAnalyzer
 # )
+
+# Placeholder imports for type checking (actual imports are unavailable)
+# These are only used for test signature purposes - tests are skipped
+try:
+    import sounddevice as sd
+    import soundfile as sf
+except ImportError:
+    sd = None  # type: ignore[assignment]
+    sf = None  # type: ignore[assignment]
+
+try:
+    from bot.audio_capture import (
+        AudioBuffer,
+        AudioConfig,
+        AudioQualityAnalyzer,
+        GoogleMeetAudioCapture,
+        MeetingInfo,
+    )
+except ImportError:
+    # Placeholder classes for when imports are unavailable
+    class AudioConfig:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class MeetingInfo:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class GoogleMeetAudioCapture:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class AudioBuffer:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
+    class AudioQualityAnalyzer:  # type: ignore[no-redef]
+        def __init__(self, **kwargs): pass
 
 
 class TestAudioDeviceDetection:
@@ -113,9 +144,7 @@ class TestAudioDeviceDetection:
                 await capture.stop_capture()
                 assert capture.is_capturing is False
             else:
-                pytest.skip(
-                    "Audio device initialization failed - likely no audio hardware"
-                )
+                pytest.skip("Audio device initialization failed - likely no audio hardware")
 
 
 class TestAudioBuffer:
@@ -162,7 +191,7 @@ class TestAudioBuffer:
         def producer():
             """Producer thread that adds chunks."""
             try:
-                for i in range(100):
+                for _i in range(100):
                     chunk = np.random.random(512).astype(np.float32)
                     buffer.add_chunk(chunk)
                     time.sleep(0.001)  # Small delay
@@ -173,8 +202,8 @@ class TestAudioBuffer:
         def consumer():
             """Consumer thread that reads chunks."""
             try:
-                for i in range(50):
-                    chunks = buffer.get_chunks(5)
+                for _i in range(50):
+                    buffer.get_chunks(5)
                     time.sleep(0.002)  # Small delay
                 results.append("consumer_done")
             except Exception as e:
@@ -314,16 +343,14 @@ class TestAudioQualityAnalyzer:
         iterations = 100
 
         for _ in range(iterations):
-            metrics = quality_analyzer.analyze_chunk(good_audio)
+            quality_analyzer.analyze_chunk(good_audio)
 
         end_time = time.time()
         total_time = end_time - start_time
         avg_time = total_time / iterations
 
         # Should be fast (< 10ms per analysis)
-        assert avg_time < 0.01, (
-            f"Quality analysis too slow: {avg_time:.4f}s per analysis"
-        )
+        assert avg_time < 0.01, f"Quality analysis too slow: {avg_time:.4f}s per analysis"
 
 
 class TestRealTimeProcessing:
@@ -397,9 +424,7 @@ class TestRealTimeProcessing:
                 mock_stream_instance = Mock()
                 mock_stream.return_value = mock_stream_instance
 
-                meeting_info = MeetingInfo(
-                    meeting_id="latency-test", meeting_title="Latency Test"
-                )
+                meeting_info = MeetingInfo(meeting_id="latency-test", meeting_title="Latency Test")
 
                 # Start capture
                 await capture.start_capture(meeting_info)
@@ -408,16 +433,12 @@ class TestRealTimeProcessing:
                 audio_stream = self.create_audio_stream(duration_seconds=3.0)
                 chunk_size = int(audio_config.sample_rate * audio_config.chunk_duration)
 
-                start_time = time.time()
+                time.time()
                 for i in range(0, len(audio_stream), chunk_size):
                     chunk = audio_stream[i : i + chunk_size]
                     if len(chunk) == chunk_size:
-                        capture._audio_callback(
-                            chunk.reshape(-1, 1), len(chunk), None, None
-                        )
-                        await asyncio.sleep(
-                            audio_config.chunk_duration
-                        )  # Real-time simulation
+                        capture._audio_callback(chunk.reshape(-1, 1), len(chunk), None, None)
+                        await asyncio.sleep(audio_config.chunk_duration)  # Real-time simulation
 
                 await capture.stop_capture()
 
@@ -432,9 +453,9 @@ class TestRealTimeProcessing:
 
             # Latency should be close to expected interval (within 50ms tolerance)
             latency_tolerance = 0.05  # 50ms
-            assert abs(avg_interval - expected_interval) < latency_tolerance, (
-                f"Processing latency too high: {avg_interval:.3f}s vs expected {expected_interval:.3f}s"
-            )
+            assert (
+                abs(avg_interval - expected_interval) < latency_tolerance
+            ), f"Processing latency too high: {avg_interval:.3f}s vs expected {expected_interval:.3f}s"
 
     @pytest.mark.asyncio
     async def test_continuous_processing_stability(self, audio_config):
@@ -484,14 +505,12 @@ class TestRealTimeProcessing:
                 audio_stream = self.create_audio_stream(duration_seconds=10.0)
                 chunk_size = int(audio_config.sample_rate * audio_config.chunk_duration)
 
-                chunks_to_process = len(audio_stream) // chunk_size
+                len(audio_stream) // chunk_size
 
                 for i in range(0, len(audio_stream), chunk_size):
                     chunk = audio_stream[i : i + chunk_size]
                     if len(chunk) == chunk_size:
-                        capture._audio_callback(
-                            chunk.reshape(-1, 1), len(chunk), None, None
-                        )
+                        capture._audio_callback(chunk.reshape(-1, 1), len(chunk), None, None)
 
                 # Allow processing to complete
                 await asyncio.sleep(1.0)
@@ -575,9 +594,7 @@ class TestAudioFormatHandling:
 
             # Verify conversion
             assert converted.dtype == np.float32
-            assert np.max(np.abs(converted)) <= 1.0, (
-                f"Audio data out of range for {format_name}"
-            )
+            assert np.max(np.abs(converted)) <= 1.0, f"Audio data out of range for {format_name}"
 
             # Test bytes conversion
             audio_bytes = capture._audio_to_bytes(converted)
@@ -631,7 +648,7 @@ class TestServiceIntegration:
             config=audio_config, whisper_service_url="http://localhost:5001"
         )
 
-        meeting_info = MeetingInfo(
+        MeetingInfo(
             meeting_id="service-test", meeting_title="Service Integration Test"
         )
 
@@ -675,16 +692,12 @@ class TestServiceIntegration:
             return mock_response
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.post = AsyncMock(
-                side_effect=mock_post
-            )
+            mock_client.return_value.__aenter__.return_value.post = AsyncMock(side_effect=mock_post)
 
             # Create test audio
             duration = 2.0
             samples = int(audio_config.sample_rate * duration)
-            test_audio = 0.3 * np.sin(
-                2 * np.pi * 440 * np.linspace(0, duration, samples)
-            )
+            test_audio = 0.3 * np.sin(2 * np.pi * 440 * np.linspace(0, duration, samples))
             test_audio = test_audio.astype(np.float32)
 
             # Convert to bytes
@@ -698,7 +711,7 @@ class TestServiceIntegration:
             assert len(service_calls) > 0
 
             # Check call parameters
-            call_args, call_kwargs = service_calls[0]
+            _call_args, call_kwargs = service_calls[0]
             assert "files" in call_kwargs
             assert "data" in call_kwargs
             assert call_kwargs["data"]["chunk_duration"] == audio_config.chunk_duration
@@ -724,7 +737,7 @@ class TestServiceIntegration:
             # Bad request
             {"status_code": 400, "response": {"error": "Invalid audio format"}},
             # Timeout
-            {"exception": asyncio.TimeoutError()},
+            {"exception": TimeoutError()},
             # Connection error
             {"exception": ConnectionError("Service unreachable")},
         ]

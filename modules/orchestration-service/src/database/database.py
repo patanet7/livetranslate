@@ -5,13 +5,14 @@ SQLAlchemy async database setup and connection management.
 """
 
 import logging
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy import event, text
+from datetime import UTC
 
 from config import DatabaseSettings as DatabaseConfig
+from sqlalchemy import event, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from .models import Base
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class DatabaseManager:
             return
 
         # Create async engine - use async_url for proper SQLAlchemy async format
-        db_url = getattr(self.config, 'async_url', self.config.url)
+        db_url = getattr(self.config, "async_url", self.config.url)
         # Ensure we have the async driver prefix
         if db_url.startswith("postgresql://"):
             db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -160,7 +161,7 @@ class DatabaseManager:
 
 
 # Global database manager instance
-database_manager: Optional[DatabaseManager] = None
+database_manager: DatabaseManager | None = None
 
 
 def get_database_manager() -> DatabaseManager:
@@ -193,8 +194,9 @@ class DatabaseUtils:
     @staticmethod
     async def create_test_data(session: AsyncSession):
         """Create test data for development"""
-        from .models import BotSession, AudioFile, Transcript, Translation, Participant
-        from datetime import datetime, timezone
+        from datetime import datetime
+
+        from .models import AudioFile, BotSession, Participant, Transcript, Translation
 
         # Create test session
         test_session = BotSession(
@@ -240,8 +242,8 @@ class DatabaseUtils:
             audio_file_id=test_audio.file_id,
             speaker_id="speaker_1",
             speaker_name="Test Speaker",
-            start_time=datetime.now(timezone.utc),
-            end_time=datetime.now(timezone.utc),
+            start_time=datetime.now(UTC),
+            end_time=datetime.now(UTC),
         )
 
         session.add(test_transcript)
@@ -258,8 +260,8 @@ class DatabaseUtils:
             confidence=0.92,
             speaker_id="speaker_1",
             speaker_name="Test Speaker",
-            start_time=datetime.now(timezone.utc),
-            end_time=datetime.now(timezone.utc),
+            start_time=datetime.now(UTC),
+            end_time=datetime.now(UTC),
             quality_score=0.88,
             word_count=6,
             character_count=25,
@@ -275,7 +277,7 @@ class DatabaseUtils:
             name="Test Speaker",
             email="test@example.com",
             speaker_id="speaker_1",
-            joined_at=datetime.now(timezone.utc),
+            joined_at=datetime.now(UTC),
             speaking_time=120.0,
             word_count=100,
         )
@@ -289,9 +291,9 @@ class DatabaseUtils:
     @staticmethod
     async def cleanup_old_sessions(session: AsyncSession, days: int = 30):
         """Clean up old session data"""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = datetime.now(UTC) - timedelta(days=days)
 
         # Delete old sessions (cascade will handle related data)
         result = await session.execute(
@@ -307,8 +309,9 @@ class DatabaseUtils:
     @staticmethod
     async def get_session_statistics(session: AsyncSession, session_id: str) -> dict:
         """Get detailed session statistics"""
-        from .models import BotSession, AudioFile, Transcript, Translation, Participant
         from sqlalchemy import func
+
+        from .models import AudioFile, BotSession, Participant, Transcript, Translation
 
         # Get basic session info
         bot_session = await session.get(BotSession, session_id)
@@ -321,21 +324,15 @@ class DatabaseUtils:
         )
 
         transcript_count = await session.scalar(
-            func.count(Transcript.transcript_id).where(
-                Transcript.session_id == session_id
-            )
+            func.count(Transcript.transcript_id).where(Transcript.session_id == session_id)
         )
 
         translation_count = await session.scalar(
-            func.count(Translation.translation_id).where(
-                Translation.session_id == session_id
-            )
+            func.count(Translation.translation_id).where(Translation.session_id == session_id)
         )
 
         participant_count = await session.scalar(
-            func.count(Participant.participant_id).where(
-                Participant.session_id == session_id
-            )
+            func.count(Participant.participant_id).where(Participant.session_id == session_id)
         )
 
         # Get aggregated metrics
@@ -372,9 +369,7 @@ class DatabaseUtils:
             "participants_count": participant_count,
             "total_audio_duration": total_audio_duration,
             "total_audio_size": total_audio_size,
-            "average_confidence": float(average_confidence)
-            if average_confidence
-            else None,
+            "average_confidence": float(average_confidence) if average_confidence else None,
             "languages_detected": bot_session.target_languages,
         }
 
@@ -399,14 +394,14 @@ class MigrationManager:
             # Create custom indexes
             await session.execute(
                 """
-                CREATE INDEX IF NOT EXISTS idx_transcripts_text_search 
+                CREATE INDEX IF NOT EXISTS idx_transcripts_text_search
                 ON transcripts USING gin(to_tsvector('english', text))
             """
             )
 
             await session.execute(
                 """
-                CREATE INDEX IF NOT EXISTS idx_translations_text_search 
+                CREATE INDEX IF NOT EXISTS idx_translations_text_search
                 ON translations USING gin(to_tsvector('english', translated_text))
             """
             )

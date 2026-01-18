@@ -12,20 +12,20 @@
             padding: 20px;
             background-color: #f5f5f5;
         }
-        
+
         .container {
             background: white;
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        
+
         h1 {
             color: #333;
             text-align: center;
             margin-bottom: 30px;
         }
-        
+
         .status {
             padding: 10px;
             border-radius: 5px;
@@ -33,36 +33,36 @@
             text-align: center;
             font-weight: bold;
         }
-        
+
         .status.connecting {
             background-color: #fff3cd;
             color: #856404;
             border: 1px solid #ffeaa7;
         }
-        
+
         .status.connected {
             background-color: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
+
         .status.error {
             background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        
+
         .input-section {
             margin-bottom: 20px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
             color: #555;
         }
-        
+
         textarea {
             width: 100%;
             padding: 12px;
@@ -73,12 +73,12 @@
             resize: vertical;
             min-height: 100px;
         }
-        
+
         textarea:focus {
             outline: none;
             border-color: #007bff;
         }
-        
+
         button {
             background-color: #007bff;
             color: white;
@@ -90,20 +90,20 @@
             width: 100%;
             margin-top: 10px;
         }
-        
+
         button:hover {
             background-color: #0056b3;
         }
-        
+
         button:disabled {
             background-color: #6c757d;
             cursor: not-allowed;
         }
-        
+
         .result-section {
             margin-top: 30px;
         }
-        
+
         .translation-result {
             background-color: #f8f9fa;
             border: 2px solid #e9ecef;
@@ -112,7 +112,7 @@
             margin-top: 10px;
             min-height: 50px;
         }
-        
+
         .translation-meta {
             font-size: 12px;
             color: #666;
@@ -120,13 +120,13 @@
             padding-top: 10px;
             border-top: 1px solid #eee;
         }
-        
+
         .examples {
             margin-top: 30px;
             padding-top: 20px;
             border-top: 2px solid #eee;
         }
-        
+
         .example {
             background-color: #f1f3f4;
             padding: 10px;
@@ -135,11 +135,11 @@
             cursor: pointer;
             transition: background-color 0.2s;
         }
-        
+
         .example:hover {
             background-color: #e8eaed;
         }
-        
+
         .server-config {
             background-color: #e7f3ff;
             padding: 15px;
@@ -147,7 +147,7 @@
             margin-bottom: 20px;
             font-size: 14px;
         }
-        
+
         .loading {
             display: inline-block;
             width: 20px;
@@ -158,7 +158,7 @@
             animation: spin 1s linear infinite;
             margin-right: 10px;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -168,18 +168,18 @@
 <body>
     <div class="container">
         <h1>🌐 vLLM Translation Test</h1>
-        
+
         <div class="server-config">
             <strong>Server Configuration:</strong><br>
             REST API: <span id="restUrl">http://localhost:5003</span><br>
             WebSocket: <span id="wsUrl">ws://localhost:8010</span><br>
             Model: Qwen/Qwen2.5-14B-Instruct-AWQ
         </div>
-        
+
         <div id="status" class="status connecting">
             <span class="loading"></span>Connecting to translation server...
         </div>
-        
+
         <div class="input-section">
             <label for="inputText">Enter text to translate (English ↔ Chinese):</label>
             <textarea id="inputText" placeholder="Type your text here... 在这里输入文本..."></textarea>
@@ -187,7 +187,7 @@
                 Translate
             </button>
         </div>
-        
+
         <div class="result-section">
             <label>Translation Result:</label>
             <div id="translationResult" class="translation-result">
@@ -195,7 +195,7 @@
             </div>
             <div id="translationMeta" class="translation-meta"></div>
         </div>
-        
+
         <div class="examples">
             <h3>Example Texts (click to use):</h3>
             <div class="example" onclick="setExample('Hello, how are you today?')">
@@ -222,71 +222,71 @@
     <script>
         let websocket = null;
         let isConnected = false;
-        
+
         // Configuration
         const REST_URL = 'http://localhost:5003';
         const WS_URL = 'ws://localhost:8010';
-        
+
         // Update URLs in display
         document.getElementById('restUrl').textContent = REST_URL;
         document.getElementById('wsUrl').textContent = WS_URL;
-        
+
         // Initialize connection
         function initConnection() {
             // Try WebSocket first
             connectWebSocket();
-            
+
             // Also test REST API
             testRestAPI();
         }
-        
+
         function connectWebSocket() {
             try {
                 websocket = new WebSocket(WS_URL);
-                
+
                 websocket.onopen = function(event) {
                     console.log('WebSocket connected');
                     updateStatus('connected', '✅ Connected to WebSocket server');
                     isConnected = true;
                     document.getElementById('translateBtn').disabled = false;
                 };
-                
+
                 websocket.onmessage = function(event) {
                     const data = JSON.parse(event.data);
                     console.log('Received:', data);
-                    
+
                     if (data.translation || data.translated_text) {
                         displayTranslation(data);
                     }
                 };
-                
+
                 websocket.onclose = function(event) {
                     console.log('WebSocket disconnected');
                     updateStatus('error', '❌ WebSocket disconnected - trying REST API');
                     isConnected = false;
                     document.getElementById('translateBtn').disabled = false; // Still allow REST
                 };
-                
+
                 websocket.onerror = function(error) {
                     console.log('WebSocket error:', error);
                     updateStatus('error', '❌ WebSocket error - trying REST API');
                     isConnected = false;
                     document.getElementById('translateBtn').disabled = false; // Still allow REST
                 };
-                
+
             } catch (error) {
                 console.log('WebSocket not supported:', error);
                 updateStatus('error', '❌ WebSocket not supported - using REST API');
                 document.getElementById('translateBtn').disabled = false;
             }
         }
-        
+
         async function testRestAPI() {
             try {
                 const response = await fetch(`${REST_URL}/health`);
                 const data = await response.json();
                 console.log('REST API health:', data);
-                
+
                 if (!isConnected) {
                     updateStatus('connected', '✅ Connected to REST API server');
                     document.getElementById('translateBtn').disabled = false;
@@ -298,27 +298,27 @@
                 }
             }
         }
-        
+
         function updateStatus(type, message) {
             const statusEl = document.getElementById('status');
             statusEl.className = `status ${type}`;
             statusEl.innerHTML = message;
         }
-        
+
         async function translateText() {
             const inputText = document.getElementById('inputText').value.trim();
             if (!inputText) {
                 alert('Please enter some text to translate');
                 return;
             }
-            
+
             const translateBtn = document.getElementById('translateBtn');
             const originalText = translateBtn.textContent;
             translateBtn.textContent = 'Translating...';
             translateBtn.disabled = true;
-            
+
             document.getElementById('translationResult').innerHTML = '<span class="loading"></span>Translating...';
-            
+
             try {
                 if (isConnected && websocket && websocket.readyState === WebSocket.OPEN) {
                     // Use WebSocket
@@ -339,7 +339,7 @@
                 translateBtn.disabled = false;
             }
         }
-        
+
         async function translateViaREST(inputText) {
             const response = await fetch(`${REST_URL}/translate`, {
                 method: 'POST',
@@ -350,19 +350,19 @@
                     text: inputText
                 })
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
-            
+
             const data = await response.json();
             displayTranslation(data);
         }
-        
+
         function displayTranslation(data) {
             const resultEl = document.getElementById('translationResult');
             const metaEl = document.getElementById('translationMeta');
-            
+
             // Handle different response formats
             const translation = data.translation || data.translated_text || 'No translation received';
             const original = data.original || data.original_text || '';
@@ -372,33 +372,33 @@
             const processingTime = data.processing_time || data.processing_time_ms || 0;
             const modelUsed = data.model_used || 'unknown';
             const cached = data.cached || false;
-            
+
             resultEl.textContent = translation;
-            
+
             metaEl.innerHTML = `
                 <strong>Source:</strong> ${sourceLanguage} → <strong>Target:</strong> ${targetLanguage}<br>
-                <strong>Confidence:</strong> ${(confidence * 100).toFixed(1)}% | 
-                <strong>Time:</strong> ${processingTime.toFixed(3)}s | 
+                <strong>Confidence:</strong> ${(confidence * 100).toFixed(1)}% |
+                <strong>Time:</strong> ${processingTime.toFixed(3)}s |
                 <strong>Model:</strong> ${modelUsed}
                 ${cached ? ' | <strong>Cached:</strong> ✅' : ''}
             `;
         }
-        
+
         function setExample(text) {
             document.getElementById('inputText').value = text;
         }
-        
+
         // Handle Enter key in textarea
         document.getElementById('inputText').addEventListener('keydown', function(event) {
             if (event.key === 'Enter' && event.ctrlKey) {
                 translateText();
             }
         });
-        
+
         // Initialize when page loads
         window.onload = function() {
             initConnection();
         };
     </script>
 </body>
-</html> 
+</html>

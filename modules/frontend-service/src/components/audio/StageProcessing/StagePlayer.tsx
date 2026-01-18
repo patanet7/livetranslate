@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Card,
@@ -11,7 +11,7 @@ import {
   Menu,
   MenuItem,
   Divider,
-} from '@mui/material';
+} from "@mui/material";
 import {
   PlayArrow,
   Pause,
@@ -23,14 +23,14 @@ import {
   GraphicEq,
   MoreVert,
   Loop,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface StagePlayerProps {
   stageName: string;
   stageDisplayName: string;
   audioData?: {
     original: string; // base64 audio data
-    processed: string; // base64 audio data  
+    processed: string; // base64 audio data
     metadata: {
       duration: number;
       sampleRate: number;
@@ -49,7 +49,7 @@ interface StagePlayerProps {
   showComparison?: boolean;
 }
 
-type PlayMode = 'original' | 'processed' | 'comparison';
+type PlayMode = "original" | "processed" | "comparison";
 
 export const StagePlayer: React.FC<StagePlayerProps> = ({
   stageName,
@@ -63,7 +63,7 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
-  const [playMode, setPlayMode] = useState<PlayMode>('processed');
+  const [playMode, setPlayMode] = useState<PlayMode>("processed");
   const [isLooping, setIsLooping] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -97,22 +97,22 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
     };
 
     const handleError = () => {
-      console.error('Audio playback error');
+      console.error("Audio playback error");
       setIsPlaying(false);
     };
 
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
 
     if (isPlaying) {
       updateTime();
     }
 
     return () => {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -128,7 +128,8 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
   useEffect(() => {
     // Update audio source when play mode changes
     if (audioRef.current && audioData) {
-      const audioBlob = playMode === 'original' ? audioData.original : audioData.processed;
+      const audioBlob =
+        playMode === "original" ? audioData.original : audioData.processed;
       const audioUrl = `data:audio/wav;base64,${audioBlob}`;
       audioRef.current.src = audioUrl;
       audioRef.current.load();
@@ -148,7 +149,7 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
         setIsPlaying(true);
       }
     } catch (error) {
-      console.error('Error playing audio:', error);
+      console.error("Error playing audio:", error);
       setIsPlaying(false);
     }
   };
@@ -183,12 +184,15 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
   const handleDownload = () => {
     if (!audioData) return;
 
-    const audioBlob = playMode === 'original' ? audioData.original : audioData.processed;
-    const blob = new Blob([Uint8Array.from(atob(audioBlob), c => c.charCodeAt(0))], 
-      { type: 'audio/wav' });
-    
+    const audioBlob =
+      playMode === "original" ? audioData.original : audioData.processed;
+    const blob = new Blob(
+      [Uint8Array.from(atob(audioBlob), (c) => c.charCodeAt(0))],
+      { type: "audio/wav" },
+    );
+
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `${stageName}_${playMode}_audio.wav`;
     document.body.appendChild(a);
@@ -200,7 +204,7 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   const getProgressValue = () => {
@@ -210,17 +214,23 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
 
   if (!audioData) {
     return (
-      <Card sx={{ height: '100%' }}>
+      <Card sx={{ height: "100%" }}>
         <CardContent>
-          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="between"
+            mb={2}
+          >
             <Typography variant="h6" component="h3">
               {stageDisplayName} Player
             </Typography>
             <Chip label="No Audio" size="small" color="default" />
           </Box>
-          
+
           <Alert severity="info">
-            No processed audio available. Upload and process audio through this stage to enable playback.
+            No processed audio available. Upload and process audio through this
+            stage to enable playback.
           </Alert>
         </CardContent>
       </Card>
@@ -228,22 +238,27 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
   }
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ height: "100%" }}>
       <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
           <Typography variant="h6" component="h3">
             {stageDisplayName} Player
           </Typography>
-          
+
           <Box display="flex" alignItems="center" gap={1}>
-            <Chip 
-              label={playMode === 'original' ? 'Original' : 'Processed'} 
-              size="small" 
-              color={playMode === 'processed' ? 'primary' : 'default'}
+            <Chip
+              label={playMode === "original" ? "Original" : "Processed"}
+              size="small"
+              color={playMode === "processed" ? "primary" : "default"}
               variant="outlined"
             />
-            <IconButton 
-              size="small" 
+            <IconButton
+              size="small"
               onClick={(e) => setMenuAnchor(e.currentTarget)}
             >
               <MoreVert />
@@ -264,26 +279,26 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
               label="Original"
               size="small"
               clickable
-              color={playMode === 'original' ? 'primary' : 'default'}
-              variant={playMode === 'original' ? 'filled' : 'outlined'}
-              onClick={() => setPlayMode('original')}
+              color={playMode === "original" ? "primary" : "default"}
+              variant={playMode === "original" ? "filled" : "outlined"}
+              onClick={() => setPlayMode("original")}
             />
             <Chip
               label="Processed"
               size="small"
               clickable
-              color={playMode === 'processed' ? 'primary' : 'default'}
-              variant={playMode === 'processed' ? 'filled' : 'outlined'}
-              onClick={() => setPlayMode('processed')}
+              color={playMode === "processed" ? "primary" : "default"}
+              variant={playMode === "processed" ? "filled" : "outlined"}
+              onClick={() => setPlayMode("processed")}
             />
             {showComparison && (
               <Chip
                 label="A/B Compare"
                 size="small"
                 clickable
-                color={playMode === 'comparison' ? 'primary' : 'default'}
-                variant={playMode === 'comparison' ? 'filled' : 'outlined'}
-                onClick={() => setPlayMode('comparison')}
+                color={playMode === "comparison" ? "primary" : "default"}
+                variant={playMode === "comparison" ? "filled" : "outlined"}
+                onClick={() => setPlayMode("comparison")}
                 icon={<Compare />}
               />
             )}
@@ -305,7 +320,7 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
           <Typography variant="caption" color="text.secondary" ml={1}>
             Waveform visualization
           </Typography>
-          
+
           {/* Progress overlay */}
           <Box
             position="absolute"
@@ -339,13 +354,19 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
         </Box>
 
         {/* Controls */}
-        <Box display="flex" alignItems="center" justifyContent="center" gap={1} mb={2}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          gap={1}
+          mb={2}
+        >
           <IconButton onClick={handleStop} disabled={!audioData}>
             <Stop />
           </IconButton>
-          
-          <IconButton 
-            onClick={handlePlay} 
+
+          <IconButton
+            onClick={handlePlay}
             disabled={!audioData}
             size="large"
             color="primary"
@@ -353,7 +374,7 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
             {isPlaying ? <Pause /> : <PlayArrow />}
           </IconButton>
 
-          <IconButton 
+          <IconButton
             onClick={() => setIsLooping(!isLooping)}
             color={isLooping ? "primary" : "default"}
           >
@@ -364,7 +385,7 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
             <IconButton onClick={toggleMute} size="small">
               {isMuted ? <VolumeOff /> : <VolumeUp />}
             </IconButton>
-            
+
             <Slider
               value={volume}
               max={1}
@@ -378,42 +399,55 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
 
         {/* Audio Info */}
         <Box p={2} bgcolor="background.default" borderRadius={1}>
-          <Typography variant="caption" color="text.secondary" display="block" mb={1}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            mb={1}
+          >
             Audio Information:
           </Typography>
           <Box display="flex" flexWrap="wrap" gap={1}>
-            <Chip 
-              label={`${audioData.metadata.duration.toFixed(1)}s`} 
-              size="small" 
-              variant="outlined" 
+            <Chip
+              label={`${audioData.metadata.duration.toFixed(1)}s`}
+              size="small"
+              variant="outlined"
             />
-            <Chip 
-              label={`${audioData.metadata.sampleRate}Hz`} 
-              size="small" 
-              variant="outlined" 
+            <Chip
+              label={`${audioData.metadata.sampleRate}Hz`}
+              size="small"
+              variant="outlined"
             />
-            <Chip 
-              label={`${audioData.metadata.channels}ch`} 
-              size="small" 
-              variant="outlined" 
+            <Chip
+              label={`${audioData.metadata.channels}ch`}
+              size="small"
+              variant="outlined"
             />
-            <Chip 
-              label={`${audioData.metadata.processing_time_ms.toFixed(1)}ms`} 
-              size="small" 
+            <Chip
+              label={`${audioData.metadata.processing_time_ms.toFixed(1)}ms`}
+              size="small"
               variant="outlined"
               color="primary"
             />
           </Box>
-          
+
           {/* Quality Metrics */}
           <Box mt={1}>
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+            >
               Quality Metrics:
             </Typography>
             <Typography variant="caption" component="div">
-              Level Change: {audioData.metadata.quality_metrics.level_change_db > 0 ? '+' : ''}
-              {audioData.metadata.quality_metrics.level_change_db.toFixed(1)}dB | 
-              SNR: {audioData.metadata.quality_metrics.estimated_snr_db.toFixed(1)}dB
+              Level Change:{" "}
+              {audioData.metadata.quality_metrics.level_change_db > 0
+                ? "+"
+                : ""}
+              {audioData.metadata.quality_metrics.level_change_db.toFixed(1)}dB
+              | SNR:{" "}
+              {audioData.metadata.quality_metrics.estimated_snr_db.toFixed(1)}dB
             </Typography>
           </Box>
         </Box>
@@ -428,25 +462,29 @@ export const StagePlayer: React.FC<StagePlayerProps> = ({
             <Download sx={{ mr: 1 }} />
             Download {playMode} audio
           </MenuItem>
-          
+
           {onCompare && (
-            <MenuItem onClick={() => {
-              onCompare(stageName);
-              setMenuAnchor(null);
-            }}>
+            <MenuItem
+              onClick={() => {
+                onCompare(stageName);
+                setMenuAnchor(null);
+              }}
+            >
               <Compare sx={{ mr: 1 }} />
               Compare with other stages
             </MenuItem>
           )}
-          
+
           <Divider />
-          
-          <MenuItem onClick={() => {
-            setIsLooping(!isLooping);
-            setMenuAnchor(null);
-          }}>
+
+          <MenuItem
+            onClick={() => {
+              setIsLooping(!isLooping);
+              setMenuAnchor(null);
+            }}
+          >
             <Loop sx={{ mr: 1 }} />
-            {isLooping ? 'Disable' : 'Enable'} loop
+            {isLooping ? "Disable" : "Enable"} loop
           </MenuItem>
         </Menu>
       </CardContent>

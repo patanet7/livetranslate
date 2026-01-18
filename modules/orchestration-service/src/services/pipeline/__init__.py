@@ -21,28 +21,28 @@ Usage:
     )
 """
 
-from .config import PipelineConfig, PipelineStats
-from .coordinator import TranscriptionPipelineCoordinator
 from .adapters import (
+    AudioUploadChunkAdapter,
     ChunkAdapter,
-    TranscriptChunk,
     FirefliesChunkAdapter,
     GoogleMeetChunkAdapter,
     ImportChunkAdapter,
-    AudioUploadChunkAdapter,
+    TranscriptChunk,
 )
+from .config import PipelineConfig, PipelineStats
+from .coordinator import TranscriptionPipelineCoordinator
 
 __all__ = [
-    # Config
-    "PipelineConfig",
-    "PipelineStats",
-    # Coordinator
-    "TranscriptionPipelineCoordinator",
+    "AudioUploadChunkAdapter",
     # Adapters
     "ChunkAdapter",
-    "TranscriptChunk",
     "FirefliesChunkAdapter",
     "GoogleMeetChunkAdapter",
     "ImportChunkAdapter",
-    "AudioUploadChunkAdapter",
+    # Config
+    "PipelineConfig",
+    "PipelineStats",
+    "TranscriptChunk",
+    # Coordinator
+    "TranscriptionPipelineCoordinator",
 ]

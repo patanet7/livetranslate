@@ -22,11 +22,14 @@ Key Benefits:
 """
 
 import asyncio
-import json
 import base64
+import contextlib
+import json
 import logging
-from datetime import datetime, timezone
-from typing import Optional, Callable, Dict, Any
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
+
 import websockets
 from websockets.asyncio.client import ClientConnection
 
@@ -67,7 +70,7 @@ class OrchestrationClient:
         user_token: str,
         meeting_id: str,
         connection_id: str,
-        auto_reconnect: bool = True
+        auto_reconnect: bool = True,
     ):
         """
         Initialize orchestration client
@@ -86,18 +89,18 @@ class OrchestrationClient:
         self.auto_reconnect = auto_reconnect
 
         # Connection state
-        self.websocket: Optional[ClientConnection] = None
+        self.websocket: ClientConnection | None = None
         self.connected = False
         self.authenticated = False
         self.session_started = False
 
         # Callbacks
-        self.segment_callback: Optional[Callable[[Dict[str, Any]], None]] = None
-        self.error_callback: Optional[Callable[[str], None]] = None
-        self.connection_callback: Optional[Callable[[bool], None]] = None
+        self.segment_callback: Callable[[dict[str, Any]], None] | None = None
+        self.error_callback: Callable[[str], None] | None = None
+        self.connection_callback: Callable[[bool], None] | None = None
 
         # Background tasks
-        self.receiver_task: Optional[asyncio.Task] = None
+        self.receiver_task: asyncio.Task | None = None
 
     async def connect(self) -> bool:
         """
@@ -119,9 +122,7 @@ class OrchestrationClient:
 
             # Connect to WebSocket
             self.websocket = await websockets.connect(
-                self.orchestration_url,
-                ping_interval=30,
-                ping_timeout=10
+                self.orchestration_url, ping_interval=30, ping_timeout=10
             )
 
             self.connected = True
@@ -168,7 +169,9 @@ class OrchestrationClient:
         response = json.loads(response_raw)
 
         if response.get("type") != "connection:established":
-            raise RuntimeError(f"Connection failed: Expected 'connection:established', got {response}")
+            raise RuntimeError(
+                f"Connection failed: Expected 'connection:established', got {response}"
+            )
 
         logger.info(f"✅ Connection established: {response.get('data', {}).get('connectionId')}")
         self.authenticated = True
@@ -197,8 +200,8 @@ class OrchestrationClient:
                 "language": "en",
                 "enable_vad": True,
                 "enable_cif": True,
-                "enable_rolling_context": True
-            }
+                "enable_rolling_context": True,
+            },
         }
 
         logger.info(f"Starting session: {self.connection_id}")
@@ -214,7 +217,7 @@ class OrchestrationClient:
         self.session_started = True
         logger.info(f"✅ Session started: {response.get('session_id')}")
 
-    async def send_audio_chunk(self, audio_data: bytes, timestamp: Optional[datetime] = None):
+    async def send_audio_chunk(self, audio_data: bytes, timestamp: datetime | None = None):
         """
         Send audio chunk to orchestration (same format as frontend)
 
@@ -234,20 +237,16 @@ class OrchestrationClient:
             return
 
         # Encode audio to base64 (same as frontend)
-        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
 
         # Format timestamp (same as frontend)
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now(UTC)
 
-        timestamp_str = timestamp.isoformat().replace('+00:00', 'Z')
+        timestamp_str = timestamp.isoformat().replace("+00:00", "Z")
 
         # Create message (same as frontend)
-        message = {
-            "type": "audio_chunk",
-            "audio": audio_base64,
-            "timestamp": timestamp_str
-        }
+        message = {"type": "audio_chunk", "audio": audio_base64, "timestamp": timestamp_str}
 
         await self.websocket.send(json.dumps(message))
         logger.debug(f"Sent audio chunk: {len(audio_data)} bytes")
@@ -321,7 +320,7 @@ class OrchestrationClient:
             if self.error_callback:
                 await self.error_callback(f"Receive error: {e}")
 
-    async def _handle_segment(self, segment: Dict[str, Any]):
+    async def _handle_segment(self, segment: dict[str, Any]):
         """Handle received segment from orchestration"""
         logger.debug(f"Received segment: {segment.get('text', '')[:50]}")
 
@@ -334,7 +333,7 @@ class OrchestrationClient:
             except Exception as e:
                 logger.error(f"Error in segment callback: {e}", exc_info=True)
 
-    async def _handle_translation(self, translation: Dict[str, Any]):
+    async def _handle_translation(self, translation: dict[str, Any]):
         """Handle received translation from orchestration"""
         logger.debug(f"Received translation: {translation.get('text', '')[:50]}")
         # TODO: Add translation callback if needed
@@ -349,20 +348,17 @@ class OrchestrationClient:
         # Send end_session message
         if self.session_started:
             try:
-                await self.websocket.send(json.dumps({
-                    "type": "end_session",
-                    "session_id": self.connection_id
-                }))
+                await self.websocket.send(
+                    json.dumps({"type": "end_session", "session_id": self.connection_id})
+                )
             except Exception as e:
                 logger.warning(f"Error sending end_session: {e}")
 
         # Cancel receiver task
         if self.receiver_task:
             self.receiver_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.receiver_task
-            except asyncio.CancelledError:
-                pass
 
         # Close WebSocket
         try:
@@ -378,7 +374,7 @@ class OrchestrationClient:
 
     # Callback registration methods
 
-    def on_segment(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_segment(self, callback: Callable[[dict[str, Any]], None]):
         """
         Register callback for transcription segments
 
@@ -419,14 +415,14 @@ class OrchestrationClient:
         """Check if session is active"""
         return self.session_started
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get client status"""
         return {
             "connection_id": self.connection_id,
             "connected": self.connected,
             "authenticated": self.authenticated,
             "session_started": self.session_started,
-            "websocket_open": self.websocket.open if self.websocket else False
+            "websocket_open": self.websocket.open if self.websocket else False,
         }
 
 
@@ -438,7 +434,7 @@ async def example_usage():
         orchestration_url="ws://localhost:3000/ws",
         user_token="test-token-123",
         meeting_id="meeting-456",
-        connection_id="bot-789"
+        connection_id="bot-789",
     )
 
     # Register callbacks
@@ -461,7 +457,8 @@ async def example_usage():
 
     # Simulate audio streaming
     import numpy as np
-    for i in range(10):
+
+    for _i in range(10):
         # Generate 1 second of test audio
         audio = np.random.randn(16000).astype(np.float32)
         await client.send_audio_chunk(audio.tobytes())

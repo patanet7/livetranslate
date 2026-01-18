@@ -1,48 +1,66 @@
 [project]
 name = "livetranslate-tests"
 version = "0.1.0"
-description = ""
+description = "Integration tests for LiveTranslate"
 authors = [
-    {name = "patanet7",email = "patanet71@gmail.com"}
+    {name = "patanet7", email = "patanet71@gmail.com"}
 ]
 readme = "README.md"
-requires-python = "^3.11"
-dependencies = [
-]
-
+requires-python = ">=3.12,<3.15"
+dependencies = []
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.4.2"
-pytest-asyncio = "^1.2.0"
-pytest-cov = "^7.0.0"
-pytest-mock = "^3.15.1"
-pytest-timeout = "^2.4.0"
-pytest-xdist = "^3.8.0"
-hypothesis = "^6.142.2"
-faker = "^37.11.0"
-factory-boy = "^3.3.3"
-freezegun = "^1.5.5"
-responses = "^0.25.8"
-aioresponses = "^0.7.8"
-sqlalchemy = "^2.0.44"
-psycopg2-binary = "^2.9.11"
-alembic = "^1.17.0"
-redis = "^6.4.0"
-fakeredis = "^2.32.0"
-numpy = "^2.3.4"
-scipy = "^1.16.2"
-librosa = "^0.11.0"
-soundfile = "^0.13.1"
-httpx = "^0.28.1"
-websockets = "^15.0.1"
-msgpack = "^1.1.2"
-pydantic = "^2.12.3"
-pydantic-settings = "^2.7.1"
-python-dotenv = "^1.1.1"
-torch = "2.5.1"
-fastapi = "^0.115.12"
+[tool.pdm]
+distribution = false
 
+[tool.pdm.dev-dependencies]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-mock>=3.15.1",
+    "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
+    "hypothesis>=6.142.2",
+    "faker>=37.11.0",
+    "factory-boy>=3.3.3",
+    "freezegun>=1.5.5",
+    "responses>=0.25.8",
+    "aioresponses>=0.7.8",
+    "sqlalchemy>=2.0.44",
+    "psycopg2-binary>=2.9.11",
+    "alembic>=1.17.0",
+    "redis>=6.4.0",
+    "fakeredis>=2.32.0",
+    "numpy>=2.3.4",
+    "scipy>=1.16.2",
+    "librosa>=0.11.0",
+    "soundfile>=0.13.1",
+    "httpx>=0.28.1",
+    "websockets>=15.0.1",
+    "msgpack>=1.1.2",
+    "pydantic>=2.12.3",
+    "pydantic-settings>=2.7.1",
+    "python-dotenv>=1.1.1",
+    "torch>=2.5.1",
+    "fastapi>=0.115.12",
+    "ruff>=0.8.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "C4", "UP", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

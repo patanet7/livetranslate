@@ -5,33 +5,48 @@ Common imports, utilities, and configurations used across all audio router compo
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
-import numpy as np
 
-from fastapi import APIRouter, Depends, HTTPException, status
-
-# Model imports
-from models.audio import AudioConfiguration
+__all__ = [
+    "APIRouter",
+    "CircuitBreaker",
+    "ErrorLogger",
+    "FormatRecoveryStrategy",
+    "RateLimiter",
+    "RetryConfig",
+    "RetryManager",
+    "SecurityUtils",
+    "ServiceRecoveryStrategy",
+    "audio_service_circuit_breaker",
+    "create_audio_router",
+    "error_boundary",
+    "error_logger",
+    "format_recovery",
+    "get_common_dependencies",
+    "logger",
+    "rate_limiter",
+    "retry_manager",
+    "security_utils",
+    "service_recovery",
+    "translation_service_circuit_breaker",
+]
 
 # Dependency imports
-from dependencies import (
-    get_config_manager,
-    get_audio_service_client,
-    get_audio_coordinator,
+from fastapi import APIRouter
+
+# Model imports
+from utils.audio_errors import (
+    CircuitBreaker,
+    ErrorLogger,
+    FormatRecoveryStrategy,
+    RetryConfig,
+    RetryManager,
+    ServiceRecoveryStrategy,
+    error_boundary,
 )
 
 # Utility imports
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
-from utils.audio_errors import (
-    CircuitBreaker,
-    RetryManager,
-    RetryConfig,
-    FormatRecoveryStrategy,
-    ServiceRecoveryStrategy,
-    ErrorLogger,
-    error_boundary,
-)
 
 # Shared logger
 logger = logging.getLogger(__name__)

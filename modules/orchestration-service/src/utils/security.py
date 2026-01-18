@@ -7,9 +7,10 @@ Provides security-related utilities for the orchestration service.
 import hashlib
 import hmac
 import secrets
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
 import jwt
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Optional
 
 
 class SecurityUtils:
@@ -17,10 +18,10 @@ class SecurityUtils:
     Security utilities for authentication and authorization
     """
 
-    def __init__(self, secret_key: str = None):
+    def __init__(self, secret_key: str | None = None):
         self.secret_key = secret_key or secrets.token_urlsafe(32)
 
-    def generate_token(self, payload: Dict[str, Any], expires_in: int = 3600) -> str:
+    def generate_token(self, payload: dict[str, Any], expires_in: int = 3600) -> str:
         """
         Generate JWT token
 
@@ -31,12 +32,12 @@ class SecurityUtils:
         Returns:
             JWT token string
         """
-        payload["exp"] = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
-        payload["iat"] = datetime.now(timezone.utc)
+        payload["exp"] = datetime.now(UTC) + timedelta(seconds=expires_in)
+        payload["iat"] = datetime.now(UTC)
 
         return jwt.encode(payload, self.secret_key, algorithm="HS256")
 
-    def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
+    def verify_token(self, token: str) -> dict[str, Any] | None:
         """
         Verify JWT token
 
@@ -103,9 +104,7 @@ class SecurityUtils:
         Returns:
             True if signature is valid, False otherwise
         """
-        expected_signature = hmac.new(
-            key.encode(), message.encode(), hashlib.sha256
-        ).hexdigest()
+        expected_signature = hmac.new(key.encode(), message.encode(), hashlib.sha256).hexdigest()
 
         return hmac.compare_digest(signature, expected_signature)
 
@@ -123,9 +122,7 @@ class SecurityUtils:
         filename = filename.replace("..", "").replace("/", "").replace("\\", "")
 
         # Remove special characters
-        allowed_chars = (
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
-        )
+        allowed_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_"
         filename = "".join(c for c in filename if c in allowed_chars)
 
         # Ensure filename is not empty
@@ -152,7 +149,7 @@ class SecurityUtils:
         except ValueError:
             return False
 
-    def is_safe_url(self, url: str, allowed_hosts: list = None) -> bool:
+    def is_safe_url(self, url: str, allowed_hosts: list | None = None) -> bool:
         """
         Check if URL is safe for redirection
 
@@ -173,10 +170,6 @@ class SecurityUtils:
                 return False
 
             # Check allowed hosts
-            if allowed_hosts and parsed.netloc:
-                if parsed.netloc not in allowed_hosts:
-                    return False
-
-            return True
+            return not (allowed_hosts and parsed.netloc and parsed.netloc not in allowed_hosts)
         except Exception:
             return False

@@ -641,4 +641,3 @@ If someone were to implement parallel decoders (NOT RECOMMENDED):
 
 **Document Complete**: Comprehensive implementation details  
 **Use Cases**: Architecture review, implementation planning, debugging reference
-

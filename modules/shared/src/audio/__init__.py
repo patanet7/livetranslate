@@ -19,10 +19,10 @@ Convenience Functions:
 
 Usage Example:
     from livetranslate.shared.audio import AudioValidator, AudioFormat
-    
+
     validator = AudioValidator()
     result = validator.validate_audio_format(audio_data)
-    
+
     if result.is_valid:
         print(f"Audio quality: {result.quality_level.value}")
     else:
@@ -30,56 +30,48 @@ Usage Example:
 """
 
 from .audio_validator import (
-    # Main classes
-    AudioValidator,
-    
-    # Data structures
-    AudioMetadata,
-    ValidationResult,
-    CorruptionAnalysis,
-    
+    AudioCorruptionError,
     # Enumerations
     AudioFormat,
-    QualityLevel,
-    
+    AudioFormatError,
+    # Data structures
+    AudioMetadata,
+    AudioQualityError,
     # Exceptions
     AudioValidationError,
-    AudioFormatError,
-    AudioCorruptionError,
-    AudioQualityError,
-    
-    # Convenience functions
-    validate_audio,
+    # Main classes
+    AudioValidator,
+    CorruptionAnalysis,
+    QualityLevel,
+    ValidationResult,
     check_audio_corruption,
     convert_audio_format,
+    # Convenience functions
+    validate_audio,
 )
 
 __all__ = [
-    # Main classes
-    'AudioValidator',
-    
-    # Data structures
-    'AudioMetadata',
-    'ValidationResult',
-    'CorruptionAnalysis',
-    
+    "AudioCorruptionError",
     # Enumerations
-    'AudioFormat',
-    'QualityLevel',
-    
+    "AudioFormat",
+    "AudioFormatError",
+    # Data structures
+    "AudioMetadata",
+    "AudioQualityError",
     # Exceptions
-    'AudioValidationError',
-    'AudioFormatError',
-    'AudioCorruptionError',
-    'AudioQualityError',
-    
+    "AudioValidationError",
+    # Main classes
+    "AudioValidator",
+    "CorruptionAnalysis",
+    "QualityLevel",
+    "ValidationResult",
+    "check_audio_corruption",
+    "convert_audio_format",
     # Convenience functions
-    'validate_audio',
-    'check_audio_corruption',
-    'convert_audio_format',
+    "validate_audio",
 ]
 
 # Version information
-__version__ = '1.0.0'
-__author__ = 'LiveTranslate Team'
-__description__ = 'Comprehensive audio validation and processing library'
+__version__ = "1.0.0"
+__author__ = "LiveTranslate Team"
+__description__ = "Comprehensive audio validation and processing library"

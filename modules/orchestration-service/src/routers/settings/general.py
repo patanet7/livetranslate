@@ -6,43 +6,41 @@ defaults, and reset functionality.
 """
 
 from ._shared import (
-    logger,
-    ConfigSyncModes,
-    get_config_sync_mode,
-    get_config_manager,
-    get_event_publisher,
-    ConfigResponse,
-    UserSettingsRequest,
-    UserConfigResponse,
-    SystemSettingsRequest,
-    ServiceSettingsRequest,
-    SettingsBackupResponse,
-    AudioProcessingConfig,
-    ChunkingConfig,
-    CorrelationConfig,
-    TranslationConfig,
-    BotConfig,
-    SystemConfig,
     AUDIO_CONFIG_FILE,
+    BOT_CONFIG_FILE,
     CHUNKING_CONFIG_FILE,
     CORRELATION_CONFIG_FILE,
-    TRANSLATION_CONFIG_FILE,
-    BOT_CONFIG_FILE,
     SYSTEM_CONFIG_FILE,
-    load_config,
-    save_config,
-    create_settings_router,
+    TRANSLATION_CONFIG_FILE,
+    Any,
     APIRouter,
+    AudioProcessingConfig,
+    BotConfig,
+    ChunkingConfig,
+    ConfigResponse,
+    ConfigSyncModes,
+    CorrelationConfig,
     Depends,
     HTTPException,
-    status,
     JSONResponse,
-    datetime,
-    timezone,
-    Dict,
-    Any,
     Optional,
+    ServiceSettingsRequest,
+    SettingsBackupResponse,
+    SystemConfig,
+    SystemSettingsRequest,
+    TranslationConfig,
+    UserConfigResponse,
+    UserSettingsRequest,
     asyncio,
+    datetime,
+    get_config_manager,
+    get_config_sync_mode,
+    get_event_publisher,
+    load_config,
+    logger,
+    save_config,
+    status,
+    timezone,
 )
 
 router = APIRouter(tags=["settings-general"])
@@ -74,9 +72,7 @@ async def get_user_settings(
             language=settings.get("language", "en"),
             notifications=settings.get("notifications", True),
             audio_auto_start=settings.get("audio_auto_start", False),
-            default_translation_language=settings.get(
-                "default_translation_language", "es"
-            ),
+            default_translation_language=settings.get("default_translation_language", "es"),
             transcription_model=settings.get("transcription_model", "base"),
             custom_settings=settings.get("custom_settings", {}),
             updated_at=settings.get("updated_at", datetime.now()),
@@ -86,8 +82,8 @@ async def get_user_settings(
         logger.error(f"Failed to get user settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get user settings: {str(e)}",
-        )
+            detail=f"Failed to get user settings: {e!s}",
+        ) from e
 
 
 @router.put("/user", response_model=UserConfigResponse)
@@ -116,9 +112,7 @@ async def update_user_settings(
         if request.audio_auto_start is not None:
             update_data["audio_auto_start"] = request.audio_auto_start
         if request.default_translation_language is not None:
-            update_data["default_translation_language"] = (
-                request.default_translation_language
-            )
+            update_data["default_translation_language"] = request.default_translation_language
         if request.transcription_model is not None:
             update_data["transcription_model"] = request.transcription_model
         if request.custom_settings is not None:
@@ -146,9 +140,7 @@ async def update_user_settings(
             )
 
         # Update settings immediately (API mode)
-        updated_settings = await config_manager.update_user_settings(
-            user_id, update_data
-        )
+        updated_settings = await config_manager.update_user_settings(user_id, update_data)
 
         if event_publisher:
             await event_publisher.publish(
@@ -167,9 +159,7 @@ async def update_user_settings(
             language=updated_settings.get("language", "en"),
             notifications=updated_settings.get("notifications", True),
             audio_auto_start=updated_settings.get("audio_auto_start", False),
-            default_translation_language=updated_settings.get(
-                "default_translation_language", "es"
-            ),
+            default_translation_language=updated_settings.get("default_translation_language", "es"),
             transcription_model=updated_settings.get("transcription_model", "base"),
             custom_settings=updated_settings.get("custom_settings", {}),
             updated_at=updated_settings.get("updated_at", datetime.now()),
@@ -179,8 +169,8 @@ async def update_user_settings(
         logger.error(f"Failed to update user settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update user settings: {str(e)}",
-        )
+            detail=f"Failed to update user settings: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -207,8 +197,8 @@ async def get_system_settings(
         logger.error(f"Failed to get system settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get system settings: {str(e)}",
-        )
+            detail=f"Failed to get system settings: {e!s}",
+        ) from e
 
 
 @router.put("/system")
@@ -288,8 +278,8 @@ async def update_system_settings(
         logger.error(f"Failed to update system settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update system settings: {str(e)}",
-        )
+            detail=f"Failed to update system settings: {e!s}",
+        ) from e
 
 
 @router.get("/system/health")
@@ -312,7 +302,7 @@ async def get_system_health():
         }
     except Exception as e:
         logger.error(f"Error getting system health: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get system health")
+        raise HTTPException(status_code=500, detail="Failed to get system health") from e
 
 
 @router.post("/system/restart")
@@ -323,7 +313,7 @@ async def restart_system_services():
         return {"message": "System services restarted successfully"}
     except Exception as e:
         logger.error(f"Error restarting system services: {e}")
-        raise HTTPException(status_code=500, detail="Failed to restart system services")
+        raise HTTPException(status_code=500, detail="Failed to restart system services") from e
 
 
 @router.post("/system/test-connections")
@@ -343,7 +333,7 @@ async def test_system_connections():
         }
     except Exception as e:
         logger.error(f"Error testing system connections: {e}")
-        raise HTTPException(status_code=500, detail="Connection test failed")
+        raise HTTPException(status_code=500, detail="Connection test failed") from e
 
 
 # ============================================================================
@@ -369,8 +359,8 @@ async def get_service_settings(
         logger.error(f"Failed to get service settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get service settings: {str(e)}",
-        )
+            detail=f"Failed to get service settings: {e!s}",
+        ) from e
 
 
 @router.put("/services/{service_name}")
@@ -453,8 +443,8 @@ async def update_service_settings(
         logger.error(f"Failed to update service settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update service settings: {str(e)}",
-        )
+            detail=f"Failed to update service settings: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -481,13 +471,13 @@ async def get_audio_settings(
         logger.error(f"Failed to get audio settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get audio settings: {str(e)}",
-        )
+            detail=f"Failed to get audio settings: {e!s}",
+        ) from e
 
 
 @router.put("/audio", response_model=ConfigResponse)
 async def update_audio_settings(
-    request: Dict[str, Any],
+    request: dict[str, Any],
     config_manager=Depends(get_config_manager),
 ):
     """
@@ -508,8 +498,8 @@ async def update_audio_settings(
         logger.error(f"Failed to update audio settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update audio settings: {str(e)}",
-        )
+            detail=f"Failed to update audio settings: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -543,8 +533,8 @@ async def create_settings_backup(
         logger.error(f"Failed to create settings backup: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create settings backup: {str(e)}",
-        )
+            detail=f"Failed to create settings backup: {e!s}",
+        ) from e
 
 
 @router.post("/restore/{backup_id}")
@@ -574,8 +564,8 @@ async def restore_settings_backup(
         logger.error(f"Failed to restore settings backup: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to restore settings backup: {str(e)}",
-        )
+            detail=f"Failed to restore settings backup: {e!s}",
+        ) from e
 
 
 @router.get("/backups")
@@ -597,8 +587,8 @@ async def list_settings_backups(
         logger.error(f"Failed to list settings backups: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list settings backups: {str(e)}",
-        )
+            detail=f"Failed to list settings backups: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -608,7 +598,7 @@ async def list_settings_backups(
 
 @router.post("/validate")
 async def validate_settings(
-    settings: Dict[str, Any],
+    settings: dict[str, Any],
     config_manager=Depends(get_config_manager),
 ):
     """
@@ -631,8 +621,8 @@ async def validate_settings(
         logger.error(f"Failed to validate settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to validate settings: {str(e)}",
-        )
+            detail=f"Failed to validate settings: {e!s}",
+        ) from e
 
 
 @router.get("/defaults")
@@ -653,8 +643,8 @@ async def get_default_settings(
         logger.error(f"Failed to get default settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get default settings: {str(e)}",
-        )
+            detail=f"Failed to get default settings: {e!s}",
+        ) from e
 
 
 @router.post("/reset")
@@ -685,8 +675,8 @@ async def reset_settings_to_defaults(
         logger.error(f"Failed to reset settings: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reset settings: {str(e)}",
-        )
+            detail=f"Failed to reset settings: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -704,9 +694,7 @@ async def export_all_settings():
         configs["audio_processing"] = await load_config(
             AUDIO_CONFIG_FILE, AudioProcessingConfig().dict()
         )
-        configs["chunking"] = await load_config(
-            CHUNKING_CONFIG_FILE, ChunkingConfig().dict()
-        )
+        configs["chunking"] = await load_config(CHUNKING_CONFIG_FILE, ChunkingConfig().dict())
         configs["correlation"] = await load_config(
             CORRELATION_CONFIG_FILE, CorrelationConfig().dict()
         )
@@ -722,11 +710,11 @@ async def export_all_settings():
         }
     except Exception as e:
         logger.error(f"Error exporting settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to export settings")
+        raise HTTPException(status_code=500, detail="Failed to export settings") from e
 
 
 @router.post("/import")
-async def import_all_settings(config_data: Dict[str, Any]):
+async def import_all_settings(config_data: dict[str, Any]):
     """Import all configuration settings"""
     try:
         configurations = config_data.get("configurations", {})
@@ -752,14 +740,12 @@ async def import_all_settings(config_data: Dict[str, Any]):
         if "bot" in configurations:
             results["bot"] = await save_config(BOT_CONFIG_FILE, configurations["bot"])
         if "system" in configurations:
-            results["system"] = await save_config(
-                SYSTEM_CONFIG_FILE, configurations["system"]
-            )
+            results["system"] = await save_config(SYSTEM_CONFIG_FILE, configurations["system"])
 
         return {"message": "Configuration import completed", "results": results}
     except Exception as e:
         logger.error(f"Error importing settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to import settings")
+        raise HTTPException(status_code=500, detail="Failed to import settings") from e
 
 
 @router.post("/reset-all")
@@ -795,4 +781,4 @@ async def reset_all_settings():
         }
     except Exception as e:
         logger.error(f"Error resetting settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to reset settings")
+        raise HTTPException(status_code=500, detail="Failed to reset settings") from e

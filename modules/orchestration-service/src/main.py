@@ -17,7 +17,6 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict
 
 import uvicorn
 from fastapi import FastAPI
@@ -42,7 +41,7 @@ class HealthResponse(BaseModel):
 
     status: str
     version: str
-    services: Dict[str, str]
+    services: dict[str, str]
     uptime: float
 
 

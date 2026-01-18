@@ -4,6 +4,7 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
+
 import pytest
 
 
@@ -48,7 +49,9 @@ class TestCIFWordBoundaries:
         text = "The quick brown fox jum"
         truncated = detector.truncate_partial_word(text)
 
-        assert truncated == "The quick brown fox", f"Expected 'The quick brown fox', got '{truncated}'"
+        assert (
+            truncated == "The quick brown fox"
+        ), f"Expected 'The quick brown fox', got '{truncated}'"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -65,12 +68,7 @@ class TestCIFWordBoundaries:
         detector = WordBoundaryDetector()
 
         # Simulate streaming chunks that create word duplications
-        chunks = [
-            "Hello my name",
-            "name is John",
-            "John and I",
-            "I work at"
-        ]
+        chunks = ["Hello my name", "name is John", "John and I", "I work at"]
 
         # Without boundary detection: many duplications
         duplications_no_boundary = 3  # "name", "John", "I" duplicated
@@ -87,7 +85,9 @@ class TestCIFWordBoundaries:
         duplications_with_boundary = len(all_words) - len(unique_words)
 
         # Should have fewer duplications
-        reduction = (duplications_no_boundary - duplications_with_boundary) / duplications_no_boundary
+        reduction = (
+            duplications_no_boundary - duplications_with_boundary
+        ) / duplications_no_boundary
         assert reduction >= 0.50, f"Expected >=50% reduction, got {reduction*100}%"
 
     @pytest.mark.integration
@@ -106,7 +106,7 @@ class TestCIFWordBoundaries:
         complete_sentences = [
             "This is a complete sentence.",
             "Another complete sentence here",
-            "The quick brown fox jumps over the lazy dog"
+            "The quick brown fox jumps over the lazy dog",
         ]
 
         for sentence in complete_sentences:

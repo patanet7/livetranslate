@@ -5,17 +5,22 @@ This module provides specialized audio capture from Google Meet browser sessions
 ensuring the audio source matches the meeting being processed.
 """
 
+from __future__ import annotations
+
 import asyncio
-import logging
-import time
-import json
-from typing import Optional, Callable, Dict, Any
-from dataclasses import dataclass
-import numpy as np
+import contextlib
 import io
-import wave
-import subprocess
+import json
+import logging
 import os
+import subprocess
+import time
+import wave
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
 
 try:
     import sounddevice as sd
@@ -46,8 +51,8 @@ class BrowserAudioConfig:
 
     # Browser audio specific
     browser_process_name: str = "chrome"
-    virtual_audio_device: Optional[str] = None
-    loopback_device: Optional[str] = None
+    virtual_audio_device: str | None = None
+    loopback_device: str | None = None
 
     # Audio processing
     enable_noise_reduction: bool = True
@@ -72,20 +77,20 @@ class BrowserAudioCapture:
         # Audio capture state
         self.is_capturing = False
         self.audio_stream = None
-        self.capture_task: Optional[asyncio.Task] = None
+        self.capture_task: asyncio.Task | None = None
 
         # Meeting context
-        self.meeting_id: Optional[str] = None
-        self.session_id: Optional[str] = None
-        self.browser_driver: Optional[webdriver.Chrome] = None
+        self.meeting_id: str | None = None
+        self.session_id: str | None = None
+        self.browser_driver: webdriver.Chrome | None = None
 
         # Audio data buffers
         self.audio_buffer = []
         self.chunk_size = int(self.config.sample_rate * self.config.chunk_duration)
 
         # Callbacks
-        self.on_audio_chunk: Optional[Callable[[bytes, Dict[str, Any]], None]] = None
-        self.on_audio_error: Optional[Callable[[str], None]] = None
+        self.on_audio_chunk: Callable[[bytes, dict[str, Any]], None] | None = None
+        self.on_audio_error: Callable[[str], None] | None = None
 
         # Statistics
         self.total_chunks_sent = 0
@@ -99,7 +104,7 @@ class BrowserAudioCapture:
         self,
         meeting_id: str,
         session_id: str,
-        browser_driver: Optional[webdriver.Chrome] = None,
+        browser_driver: webdriver.Chrome | None = None,
     ):
         """Initialize browser audio capture for a specific meeting"""
         try:
@@ -166,9 +171,7 @@ class BrowserAudioCapture:
         except Exception as e:
             logger.error(f"Failed to start audio capture: {e}")
             if self.on_audio_error:
-                await self._safe_callback(
-                    self.on_audio_error, f"Audio capture start failed: {e}"
-                )
+                await self._safe_callback(self.on_audio_error, f"Audio capture start failed: {e}")
             return False
 
     async def stop_capture(self):
@@ -190,10 +193,8 @@ class BrowserAudioCapture:
             # Cancel processing task
             if self.capture_task:
                 self.capture_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await self.capture_task
-                except asyncio.CancelledError:
-                    pass
 
             # Process any remaining audio
             if self.audio_buffer:
@@ -246,9 +247,7 @@ class BrowserAudioCapture:
                 return
 
             # Extract chunk
-            chunk_data = np.array(
-                self.audio_buffer[: self.chunk_size], dtype=np.float32
-            )
+            chunk_data = np.array(self.audio_buffer[: self.chunk_size], dtype=np.float32)
             self.audio_buffer = self.audio_buffer[self.chunk_size :]
 
             # Validate audio quality
@@ -282,16 +281,12 @@ class BrowserAudioCapture:
 
             # Trigger callback if set
             if self.on_audio_chunk:
-                await self._safe_callback(
-                    self.on_audio_chunk, audio_bytes, chunk_metadata
-                )
+                await self._safe_callback(self.on_audio_chunk, audio_bytes, chunk_metadata)
 
         except Exception as e:
             logger.error(f"Error processing audio buffer: {e}")
 
-    async def _send_audio_to_orchestration(
-        self, audio_bytes: bytes, metadata: Dict[str, Any]
-    ):
+    async def _send_audio_to_orchestration(self, audio_bytes: bytes, metadata: dict[str, Any]):
         """Send audio chunk to orchestration service for processing"""
         try:
             import httpx
@@ -320,9 +315,7 @@ class BrowserAudioCapture:
 
                 if response.status_code == 200:
                     result = response.json()
-                    logger.debug(
-                        f"Audio chunk processed successfully: {metadata['chunk_id']}"
-                    )
+                    logger.debug(f"Audio chunk processed successfully: {metadata['chunk_id']}")
                     return result
                 else:
                     logger.error(
@@ -333,9 +326,7 @@ class BrowserAudioCapture:
         except Exception as e:
             logger.error(f"Error sending audio to orchestration service: {e}")
             if self.on_audio_error:
-                await self._safe_callback(
-                    self.on_audio_error, f"Failed to send audio: {e}"
-                )
+                await self._safe_callback(self.on_audio_error, f"Failed to send audio: {e}")
             return None
 
     def _validate_audio_quality(self, audio_data: np.ndarray) -> bool:
@@ -401,10 +392,7 @@ class BrowserAudioCapture:
         try:
             devices = sd.query_devices()
             for device in devices:
-                if (
-                    "virtual" in device["name"].lower()
-                    or "loopback" in device["name"].lower()
-                ):
+                if "virtual" in device["name"].lower() or "loopback" in device["name"].lower():
                     self._audio_device_id = device["index"]
                     return True
             return False
@@ -418,10 +406,7 @@ class BrowserAudioCapture:
             if os.name == "nt":
                 devices = sd.query_devices()
                 for device in devices:
-                    if (
-                        device["max_input_channels"] > 0
-                        and "stereo mix" in device["name"].lower()
-                    ):
+                    if device["max_input_channels"] > 0 and "stereo mix" in device["name"].lower():
                         self._audio_device_id = device["index"]
                         return True
 
@@ -469,7 +454,7 @@ class BrowserAudioCapture:
         except Exception as e:
             logger.error(f"Error in callback: {e}")
 
-    def get_capture_stats(self) -> Dict[str, Any]:
+    def get_capture_stats(self) -> dict[str, Any]:
         """Get current capture statistics"""
         return {
             "is_capturing": self.is_capturing,
@@ -497,7 +482,7 @@ class BrowserAudioCapture:
 
 # Factory function for creating browser audio capture
 def create_browser_audio_capture(
-    config: Optional[BrowserAudioConfig] = None,
+    config: BrowserAudioConfig | None = None,
     orchestration_url: str = "http://localhost:3000",
 ) -> BrowserAudioCapture:
     """Create a browser audio capture instance"""

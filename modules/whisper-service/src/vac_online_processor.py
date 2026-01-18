@@ -15,16 +15,17 @@ License: MIT
 This is how SimulStreaming achieves computational efficiency!
 """
 
-import numpy as np
-import torch
 import logging
 import time
-from typing import Optional, Dict, Any
-from silero_vad_iterator import FixedVADIterator
+from typing import Any
+
+import numpy as np
+import torch
 from sentence_segmenter import SentenceSegmenter
-from text_language_detector import TextLanguageDetector
+from silero_vad_iterator import FixedVADIterator
 
 logger = logging.getLogger(__name__)
+
 
 # Helper functions for numpy/torch conversion
 def to_torch_tensor(audio):
@@ -47,6 +48,7 @@ def to_torch_tensor(audio):
         tensor = tensor.flatten()
 
     return tensor
+
 
 def to_numpy(audio):
     """Convert torch tensor or numpy array to numpy (handling device placement)"""
@@ -99,7 +101,7 @@ class VACOnlineASRProcessor:
         vad_min_silence_ms: int = 500,  # Phase 2: Min silence (500ms matches SimulStreaming default)
         sliding_lid_window: float = 0.9,  # Phase 3: Sliding LID window size
         min_buffered_length: float = 1.0,
-        sampling_rate: int = 16000
+        sampling_rate: int = 16000,
     ):
         self.online_chunk_size = online_chunk_size
         self.vad_threshold = vad_threshold
@@ -119,14 +121,17 @@ class VACOnlineASRProcessor:
 
         # Phase 3: Sliding LID detector for language tracking
         from sliding_lid_detector import SlidingLIDDetector
+
         self.lid_detector = SlidingLIDDetector(window_size=sliding_lid_window)
 
         # Phase 5: Token deduplicator for chunk boundary handling
         from token_deduplicator import TokenDeduplicator
+
         self.token_deduplicator = TokenDeduplicator(lookback_tokens=10)
 
         # Phase 5: UTF-8 boundary fixer for multi-byte character cleanup
         from utf8_boundary_fixer import UTF8BoundaryFixer
+
         self.utf8_fixer = UTF8BoundaryFixer()
 
         # Audio buffers (using torch tensors throughout for SimulStreaming compatibility)
@@ -145,12 +150,12 @@ class VACOnlineASRProcessor:
         self.pending_chunk_size = 0  # Track total samples in pending_chunks
 
         # State tracking
-        self.status = 'nonvoice'  # 'voice' or 'nonvoice'
+        self.status = "nonvoice"  # 'voice' or 'nonvoice'
         self.is_currently_final = False
 
         # Hybrid Tracking: Combine SimulStreaming attention + vexa timestamps
         self.audio_start_time = 0.0  # Session start (seconds from session beginning)
-        self.audio_end_time = 0.0    # Latest chunk end (seconds)
+        self.audio_end_time = 0.0  # Latest chunk end (seconds)
         self.frames_to_time_offset = 0.0  # Mapping between frames and absolute time
         self.total_chunks_received = 0  # Total chunks received
         self.all_chunks_received = False  # Client signaled end of stream
@@ -181,19 +186,19 @@ class VACOnlineASRProcessor:
         # Load Silero VAD
         try:
             vad_model, _ = torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
-                force_reload=False
+                repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
             )
             self.vad = FixedVADIterator(
                 model=vad_model,
                 threshold=self.vad_threshold,
                 sampling_rate=self.SAMPLING_RATE,
                 min_speech_duration_ms=self.vad_min_speech_ms,  # Phase 2
-                min_silence_duration_ms=self.vad_min_silence_ms  # Phase 2
+                min_silence_duration_ms=self.vad_min_silence_ms,  # Phase 2
             )
-            logger.info(f"✅ Silero VAD initialized (threshold={self.vad_threshold}, "
-                       f"min_speech={self.vad_min_speech_ms}ms, min_silence={self.vad_min_silence_ms}ms)")
+            logger.info(
+                f"✅ Silero VAD initialized (threshold={self.vad_threshold}, "
+                f"min_speech={self.vad_min_speech_ms}ms, min_silence={self.vad_min_silence_ms}ms)"
+            )
         except Exception as e:
             logger.error(f"Failed to initialize VAD: {e}")
             raise
@@ -209,7 +214,9 @@ class VACOnlineASRProcessor:
 
         logger.info("✅ VACOnlineASRProcessor ready for streaming")
 
-    def insert_audio_chunk(self, audio_chunk: np.ndarray, chunk_metadata: Optional[Dict[str, Any]] = None):
+    def insert_audio_chunk(
+        self, audio_chunk: np.ndarray, chunk_metadata: dict[str, Any] | None = None
+    ):
         """
         Insert audio chunk and run VAD detection
 
@@ -234,8 +241,10 @@ class VACOnlineASRProcessor:
 
         # Hybrid Tracking: Update timestamp tracking from chunk metadata
         if chunk_metadata:
-            chunk_start_time = chunk_metadata.get('audio_start_time', self.audio_end_time)
-            chunk_end_time = chunk_metadata.get('audio_end_time', chunk_start_time + len(audio_chunk)/self.SAMPLING_RATE)
+            chunk_start_time = chunk_metadata.get("audio_start_time", self.audio_end_time)
+            chunk_end_time = chunk_metadata.get(
+                "audio_end_time", chunk_start_time + len(audio_chunk) / self.SAMPLING_RATE
+            )
 
             # Update audio timeline
             if self.total_chunks_received == 0:
@@ -244,7 +253,7 @@ class VACOnlineASRProcessor:
             self.total_chunks_received += 1
 
             # Check if this is the last chunk
-            if chunk_metadata.get('is_last_chunk', False):
+            if chunk_metadata.get("is_last_chunk", False):
                 self.all_chunks_received = True
                 logger.info(f"[HYBRID] Received LAST chunk (total: {self.total_chunks_received})")
 
@@ -269,20 +278,20 @@ class VACOnlineASRProcessor:
 
         # Handle VAD events - ONLY update status, NO processing!
         if vad_result is not None:
-            if 'start' in vad_result:
+            if "start" in vad_result:
                 # Speech start detected
-                self.status = 'voice'
+                self.status = "voice"
                 logger.debug(f"VAD: Speech START detected (sample {vad_result['start']})")
 
-            elif 'end' in vad_result:
+            elif "end" in vad_result:
                 # Speech end detected
-                self.status = 'nonvoice'
+                self.status = "nonvoice"
                 self.is_currently_final = True
                 logger.debug(f"VAD: Speech END detected (sample {vad_result['end']})")
 
         else:
             # No VAD event - maintain current status
-            if self.status == 'voice':
+            if self.status == "voice":
                 # During active speech: send audio to processor for accumulation
                 if len(self.audio_buffer) > 0:
                     self._send_audio_to_online_processor(self.audio_buffer)
@@ -291,7 +300,7 @@ class VACOnlineASRProcessor:
                 # During silence: just buffer (NO processing!)
                 max_silence_buffer = self.SAMPLING_RATE * 1.0
                 if len(self.audio_buffer) > max_silence_buffer:
-                    self.audio_buffer = self.audio_buffer[-int(max_silence_buffer):]
+                    self.audio_buffer = self.audio_buffer[-int(max_silence_buffer) :]
 
     def _send_audio_to_online_processor(self, audio: torch.Tensor):
         """
@@ -310,14 +319,20 @@ class VACOnlineASRProcessor:
         # Check if Whisper is currently processing
         if self.is_processing:
             # Inference is running - add to pending buffer instead
-            logger.info(f"[PENDING] Inference running, buffering {len(audio)} samples ({len(audio)/16000:.2f}s) to pending_chunks")
+            logger.info(
+                f"[PENDING] Inference running, buffering {len(audio)} samples ({len(audio)/16000:.2f}s) to pending_chunks"
+            )
             self.pending_chunks.append(audio)
             self.pending_chunk_size += len(audio)
-            logger.info(f"[PENDING] Total pending: {len(self.pending_chunks)} chunks, {self.pending_chunk_size} samples ({self.pending_chunk_size/16000:.2f}s)")
+            logger.info(
+                f"[PENDING] Total pending: {len(self.pending_chunks)} chunks, {self.pending_chunk_size} samples ({self.pending_chunk_size/16000:.2f}s)"
+            )
             return
 
         # Normal path: add to audio_chunks for processing
-        logger.info(f"[ACCUMULATE] Adding {len(audio)} samples ({len(audio)/16000:.2f}s) to audio_chunks list")
+        logger.info(
+            f"[ACCUMULATE] Adding {len(audio)} samples ({len(audio)/16000:.2f}s) to audio_chunks list"
+        )
 
         # CORRECT SimulStreaming pattern: Accumulate chunks in a list
         # Reference: simulstreaming_whisper.py line 152: self.audio_chunks.append(torch.from_numpy(audio))
@@ -326,9 +341,11 @@ class VACOnlineASRProcessor:
         # Track total samples accumulated since last infer() call
         self.current_online_chunk_buffer_size += len(audio)
 
-        logger.info(f"[ACCUMULATED] Total chunks: {len(self.audio_chunks)}, Total samples: {self.current_online_chunk_buffer_size} ({self.current_online_chunk_buffer_size/16000:.2f}s)")
+        logger.info(
+            f"[ACCUMULATED] Total chunks: {len(self.audio_chunks)}, Total samples: {self.current_online_chunk_buffer_size} ({self.current_online_chunk_buffer_size/16000:.2f}s)"
+        )
 
-    def process_iter(self) -> Dict[str, Any]:
+    def process_iter(self) -> dict[str, Any]:
         """
         Process iteration - decides when to run Whisper
 
@@ -382,7 +399,7 @@ class VACOnlineASRProcessor:
             )
             return {}
 
-    def _process_online_chunk(self) -> Dict[str, Any]:
+    def _process_online_chunk(self) -> dict[str, Any]:
         """
         Process online chunk with SimulStreaming's concatenate→insert→infer pattern
 
@@ -410,7 +427,9 @@ class VACOnlineASRProcessor:
                 logger.warning("[PROCESS] No audio chunks to process!")
                 return {}
 
-            logger.info(f"[CONCATENATE] Concatenating {len(self.audio_chunks)} chunks into single tensor")
+            logger.info(
+                f"[CONCATENATE] Concatenating {len(self.audio_chunks)} chunks into single tensor"
+            )
             audio = torch.cat(self.audio_chunks, dim=0)  # CONCATENATE FIRST
             logger.info(f"[CONCATENATE] Result: {len(audio)} samples ({len(audio)/16000:.2f}s)")
 
@@ -421,17 +440,23 @@ class VACOnlineASRProcessor:
 
             # Step 3: Insert concatenated audio ONCE
             # Reference: simulstreaming_whisper.py line 215
-            logger.info(f"[INSERT_AUDIO] Sending concatenated audio to model: shape={audio.shape}, dtype={audio.dtype}")
-            logger.info(f"[INSERT_AUDIO] Audio range: [{audio.min():.4f}, {audio.max():.4f}], mean={audio.mean():.4f}, std={audio.std():.4f}")
+            logger.info(
+                f"[INSERT_AUDIO] Sending concatenated audio to model: shape={audio.shape}, dtype={audio.dtype}"
+            )
+            logger.info(
+                f"[INSERT_AUDIO] Audio range: [{audio.min():.4f}, {audio.max():.4f}], mean={audio.mean():.4f}, std={audio.std():.4f}"
+            )
             self.model.insert_audio(audio)
 
             # Step 4: Run inference
             # Reference: simulstreaming_whisper.py line 217
-            logger.info(f"[INFER] Calling model.infer(is_last=False)")
+            logger.info("[INFER] Calling model.infer(is_last=False)")
             tokens, generation_progress = self.model.infer(is_last=False)
 
             # Phase 5: Deduplicate tokens at chunk boundaries
-            logger.info(f"[INFER] Generated {len(tokens)} tokens (before dedup): {tokens[:20] if len(tokens) > 20 else tokens}")
+            logger.info(
+                f"[INFER] Generated {len(tokens)} tokens (before dedup): {tokens[:20] if len(tokens) > 20 else tokens}"
+            )
             tokens = self.token_deduplicator.deduplicate(tokens)
             logger.info(f"[DEDUP] After deduplication: {len(tokens)} tokens")
 
@@ -450,13 +475,17 @@ class VACOnlineASRProcessor:
             is_final = is_sentence_end
 
             if is_sentence_end:
-                logger.info(f"✅ Complete sentence detected: '{text}' ({len(tokens)} tokens) [is_final=True]")
+                logger.info(
+                    f"✅ Complete sentence detected: '{text}' ({len(tokens)} tokens) [is_final=True]"
+                )
             else:
-                logger.info(f"📝 Incomplete sentence: '{text}' ({len(tokens)} tokens) [is_final=False]")
+                logger.info(
+                    f"📝 Incomplete sentence: '{text}' ({len(tokens)} tokens) [is_final=False]"
+                )
 
             # Phase 3: Track language detection in sliding window
             detected_language = None
-            if hasattr(self.model, 'detected_language') and self.model.detected_language:
+            if hasattr(self.model, "detected_language") and self.model.detected_language:
                 detected_language = self.model.detected_language
                 # Add detection to sliding window
                 # Audio position: total samples processed / sample rate
@@ -464,9 +493,11 @@ class VACOnlineASRProcessor:
                 self.lid_detector.add_detection(
                     language=detected_language,
                     confidence=1.0,  # Whisper doesn't provide confidence, use 1.0
-                    audio_position=audio_position
+                    audio_position=audio_position,
                 )
-                logger.info(f"[LID] Detected language: {detected_language} at {audio_position:.2f}s")
+                logger.info(
+                    f"[LID] Detected language: {detected_language} at {audio_position:.2f}s"
+                )
 
             # Get current language from sliding window (for SOT reset only)
             current_language = self.lid_detector.get_current_language()
@@ -479,23 +510,28 @@ class VACOnlineASRProcessor:
 
             if generation_progress and isinstance(generation_progress, dict):
                 # Extract from top-level generation dict
-                content_mel_len = generation_progress.get('frames_len', 0)
-                frame_threshold = generation_progress.get('frames_threshold', 4)
+                content_mel_len = generation_progress.get("frames_len", 0)
+                frame_threshold = generation_progress.get("frames_threshold", 4)
 
                 # most_attended_frame is in generation["progress"] list (per-iteration data)
                 # Extract from generation["progress"][-1]["most_attended_frames"][0] (last iteration, first beam)
-                if 'progress' in generation_progress and len(generation_progress['progress']) > 0:
-                    last_iteration = generation_progress['progress'][-1]
-                    if 'most_attended_frames' in last_iteration:
-                        most_attended_frames_list = last_iteration['most_attended_frames']
-                        if isinstance(most_attended_frames_list, list) and len(most_attended_frames_list) > 0:
+                if "progress" in generation_progress and len(generation_progress["progress"]) > 0:
+                    last_iteration = generation_progress["progress"][-1]
+                    if "most_attended_frames" in last_iteration:
+                        most_attended_frames_list = last_iteration["most_attended_frames"]
+                        if (
+                            isinstance(most_attended_frames_list, list)
+                            and len(most_attended_frames_list) > 0
+                        ):
                             most_attended_frame = most_attended_frames_list[0]  # First beam
 
                 # Check if decoder caught up to available audio
                 is_caught_up = (content_mel_len - most_attended_frame) <= frame_threshold
 
             # Hybrid Tracking: Convert frames to absolute time
-            processed_through_time = self.frames_to_time_offset + (most_attended_frame / self.TOKENS_PER_SECOND)
+            processed_through_time = self.frames_to_time_offset + (
+                most_attended_frame / self.TOKENS_PER_SECOND
+            )
 
             # Hybrid Tracking: Check if session is complete
             is_session_complete = is_caught_up and self.all_chunks_received
@@ -507,36 +543,35 @@ class VACOnlineASRProcessor:
             )
 
             return {
-                'text': text,
-                'tokens': tokens,
-                'generation_progress': generation_progress,
-                'is_final': is_final,  # ⚠️ SENTENCE complete, NOT session complete!
-                'detected_language': detected_language,  # Phase 3: Per-chunk from Whisper (for code-switching)
-
+                "text": text,
+                "tokens": tokens,
+                "generation_progress": generation_progress,
+                "is_final": is_final,  # ⚠️ SENTENCE complete, NOT session complete!
+                "detected_language": detected_language,  # Phase 3: Per-chunk from Whisper (for code-switching)
                 # Hybrid Tracking: SimulStreaming attention tracking (internal precision)
-                'attention_tracking': {
-                    'most_attended_frame': most_attended_frame,
-                    'content_mel_len': content_mel_len,
-                    'is_caught_up': is_caught_up,
+                "attention_tracking": {
+                    "most_attended_frame": most_attended_frame,
+                    "content_mel_len": content_mel_len,
+                    "is_caught_up": is_caught_up,
                 },
-
                 # Hybrid Tracking: vexa timestamp tracking (external correlation)
-                'timestamp_tracking': {
-                    'processed_through_time': processed_through_time,
-                    'audio_received_through': self.audio_end_time,
-                    'is_session_complete': is_session_complete,
-                    'lag_seconds': self.audio_end_time - processed_through_time,
+                "timestamp_tracking": {
+                    "processed_through_time": processed_through_time,
+                    "audio_received_through": self.audio_end_time,
+                    "is_session_complete": is_session_complete,
+                    "lag_seconds": self.audio_end_time - processed_through_time,
                 },
-
                 # vexa-style segment metadata (for deduplication)
-                'absolute_start_time': processed_through_time - (len(tokens) * 0.02),  # Rough estimate
-                'absolute_end_time': processed_through_time,
-                'updated_at': time.time(),
+                "absolute_start_time": processed_through_time
+                - (len(tokens) * 0.02),  # Rough estimate
+                "absolute_end_time": processed_through_time,
+                "updated_at": time.time(),
             }
 
         except Exception as e:
             logger.error(f"Error processing chunk: {e}")
             import traceback
+
             traceback.print_exc()
             return {}
         finally:
@@ -549,7 +584,9 @@ class VACOnlineASRProcessor:
                 transferred_samples = 0
                 chunks_to_transfer = []
 
-                logger.info(f"[PENDING] Have {len(self.pending_chunks)} pending chunks ({self.pending_chunk_size/16000:.2f}s)")
+                logger.info(
+                    f"[PENDING] Have {len(self.pending_chunks)} pending chunks ({self.pending_chunk_size/16000:.2f}s)"
+                )
 
                 # FIFO queue: transfer oldest chunks first, up to 1.2s
                 while self.pending_chunks and transferred_samples < target_samples:
@@ -557,18 +594,24 @@ class VACOnlineASRProcessor:
                     chunks_to_transfer.append(chunk)
                     transferred_samples += len(chunk)
 
-                logger.info(f"[PENDING] Transferring {len(chunks_to_transfer)} chunks ({transferred_samples/16000:.2f}s) to audio_chunks")
-                logger.info(f"[PENDING] Remaining in pending: {len(self.pending_chunks)} chunks ({(self.pending_chunk_size - transferred_samples)/16000:.2f}s)")
+                logger.info(
+                    f"[PENDING] Transferring {len(chunks_to_transfer)} chunks ({transferred_samples/16000:.2f}s) to audio_chunks"
+                )
+                logger.info(
+                    f"[PENDING] Remaining in pending: {len(self.pending_chunks)} chunks ({(self.pending_chunk_size - transferred_samples)/16000:.2f}s)"
+                )
 
                 # Add transferred chunks to processing queue
                 self.audio_chunks.extend(chunks_to_transfer)
                 self.current_online_chunk_buffer_size += transferred_samples
                 self.pending_chunk_size -= transferred_samples
 
-                logger.info(f"[ACCUMULATED] After transfer: {len(self.audio_chunks)} chunks, {self.current_online_chunk_buffer_size} samples ({self.current_online_chunk_buffer_size/16000:.2f}s)")
+                logger.info(
+                    f"[ACCUMULATED] After transfer: {len(self.audio_chunks)} chunks, {self.current_online_chunk_buffer_size} samples ({self.current_online_chunk_buffer_size/16000:.2f}s)"
+                )
             logger.info("[PROCESS] Set is_processing=False, processing complete")
 
-    def _finish(self) -> Dict[str, Any]:
+    def _finish(self) -> dict[str, Any]:
         """
         Finish current utterance with SimulStreaming's concatenate→insert→infer pattern
 
@@ -590,7 +633,9 @@ class VACOnlineASRProcessor:
                 self.is_currently_final = False
                 return {}
 
-            logger.info(f"[FINISH] Concatenating {len(self.audio_chunks)} final chunks into single tensor")
+            logger.info(
+                f"[FINISH] Concatenating {len(self.audio_chunks)} final chunks into single tensor"
+            )
             audio = torch.cat(self.audio_chunks, dim=0)  # CONCATENATE FIRST
             logger.info(f"[FINISH] Result: {len(audio)} samples ({len(audio)/16000:.2f}s)")
 
@@ -599,11 +644,13 @@ class VACOnlineASRProcessor:
             self.current_online_chunk_buffer_size = 0
 
             # Step 3: Insert concatenated audio ONCE
-            logger.info(f"[INSERT_AUDIO] Sending final concatenated audio to model: shape={audio.shape}, dtype={audio.dtype}")
+            logger.info(
+                f"[INSERT_AUDIO] Sending final concatenated audio to model: shape={audio.shape}, dtype={audio.dtype}"
+            )
             self.model.insert_audio(audio)
 
             # Step 4: Run FINAL inference with is_last=True
-            logger.info(f"[INFER] Calling model.infer(is_last=True) for final chunk")
+            logger.info("[INFER] Calling model.infer(is_last=True) for final chunk")
             tokens, generation_progress = self.model.infer(is_last=True)
 
             # Phase 5: Deduplicate tokens at chunk boundaries
@@ -621,27 +668,29 @@ class VACOnlineASRProcessor:
 
             # VAD silence = always final (speech ended)
             # Even if no sentence terminal, this is a complete utterance
-            logger.info(f"✅ Final stateful infer (VAD silence): '{text}' ({len(tokens)} tokens) [is_final=True]")
+            logger.info(
+                f"✅ Final stateful infer (VAD silence): '{text}' ({len(tokens)} tokens) [is_final=True]"
+            )
 
             # Check if it also has sentence boundary (for logging)
             is_sentence_end = self.sentence_segmenter.is_sentence_end(text)
             if is_sentence_end:
-                logger.info(f"   ✅ Also ends with sentence terminal (clean boundary)")
+                logger.info("   ✅ Also ends with sentence terminal (clean boundary)")
             else:
-                logger.info(f"   ⚠️  No sentence terminal (forced final by VAD)")
+                logger.info("   ⚠️  No sentence terminal (forced final by VAD)")
 
             # Phase 3: Track language detection in sliding window
             detected_language = None
-            if hasattr(self.model, 'detected_language') and self.model.detected_language:
+            if hasattr(self.model, "detected_language") and self.model.detected_language:
                 detected_language = self.model.detected_language
                 # Add detection to sliding window
                 audio_position = self.total_audio_processed / self.SAMPLING_RATE
                 self.lid_detector.add_detection(
-                    language=detected_language,
-                    confidence=1.0,
-                    audio_position=audio_position
+                    language=detected_language, confidence=1.0, audio_position=audio_position
                 )
-                logger.info(f"[LID] Detected language: {detected_language} at {audio_position:.2f}s")
+                logger.info(
+                    f"[LID] Detected language: {detected_language} at {audio_position:.2f}s"
+                )
 
             # Reset VAC state
             self.is_currently_final = False
@@ -653,21 +702,26 @@ class VACOnlineASRProcessor:
 
             if generation_progress and isinstance(generation_progress, dict):
                 # Extract from top-level generation dict
-                content_mel_len = generation_progress.get('frames_len', 0)
-                frame_threshold = generation_progress.get('frames_threshold', 4)
+                content_mel_len = generation_progress.get("frames_len", 0)
+                frame_threshold = generation_progress.get("frames_threshold", 4)
 
                 # most_attended_frame is in generation["progress"] list (per-iteration data)
-                if 'progress' in generation_progress and len(generation_progress['progress']) > 0:
-                    last_iteration = generation_progress['progress'][-1]
-                    if 'most_attended_frames' in last_iteration:
-                        most_attended_frames_list = last_iteration['most_attended_frames']
-                        if isinstance(most_attended_frames_list, list) and len(most_attended_frames_list) > 0:
+                if "progress" in generation_progress and len(generation_progress["progress"]) > 0:
+                    last_iteration = generation_progress["progress"][-1]
+                    if "most_attended_frames" in last_iteration:
+                        most_attended_frames_list = last_iteration["most_attended_frames"]
+                        if (
+                            isinstance(most_attended_frames_list, list)
+                            and len(most_attended_frames_list) > 0
+                        ):
                             most_attended_frame = most_attended_frames_list[0]  # First beam
 
                 is_caught_up = (content_mel_len - most_attended_frame) <= frame_threshold
 
             # Hybrid Tracking: Convert frames to absolute time
-            processed_through_time = self.frames_to_time_offset + (most_attended_frame / self.TOKENS_PER_SECOND)
+            processed_through_time = self.frames_to_time_offset + (
+                most_attended_frame / self.TOKENS_PER_SECOND
+            )
 
             # Hybrid Tracking: Check if session is complete (final chunk + caught up)
             is_session_complete = is_caught_up and self.all_chunks_received
@@ -679,36 +733,35 @@ class VACOnlineASRProcessor:
             )
 
             return {
-                'text': text,
-                'tokens': tokens,
-                'generation_progress': generation_progress,
-                'is_final': True,  # ⚠️ Always True for _finish() (VAD detected speech end)
-                'detected_language': detected_language,  # Phase 3: Per-chunk from Whisper (for code-switching)
-
+                "text": text,
+                "tokens": tokens,
+                "generation_progress": generation_progress,
+                "is_final": True,  # ⚠️ Always True for _finish() (VAD detected speech end)
+                "detected_language": detected_language,  # Phase 3: Per-chunk from Whisper (for code-switching)
                 # Hybrid Tracking: SimulStreaming attention tracking (internal precision)
-                'attention_tracking': {
-                    'most_attended_frame': most_attended_frame,
-                    'content_mel_len': content_mel_len,
-                    'is_caught_up': is_caught_up,
+                "attention_tracking": {
+                    "most_attended_frame": most_attended_frame,
+                    "content_mel_len": content_mel_len,
+                    "is_caught_up": is_caught_up,
                 },
-
                 # Hybrid Tracking: vexa timestamp tracking (external correlation)
-                'timestamp_tracking': {
-                    'processed_through_time': processed_through_time,
-                    'audio_received_through': self.audio_end_time,
-                    'is_session_complete': is_session_complete,
-                    'lag_seconds': self.audio_end_time - processed_through_time,
+                "timestamp_tracking": {
+                    "processed_through_time": processed_through_time,
+                    "audio_received_through": self.audio_end_time,
+                    "is_session_complete": is_session_complete,
+                    "lag_seconds": self.audio_end_time - processed_through_time,
                 },
-
                 # vexa-style segment metadata (for deduplication)
-                'absolute_start_time': processed_through_time - (len(tokens) * 0.02),  # Rough estimate
-                'absolute_end_time': processed_through_time,
-                'updated_at': time.time(),
+                "absolute_start_time": processed_through_time
+                - (len(tokens) * 0.02),  # Rough estimate
+                "absolute_end_time": processed_through_time,
+                "updated_at": time.time(),
             }
 
         except Exception as e:
             logger.error(f"Error finishing utterance: {e}")
             import traceback
+
             traceback.print_exc()
             self.is_currently_final = False
             return {}
@@ -722,7 +775,9 @@ class VACOnlineASRProcessor:
                 transferred_samples = 0
                 chunks_to_transfer = []
 
-                logger.info(f"[PENDING] Have {len(self.pending_chunks)} pending chunks ({self.pending_chunk_size/16000:.2f}s)")
+                logger.info(
+                    f"[PENDING] Have {len(self.pending_chunks)} pending chunks ({self.pending_chunk_size/16000:.2f}s)"
+                )
 
                 # FIFO queue: transfer oldest chunks first, up to 1.2s
                 while self.pending_chunks and transferred_samples < target_samples:
@@ -730,15 +785,21 @@ class VACOnlineASRProcessor:
                     chunks_to_transfer.append(chunk)
                     transferred_samples += len(chunk)
 
-                logger.info(f"[PENDING] Transferring {len(chunks_to_transfer)} chunks ({transferred_samples/16000:.2f}s) to audio_chunks")
-                logger.info(f"[PENDING] Remaining in pending: {len(self.pending_chunks)} chunks ({(self.pending_chunk_size - transferred_samples)/16000:.2f}s)")
+                logger.info(
+                    f"[PENDING] Transferring {len(chunks_to_transfer)} chunks ({transferred_samples/16000:.2f}s) to audio_chunks"
+                )
+                logger.info(
+                    f"[PENDING] Remaining in pending: {len(self.pending_chunks)} chunks ({(self.pending_chunk_size - transferred_samples)/16000:.2f}s)"
+                )
 
                 # Add transferred chunks to processing queue
                 self.audio_chunks.extend(chunks_to_transfer)
                 self.current_online_chunk_buffer_size += transferred_samples
                 self.pending_chunk_size -= transferred_samples
 
-                logger.info(f"[ACCUMULATED] After transfer: {len(self.audio_chunks)} chunks, {self.current_online_chunk_buffer_size} samples ({self.current_online_chunk_buffer_size/16000:.2f}s)")
+                logger.info(
+                    f"[ACCUMULATED] After transfer: {len(self.audio_chunks)} chunks, {self.current_online_chunk_buffer_size} samples ({self.current_online_chunk_buffer_size/16000:.2f}s)"
+                )
             logger.info("[FINISH] Set is_processing=False, processing complete")
 
     def reset(self):
@@ -751,7 +812,7 @@ class VACOnlineASRProcessor:
 
         self.audio_buffer = torch.tensor([], dtype=torch.float32)
         self.audio_chunks = []  # Clear accumulated chunks list
-        self.status = 'nonvoice'
+        self.status = "nonvoice"
         self.is_currently_final = False
         self.current_online_chunk_buffer_size = 0
 
@@ -778,7 +839,7 @@ class VACOnlineASRProcessor:
 
         logger.info("✅ State reset complete")
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """
         Get processing statistics
 
@@ -788,19 +849,15 @@ class VACOnlineASRProcessor:
             - total_audio_processed: Total audio samples processed
             - compute_efficiency: Ratio of VAD checks to Whisper calls
         """
-        compute_efficiency = (
-            self.vad_checks / self.whisper_calls
-            if self.whisper_calls > 0
-            else 0
-        )
+        compute_efficiency = self.vad_checks / self.whisper_calls if self.whisper_calls > 0 else 0
 
         return {
-            'vad_checks': self.vad_checks,
-            'whisper_calls': self.whisper_calls,
-            'total_audio_processed': self.total_audio_processed,
-            'total_audio_duration': self.total_audio_processed / self.SAMPLING_RATE,
-            'compute_efficiency': compute_efficiency,
-            'savings_percent': (1 - 1 / compute_efficiency) * 100 if compute_efficiency > 0 else 0
+            "vad_checks": self.vad_checks,
+            "whisper_calls": self.whisper_calls,
+            "total_audio_processed": self.total_audio_processed,
+            "total_audio_duration": self.total_audio_processed / self.SAMPLING_RATE,
+            "compute_efficiency": compute_efficiency,
+            "savings_percent": (1 - 1 / compute_efficiency) * 100 if compute_efficiency > 0 else 0,
         }
 
 
@@ -816,11 +873,7 @@ if __name__ == "__main__":
     from whisper_service import ModelManager
 
     # Initialize processor
-    vac = VACOnlineASRProcessor(
-        online_chunk_size=1.2,
-        vad_threshold=0.5,
-        min_buffered_length=1.0
-    )
+    vac = VACOnlineASRProcessor(online_chunk_size=1.2, vad_threshold=0.5, min_buffered_length=1.0)
 
     # Initialize models
     models_dir = Path(__file__).parent.parent / ".models"
@@ -845,16 +898,16 @@ if __name__ == "__main__":
         vac.insert_audio_chunk(chunk)
         result = vac.process_iter()
 
-        if result and 'text' in result:
+        if result and "text" in result:
             print(f"  [{i}] Transcription: '{result['text']}'")
 
     # Print statistics
     stats = vac.get_statistics()
-    print(f"\n📊 Processing Statistics:")
+    print("\n📊 Processing Statistics:")
     print(f"   VAD checks: {stats['vad_checks']}")
     print(f"   Whisper calls: {stats['whisper_calls']}")
     print(f"   Audio duration: {stats['total_audio_duration']:.2f}s")
     print(f"   Compute efficiency: {stats['compute_efficiency']:.1f}x")
     print(f"   Savings: {stats['savings_percent']:.1f}%")
 
-    print(f"\n✅ VACOnlineASRProcessor test complete")
+    print("\n✅ VACOnlineASRProcessor test complete")

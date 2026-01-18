@@ -6,15 +6,14 @@ Orchestrates the complete audio testing suite including unit tests, integration 
 and performance tests with I/O validation and component interaction verification.
 """
 
-import sys
 import argparse
-import time
 import json
-from pathlib import Path
-from typing import Dict, List, Optional
 import subprocess
-from dataclasses import dataclass, asdict
+import sys
+import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from pathlib import Path
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -31,7 +30,7 @@ class TestResults:
     skipped: int
     duration: float
     coverage_percent: float
-    details: List[str]
+    details: list[str]
     timestamp: str
 
 
@@ -41,18 +40,18 @@ class TestSuiteConfig:
 
     name: str
     test_path: str
-    markers: List[str]
+    markers: list[str]
     timeout: int
     required_coverage: float
-    performance_thresholds: Dict[str, float]
+    performance_thresholds: dict[str, float]
 
 
 class AudioTestRunner:
     """Comprehensive audio test runner."""
 
-    def __init__(self, base_path: Optional[Path] = None):
+    def __init__(self, base_path: Path | None = None):
         self.base_path = base_path or Path(__file__).parent
-        self.results: List[TestResults] = []
+        self.results: list[TestResults] = []
         self.start_time = None
 
         # Test suite configurations
@@ -161,9 +160,7 @@ class AudioTestRunner:
             duration = time.time() - start_time
 
             # Parse results
-            test_results = self._parse_pytest_results(
-                config.name, result, duration, verbose
-            )
+            test_results = self._parse_pytest_results(config.name, result, duration, verbose)
 
             # Check coverage
             coverage_data = self._get_coverage_data()
@@ -201,7 +198,7 @@ class AudioTestRunner:
                 skipped=0,
                 duration=duration,
                 coverage_percent=0.0,
-                details=[f"Test execution error: {str(e)}"],
+                details=[f"Test execution error: {e!s}"],
                 timestamp=datetime.now().isoformat(),
             )
 
@@ -221,7 +218,7 @@ class AudioTestRunner:
 
         if json_file.exists():
             try:
-                with open(json_file, "r") as f:
+                with open(json_file) as f:
                     data = json.load(f)
 
                 summary = data.get("summary", {})
@@ -269,13 +266,13 @@ class AudioTestRunner:
             timestamp=datetime.now().isoformat(),
         )
 
-    def _get_coverage_data(self) -> Optional[Dict]:
+    def _get_coverage_data(self) -> dict | None:
         """Get coverage data from JSON report."""
         coverage_file = self.base_path / "coverage.json"
 
         if coverage_file.exists():
             try:
-                with open(coverage_file, "r") as f:
+                with open(coverage_file) as f:
                     data = json.load(f)
                 coverage_file.unlink()  # Clean up
                 return data
@@ -294,21 +291,18 @@ class AudioTestRunner:
 
         # Check performance thresholds
         for threshold_name, threshold_value in config.performance_thresholds.items():
-            if (
-                threshold_name == "max_test_duration"
-                and results.duration > threshold_value
-            ):
+            if threshold_name == "max_test_duration" and results.duration > threshold_value:
                 results.details.append(
                     f"⚠️  Test duration {results.duration:.1f}s exceeds threshold {threshold_value}s"
                 )
 
     def run_comprehensive_suite(
         self,
-        suites: List[str] = None,
+        suites: list[str] | None = None,
         verbose: bool = False,
         fail_fast: bool = False,
         capture_output: bool = True,
-    ) -> Dict[str, TestResults]:
+    ) -> dict[str, TestResults]:
         """Run comprehensive test suite."""
         if suites is None:
             suites = ["unit", "integration", "performance"]
@@ -413,7 +407,7 @@ class AudioTestRunner:
             for detail in results.details[-5:]:  # Last 5 details
                 print(f"     {detail}")
 
-    def _print_overall_summary(self, results: Dict[str, TestResults]):
+    def _print_overall_summary(self, results: dict[str, TestResults]):
         """Print overall test summary."""
         total_duration = time.time() - self.start_time if self.start_time else 0
 
@@ -426,9 +420,7 @@ class AudioTestRunner:
 
         # Calculate average coverage
         avg_coverage = (
-            sum(r.coverage_percent for r in results.values()) / len(results)
-            if results
-            else 0
+            sum(r.coverage_percent for r in results.values()) / len(results) if results else 0
         )
 
         # Determine overall status
@@ -468,12 +460,11 @@ class AudioTestRunner:
             else:
                 print("   🚨 Poor test results - investigate failures")
 
-    def generate_report(self, output_path: Optional[Path] = None) -> Path:
+    def generate_report(self, output_path: Path | None = None) -> Path:
         """Generate comprehensive test report."""
         if output_path is None:
             output_path = (
-                self.base_path
-                / f"test_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                self.base_path / f"test_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             )
 
         report_data = {
@@ -516,12 +507,8 @@ def main():
         help="Test suites to run",
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
-    parser.add_argument(
-        "--fail-fast", "-x", action="store_true", help="Stop on first failure"
-    )
-    parser.add_argument(
-        "--no-capture", "-s", action="store_true", help="Don't capture output"
-    )
+    parser.add_argument("--fail-fast", "-x", action="store_true", help="Stop on first failure")
+    parser.add_argument("--no-capture", "-s", action="store_true", help="Don't capture output")
     parser.add_argument("--report", help="Generate report to specified file")
     parser.add_argument("--base-path", help="Base path for tests")
 

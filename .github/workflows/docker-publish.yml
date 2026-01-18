@@ -1,0 +1,177 @@
+name: Docker Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g., v1.0.0)"
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/livetranslate
+
+jobs:
+  build-and-push:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - name: whisper-service
+            path: modules/whisper-service
+            context: modules/whisper-service
+          - name: translation-service
+            path: modules/translation-service
+            context: modules/translation-service
+          - name: orchestration-service
+            path: modules/orchestration-service
+            context: modules/orchestration-service
+          - name: frontend-service
+            path: modules/frontend-service
+            context: modules/frontend-service
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for Dockerfile
+        id: dockerfile-check
+        run: |
+          if [ -f "${{ matrix.service.path }}/Dockerfile" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "No Dockerfile found for ${{ matrix.service.name }}, skipping build"
+          fi
+
+      - name: Set up QEMU
+        if: steps.dockerfile-check.outputs.exists == 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.dockerfile-check.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: steps.dockerfile-check.outputs.exists == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        if: steps.dockerfile-check.outputs.exists == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service.name }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=ref,event=branch
+            type=ref,event=pr
+
+      - name: Build and push Docker image
+        if: steps.dockerfile-check.outputs.exists == 'true'
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.service.context }}
+          file: ${{ matrix.service.path }}/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ github.ref_name }}
+
+      - name: Generate artifact attestation
+        if: steps.dockerfile-check.outputs.exists == 'true'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+  create-release-manifest:
+    name: Create Release Manifest
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create release manifest
+        run: |
+          VERSION="${{ github.ref_name }}"
+          cat > release-manifest.yaml << EOF
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: livetranslate-release
+            labels:
+              app: livetranslate
+              version: ${VERSION}
+          data:
+            version: "${VERSION}"
+            commit: "${{ github.sha }}"
+            date: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            images:
+              whisper-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-whisper-service:${VERSION}"
+              translation-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-translation-service:${VERSION}"
+              orchestration-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestration-service:${VERSION}"
+              frontend-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend-service:${VERSION}"
+          EOF
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.yaml
+          retention-days: 90
+
+  notify-release:
+    name: Notify Release
+    needs: [build-and-push, create-release-manifest]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release summary
+        run: |
+          VERSION="${{ github.ref_name }}"
+          echo "## Release ${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Published Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Image |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Whisper Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-whisper-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Translation Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-translation-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Orchestration Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestration-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Commands" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-whisper-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-translation-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestration-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

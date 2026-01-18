@@ -16,15 +16,14 @@ Key Features:
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timezone
-from dataclasses import dataclass, field
-from enum import Enum
 import json
+import logging
 import statistics
 from collections import defaultdict
-
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -100,8 +99,8 @@ class TimingCorrelation:
     confidence_score: float
     accuracy_level: TimingAccuracy
     correlation_method: str
-    correlation_metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    correlation_metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
@@ -115,8 +114,8 @@ class SynchronizationQuality:
     drift_detected: bool
     max_drift_ms: float
     alignment_consistency: float
-    quality_factors: Dict[str, float] = field(default_factory=dict)
-    assessment_timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    quality_factors: dict[str, float] = field(default_factory=dict)
+    assessment_timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class TimingCoordinator:
@@ -144,10 +143,10 @@ class TimingCoordinator:
         self.correlation_cache_size = correlation_cache_size
 
         # Correlation tracking
-        self.timing_correlations: Dict[
-            str, List[TimingCorrelation]
+        self.timing_correlations: dict[
+            str, list[TimingCorrelation]
         ] = {}  # session_id -> correlations
-        self.synchronization_quality: Dict[
+        self.synchronization_quality: dict[
             str, SynchronizationQuality
         ] = {}  # session_id -> quality
 
@@ -161,23 +160,19 @@ class TimingCoordinator:
         }
 
         # Time drift tracking
-        self.detected_drifts: Dict[str, List[float]] = defaultdict(
+        self.detected_drifts: dict[str, list[float]] = defaultdict(
             list
         )  # session_id -> drift values
-        self.correction_offsets: Dict[
-            str, float
-        ] = {}  # session_id -> correction offset
+        self.correction_offsets: dict[str, float] = {}  # session_id -> correction offset
 
-        logger.info(
-            f"TimingCoordinator initialized with {timing_tolerance_ms}ms tolerance"
-        )
+        logger.info(f"TimingCoordinator initialized with {timing_tolerance_ms}ms tolerance")
 
     async def correlate_audio_chunk_timestamps(
         self,
         session_id: str,
-        audio_chunk_ids: List[str],
+        audio_chunk_ids: list[str],
         scope: CorrelationScope = CorrelationScope.CHUNK_LEVEL,
-    ) -> List[TimingCorrelation]:
+    ) -> list[TimingCorrelation]:
         """
         Correlate audio chunk timestamps with transcripts and translations.
 
@@ -204,23 +199,17 @@ class TimingCoordinator:
             translations = await self._get_session_translations(session_id)
 
             # Get speaker correlations
-            speaker_correlations = await self._get_session_speaker_correlations(
-                session_id
-            )
+            speaker_correlations = await self._get_session_speaker_correlations(session_id)
 
             # Correlate chunks with transcripts
-            chunk_transcript_correlations = (
-                await self._correlate_chunks_with_transcripts(
-                    session_id, audio_chunks, transcripts
-                )
+            chunk_transcript_correlations = await self._correlate_chunks_with_transcripts(
+                session_id, audio_chunks, transcripts
             )
             correlations.extend(chunk_transcript_correlations)
 
             # Correlate chunks with translations
-            chunk_translation_correlations = (
-                await self._correlate_chunks_with_translations(
-                    session_id, audio_chunks, translations
-                )
+            chunk_translation_correlations = await self._correlate_chunks_with_translations(
+                session_id, audio_chunks, translations
             )
             correlations.extend(chunk_translation_correlations)
 
@@ -242,9 +231,7 @@ class TimingCoordinator:
             self.correlation_stats["total_correlations_attempted"] += 1
             self.correlation_stats["successful_correlations"] += len(correlations)
 
-            logger.info(
-                f"Created {len(correlations)} timing correlations for session {session_id}"
-            )
+            logger.info(f"Created {len(correlations)} timing correlations for session {session_id}")
 
             return correlations
 
@@ -257,8 +244,8 @@ class TimingCoordinator:
         self,
         session_id: str,
         reference_source: str = "audio_files",
-        comparison_sources: List[str] = None,
-    ) -> Dict[str, float]:
+        comparison_sources: list[str] | None = None,
+    ) -> dict[str, float]:
         """
         Detect time drift between different data sources.
 
@@ -284,9 +271,7 @@ class TimingCoordinator:
 
             # Compare with each source
             for source in comparison_sources:
-                source_timestamps = await self._get_timestamps_for_source(
-                    session_id, source
-                )
+                source_timestamps = await self._get_timestamps_for_source(session_id, source)
                 if not source_timestamps:
                     continue
 
@@ -301,15 +286,10 @@ class TimingCoordinator:
                 self.detected_drifts[session_id].append(drift)
 
                 # Apply correction if drift is significant
-                if (
-                    abs(drift) > self.timing_tolerance_ms
-                    and self.auto_correction_enabled
-                ):
+                if abs(drift) > self.timing_tolerance_ms and self.auto_correction_enabled:
                     await self._apply_drift_correction(session_id, source, drift)
 
-            logger.info(
-                f"Drift detection completed for session {session_id}: {drift_measurements}"
-            )
+            logger.info(f"Drift detection completed for session {session_id}: {drift_measurements}")
 
             return drift_measurements
 
@@ -350,23 +330,17 @@ class TimingCoordinator:
             baseline_offset = await self._calculate_optimal_baseline(session_data)
 
             # Apply alignment corrections
-            await self._apply_timestamp_alignment(
-                session_id, session_data, baseline_offset
-            )
+            await self._apply_timestamp_alignment(session_id, session_data, baseline_offset)
 
             # Verify alignment quality
-            post_alignment_quality = await self._assess_synchronization_quality(
-                session_id
-            )
+            post_alignment_quality = await self._assess_synchronization_quality(session_id)
 
             if post_alignment_quality and post_alignment_quality.overall_score > 0.8:
                 logger.info(f"Timestamp alignment successful for session {session_id}")
                 self.synchronization_quality[session_id] = post_alignment_quality
                 return True
             else:
-                logger.warning(
-                    f"Timestamp alignment had limited success for session {session_id}"
-                )
+                logger.warning(f"Timestamp alignment had limited success for session {session_id}")
                 return False
 
         except Exception as e:
@@ -376,9 +350,9 @@ class TimingCoordinator:
     async def get_synchronized_data(
         self,
         session_id: str,
-        time_range: Optional[Tuple[float, float]] = None,
+        time_range: tuple[float, float] | None = None,
         include_correlations: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Get synchronized data for a session with timing correlations.
 
@@ -420,8 +394,8 @@ class TimingCoordinator:
             }
 
     async def _get_audio_chunks(
-        self, session_id: str, chunk_ids: List[str]
-    ) -> List[Dict[str, Any]]:
+        self, session_id: str, chunk_ids: list[str]
+    ) -> list[dict[str, Any]]:
         """Get audio chunk data from database."""
         try:
             chunks = []
@@ -434,7 +408,7 @@ class TimingCoordinator:
             logger.error(f"Failed to get audio chunks: {e}")
             return []
 
-    async def _get_session_transcripts(self, session_id: str) -> List[Dict[str, Any]]:
+    async def _get_session_transcripts(self, session_id: str) -> list[dict[str, Any]]:
         """Get transcript data for session."""
         try:
             if hasattr(self.database_adapter, "get_session_transcripts"):
@@ -444,7 +418,7 @@ class TimingCoordinator:
             logger.error(f"Failed to get session transcripts: {e}")
             return []
 
-    async def _get_session_translations(self, session_id: str) -> List[Dict[str, Any]]:
+    async def _get_session_translations(self, session_id: str) -> list[dict[str, Any]]:
         """Get translation data for session."""
         try:
             if hasattr(self.database_adapter, "get_session_translations"):
@@ -454,15 +428,11 @@ class TimingCoordinator:
             logger.error(f"Failed to get session translations: {e}")
             return []
 
-    async def _get_session_speaker_correlations(
-        self, session_id: str
-    ) -> List[Dict[str, Any]]:
+    async def _get_session_speaker_correlations(self, session_id: str) -> list[dict[str, Any]]:
         """Get speaker correlation data for session."""
         try:
             if hasattr(self.database_adapter, "get_session_speaker_correlations"):
-                return await self.database_adapter.get_session_speaker_correlations(
-                    session_id
-                )
+                return await self.database_adapter.get_session_speaker_correlations(session_id)
             return []
         except Exception as e:
             logger.error(f"Failed to get session speaker correlations: {e}")
@@ -471,9 +441,9 @@ class TimingCoordinator:
     async def _correlate_chunks_with_transcripts(
         self,
         session_id: str,
-        audio_chunks: List[Dict[str, Any]],
-        transcripts: List[Dict[str, Any]],
-    ) -> List[TimingCorrelation]:
+        audio_chunks: list[dict[str, Any]],
+        transcripts: list[dict[str, Any]],
+    ) -> list[TimingCorrelation]:
         """Create timing correlations between audio chunks and transcripts."""
         correlations = []
 
@@ -498,8 +468,7 @@ class TimingCoordinator:
                     if chunk_window.overlaps_with(transcript_window):
                         # Calculate correlation
                         time_offset = abs(
-                            chunk_window.start_timestamp
-                            - transcript_window.start_timestamp
+                            chunk_window.start_timestamp - transcript_window.start_timestamp
                         )
                         confidence = self._calculate_temporal_confidence(
                             chunk_window, transcript_window
@@ -540,9 +509,9 @@ class TimingCoordinator:
     async def _correlate_chunks_with_translations(
         self,
         session_id: str,
-        audio_chunks: List[Dict[str, Any]],
-        translations: List[Dict[str, Any]],
-    ) -> List[TimingCorrelation]:
+        audio_chunks: list[dict[str, Any]],
+        translations: list[dict[str, Any]],
+    ) -> list[TimingCorrelation]:
         """Create timing correlations between audio chunks and translations."""
         correlations = []
 
@@ -566,8 +535,7 @@ class TimingCoordinator:
 
                     if chunk_window.overlaps_with(translation_window):
                         time_offset = abs(
-                            chunk_window.start_timestamp
-                            - translation_window.start_timestamp
+                            chunk_window.start_timestamp - translation_window.start_timestamp
                         )
                         confidence = self._calculate_temporal_confidence(
                             chunk_window, translation_window
@@ -586,12 +554,8 @@ class TimingCoordinator:
                             accuracy_level=accuracy,
                             correlation_method="temporal_overlap",
                             correlation_metadata={
-                                "target_language": translation.get(
-                                    "target_language", ""
-                                ),
-                                "translation_confidence": translation.get(
-                                    "confidence_score", 0.0
-                                ),
+                                "target_language": translation.get("target_language", ""),
+                                "translation_confidence": translation.get("confidence_score", 0.0),
                             },
                         )
                         correlations.append(correlation)
@@ -605,9 +569,9 @@ class TimingCoordinator:
     async def _correlate_chunks_with_speakers(
         self,
         session_id: str,
-        audio_chunks: List[Dict[str, Any]],
-        speaker_correlations: List[Dict[str, Any]],
-    ) -> List[TimingCorrelation]:
+        audio_chunks: list[dict[str, Any]],
+        speaker_correlations: list[dict[str, Any]],
+    ) -> list[TimingCorrelation]:
         """Create timing correlations between audio chunks and speaker data."""
         correlations = []
 
@@ -631,8 +595,7 @@ class TimingCoordinator:
 
                     if chunk_window.overlaps_with(speaker_window):
                         time_offset = abs(
-                            chunk_window.start_timestamp
-                            - speaker_window.start_timestamp
+                            chunk_window.start_timestamp - speaker_window.start_timestamp
                         )
                         confidence = self._calculate_temporal_confidence(
                             chunk_window, speaker_window
@@ -651,9 +614,7 @@ class TimingCoordinator:
                             accuracy_level=accuracy,
                             correlation_method="speaker_temporal",
                             correlation_metadata={
-                                "whisper_speaker_id": speaker_corr.get(
-                                    "whisper_speaker_id", ""
-                                ),
+                                "whisper_speaker_id": speaker_corr.get("whisper_speaker_id", ""),
                                 "correlation_confidence": speaker_corr.get(
                                     "correlation_confidence", 0.0
                                 ),
@@ -667,9 +628,7 @@ class TimingCoordinator:
             logger.error(f"Failed to correlate chunks with speakers: {e}")
             return []
 
-    def _calculate_temporal_confidence(
-        self, window1: TimeWindow, window2: TimeWindow
-    ) -> float:
+    def _calculate_temporal_confidence(self, window1: TimeWindow, window2: TimeWindow) -> float:
         """Calculate confidence score based on temporal overlap."""
         intersection = window1.intersection_with(window2)
         if not intersection:
@@ -680,13 +639,9 @@ class TimingCoordinator:
 
         # Additional confidence factors
         time_offset = abs(window1.start_timestamp - window2.start_timestamp)
-        offset_penalty = max(
-            0.0, 1.0 - (time_offset / 2.0)
-        )  # Penalty for large offsets
+        offset_penalty = max(0.0, 1.0 - (time_offset / 2.0))  # Penalty for large offsets
 
-        confidence = (
-            overlap_ratio * offset_penalty * min(window1.confidence, window2.confidence)
-        )
+        confidence = overlap_ratio * offset_penalty * min(window1.confidence, window2.confidence)
 
         return min(1.0, max(0.0, confidence))
 
@@ -703,17 +658,13 @@ class TimingCoordinator:
         else:
             return TimingAccuracy.POOR
 
-    async def _store_timing_correlations(
-        self, correlations: List[TimingCorrelation]
-    ) -> bool:
+    async def _store_timing_correlations(self, correlations: list[TimingCorrelation]) -> bool:
         """Store timing correlations in database."""
         try:
             if not self.database_adapter or not hasattr(
                 self.database_adapter, "store_timing_correlation"
             ):
-                logger.debug(
-                    "Database adapter doesn't support timing correlation storage"
-                )
+                logger.debug("Database adapter doesn't support timing correlation storage")
                 return True  # Not an error
 
             for correlation in correlations:
@@ -727,7 +678,7 @@ class TimingCoordinator:
             return False
 
     async def _update_synchronization_quality(
-        self, session_id: str, correlations: List[TimingCorrelation]
+        self, session_id: str, correlations: list[TimingCorrelation]
     ) -> None:
         """Update synchronization quality assessment."""
         try:
@@ -746,13 +697,11 @@ class TimingCoordinator:
             confidence_scores = [c.confidence_score for c in correlations]
             accuracy_values = [accuracy_scores[c.accuracy_level] for c in correlations]
 
-            overall_score = statistics.mean(confidence_scores) * statistics.mean(
-                accuracy_values
-            )
+            overall_score = statistics.mean(confidence_scores) * statistics.mean(accuracy_values)
 
             # Determine overall timing accuracy
             most_common_accuracy = max(
-                set(c.accuracy_level for c in correlations),
+                {c.accuracy_level for c in correlations},
                 key=lambda x: sum(1 for c in correlations if c.accuracy_level == x),
             )
 
@@ -763,9 +712,7 @@ class TimingCoordinator:
 
             # Calculate alignment consistency
             alignment_consistency = (
-                1.0 - (statistics.stdev(offsets) / max(max_drift, 1.0))
-                if len(offsets) > 1
-                else 1.0
+                1.0 - (statistics.stdev(offsets) / max(max_drift, 1.0)) if len(offsets) > 1 else 1.0
             )
 
             quality = SynchronizationQuality(
@@ -789,9 +736,7 @@ class TimingCoordinator:
         except Exception as e:
             logger.error(f"Failed to update synchronization quality: {e}")
 
-    async def _get_timestamps_for_source(
-        self, session_id: str, source: str
-    ) -> List[float]:
+    async def _get_timestamps_for_source(self, session_id: str, source: str) -> list[float]:
         """Get timestamps for a specific data source."""
         try:
             if not self.database_adapter:
@@ -806,7 +751,7 @@ class TimingCoordinator:
             return []
 
     async def _calculate_drift_between_sources(
-        self, reference_timestamps: List[float], comparison_timestamps: List[float]
+        self, reference_timestamps: list[float], comparison_timestamps: list[float]
     ) -> float:
         """Calculate drift between two timestamp sources."""
         try:
@@ -824,9 +769,7 @@ class TimingCoordinator:
             logger.error(f"Failed to calculate drift: {e}")
             return 0.0
 
-    async def _apply_drift_correction(
-        self, session_id: str, source: str, drift: float
-    ) -> bool:
+    async def _apply_drift_correction(self, session_id: str, source: str, drift: float) -> bool:
         """Apply drift correction to a data source."""
         try:
             logger.info(
@@ -834,9 +777,7 @@ class TimingCoordinator:
             )
 
             # Store correction offset
-            self.correction_offsets[f"{session_id}_{source}"] = (
-                drift / 1000.0
-            )  # Convert to seconds
+            self.correction_offsets[f"{session_id}_{source}"] = drift / 1000.0  # Convert to seconds
 
             self.correlation_stats["drift_corrections_applied"] += 1
 
@@ -848,7 +789,7 @@ class TimingCoordinator:
 
     async def _assess_synchronization_quality(
         self, session_id: str
-    ) -> Optional[SynchronizationQuality]:
+    ) -> SynchronizationQuality | None:
         """Assess overall synchronization quality for a session."""
         try:
             # Check if we already have quality assessment
@@ -870,9 +811,7 @@ class TimingCoordinator:
             logger.error(f"Failed to assess synchronization quality: {e}")
             return None
 
-    async def _get_complete_session_data(
-        self, session_id: str
-    ) -> Optional[Dict[str, Any]]:
+    async def _get_complete_session_data(self, session_id: str) -> dict[str, Any] | None:
         """Get complete session data for alignment."""
         try:
             if not self.database_adapter:
@@ -886,7 +825,7 @@ class TimingCoordinator:
             logger.error(f"Failed to get complete session data: {e}")
             return None
 
-    async def _calculate_optimal_baseline(self, session_data: Dict[str, Any]) -> float:
+    async def _calculate_optimal_baseline(self, session_data: dict[str, Any]) -> float:
         """Calculate optimal time baseline for alignment."""
         try:
             # Simple baseline calculation - could be enhanced
@@ -897,7 +836,7 @@ class TimingCoordinator:
             return 0.0
 
     async def _apply_timestamp_alignment(
-        self, session_id: str, session_data: Dict[str, Any], baseline_offset: float
+        self, session_id: str, session_data: dict[str, Any], baseline_offset: float
     ) -> bool:
         """Apply timestamp alignment corrections."""
         try:
@@ -912,9 +851,7 @@ class TimingCoordinator:
             logger.error(f"Failed to apply timestamp alignment: {e}")
             return False
 
-    async def _load_timing_correlations(
-        self, session_id: str
-    ) -> List[TimingCorrelation]:
+    async def _load_timing_correlations(self, session_id: str) -> list[TimingCorrelation]:
         """Load timing correlations from database."""
         try:
             if not self.database_adapter or not hasattr(
@@ -923,9 +860,7 @@ class TimingCoordinator:
                 return []
 
             # Load correlations from database
-            correlations = await self.database_adapter.get_timing_correlations(
-                session_id
-            )
+            correlations = await self.database_adapter.get_timing_correlations(session_id)
             return correlations
 
         except Exception as e:
@@ -935,9 +870,9 @@ class TimingCoordinator:
     async def _build_synchronized_dataset(
         self,
         session_id: str,
-        correlations: List[TimingCorrelation],
-        time_range: Optional[Tuple[float, float]],
-    ) -> Dict[str, Any]:
+        correlations: list[TimingCorrelation],
+        time_range: tuple[float, float] | None,
+    ) -> dict[str, Any]:
         """Build synchronized dataset using timing correlations."""
         try:
             synchronized_data = {
@@ -971,7 +906,7 @@ class TimingCoordinator:
                 "correlation_count": 0,
             }
 
-    def get_timing_statistics(self) -> Dict[str, Any]:
+    def get_timing_statistics(self) -> dict[str, Any]:
         """Get timing coordination statistics."""
         return {
             **self.correlation_stats,
@@ -995,9 +930,7 @@ class TimingCoordinator:
 
             # Clear correction offsets for this session
             keys_to_remove = [
-                k
-                for k in self.correction_offsets.keys()
-                if k.startswith(f"{session_id}_")
+                k for k in self.correction_offsets if k.startswith(f"{session_id}_")
             ]
             for key in keys_to_remove:
                 del self.correction_offsets[key]

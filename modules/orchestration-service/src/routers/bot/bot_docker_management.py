@@ -13,11 +13,11 @@ Moved from standalone routers/bot_management.py for package consolidation.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
-from fastapi import APIRouter, HTTPException, Depends, Query
-from pydantic import BaseModel, Field, HttpUrl
+from typing import Any
 
-from bot.docker_bot_manager import get_bot_manager, DockerBotManager, BotStatus
+from bot.docker_bot_manager import BotStatus, DockerBotManager, get_bot_manager
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field, HttpUrl
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +30,10 @@ class StartBotRequest(BaseModel):
     meeting_url: HttpUrl = Field(..., description="Google Meet URL")
     user_token: str = Field(..., description="User API token for orchestration auth")
     user_id: str = Field(..., description="User ID")
-    language: str = Field(
-        "en", description="Transcription language (en, es, fr, de, zh, etc.)"
-    )
+    language: str = Field("en", description="Transcription language (en, es, fr, de, zh, etc.)")
     task: str = Field("transcribe", description="Task: transcribe or translate")
-    enable_virtual_webcam: bool = Field(
-        False, description="Enable virtual webcam output"
-    )
-    metadata: Optional[Dict[str, Any]] = Field(
-        default_factory=dict, description="Additional metadata"
-    )
+    enable_virtual_webcam: bool = Field(False, description="Enable virtual webcam output")
+    metadata: dict[str, Any] | None = Field(default_factory=dict, description="Additional metadata")
 
 
 class StartBotResponse(BaseModel):
@@ -64,21 +58,21 @@ class BotStatusResponse(BaseModel):
     meeting_url: str
     status: str
     created_at: float
-    started_at: Optional[float]
-    active_at: Optional[float]
-    stopped_at: Optional[float]
+    started_at: float | None
+    active_at: float | None
+    stopped_at: float | None
     uptime_seconds: float
     is_healthy: bool
-    container_id: Optional[str]
-    container_name: Optional[str]
-    error_message: Optional[str]
-    metadata: Dict[str, Any]
+    container_id: str | None
+    container_name: str | None
+    error_message: str | None
+    metadata: dict[str, Any]
 
 
 class BotListResponse(BaseModel):
     """List of bots response"""
 
-    bots: List[BotStatusResponse]
+    bots: list[BotStatusResponse]
     total: int
 
 
@@ -86,15 +80,11 @@ class BotCommandRequest(BaseModel):
     """Request to send command to bot"""
 
     action: str = Field(..., description="Command action (leave, reconfigure, status)")
-    data: Optional[Dict[str, Any]] = Field(
-        default_factory=dict, description="Command data"
-    )
+    data: dict[str, Any] | None = Field(default_factory=dict, description="Command data")
 
 
 @router.post("/start", response_model=StartBotResponse)
-async def start_bot(
-    request: StartBotRequest, manager: DockerBotManager = Depends(get_bot_manager)
-):
+async def start_bot(request: StartBotRequest, manager: DockerBotManager = Depends(get_bot_manager)):
     """
     Start a bot to join Google Meet
 
@@ -128,7 +118,7 @@ async def start_bot(
 
     except Exception as e:
         logger.error(f"Failed to start bot: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to start bot: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to start bot: {e!s}") from e
 
 
 @router.post("/stop/{connection_id}")
@@ -158,16 +148,14 @@ async def stop_bot(
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Failed to stop bot: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to stop bot: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to stop bot: {e!s}") from e
 
 
 @router.get("/status/{connection_id}", response_model=BotStatusResponse)
-async def get_bot_status(
-    connection_id: str, manager: DockerBotManager = Depends(get_bot_manager)
-):
+async def get_bot_status(connection_id: str, manager: DockerBotManager = Depends(get_bot_manager)):
     """
     Get bot status
 
@@ -184,8 +172,8 @@ async def get_bot_status(
 
 @router.get("/list", response_model=BotListResponse)
 async def list_bots(
-    status: Optional[str] = Query(None, description="Filter by status"),
-    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    status: str | None = Query(None, description="Filter by status"),
+    user_id: str | None = Query(None, description="Filter by user ID"),
     manager: DockerBotManager = Depends(get_bot_manager),
 ):
     """
@@ -200,11 +188,11 @@ async def list_bots(
     if status:
         try:
             status_enum = BotStatus(status)
-        except ValueError:
+        except ValueError as e:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid status: {status}. Valid values: {[s.value for s in BotStatus]}",
-            )
+            ) from e
 
     # List bots
     bots = manager.list_bots(status=status_enum, user_id=user_id)
@@ -251,12 +239,12 @@ async def send_bot_command(
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Failed to send command: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to send command: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send command: {e!s}") from e
 
 
 @router.get("/stats")

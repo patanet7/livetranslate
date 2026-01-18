@@ -31,7 +31,7 @@ if (-not (Test-Path "monitoring")) {
 # Validate configuration files
 if (-not $SkipValidation) {
     Write-Host "Validating configuration files..." -ForegroundColor Yellow
-    
+
     $configFiles = @(
         "monitoring/docker-compose.monitoring.yml",
         "monitoring/prometheus/prometheus.yml",
@@ -41,7 +41,7 @@ if (-not $SkipValidation) {
         "monitoring/prometheus/rules/livetranslate-alerts.yml",
         "monitoring/grafana/provisioning/datasources/datasources.yml"
     )
-    
+
     foreach ($file in $configFiles) {
         if (-not (Test-Path $file)) {
             Write-Host "[ERROR] Missing configuration file: $file" -ForegroundColor Red
@@ -97,7 +97,7 @@ Start-Sleep -Seconds 30
 # Health check function
 function Test-ServiceHealth {
     param($ServiceName, $Url, $ExpectedStatus = 200)
-    
+
     try {
         $response = Invoke-WebRequest -Uri $Url -Method GET -TimeoutSec 10 -UseBasicParsing
         if ($response.StatusCode -eq $ExpectedStatus) {
@@ -156,4 +156,4 @@ if ($allHealthy) {
     Write-Host "   docker-compose -f monitoring/docker-compose.monitoring.yml logs" -ForegroundColor Gray
 }
 
-Write-Host "`nMonitoring deployment complete!" -ForegroundColor Green 
+Write-Host "`nMonitoring deployment complete!" -ForegroundColor Green

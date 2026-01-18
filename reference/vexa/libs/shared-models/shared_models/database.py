@@ -7,7 +7,7 @@ from sqlalchemy.sql import text
 
 # Import Base from models within the same package
 # Ensure models are imported somewhere before init_db is called so Base is populated.
-from .models import Base 
+from .models import Base
 
 logger = logging.getLogger("shared_models.database")
 
@@ -36,10 +36,10 @@ if not all([DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD]):
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 DATABASE_URL_SYNC = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-# --- SQLAlchemy Async Engine & Session --- 
+# --- SQLAlchemy Async Engine & Session ---
 # Use pool settings appropriate for async connections
 engine = create_async_engine(
-    DATABASE_URL, 
+    DATABASE_URL,
     echo=os.environ.get("LOG_LEVEL", "INFO").upper() == "DEBUG",
     pool_size=10, # Example pool size
     max_overflow=20 # Example overflow
@@ -53,7 +53,7 @@ async_session_local = sessionmaker(
 # --- Sync Engine (For Alembic migrations) ---
 sync_engine = create_engine(DATABASE_URL_SYNC)
 
-# --- FastAPI Dependency --- 
+# --- FastAPI Dependency ---
 async def get_db() -> AsyncSession:
     """FastAPI dependency to get an async database session."""
     async with async_session_local() as session:
@@ -63,20 +63,20 @@ async def get_db() -> AsyncSession:
             # Ensure session is closed, though context manager should handle it
             await session.close()
 
-# --- Initialization Function --- 
+# --- Initialization Function ---
 async def init_db():
     """Creates database tables based on shared models' metadata."""
     logger.info(f"Initializing database tables at {DB_HOST}:{DB_PORT}/{DB_NAME}")
     try:
         async with engine.begin() as conn:
-            # This relies on all SQLAlchemy models being imported 
+            # This relies on all SQLAlchemy models being imported
             # somewhere before this runs, so Base.metadata is populated.
             # Add checkfirst=True to prevent errors if tables already exist
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
         logger.info("Database tables checked/created successfully.")
     except Exception as e:
         logger.error(f"Error initializing database tables: {e}", exc_info=True)
-        raise 
+        raise
 
 # --- DANGEROUS: Recreate Function ---
 async def recreate_db():
@@ -94,14 +94,14 @@ async def recreate_db():
             logger.info("Recreating public schema...")
             await conn.execute(text("CREATE SCHEMA public;"))
             # Optional: Grant permissions if needed (often handled by default roles)
-            # await conn.execute(text("GRANT ALL ON SCHEMA public TO public;")) 
-            # await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres;")) 
+            # await conn.execute(text("GRANT ALL ON SCHEMA public TO public;"))
+            # await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres;"))
             logger.info("Public schema recreated.")
-            
+
             logger.info("Recreating all tables based on models...")
             await conn.run_sync(Base.metadata.create_all)
             logger.info("All tables recreated successfully.")
         logger.warning(f"!!! DANGEROUS OPERATION COMPLETE for {DB_NAME} at {DB_HOST}:{DB_PORT} !!!")
     except Exception as e:
         logger.error(f"Error recreating database tables: {e}", exc_info=True)
-        raise 
+        raise

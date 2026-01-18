@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -23,19 +23,19 @@ import {
   IconButton,
   Tooltip,
   Paper,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import RestoreIcon from '@mui/icons-material/Restore';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import InfoIcon from '@mui/icons-material/Info';
-import StorageIcon from '@mui/icons-material/Storage';
+} from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import RestoreIcon from "@mui/icons-material/Restore";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import InfoIcon from "@mui/icons-material/Info";
+import StorageIcon from "@mui/icons-material/Storage";
 
 interface ChunkingConfig {
   // Basic Chunking Configuration
   chunking: {
     chunk_duration: number;
     overlap_duration: number;
-    overlap_mode: 'fixed' | 'adaptive' | 'voice_based';
+    overlap_mode: "fixed" | "adaptive" | "voice_based";
     min_chunk_duration: number;
     max_chunk_duration: number;
     buffer_duration: number;
@@ -54,7 +54,7 @@ interface ChunkingConfig {
   // File Management
   storage: {
     audio_storage_path: string;
-    file_format: 'wav' | 'mp3' | 'flac' | 'ogg';
+    file_format: "wav" | "mp3" | "flac" | "ogg";
     compression_level: number;
     cleanup_files_on_stop: boolean;
     max_storage_size_gb: number;
@@ -81,7 +81,7 @@ interface ChunkingConfig {
 
   // Source Configuration
   source: {
-    source_type: 'bot_audio' | 'meeting_test' | 'microphone' | 'file_upload';
+    source_type: "bot_audio" | "meeting_test" | "microphone" | "file_upload";
     session_timeout: number;
     auto_restart: boolean;
     error_recovery: boolean;
@@ -97,7 +97,7 @@ const defaultChunkingConfig: ChunkingConfig = {
   chunking: {
     chunk_duration: 3.0,
     overlap_duration: 0.5,
-    overlap_mode: 'fixed',
+    overlap_mode: "fixed",
     min_chunk_duration: 1.0,
     max_chunk_duration: 10.0,
     buffer_duration: 5.0,
@@ -111,8 +111,8 @@ const defaultChunkingConfig: ChunkingConfig = {
     voice_activity_threshold: 0.5,
   },
   storage: {
-    audio_storage_path: '/data/audio',
-    file_format: 'wav',
+    audio_storage_path: "/data/audio",
+    file_format: "wav",
     compression_level: 5,
     cleanup_files_on_stop: false,
     max_storage_size_gb: 10,
@@ -133,7 +133,7 @@ const defaultChunkingConfig: ChunkingConfig = {
     speaker_tracking: true,
   },
   source: {
-    source_type: 'bot_audio',
+    source_type: "bot_audio",
     session_timeout: 3600,
     auto_restart: true,
     error_recovery: true,
@@ -154,34 +154,38 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
   useEffect(() => {
     const loadConfiguration = async () => {
       try {
-        const response = await fetch('/api/settings/chunking');
+        const response = await fetch("/api/settings/chunking");
         if (response.ok) {
           const currentConfig = await response.json();
           setConfig({ ...defaultChunkingConfig, ...currentConfig });
         }
       } catch (error) {
-        console.error('Failed to load chunking configuration:', error);
+        console.error("Failed to load chunking configuration:", error);
       }
     };
 
     const loadStorageStats = async () => {
       try {
-        const response = await fetch('/api/settings/chunking/storage-stats');
+        const response = await fetch("/api/settings/chunking/storage-stats");
         if (response.ok) {
           const stats = await response.json();
           setStorageStats(stats);
         }
       } catch (error) {
-        console.error('Failed to load storage stats:', error);
+        console.error("Failed to load storage stats:", error);
       }
     };
-    
+
     loadConfiguration();
     loadStorageStats();
   }, []);
 
-  const handleConfigChange = (section: keyof ChunkingConfig, key: string, value: any) => {
-    setConfig(prev => ({
+  const handleConfigChange = (
+    section: keyof ChunkingConfig,
+    key: string,
+    value: any,
+  ) => {
+    setConfig((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
@@ -192,38 +196,38 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
 
   const handleSave = async () => {
     try {
-      const response = await fetch('/api/settings/chunking', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/chunking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-      
+
       if (response.ok) {
-        onSave('Chunking settings saved successfully');
+        onSave("Chunking settings saved successfully");
       } else {
-        onSave('Failed to save chunking settings', false);
+        onSave("Failed to save chunking settings", false);
       }
     } catch (error) {
-      onSave('Error saving chunking settings', false);
+      onSave("Error saving chunking settings", false);
     }
   };
 
   const handleTestChunking = async () => {
     setTestingChunking(true);
     try {
-      const response = await fetch('/api/settings/chunking/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/chunking/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-      
+
       if (response.ok) {
-        onSave('Chunking configuration test completed successfully');
+        onSave("Chunking configuration test completed successfully");
       } else {
-        onSave('Chunking configuration test failed', false);
+        onSave("Chunking configuration test failed", false);
       }
     } catch (error) {
-      onSave('Error testing chunking configuration', false);
+      onSave("Error testing chunking configuration", false);
     } finally {
       setTestingChunking(false);
     }
@@ -231,34 +235,41 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
 
   const handleResetToDefaults = () => {
     setConfig(defaultChunkingConfig);
-    onSave('Chunking configuration reset to defaults');
+    onSave("Chunking configuration reset to defaults");
   };
 
   const handleCleanupStorage = async () => {
     try {
-      const response = await fetch('/api/settings/chunking/cleanup-storage', {
-        method: 'POST',
+      const response = await fetch("/api/settings/chunking/cleanup-storage", {
+        method: "POST",
       });
-      
+
       if (response.ok) {
-        onSave('Storage cleanup completed successfully');
+        onSave("Storage cleanup completed successfully");
         // Reload storage stats
-        const statsResponse = await fetch('/api/settings/chunking/storage-stats');
+        const statsResponse = await fetch(
+          "/api/settings/chunking/storage-stats",
+        );
         if (statsResponse.ok) {
           const stats = await statsResponse.json();
           setStorageStats(stats);
         }
       } else {
-        onSave('Storage cleanup failed', false);
+        onSave("Storage cleanup failed", false);
       }
     } catch (error) {
-      onSave('Error during storage cleanup', false);
+      onSave("Error during storage cleanup", false);
     }
   };
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
+      >
         <Typography variant="h5" component="h2">
           Audio Chunking Configuration
         </Typography>
@@ -275,7 +286,7 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
             disabled={testingChunking}
             sx={{ mr: 2 }}
           >
-            {testingChunking ? 'Testing...' : 'Test Configuration'}
+            {testingChunking ? "Testing..." : "Test Configuration"}
           </Button>
           <Button variant="contained" onClick={handleSave}>
             Save Settings
@@ -284,14 +295,15 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
       </Box>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Configure audio chunking parameters for optimal processing performance and storage efficiency.
-        Overlap handling is managed by the orchestration service.
+        Configure audio chunking parameters for optimal processing performance
+        and storage efficiency. Overlap handling is managed by the orchestration
+        service.
       </Alert>
 
       {/* Storage Overview */}
       <Card sx={{ mb: 3 }}>
-        <CardHeader 
-          title="Storage Overview" 
+        <CardHeader
+          title="Storage Overview"
           action={
             <Button
               variant="outlined"
@@ -306,7 +318,7 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
         <CardContent>
           <Grid container spacing={2}>
             <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {storageStats.used_space_gb.toFixed(2)} GB
                 </Typography>
@@ -316,7 +328,7 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               </Paper>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {storageStats.total_chunks.toLocaleString()}
                 </Typography>
@@ -326,7 +338,7 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               </Paper>
             </Grid>
             <Grid item xs={12} md={4}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {storageStats.avg_chunk_size_mb.toFixed(2)} MB
                 </Typography>
@@ -343,8 +355,8 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Basic Chunking Parameters</Typography>
-          <Chip 
-            label={`${config.chunking.chunk_duration}s chunks`} 
+          <Chip
+            label={`${config.chunking.chunk_duration}s chunks`}
             color="primary"
             size="small"
             sx={{ ml: 2 }}
@@ -356,20 +368,25 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               <Typography gutterBottom>
                 Chunk Duration: {config.chunking.chunk_duration}s
                 <Tooltip title="Duration of each audio chunk">
-                  <InfoIcon fontSize="small" sx={{ ml: 1, color: 'text.secondary' }} />
+                  <InfoIcon
+                    fontSize="small"
+                    sx={{ ml: 1, color: "text.secondary" }}
+                  />
                 </Tooltip>
               </Typography>
               <Slider
                 value={config.chunking.chunk_duration}
-                onChange={(_, value) => handleConfigChange('chunking', 'chunk_duration', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("chunking", "chunk_duration", value)
+                }
                 min={0.5}
                 max={30}
                 step={0.5}
                 marks={[
-                  { value: 1, label: '1s' },
-                  { value: 3, label: '3s' },
-                  { value: 5, label: '5s' },
-                  { value: 10, label: '10s' },
+                  { value: 1, label: "1s" },
+                  { value: 3, label: "3s" },
+                  { value: 5, label: "5s" },
+                  { value: 10, label: "10s" },
                 ]}
               />
             </Grid>
@@ -377,20 +394,25 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               <Typography gutterBottom>
                 Overlap Duration: {config.chunking.overlap_duration}s
                 <Tooltip title="Overlap between consecutive chunks">
-                  <InfoIcon fontSize="small" sx={{ ml: 1, color: 'text.secondary' }} />
+                  <InfoIcon
+                    fontSize="small"
+                    sx={{ ml: 1, color: "text.secondary" }}
+                  />
                 </Tooltip>
               </Typography>
               <Slider
                 value={config.chunking.overlap_duration}
-                onChange={(_, value) => handleConfigChange('chunking', 'overlap_duration', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("chunking", "overlap_duration", value)
+                }
                 min={0}
                 max={5}
                 step={0.1}
                 marks={[
-                  { value: 0, label: '0s' },
-                  { value: 0.5, label: '0.5s' },
-                  { value: 1, label: '1s' },
-                  { value: 2, label: '2s' },
+                  { value: 0, label: "0s" },
+                  { value: 0.5, label: "0.5s" },
+                  { value: 1, label: "1s" },
+                  { value: 2, label: "2s" },
                 ]}
               />
             </Grid>
@@ -400,7 +422,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.chunking.overlap_mode}
                   label="Overlap Mode"
-                  onChange={(e) => handleConfigChange('chunking', 'overlap_mode', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange(
+                      "chunking",
+                      "overlap_mode",
+                      e.target.value,
+                    )
+                  }
                 >
                   <MenuItem value="fixed">Fixed Overlap</MenuItem>
                   <MenuItem value="adaptive">Adaptive Overlap</MenuItem>
@@ -412,12 +440,17 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               <Typography gutterBottom>
                 Buffer Duration: {config.chunking.buffer_duration}s
                 <Tooltip title="Internal audio buffer size">
-                  <InfoIcon fontSize="small" sx={{ ml: 1, color: 'text.secondary' }} />
+                  <InfoIcon
+                    fontSize="small"
+                    sx={{ ml: 1, color: "text.secondary" }}
+                  />
                 </Tooltip>
               </Typography>
               <Slider
                 value={config.chunking.buffer_duration}
-                onChange={(_, value) => handleConfigChange('chunking', 'buffer_duration', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("chunking", "buffer_duration", value)
+                }
                 min={1}
                 max={30}
                 step={1}
@@ -429,7 +462,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 label="Min Chunk Duration (s)"
                 type="number"
                 value={config.chunking.min_chunk_duration}
-                onChange={(e) => handleConfigChange('chunking', 'min_chunk_duration', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "chunking",
+                    "min_chunk_duration",
+                    Number(e.target.value),
+                  )
+                }
                 inputProps={{ min: 0.1, max: 10, step: 0.1 }}
               />
             </Grid>
@@ -439,7 +478,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 label="Max Chunk Duration (s)"
                 type="number"
                 value={config.chunking.max_chunk_duration}
-                onChange={(e) => handleConfigChange('chunking', 'max_chunk_duration', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "chunking",
+                    "max_chunk_duration",
+                    Number(e.target.value),
+                  )
+                }
                 inputProps={{ min: 1, max: 60, step: 1 }}
               />
             </Grid>
@@ -451,9 +496,15 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Quality and Filtering</Typography>
-          <Chip 
-            label={config.quality.quality_analysis_enabled ? 'Analysis Enabled' : 'Analysis Disabled'} 
-            color={config.quality.quality_analysis_enabled ? 'success' : 'default'}
+          <Chip
+            label={
+              config.quality.quality_analysis_enabled
+                ? "Analysis Enabled"
+                : "Analysis Disabled"
+            }
+            color={
+              config.quality.quality_analysis_enabled ? "success" : "default"
+            }
             size="small"
             sx={{ ml: 2 }}
           />
@@ -465,17 +516,27 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.quality.quality_analysis_enabled}
-                    onChange={(e) => handleConfigChange('quality', 'quality_analysis_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "quality",
+                        "quality_analysis_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Quality Analysis"
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Quality Threshold: {config.quality.quality_threshold}</Typography>
+              <Typography gutterBottom>
+                Quality Threshold: {config.quality.quality_threshold}
+              </Typography>
               <Slider
                 value={config.quality.quality_threshold}
-                onChange={(_, value) => handleConfigChange('quality', 'quality_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("quality", "quality_threshold", value)
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -483,10 +544,14 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>SNR Threshold: {config.quality.snr_threshold} dB</Typography>
+              <Typography gutterBottom>
+                SNR Threshold: {config.quality.snr_threshold} dB
+              </Typography>
               <Slider
                 value={config.quality.snr_threshold}
-                onChange={(_, value) => handleConfigChange('quality', 'snr_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("quality", "snr_threshold", value)
+                }
                 min={0}
                 max={40}
                 step={1}
@@ -498,7 +563,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.quality.auto_reject_low_quality}
-                    onChange={(e) => handleConfigChange('quality', 'auto_reject_low_quality', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "quality",
+                        "auto_reject_low_quality",
+                        e.target.checked,
+                      )
+                    }
                     disabled={!config.quality.quality_analysis_enabled}
                   />
                 }
@@ -506,10 +577,19 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Voice Activity Threshold: {config.quality.voice_activity_threshold}</Typography>
+              <Typography gutterBottom>
+                Voice Activity Threshold:{" "}
+                {config.quality.voice_activity_threshold}
+              </Typography>
               <Slider
                 value={config.quality.voice_activity_threshold}
-                onChange={(_, value) => handleConfigChange('quality', 'voice_activity_threshold', value)}
+                onChange={(_, value) =>
+                  handleConfigChange(
+                    "quality",
+                    "voice_activity_threshold",
+                    value,
+                  )
+                }
                 min={0}
                 max={1}
                 step={0.1}
@@ -524,8 +604,8 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Storage Configuration</Typography>
-          <Chip 
-            label={config.storage.file_format.toUpperCase()} 
+          <Chip
+            label={config.storage.file_format.toUpperCase()}
             color="primary"
             size="small"
             sx={{ ml: 2 }}
@@ -538,7 +618,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 fullWidth
                 label="Audio Storage Path"
                 value={config.storage.audio_storage_path}
-                onChange={(e) => handleConfigChange('storage', 'audio_storage_path', e.target.value)}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "storage",
+                    "audio_storage_path",
+                    e.target.value,
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -547,7 +633,9 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.storage.file_format}
                   label="File Format"
-                  onChange={(e) => handleConfigChange('storage', 'file_format', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("storage", "file_format", e.target.value)
+                  }
                 >
                   <MenuItem value="wav">WAV (Uncompressed)</MenuItem>
                   <MenuItem value="flac">FLAC (Lossless)</MenuItem>
@@ -557,14 +645,18 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
               </FormControl>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Compression Level: {config.storage.compression_level}</Typography>
+              <Typography gutterBottom>
+                Compression Level: {config.storage.compression_level}
+              </Typography>
               <Slider
                 value={config.storage.compression_level}
-                onChange={(_, value) => handleConfigChange('storage', 'compression_level', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("storage", "compression_level", value)
+                }
                 min={0}
                 max={9}
                 step={1}
-                disabled={config.storage.file_format === 'wav'}
+                disabled={config.storage.file_format === "wav"}
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -573,7 +665,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 label="Max Storage Size (GB)"
                 type="number"
                 value={config.storage.max_storage_size_gb}
-                onChange={(e) => handleConfigChange('storage', 'max_storage_size_gb', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "storage",
+                    "max_storage_size_gb",
+                    Number(e.target.value),
+                  )
+                }
                 inputProps={{ min: 1, max: 1000 }}
               />
             </Grid>
@@ -583,7 +681,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 label="Retention Days"
                 type="number"
                 value={config.storage.retention_days}
-                onChange={(e) => handleConfigChange('storage', 'retention_days', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "storage",
+                    "retention_days",
+                    Number(e.target.value),
+                  )
+                }
                 inputProps={{ min: 1, max: 365 }}
               />
             </Grid>
@@ -592,7 +696,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.storage.cleanup_files_on_stop}
-                    onChange={(e) => handleConfigChange('storage', 'cleanup_files_on_stop', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "storage",
+                        "cleanup_files_on_stop",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Cleanup Files on Session Stop"
@@ -606,8 +716,8 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Performance Settings</Typography>
-          <Chip 
-            label={`${config.performance.max_concurrent_chunks} concurrent`} 
+          <Chip
+            label={`${config.performance.max_concurrent_chunks} concurrent`}
             color="secondary"
             size="small"
             sx={{ ml: 2 }}
@@ -616,26 +726,39 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
         <AccordionDetails>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Max Concurrent Chunks: {config.performance.max_concurrent_chunks}</Typography>
+              <Typography gutterBottom>
+                Max Concurrent Chunks:{" "}
+                {config.performance.max_concurrent_chunks}
+              </Typography>
               <Slider
                 value={config.performance.max_concurrent_chunks}
-                onChange={(_, value) => handleConfigChange('performance', 'max_concurrent_chunks', value)}
+                onChange={(_, value) =>
+                  handleConfigChange(
+                    "performance",
+                    "max_concurrent_chunks",
+                    value,
+                  )
+                }
                 min={1}
                 max={20}
                 step={1}
                 marks={[
-                  { value: 1, label: '1' },
-                  { value: 5, label: '5' },
-                  { value: 10, label: '10' },
-                  { value: 20, label: '20' },
+                  { value: 1, label: "1" },
+                  { value: 5, label: "5" },
+                  { value: 10, label: "10" },
+                  { value: 20, label: "20" },
                 ]}
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Processing Threads: {config.performance.processing_threads}</Typography>
+              <Typography gutterBottom>
+                Processing Threads: {config.performance.processing_threads}
+              </Typography>
               <Slider
                 value={config.performance.processing_threads}
-                onChange={(_, value) => handleConfigChange('performance', 'processing_threads', value)}
+                onChange={(_, value) =>
+                  handleConfigChange("performance", "processing_threads", value)
+                }
                 min={1}
                 max={8}
                 step={1}
@@ -647,7 +770,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 label="Memory Limit (MB)"
                 type="number"
                 value={config.performance.memory_limit_mb}
-                onChange={(e) => handleConfigChange('performance', 'memory_limit_mb', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "performance",
+                    "memory_limit_mb",
+                    Number(e.target.value),
+                  )
+                }
                 inputProps={{ min: 128, max: 8192 }}
               />
             </Grid>
@@ -656,7 +785,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.performance.batch_processing}
-                    onChange={(e) => handleConfigChange('performance', 'batch_processing', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "performance",
+                        "batch_processing",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Batch Processing"
@@ -667,7 +802,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.performance.adaptive_buffering}
-                    onChange={(e) => handleConfigChange('performance', 'adaptive_buffering', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "performance",
+                        "adaptive_buffering",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Adaptive Buffering"
@@ -681,9 +822,15 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Database Integration</Typography>
-          <Chip 
-            label={config.database.chunk_metadata_enabled ? 'Metadata Enabled' : 'Metadata Disabled'} 
-            color={config.database.chunk_metadata_enabled ? 'success' : 'default'}
+          <Chip
+            label={
+              config.database.chunk_metadata_enabled
+                ? "Metadata Enabled"
+                : "Metadata Disabled"
+            }
+            color={
+              config.database.chunk_metadata_enabled ? "success" : "default"
+            }
             size="small"
             sx={{ ml: 2 }}
           />
@@ -695,7 +842,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.database.chunk_metadata_enabled}
-                    onChange={(e) => handleConfigChange('database', 'chunk_metadata_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "database",
+                        "chunk_metadata_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Store Chunk Metadata"
@@ -706,7 +859,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.database.store_quality_metrics}
-                    onChange={(e) => handleConfigChange('database', 'store_quality_metrics', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "database",
+                        "store_quality_metrics",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Store Quality Metrics"
@@ -717,7 +876,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.database.store_processing_stats}
-                    onChange={(e) => handleConfigChange('database', 'store_processing_stats', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "database",
+                        "store_processing_stats",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Store Processing Statistics"
@@ -728,7 +893,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.database.correlation_tracking}
-                    onChange={(e) => handleConfigChange('database', 'correlation_tracking', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "database",
+                        "correlation_tracking",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Correlation Tracking"
@@ -739,7 +910,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.database.speaker_tracking}
-                    onChange={(e) => handleConfigChange('database', 'speaker_tracking', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "database",
+                        "speaker_tracking",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Speaker Tracking"
@@ -753,8 +930,8 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
       <Accordion>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">Source Configuration</Typography>
-          <Chip 
-            label={config.source.source_type.replace('_', ' ').toUpperCase()} 
+          <Chip
+            label={config.source.source_type.replace("_", " ").toUpperCase()}
             color="info"
             size="small"
             sx={{ ml: 2 }}
@@ -768,7 +945,9 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.source.source_type}
                   label="Source Type"
-                  onChange={(e) => handleConfigChange('source', 'source_type', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("source", "source_type", e.target.value)
+                  }
                 >
                   <MenuItem value="bot_audio">Bot Audio Stream</MenuItem>
                   <MenuItem value="meeting_test">Meeting Test</MenuItem>
@@ -783,7 +962,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 label="Session Timeout (seconds)"
                 type="number"
                 value={config.source.session_timeout}
-                onChange={(e) => handleConfigChange('source', 'session_timeout', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "source",
+                    "session_timeout",
+                    Number(e.target.value),
+                  )
+                }
                 inputProps={{ min: 60, max: 86400 }}
               />
             </Grid>
@@ -792,7 +977,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.source.auto_restart}
-                    onChange={(e) => handleConfigChange('source', 'auto_restart', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "source",
+                        "auto_restart",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Auto-restart on Failure"
@@ -804,7 +995,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 label="Max Retries"
                 type="number"
                 value={config.source.max_retries}
-                onChange={(e) => handleConfigChange('source', 'max_retries', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "source",
+                    "max_retries",
+                    Number(e.target.value),
+                  )
+                }
                 inputProps={{ min: 0, max: 10 }}
                 disabled={!config.source.auto_restart}
               />
@@ -814,7 +1011,13 @@ const ChunkingSettings: React.FC<ChunkingSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.source.error_recovery}
-                    onChange={(e) => handleConfigChange('source', 'error_recovery', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "source",
+                        "error_recovery",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Error Recovery"

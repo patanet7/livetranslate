@@ -48,7 +48,7 @@ RUN chmod +x /app/src/*.py || true
 
 # Expose ports
 # 8000: HTTP inference
-# 8001: gRPC inference  
+# 8001: gRPC inference
 # 8002: Metrics
 # 5003: Translation service API
 EXPOSE 8000 8001 8002 5003

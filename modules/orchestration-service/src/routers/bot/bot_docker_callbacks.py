@@ -15,11 +15,11 @@ Moved from standalone routers/bot_callbacks.py for package consolidation.
 """
 
 import logging
-from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
+from typing import Any
 
-from bot.docker_bot_manager import get_bot_manager, DockerBotManager
+from bot.docker_bot_manager import DockerBotManager, get_bot_manager
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +31,9 @@ class BotCallbackPayload(BaseModel):
 
     connection_id: str = Field(..., description="Bot connection ID")
     container_id: str = Field(..., description="Docker container ID")
-    error: Optional[str] = Field(None, description="Error message (for failed status)")
-    exit_code: Optional[int] = Field(None, description="Exit code (for failed status)")
-    metadata: Optional[Dict[str, Any]] = Field(
-        default_factory=dict, description="Additional metadata"
-    )
+    error: str | None = Field(None, description="Error message (for failed status)")
+    exit_code: int | None = Field(None, description="Exit code (for failed status)")
+    metadata: dict[str, Any] | None = Field(default_factory=dict, description="Additional metadata")
 
 
 @router.post("/started")
@@ -51,9 +49,7 @@ async def bot_started_callback(
 
     Next: Bot will send 'joining' callback
     """
-    logger.info(
-        f"Bot {payload.connection_id} started (container: {payload.container_id})"
-    )
+    logger.info(f"Bot {payload.connection_id} started (container: {payload.container_id})")
 
     try:
         await manager.handle_bot_callback(
@@ -69,7 +65,7 @@ async def bot_started_callback(
 
     except Exception as e:
         logger.error(f"Error handling started callback: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/joining")
@@ -100,7 +96,7 @@ async def bot_joining_callback(
 
     except Exception as e:
         logger.error(f"Error handling joining callback: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/active")
@@ -132,7 +128,7 @@ async def bot_active_callback(
 
     except Exception as e:
         logger.error(f"Error handling active callback: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/completed")
@@ -163,7 +159,7 @@ async def bot_completed_callback(
 
     except Exception as e:
         logger.error(f"Error handling completed callback: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/failed")
@@ -200,4 +196,4 @@ async def bot_failed_callback(
 
     except Exception as e:
         logger.error(f"Error handling failed callback: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

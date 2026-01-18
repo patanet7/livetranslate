@@ -6,12 +6,14 @@ Connects to Whisper service via Socket.IO for real-time streaming transcription.
 This replaces WebSocketWhisperClient with proper Socket.IO protocol support.
 """
 
-import logging
-import socketio
 import base64
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Callable
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+import socketio
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +23,10 @@ class WhisperSessionState:
     """State tracking for a Whisper streaming session"""
 
     session_id: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
     chunks_sent: int = 0
     segments_received: int = 0
-    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Whisper configuration (extracted from config for easy access)
     model_name: str = "large-v3-turbo"
@@ -36,13 +38,13 @@ class WhisperSessionState:
     enable_vad: bool = True
 
     # Domain prompt fields (optional)
-    domain: Optional[str] = None
-    custom_terms: Optional[list] = None
-    initial_prompt: Optional[str] = None
+    domain: str | None = None
+    custom_terms: list | None = None
+    initial_prompt: str | None = None
 
     def update_activity(self):
         """Update last activity timestamp"""
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = datetime.now(UTC)
 
 
 class SocketIOWhisperClient:
@@ -81,7 +83,7 @@ class SocketIOWhisperClient:
         )
 
         # Session tracking
-        self.sessions: Dict[str, WhisperSessionState] = {}
+        self.sessions: dict[str, WhisperSessionState] = {}
         self.connected = False
 
         # Callbacks
@@ -175,7 +177,7 @@ class SocketIOWhisperClient:
         self.connected = False
         logger.info("🔌 Disconnected from Whisper service")
 
-    async def start_stream(self, session_id: str, config: Dict[str, Any]) -> str:
+    async def start_stream(self, session_id: str, config: dict[str, Any]) -> str:
         """
         Start a streaming session
 
@@ -223,22 +225,12 @@ class SocketIOWhisperClient:
 
         # Send join_session event to Whisper
         logger.debug(f"📤 Sending join_session to Whisper with config: {config}")
-        await self.sio.emit(
-            "join_session", {"session_id": session_id, "config": config}
-        )
+        await self.sio.emit("join_session", {"session_id": session_id, "config": config})
 
         logger.info(f"🎬 Started stream for session: {session_id}")
-        logger.info(
-            f"   Model: {session_state.model_name}, Language: {session_state.language}"
-        )
-        logger.info(
-            f"   Task: {session_state.task}, Target: {session_state.target_language}"
-        )
-        if (
-            session_state.domain
-            or session_state.custom_terms
-            or session_state.initial_prompt
-        ):
+        logger.info(f"   Model: {session_state.model_name}, Language: {session_state.language}")
+        logger.info(f"   Task: {session_state.task}, Target: {session_state.target_language}")
+        if session_state.domain or session_state.custom_terms or session_state.initial_prompt:
             logger.info(
                 f"   Domain prompts: domain={session_state.domain}, "
                 f"terms={len(session_state.custom_terms) if session_state.custom_terms else 0}, "
@@ -248,7 +240,7 @@ class SocketIOWhisperClient:
         return session_id
 
     async def send_audio_chunk(
-        self, session_id: str, audio_data: bytes, timestamp: Optional[str] = None
+        self, session_id: str, audio_data: bytes, timestamp: str | None = None
     ):
         """
         Send audio chunk to Whisper for processing with full configuration
@@ -323,7 +315,7 @@ class SocketIOWhisperClient:
             del self.sessions[session_id]
             logger.info(f"⏹️ Closed stream for session: {session_id}")
 
-    def on_segment(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_segment(self, callback: Callable[[dict[str, Any]], None]):
         """
         Register callback for transcription segments
 
@@ -350,7 +342,7 @@ class SocketIOWhisperClient:
         """
         self._connection_callbacks.append(callback)
 
-    def _notify_segment(self, segment: Dict[str, Any]):
+    def _notify_segment(self, segment: dict[str, Any]):
         """Notify all segment callbacks"""
         for callback in self._segment_callbacks:
             try:
@@ -374,7 +366,7 @@ class SocketIOWhisperClient:
             except Exception as e:
                 logger.error(f"Error in connection callback: {e}")
 
-    def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session_info(self, session_id: str) -> dict[str, Any] | None:
         """
         Get session information
 
@@ -396,11 +388,11 @@ class SocketIOWhisperClient:
             "config": session.config,
         }
 
-    def get_all_sessions(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_sessions(self) -> dict[str, dict[str, Any]]:
         """
         Get all active sessions
 
         Returns:
             Dict mapping session_id to session info
         """
-        return {sid: self.get_session_info(sid) for sid in self.sessions.keys()}
+        return {sid: self.get_session_info(sid) for sid in self.sessions}

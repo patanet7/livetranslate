@@ -74,7 +74,7 @@ download_and_build_model() {
     python3 convert_checkpoint.py \
         $( [[ "$weight_only_precision" == "int8" || "$weight_only_precision" == "int4" ]] && echo "--use_weight_only --weight_only_precision $weight_only_precision" ) \
         --output_dir "$checkpoint_dir" --model_name "$model_name"
-    
+
     echo "Building encoder for $model_name..."
     trtllm-build \
         --checkpoint_dir "${checkpoint_dir}/encoder" \
@@ -86,7 +86,7 @@ download_and_build_model() {
         --bert_attention_plugin "$inference_precision" \
         --max_input_len 3000 \
         --max_seq_len 3000
-    
+
     echo "Building decoder for $model_name..."
     trtllm-build \
         --checkpoint_dir "${checkpoint_dir}/decoder" \

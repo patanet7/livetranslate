@@ -11,19 +11,19 @@ Bot analytics and performance monitoring endpoints including:
 - Quality analytics (/analytics/quality)
 """
 
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
+from dependencies import get_bot_manager
 from fastapi import Depends, HTTPException, status
 
 from ._shared import (
-    create_bot_router,
     BotAnalyticsResponse,
-    logger,
+    create_bot_router,
     get_error_response,
+    logger,
     validate_bot_exists,
 )
-from dependencies import get_bot_manager
 
 # Create router for bot analytics
 router = create_bot_router()
@@ -75,7 +75,7 @@ async def get_bot_analytics(
             }
 
         return BotAnalyticsResponse(
-            bot_id=bot_id, analytics=analytics, timestamp=datetime.now(timezone.utc).isoformat()
+            bot_id=bot_id, analytics=analytics, timestamp=datetime.now(UTC).isoformat()
         )
 
     except HTTPException:
@@ -84,15 +84,15 @@ async def get_bot_analytics(
         logger.error(f"Failed to get bot analytics: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot analytics: {str(e)}",
+            f"Failed to get bot analytics: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/{bot_id}/session")
 async def get_bot_session(
-    bot_id: str, session_id: Optional[str] = None, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+    bot_id: str, session_id: str | None = None, bot_manager=Depends(get_bot_manager)
+) -> dict[str, Any]:
     """
     Get bot session data
 
@@ -131,9 +131,9 @@ async def get_bot_session(
         logger.error(f"Failed to get bot session: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot session: {str(e)}",
+            f"Failed to get bot session: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/{bot_id}/sessions")
@@ -141,9 +141,9 @@ async def list_bot_sessions(
     bot_id: str,
     limit: int = 50,
     offset: int = 0,
-    status_filter: Optional[str] = None,
+    status_filter: str | None = None,
     bot_manager=Depends(get_bot_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     List all sessions for a specific bot
 
@@ -174,9 +174,9 @@ async def list_bot_sessions(
         logger.error(f"Failed to list bot sessions: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to list bot sessions: {str(e)}",
+            f"Failed to list bot sessions: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/{bot_id}/performance")
@@ -184,7 +184,7 @@ async def get_bot_performance_metrics(
     bot_id: str,
     timeframe: str = "24h",  # 1h, 24h, 7d, 30d
     bot_manager=Depends(get_bot_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get detailed performance metrics for a bot
 
@@ -239,15 +239,15 @@ async def get_bot_performance_metrics(
         logger.error(f"Failed to get bot performance metrics: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot performance metrics: {str(e)}",
+            f"Failed to get bot performance metrics: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/{bot_id}/quality-report")
 async def get_bot_quality_report(
-    bot_id: str, session_id: Optional[str] = None, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+    bot_id: str, session_id: str | None = None, bot_manager=Depends(get_bot_manager)
+) -> dict[str, Any]:
     """
     Get detailed quality report for bot operations
 
@@ -296,15 +296,15 @@ async def get_bot_quality_report(
         logger.error(f"Failed to get bot quality report: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot quality report: {str(e)}",
+            f"Failed to get bot quality report: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/analytics/database")
 async def get_database_analytics(
     bot_manager=Depends(get_bot_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get comprehensive database analytics
 
@@ -347,8 +347,8 @@ async def get_database_analytics(
         logger.error(f"Failed to get database analytics: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get database analytics: {str(e)}",
-        )
+            f"Failed to get database analytics: {e!s}",
+        ) from e
 
 
 @router.get("/analytics/sessions")
@@ -356,7 +356,7 @@ async def get_session_analytics(
     timeframe: str = "24h",
     group_by: str = "hour",  # hour, day, week
     bot_manager=Depends(get_bot_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get session analytics with time-based grouping
 
@@ -393,14 +393,14 @@ async def get_session_analytics(
         logger.error(f"Failed to get session analytics: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get session analytics: {str(e)}",
-        )
+            f"Failed to get session analytics: {e!s}",
+        ) from e
 
 
 @router.get("/analytics/quality")
 async def get_quality_analytics(
     timeframe: str = "24h", bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get quality analytics across all bots and sessions
 
@@ -450,5 +450,5 @@ async def get_quality_analytics(
         logger.error(f"Failed to get quality analytics: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get quality analytics: {str(e)}",
-        )
+            f"Failed to get quality analytics: {e!s}",
+        ) from e

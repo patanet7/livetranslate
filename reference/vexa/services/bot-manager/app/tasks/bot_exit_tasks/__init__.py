@@ -12,15 +12,15 @@ logger = logging.getLogger(__name__)
 async def run_all_tasks(meeting_id: int):
     """
     Dynamically discovers and runs all bot exit tasks for a given meeting_id.
-    
+
     This function creates its own database session, fetches the meeting object
-    (eager-loading the associated user), and then scans the current directory for 
-    Python modules. It imports them and looks for an async function named 'run' 
-    that accepts 'meeting' and 'db' arguments. It then executes each found task 
+    (eager-loading the associated user), and then scans the current directory for
+    Python modules. It imports them and looks for an async function named 'run'
+    that accepts 'meeting' and 'db' arguments. It then executes each found task
     and commits any changes at the end.
     """
     logger.info(f"Starting to run all post-meeting tasks for meeting_id: {meeting_id}")
-    
+
     async with async_session_local() as db:
         try:
             # Eager load the User object to avoid separate queries in tasks
@@ -38,7 +38,7 @@ async def run_all_tasks(meeting_id: int):
                     try:
                         full_module_path = f"{current_package}.{module_name}"
                         module = importlib.import_module(full_module_path)
-                        
+
                         if hasattr(module, 'run') and inspect.iscoroutinefunction(module.run):
                             logger.info(f"Found task in '{module_name}'. Executing for meeting {meeting_id}...")
                             try:
@@ -49,13 +49,13 @@ async def run_all_tasks(meeting_id: int):
                                 logger.error(f"Error executing task in '{module_name}' for meeting {meeting_id}: {e}", exc_info=True)
                         else:
                             logger.debug(f"Module '{module_name}' does not have a valid async 'run' function.")
-                    
+
                     except ImportError as e:
                         logger.error(f"Failed to import task module '{module_name}': {e}", exc_info=True)
-            
+
             await db.commit()
             logger.info(f"All post-meeting tasks run and changes committed for meeting_id: {meeting_id}")
 
         except Exception as e:
             logger.error(f"An error occurred in the task runner for meeting_id {meeting_id}: {e}", exc_info=True)
-            await db.rollback() 
+            await db.rollback()

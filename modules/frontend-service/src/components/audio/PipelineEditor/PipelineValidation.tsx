@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   Card,
@@ -13,7 +13,7 @@ import {
   Chip,
   Divider,
   Alert,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Error,
   Warning,
@@ -23,7 +23,7 @@ import {
   CheckCircle,
   ReportProblem,
   Lightbulb,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface PipelineValidationProps {
   validationResult: {
@@ -48,7 +48,7 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
   });
 
   const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
       [section]: !prev[section],
     }));
@@ -57,17 +57,19 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
   if (compact) {
     return (
       <Alert
-        severity={validationResult.valid ? 'success' : 'error'}
+        severity={validationResult.valid ? "success" : "error"}
         icon={validationResult.valid ? <CheckCircle /> : <ReportProblem />}
         sx={{ py: 0.5 }}
       >
         <Typography variant="caption">
           {validationResult.valid ? (
-            'Pipeline is valid and ready to process'
+            "Pipeline is valid and ready to process"
           ) : (
             <>
-              {validationResult.errors.length} error{validationResult.errors.length !== 1 ? 's' : ''}, 
-              {' '}{validationResult.warnings.length} warning{validationResult.warnings.length !== 1 ? 's' : ''}
+              {validationResult.errors.length} error
+              {validationResult.errors.length !== 1 ? "s" : ""},{" "}
+              {validationResult.warnings.length} warning
+              {validationResult.warnings.length !== 1 ? "s" : ""}
             </>
           )}
         </Typography>
@@ -76,9 +78,14 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
   }
 
   return (
-    <Card sx={{ width: '100%', maxHeight: 400, overflow: 'auto' }}>
+    <Card sx={{ width: "100%", maxHeight: 400, overflow: "auto" }}>
       <CardContent sx={{ p: 2 }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
           <Typography variant="h6" component="h3">
             Pipeline Validation
           </Typography>
@@ -118,12 +125,12 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
               alignItems="center"
               justifyContent="space-between"
               sx={{
-                cursor: 'pointer',
+                cursor: "pointer",
                 p: 1,
                 borderRadius: 1,
-                '&:hover': { bgcolor: 'action.hover' },
+                "&:hover": { bgcolor: "action.hover" },
               }}
-              onClick={() => toggleSection('errors')}
+              onClick={() => toggleSection("errors")}
             >
               <Box display="flex" alignItems="center" gap={1}>
                 <Error color="error" />
@@ -135,14 +142,14 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
                 {expandedSections.errors ? <ExpandLess /> : <ExpandMore />}
               </IconButton>
             </Box>
-            
+
             <Collapse in={expandedSections.errors}>
               <List dense sx={{ pl: 2 }}>
                 {validationResult.errors.map((error, index) => (
                   <ListItem
                     key={`error-${index}`}
                     sx={{
-                      bgcolor: 'error.light',
+                      bgcolor: "error.light",
                       borderRadius: 1,
                       mb: 0.5,
                       py: 0.5,
@@ -154,11 +161,11 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
                           label="Fix"
                           onClick={() => onFix(error)}
                           sx={{
-                            cursor: 'pointer',
-                            bgcolor: 'error.main',
-                            color: 'white',
-                            '&:hover': {
-                              bgcolor: 'error.dark',
+                            cursor: "pointer",
+                            bgcolor: "error.main",
+                            color: "white",
+                            "&:hover": {
+                              bgcolor: "error.dark",
                             },
                           }}
                         />
@@ -166,7 +173,7 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
                     }
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
-                      <Error sx={{ fontSize: 16, color: 'error.main' }} />
+                      <Error sx={{ fontSize: 16, color: "error.main" }} />
                     </ListItemIcon>
                     <ListItemText
                       primary={
@@ -190,12 +197,12 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
               alignItems="center"
               justifyContent="space-between"
               sx={{
-                cursor: 'pointer',
+                cursor: "pointer",
                 p: 1,
                 borderRadius: 1,
-                '&:hover': { bgcolor: 'action.hover' },
+                "&:hover": { bgcolor: "action.hover" },
               }}
-              onClick={() => toggleSection('warnings')}
+              onClick={() => toggleSection("warnings")}
             >
               <Box display="flex" alignItems="center" gap={1}>
                 <Warning color="warning" />
@@ -207,21 +214,21 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
                 {expandedSections.warnings ? <ExpandLess /> : <ExpandMore />}
               </IconButton>
             </Box>
-            
+
             <Collapse in={expandedSections.warnings}>
               <List dense sx={{ pl: 2 }}>
                 {validationResult.warnings.map((warning, index) => (
                   <ListItem
                     key={`warning-${index}`}
                     sx={{
-                      bgcolor: 'warning.light',
+                      bgcolor: "warning.light",
                       borderRadius: 1,
                       mb: 0.5,
                       py: 0.5,
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
-                      <Warning sx={{ fontSize: 16, color: 'warning.main' }} />
+                      <Warning sx={{ fontSize: 16, color: "warning.main" }} />
                     </ListItemIcon>
                     <ListItemText
                       primary={
@@ -245,12 +252,12 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
               alignItems="center"
               justifyContent="space-between"
               sx={{
-                cursor: 'pointer',
+                cursor: "pointer",
                 p: 1,
                 borderRadius: 1,
-                '&:hover': { bgcolor: 'action.hover' },
+                "&:hover": { bgcolor: "action.hover" },
               }}
-              onClick={() => toggleSection('suggestions')}
+              onClick={() => toggleSection("suggestions")}
             >
               <Box display="flex" alignItems="center" gap={1}>
                 <Lightbulb color="info" />
@@ -262,21 +269,21 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
                 {expandedSections.suggestions ? <ExpandLess /> : <ExpandMore />}
               </IconButton>
             </Box>
-            
+
             <Collapse in={expandedSections.suggestions}>
               <List dense sx={{ pl: 2 }}>
                 {validationResult.suggestions.map((suggestion, index) => (
                   <ListItem
                     key={`suggestion-${index}`}
                     sx={{
-                      bgcolor: 'info.light',
+                      bgcolor: "info.light",
                       borderRadius: 1,
                       mb: 0.5,
                       py: 0.5,
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 32 }}>
-                      <Lightbulb sx={{ fontSize: 16, color: 'info.main' }} />
+                      <Lightbulb sx={{ fontSize: 16, color: "info.main" }} />
                     </ListItemIcon>
                     <ListItemText
                       primary={
@@ -310,7 +317,7 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
           <List dense>
             <ListItem sx={{ py: 0, pl: 1 }}>
               <ListItemIcon sx={{ minWidth: 24 }}>
-                <CheckCircle sx={{ fontSize: 14, color: 'success.main' }} />
+                <CheckCircle sx={{ fontSize: 14, color: "success.main" }} />
               </ListItemIcon>
               <ListItemText
                 primary={
@@ -322,7 +329,7 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
             </ListItem>
             <ListItem sx={{ py: 0, pl: 1 }}>
               <ListItemIcon sx={{ minWidth: 24 }}>
-                <CheckCircle sx={{ fontSize: 14, color: 'success.main' }} />
+                <CheckCircle sx={{ fontSize: 14, color: "success.main" }} />
               </ListItemIcon>
               <ListItemText
                 primary={
@@ -334,7 +341,7 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
             </ListItem>
             <ListItem sx={{ py: 0, pl: 1 }}>
               <ListItemIcon sx={{ minWidth: 24 }}>
-                <CheckCircle sx={{ fontSize: 14, color: 'success.main' }} />
+                <CheckCircle sx={{ fontSize: 14, color: "success.main" }} />
               </ListItemIcon>
               <ListItemText
                 primary={
@@ -346,7 +353,7 @@ const PipelineValidation: React.FC<PipelineValidationProps> = ({
             </ListItem>
             <ListItem sx={{ py: 0, pl: 1 }}>
               <ListItemIcon sx={{ minWidth: 24 }}>
-                <CheckCircle sx={{ fontSize: 14, color: 'success.main' }} />
+                <CheckCircle sx={{ fontSize: 14, color: "success.main" }} />
               </ListItemIcon>
               <ListItemText
                 primary={

@@ -6,11 +6,13 @@ Modular voice filtering implementation that can be used independently
 or as part of the complete audio processing pipeline.
 """
 
+from typing import Any
+
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple
-from ..stage_components import BaseAudioStage
+
 from ..config import VoiceFilterConfig
+from ..stage_components import BaseAudioStage
 
 
 class VoiceFilterStage(BaseAudioStage):
@@ -29,10 +31,7 @@ class VoiceFilterStage(BaseAudioStage):
         nyquist = self.sample_rate / 2
 
         # Fundamental frequency enhancement filter
-        if (
-            self.config.fundamental_min < nyquist
-            and self.config.fundamental_max < nyquist
-        ):
+        if self.config.fundamental_min < nyquist and self.config.fundamental_max < nyquist:
             fundamental_low = self.config.fundamental_min / nyquist
             fundamental_high = min(self.config.fundamental_max / nyquist, 0.99)
 
@@ -67,9 +66,7 @@ class VoiceFilterStage(BaseAudioStage):
         else:
             self.rolloff_filter = None
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through voice filtering."""
         try:
             processed = audio_data.copy()
@@ -82,9 +79,7 @@ class VoiceFilterStage(BaseAudioStage):
                 fundamental_enhanced = scipy.signal.filtfilt(
                     self.fundamental_filter[0], self.fundamental_filter[1], processed
                 )
-                processed = processed + (
-                    fundamental_enhanced * (self.config.voice_band_gain - 1.0)
-                )
+                processed = processed + (fundamental_enhanced * (self.config.voice_band_gain - 1.0))
                 filters_applied.append("fundamental")
 
             # Apply formant preservation
@@ -131,9 +126,9 @@ class VoiceFilterStage(BaseAudioStage):
             return processed, metadata
 
         except Exception as e:
-            raise Exception(f"Voice filtering failed: {e}")
+            raise Exception(f"Voice filtering failed: {e}") from e
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -153,7 +148,7 @@ class VoiceFilterStage(BaseAudioStage):
         super().update_config(new_config)
         self._design_filters()
 
-    def get_frequency_response(self, frequencies: np.ndarray = None) -> Dict[str, Any]:
+    def get_frequency_response(self, frequencies: np.ndarray = None) -> dict[str, Any]:
         """Get frequency response of the voice filter."""
         if frequencies is None:
             frequencies = np.logspace(1, 4, 1000)  # 10Hz to 10kHz
@@ -163,7 +158,7 @@ class VoiceFilterStage(BaseAudioStage):
             response_data = {}
 
             if self.fundamental_filter is not None:
-                w, h = scipy.signal.freqz(
+                _w, h = scipy.signal.freqz(
                     self.fundamental_filter[0],
                     self.fundamental_filter[1],
                     worN=frequencies,
@@ -176,7 +171,7 @@ class VoiceFilterStage(BaseAudioStage):
                 }
 
             if self.rolloff_filter is not None:
-                w, h = scipy.signal.freqz(
+                _w, h = scipy.signal.freqz(
                     self.rolloff_filter[0],
                     self.rolloff_filter[1],
                     worN=frequencies,

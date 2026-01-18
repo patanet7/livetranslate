@@ -7,6 +7,7 @@ Tests the real model behavior, validation, and computed properties.
 
 import sys
 from pathlib import Path
+
 import pytest
 
 # Add src to path
@@ -16,22 +17,22 @@ sys.path.insert(0, str(src_path))
 
 from models.fireflies import (
     FIREFLIES_SOURCE_TYPE,
-    FirefliesEventType,
-    FirefliesConnectionStatus,
-    MeetingState,
-    FirefliesChunk,
-    FirefliesMeeting,
-    FirefliesSessionConfig,
-    FirefliesSession,
-    SpeakerBuffer,
-    TranslationUnit,
-    TranslationContext,
-    TranslationResult,
-    CaptionEntry,
+    ActiveMeetingsResponse,
     CaptionBroadcast,
+    CaptionEntry,
+    FirefliesChunk,
+    FirefliesConnectionStatus,
     FirefliesConnectRequest,
     FirefliesConnectResponse,
-    ActiveMeetingsResponse,
+    FirefliesEventType,
+    FirefliesMeeting,
+    FirefliesSession,
+    FirefliesSessionConfig,
+    MeetingState,
+    SpeakerBuffer,
+    TranslationContext,
+    TranslationResult,
+    TranslationUnit,
 )
 
 
@@ -255,16 +256,12 @@ class TestFirefliesSessionConfig:
     def test_config_validation(self):
         """Test config validation."""
         # Valid range
-        config = FirefliesSessionConfig(
-            api_key="key", transcript_id="t1", context_window_size=5
-        )
+        config = FirefliesSessionConfig(api_key="key", transcript_id="t1", context_window_size=5)
         assert config.context_window_size == 5
 
         # Invalid range
         with pytest.raises(ValueError):
-            FirefliesSessionConfig(
-                api_key="key", transcript_id="t1", context_window_size=15
-            )
+            FirefliesSessionConfig(api_key="key", transcript_id="t1", context_window_size=15)
 
 
 class TestFirefliesSession:
@@ -311,12 +308,8 @@ class TestCaptionModels:
     def test_caption_broadcast(self):
         """Test caption broadcast creation."""
         captions = [
-            CaptionEntry(
-                id="c1", translated_text="Hola", speaker_name="A", target_language="es"
-            ),
-            CaptionEntry(
-                id="c2", translated_text="Mundo", speaker_name="B", target_language="es"
-            ),
+            CaptionEntry(id="c1", translated_text="Hola", speaker_name="A", target_language="es"),
+            CaptionEntry(id="c2", translated_text="Mundo", speaker_name="B", target_language="es"),
         ]
 
         broadcast = CaptionBroadcast(session_id="s1", captions=captions)
@@ -333,10 +326,7 @@ class TestEnumsAndConstants:
     def test_event_types(self):
         """Test event type enum values."""
         assert FirefliesEventType.AUTH_SUCCESS.value == "auth.success"
-        assert (
-            FirefliesEventType.TRANSCRIPTION_BROADCAST.value
-            == "transcription.broadcast"
-        )
+        assert FirefliesEventType.TRANSCRIPTION_BROADCAST.value == "transcription.broadcast"
 
     def test_connection_status(self):
         """Test connection status enum."""

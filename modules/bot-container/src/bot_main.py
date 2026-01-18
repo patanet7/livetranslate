@@ -24,17 +24,18 @@ Key Benefits:
 """
 
 import asyncio
-import os
 import logging
+import os
 import signal
 import sys
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from typing import Any
 
 # Import bot components (to be implemented)
 # from browser_automation import GoogleMeetAutomation
 # from audio_capture import AudioCapture
 from orchestration_client import OrchestrationClient
+
 # from redis_subscriber import RedisSubscriber
 
 logger = logging.getLogger(__name__)
@@ -43,12 +44,13 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BotConfig:
     """Bot configuration"""
+
     meeting_url: str
     connection_id: str
     user_token: str
     orchestration_url: str
-    redis_url: Optional[str] = None
-    bot_manager_url: Optional[str] = None
+    redis_url: str | None = None
+    bot_manager_url: str | None = None
     language: str = "en"
     task: str = "transcribe"
     enable_virtual_webcam: bool = False
@@ -72,11 +74,11 @@ class Bot:
         connection_id: str,
         user_token: str,
         orchestration_url: str,
-        redis_url: Optional[str] = None,
-        bot_manager_url: Optional[str] = None,
+        redis_url: str | None = None,
+        bot_manager_url: str | None = None,
         language: str = "en",
         task: str = "transcribe",
-        enable_virtual_webcam: bool = False
+        enable_virtual_webcam: bool = False,
     ):
         """
         Initialize bot
@@ -101,7 +103,7 @@ class Bot:
             bot_manager_url=bot_manager_url,
             language=language,
             task=task,
-            enable_virtual_webcam=enable_virtual_webcam
+            enable_virtual_webcam=enable_virtual_webcam,
         )
 
         # Store config for easy access
@@ -111,7 +113,7 @@ class Bot:
         self.orchestration_url = orchestration_url
 
         # Components (initialize as None, create in run())
-        self.orchestration: Optional[OrchestrationClient] = None
+        self.orchestration: OrchestrationClient | None = None
         self.browser = None  # GoogleMeetAutomation instance
         # self.audio: Optional[AudioCapture] = None
         # self.redis: Optional[RedisSubscriber] = None
@@ -149,7 +151,7 @@ class Bot:
             bot_manager_url=os.getenv("BOT_MANAGER_URL"),
             language=os.getenv("LANGUAGE", "en"),
             task=os.getenv("TASK", "transcribe"),
-            enable_virtual_webcam=os.getenv("ENABLE_VIRTUAL_WEBCAM", "false").lower() == "true"
+            enable_virtual_webcam=os.getenv("ENABLE_VIRTUAL_WEBCAM", "false").lower() == "true",
         )
 
     async def run(self):
@@ -213,7 +215,7 @@ class Bot:
             orchestration_url=self.config.orchestration_url,
             user_token=self.config.user_token,
             meeting_id=self.config.meeting_url,
-            connection_id=self.config.connection_id
+            connection_id=self.config.connection_id,
         )
 
         # Register segment handler
@@ -231,7 +233,7 @@ class Bot:
         """Join Google Meet via browser automation"""
         logger.info(f"Joining Google Meet: {self.config.meeting_url}")
 
-        from google_meet_automation import GoogleMeetAutomation, BrowserConfig, MeetingState
+        from google_meet_automation import BrowserConfig, GoogleMeetAutomation, MeetingState
 
         # Configure browser automation with Google credentials from environment
         browser_config = BrowserConfig(
@@ -244,7 +246,7 @@ class Bot:
             # Google Authentication
             google_email=os.getenv("GOOGLE_EMAIL"),
             google_password=os.getenv("GOOGLE_PASSWORD"),
-            user_data_dir=os.getenv("USER_DATA_DIR")
+            user_data_dir=os.getenv("USER_DATA_DIR"),
         )
 
         # Create and initialize automation
@@ -293,7 +295,7 @@ class Bot:
         while self.running:
             await asyncio.sleep(1)
 
-    def _handle_segment(self, segment: Dict[str, Any]):
+    def _handle_segment(self, segment: dict[str, Any]):
         """
         Handle transcription segment from orchestration
 
@@ -311,7 +313,7 @@ class Bot:
                 - is_final: Whether segment is final
                 - confidence: Confidence score
         """
-        logger.info(f"📄 Segment received:")
+        logger.info("📄 Segment received:")
         logger.info(f"   Text: {segment.get('text')}")
         logger.info(f"   Speaker: {segment.get('speaker')}")
         logger.info(f"   Time: {segment.get('absolute_start_time')}")
@@ -324,7 +326,7 @@ class Bot:
         """Handle error from orchestration"""
         logger.error(f"❌ Orchestration error: {error}")
 
-    async def _notify_manager(self, status: str, error: Optional[str] = None):
+    async def _notify_manager(self, status: str, error: str | None = None):
         """
         Send HTTP callback to bot manager (like Vexa)
 
@@ -349,7 +351,7 @@ class Bot:
             url = f"{self.config.bot_manager_url}/api/bots/internal/callback/{status}"
             payload = {
                 "connection_id": self.config.connection_id,
-                "container_id": os.getenv("HOSTNAME", "unknown")  # Docker container ID
+                "container_id": os.getenv("HOSTNAME", "unknown"),  # Docker container ID
             }
 
             if error:
@@ -419,8 +421,7 @@ async def main():
 
     # Configure logging
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
     logger.info("=" * 60)

@@ -5,10 +5,12 @@ Provides comprehensive error handling and recovery for FastAPI applications.
 """
 
 import logging
-import traceback
 import time
-from typing import Callable, Dict, Any, Optional
-from fastapi import Request, Response, HTTPException
+import traceback
+from collections.abc import Callable
+from typing import Any
+
+from fastapi import HTTPException, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
@@ -21,7 +23,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
     Error handling middleware for FastAPI applications
     """
 
-    def __init__(self, app, config: dict = None):
+    def __init__(self, app, config: dict | None = None):
         super().__init__(app)
         self.config = config or {}
         self.include_traceback = self.config.get("include_traceback", False)
@@ -49,9 +51,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             # Unexpected error - log and provide generic response
             return await self._handle_unexpected_error(request, e)
 
-    async def _handle_http_exception(
-        self, request: Request, exc: HTTPException
-    ) -> Response:
+    async def _handle_http_exception(self, request: Request, exc: HTTPException) -> Response:
         """
         Handle FastAPI HTTPException with consistent formatting
         """
@@ -86,9 +86,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
 
         return JSONResponse(status_code=exc.status_code, content=error_response)
 
-    async def _handle_unexpected_error(
-        self, request: Request, exc: Exception
-    ) -> Response:
+    async def _handle_unexpected_error(self, request: Request, exc: Exception) -> Response:
         """
         Handle unexpected errors with proper logging and response
         """
@@ -98,7 +96,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         # Log the error with full context
         if self.log_errors:
             logger.error(
-                f"Unexpected error [{correlation_id}] on {request.method} {request.url}: {str(exc)}",
+                f"Unexpected error [{correlation_id}] on {request.method} {request.url}: {exc!s}",
                 extra={
                     "correlation_id": correlation_id,
                     "error_type": type(exc).__name__,
@@ -107,9 +105,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                     "url": str(request.url),
                     "client_ip": request.client.host if request.client else None,
                     "user_agent": request.headers.get("user-agent", ""),
-                    "traceback": traceback.format_exc()
-                    if self.include_traceback
-                    else None,
+                    "traceback": traceback.format_exc() if self.include_traceback else None,
                 },
             )
 
@@ -134,9 +130,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
             error_response["error"]["traceback"] = traceback.format_exc()
             error_response["error"]["details"] = str(exc)
 
-        return JSONResponse(
-            status_code=HTTP_500_INTERNAL_SERVER_ERROR, content=error_response
-        )
+        return JSONResponse(status_code=HTTP_500_INTERNAL_SERVER_ERROR, content=error_response)
 
     def _update_error_count(self, status_code: int):
         """
@@ -151,7 +145,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
         # Update count
         self.error_counts[status_code] = self.error_counts.get(status_code, 0) + 1
 
-    def get_error_stats(self) -> Dict[str, Any]:
+    def get_error_stats(self) -> dict[str, Any]:
         """
         Get current error statistics
         """
@@ -175,14 +169,14 @@ class ErrorReporter:
     Error reporting utility for integration with external services
     """
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: dict | None = None):
         self.config = config or {}
         self.enabled = self.config.get("enabled", False)
         self.webhook_url = self.config.get("webhook_url")
         self.email_alerts = self.config.get("email_alerts", False)
         self.min_level = self.config.get("min_level", "ERROR")
 
-    async def report_error(self, error_data: Dict[str, Any]):
+    async def report_error(self, error_data: dict[str, Any]):
         """
         Report error to external monitoring systems
         """
@@ -201,7 +195,7 @@ class ErrorReporter:
         except Exception as e:
             logger.error(f"Failed to report error: {e}")
 
-    async def _send_webhook(self, error_data: Dict[str, Any]):
+    async def _send_webhook(self, error_data: dict[str, Any]):
         """
         Send error to webhook URL
         """
@@ -210,14 +204,12 @@ class ErrorReporter:
         async with aiohttp.ClientSession() as session:
             await session.post(self.webhook_url, json=error_data, timeout=5)
 
-    async def _send_email_alert(self, error_data: Dict[str, Any]):
+    async def _send_email_alert(self, error_data: dict[str, Any]):
         """
         Send email alert (placeholder implementation)
         """
         # This would integrate with email service
-        logger.info(
-            f"Would send email alert for error: {error_data.get('correlation_id')}"
-        )
+        logger.info(f"Would send email alert for error: {error_data.get('correlation_id')}")
 
 
 class CustomExceptionHandler:
@@ -234,9 +226,7 @@ class CustomExceptionHandler:
         """
         self.handlers[exception_type] = handler
 
-    async def handle_exception(
-        self, request: Request, exc: Exception
-    ) -> Optional[Response]:
+    async def handle_exception(self, request: Request, exc: Exception) -> Response | None:
         """
         Handle exception with custom handler if available
         """

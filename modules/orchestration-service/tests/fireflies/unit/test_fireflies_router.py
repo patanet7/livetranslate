@@ -6,8 +6,9 @@ Tests the router, session manager, and API models.
 """
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
+
 import pytest
 
 # Add src to path
@@ -15,17 +16,16 @@ orchestration_root = Path(__file__).parent.parent.parent.parent
 src_path = orchestration_root / "src"
 sys.path.insert(0, str(src_path))
 
-from routers.fireflies import (
-    FirefliesSessionManager,
-    ConnectRequest,
-    SessionResponse,
-    DisconnectRequest,
-    GetMeetingsRequest,
-)
-
 from models.fireflies import (
-    FirefliesSession,
     FirefliesConnectionStatus,
+    FirefliesSession,
+)
+from routers.fireflies import (
+    ConnectRequest,
+    DisconnectRequest,
+    FirefliesSessionManager,
+    GetMeetingsRequest,
+    SessionResponse,
 )
 
 
@@ -72,12 +72,8 @@ class TestFirefliesSessionManager:
         """Test getting all sessions."""
         manager = FirefliesSessionManager()
 
-        manager._sessions["s1"] = FirefliesSession(
-            session_id="s1", fireflies_transcript_id="t1"
-        )
-        manager._sessions["s2"] = FirefliesSession(
-            session_id="s2", fireflies_transcript_id="t2"
-        )
+        manager._sessions["s1"] = FirefliesSession(session_id="s1", fireflies_transcript_id="t1")
+        manager._sessions["s2"] = FirefliesSession(session_id="s2", fireflies_transcript_id="t2")
 
         sessions = manager.get_all_sessions()
         assert len(sessions) == 2
@@ -135,7 +131,7 @@ class TestSessionResponse:
             sentences_produced=3,
             translations_completed=9,
             speakers_detected=["Alice", "Bob"],
-            connected_at=datetime.now(timezone.utc),
+            connected_at=datetime.now(UTC),
             error_count=0,
             last_error=None,
         )

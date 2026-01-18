@@ -7,13 +7,14 @@ Tests the simplified Docker-based bot management system.
 Following TDD: Write tests FIRST, then implement!
 """
 
-import pytest
 import asyncio
-from unittest.mock import AsyncMock
 
 # Add src to path
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -56,7 +57,7 @@ class TestDockerBotManagerStartBot:
     @pytest.mark.asyncio
     async def test_start_bot_creates_bot_instance(self):
         """Test starting a bot creates a bot instance"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import BotStatus, DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None  # Mock mode
@@ -110,7 +111,7 @@ class TestDockerBotManagerCallbacks:
     @pytest.mark.asyncio
     async def test_handle_started_callback(self):
         """Test handling 'started' callback from bot"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import BotStatus, DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None
@@ -123,9 +124,7 @@ class TestDockerBotManagerCallbacks:
         )
 
         # Handle started callback
-        await manager.handle_bot_callback(
-            connection_id, "started", {"container_id": "abc123"}
-        )
+        await manager.handle_bot_callback(connection_id, "started", {"container_id": "abc123"})
 
         # Verify status updated
         bot = manager.bots[connection_id]
@@ -136,7 +135,7 @@ class TestDockerBotManagerCallbacks:
     @pytest.mark.asyncio
     async def test_handle_active_callback(self):
         """Test handling 'active' callback from bot"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import BotStatus, DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None
@@ -161,7 +160,7 @@ class TestDockerBotManagerCallbacks:
     @pytest.mark.asyncio
     async def test_handle_completed_callback(self):
         """Test handling 'completed' callback from bot"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import BotStatus, DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None
@@ -187,7 +186,7 @@ class TestDockerBotManagerCallbacks:
     @pytest.mark.asyncio
     async def test_handle_failed_callback(self):
         """Test handling 'failed' callback from bot"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import BotStatus, DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None
@@ -360,21 +359,15 @@ class TestDockerBotManagerQueries:
     @pytest.mark.asyncio
     async def test_list_bots_filters_by_status(self):
         """Test list_bots can filter by status"""
-        from bot.docker_bot_manager import DockerBotManager, BotStatus
+        from bot.docker_bot_manager import BotStatus, DockerBotManager
 
         manager = DockerBotManager(enable_database=False)
         manager.docker_client = None
 
         # Start bots
-        id1 = await manager.start_bot(
-            "https://meet.google.com/test1", "token", "user-1"
-        )
-        id2 = await manager.start_bot(
-            "https://meet.google.com/test2", "token", "user-2"
-        )
-        id3 = await manager.start_bot(
-            "https://meet.google.com/test3", "token", "user-3"
-        )
+        id1 = await manager.start_bot("https://meet.google.com/test1", "token", "user-1")
+        id2 = await manager.start_bot("https://meet.google.com/test2", "token", "user-2")
+        await manager.start_bot("https://meet.google.com/test3", "token", "user-3")
 
         # Make some active
         await manager.handle_bot_callback(id1, "active", {})
@@ -422,15 +415,9 @@ class TestDockerBotManagerStatistics:
         manager.docker_client = None
 
         # Start bots
-        id1 = await manager.start_bot(
-            "https://meet.google.com/test1", "token", "user-1"
-        )
-        id2 = await manager.start_bot(
-            "https://meet.google.com/test2", "token", "user-2"
-        )
-        id3 = await manager.start_bot(
-            "https://meet.google.com/test3", "token", "user-3"
-        )
+        id1 = await manager.start_bot("https://meet.google.com/test1", "token", "user-1")
+        id2 = await manager.start_bot("https://meet.google.com/test2", "token", "user-2")
+        id3 = await manager.start_bot("https://meet.google.com/test3", "token", "user-3")
 
         # Simulate lifecycle
         await manager.handle_bot_callback(id1, "active", {})
@@ -461,9 +448,7 @@ class TestBotInstanceHealthChecks:
         manager.docker_client = None
 
         # Start and activate bot
-        connection_id = await manager.start_bot(
-            "https://meet.google.com/test", "token", "user-123"
-        )
+        connection_id = await manager.start_bot("https://meet.google.com/test", "token", "user-123")
         await manager.handle_bot_callback(connection_id, "active", {})
 
         bot = manager.get_bot(connection_id)
@@ -478,9 +463,7 @@ class TestBotInstanceHealthChecks:
         manager.docker_client = None
 
         # Start and fail bot
-        connection_id = await manager.start_bot(
-            "https://meet.google.com/test", "token", "user-123"
-        )
+        connection_id = await manager.start_bot("https://meet.google.com/test", "token", "user-123")
         await manager.handle_bot_callback(connection_id, "failed", {"error": "test"})
 
         bot = manager.get_bot(connection_id)
@@ -495,9 +478,7 @@ class TestBotInstanceHealthChecks:
         manager.docker_client = None
 
         # Start bot
-        connection_id = await manager.start_bot(
-            "https://meet.google.com/test", "token", "user-123"
-        )
+        connection_id = await manager.start_bot("https://meet.google.com/test", "token", "user-123")
 
         # Simulate started
         await manager.handle_bot_callback(connection_id, "started", {})

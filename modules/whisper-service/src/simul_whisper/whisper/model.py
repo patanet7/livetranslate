@@ -1,18 +1,15 @@
 import base64
 import gzip
-from contextlib import contextmanager
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable, Optional, Tuple
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
 
-from .decoding import decode as decode_function
-from .decoding import detect_language as detect_language_function
+from .decoding import decode as decode_function, detect_language as detect_language_function
 from .transcribe import transcribe as transcribe_function
-
 
 try:
     from torch.nn.functional import scaled_dot_product_attention
@@ -67,9 +64,8 @@ def sinusoids(length, channels, max_timescale=10000):
     scaled_time = torch.arange(length)[:, np.newaxis] * inv_timescales[np.newaxis, :]
     return torch.cat([torch.sin(scaled_time), torch.cos(scaled_time)], dim=1)
 
-import sys  ## this is mine, for debugging
-class MultiHeadAttention(nn.Module):
 
+class MultiHeadAttention(nn.Module):
     use_sdpa = False  # disabling: https://github.com/linto-ai/whisper-timestamped/issues/212
 
     def __init__(self, n_state: int, n_head: int, cache_id: str):
@@ -86,13 +82,13 @@ class MultiHeadAttention(nn.Module):
     def forward(
         self,
         x: Tensor,
-        xa: Optional[Tensor] = None,
-        mask: Optional[Tensor] = None,
-        kv_cache: Optional[dict] = None,
+        xa: Tensor | None = None,
+        mask: Tensor | None = None,
+        kv_cache: dict | None = None,
     ):
-        #print("MultiHeadAttention forward",file=sys.stderr)
+        # print("MultiHeadAttention forward",file=sys.stderr)
         q = self.query(x)
-#        print(q.shape, x is None, mask is None, list(kv_cache.keys()) if kv_cache is not None else None, file=sys.stderr)
+        #        print(q.shape, x is None, mask is None, list(kv_cache.keys()) if kv_cache is not None else None, file=sys.stderr)
         # print(mask, kv_cache, xa, file=sys.stderr)
 
         if kv_cache is None or xa is None or self.key.cache_id not in kv_cache:
@@ -128,15 +124,15 @@ class MultiHeadAttention(nn.Module):
     #     w = F.softmax(qk, dim=-1) # .to(q.dtype)
     #     return (w @ v).permute(0, 2, 1, 3).flatten(start_dim=2), qk.detach()
 
-
     def qkv_attention(
-        self, q: Tensor, k: Tensor, v: Tensor, mask: Optional[Tensor] = None
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        self, q: Tensor, k: Tensor, v: Tensor, mask: Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         n_batch, n_ctx, n_state = q.shape
 
         # SAFETY CHECK: Handle empty query tensor (edge case after many tokens)
         if n_ctx == 0:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(
                 f"⚠️  Empty query tensor in qkv_attention: q.shape={q.shape}, "
@@ -156,9 +152,7 @@ class MultiHeadAttention(nn.Module):
         v = v.view(*v.shape[:2], self.n_head, -1).permute(0, 2, 1, 3)
 
         if SDPA_AVAILABLE and MultiHeadAttention.use_sdpa:
-            a = scaled_dot_product_attention(
-                q, k, v, is_causal=mask is not None and n_ctx > 1
-            )
+            a = scaled_dot_product_attention(q, k, v, is_causal=mask is not None and n_ctx > 1)
             out = a.permute(0, 2, 1, 3).flatten(start_dim=2)
             qk = None
         else:
@@ -195,7 +189,7 @@ class MultiHeadAttention(nn.Module):
                         # Query at position offset+i can attend to keys [0...offset+i]
                         # So keys [offset+i+1...n_key-1] should be -inf
                         if offset + i + 1 < n_key:
-                            mask_slice[i, offset + i + 1:] = -np.inf
+                            mask_slice[i, offset + i + 1 :] = -np.inf
 
                 # print(f"[ATTENTION DEBUG] mask_slice.shape={mask_slice.shape}, qk.shape={qk.shape}", file=sys.stderr)
                 qk = qk + mask_slice
@@ -209,28 +203,32 @@ class MultiHeadAttention(nn.Module):
 
 
 class ResidualAttentionBlock(nn.Module):
-    def __init__(self, n_state: int, n_head: int, cache_id: str="", cross_attention: bool = False):
+    def __init__(
+        self, n_state: int, n_head: int, cache_id: str = "", cross_attention: bool = False
+    ):
         super().__init__()
 
         self.attn = MultiHeadAttention(n_state, n_head, cache_id=f"{cache_id}_self_attn")
         self.attn_ln = nn.LayerNorm(n_state)
 
-        self.cross_attn = MultiHeadAttention(n_state, n_head, cache_id=f"{cache_id}_cross_attn") if cross_attention else None
+        self.cross_attn = (
+            MultiHeadAttention(n_state, n_head, cache_id=f"{cache_id}_cross_attn")
+            if cross_attention
+            else None
+        )
 
         self.cross_attn_ln = nn.LayerNorm(n_state) if cross_attention else None
 
         n_mlp = n_state * 4
-        self.mlp = nn.Sequential(
-            nn.Linear(n_state, n_mlp), nn.GELU(), nn.Linear(n_mlp, n_state)
-        )
+        self.mlp = nn.Sequential(nn.Linear(n_state, n_mlp), nn.GELU(), nn.Linear(n_mlp, n_state))
         self.mlp_ln = nn.LayerNorm(n_state)
 
     def forward(
         self,
         x: Tensor,
-        xa: Optional[Tensor] = None,
-        mask: Optional[Tensor] = None,
-        kv_cache: Optional[dict] = None,
+        xa: Tensor | None = None,
+        mask: Tensor | None = None,
+        kv_cache: dict | None = None,
     ):
         # print("ResidualAttentionBlock forward",file=sys.stderr)
         # print(x.shape, file=sys.stderr)
@@ -242,20 +240,21 @@ class ResidualAttentionBlock(nn.Module):
 
 
 class AudioEncoder(nn.Module):
-    def __init__(
-        self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
-    ):
+    def __init__(self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int):
         super().__init__()
         self.conv1 = nn.Conv1d(n_mels, n_state, kernel_size=3, padding=1)
         self.conv2 = nn.Conv1d(n_state, n_state, kernel_size=3, stride=2, padding=1)
         self.register_buffer("positional_embedding", sinusoids(n_ctx, n_state))
 
         self.blocks: Iterable[ResidualAttentionBlock] = nn.ModuleList(
-            [ResidualAttentionBlock(n_state, n_head, cache_id=f"enc_layer{i}") for i in range(n_layer)]
+            [
+                ResidualAttentionBlock(n_state, n_head, cache_id=f"enc_layer{i}")
+                for i in range(n_layer)
+            ]
         )
         self.ln_post = nn.LayerNorm(n_state)
 
-    def forward(self, x: Tensor, return_layer_results: bool=False):
+    def forward(self, x: Tensor, return_layer_results: bool = False):
         """
         x : torch.Tensor, shape = (batch_size, n_mels, n_ctx)
             the mel spectrogram of the audio
@@ -263,12 +262,12 @@ class AudioEncoder(nn.Module):
 
         x = F.gelu(self.conv1(x))
         x = F.gelu(self.conv2(x))
-        x = x.permute(0, 2, 1) # BDT -> BTD
+        x = x.permute(0, 2, 1)  # BDT -> BTD
 
-        # 两层卷积，2倍降采样
-        # 最终剩下1500帧
+        # Two-layer convolution, 2x downsampling
+        # Final output: 1500 frames
 
-        x = (x + self.positional_embedding[:x.shape[1], :]) #.to(x.dtype)
+        x = x + self.positional_embedding[: x.shape[1], :]  # .to(x.dtype)
 
         layer_results = []
         i = 0
@@ -287,9 +286,7 @@ class AudioEncoder(nn.Module):
 
 
 class TextDecoder(nn.Module):
-    def __init__(
-        self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
-    ):
+    def __init__(self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int):
         super().__init__()
 
         self.token_embedding = nn.Embedding(n_vocab, n_state)
@@ -297,7 +294,9 @@ class TextDecoder(nn.Module):
 
         self.blocks: Iterable[ResidualAttentionBlock] = nn.ModuleList(
             [
-                ResidualAttentionBlock(n_state, n_head, cross_attention=True, cache_id=f"dec_layer{i}")
+                ResidualAttentionBlock(
+                    n_state, n_head, cross_attention=True, cache_id=f"dec_layer{i}"
+                )
                 for i in range(n_layer)
             ]
         )
@@ -306,7 +305,7 @@ class TextDecoder(nn.Module):
         mask = torch.empty(n_ctx, n_ctx).fill_(-np.inf).triu_(1)
         self.register_buffer("mask", mask, persistent=False)
 
-    def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):
+    def forward(self, x: Tensor, xa: Tensor, kv_cache: dict | None = None):
         """
         x : torch.LongTensor, shape = (batch_size, <= n_ctx)
             the text tokens
@@ -317,10 +316,7 @@ class TextDecoder(nn.Module):
         # print(f"[DECODER DEBUG] forward() called: x.shape={x.shape}, mask.shape={self.mask.shape}, kv_cache={'None' if kv_cache is None else f'{len(kv_cache)} keys'}", file=sys.stderr)
 
         offset = next(iter(kv_cache.values())).shape[1] if kv_cache else 0
-        x = (
-            self.token_embedding(x)
-            + self.positional_embedding[offset : offset + x.shape[-1]]
-        )
+        x = self.token_embedding(x) + self.positional_embedding[offset : offset + x.shape[-1]]
         # x = x.to(xa.dtype)
 
         i = 0
@@ -354,19 +350,13 @@ class Whisper(nn.Module):
             self.dims.n_text_layer,
         )
         # use the last half layers for alignment by default; see `set_alignment_heads()` below
-        all_heads = torch.zeros(
-            self.dims.n_text_layer, self.dims.n_text_head, dtype=torch.bool
-        )
+        all_heads = torch.zeros(self.dims.n_text_layer, self.dims.n_text_head, dtype=torch.bool)
         all_heads[self.dims.n_text_layer // 2 :] = True
         self.register_buffer("alignment_heads", all_heads.to_sparse(), persistent=False)
 
     def set_alignment_heads(self, dump: bytes):
-        array = np.frombuffer(
-            gzip.decompress(base64.b85decode(dump)), dtype=bool
-        ).copy()
-        mask = torch.from_numpy(array).reshape(
-            self.dims.n_text_layer, self.dims.n_text_head
-        )
+        array = np.frombuffer(gzip.decompress(base64.b85decode(dump)), dtype=bool).copy()
+        mask = torch.from_numpy(array).reshape(self.dims.n_text_layer, self.dims.n_text_head)
         self.register_buffer("alignment_heads", mask.to_sparse(), persistent=False)
 
     def embed_audio(self, mel: torch.Tensor):
@@ -377,9 +367,7 @@ class Whisper(nn.Module):
         # audio_features = audio_features.to(self.decoder.ln.weight.dtype)
         return self.decoder(tokens, audio_features)
 
-    def forward(
-        self, mel: torch.Tensor, tokens: torch.Tensor
-    ) -> Dict[str, torch.Tensor]:
+    def forward(self, mel: torch.Tensor, tokens: torch.Tensor) -> dict[str, torch.Tensor]:
         # mel = mel.to(self.decoder.ln.weight.dtype)
         # tokens = tokens.to(self.decoder.ln.weight.dtype)
         return self.decoder(tokens, self.encoder(mel))
@@ -396,8 +384,8 @@ class Whisper(nn.Module):
     def num_languages(self):
         return self.dims.n_vocab - 51765 - int(self.is_multilingual)
 
-    # 为decoder加入缓存机制，每次推理时保存上次的k和v，下次推理无需重新计算
-    def install_kv_cache_hooks(self, cache: Optional[dict] = None):
+    # Add caching mechanism for decoder, saves previous k and v during inference, no need to recalculate
+    def install_kv_cache_hooks(self, cache: dict | None = None):
         """
         The `MultiHeadAttention` module optionally accepts `kv_cache` which stores the key and value
         tensors calculated for the previous positions. This method returns a dictionary that stores

@@ -17,8 +17,8 @@ All enhanced stages maintain the same interface as the original stages,
 enabling seamless A/B testing and gradual migration.
 """
 
-from typing import TYPE_CHECKING
 import importlib.util
+from typing import TYPE_CHECKING
 
 # Version info
 __version__ = "1.0.0"

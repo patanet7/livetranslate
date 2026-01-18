@@ -14,8 +14,8 @@ Target: +25-40% quality improvement on long-form content
 Reference: SimulStreaming/token_buffer.py
 """
 
-from typing import List, Optional, Any
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +48,9 @@ class TokenBuffer:
     def __init__(
         self,
         text: str = "",
-        tokenizer: Optional[Any] = None,
-        device: Optional[Any] = None,
-        prefix_token_ids: Optional[List[int]] = None
+        tokenizer: Any | None = None,
+        device: Any | None = None,
+        prefix_token_ids: list[int] | None = None,
     ):
         """
         Initialize TokenBuffer
@@ -91,7 +91,7 @@ class TokenBuffer:
         Returns:
             TokenBuffer instance with text content
         """
-        return cls(text=text, *args, **kwargs)
+        return cls(*args, text=text, **kwargs)
 
     def is_empty(self) -> bool:
         """
@@ -131,7 +131,7 @@ class TokenBuffer:
         """
         return self._text
 
-    def as_token_ids(self) -> List[int]:
+    def as_token_ids(self) -> list[int]:
         """
         Convert text to token IDs using tokenizer
 
@@ -187,7 +187,7 @@ class TokenBuffer:
         # Repeat for beam search (beam_size copies)
         return token_tensor.repeat_interleave(beam_size, dim=0)
 
-    def append_token_ids(self, token_ids: List[int]):
+    def append_token_ids(self, token_ids: list[int]):
         """
         Append token IDs to buffer (decode and append as text)
 

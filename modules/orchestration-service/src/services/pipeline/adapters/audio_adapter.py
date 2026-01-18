@@ -18,9 +18,8 @@ Whisper result segment format:
 }
 """
 
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
 import uuid
+from typing import Any
 
 from .base import ChunkAdapter, TranscriptChunk
 
@@ -84,7 +83,9 @@ class AudioUploadChunkAdapter(ChunkAdapter):
         speaker = self._extract_speaker_info(data)
 
         # Get transcript/session ID
-        transcript_id = data.get("transcript_id", "") or data.get("session_id", "") or self._session_id
+        transcript_id = (
+            data.get("transcript_id", "") or data.get("session_id", "") or self._session_id
+        )
 
         # Generate chunk_id
         chunk_id = data.get("chunk_id") or data.get("segment_id")
@@ -134,7 +135,7 @@ class AudioUploadChunkAdapter(ChunkAdapter):
             metadata=metadata,
         )
 
-    def _extract_speaker_info(self, data: Dict[str, Any]) -> str:
+    def _extract_speaker_info(self, data: dict[str, Any]) -> str:
         """
         Extract speaker information from Whisper result.
 
@@ -165,7 +166,7 @@ class AudioUploadChunkAdapter(ChunkAdapter):
 
         return "Unknown"
 
-    def _extract_confidence(self, data: Dict[str, Any]) -> float:
+    def _extract_confidence(self, data: dict[str, Any]) -> float:
         """
         Extract confidence score from Whisper result.
 
@@ -184,6 +185,7 @@ class AudioUploadChunkAdapter(ChunkAdapter):
             # Convert logprob to rough confidence estimate
             # avg_logprob typically ranges from -0.5 (high confidence) to -2.0 (low confidence)
             import math
+
             confidence = math.exp(avg_logprob)  # Convert from log space
             return min(max(confidence, 0.0), 1.0)  # Clamp to [0, 1]
 
@@ -195,7 +197,7 @@ class AudioUploadChunkAdapter(ChunkAdapter):
         # Default confidence for Whisper results
         return 0.9
 
-    def extract_speaker(self, raw_chunk: Any) -> Optional[str]:
+    def extract_speaker(self, raw_chunk: Any) -> str | None:
         """Extract speaker from Whisper result."""
         if isinstance(raw_chunk, dict):
             return self._extract_speaker_info(raw_chunk)

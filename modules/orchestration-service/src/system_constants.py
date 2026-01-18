@@ -11,8 +11,7 @@ This is the SINGLE SOURCE OF TRUTH for:
 DO NOT duplicate these values elsewhere - always import from here.
 """
 
-from typing import List, Dict, Any
-
+from typing import Any
 
 # =============================================================================
 # SUPPORTED LANGUAGES
@@ -24,7 +23,7 @@ from typing import List, Dict, Any
 #   - native: Native script name
 #   - rtl: Right-to-left (for Arabic, Hebrew, etc.)
 
-SUPPORTED_LANGUAGES: List[Dict[str, Any]] = [
+SUPPORTED_LANGUAGES: list[dict[str, Any]] = [
     {"code": "en", "name": "English", "native": "English", "rtl": False},
     {"code": "es", "name": "Spanish", "native": "Español", "rtl": False},
     {"code": "fr", "name": "French", "native": "Français", "rtl": False},
@@ -76,12 +75,10 @@ SUPPORTED_LANGUAGES: List[Dict[str, Any]] = [
 ]
 
 # Quick lookup by code
-LANGUAGE_CODE_MAP: Dict[str, Dict[str, Any]] = {
-    lang["code"]: lang for lang in SUPPORTED_LANGUAGES
-}
+LANGUAGE_CODE_MAP: dict[str, dict[str, Any]] = {lang["code"]: lang for lang in SUPPORTED_LANGUAGES}
 
 # List of just codes for validation
-VALID_LANGUAGE_CODES: List[str] = [lang["code"] for lang in SUPPORTED_LANGUAGES]
+VALID_LANGUAGE_CODES: list[str] = [lang["code"] for lang in SUPPORTED_LANGUAGES]
 
 
 # =============================================================================
@@ -90,7 +87,7 @@ VALID_LANGUAGE_CODES: List[str] = [lang["code"] for lang in SUPPORTED_LANGUAGES]
 # Domain categories for glossary organization.
 # Empty value ("") represents "General" / no specific domain.
 
-GLOSSARY_DOMAINS: List[Dict[str, str]] = [
+GLOSSARY_DOMAINS: list[dict[str, str]] = [
     {"value": "", "label": "General", "description": "General purpose terminology"},
     {"value": "medical", "label": "Medical", "description": "Healthcare and medical terminology"},
     {"value": "legal", "label": "Legal", "description": "Legal and regulatory terminology"},
@@ -98,15 +95,35 @@ GLOSSARY_DOMAINS: List[Dict[str, str]] = [
     {"value": "business", "label": "Business", "description": "Business and commerce terminology"},
     {"value": "finance", "label": "Finance", "description": "Financial and banking terminology"},
     {"value": "academic", "label": "Academic", "description": "Academic and research terminology"},
-    {"value": "marketing", "label": "Marketing", "description": "Marketing and advertising terminology"},
-    {"value": "engineering", "label": "Engineering", "description": "Engineering and technical terminology"},
-    {"value": "scientific", "label": "Scientific", "description": "Scientific research terminology"},
-    {"value": "pharmaceutical", "label": "Pharmaceutical", "description": "Drug and pharmaceutical terminology"},
-    {"value": "manufacturing", "label": "Manufacturing", "description": "Manufacturing and production terminology"},
+    {
+        "value": "marketing",
+        "label": "Marketing",
+        "description": "Marketing and advertising terminology",
+    },
+    {
+        "value": "engineering",
+        "label": "Engineering",
+        "description": "Engineering and technical terminology",
+    },
+    {
+        "value": "scientific",
+        "label": "Scientific",
+        "description": "Scientific research terminology",
+    },
+    {
+        "value": "pharmaceutical",
+        "label": "Pharmaceutical",
+        "description": "Drug and pharmaceutical terminology",
+    },
+    {
+        "value": "manufacturing",
+        "label": "Manufacturing",
+        "description": "Manufacturing and production terminology",
+    },
 ]
 
 # List of just domain values
-VALID_DOMAINS: List[str] = [d["value"] for d in GLOSSARY_DOMAINS]
+VALID_DOMAINS: list[str] = [d["value"] for d in GLOSSARY_DOMAINS]
 
 
 # =============================================================================
@@ -114,7 +131,7 @@ VALID_DOMAINS: List[str] = [d["value"] for d in GLOSSARY_DOMAINS]
 # =============================================================================
 # System defaults - can be overridden by environment or user settings
 
-DEFAULT_CONFIG: Dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "default_source_language": "en",
     "default_target_languages": ["en"],
     "default_translation_model": "default",
@@ -131,7 +148,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 # =============================================================================
 # Available variables for prompt templates
 
-PROMPT_TEMPLATE_VARIABLES: List[Dict[str, str]] = [
+PROMPT_TEMPLATE_VARIABLES: list[dict[str, str]] = [
     {
         "name": "target_language",
         "description": "Target language name (e.g., 'Spanish')",
@@ -174,7 +191,8 @@ PROMPT_TEMPLATE_VARIABLES: List[Dict[str, str]] = [
 # HELPER FUNCTIONS
 # =============================================================================
 
-def get_language_by_code(code: str) -> Dict[str, Any] | None:
+
+def get_language_by_code(code: str) -> dict[str, Any] | None:
     """Get language details by ISO code."""
     return LANGUAGE_CODE_MAP.get(code.lower())
 
@@ -197,4 +215,4 @@ def get_language_display_name(code: str, include_native: bool = True) -> str:
         return code.upper()
     if include_native and lang.get("native"):
         return f"{lang['name']} ({lang['native']})"
-    return lang['name']
+    return lang["name"]

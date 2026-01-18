@@ -37,18 +37,18 @@ wait_for_triton() {
     echo "Waiting for Triton server to be ready..."
     local max_attempts=60
     local attempt=1
-    
+
     while [ $attempt -le $max_attempts ]; do
         if curl -f "http://localhost:${TRITON_HTTP_PORT}/v2/health" >/dev/null 2>&1; then
             echo "Triton server is ready!"
             return 0
         fi
-        
+
         echo "Attempt $attempt/$max_attempts: Triton not ready yet, waiting..."
         sleep 5
         attempt=$((attempt + 1))
     done
-    
+
     echo "ERROR: Triton server failed to start within expected time"
     return 1
 }
@@ -58,18 +58,18 @@ wait_for_model() {
     echo "Waiting for vLLM model to be ready..."
     local max_attempts=120  # vLLM model loading can take a while
     local attempt=1
-    
+
     while [ $attempt -le $max_attempts ]; do
         if curl -f "http://localhost:${TRITON_HTTP_PORT}/v2/models/vllm_model/ready" >/dev/null 2>&1; then
             echo "vLLM model is ready!"
             return 0
         fi
-        
+
         echo "Attempt $attempt/$max_attempts: Model not ready yet, waiting..."
         sleep 10
         attempt=$((attempt + 1))
     done
-    
+
     echo "ERROR: vLLM model failed to load within expected time"
     return 1
 }
@@ -77,7 +77,7 @@ wait_for_model() {
 # Function to start Triton server
 start_triton() {
     echo "Starting Triton Inference Server..."
-    
+
     # Start Triton server in background
     tritonserver \
         --model-repository="${TRITON_MODEL_REPOSITORY}" \
@@ -94,18 +94,18 @@ start_triton() {
         --strict-model-config=false \
         --strict-readiness=false \
         --exit-timeout-secs=30 &
-    
+
     # Store Triton PID
     TRITON_PID=$!
     echo "Triton server started with PID: ${TRITON_PID}"
-    
+
     # Wait for Triton to be ready
     if ! wait_for_triton; then
         echo "Failed to start Triton server"
         kill $TRITON_PID 2>/dev/null || true
         exit 1
     fi
-    
+
     # Wait for model to be ready
     if ! wait_for_model; then
         echo "Failed to load vLLM model"
@@ -117,21 +117,21 @@ start_triton() {
 # Function to start translation service
 start_translation_service() {
     echo "Starting Translation Service API..."
-    
+
     # Start translation service in background
     cd /app
     python src/api_server.py \
         --host 0.0.0.0 \
         --port "${TRANSLATION_SERVICE_PORT}" \
         --backend triton &
-    
+
     # Store Translation Service PID
     TRANSLATION_PID=$!
     echo "Translation service started with PID: ${TRANSLATION_PID}"
-    
+
     # Wait a moment for service to start
     sleep 5
-    
+
     # Check if translation service is healthy
     if curl -f "http://localhost:${TRANSLATION_SERVICE_PORT}/api/health" >/dev/null 2>&1; then
         echo "Translation service is ready!"
@@ -143,12 +143,12 @@ start_translation_service() {
 # Function to handle shutdown
 cleanup() {
     echo "Shutting down services..."
-    
+
     if [ ! -z "$TRANSLATION_PID" ]; then
         echo "Stopping translation service (PID: $TRANSLATION_PID)"
         kill $TRANSLATION_PID 2>/dev/null || true
     fi
-    
+
     if [ ! -z "$TRITON_PID" ]; then
         echo "Stopping Triton server (PID: $TRITON_PID)"
         kill $TRITON_PID 2>/dev/null || true
@@ -156,7 +156,7 @@ cleanup() {
         sleep 10
         kill -9 $TRITON_PID 2>/dev/null || true
     fi
-    
+
     echo "Cleanup complete"
     exit 0
 }
@@ -180,12 +180,12 @@ while true; do
         echo "ERROR: Triton server has stopped unexpectedly"
         cleanup
     fi
-    
+
     # Check if Translation service is still running
     if ! kill -0 $TRANSLATION_PID 2>/dev/null; then
         echo "ERROR: Translation service has stopped unexpectedly"
         cleanup
     fi
-    
+
     sleep 30
 done

@@ -7,11 +7,12 @@ Central bot lifecycle management for the orchestration service.
 import asyncio
 import logging
 import time
-from typing import Dict, Any, Optional, List, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from uuid import uuid4
 from pathlib import Path
+from typing import Any
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +46,13 @@ class MeetingRequest:
     meeting_title: str
     meeting_uri: str
     bot_type: BotType = BotType.GOOGLE_MEET
-    target_languages: List[str] = field(default_factory=lambda: ["en"])
+    target_languages: list[str] = field(default_factory=lambda: ["en"])
     enable_translation: bool = True
     enable_transcription: bool = True
     enable_virtual_webcam: bool = True
     audio_storage_enabled: bool = True
     cleanup_on_exit: bool = True
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -62,15 +63,15 @@ class BotInstance:
     meeting_request: MeetingRequest
     status: BotStatus
     created_at: float
-    started_at: Optional[float] = None
-    stopped_at: Optional[float] = None
-    last_activity: Optional[float] = None
-    error_message: Optional[str] = None
-    process_id: Optional[int] = None
-    session_id: Optional[str] = None
-    statistics: Dict[str, Any] = field(default_factory=dict)
+    started_at: float | None = None
+    stopped_at: float | None = None
+    last_activity: float | None = None
+    error_message: str | None = None
+    process_id: int | None = None
+    session_id: str | None = None
+    statistics: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             "bot_id": self.bot_id,
@@ -90,7 +91,7 @@ class BotInstance:
             "statistics": self.statistics,
         }
 
-    def _calculate_uptime(self) -> Optional[float]:
+    def _calculate_uptime(self) -> float | None:
         """Calculate bot uptime"""
         if not self.started_at:
             return None
@@ -123,17 +124,17 @@ class BotManager:
         self.config = config or BotConfig()
 
         # Bot instances
-        self.bots: Dict[str, BotInstance] = {}
-        self.bot_queue: List[MeetingRequest] = []
+        self.bots: dict[str, BotInstance] = {}
+        self.bot_queue: list[MeetingRequest] = []
 
         # Event handlers
-        self.status_change_handlers: List[Callable] = []
-        self.lifecycle_handlers: List[Callable] = []
+        self.status_change_handlers: list[Callable] = []
+        self.lifecycle_handlers: list[Callable] = []
 
         # Background tasks
-        self._monitor_task: Optional[asyncio.Task] = None
-        self._cleanup_task: Optional[asyncio.Task] = None
-        self._queue_processor_task: Optional[asyncio.Task] = None
+        self._monitor_task: asyncio.Task | None = None
+        self._cleanup_task: asyncio.Task | None = None
+        self._queue_processor_task: asyncio.Task | None = None
         self._running = False
 
         # Statistics
@@ -197,9 +198,7 @@ class BotManager:
         """
         # Check if we're at capacity
         active_bots = [
-            b
-            for b in self.bots.values()
-            if b.status in [BotStatus.RUNNING, BotStatus.STARTING]
+            b for b in self.bots.values() if b.status in [BotStatus.RUNNING, BotStatus.STARTING]
         ]
 
         if len(active_bots) >= self.config.max_concurrent_bots:
@@ -421,8 +420,7 @@ class BotManager:
                         # Check timeout
                         if (
                             bot_instance.started_at
-                            and current_time - bot_instance.started_at
-                            > self.config.bot_timeout
+                            and current_time - bot_instance.started_at > self.config.bot_timeout
                         ):
                             await self.terminate_bot(bot_id, "Timeout")
 
@@ -455,8 +453,7 @@ class BotManager:
                     if bot_instance.status in [BotStatus.STOPPED, BotStatus.ERROR]:
                         if (
                             bot_instance.stopped_at
-                            and current_time - bot_instance.stopped_at
-                            > cleanup_threshold
+                            and current_time - bot_instance.stopped_at > cleanup_threshold
                         ):
                             bots_to_remove.append(bot_id)
 
@@ -490,9 +487,7 @@ class BotManager:
                         # Process next item in queue
                         meeting_request = self.bot_queue.pop(0)
                         await self.request_bot(meeting_request)
-                        logger.info(
-                            f"Processed queued bot request: {meeting_request.meeting_id}"
-                        )
+                        logger.info(f"Processed queued bot request: {meeting_request.meeting_id}")
 
                 await asyncio.sleep(10)  # Check every 10 seconds
 
@@ -527,7 +522,7 @@ class BotManager:
                 logger.error(f"Failed to recover bot: {bot_id}")
 
         except Exception as e:
-            bot_instance.error_message = f"Recovery error: {str(e)}"
+            bot_instance.error_message = f"Recovery error: {e!s}"
             await self._update_bot_status(bot_id, BotStatus.ERROR)
             logger.error(f"Bot recovery error for {bot_id}: {e}")
 
@@ -552,18 +547,18 @@ class BotManager:
         """Add lifecycle handler"""
         self.lifecycle_handlers.append(handler)
 
-    def get_bot_status(self, bot_id: str) -> Optional[Dict[str, Any]]:
+    def get_bot_status(self, bot_id: str) -> dict[str, Any] | None:
         """Get bot status"""
         if bot_id not in self.bots:
             return None
 
         return self.bots[bot_id].to_dict()
 
-    def get_all_bots(self) -> List[Dict[str, Any]]:
+    def get_all_bots(self) -> list[dict[str, Any]]:
         """Get all bot information"""
         return [bot.to_dict() for bot in self.bots.values()]
 
-    def get_active_bots(self) -> List[Dict[str, Any]]:
+    def get_active_bots(self) -> list[dict[str, Any]]:
         """Get active bot information"""
         return [
             bot.to_dict()
@@ -571,14 +566,10 @@ class BotManager:
             if bot.status in [BotStatus.RUNNING, BotStatus.STARTING]
         ]
 
-    def get_bot_stats(self) -> Dict[str, Any]:
+    def get_bot_stats(self) -> dict[str, Any]:
         """Get bot manager statistics"""
         active_bots = len(
-            [
-                b
-                for b in self.bots.values()
-                if b.status in [BotStatus.RUNNING, BotStatus.STARTING]
-            ]
+            [b for b in self.bots.values() if b.status in [BotStatus.RUNNING, BotStatus.STARTING]]
         )
 
         stats_result = {
@@ -586,11 +577,9 @@ class BotManager:
             "active_bots": active_bots,
             "queued_requests": len(self.bot_queue),
             "total_bots": len(self.bots),
-            "capacity_utilization": (active_bots / self.config.max_concurrent_bots)
-            * 100,
+            "capacity_utilization": (active_bots / self.config.max_concurrent_bots) * 100,
             "success_rate": (
-                self.stats["total_bots_completed"]
-                / max(1, self.stats["total_bots_created"])
+                self.stats["total_bots_completed"] / max(1, self.stats["total_bots_created"])
             )
             * 100,
             "recovery_rate": (
@@ -601,14 +590,10 @@ class BotManager:
         }
 
         logger.debug(f"Bot manager stats: {stats_result}")
-        logger.debug(
-            f"Bot manager stats types: {[(k, type(v)) for k, v in stats_result.items()]}"
-        )
+        logger.debug(f"Bot manager stats types: {[(k, type(v)) for k, v in stats_result.items()]}")
         return stats_result
 
-    def set_service_clients(
-        self, audio_client=None, translation_client=None, database_client=None
-    ):
+    def set_service_clients(self, audio_client=None, translation_client=None, database_client=None):
         """Set service clients"""
         self.audio_client = audio_client
         self.translation_client = translation_client
@@ -618,7 +603,7 @@ class BotManager:
     # Analytics and Session Tracking Methods
     # ============================================================================
 
-    async def get_bot_analytics(self, bot_id: str) -> Optional[Dict[str, Any]]:
+    async def get_bot_analytics(self, bot_id: str) -> dict[str, Any] | None:
         """Get comprehensive analytics for a specific bot."""
         try:
             if not self.database_client:
@@ -633,15 +618,9 @@ class BotManager:
             # Calculate analytics from database data
             total_sessions = len(sessions)
             active_sessions = len(
-                [
-                    s
-                    for s in sessions
-                    if s.get("status") in ["spawning", "active", "paused"]
-                ]
+                [s for s in sessions if s.get("status") in ["spawning", "active", "paused"]]
             )
-            completed_sessions = len(
-                [s for s in sessions if s.get("status") == "ended"]
-            )
+            completed_sessions = len([s for s in sessions if s.get("status") == "ended"])
             error_sessions = len([s for s in sessions if s.get("status") == "error"])
 
             # Calculate averages
@@ -664,10 +643,8 @@ class BotManager:
                 session_id = session.get("session_id")
                 if session_id:
                     # Get session analytics from database
-                    session_data = (
-                        await self.database_client.get_comprehensive_session_data(
-                            session_id
-                        )
+                    session_data = await self.database_client.get_comprehensive_session_data(
+                        session_id
                     )
                     if session_data:
                         audio_files_count += len(session_data.get("audio_files", []))
@@ -680,9 +657,7 @@ class BotManager:
                         correlations_count += len(session_data.get("correlations", []))
 
                         # Calculate confidence scores
-                        for transcript in session_data.get("transcripts", {}).get(
-                            "inhouse", []
-                        ):
+                        for transcript in session_data.get("transcripts", {}).get("inhouse", []):
                             if transcript.get("confidence_score"):
                                 total_confidence += transcript["confidence_score"]
                                 confidence_count += 1
@@ -706,12 +681,10 @@ class BotManager:
                     "correlation_success_rate": correlations_count
                     / max(1, transcripts_count)
                     * 100,
-                    "average_processing_time": avg_session_duration
-                    / max(1, audio_files_count),
+                    "average_processing_time": avg_session_duration / max(1, audio_files_count),
                 },
                 "performance_stats": {
-                    "uptime_percentage": (completed_sessions / max(1, total_sessions))
-                    * 100,
+                    "uptime_percentage": (completed_sessions / max(1, total_sessions)) * 100,
                     "error_rate": (error_sessions / max(1, total_sessions)) * 100,
                     "success_rate": (completed_sessions / max(1, total_sessions)) * 100,
                 },
@@ -726,9 +699,7 @@ class BotManager:
             logger.error(f"Error getting bot analytics: {e}")
             return None
 
-    async def get_comprehensive_session_data(
-        self, session_id: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_comprehensive_session_data(self, session_id: str) -> dict[str, Any] | None:
         """Get comprehensive session data including all related records."""
         try:
             if not self.database_client:
@@ -740,7 +711,7 @@ class BotManager:
             logger.error(f"Error getting comprehensive session data: {e}")
             return None
 
-    async def get_current_bot_session(self, bot_id: str) -> Optional[Dict[str, Any]]:
+    async def get_current_bot_session(self, bot_id: str) -> dict[str, Any] | None:
         """Get current active session for a bot."""
         try:
             if bot_id in self.bots:
@@ -760,8 +731,8 @@ class BotManager:
         bot_id: str,
         limit: int = 50,
         offset: int = 0,
-        status_filter: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        status_filter: str | None = None,
+    ) -> list[dict[str, Any]]:
         """List sessions for a specific bot with pagination."""
         try:
             if not self.database_client:
@@ -777,23 +748,21 @@ class BotManager:
 
     async def get_bot_performance_metrics(
         self, bot_id: str, timeframe: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get performance metrics for a bot over specified timeframe."""
         try:
             if not self.database_client:
                 return None
 
-            return await self.database_client.get_bot_performance_metrics(
-                bot_id, timeframe
-            )
+            return await self.database_client.get_bot_performance_metrics(bot_id, timeframe)
 
         except Exception as e:
             logger.error(f"Error getting bot performance metrics: {e}")
             return None
 
     async def get_bot_quality_report(
-        self, bot_id: str, session_id: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        self, bot_id: str, session_id: str | None = None
+    ) -> dict[str, Any] | None:
         """Get quality report for bot operations."""
         try:
             if not self.database_client:
@@ -805,7 +774,7 @@ class BotManager:
             logger.error(f"Error getting bot quality report: {e}")
             return None
 
-    async def get_database_analytics(self) -> Optional[Dict[str, Any]]:
+    async def get_database_analytics(self) -> dict[str, Any] | None:
         """Get comprehensive database analytics."""
         try:
             if not self.database_client:
@@ -817,9 +786,7 @@ class BotManager:
             logger.error(f"Error getting database analytics: {e}")
             return None
 
-    async def get_session_analytics(
-        self, timeframe: str, group_by: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_session_analytics(self, timeframe: str, group_by: str) -> dict[str, Any] | None:
         """Get session analytics with time-based grouping."""
         try:
             if not self.database_client:
@@ -831,7 +798,7 @@ class BotManager:
             logger.error(f"Error getting session analytics: {e}")
             return None
 
-    async def get_quality_analytics(self, timeframe: str) -> Optional[Dict[str, Any]]:
+    async def get_quality_analytics(self, timeframe: str) -> dict[str, Any] | None:
         """Get quality analytics across all bots and sessions."""
         try:
             if not self.database_client:

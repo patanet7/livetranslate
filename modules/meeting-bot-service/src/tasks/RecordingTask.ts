@@ -11,7 +11,7 @@ export class RecordingTask extends Task<null, void> {
   private duration: number;
   private inactivityLimit: number;
   private slightlySecretId: string;
-  
+
   constructor(
     userId: string,
     teamId: string,
@@ -259,11 +259,11 @@ export class RecordingTask extends Task<null, void> {
         // Start the recording
         await startRecording();
       },
-      { 
+      {
         teamId: this.teamId,
         duration: this.duration,
-        inactivityLimit: this.inactivityLimit, 
-        userId: this.userId, 
+        inactivityLimit: this.inactivityLimit,
+        userId: this.userId,
         slightlySecretId: this.slightlySecretId,
         activateInactivityDetectionAfterMinutes: config.activateInactivityDetectionAfter,
         activateInactivityDetectionAfter: new Date(new Date().getTime() + config.activateInactivityDetectionAfter * 60 * 1000).toISOString(),

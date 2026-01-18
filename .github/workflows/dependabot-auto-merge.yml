@@ -1,0 +1,112 @@
+name: Dependabot Auto-merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot-auto-merge:
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for CI to pass
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+
+            // Wait for checks to complete (max 10 minutes)
+            const maxAttempts = 20;
+            const delaySeconds = 30;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+              const { data: pr } = await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number,
+              });
+
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner,
+                repo,
+                ref: pr.head.sha,
+              });
+
+              const pendingChecks = checks.check_runs.filter(
+                check => check.status !== 'completed'
+              );
+
+              if (pendingChecks.length === 0) {
+                const failedChecks = checks.check_runs.filter(
+                  check => check.conclusion !== 'success' && check.conclusion !== 'skipped'
+                );
+
+                if (failedChecks.length > 0) {
+                  core.setFailed(`Some checks failed: ${failedChecks.map(c => c.name).join(', ')}`);
+                  return;
+                }
+
+                console.log('All checks passed!');
+                return;
+              }
+
+              console.log(`Waiting for ${pendingChecks.length} checks to complete...`);
+              await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
+            }
+
+            core.setFailed('Timeout waiting for checks to complete');
+
+      - name: Approve patch and minor updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for minor updates (development dependencies only)
+        if: steps.metadata.outputs.update-type == 'version-update:semver-minor' && steps.metadata.outputs.dependency-type == 'direct:development'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on major updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: `This is a **major version update** and requires manual review.
+
+              **Dependency:** \`${{ steps.metadata.outputs.dependency-names }}\`
+              **Update type:** ${{ steps.metadata.outputs.update-type }}
+
+              Please review the changelog and ensure compatibility before merging.`
+            });

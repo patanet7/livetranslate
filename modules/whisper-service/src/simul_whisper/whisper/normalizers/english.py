@@ -1,8 +1,9 @@
 import json
 import os
 import re
+from collections.abc import Iterator
 from fractions import Fraction
-from typing import Iterator, List, Match, Optional, Union
+from re import Match
 
 from more_itertools import windowed
 
@@ -84,8 +85,7 @@ class EnglishNumberNormalizer:
             name.replace("y", "ies"): (value, "s") for name, value in self.tens.items()
         }
         self.tens_ordinal = {
-            name.replace("y", "ieth"): (value, "th")
-            for name, value in self.tens.items()
+            name.replace("y", "ieth"): (value, "th") for name, value in self.tens.items()
         }
         self.tens_suffixed = {**self.tens_plural, **self.tens_ordinal}
 
@@ -132,8 +132,7 @@ class EnglishNumberNormalizer:
             "cents": "¢",
         }
         self.prefixes = set(
-            list(self.preceding_prefixers.values())
-            + list(self.following_prefixers.values())
+            list(self.preceding_prefixers.values()) + list(self.following_prefixers.values())
         )
         self.suffixers = {
             "per": {"cent": "%"},
@@ -141,8 +140,8 @@ class EnglishNumberNormalizer:
         }
         self.specials = {"and", "double", "triple", "point"}
 
-        self.words = set(
-            [
+        self.words = {
+
                 key
                 for mapping in [
                     self.zeros,
@@ -158,13 +157,13 @@ class EnglishNumberNormalizer:
                     self.specials,
                 ]
                 for key in mapping
-            ]
-        )
+
+        }
         self.literal_words = {"one", "ones"}
 
-    def process_words(self, words: List[str]) -> Iterator[str]:
-        prefix: Optional[str] = None
-        value: Optional[Union[str, int]] = None
+    def process_words(self, words: list[str]) -> Iterator[str]:
+        prefix: str | None = None
+        value: str | int | None = None
         skip = False
 
         def to_fraction(s: str):
@@ -173,7 +172,7 @@ class EnglishNumberNormalizer:
             except ValueError:
                 return None
 
-        def output(result: Union[str, int]):
+        def output(result: str | int):
             nonlocal prefix, value
             result = str(result)
             if prefix is not None:
@@ -185,7 +184,7 @@ class EnglishNumberNormalizer:
         if len(words) == 0:
             return
 
-        for prev, current, next in windowed([None] + words + [None], 3):
+        for prev, current, next in windowed([None, *words, None], 3):
             if skip:
                 skip = False
                 continue
@@ -223,9 +222,7 @@ class EnglishNumberNormalizer:
                 if value is None:
                     value = ones
                 elif isinstance(value, str) or prev in self.ones:
-                    if (
-                        prev in self.tens and ones < 10
-                    ):  # replace the last zero with the digit
+                    if prev in self.tens and ones < 10:  # replace the last zero with the digit
                         assert value[-1] == "0"
                         value = value[:-1] + str(ones)
                     else:

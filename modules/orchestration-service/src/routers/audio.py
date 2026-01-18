@@ -11,7 +11,8 @@ This replaces the original monolithic audio.py file with a modular architecture.
 """
 
 from fastapi import APIRouter
-from .audio import audio_core, audio_analysis, audio_stages, audio_presets
+
+from .audio import audio_analysis, audio_core, audio_presets, audio_stages
 
 # Create the main audio router
 router = APIRouter(

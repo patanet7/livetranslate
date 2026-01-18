@@ -50,13 +50,13 @@ import logging
 import tempfile
 import time
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any
 from unittest.mock import AsyncMock, Mock
 
-import pytest
-import numpy as np
-from fastapi.testclient import TestClient
 import httpx
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
 
 # Add the src directory to Python path
 current_dir = Path(__file__).parent
@@ -65,6 +65,7 @@ src_path = service_root / "src"
 
 if src_path.exists():
     sys.path.insert(0, str(src_path))
+
 
 # Create module aliases to prevent duplicate loading
 # Production code uses 'src.X' imports, tests use 'X' imports
@@ -75,19 +76,31 @@ def _setup_module_aliases():
 
     # List of top-level modules that need aliasing
     module_names = [
-        'database', 'models', 'clients', 'services', 'routers',
-        'managers', 'bot', 'utils', 'audio', 'pipeline',
-        'middleware', 'internal_services', 'dependencies', 'config'
+        "database",
+        "models",
+        "clients",
+        "services",
+        "routers",
+        "managers",
+        "bot",
+        "utils",
+        "audio",
+        "pipeline",
+        "middleware",
+        "internal_services",
+        "dependencies",
+        "config",
     ]
 
     for name in module_names:
         try:
             # Import with src. prefix (production path)
-            src_mod = importlib.import_module(f'src.{name}')
+            src_mod = importlib.import_module(f"src.{name}")
             # Alias the non-prefixed name to the src. version
             sys.modules[name] = src_mod
         except ImportError:
             pass
+
 
 _setup_module_aliases()
 
@@ -97,22 +110,22 @@ if os.getenv("SKIP_MAIN_FASTAPI_IMPORT") == "1":
     app = None
 else:
     try:
-        from main_fastapi import app
         from dependencies import (
-            get_config_manager,
-            get_audio_service_client,
-            get_translation_service_client,
             get_audio_coordinator,
+            get_audio_service_client,
+            get_config_manager,
             get_config_sync_manager,
             get_health_monitor,
+            get_translation_service_client,
         )
+        from main_fastapi import app
     except ImportError as e:
         logging.warning(f"Could not import application components: {e}")
         app = None
 
 # Import test data management
 try:
-    from fixtures.audio_test_data import AudioTestDataManager, AudioTestCase
+    from fixtures.audio_test_data import AudioTestCase, AudioTestDataManager
 except ImportError as e:
     logging.warning(f"Could not import audio test data: {e}")
     AudioTestDataManager = None
@@ -367,24 +380,16 @@ def test_client_with_mocks(mock_dependencies):
         pytest.skip("FastAPI app not available")
 
     # Override dependencies
-    app.dependency_overrides[get_config_manager] = lambda: mock_dependencies[
-        "config_manager"
+    app.dependency_overrides[get_config_manager] = lambda: mock_dependencies["config_manager"]
+    app.dependency_overrides[get_audio_service_client] = lambda: mock_dependencies["audio_client"]
+    app.dependency_overrides[get_translation_service_client] = lambda: mock_dependencies[
+        "translation_client"
     ]
-    app.dependency_overrides[get_audio_service_client] = lambda: mock_dependencies[
-        "audio_client"
-    ]
-    app.dependency_overrides[get_translation_service_client] = (
-        lambda: mock_dependencies["translation_client"]
-    )
-    app.dependency_overrides[get_audio_coordinator] = lambda: mock_dependencies[
-        "audio_coordinator"
-    ]
+    app.dependency_overrides[get_audio_coordinator] = lambda: mock_dependencies["audio_coordinator"]
     app.dependency_overrides[get_config_sync_manager] = lambda: mock_dependencies[
         "config_sync_manager"
     ]
-    app.dependency_overrides[get_health_monitor] = lambda: mock_dependencies[
-        "health_monitor"
-    ]
+    app.dependency_overrides[get_health_monitor] = lambda: mock_dependencies["health_monitor"]
 
     client = TestClient(app)
 
@@ -506,9 +511,7 @@ pytestmark = [
 # Hooks for test execution
 def pytest_configure(config):
     """Configure pytest with custom markers and settings."""
-    config.addinivalue_line(
-        "markers", "audio_pipeline: marks tests as audio pipeline tests"
-    )
+    config.addinivalue_line("markers", "audio_pipeline: marks tests as audio pipeline tests")
     config.addinivalue_line("markers", "integration: marks tests as integration tests")
     config.addinivalue_line("markers", "performance: marks tests as performance tests")
 
@@ -579,10 +582,12 @@ def reset_dependency_singletons():
     # Reset before test
     try:
         from src.dependencies import reset_dependencies
+
         reset_dependencies()
     except ImportError:
         try:
             from dependencies import reset_dependencies
+
             reset_dependencies()
         except ImportError:
             pass  # Skip if dependencies not available
@@ -592,10 +597,12 @@ def reset_dependency_singletons():
     # Reset after test (cleanup)
     try:
         from src.dependencies import reset_dependencies
+
         reset_dependencies()
     except ImportError:
         try:
             from dependencies import reset_dependencies
+
             reset_dependencies()
         except ImportError:
             pass
@@ -632,17 +639,17 @@ def initialized_app():
 
     # Import startup/shutdown functions
     try:
-        from src.dependencies import startup_dependencies, shutdown_dependencies
+        from src.dependencies import shutdown_dependencies, startup_dependencies
     except ImportError:
-        from dependencies import startup_dependencies, shutdown_dependencies
+        from dependencies import shutdown_dependencies, startup_dependencies
 
     # Import database initialization (for the global database_manager in database/database.py)
     try:
-        from src.database.database import initialize_database
         from src.config import DatabaseSettings
+        from src.database.database import initialize_database
     except ImportError:
-        from database.database import initialize_database
         from config import DatabaseSettings
+        from database.database import initialize_database
 
     # Run startup in a new event loop
     loop = asyncio.new_event_loop()
@@ -651,7 +658,7 @@ def initialized_app():
         # This is required by get_db_session() which routers use
         database_url = os.environ.get(
             "DATABASE_URL",
-            "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+            "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
         )
         db_settings = DatabaseSettings(url=database_url)
         initialize_database(db_settings)
@@ -663,6 +670,7 @@ def initialized_app():
     except Exception as e:
         logger.warning(f"Failed to initialize dependencies: {e}")
         import traceback
+
         traceback.print_exc()
         # Continue anyway - some tests may still work
 
@@ -708,23 +716,17 @@ def session_setup_teardown():
 
 
 # Utility functions for tests
-def assert_audio_quality(
-    audio_data: np.ndarray, min_rms: float = 0.01, max_rms: float = 1.0
-):
+def assert_audio_quality(audio_data: np.ndarray, min_rms: float = 0.01, max_rms: float = 1.0):
     """Assert audio quality is within expected range."""
     assert not np.isnan(audio_data).any(), "Audio contains NaN values"
     assert not np.isinf(audio_data).any(), "Audio contains infinite values"
     assert len(audio_data) > 0, "Audio data is empty"
 
     rms = np.sqrt(np.mean(audio_data**2))
-    assert min_rms <= rms <= max_rms, (
-        f"RMS level {rms} out of range [{min_rms}, {max_rms}]"
-    )
+    assert min_rms <= rms <= max_rms, f"RMS level {rms} out of range [{min_rms}, {max_rms}]"
 
 
-def assert_response_structure(
-    response_data: Dict[str, Any], required_fields: List[str]
-):
+def assert_response_structure(response_data: dict[str, Any], required_fields: list[str]):
     """Assert response has required structure."""
     for field in required_fields:
         assert field in response_data, f"Missing required field: {field}"
@@ -733,9 +735,7 @@ def assert_response_structure(
 def assert_processing_time(actual_time: float, max_time: float, audio_duration: float):
     """Assert processing time is reasonable."""
     assert actual_time > 0, "Processing time must be positive"
-    assert actual_time <= max_time, (
-        f"Processing time {actual_time}s exceeds maximum {max_time}s"
-    )
+    assert actual_time <= max_time, f"Processing time {actual_time}s exceeds maximum {max_time}s"
 
     real_time_factor = actual_time / audio_duration
     assert real_time_factor <= 5.0, f"Real-time factor {real_time_factor} too high"
@@ -745,12 +745,13 @@ def assert_processing_time(actual_time: float, max_time: float, audio_duration: 
 # REAL DATABASE FIXTURES - For integrated testing
 # =============================================================================
 
+
 @pytest.fixture(scope="session")
 def database_url():
     """Get the database URL from environment."""
     return os.environ.get(
         "DATABASE_URL",
-        "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+        "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
     )
 
 
@@ -780,8 +781,8 @@ def db_session(db_engine):
     """Create a database session for each test."""
     from sqlalchemy.orm import sessionmaker
 
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
-    session = SessionLocal()
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    session = session_local()
 
     try:
         yield session
@@ -805,10 +806,12 @@ def verify_database_connection(database_url):
             logger.info(f"PostgreSQL: {version[:50]}...")
 
             # Count tables
-            result = conn.execute(text("""
+            result = conn.execute(
+                text("""
                 SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-            """))
+            """)
+            )
             table_count = result.scalar()
             logger.info(f"Database tables available: {table_count}")
 

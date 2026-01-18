@@ -9,18 +9,18 @@ Virtual webcam endpoints including:
 """
 
 import time
-from typing import Dict, Any
+from typing import Any
 
+from dependencies import get_bot_manager
 from fastapi import Depends, HTTPException, status
 
 from ._shared import (
-    create_bot_router,
     VirtualWebcamConfigRequest,
-    logger,
+    create_bot_router,
     get_error_response,
+    logger,
     validate_bot_exists,
 )
-from dependencies import get_bot_manager
 
 # Create router for virtual webcam management
 router = create_bot_router()
@@ -31,7 +31,7 @@ async def manage_virtual_webcam(
     bot_id: str,
     request: VirtualWebcamConfigRequest,
     bot_manager=Depends(get_bot_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Manage virtual webcam output
 
@@ -69,15 +69,13 @@ async def manage_virtual_webcam(
         logger.error(f"Failed to manage virtual webcam: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to manage virtual webcam: {str(e)}",
+            f"Failed to manage virtual webcam: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/{bot_id}/webcam/status")
-async def get_webcam_status(
-    bot_id: str, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+async def get_webcam_status(bot_id: str, bot_manager=Depends(get_bot_manager)) -> dict[str, Any]:
     """
     Get virtual webcam status
 
@@ -98,22 +96,20 @@ async def get_webcam_status(
         logger.error(f"Failed to get webcam status: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get webcam status: {str(e)}",
+            f"Failed to get webcam status: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/virtual-webcam/frame/{bot_id}")
 async def get_virtual_webcam_frame(
     bot_id: str, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get current virtual webcam frame as base64 image."""
     try:
         bot_instance = bot_manager.get_bot(bot_id)
         if not bot_instance:
-            raise get_error_response(
-                status.HTTP_404_NOT_FOUND, "Bot not found", {"bot_id": bot_id}
-            )
+            raise get_error_response(status.HTTP_404_NOT_FOUND, "Bot not found", {"bot_id": bot_id})
 
         # Get current frame from virtual webcam
         if hasattr(bot_instance, "virtual_webcam") and bot_instance.virtual_webcam:
@@ -142,22 +138,20 @@ async def get_virtual_webcam_frame(
         logger.error(f"Error getting virtual webcam frame: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Error getting virtual webcam frame: {str(e)}",
+            f"Error getting virtual webcam frame: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/virtual-webcam/config/{bot_id}")
 async def get_virtual_webcam_config(
     bot_id: str, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get virtual webcam configuration."""
     try:
         bot_instance = bot_manager.get_bot(bot_id)
         if not bot_instance:
-            raise get_error_response(
-                status.HTTP_404_NOT_FOUND, "Bot not found", {"bot_id": bot_id}
-            )
+            raise get_error_response(status.HTTP_404_NOT_FOUND, "Bot not found", {"bot_id": bot_id})
 
         if hasattr(bot_instance, "virtual_webcam") and bot_instance.virtual_webcam:
             return {
@@ -186,27 +180,25 @@ async def get_virtual_webcam_config(
         logger.error(f"Error getting virtual webcam config: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Error getting virtual webcam config: {str(e)}",
+            f"Error getting virtual webcam config: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.post("/virtual-webcam/config/{bot_id}")
 async def update_virtual_webcam_config(
-    bot_id: str, config_update: Dict[str, Any], bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+    bot_id: str, config_update: dict[str, Any], bot_manager=Depends(get_bot_manager)
+) -> dict[str, Any]:
     """Update virtual webcam configuration."""
     try:
         bot_instance = bot_manager.get_bot(bot_id)
         if not bot_instance:
-            raise get_error_response(
-                status.HTTP_404_NOT_FOUND, "Bot not found", {"bot_id": bot_id}
-            )
+            raise get_error_response(status.HTTP_404_NOT_FOUND, "Bot not found", {"bot_id": bot_id})
 
         if hasattr(bot_instance, "virtual_webcam") and bot_instance.virtual_webcam:
             # Import DisplayMode and Theme from virtual_webcam module
-            import sys
             import os
+            import sys
 
             sys.path.append(os.path.join(os.path.dirname(__file__), "..", "bot"))
             from virtual_webcam import DisplayMode, Theme
@@ -219,7 +211,7 @@ async def update_virtual_webcam_config(
             if "display_mode" in config_update:
                 try:
                     config.display_mode = DisplayMode(config_update["display_mode"])
-                except ValueError:
+                except ValueError as e:
                     raise get_error_response(
                         status.HTTP_400_BAD_REQUEST,
                         "Invalid display mode",
@@ -227,17 +219,17 @@ async def update_virtual_webcam_config(
                             "bot_id": bot_id,
                             "invalid_value": config_update["display_mode"],
                         },
-                    )
+                    ) from e
 
             if "theme" in config_update:
                 try:
                     config.theme = Theme(config_update["theme"])
-                except ValueError:
+                except ValueError as e:
                     raise get_error_response(
                         status.HTTP_400_BAD_REQUEST,
                         "Invalid theme",
                         {"bot_id": bot_id, "invalid_value": config_update["theme"]},
-                    )
+                    ) from e
 
             if "max_translations_displayed" in config_update:
                 config.max_translations_displayed = max(
@@ -276,6 +268,6 @@ async def update_virtual_webcam_config(
         logger.error(f"Error updating virtual webcam config: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Error updating virtual webcam config: {str(e)}",
+            f"Error updating virtual webcam config: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e

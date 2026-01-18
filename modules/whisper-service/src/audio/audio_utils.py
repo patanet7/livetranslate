@@ -6,19 +6,18 @@ Provides audio preprocessing utilities for the Whisper service.
 Extracted from whisper_service.py for better modularity and testability.
 """
 
+import logging
 import os
 import tempfile
-import logging
-from typing import Tuple
 
+import librosa
 import numpy as np
 import soundfile as sf
-import librosa
 
 logger = logging.getLogger(__name__)
 
 
-def load_audio_from_bytes(audio_bytes: bytes) -> Tuple[np.ndarray, int]:
+def load_audio_from_bytes(audio_bytes: bytes) -> tuple[np.ndarray, int]:
     """
     Load audio from bytes and convert to mono if stereo.
 
@@ -33,13 +32,13 @@ def load_audio_from_bytes(audio_bytes: bytes) -> Tuple[np.ndarray, int]:
         - sample_rate: Sample rate in Hz
     """
     # Create temporary file for soundfile to read
-    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
         tmp_file.write(audio_bytes)
         tmp_file.flush()
 
         try:
             # Use soundfile instead of librosa.load to avoid aifc dependency (Python 3.13)
-            audio_data, sample_rate = sf.read(tmp_file.name, dtype='float32')
+            audio_data, sample_rate = sf.read(tmp_file.name, dtype="float32")
 
             # soundfile returns stereo as (samples, channels), we need (samples,)
             if len(audio_data.shape) > 1:

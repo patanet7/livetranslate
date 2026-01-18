@@ -13,22 +13,22 @@
     <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-   
+
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
-  
-  
+
+
   <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
 
   </head><body>
-  
+
 
     <div class="document">
       <div class="documentwrapper">
         <div class="bodywrapper">
-          
+
 
           <div class="body" role="main">
-            
+
   <section id="welcome-to-whisper-live-documentation">
 <h1>Welcome to Whisper Live documentation!<a class="headerlink" href="#welcome-to-whisper-live-documentation" title="Link to this heading">¶</a></h1>
 <div class="toctree-wrapper compound">
@@ -124,8 +124,8 @@ as a single string.</p>
 transcribed segments to the client via a WebSocket connection.</p>
 <p>If the client’s language is not detected, it waits for 30 seconds of audio input to make a language prediction.
 It utilizes the Whisper ASR model to transcribe the audio, continuously processing and streaming results. Segments
-are sent to the client in real-time, and a history of segments is maintained to provide context.Pauses in speech 
-(no output from Whisper) are handled by showing the previous output for a set duration. A blank segment is added if 
+are sent to the client in real-time, and a history of segments is maintained to provide context.Pauses in speech
+(no output from Whisper) are handled by showing the previous output for a set duration. A blank segment is added if
 there is no speech for a specified duration to indicate a pause.</p>
 <dl class="simple">
 <dt>Raises:</dt><dd><p>Exception: If there is an issue with audio processing or WebSocket communication.</p>
@@ -139,11 +139,11 @@ there is no speech for a specified duration to indicate a pause.</p>
 <dd><p>Processes the segments from whisper. Appends all the segments to the list
 except for the last segment assuming that it is incomplete.</p>
 <p>Updates the ongoing transcript with transcribed segments, including their start and end times.
-Complete segments are appended to the transcript in chronological order. Incomplete segments 
-(assumed to be the last one) are processed to identify repeated content. If the same incomplete 
+Complete segments are appended to the transcript in chronological order. Incomplete segments
+(assumed to be the last one) are processed to identify repeated content. If the same incomplete
 segment is seen multiple times, it updates the offset and appends the segment to the transcript.
 A threshold is used to detect repeated content and ensure it is only included once in the transcript.
-The timestamp offset is updated based on the duration of processed segments. The method returns the 
+The timestamp offset is updated based on the duration of processed segments. The method returns the
 last processed segment, allowing it to be sent to the client for real-time updates.</p>
 <dl class="simple">
 <dt>Args:</dt><dd><p>segments(dict) : dictionary of segments as returned by whisper
@@ -227,7 +227,7 @@ port (int): The port number to bind the server.</p>
 <dt class="sig sig-object py" id="whisper_live.client.Client.bytes_to_float_array">
 <em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">bytes_to_float_array</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">audio_bytes</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#whisper_live.client.Client.bytes_to_float_array" title="Link to this definition">¶</a></dt>
 <dd><p>Convert audio data from bytes to a NumPy float array.</p>
-<p>It assumes that the audio data is in 16-bit PCM format. The audio data is normalized to 
+<p>It assumes that the audio data is in 16-bit PCM format. The audio data is normalized to
 have values between -1 and 1.</p>
 <dl class="simple">
 <dt>Args:</dt><dd><p>audio_bytes (bytes): Audio data in bytes.</p>
@@ -241,7 +241,7 @@ have values between -1 and 1.</p>
 <dt class="sig sig-object py" id="whisper_live.client.Client.close_websocket">
 <span class="sig-name descname"><span class="pre">close_websocket</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#whisper_live.client.Client.close_websocket" title="Link to this definition">¶</a></dt>
 <dd><p>Close the WebSocket connection and join the WebSocket thread.</p>
-<p>First attempts to close the WebSocket connection using <cite>self.client_socket.close()</cite>. After 
+<p>First attempts to close the WebSocket connection using <cite>self.client_socket.close()</cite>. After
 closing the connection, it joins the WebSocket thread to ensure proper termination.</p>
 </dd></dl>
 
@@ -286,8 +286,8 @@ language selection, and task type.</p>
 <span class="sig-name descname"><span class="pre">play_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#whisper_live.client.Client.play_file" title="Link to this definition">¶</a></dt>
 <dd><p>Play an audio file and send it to the server for processing.</p>
 <p>Reads an audio file, plays it through the audio output, and simultaneously sends
-the audio data to the server for processing. It uses PyAudio to create an audio 
-stream for playback. The audio data is read from the file in chunks, converted to 
+the audio data to the server for processing. It uses PyAudio to create an audio
+stream for playback. The audio data is read from the file in chunks, converted to
 floating-point format, and sent to the server using WebSocket communication.
 This method is typically used when you want to process pre-recorded audio and send it
 to the server in real-time.</p>
@@ -306,7 +306,7 @@ connection, and simultaneously saves it to multiple WAV files in chunks. It stop
 the <cite>RECORD_SECONDS</cite> duration is reached or when the <cite>RECORDING</cite> flag is set to <cite>False</cite>.</p>
 <p>Audio data is saved in chunks to the “chunks” directory. Each chunk is saved as a separate WAV file.
 The recording will continue until the specified duration is reached or until the <cite>RECORDING</cite> flag is set to <cite>False</cite>.
-The recording process can be interrupted by sending a KeyboardInterrupt (e.g., pressing Ctrl+C). After recording, 
+The recording process can be interrupted by sending a KeyboardInterrupt (e.g., pressing Ctrl+C). After recording,
 the method combines all the saved audio chunks into the specified <cite>out_file</cite>.</p>
 <dl class="simple">
 <dt>Args:</dt><dd><p>out_file (str, optional): The name of the output WAV file to save the entire recording. Default is “output_recording.wav”.</p>
@@ -328,7 +328,7 @@ the method combines all the saved audio chunks into the specified <cite>out_file
 <dt class="sig sig-object py" id="whisper_live.client.Client.write_audio_frames_to_file">
 <span class="sig-name descname"><span class="pre">write_audio_frames_to_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">frames</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#whisper_live.client.Client.write_audio_frames_to_file" title="Link to this definition">¶</a></dt>
 <dd><p>Write audio frames to a WAV file.</p>
-<p>The WAV file is created or overwritten with the specified name. The audio frames should be 
+<p>The WAV file is created or overwritten with the specified name. The audio frames should be
 in the correct format and match the specified channel, sample width, and sample rate.</p>
 <dl class="simple">
 <dt>Args:</dt><dd><p>frames (bytes): The audio frames to be written to the file.
@@ -341,7 +341,7 @@ file_name (str): The name of the WAV file to which the frames will be written.</
 <dt class="sig sig-object py" id="whisper_live.client.Client.write_output_recording">
 <span class="sig-name descname"><span class="pre">write_output_recording</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_audio_file</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_file</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#whisper_live.client.Client.write_output_recording" title="Link to this definition">¶</a></dt>
 <dd><p>Combine and save recorded audio chunks into a single WAV file.</p>
-<p>The individual audio chunk files are expected to be located in the “chunks” directory. Reads each chunk 
+<p>The individual audio chunk files are expected to be located in the “chunks” directory. Reads each chunk
 file, appends its audio data to the final recording, and then deletes the chunk file. After combining
 and saving, the final recording is stored in the specified <cite>out_file</cite>.</p>
 <dl class="simple">
@@ -404,7 +404,7 @@ sr (int): The sample rate to resample the audio if necessary</p>
 
 
           </div>
-          
+
         </div>
       </div>
       <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
@@ -451,18 +451,18 @@ sr (int): The sample rate to resample the audio if necessary</p>
     </div>
     <div class="footer">
       &copy;2023, Collabora.
-      
+
       |
       Powered by <a href="http://sphinx-doc.org/">Sphinx 7.2.6</a>
       &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.13</a>
-      
+
       |
       <a href="_sources/index.rst.txt"
           rel="nofollow">Page source</a>
     </div>
 
-    
 
-    
+
+
   </body>
 </html>

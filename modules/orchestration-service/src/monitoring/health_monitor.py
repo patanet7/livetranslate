@@ -6,14 +6,16 @@ Provides comprehensive health monitoring, alerting, and auto-recovery
 for backend services. Integrates with the monitoring-service configuration.
 """
 
-import time
 import logging
-import requests
 import threading
-from typing import Dict, Any, Optional, List, Callable
-from datetime import datetime
+import time
 from collections import deque
+from collections.abc import Callable
+from datetime import datetime
 from enum import Enum
+from typing import Any
+
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +47,7 @@ class HealthAlert:
         service_name: str,
         level: AlertLevel,
         message: str,
-        timestamp: Optional[datetime] = None,
+        timestamp: datetime | None = None,
     ):
         self.service_name = service_name
         self.level = level
@@ -59,7 +61,7 @@ class HealthAlert:
         self.resolved = True
         self.resolution_time = datetime.now()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             "service_name": self.service_name,
@@ -67,9 +69,7 @@ class HealthAlert:
             "message": self.message,
             "timestamp": self.timestamp.isoformat(),
             "resolved": self.resolved,
-            "resolution_time": self.resolution_time.isoformat()
-            if self.resolution_time
-            else None,
+            "resolution_time": self.resolution_time.isoformat() if self.resolution_time else None,
         }
 
 
@@ -100,8 +100,8 @@ class ServiceHealthTracker:
     def record_health_check(
         self,
         success: bool,
-        response_time: Optional[float] = None,
-        error: Optional[str] = None,
+        response_time: float | None = None,
+        error: str | None = None,
     ):
         """Record a health check result"""
         self.total_checks += 1
@@ -125,9 +125,7 @@ class ServiceHealthTracker:
             elif (
                 self.status == HealthStatus.RECOVERING
                 and self.consecutive_successes >= self.recovery_threshold * 2
-            ):
-                self.status = HealthStatus.HEALTHY
-            elif self.status == HealthStatus.UNKNOWN:
+            ) or self.status == HealthStatus.UNKNOWN:
                 self.status = HealthStatus.HEALTHY
 
             # Check for degraded performance
@@ -160,7 +158,7 @@ class ServiceHealthTracker:
             return 0.0
         return sum(self.response_times) / len(self.response_times)
 
-    def get_health_summary(self) -> Dict[str, Any]:
+    def get_health_summary(self) -> dict[str, Any]:
         """Get comprehensive health summary"""
         return {
             "name": self.name,
@@ -176,9 +174,7 @@ class ServiceHealthTracker:
             "successful_checks": self.successful_checks,
             "average_response_time": round(self.get_average_response_time(), 2),
             "recent_errors": list(self.error_history)[-5:],  # Last 5 errors
-            "response_time_trend": list(self.response_times)[
-                -10:
-            ],  # Last 10 response times
+            "response_time_trend": list(self.response_times)[-10:],  # Last 10 response times
         }
 
 
@@ -207,9 +203,9 @@ class ServiceHealthMonitor:
         self.auto_recovery = auto_recovery
 
         # Service tracking
-        self.services: Dict[str, ServiceHealthTracker] = {}
-        self.alerts: List[HealthAlert] = []
-        self.alert_callbacks: List[Callable] = []
+        self.services: dict[str, ServiceHealthTracker] = {}
+        self.alerts: list[HealthAlert] = []
+        self.alert_callbacks: list[Callable] = []
 
         # Monitoring state
         self.running = False
@@ -253,9 +249,7 @@ class ServiceHealthMonitor:
         }
 
         for service_name, config in default_services.items():
-            self.register_service(
-                service_name, config["url"], config["health_endpoint"]
-            )
+            self.register_service(service_name, config["url"], config["health_endpoint"])
 
     async def start(self):
         """Start the health monitor"""
@@ -264,9 +258,7 @@ class ServiceHealthMonitor:
                 return
 
             self.running = True
-            self._monitor_thread = threading.Thread(
-                target=self._monitoring_loop, daemon=True
-            )
+            self._monitor_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
             self._monitor_thread.start()
 
             logger.info("Service health monitor started")
@@ -345,7 +337,7 @@ class ServiceHealthMonitor:
             return False
 
     def _handle_status_change(
-        self, tracker: ServiceHealthTracker, success: bool, error: Optional[str] = None
+        self, tracker: ServiceHealthTracker, success: bool, error: str | None = None
     ):
         """Handle service status changes and generate alerts"""
         previous_status = tracker.status
@@ -401,9 +393,7 @@ class ServiceHealthMonitor:
                 self.alerts.pop(0)
 
         logger.log(
-            logging.ERROR
-            if level in [AlertLevel.ERROR, AlertLevel.CRITICAL]
-            else logging.WARNING,
+            logging.ERROR if level in [AlertLevel.ERROR, AlertLevel.CRITICAL] else logging.WARNING,
             f"Health Alert [{level.value.upper()}] {service_name}: {message}",
         )
 
@@ -446,7 +436,7 @@ class ServiceHealthMonitor:
             f"Auto-recovery attempted for service {tracker.name}",
         )
 
-    def get_all_service_status(self) -> Dict[str, Any]:
+    def get_all_service_status(self) -> dict[str, Any]:
         """Get status of all monitored services"""
         with self._lock:
             service_statuses = {}
@@ -488,13 +478,13 @@ class ServiceHealthMonitor:
                 "timestamp": time.time(),
             }
 
-    def get_recent_alerts(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_recent_alerts(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get recent alerts"""
         with self._lock:
             recent_alerts = self.alerts[-limit:] if limit else self.alerts
             return [alert.to_dict() for alert in reversed(recent_alerts)]
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get health monitor metrics"""
         with self._lock:
             uptime = time.time() - self.start_time
@@ -506,14 +496,13 @@ class ServiceHealthMonitor:
                     self.metrics["total_health_checks"] / max(uptime / 60, 1)
                 ),
                 "alert_rate": (
-                    self.metrics["alerts_generated"]
-                    / max(uptime / 3600, 1)  # alerts per hour
+                    self.metrics["alerts_generated"] / max(uptime / 3600, 1)  # alerts per hour
                 ),
                 "monitored_services": len(self.services),
                 "active_alerts": len([a for a in self.alerts if not a.resolved]),
             }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get health monitor status"""
         return {
             "component": "health_monitor",

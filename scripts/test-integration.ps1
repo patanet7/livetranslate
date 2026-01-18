@@ -79,7 +79,7 @@ function Test-ServiceHealth {
         [int]$ExpectedStatus = 200,
         [int]$TimeoutSeconds = 30
     )
-    
+
     try {
         $response = Invoke-WebRequest -Uri $Url -TimeoutSec $TimeoutSeconds -UseBasicParsing
         if ($response.StatusCode -eq $ExpectedStatus) {
@@ -97,7 +97,7 @@ function Test-ServiceHealth {
 
 function Test-ServiceCommunication {
     Write-Host "`nTesting service-to-service communication..." -ForegroundColor Cyan
-    
+
     # Test Translation Service Redis connection
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:5003/api/status" -UseBasicParsing -TimeoutSec 10
@@ -107,7 +107,7 @@ function Test-ServiceCommunication {
     } catch {
         Write-Host "[WARN] Translation Service Redis status check failed" -ForegroundColor Yellow
     }
-    
+
     # Test Whisper Service model loading
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:5001/api/status" -UseBasicParsing -TimeoutSec 10
@@ -117,7 +117,7 @@ function Test-ServiceCommunication {
     } catch {
         Write-Host "[WARN] Whisper Service model status check failed" -ForegroundColor Yellow
     }
-    
+
     # Test Frontend to Backend communication
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:3000/api/services" -UseBasicParsing -TimeoutSec 10
@@ -131,14 +131,14 @@ function Test-ServiceCommunication {
 
 function Test-NetworkConnectivity {
     Write-Host "`nTesting Docker network connectivity..." -ForegroundColor Cyan
-    
+
     $networks = @(
         "livetranslate-frontend",
-        "livetranslate-backend", 
+        "livetranslate-backend",
         "livetranslate-data",
         "livetranslate-monitoring"
     )
-    
+
     foreach ($network in $networks) {
         try {
             $networkInfo = docker network inspect $network 2>$null | ConvertFrom-Json
@@ -154,7 +154,7 @@ function Test-NetworkConnectivity {
 
 function Test-VolumeIntegrity {
     Write-Host "`nTesting Docker volume integrity..." -ForegroundColor Cyan
-    
+
     $volumes = @(
         "livetranslate-postgres-data",
         "livetranslate-redis-data",
@@ -168,7 +168,7 @@ function Test-VolumeIntegrity {
         "livetranslate-loki-data",
         "livetranslate-logs"
     )
-    
+
     foreach ($volume in $volumes) {
         try {
             $volumeInfo = docker volume inspect $volume 2>$null | ConvertFrom-Json
@@ -236,4 +236,4 @@ if ($coreServicesHealthy -and $monitoringHealthy) {
 } else {
     Write-Host "`nIntegration test completed with failures!" -ForegroundColor Red
     exit 1
-} 
+}

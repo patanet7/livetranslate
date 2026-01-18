@@ -346,4 +346,3 @@ Replace SimulStreaming with standard Whisper + sliding window:
 **Analysis completed**: 2025-10-29  
 **Confidence level**: HIGH (Evidence-based, specific code references)  
 **Next action**: Choose an option from "Recommended Next Steps" above
-

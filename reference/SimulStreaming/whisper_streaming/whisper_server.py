@@ -48,7 +48,7 @@ class Connection:
 import io
 import soundfile
 
-# wraps socket and ASR object, and serves one client connection. 
+# wraps socket and ASR object, and serves one client connection.
 # next client should be served by a new instance of this object
 class ServerProcessor:
 
@@ -114,7 +114,7 @@ class ServerProcessor:
 
 def main_server(factory, add_args):
     '''
-    factory: function that creates the ASR and online processor object from args and logger.  
+    factory: function that creates the ASR and online processor object from args and logger.
             or in the default WhisperStreaming local agreement backends (not implemented but could be).
     add_args: add specific args for the backend
     '''
@@ -124,7 +124,7 @@ def main_server(factory, add_args):
     # server options
     parser.add_argument("--host", type=str, default='localhost')
     parser.add_argument("--port", type=int, default=43007)
-    parser.add_argument("--warmup-file", type=str, dest="warmup_file", 
+    parser.add_argument("--warmup-file", type=str, dest="warmup_file",
             help="The path to a speech audio wav file to warm up Whisper so that the very first chunk processing is fast. It can be e.g. "
             "https://github.com/ggerganov/whisper.cpp/raw/master/samples/jfk.wav .")
 
@@ -137,7 +137,7 @@ def main_server(factory, add_args):
 
     set_logging(args,logger)
 
-    # setting whisper object by args 
+    # setting whisper object by args
 
 
     asr, online = asr_factory(args, factory)
@@ -146,7 +146,7 @@ def main_server(factory, add_args):
     else:
         min_chunk = args.min_chunk_size
 
-    # warm up the ASR because the very first transcribe takes more time than the others. 
+    # warm up the ASR because the very first transcribe takes more time than the others.
     # Test results in https://github.com/ufal/whisper_streaming/pull/81
     msg = "Whisper is not warmed up. The first chunk processing may take longer."
     if args.warmup_file:

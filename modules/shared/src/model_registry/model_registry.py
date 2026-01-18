@@ -18,10 +18,10 @@ Usage:
     info = ModelRegistry.get_whisper_model_info("whisper-base")
 """
 
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Set, Tuple
-import logging
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,10 @@ logger = logging.getLogger(__name__)
 # WHISPER MODELS
 # =============================================================================
 
+
 class WhisperModelSize(Enum):
     """Whisper model size categories."""
+
     TINY = "tiny"
     BASE = "base"
     SMALL = "small"
@@ -43,6 +45,7 @@ class WhisperModelSize(Enum):
 @dataclass
 class WhisperModelInfo:
     """Information about a Whisper model."""
+
     canonical_name: str
     size: WhisperModelSize
     parameters: str  # e.g., "39M", "74M", "244M"
@@ -50,13 +53,13 @@ class WhisperModelInfo:
     relative_speed: float  # 1.0 = base speed, higher = faster
     vram_gb: float  # Approximate VRAM requirement
     description: str
-    aliases: List[str] = field(default_factory=list)
+    aliases: list[str] = field(default_factory=list)
     deprecated: bool = False
-    recommended_for: List[str] = field(default_factory=list)
+    recommended_for: list[str] = field(default_factory=list)
 
 
 # Canonical Whisper model definitions
-WHISPER_MODELS: Dict[str, WhisperModelInfo] = {
+WHISPER_MODELS: dict[str, WhisperModelInfo] = {
     # Tiny models
     "whisper-tiny": WhisperModelInfo(
         canonical_name="whisper-tiny",
@@ -80,7 +83,6 @@ WHISPER_MODELS: Dict[str, WhisperModelInfo] = {
         aliases=["tiny.en", "whisper_tiny_en"],
         recommended_for=["english-only", "real-time"],
     ),
-
     # Base models
     "whisper-base": WhisperModelInfo(
         canonical_name="whisper-base",
@@ -104,7 +106,6 @@ WHISPER_MODELS: Dict[str, WhisperModelInfo] = {
         aliases=["base.en", "whisper_base_en"],
         recommended_for=["english-only"],
     ),
-
     # Small models
     "whisper-small": WhisperModelInfo(
         canonical_name="whisper-small",
@@ -128,7 +129,6 @@ WHISPER_MODELS: Dict[str, WhisperModelInfo] = {
         aliases=["small.en", "whisper_small_en"],
         recommended_for=["english-only", "production"],
     ),
-
     # Medium models
     "whisper-medium": WhisperModelInfo(
         canonical_name="whisper-medium",
@@ -152,7 +152,6 @@ WHISPER_MODELS: Dict[str, WhisperModelInfo] = {
         aliases=["medium.en", "whisper_medium_en"],
         recommended_for=["english-only", "high-accuracy"],
     ),
-
     # Large models
     "whisper-large": WhisperModelInfo(
         canonical_name="whisper-large",
@@ -188,7 +187,6 @@ WHISPER_MODELS: Dict[str, WhisperModelInfo] = {
         aliases=["large-v3", "largev3", "whisper_large_v3", "openai/whisper-large-v3", "v3"],
         recommended_for=["maximum-accuracy", "production-critical"],
     ),
-
     # Turbo models (distilled)
     "whisper-large-v3-turbo": WhisperModelInfo(
         canonical_name="whisper-large-v3-turbo",
@@ -199,15 +197,18 @@ WHISPER_MODELS: Dict[str, WhisperModelInfo] = {
         vram_gb=6.0,
         description="Distilled v3 model. Near-v3 accuracy at 8x speed.",
         aliases=[
-            "large-v3-turbo", "v3-turbo", "turbo",
-            "whisper_large_v3_turbo", "openai/whisper-large-v3-turbo"
+            "large-v3-turbo",
+            "v3-turbo",
+            "turbo",
+            "whisper_large_v3_turbo",
+            "openai/whisper-large-v3-turbo",
         ],
         recommended_for=["production", "real-time-gpu", "best-tradeoff"],
     ),
 }
 
 # Build alias lookup table
-_WHISPER_ALIAS_MAP: Dict[str, str] = {}
+_WHISPER_ALIAS_MAP: dict[str, str] = {}
 for canonical, info in WHISPER_MODELS.items():
     _WHISPER_ALIAS_MAP[canonical.lower()] = canonical
     for alias in info.aliases:
@@ -218,8 +219,10 @@ for canonical, info in WHISPER_MODELS.items():
 # TRANSLATION BACKENDS & MODELS
 # =============================================================================
 
+
 class TranslationBackend(Enum):
     """Supported translation backends."""
+
     OLLAMA = "ollama"
     VLLM = "vllm"
     GROQ = "groq"
@@ -230,18 +233,19 @@ class TranslationBackend(Enum):
 @dataclass
 class TranslationModelInfo:
     """Information about a translation model."""
+
     canonical_name: str
     backend: TranslationBackend
     parameters: str
     context_length: int
     description: str
-    aliases: List[str] = field(default_factory=list)
+    aliases: list[str] = field(default_factory=list)
     requires_api_key: bool = False
-    recommended_for: List[str] = field(default_factory=list)
+    recommended_for: list[str] = field(default_factory=list)
 
 
 # Common translation models per backend
-TRANSLATION_MODELS: Dict[str, TranslationModelInfo] = {
+TRANSLATION_MODELS: dict[str, TranslationModelInfo] = {
     # Ollama models
     "ollama:mistral:latest": TranslationModelInfo(
         canonical_name="mistral:latest",
@@ -279,7 +283,6 @@ TRANSLATION_MODELS: Dict[str, TranslationModelInfo] = {
         aliases=["gemma3", "gemma"],
         recommended_for=["efficient", "general"],
     ),
-
     # Groq models
     "groq:llama-3.1-8b-instant": TranslationModelInfo(
         canonical_name="llama-3.1-8b-instant",
@@ -291,7 +294,6 @@ TRANSLATION_MODELS: Dict[str, TranslationModelInfo] = {
         requires_api_key=True,
         recommended_for=["speed-critical", "cloud"],
     ),
-
     # OpenAI models
     "openai:gpt-4o-mini": TranslationModelInfo(
         canonical_name="gpt-4o-mini",
@@ -310,6 +312,7 @@ TRANSLATION_MODELS: Dict[str, TranslationModelInfo] = {
 # MODEL REGISTRY CLASS
 # =============================================================================
 
+
 class ModelRegistry:
     """
     Central registry for all model names, aliases, and validation.
@@ -325,8 +328,8 @@ class ModelRegistry:
     DEFAULT_TRANSLATION_MODEL = "mistral:latest"
 
     # Fallback chains
-    WHISPER_FALLBACK_CHAIN = ["whisper-base", "whisper-tiny"]
-    TRANSLATION_FALLBACK_CHAIN = ["mistral:latest", "llama3.1:8b"]
+    WHISPER_FALLBACK_CHAIN: ClassVar[list[str]] = ["whisper-base", "whisper-tiny"]
+    TRANSLATION_FALLBACK_CHAIN: ClassVar[list[str]] = ["mistral:latest", "llama3.1:8b"]
 
     # ==========================================================================
     # WHISPER MODEL METHODS
@@ -391,7 +394,7 @@ class ModelRegistry:
         return normalized in _WHISPER_ALIAS_MAP or f"whisper-{normalized}" in _WHISPER_ALIAS_MAP
 
     @classmethod
-    def get_whisper_model_info(cls, model_name: str) -> Optional[WhisperModelInfo]:
+    def get_whisper_model_info(cls, model_name: str) -> WhisperModelInfo | None:
         """
         Get detailed information about a Whisper model.
 
@@ -408,7 +411,7 @@ class ModelRegistry:
             return None
 
     @classmethod
-    def get_all_whisper_models(cls, include_deprecated: bool = False) -> List[str]:
+    def get_all_whisper_models(cls, include_deprecated: bool = False) -> list[str]:
         """
         Get list of all available Whisper model names.
 
@@ -419,24 +422,23 @@ class ModelRegistry:
             List of canonical model names
         """
         return [
-            name for name, info in WHISPER_MODELS.items()
+            name
+            for name, info in WHISPER_MODELS.items()
             if include_deprecated or not info.deprecated
         ]
 
     @classmethod
-    def get_whisper_models_by_size(cls, size: WhisperModelSize) -> List[str]:
+    def get_whisper_models_by_size(cls, size: WhisperModelSize) -> list[str]:
         """Get all models of a specific size."""
         return [
-            name for name, info in WHISPER_MODELS.items()
+            name
+            for name, info in WHISPER_MODELS.items()
             if info.size == size and not info.deprecated
         ]
 
     @classmethod
     def get_recommended_whisper_model(
-        cls,
-        use_case: str = "default",
-        gpu_available: bool = False,
-        real_time: bool = False
+        cls, use_case: str = "default", gpu_available: bool = False, real_time: bool = False
     ) -> str:
         """
         Get recommended Whisper model for a use case.
@@ -464,10 +466,8 @@ class ModelRegistry:
 
     @classmethod
     def normalize_translation_model(
-        cls,
-        model_name: str,
-        backend: Optional[TranslationBackend] = None
-    ) -> Tuple[str, TranslationBackend]:
+        cls, model_name: str, backend: TranslationBackend | None = None
+    ) -> tuple[str, TranslationBackend]:
         """
         Normalize a translation model name.
 
@@ -499,22 +499,17 @@ class ModelRegistry:
 
     @classmethod
     def get_translation_model_info(
-        cls,
-        model_name: str,
-        backend: TranslationBackend
-    ) -> Optional[TranslationModelInfo]:
+        cls, model_name: str, backend: TranslationBackend
+    ) -> TranslationModelInfo | None:
         """Get information about a translation model."""
         key = f"{backend.value}:{model_name}"
         return TRANSLATION_MODELS.get(key)
 
     @classmethod
-    def get_all_translation_models(
-        cls,
-        backend: Optional[TranslationBackend] = None
-    ) -> List[str]:
+    def get_all_translation_models(cls, backend: TranslationBackend | None = None) -> list[str]:
         """Get all translation models, optionally filtered by backend."""
         models = []
-        for key, info in TRANSLATION_MODELS.items():
+        for _key, info in TRANSLATION_MODELS.items():
             if backend is None or info.backend == backend:
                 models.append(info.canonical_name)
         return models
@@ -526,10 +521,10 @@ class ModelRegistry:
     @classmethod
     def validate_model_config(
         cls,
-        whisper_model: Optional[str] = None,
-        translation_model: Optional[str] = None,
-        translation_backend: Optional[str] = None
-    ) -> Dict[str, any]:
+        whisper_model: str | None = None,
+        translation_model: str | None = None,
+        translation_backend: str | None = None,
+    ) -> dict[str, any]:
         """
         Validate and normalize a complete model configuration.
 
@@ -555,32 +550,23 @@ class ModelRegistry:
                 result["whisper_model"] = cls.normalize_whisper_model(whisper_model)
                 info = cls.get_whisper_model_info(whisper_model)
                 if info and info.deprecated:
-                    result["warnings"].append(
-                        f"Whisper model '{whisper_model}' is deprecated"
-                    )
+                    result["warnings"].append(f"Whisper model '{whisper_model}' is deprecated")
             else:
                 result["valid"] = False
-                result["warnings"].append(
-                    f"Unknown Whisper model '{whisper_model}'"
-                )
+                result["warnings"].append(f"Unknown Whisper model '{whisper_model}'")
 
         # Validate translation backend
         if translation_backend:
             try:
-                result["translation_backend"] = TranslationBackend(
-                    translation_backend.lower()
-                )
+                result["translation_backend"] = TranslationBackend(translation_backend.lower())
             except ValueError:
                 result["valid"] = False
-                result["warnings"].append(
-                    f"Unknown translation backend '{translation_backend}'"
-                )
+                result["warnings"].append(f"Unknown translation backend '{translation_backend}'")
 
         # Validate translation model
         if translation_model:
             model, backend = cls.normalize_translation_model(
-                translation_model,
-                result.get("translation_backend")
+                translation_model, result.get("translation_backend")
             )
             result["translation_model"] = model
             result["translation_backend"] = backend
@@ -588,7 +574,7 @@ class ModelRegistry:
         return result
 
     @classmethod
-    def get_model_summary(cls) -> Dict[str, any]:
+    def get_model_summary(cls) -> dict[str, any]:
         """Get a summary of all available models."""
         return {
             "whisper": {
@@ -613,6 +599,7 @@ class ModelRegistry:
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
+
 def normalize_whisper_model(model_name: str) -> str:
     """Convenience function for ModelRegistry.normalize_whisper_model."""
     return ModelRegistry.normalize_whisper_model(model_name)
@@ -623,11 +610,11 @@ def is_valid_whisper_model(model_name: str) -> bool:
     return ModelRegistry.is_valid_whisper_model(model_name)
 
 
-def get_whisper_fallback_chain() -> List[str]:
+def get_whisper_fallback_chain() -> list[str]:
     """Get the default Whisper model fallback chain."""
     return ModelRegistry.WHISPER_FALLBACK_CHAIN.copy()
 
 
-def get_translation_fallback_chain() -> List[str]:
+def get_translation_fallback_chain() -> list[str]:
     """Get the default translation model fallback chain."""
     return ModelRegistry.TRANSLATION_FALLBACK_CHAIN.copy()

@@ -13,7 +13,7 @@ New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
 # Define critical volumes to backup
 $CriticalVolumes = @(
     "livetranslate-postgres-data",
-    "livetranslate-redis-data", 
+    "livetranslate-redis-data",
     "livetranslate-sessions",
     "livetranslate-models-whisper",
     "livetranslate-models-speaker",
@@ -34,17 +34,17 @@ function Backup-Volume {
         [string]$BackupPath,
         [bool]$Critical = $true
     )
-    
+
     $BackupFile = Join-Path $BackupPath "$VolumeName.tar.gz"
     $Priority = if ($Critical) { "CRITICAL" } else { "OPTIONAL" }
-    
+
     Write-Host "[$Priority] Backing up volume: $VolumeName" -ForegroundColor $(if ($Critical) { "Yellow" } else { "Cyan" })
-    
+
     try {
         # Create backup using Alpine container
         $Command = "docker run --rm -v ${VolumeName}:/data -v ${BackupPath}:/backup alpine tar czf /backup/$VolumeName.tar.gz -C /data ."
         Invoke-Expression $Command
-        
+
         if (Test-Path $BackupFile) {
             $Size = (Get-Item $BackupFile).Length / 1MB
             Write-Host "  ✅ Backup completed: $BackupFile ($([math]::Round($Size, 2)) MB)" -ForegroundColor Green
@@ -123,4 +123,4 @@ Write-Host "📋 Manifest file: $ManifestFile" -ForegroundColor Green
 # Display backup summary
 $TotalSize = (Get-ChildItem -Path $BackupDir -Filter "*.tar.gz" | Measure-Object -Property Length -Sum).Sum / 1MB
 Write-Host "📊 Total backup size: $([math]::Round($TotalSize, 2)) MB" -ForegroundColor Green
-Write-Host "📦 Files backed up: $($Manifest.backup_files.Count)" -ForegroundColor Green 
+Write-Host "📦 Files backed up: $($Manifest.backup_files.Count)" -ForegroundColor Green

@@ -14,8 +14,8 @@ import logging
 import os
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 try:
     import redis.asyncio as redis
@@ -30,7 +30,7 @@ def _env(name: str, default: str) -> str:
     return os.getenv(name, default)
 
 
-DEFAULT_STREAMS: Dict[str, str] = {
+DEFAULT_STREAMS: dict[str, str] = {
     "audio_ingest": _env("EVENT_STREAM_AUDIO", "stream:audio-ingest"),
     "audio_results": _env("EVENT_STREAM_AUDIO_RESULTS", "stream:audio-results"),
     "config_sync": _env("EVENT_STREAM_CONFIG", "stream:config-sync"),
@@ -45,9 +45,9 @@ class QueuePublishResult:
 
     succeeded: bool
     stream: str
-    message_id: Optional[str] = None
-    error: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    message_id: str | None = None
+    error: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class EventPublisher:
@@ -55,17 +55,17 @@ class EventPublisher:
 
     def __init__(
         self,
-        redis_url: Optional[str],
-        streams: Optional[Dict[str, str]] = None,
+        redis_url: str | None,
+        streams: dict[str, str] | None = None,
         *,
         enabled: bool = True,
-        maxlen: Optional[int] = None,
+        maxlen: int | None = None,
     ):
         self.redis_url = redis_url
         self.streams = streams or DEFAULT_STREAMS
         self.enabled = enabled and bool(redis_url) and redis is not None
         self.maxlen = maxlen or int(_env("EVENT_STREAM_MAXLEN", "1000"))
-        self._client: Optional[redis.Redis] = None  # type: ignore[assignment]
+        self._client: redis.Redis | None = None  # type: ignore[assignment]
 
         if not self.enabled:
             logger.debug(
@@ -74,7 +74,7 @@ class EventPublisher:
                 redis is not None,
             )
 
-    async def _get_client(self) -> Optional["redis.Redis"]:
+    async def _get_client(self) -> redis.Redis | None:
         if not self.enabled:
             return None
         if self._client is None:
@@ -88,7 +88,7 @@ class EventPublisher:
                 self.enabled = False
         return self._client
 
-    def stream(self, alias: str, fallback: Optional[str] = None) -> str:
+    def stream(self, alias: str, fallback: str | None = None) -> str:
         """Translate logical stream alias to real stream name."""
         return self.streams.get(alias, fallback or alias)
 
@@ -96,11 +96,11 @@ class EventPublisher:
         self,
         alias: str,
         event_type: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         *,
         source: str = "orchestration-api",
-        stream_override: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        stream_override: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> QueuePublishResult:
         """
         Publish an event to the configured stream.
@@ -130,7 +130,7 @@ class EventPublisher:
             "event_id": str(uuid.uuid4()),
             "event_type": event_type,
             "source": source,
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+            "timestamp": datetime.now(tz=UTC).isoformat(),
             "payload": payload,
         }
         if metadata:
@@ -143,18 +143,14 @@ class EventPublisher:
                 maxlen=self.maxlen,
                 approximate=True,
             )
-            logger.debug(
-                "Published event %s to %s (%s)", event_type, stream_name, message_id
-            )
+            logger.debug("Published event %s to %s (%s)", event_type, stream_name, message_id)
             return QueuePublishResult(
                 succeeded=True,
                 stream=stream_name,
                 message_id=message_id,
             )
         except Exception as exc:
-            logger.warning(
-                "Failed to publish event %s to %s: %s", event_type, stream_name, exc
-            )
+            logger.warning("Failed to publish event %s to %s: %s", event_type, stream_name, exc)
             return QueuePublishResult(
                 succeeded=False,
                 stream=stream_name,

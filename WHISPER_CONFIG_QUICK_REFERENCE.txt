@@ -142,13 +142,13 @@ beam_size=1 (Greedy):
   ✅ Lowest memory
   ✅ Best for real-time streaming
   ⚠️  Slightly lower quality (vs beam=5)
-  
+
 beam_size=2 (Small Beam):
   ❌ 2x slower than greedy
   ❌ 2x memory usage
   ❌ No significant quality gain (beam too small)
   ❌ Worst of both worlds
-  
+
 beam_size=5 (Quality Beam):
   ❌ 5x slower than greedy
   ❌ 5x memory usage

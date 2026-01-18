@@ -31,11 +31,12 @@ Usage:
 """
 
 import asyncio
-import numpy as np
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -47,13 +48,14 @@ class StreamingSession:
 
     Manages audio buffering and processing state for one connection
     """
+
     session_id: str
-    config: Dict[str, Any]
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    config: dict[str, Any]
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Audio buffering
     audio_buffer: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float32))
-    buffer_start_time: Optional[datetime] = None
+    buffer_start_time: datetime | None = None
 
     # Processing state
     total_audio_processed: float = 0.0  # Seconds
@@ -62,7 +64,7 @@ class StreamingSession:
 
     # Statistics
     chunks_received: int = 0
-    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def add_audio(self, audio_chunk: np.ndarray, timestamp: datetime):
         """
@@ -78,7 +80,7 @@ class StreamingSession:
         # Append to buffer
         self.audio_buffer = np.concatenate([self.audio_buffer, audio_chunk])
         self.chunks_received += 1
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = datetime.now(UTC)
 
         logger.debug(
             f"Session {self.session_id}: Added {len(audio_chunk)} samples, "
@@ -97,7 +99,7 @@ class StreamingSession:
         """
         return len(self.audio_buffer) / sample_rate
 
-    def consume_buffer(self, num_samples: Optional[int] = None) -> np.ndarray:
+    def consume_buffer(self, num_samples: int | None = None) -> np.ndarray:
         """
         Consume audio from buffer (removes from buffer after extraction)
 
@@ -138,16 +140,12 @@ class StreamSessionManager:
             model_manager: ModelManager instance for transcription
         """
         self.model_manager = model_manager
-        self.sessions: Dict[str, StreamingSession] = {}
+        self.sessions: dict[str, StreamingSession] = {}
         self._session_lock = asyncio.Lock()
 
         logger.info("StreamSessionManager initialized")
 
-    async def create_session(
-        self,
-        session_id: str,
-        config: Dict[str, Any]
-    ) -> StreamingSession:
+    async def create_session(self, session_id: str, config: dict[str, Any]) -> StreamingSession:
         """
         Create a new streaming session
 
@@ -178,10 +176,7 @@ class StreamSessionManager:
                 logger.warning(f"Session {session_id} already exists, replacing")
                 await self.close_session(session_id)
 
-            session = StreamingSession(
-                session_id=session_id,
-                config=config
-            )
+            session = StreamingSession(session_id=session_id, config=config)
 
             self.sessions[session_id] = session
 
@@ -192,7 +187,7 @@ class StreamSessionManager:
 
             return session
 
-    def get_session(self, session_id: str) -> Optional[StreamingSession]:
+    def get_session(self, session_id: str) -> StreamingSession | None:
         """
         Get session by ID
 
@@ -205,10 +200,7 @@ class StreamSessionManager:
         return self.sessions.get(session_id)
 
     async def add_audio_chunk(
-        self,
-        session_id: str,
-        audio_data: bytes,
-        timestamp: datetime
+        self, session_id: str, audio_data: bytes, timestamp: datetime
     ) -> bool:
         """
         Add audio chunk to session buffer
@@ -235,10 +227,8 @@ class StreamSessionManager:
         return True
 
     async def process_session(
-        self,
-        session_id: str,
-        sample_rate: int = 16000
-    ) -> List[Dict[str, Any]]:
+        self, session_id: str, sample_rate: int = 16000
+    ) -> list[dict[str, Any]]:
         """
         Process buffered audio and generate segments
 
@@ -302,19 +292,16 @@ class StreamSessionManager:
             else:
                 logger.warning(f"Session {session_id} not found for closure")
 
-    def get_active_sessions(self) -> List[str]:
+    def get_active_sessions(self) -> list[str]:
         """
         Get list of active session IDs
 
         Returns:
             List[str]: Active session IDs
         """
-        return [
-            sid for sid, session in self.sessions.items()
-            if session.is_active
-        ]
+        return [sid for sid, session in self.sessions.items() if session.is_active]
 
-    def get_session_stats(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session_stats(self, session_id: str) -> dict[str, Any] | None:
         """
         Get session statistics
 
@@ -337,7 +324,7 @@ class StreamSessionManager:
             "segment_count": session.segment_count,
             "buffer_size": len(session.audio_buffer),
             "buffered_duration": session.get_buffered_duration(),
-            "last_activity": session.last_activity.isoformat()
+            "last_activity": session.last_activity.isoformat(),
         }
 
 
@@ -354,12 +341,11 @@ if __name__ == "__main__":
         # Test 1: Create session
         print("\n[TEST 1] Create session:")
         session = await manager.create_session(
-            session_id="test-session-1",
-            config={"model": "large-v3", "language": "en"}
+            session_id="test-session-1", config={"model": "large-v3", "language": "en"}
         )
         print(f"  Created: {session.session_id}")
         print(f"  Config: {session.config}")
-        print(f"  ✅ Session creation working")
+        print("  ✅ Session creation working")
 
         # Test 2: Add audio
         print("\n[TEST 2] Add audio chunks:")
@@ -367,29 +353,27 @@ if __name__ == "__main__":
         audio_bytes = test_audio.tobytes()
 
         await manager.add_audio_chunk(
-            session_id="test-session-1",
-            audio_data=audio_bytes,
-            timestamp=datetime.now(timezone.utc)
+            session_id="test-session-1", audio_data=audio_bytes, timestamp=datetime.now(UTC)
         )
 
         stats = manager.get_session_stats("test-session-1")
         print(f"  Chunks received: {stats['chunks_received']}")
         print(f"  Buffer size: {stats['buffer_size']} samples")
         print(f"  Buffered duration: {stats['buffered_duration']:.2f}s")
-        print(f"  ✅ Audio buffering working")
+        print("  ✅ Audio buffering working")
 
         # Test 3: Get active sessions
         print("\n[TEST 3] Active sessions:")
         active = manager.get_active_sessions()
         print(f"  Active sessions: {active}")
-        print(f"  ✅ Session listing working")
+        print("  ✅ Session listing working")
 
         # Test 4: Close session
         print("\n[TEST 4] Close session:")
         await manager.close_session("test-session-1")
         active_after = manager.get_active_sessions()
         print(f"  Active after close: {active_after}")
-        print(f"  ✅ Session cleanup working")
+        print("  ✅ Session cleanup working")
 
         print("\n" + "=" * 50)
         print("✅ Stream Session Manager Test Complete")

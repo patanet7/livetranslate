@@ -1,22 +1,22 @@
 # Minimal dependencies for Triton-based translation service
 # Triton container already includes most ML dependencies
 
+
+# HTTP client for Triton communication
+aiohttp>=3.8.0
 # Essential web framework
 flask>=2.3.0
 flask-cors>=4.0.0
 
-# HTTP client for Triton communication
-aiohttp>=3.8.0
-requests>=2.31.0
-
 # Language detection
 langdetect>=1.0.9
 
+# Basic testing
+pytest>=7.0.0
+
 # Configuration
 python-dotenv>=1.0.0
+requests>=2.31.0
 
 # Triton client (HTTP only, no CUDA dependencies)
 tritonclient[http]>=2.40.0
-
-# Basic testing
-pytest>=7.0.0

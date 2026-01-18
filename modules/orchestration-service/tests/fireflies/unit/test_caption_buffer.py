@@ -17,15 +17,16 @@ Test Categories:
 6. Edge Cases - Boundary conditions
 """
 
-import pytest
-import time
+import contextlib
 import threading
+import time
 from collections import OrderedDict
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
 
 # =============================================================================
 # Test-Local Implementation
@@ -33,8 +34,16 @@ from uuid import uuid4
 # We define test-local versions to avoid import chain issues.
 
 DEFAULT_SPEAKER_COLORS = [
-    "#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336",
-    "#00BCD4", "#E91E63", "#FFEB3B", "#795548", "#607D8B",
+    "#4CAF50",
+    "#2196F3",
+    "#FF9800",
+    "#9C27B0",
+    "#F44336",
+    "#00BCD4",
+    "#E91E63",
+    "#FFEB3B",
+    "#795548",
+    "#607D8B",
 ]
 
 DEFAULT_CAPTION_DURATION_SECONDS = 8.0
@@ -47,7 +56,7 @@ class Caption:
     """A single caption entry for display."""
 
     id: str
-    original_text: Optional[str]
+    original_text: str | None
     translated_text: str
     speaker_name: str
     speaker_color: str
@@ -59,18 +68,18 @@ class Caption:
 
     @property
     def is_expired(self) -> bool:
-        return datetime.now(timezone.utc) >= self.expires_at
+        return datetime.now(UTC) >= self.expires_at
 
     @property
     def time_remaining_seconds(self) -> float:
-        remaining = (self.expires_at - datetime.now(timezone.utc)).total_seconds()
+        remaining = (self.expires_at - datetime.now(UTC)).total_seconds()
         return max(0.0, remaining)
 
     @property
     def display_duration_seconds(self) -> float:
         return (self.expires_at - self.created_at).total_seconds()
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "id": self.id,
             "original_text": self.original_text,
@@ -94,7 +103,7 @@ class CaptionBufferStats:
     speakers_seen: int = 0
     current_caption_count: int = 0
     average_display_time_seconds: float = 0.0
-    last_caption_time: Optional[datetime] = None
+    last_caption_time: datetime | None = None
 
 
 class CaptionBuffer:
@@ -105,10 +114,10 @@ class CaptionBuffer:
         max_captions: int = DEFAULT_MAX_CAPTIONS,
         default_duration: float = DEFAULT_CAPTION_DURATION_SECONDS,
         min_display_time: float = DEFAULT_MIN_DISPLAY_TIME_SECONDS,
-        speaker_colors: Optional[List[str]] = None,
+        speaker_colors: list[str] | None = None,
         show_original: bool = True,
-        on_caption_added: Optional[Callable[[Caption], None]] = None,
-        on_caption_expired: Optional[Callable[[Caption], None]] = None,
+        on_caption_added: Callable[[Caption], None] | None = None,
+        on_caption_expired: Callable[[Caption], None] | None = None,
     ):
         self.max_captions = max_captions
         self.default_duration = default_duration
@@ -119,7 +128,7 @@ class CaptionBuffer:
         self.on_caption_expired = on_caption_expired
 
         self._captions: OrderedDict[str, Caption] = OrderedDict()
-        self._speaker_color_map: Dict[str, str] = {}
+        self._speaker_color_map: dict[str, str] = {}
         self._next_color_index: int = 0
         self._stats = CaptionBufferStats()
         self._lock = threading.RLock()
@@ -128,19 +137,19 @@ class CaptionBuffer:
         self,
         translated_text: str,
         speaker_name: str,
-        original_text: Optional[str] = None,
+        original_text: str | None = None,
         target_language: str = "es",
         confidence: float = 1.0,
-        duration: Optional[float] = None,
+        duration: float | None = None,
         priority: int = 0,
-        caption_id: Optional[str] = None,
+        caption_id: str | None = None,
     ) -> Caption:
         with self._lock:
             speaker_color = self._get_speaker_color(speaker_name)
             actual_duration = duration if duration is not None else self.default_duration
             actual_duration += priority * 2.0
 
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             caption = Caption(
                 id=caption_id or str(uuid4()),
                 original_text=original_text if self.show_original else None,
@@ -164,19 +173,17 @@ class CaptionBuffer:
             self._stats.last_caption_time = now
 
             if self.on_caption_added:
-                try:
+                with contextlib.suppress(Exception):
                     self.on_caption_added(caption)
-                except Exception:
-                    pass
 
             return caption
 
-    def get_active_captions(self) -> List[Caption]:
+    def get_active_captions(self) -> list[Caption]:
         with self._lock:
             self._cleanup_expired_internal()
             return list(self._captions.values())
 
-    def get_caption(self, caption_id: str) -> Optional[Caption]:
+    def get_caption(self, caption_id: str) -> Caption | None:
         with self._lock:
             caption = self._captions.get(caption_id)
             if caption and not caption.is_expired:
@@ -210,7 +217,7 @@ class CaptionBuffer:
                 return True
             return False
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         with self._lock:
             self._stats.current_caption_count = len(self._captions)
             self._stats.speakers_seen = len(self._speaker_color_map)
@@ -244,14 +251,14 @@ class CaptionBuffer:
             self._speaker_color_map.clear()
             self._next_color_index = 0
 
-    def get_display_dict(self) -> Dict:
+    def get_display_dict(self) -> dict:
         with self._lock:
             captions = self.get_active_captions()
             return {
                 "captions": [c.to_dict() for c in captions],
                 "count": len(captions),
                 "max_captions": self.max_captions,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
     def __len__(self) -> int:
@@ -268,7 +275,7 @@ class CaptionBuffer:
             self._next_color_index += 1
         return self._speaker_color_map[speaker_name]
 
-    def _remove_oldest_caption(self) -> Optional[Caption]:
+    def _remove_oldest_caption(self) -> Caption | None:
         if not self._captions:
             return None
 
@@ -282,7 +289,7 @@ class CaptionBuffer:
         )
 
         victim = candidates[0]
-        display_time = (datetime.now(timezone.utc) - victim.created_at).total_seconds()
+        display_time = (datetime.now(UTC) - victim.created_at).total_seconds()
         if display_time < self.min_display_time and not victim.is_expired:
             if len(candidates) > 1:
                 victim = candidates[1]
@@ -293,20 +300,15 @@ class CaptionBuffer:
         return victim
 
     def _cleanup_expired_internal(self) -> int:
-        expired_ids = [
-            cid for cid, caption in self._captions.items()
-            if caption.is_expired
-        ]
+        expired_ids = [cid for cid, caption in self._captions.items() if caption.is_expired]
 
         for cid in expired_ids:
             caption = self._captions.pop(cid)
             self._stats.total_captions_expired += 1
 
             if self.on_caption_expired:
-                try:
+                with contextlib.suppress(Exception):
                     self.on_caption_expired(caption)
-                except Exception:
-                    pass
 
         if expired_ids:
             self._stats.current_caption_count = len(self._captions)
@@ -324,7 +326,7 @@ class SessionCaptionManager:
     ):
         self.default_max_captions = default_max_captions
         self.default_duration = default_duration
-        self._sessions: Dict[str, CaptionBuffer] = {}
+        self._sessions: dict[str, CaptionBuffer] = {}
         self._lock = threading.RLock()
 
     def get_buffer(self, session_id: str) -> CaptionBuffer:
@@ -344,11 +346,11 @@ class SessionCaptionManager:
                 return True
             return False
 
-    def get_all_sessions(self) -> List[str]:
+    def get_all_sessions(self) -> list[str]:
         with self._lock:
             return list(self._sessions.keys())
 
-    def cleanup_all(self) -> Dict[str, int]:
+    def cleanup_all(self) -> dict[str, int]:
         with self._lock:
             results = {}
             for session_id, buffer in self._sessions.items():
@@ -356,7 +358,7 @@ class SessionCaptionManager:
             return results
 
 
-def create_caption_buffer(config: Optional[Dict] = None) -> CaptionBuffer:
+def create_caption_buffer(config: dict | None = None) -> CaptionBuffer:
     config = config or {}
     return CaptionBuffer(
         max_captions=config.get("max_captions", DEFAULT_MAX_CAPTIONS),
@@ -627,7 +629,7 @@ class TestSpeakerColors:
         WHEN reset_speaker_colors is called
         THEN colors should be reset."""
         buffer.add_caption("Test", "Alice")
-        original_color = buffer.get_speaker_color("Alice")
+        buffer.get_speaker_color("Alice")
 
         buffer.reset_speaker_colors()
 
@@ -864,6 +866,7 @@ class TestCallbacks:
         """GIVEN a callback that raises
         WHEN event occurs
         THEN error should be caught and operation should continue."""
+
         def bad_callback(caption):
             raise RuntimeError("Callback error")
 

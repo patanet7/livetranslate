@@ -12,8 +12,9 @@ by setting a frame threshold offset τ, where l = k - τ"
 """
 
 import logging
-from typing import Optional, Tuple, Dict, Any
 from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -22,18 +23,16 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AlignAttState:
     """State tracking for incremental decoding"""
+
     max_audio_frame: int = 0
     current_frame_threshold: int = 0
     tokens_generated: int = 0
     last_attention_frame: int = 0
     is_continuation: bool = False
 
-    def is_continuation_of(self, previous_state: 'AlignAttState') -> bool:
+    def is_continuation_of(self, previous_state: "AlignAttState") -> bool:
         """Check if this state continues from previous state"""
-        return (
-            self.is_continuation and
-            self.max_audio_frame >= previous_state.max_audio_frame
-        )
+        return self.is_continuation and self.max_audio_frame >= previous_state.max_audio_frame
 
 
 class AlignAttDecoder:
@@ -59,7 +58,7 @@ class AlignAttDecoder:
         self,
         frame_threshold_offset: int = 10,
         enable_incremental: bool = True,
-        enable_attention_masking: bool = True
+        enable_attention_masking: bool = True,
     ):
         """
         Initialize AlignAtt decoder
@@ -76,10 +75,12 @@ class AlignAttDecoder:
 
         # State tracking
         self.max_frame = 0
-        self.current_state: Optional[AlignAttState] = None
+        self.current_state: AlignAttState | None = None
 
-        logger.info(f"AlignAttDecoder initialized: offset={frame_threshold_offset}, "
-                   f"incremental={enable_incremental}, masking={enable_attention_masking}")
+        logger.info(
+            f"AlignAttDecoder initialized: offset={frame_threshold_offset}, "
+            f"incremental={enable_incremental}, masking={enable_attention_masking}"
+        )
 
     def set_max_attention_frame(self, available_frames: int):
         """
@@ -97,10 +98,12 @@ class AlignAttDecoder:
         """
         self.max_frame = max(0, available_frames - self.frame_threshold_offset)
 
-        logger.debug(f"[ALIGNATT] Max attention frame set: {self.max_frame} "
-                    f"(available: {available_frames}, offset: {self.frame_threshold_offset})")
+        logger.debug(
+            f"[ALIGNATT] Max attention frame set: {self.max_frame} "
+            f"(available: {available_frames}, offset: {self.frame_threshold_offset})"
+        )
 
-    def configure_for_pytorch(self, audio_features: np.ndarray) -> Dict[str, Any]:
+    def configure_for_pytorch(self, audio_features: np.ndarray) -> dict[str, Any]:
         """
         Configure PyTorch Whisper for AlignAtt streaming
 
@@ -112,8 +115,12 @@ class AlignAttDecoder:
         """
         try:
             # Calculate frame threshold from audio features
-            if hasattr(audio_features, 'shape'):
-                available_frames = audio_features.shape[1] if len(audio_features.shape) > 1 else len(audio_features)
+            if hasattr(audio_features, "shape"):
+                available_frames = (
+                    audio_features.shape[1]
+                    if len(audio_features.shape) > 1
+                    else len(audio_features)
+                )
             else:
                 available_frames = len(audio_features) // 160  # 10ms frames at 16kHz
 
@@ -123,10 +130,12 @@ class AlignAttDecoder:
             config = {
                 "max_new_tokens": 448,
                 "return_timestamps": True,
-                "max_attention_frame": self.max_frame
+                "max_attention_frame": self.max_frame,
             }
 
-            logger.info(f"[ALIGNATT] Configured PyTorch for streaming (max_frame: {self.max_frame})")
+            logger.info(
+                f"[ALIGNATT] Configured PyTorch for streaming (max_frame: {self.max_frame})"
+            )
 
             return config
 
@@ -134,11 +143,7 @@ class AlignAttDecoder:
             logger.warning(f"Failed to configure PyTorch AlignAtt: {e}")
             return {}
 
-    def create_attention_mask(
-        self,
-        audio_length: int,
-        max_length: Optional[int] = None
-    ) -> np.ndarray:
+    def create_attention_mask(self, audio_length: int, max_length: int | None = None) -> np.ndarray:
         """
         Create attention mask for frame threshold enforcement
 
@@ -161,15 +166,15 @@ class AlignAttDecoder:
         mask = np.arange(audio_length) < threshold
 
         masked_count = np.sum(~mask)
-        logger.debug(f"[ALIGNATT] Attention mask: {threshold}/{audio_length} frames allowed, "
-                    f"{masked_count} frames masked")
+        logger.debug(
+            f"[ALIGNATT] Attention mask: {threshold}/{audio_length} frames allowed, "
+            f"{masked_count} frames masked"
+        )
 
         return mask
 
     def decode_incremental(
-        self,
-        audio_chunk: np.ndarray,
-        previous_state: Optional[AlignAttState] = None
+        self, audio_chunk: np.ndarray, previous_state: AlignAttState | None = None
     ) -> AlignAttState:
         """
         Perform incremental decoding with AlignAtt policy
@@ -199,19 +204,18 @@ class AlignAttDecoder:
         new_state = AlignAttState(
             max_audio_frame=total_frames,
             current_frame_threshold=self.max_frame,
-            is_continuation=previous_state is not None
+            is_continuation=previous_state is not None,
         )
 
-        logger.info(f"[ALIGNATT] Incremental decode: total_frames={total_frames}, "
-                   f"threshold={self.max_frame}, continuation={new_state.is_continuation}")
+        logger.info(
+            f"[ALIGNATT] Incremental decode: total_frames={total_frames}, "
+            f"threshold={self.max_frame}, continuation={new_state.is_continuation}"
+        )
 
         return new_state
 
     def should_emit_token(
-        self,
-        current_attention_frame: int,
-        confidence: float = 1.0,
-        min_confidence: float = 0.7
+        self, current_attention_frame: int, confidence: float = 1.0, min_confidence: float = 0.7
     ) -> bool:
         """
         Determine if decoder should emit token based on attention
@@ -236,16 +240,16 @@ class AlignAttDecoder:
         should_emit = within_range and sufficient_confidence
 
         if not should_emit:
-            logger.debug(f"[ALIGNATT] Token suppressed: frame={current_attention_frame}, "
-                        f"max={self.max_frame}, conf={confidence:.2f}")
+            logger.debug(
+                f"[ALIGNATT] Token suppressed: frame={current_attention_frame}, "
+                f"max={self.max_frame}, conf={confidence:.2f}"
+            )
 
         return should_emit
 
     def calculate_latency_improvement(
-        self,
-        fixed_chunk_latency_ms: float,
-        alignatt_latency_ms: float
-    ) -> Dict[str, float]:
+        self, fixed_chunk_latency_ms: float, alignatt_latency_ms: float
+    ) -> dict[str, float]:
         """
         Calculate latency improvement over fixed chunking
 
@@ -257,14 +261,16 @@ class AlignAttDecoder:
             Dictionary with improvement metrics
         """
         improvement_ms = fixed_chunk_latency_ms - alignatt_latency_ms
-        improvement_percent = (improvement_ms / fixed_chunk_latency_ms) * 100 if fixed_chunk_latency_ms > 0 else 0
+        improvement_percent = (
+            (improvement_ms / fixed_chunk_latency_ms) * 100 if fixed_chunk_latency_ms > 0 else 0
+        )
 
         return {
             "baseline_latency_ms": fixed_chunk_latency_ms,
             "alignatt_latency_ms": alignatt_latency_ms,
             "improvement_ms": improvement_ms,
             "improvement_percent": improvement_percent,
-            "target_met": improvement_percent >= 30  # SimulStreaming target: -30-50%
+            "target_met": improvement_percent >= 30,  # SimulStreaming target: -30-50%
         }
 
     def get_optimal_offset(self, audio_duration_s: float, target_latency_ms: float = 150) -> int:
@@ -287,8 +293,10 @@ class AlignAttDecoder:
         # Ensure reasonable offset (5-20 frames)
         optimal_offset = max(5, min(20, latency_frames))
 
-        logger.info(f"[ALIGNATT] Optimal offset: {optimal_offset} frames "
-                   f"(target: {target_latency_ms}ms, audio: {audio_duration_s}s)")
+        logger.info(
+            f"[ALIGNATT] Optimal offset: {optimal_offset} frames "
+            f"(target: {target_latency_ms}ms, audio: {audio_duration_s}s)"
+        )
 
         return optimal_offset
 
@@ -306,36 +314,28 @@ class AlignAttConfig:
     def ultra_low_latency() -> AlignAttDecoder:
         """Ultra-low latency mode (offset=5, ~100ms)"""
         return AlignAttDecoder(
-            frame_threshold_offset=5,
-            enable_incremental=True,
-            enable_attention_masking=True
+            frame_threshold_offset=5, enable_incremental=True, enable_attention_masking=True
         )
 
     @staticmethod
     def low_latency() -> AlignAttDecoder:
         """Low latency mode (offset=10, ~200ms) - DEFAULT"""
         return AlignAttDecoder(
-            frame_threshold_offset=10,
-            enable_incremental=True,
-            enable_attention_masking=True
+            frame_threshold_offset=10, enable_incremental=True, enable_attention_masking=True
         )
 
     @staticmethod
     def balanced() -> AlignAttDecoder:
         """Balanced mode (offset=15, ~300ms)"""
         return AlignAttDecoder(
-            frame_threshold_offset=15,
-            enable_incremental=True,
-            enable_attention_masking=True
+            frame_threshold_offset=15, enable_incremental=True, enable_attention_masking=True
         )
 
     @staticmethod
     def quality_focused() -> AlignAttDecoder:
         """Quality-focused mode (offset=20, ~400ms)"""
         return AlignAttDecoder(
-            frame_threshold_offset=20,
-            enable_incremental=True,
-            enable_attention_masking=True
+            frame_threshold_offset=20, enable_incremental=True, enable_attention_masking=True
         )
 
     @staticmethod
@@ -345,7 +345,7 @@ class AlignAttConfig:
             "ultra_low_latency": AlignAttConfig.ultra_low_latency,
             "low_latency": AlignAttConfig.low_latency,
             "balanced": AlignAttConfig.balanced,
-            "quality_focused": AlignAttConfig.quality_focused
+            "quality_focused": AlignAttConfig.quality_focused,
         }
 
         if name not in configs:
@@ -357,8 +357,7 @@ class AlignAttConfig:
 
 # Convenience function
 def create_alignatt_decoder(
-    offset: Optional[int] = None,
-    preset: Optional[str] = None
+    offset: int | None = None, preset: str | None = None
 ) -> AlignAttDecoder:
     """
     Create AlignAtt decoder with smart defaults
@@ -405,8 +404,7 @@ if __name__ == "__main__":
     print("\n\nLATENCY IMPROVEMENT:")
     decoder = AlignAttConfig.low_latency()
     improvement = decoder.calculate_latency_improvement(
-        fixed_chunk_latency_ms=350,
-        alignatt_latency_ms=180
+        fixed_chunk_latency_ms=350, alignatt_latency_ms=180
     )
     print(f"  Baseline: {improvement['baseline_latency_ms']}ms")
     print(f"  AlignAtt: {improvement['alignatt_latency_ms']}ms")

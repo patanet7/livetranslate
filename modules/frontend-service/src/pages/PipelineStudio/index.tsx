@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from "react";
 import {
   Box,
   Grid,
@@ -21,7 +21,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Menu,
   Info,
@@ -29,8 +29,8 @@ import {
   FileUpload,
   AutoFixHigh,
   Speaker,
-} from '@mui/icons-material';
-import { ReactFlowProvider } from 'reactflow';
+} from "@mui/icons-material";
+import { ReactFlowProvider } from "reactflow";
 
 import {
   PipelineCanvas,
@@ -41,7 +41,7 @@ import {
   type PipelineData,
   type PipelinePreset,
   type AudioComponent,
-} from '@/components/audio/PipelineEditor';
+} from "@/components/audio/PipelineEditor";
 
 const DRAWER_WIDTH = 320;
 
@@ -55,9 +55,13 @@ interface PipelineStudioState {
 const PipelineStudio: React.FC = () => {
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(true);
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
-  const [activeLeftTab, setActiveLeftTab] = useState<'components' | 'presets'>('components');
-  const [activeRightTab, setActiveRightTab] = useState<'validation' | 'processor' | 'settings'>('validation');
-  
+  const [activeLeftTab, setActiveLeftTab] = useState<"components" | "presets">(
+    "components",
+  );
+  const [activeRightTab, setActiveRightTab] = useState<
+    "validation" | "processor" | "settings"
+  >("validation");
+
   const [pipelineState, setPipelineState] = useState<PipelineStudioState>({
     currentPipeline: null,
     isProcessing: false,
@@ -68,19 +72,21 @@ const PipelineStudio: React.FC = () => {
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
-    severity: 'success' | 'error' | 'warning' | 'info';
+    severity: "success" | "error" | "warning" | "info";
   }>({
     open: false,
-    message: '',
-    severity: 'info',
+    message: "",
+    severity: "info",
   });
 
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [shareFormat, setShareFormat] = useState<'json' | 'url' | 'embed'>('json');
+  const [shareFormat, setShareFormat] = useState<"json" | "url" | "embed">(
+    "json",
+  );
 
   // Pipeline handlers
   const handlePipelineChange = useCallback((pipeline: PipelineData) => {
-    setPipelineState(prev => ({
+    setPipelineState((prev) => ({
       ...prev,
       currentPipeline: pipeline,
     }));
@@ -88,31 +94,31 @@ const PipelineStudio: React.FC = () => {
 
   const handleProcessingStart = useCallback(() => {
     if (!pipelineState.currentPipeline) return;
-    
-    setPipelineState(prev => ({ ...prev, isProcessing: true }));
+
+    setPipelineState((prev) => ({ ...prev, isProcessing: true }));
     setSnackbar({
       open: true,
-      message: 'Starting audio processing pipeline...',
-      severity: 'info',
+      message: "Starting audio processing pipeline...",
+      severity: "info",
     });
 
     // Simulate processing - in real implementation, this would call the backend
     setTimeout(() => {
-      setPipelineState(prev => ({ ...prev, isProcessing: false }));
+      setPipelineState((prev) => ({ ...prev, isProcessing: false }));
       setSnackbar({
         open: true,
-        message: 'Pipeline processing completed successfully!',
-        severity: 'success',
+        message: "Pipeline processing completed successfully!",
+        severity: "success",
       });
     }, 3000);
   }, [pipelineState.currentPipeline]);
 
   const handleProcessingStop = useCallback(() => {
-    setPipelineState(prev => ({ ...prev, isProcessing: false }));
+    setPipelineState((prev) => ({ ...prev, isProcessing: false }));
     setSnackbar({
       open: true,
-      message: 'Pipeline processing stopped',
-      severity: 'warning',
+      message: "Pipeline processing stopped",
+      severity: "warning",
     });
   }, []);
 
@@ -121,13 +127,13 @@ const PipelineStudio: React.FC = () => {
     // Create some sample nodes for the preset
     const sampleNodes = [
       {
-        id: 'input_1',
-        type: 'audioStage',
+        id: "input_1",
+        type: "audioStage",
         position: { x: 100, y: 100 },
         data: {
-          label: 'File Input',
-          description: 'Upload and process audio files',
-          stageType: 'input',
+          label: "File Input",
+          description: "Upload and process audio files",
+          stageType: "input",
           icon: FileUpload,
           enabled: true,
           gainIn: 0,
@@ -135,17 +141,17 @@ const PipelineStudio: React.FC = () => {
           stageConfig: {},
           parameters: [],
           isProcessing: false,
-          status: 'idle',
+          status: "idle",
         },
       },
       {
-        id: 'process_1',
-        type: 'audioStage',
+        id: "process_1",
+        type: "audioStage",
         position: { x: 400, y: 100 },
         data: {
-          label: 'Voice Enhancement',
-          description: 'Professional voice clarity enhancement',
-          stageType: 'processing',
+          label: "Voice Enhancement",
+          description: "Professional voice clarity enhancement",
+          stageType: "processing",
           icon: AutoFixHigh,
           enabled: true,
           gainIn: 0,
@@ -153,17 +159,17 @@ const PipelineStudio: React.FC = () => {
           stageConfig: {},
           parameters: [],
           isProcessing: false,
-          status: 'idle',
+          status: "idle",
         },
       },
       {
-        id: 'output_1',
-        type: 'audioStage',
+        id: "output_1",
+        type: "audioStage",
         position: { x: 700, y: 100 },
         data: {
-          label: 'Speaker Output',
-          description: 'Real-time audio playback',
-          stageType: 'output',
+          label: "Speaker Output",
+          description: "Real-time audio playback",
+          stageType: "output",
           icon: Speaker,
           enabled: true,
           gainIn: 0,
@@ -171,24 +177,24 @@ const PipelineStudio: React.FC = () => {
           stageConfig: {},
           parameters: [],
           isProcessing: false,
-          status: 'idle',
+          status: "idle",
         },
       },
     ];
 
     const sampleEdges = [
       {
-        id: 'edge_1',
-        source: 'input_1',
-        target: 'process_1',
-        type: 'audioConnection',
+        id: "edge_1",
+        source: "input_1",
+        target: "process_1",
+        type: "audioConnection",
         animated: true,
       },
       {
-        id: 'edge_2',
-        source: 'process_1',
-        target: 'output_1',
-        type: 'audioConnection',
+        id: "edge_2",
+        source: "process_1",
+        target: "output_1",
+        type: "audioConnection",
         animated: true,
       },
     ];
@@ -203,14 +209,14 @@ const PipelineStudio: React.FC = () => {
       modified: new Date(),
       metadata: {
         totalLatency: 45.5,
-        complexity: 'moderate',
+        complexity: "moderate",
         validated: true,
         errors: [],
         warnings: [],
       },
     };
 
-    setPipelineState(prev => ({
+    setPipelineState((prev) => ({
       ...prev,
       currentPipeline: pipelineData,
       selectedPreset: preset,
@@ -219,7 +225,7 @@ const PipelineStudio: React.FC = () => {
     setSnackbar({
       open: true,
       message: `Loaded preset: ${preset.name}`,
-      severity: 'success',
+      severity: "success",
     });
   }, []);
 
@@ -227,24 +233,26 @@ const PipelineStudio: React.FC = () => {
     setSnackbar({
       open: true,
       message: `Saved preset: ${preset.name}`,
-      severity: 'success',
+      severity: "success",
     });
   }, []);
 
   const handleDeletePreset = useCallback((_presetId: string) => {
     setSnackbar({
       open: true,
-      message: 'Preset deleted',
-      severity: 'info',
+      message: "Preset deleted",
+      severity: "info",
     });
   }, []);
 
   const handleExportPreset = useCallback((preset: PipelinePreset) => {
-    const blob = new Blob([JSON.stringify(preset, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(preset, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `${preset.name.replace(/\s+/g, '_')}_preset.json`;
+    a.download = `${preset.name.replace(/\s+/g, "_")}_preset.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -253,7 +261,7 @@ const PipelineStudio: React.FC = () => {
     setSnackbar({
       open: true,
       message: `Exported preset: ${preset.name}`,
-      severity: 'success',
+      severity: "success",
     });
   }, []);
 
@@ -265,13 +273,13 @@ const PipelineStudio: React.FC = () => {
         setSnackbar({
           open: true,
           message: `Imported preset: ${importedPreset.name}`,
-          severity: 'success',
+          severity: "success",
         });
       } catch (error) {
         setSnackbar({
           open: true,
-          message: 'Failed to import preset: Invalid file format',
-          severity: 'error',
+          message: "Failed to import preset: Invalid file format",
+          severity: "error",
         });
       }
     };
@@ -283,14 +291,20 @@ const PipelineStudio: React.FC = () => {
     setSnackbar({
       open: true,
       message: `Selected component: ${component.label}`,
-      severity: 'info',
+      severity: "info",
     });
   }, []);
 
-  const handleDragStart = useCallback((event: React.DragEvent, component: AudioComponent) => {
-    event.dataTransfer.setData('application/audioComponent', JSON.stringify(component));
-    event.dataTransfer.effectAllowed = 'move';
-  }, []);
+  const handleDragStart = useCallback(
+    (event: React.DragEvent, component: AudioComponent) => {
+      event.dataTransfer.setData(
+        "application/audioComponent",
+        JSON.stringify(component),
+      );
+      event.dataTransfer.effectAllowed = "move";
+    },
+    [],
+  );
 
   // Share functionality
   const handleShare = useCallback(() => {
@@ -298,26 +312,28 @@ const PipelineStudio: React.FC = () => {
 
     let shareData: string;
     switch (shareFormat) {
-      case 'json':
+      case "json":
         shareData = JSON.stringify(pipelineState.currentPipeline, null, 2);
         break;
-      case 'url':
-        const encodedPipeline = btoa(JSON.stringify(pipelineState.currentPipeline));
+      case "url":
+        const encodedPipeline = btoa(
+          JSON.stringify(pipelineState.currentPipeline),
+        );
         shareData = `${window.location.origin}/pipeline-studio?pipeline=${encodedPipeline}`;
         break;
-      case 'embed':
+      case "embed":
         const embedCode = `<iframe src="${window.location.origin}/pipeline-studio?embed=true&pipeline=${btoa(JSON.stringify(pipelineState.currentPipeline))}" width="800" height="600"></iframe>`;
         shareData = embedCode;
         break;
       default:
-        shareData = '';
+        shareData = "";
     }
 
     navigator.clipboard.writeText(shareData).then(() => {
       setSnackbar({
         open: true,
         message: `Pipeline ${shareFormat.toUpperCase()} copied to clipboard`,
-        severity: 'success',
+        severity: "success",
       });
       setShareDialogOpen(false);
     });
@@ -327,22 +343,25 @@ const PipelineStudio: React.FC = () => {
   const handleCreateBlankPipeline = useCallback(() => {
     const blankPipeline: PipelineData = {
       id: `pipeline_${Date.now()}`,
-      name: 'New Pipeline',
-      description: 'Custom audio processing pipeline',
+      name: "New Pipeline",
+      description: "Custom audio processing pipeline",
       nodes: [],
       edges: [],
       created: new Date(),
       modified: new Date(),
       metadata: {
         totalLatency: 0,
-        complexity: 'simple',
+        complexity: "simple",
         validated: false,
-        errors: ['Pipeline must have at least one input component', 'Pipeline must have at least one output component'],
+        errors: [
+          "Pipeline must have at least one input component",
+          "Pipeline must have at least one output component",
+        ],
         warnings: [],
       },
     };
 
-    setPipelineState(prev => ({
+    setPipelineState((prev) => ({
       ...prev,
       currentPipeline: blankPipeline,
       selectedPreset: null,
@@ -350,20 +369,20 @@ const PipelineStudio: React.FC = () => {
 
     setSnackbar({
       open: true,
-      message: 'Created new blank pipeline',
-      severity: 'success',
+      message: "Created new blank pipeline",
+      severity: "success",
     });
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* Main App Bar */}
       <AppBar
         position="fixed"
         sx={{
           zIndex: (theme) => theme.zIndex.drawer + 1,
-          backgroundColor: 'background.paper',
-          color: 'text.primary',
+          backgroundColor: "background.paper",
+          color: "text.primary",
           boxShadow: 1,
         }}
       >
@@ -375,7 +394,7 @@ const PipelineStudio: React.FC = () => {
           >
             <Menu />
           </IconButton>
-          
+
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Pipeline Studio - Visual Audio Processing Editor
           </Typography>
@@ -398,7 +417,10 @@ const PipelineStudio: React.FC = () => {
           )}
 
           <Box display="flex" alignItems="center" gap={1}>
-            <IconButton onClick={() => setShareDialogOpen(true)} disabled={!pipelineState.currentPipeline}>
+            <IconButton
+              onClick={() => setShareDialogOpen(true)}
+              disabled={!pipelineState.currentPipeline}
+            >
               <Share />
             </IconButton>
             <IconButton onClick={() => setRightDrawerOpen(!rightDrawerOpen)}>
@@ -416,23 +438,32 @@ const PipelineStudio: React.FC = () => {
         sx={{
           width: DRAWER_WIDTH,
           flexShrink: 0,
-          '& .MuiDrawer-paper': {
+          "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
-            boxSizing: 'border-box',
+            boxSizing: "border-box",
           },
         }}
       >
         <Toolbar />
-        <Box sx={{ overflow: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Box
+          sx={{
+            overflow: "auto",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           {/* Tab Selection */}
-          <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
             <Grid container spacing={1}>
               <Grid item xs={6}>
                 <Button
                   fullWidth
-                  variant={activeLeftTab === 'components' ? 'contained' : 'outlined'}
+                  variant={
+                    activeLeftTab === "components" ? "contained" : "outlined"
+                  }
                   size="small"
-                  onClick={() => setActiveLeftTab('components')}
+                  onClick={() => setActiveLeftTab("components")}
                 >
                   Components
                 </Button>
@@ -440,9 +471,11 @@ const PipelineStudio: React.FC = () => {
               <Grid item xs={6}>
                 <Button
                   fullWidth
-                  variant={activeLeftTab === 'presets' ? 'contained' : 'outlined'}
+                  variant={
+                    activeLeftTab === "presets" ? "contained" : "outlined"
+                  }
                   size="small"
-                  onClick={() => setActiveLeftTab('presets')}
+                  onClick={() => setActiveLeftTab("presets")}
                 >
                   Presets
                 </Button>
@@ -451,14 +484,14 @@ const PipelineStudio: React.FC = () => {
           </Box>
 
           {/* Tab Content */}
-          <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-            {activeLeftTab === 'components' && (
+          <Box sx={{ flexGrow: 1, overflow: "auto" }}>
+            {activeLeftTab === "components" && (
               <ComponentLibrary
                 onComponentSelect={handleComponentSelect}
                 onDragStart={handleDragStart}
               />
             )}
-            {activeLeftTab === 'presets' && (
+            {activeLeftTab === "presets" && (
               <PresetManager
                 currentPipeline={pipelineState.selectedPreset || undefined}
                 onLoadPreset={handleLoadPreset}
@@ -476,47 +509,51 @@ const PipelineStudio: React.FC = () => {
       <Box
         component="main"
         sx={{
-          position: 'fixed',
+          position: "fixed",
           top: 64, // Account for AppBar
           left: leftDrawerOpen ? DRAWER_WIDTH : 0,
           right: rightDrawerOpen ? DRAWER_WIDTH : 0,
           bottom: 0,
-          transition: 'left 0.3s ease-in-out, right 0.3s ease-in-out',
-          overflow: 'hidden',
+          transition: "left 0.3s ease-in-out, right 0.3s ease-in-out",
+          overflow: "hidden",
         }}
       >
         {pipelineState.currentPipeline === null ? (
           // Welcome Screen
           <Box
             sx={{
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'linear-gradient(45deg, #f5f5f5 30%, #e0e0e0 90%)',
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "linear-gradient(45deg, #f5f5f5 30%, #e0e0e0 90%)",
             }}
           >
-            <Card sx={{ maxWidth: 600, textAlign: 'center', p: 4 }}>
+            <Card sx={{ maxWidth: 600, textAlign: "center", p: 4 }}>
               <CardContent>
                 <Typography variant="h4" gutterBottom>
                   Welcome to Pipeline Studio
                 </Typography>
                 <Typography variant="h6" color="text.secondary" paragraph>
-                  Build professional audio processing pipelines with drag-and-drop simplicity
+                  Build professional audio processing pipelines with
+                  drag-and-drop simplicity
                 </Typography>
                 <Typography variant="body1" paragraph>
-                  • Drag components from the library to create your pipeline<br />
-                  • Use built-in presets for common audio processing scenarios<br />
-                  • Real-time validation ensures your pipeline is always valid<br />
-                  • Process audio through your custom pipeline in real-time
+                  • Drag components from the library to create your pipeline
+                  <br />
+                  • Use built-in presets for common audio processing scenarios
+                  <br />
+                  • Real-time validation ensures your pipeline is always valid
+                  <br />• Process audio through your custom pipeline in
+                  real-time
                 </Typography>
                 <Box sx={{ mt: 3 }}>
                   <Button
                     variant="contained"
                     size="large"
                     onClick={() => {
-                      setActiveLeftTab('presets');
+                      setActiveLeftTab("presets");
                       setLeftDrawerOpen(true);
                     }}
                     sx={{ mr: 2 }}
@@ -528,7 +565,7 @@ const PipelineStudio: React.FC = () => {
                     size="large"
                     onClick={() => {
                       handleCreateBlankPipeline();
-                      setActiveLeftTab('components');
+                      setActiveLeftTab("components");
                       setLeftDrawerOpen(true);
                     }}
                   >
@@ -563,23 +600,32 @@ const PipelineStudio: React.FC = () => {
         sx={{
           width: DRAWER_WIDTH,
           flexShrink: 0,
-          '& .MuiDrawer-paper': {
+          "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
-            boxSizing: 'border-box',
+            boxSizing: "border-box",
           },
         }}
       >
         <Toolbar />
-        <Box sx={{ overflow: 'auto', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Box
+          sx={{
+            overflow: "auto",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           {/* Tab Selection */}
-          <Box sx={{ p: 1, borderBottom: 1, borderColor: 'divider' }}>
+          <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
             <Grid container spacing={1}>
               <Grid item xs={4}>
                 <Button
                   fullWidth
-                  variant={activeRightTab === 'validation' ? 'contained' : 'outlined'}
+                  variant={
+                    activeRightTab === "validation" ? "contained" : "outlined"
+                  }
                   size="small"
-                  onClick={() => setActiveRightTab('validation')}
+                  onClick={() => setActiveRightTab("validation")}
                 >
                   Validation
                 </Button>
@@ -587,9 +633,11 @@ const PipelineStudio: React.FC = () => {
               <Grid item xs={4}>
                 <Button
                   fullWidth
-                  variant={activeRightTab === 'processor' ? 'contained' : 'outlined'}
+                  variant={
+                    activeRightTab === "processor" ? "contained" : "outlined"
+                  }
                   size="small"
-                  onClick={() => setActiveRightTab('processor')}
+                  onClick={() => setActiveRightTab("processor")}
                 >
                   Live
                 </Button>
@@ -597,9 +645,11 @@ const PipelineStudio: React.FC = () => {
               <Grid item xs={4}>
                 <Button
                   fullWidth
-                  variant={activeRightTab === 'settings' ? 'contained' : 'outlined'}
+                  variant={
+                    activeRightTab === "settings" ? "contained" : "outlined"
+                  }
                   size="small"
-                  onClick={() => setActiveRightTab('settings')}
+                  onClick={() => setActiveRightTab("settings")}
                 >
                   Info
                 </Button>
@@ -608,20 +658,23 @@ const PipelineStudio: React.FC = () => {
           </Box>
 
           {/* Tab Content */}
-          <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2 }}>
-            {activeRightTab === 'validation' && pipelineState.validationResult && (
-              <PipelineValidation validationResult={pipelineState.validationResult} />
-            )}
-            {activeRightTab === 'processor' && (
+          <Box sx={{ flexGrow: 1, overflow: "auto", p: 2 }}>
+            {activeRightTab === "validation" &&
+              pipelineState.validationResult && (
+                <PipelineValidation
+                  validationResult={pipelineState.validationResult}
+                />
+              )}
+            {activeRightTab === "processor" && (
               <RealTimeProcessor
                 currentPipeline={pipelineState.currentPipeline}
                 onMetricsUpdate={(metrics) => {
                   // Update pipeline metrics in real-time
-                  console.log('Real-time metrics:', metrics);
+                  console.log("Real-time metrics:", metrics);
                 }}
               />
             )}
-            {activeRightTab === 'settings' && (
+            {activeRightTab === "settings" && (
               <Box>
                 <Typography variant="h6" gutterBottom>
                   Pipeline Information
@@ -629,24 +682,33 @@ const PipelineStudio: React.FC = () => {
                 {pipelineState.currentPipeline ? (
                   <Box>
                     <Typography variant="body2" paragraph>
-                      <strong>Name:</strong> {pipelineState.currentPipeline.name}
+                      <strong>Name:</strong>{" "}
+                      {pipelineState.currentPipeline.name}
                     </Typography>
                     <Typography variant="body2" paragraph>
-                      <strong>Components:</strong> {pipelineState.currentPipeline.nodes.length}
+                      <strong>Components:</strong>{" "}
+                      {pipelineState.currentPipeline.nodes.length}
                     </Typography>
                     <Typography variant="body2" paragraph>
-                      <strong>Connections:</strong> {pipelineState.currentPipeline.edges.length}
+                      <strong>Connections:</strong>{" "}
+                      {pipelineState.currentPipeline.edges.length}
                     </Typography>
                     <Typography variant="body2" paragraph>
-                      <strong>Complexity:</strong> {pipelineState.currentPipeline.metadata.complexity}
+                      <strong>Complexity:</strong>{" "}
+                      {pipelineState.currentPipeline.metadata.complexity}
                     </Typography>
                     <Typography variant="body2" paragraph>
-                      <strong>Total Latency:</strong> {pipelineState.currentPipeline.metadata.totalLatency.toFixed(1)}ms
+                      <strong>Total Latency:</strong>{" "}
+                      {pipelineState.currentPipeline.metadata.totalLatency.toFixed(
+                        1,
+                      )}
+                      ms
                     </Typography>
                   </Box>
                 ) : (
                   <Alert severity="info">
-                    No pipeline loaded. Create a new pipeline or load a preset to see information here.
+                    No pipeline loaded. Create a new pipeline or load a preset
+                    to see information here.
                   </Alert>
                 )}
               </Box>
@@ -656,7 +718,12 @@ const PipelineStudio: React.FC = () => {
       </Drawer>
 
       {/* Share Dialog */}
-      <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={shareDialogOpen}
+        onClose={() => setShareDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Share Pipeline</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 1 }}>
@@ -673,15 +740,20 @@ const PipelineStudio: React.FC = () => {
               </Select>
             </FormControl>
             <Typography variant="body2" color="text.secondary">
-              {shareFormat === 'json' && 'Download pipeline as JSON file for import into other instances'}
-              {shareFormat === 'url' && 'Generate a shareable URL that loads this pipeline'}
-              {shareFormat === 'embed' && 'Generate HTML embed code for websites'}
+              {shareFormat === "json" &&
+                "Download pipeline as JSON file for import into other instances"}
+              {shareFormat === "url" &&
+                "Generate a shareable URL that loads this pipeline"}
+              {shareFormat === "embed" &&
+                "Generate HTML embed code for websites"}
             </Typography>
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setShareDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleShare} variant="contained">Copy to Clipboard</Button>
+          <Button onClick={handleShare} variant="contained">
+            Copy to Clipboard
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -690,12 +762,12 @@ const PipelineStudio: React.FC = () => {
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {snackbar.message}
         </Alert>

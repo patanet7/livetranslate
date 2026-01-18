@@ -2,9 +2,10 @@
 Base Pydantic models with common functionality
 """
 
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
-from pydantic import BaseModel as PydanticBaseModel, Field, field_validator, ConfigDict
+from datetime import UTC, datetime
+from typing import Any
+
+from pydantic import BaseModel as PydanticBaseModel, ConfigDict, Field, field_validator
 
 
 class BaseModel(PydanticBaseModel):
@@ -23,32 +24,30 @@ class TimestampMixin(BaseModel):
     """Mixin for models that need timestamp fields"""
 
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Creation timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Creation timestamp"
     )
-    updated_at: Optional[datetime] = Field(
-        default=None, description="Last update timestamp"
-    )
+    updated_at: datetime | None = Field(default=None, description="Last update timestamp")
 
     def update_timestamp(self):
         """Update the updated_at timestamp"""
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
 
 class IDMixin(BaseModel):
     """Mixin for models that need ID fields"""
 
-    id: str = Field(description="Unique identifier", json_schema_extra={"example": "uuid-1234-5678-9abc-def"})
+    id: str = Field(
+        description="Unique identifier", json_schema_extra={"example": "uuid-1234-5678-9abc-def"}
+    )
 
 
 class ResponseMixin(BaseModel):
     """Mixin for API response models"""
 
-    success: bool = Field(
-        default=True, description="Indicates if the operation was successful"
-    )
-    message: Optional[str] = Field(default=None, description="Human-readable message")
+    success: bool = Field(default=True, description="Indicates if the operation was successful")
+    message: str | None = Field(default=None, description="Human-readable message")
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Response timestamp"
     )
 
 
@@ -56,9 +55,7 @@ class PaginationMixin(BaseModel):
     """Mixin for paginated responses"""
 
     page: int = Field(default=1, ge=1, description="Current page number")
-    page_size: int = Field(
-        default=20, ge=1, le=100, description="Number of items per page"
-    )
+    page_size: int = Field(default=20, ge=1, le=100, description="Number of items per page")
     total_items: int = Field(default=0, ge=0, description="Total number of items")
     total_pages: int = Field(default=0, ge=0, description="Total number of pages")
 
@@ -78,22 +75,28 @@ class ErrorDetails(BaseModel):
     """Detailed error information"""
 
     code: str = Field(description="Error code", json_schema_extra={"example": "VALIDATION_ERROR"})
-    message: str = Field(description="Error message", json_schema_extra={"example": "Invalid input data"})
-    field: Optional[str] = Field(
-        default=None, description="Field that caused the error", json_schema_extra={"example": "email"}
+    message: str = Field(
+        description="Error message", json_schema_extra={"example": "Invalid input data"}
     )
-    details: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional error details"
+    field: str | None = Field(
+        default=None,
+        description="Field that caused the error",
+        json_schema_extra={"example": "email"},
     )
+    details: dict[str, Any] | None = Field(default=None, description="Additional error details")
 
 
 class ValidationErrorDetail(BaseModel):
     """Pydantic validation error details"""
 
-    loc: list = Field(description="Error location", json_schema_extra={"example": ["body", "email"]})
+    loc: list = Field(
+        description="Error location", json_schema_extra={"example": ["body", "email"]}
+    )
     msg: str = Field(description="Error message", json_schema_extra={"example": "field required"})
-    type: str = Field(description="Error type", json_schema_extra={"example": "value_error.missing"})
-    ctx: Optional[Dict[str, Any]] = Field(default=None, description="Error context")
+    type: str = Field(
+        description="Error type", json_schema_extra={"example": "value_error.missing"}
+    )
+    ctx: dict[str, Any] | None = Field(default=None, description="Error context")
 
 
 class HealthStatus(BaseModel):
@@ -101,7 +104,7 @@ class HealthStatus(BaseModel):
 
     status: str = Field(description="Health status", json_schema_extra={"example": "healthy"})
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Health check timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Health check timestamp"
     )
     uptime_seconds: float = Field(
         description="Service uptime in seconds", json_schema_extra={"example": 3600.5}
@@ -123,14 +126,16 @@ class MetricsData(BaseModel):
 
     name: str = Field(description="Metric name", json_schema_extra={"example": "cpu_usage_percent"})
     value: float = Field(description="Metric value", json_schema_extra={"example": 45.2})
-    unit: Optional[str] = Field(
+    unit: str | None = Field(
         default=None, description="Metric unit", json_schema_extra={"example": "percent"}
     )
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Metric timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Metric timestamp"
     )
-    labels: Optional[Dict[str, str]] = Field(
-        default=None, description="Metric labels", json_schema_extra={"example": {"instance": "worker-1"}}
+    labels: dict[str, str] | None = Field(
+        default=None,
+        description="Metric labels",
+        json_schema_extra={"example": {"instance": "worker-1"}},
     )
 
 
@@ -142,23 +147,23 @@ class LogEntry(BaseModel):
         description="Log message", json_schema_extra={"example": "Service started successfully"}
     )
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), description="Log timestamp"
+        default_factory=lambda: datetime.now(UTC), description="Log timestamp"
     )
-    logger: Optional[str] = Field(
-        default=None, description="Logger name", json_schema_extra={"example": "orchestration.service"}
+    logger: str | None = Field(
+        default=None,
+        description="Logger name",
+        json_schema_extra={"example": "orchestration.service"},
     )
-    module: Optional[str] = Field(
+    module: str | None = Field(
         default=None, description="Source module", json_schema_extra={"example": "main.py"}
     )
-    function: Optional[str] = Field(
+    function: str | None = Field(
         default=None, description="Source function", json_schema_extra={"example": "startup"}
     )
-    line_number: Optional[int] = Field(
+    line_number: int | None = Field(
         default=None, description="Source line number", json_schema_extra={"example": 42}
     )
-    extra: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional log data"
-    )
+    extra: dict[str, Any] | None = Field(default=None, description="Additional log data")
 
     @field_validator("level")
     @classmethod

@@ -21,7 +21,7 @@ services:
       # Configuration
       - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
       - ./docker/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
-    command: 
+    command:
       - postgres
       - -c
       - config_file=/etc/postgresql/postgresql.conf

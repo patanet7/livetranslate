@@ -15,16 +15,16 @@ This validates:
 - Whisper service transcription
 """
 
-import numpy as np
 import io
 import json
-import time
-from pathlib import Path
-from typing import List, Dict, Any
-import soundfile as sf
 import subprocess
 import tempfile
+import time
+from pathlib import Path
+from typing import Any
 
+import numpy as np
+import soundfile as sf
 
 # Test audio segments with known content and timing
 TEST_SEGMENTS = [
@@ -50,7 +50,7 @@ TEST_SEGMENTS = [
 
 
 def generate_timecoded_audio(
-    segments: List[Dict[str, Any]], sample_rate: int = 16000, output_format: str = "wav"
+    segments: list[dict[str, Any]], sample_rate: int = 16000, output_format: str = "wav"
 ) -> bytes:
     """
     Generate time-coded test audio with known frequencies at specific times.
@@ -96,9 +96,7 @@ def generate_timecoded_audio(
             sf.write(wav_file.name, audio, sample_rate)
             wav_path = wav_file.name
 
-        with tempfile.NamedTemporaryFile(
-            suffix=f".{output_format}", delete=False
-        ) as output_file:
+        with tempfile.NamedTemporaryFile(suffix=f".{output_format}", delete=False) as output_file:
             output_path = output_file.name
 
         try:
@@ -127,9 +125,7 @@ def generate_timecoded_audio(
         raise ValueError(f"Unsupported format: {output_format}")
 
 
-def chunk_audio(
-    audio_data: bytes, chunk_duration: float = 3.0, format: str = "wav"
-) -> List[bytes]:
+def chunk_audio(audio_data: bytes, chunk_duration: float = 3.0, format: str = "wav") -> list[bytes]:
     """
     Split audio into chunks (simulating frontend streaming).
 
@@ -147,9 +143,7 @@ def chunk_audio(
         audio, sample_rate = sf.read(buffer)
     else:
         # Use ffmpeg to convert to WAV first
-        with tempfile.NamedTemporaryFile(
-            suffix=f".{format}", delete=False
-        ) as input_file:
+        with tempfile.NamedTemporaryFile(suffix=f".{format}", delete=False) as input_file:
             input_file.write(audio_data)
             input_path = input_file.name
 
@@ -245,16 +239,12 @@ def test_audio_chunking():
         buffer = io.BytesIO(chunk)
         audio, sample_rate = sf.read(buffer)
         duration = len(audio) / sample_rate
-        print(
-            f"   Chunk {i}: {len(chunk)} bytes, {duration:.2f}s, {len(audio)} samples"
-        )
+        print(f"   Chunk {i}: {len(chunk)} bytes, {duration:.2f}s, {len(audio)} samples")
 
     # Verify total duration matches
     total_duration = sum(len(sf.read(io.BytesIO(chunk))[0]) / 16000 for chunk in chunks)
     expected_duration = max(seg["start"] + seg["duration"] for seg in TEST_SEGMENTS)
-    print(
-        f"✅ Total duration: {total_duration:.2f}s (expected: {expected_duration:.2f}s)"
-    )
+    print(f"✅ Total duration: {total_duration:.2f}s (expected: {expected_duration:.2f}s)")
     assert abs(total_duration - expected_duration) < 0.1, "Duration mismatch!"
 
 
@@ -319,9 +309,7 @@ def test_orchestration_upload_endpoint():
         print(f"✅ Got transcription: '{transcription}'")
 
         # Check if it's placeholder/gibberish
-        if any(
-            word in transcription.lower() for word in ["placeholder", "mock", "test"]
-        ):
+        if any(word in transcription.lower() for word in ["placeholder", "mock", "test"]):
             print("⚠️  WARNING: Transcription appears to be placeholder")
 
         # For tone-based audio, we expect it to be silent/minimal transcription

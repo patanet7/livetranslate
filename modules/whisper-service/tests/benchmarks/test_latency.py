@@ -14,17 +14,16 @@ Critical metrics:
 Reference: FEEDBACK.md lines 171-184, session_manager.py
 """
 
-import sys
-import os
-from pathlib import Path
-import pytest
-import numpy as np
-import time
 import json
 import logging
-from typing import Dict, List
+import sys
+import time
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from pathlib import Path
+
+import numpy as np
+import pytest
 
 # Add src to path
 src_path = Path(__file__).parent.parent.parent / "src"
@@ -43,6 +42,7 @@ BENCHMARK_FILE = BENCHMARK_DIR / "latency_benchmarks.json"
 @dataclass
 class LatencyStats:
     """Latency statistics"""
+
     samples: int
     mean_ms: float
     median_ms: float  # p50
@@ -86,7 +86,7 @@ class LatencyTracker:
             p99_ms=float(np.percentile(measurements, 99)),
             min_ms=float(np.min(measurements)),
             max_ms=float(np.max(measurements)),
-            std_ms=float(np.std(measurements))
+            std_ms=float(np.std(measurements)),
         )
 
     def print_stats(self):
@@ -111,20 +111,20 @@ class BenchmarkStorage:
     """Store and compare benchmarks"""
 
     @staticmethod
-    def load_benchmarks() -> Dict:
+    def load_benchmarks() -> dict:
         """Load historical benchmarks"""
         if not BENCHMARK_FILE.exists():
             return {}
 
-        with open(BENCHMARK_FILE, 'r') as f:
+        with open(BENCHMARK_FILE) as f:
             return json.load(f)
 
     @staticmethod
-    def save_benchmarks(benchmarks: Dict):
+    def save_benchmarks(benchmarks: dict):
         """Save benchmarks to file"""
         BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
 
-        with open(BENCHMARK_FILE, 'w') as f:
+        with open(BENCHMARK_FILE, "w") as f:
             json.dump(benchmarks, f, indent=2)
 
         logger.info(f"✅ Benchmarks saved to {BENCHMARK_FILE}")
@@ -135,22 +135,21 @@ class BenchmarkStorage:
         benchmarks = BenchmarkStorage.load_benchmarks()
 
         if name not in benchmarks:
-            benchmarks[name] = {'history': [], 'best': None}
+            benchmarks[name] = {"history": [], "best": None}
 
         # Add to history
-        entry = {
-            'timestamp': datetime.now().isoformat(),
-            'stats': stats.to_dict()
-        }
-        benchmarks[name]['history'].append(entry)
+        entry = {"timestamp": datetime.now().isoformat(), "stats": stats.to_dict()}
+        benchmarks[name]["history"].append(entry)
 
         # Update best (lowest p95)
-        if benchmarks[name]['best'] is None or \
-           stats.p95_ms < benchmarks[name]['best']['stats']['p95_ms']:
-            benchmarks[name]['best'] = entry
+        if (
+            benchmarks[name]["best"] is None
+            or stats.p95_ms < benchmarks[name]["best"]["stats"]["p95_ms"]
+        ):
+            benchmarks[name]["best"] = entry
 
         # Keep last 10 entries
-        benchmarks[name]['history'] = benchmarks[name]['history'][-10:]
+        benchmarks[name]["history"] = benchmarks[name]["history"][-10:]
 
         BenchmarkStorage.save_benchmarks(benchmarks)
 
@@ -159,26 +158,34 @@ class BenchmarkStorage:
         """Print comparison with historical benchmarks"""
         benchmarks = BenchmarkStorage.load_benchmarks()
 
-        if name not in benchmarks or not benchmarks[name].get('best'):
+        if name not in benchmarks or not benchmarks[name].get("best"):
             logger.info("📊 No historical benchmark available (first run)")
             return
 
-        best = benchmarks[name]['best']['stats']
+        best = benchmarks[name]["best"]["stats"]
 
         logger.info(f"\n{'='*80}")
         logger.info("BENCHMARK COMPARISON")
         logger.info(f"{'='*80}")
-        logger.info(f"                Current      Best      Diff")
-        logger.info(f"Mean:          {current_stats.mean_ms:7.2f}ms  {best['mean_ms']:7.2f}ms  {current_stats.mean_ms - best['mean_ms']:+7.2f}ms")
-        logger.info(f"Median (p50):  {current_stats.median_ms:7.2f}ms  {best['median_ms']:7.2f}ms  {current_stats.median_ms - best['median_ms']:+7.2f}ms")
-        logger.info(f"P95:           {current_stats.p95_ms:7.2f}ms  {best['p95_ms']:7.2f}ms  {current_stats.p95_ms - best['p95_ms']:+7.2f}ms")
-        logger.info(f"P99:           {current_stats.p99_ms:7.2f}ms  {best['p99_ms']:7.2f}ms  {current_stats.p99_ms - best['p99_ms']:+7.2f}ms")
+        logger.info("                Current      Best      Diff")
+        logger.info(
+            f"Mean:          {current_stats.mean_ms:7.2f}ms  {best['mean_ms']:7.2f}ms  {current_stats.mean_ms - best['mean_ms']:+7.2f}ms"
+        )
+        logger.info(
+            f"Median (p50):  {current_stats.median_ms:7.2f}ms  {best['median_ms']:7.2f}ms  {current_stats.median_ms - best['median_ms']:+7.2f}ms"
+        )
+        logger.info(
+            f"P95:           {current_stats.p95_ms:7.2f}ms  {best['p95_ms']:7.2f}ms  {current_stats.p95_ms - best['p95_ms']:+7.2f}ms"
+        )
+        logger.info(
+            f"P99:           {current_stats.p99_ms:7.2f}ms  {best['p99_ms']:7.2f}ms  {current_stats.p99_ms - best['p99_ms']:+7.2f}ms"
+        )
 
-        regression = current_stats.p95_ms - best['p95_ms']
+        regression = current_stats.p95_ms - best["p95_ms"]
         if regression > 0:
             logger.warning(f"⚠️ Performance regression: P95 increased by {regression:.2f}ms")
         else:
-            logger.info(f"✅ Performance maintained or improved")
+            logger.info("✅ Performance maintained or improved")
 
         logger.info(f"{'='*80}")
 
@@ -207,10 +214,10 @@ class TestEndToEndLatency:
         return SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
-            target_languages=['en'],
+            target_languages=["en"],
             online_chunk_size=1.2,
             vad_threshold=0.5,
-            sampling_rate=16000
+            sampling_rate=16000,
         )
 
     def test_end_to_end_latency_500ms_chunks(self, transcriber):
@@ -249,10 +256,13 @@ class TestEndToEndLatency:
 
         # Assertions
         target_p95_ms = 100.0
-        assert stats.p95_ms < target_p95_ms, \
-            f"P95 latency {stats.p95_ms:.2f}ms exceeds target {target_p95_ms}ms"
+        assert (
+            stats.p95_ms < target_p95_ms
+        ), f"P95 latency {stats.p95_ms:.2f}ms exceeds target {target_p95_ms}ms"
 
-        logger.info(f"✅ End-to-end latency P95: {stats.p95_ms:.2f}ms (target: < {target_p95_ms}ms)")
+        logger.info(
+            f"✅ End-to-end latency P95: {stats.p95_ms:.2f}ms (target: < {target_p95_ms}ms)"
+        )
 
     def test_end_to_end_latency_various_chunk_sizes(self, transcriber):
         """
@@ -260,11 +270,7 @@ class TestEndToEndLatency:
 
         Tests 250ms, 500ms, 1000ms chunks.
         """
-        chunk_configs = [
-            ('250ms', 0.25),
-            ('500ms', 0.5),
-            ('1000ms', 1.0)
-        ]
+        chunk_configs = [("250ms", 0.25), ("500ms", 0.5), ("1000ms", 1.0)]
 
         results = {}
 
@@ -279,7 +285,7 @@ class TestEndToEndLatency:
                 transcriber.process(warmup)
 
             # Benchmark
-            for i in range(50):
+            for _i in range(50):
                 audio = generate_test_audio(duration)
                 tracker.measure(transcriber.process, audio)
 
@@ -295,7 +301,7 @@ class TestEndToEndLatency:
         logger.info(f"\n{'='*80}")
         logger.info("CHUNK SIZE COMPARISON")
         logger.info(f"{'='*80}")
-        logger.info(f"Chunk Size    Mean      P50       P95       P99")
+        logger.info("Chunk Size    Mean      P50       P95       P99")
         for name, stats in results.items():
             logger.info(
                 f"{name:12} {stats.mean_ms:7.2f}ms {stats.median_ms:7.2f}ms "
@@ -319,19 +325,19 @@ class TestEndToEndLatency:
         transcriber_multi = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
-            target_languages=['en', 'zh'],
+            target_languages=["en", "zh"],
             online_chunk_size=1.2,
             vad_threshold=0.5,
             sampling_rate=16000,
             lid_hop_ms=100,
             confidence_margin=0.2,
-            min_dwell_frames=6
+            min_dwell_frames=6,
         )
 
         tracker = LatencyTracker("latency_with_switching")
 
         # Process enough chunks to potentially trigger switches
-        for i in range(100):
+        for _i in range(100):
             audio = generate_test_audio(0.5)
             tracker.measure(transcriber_multi.process, audio)
 
@@ -359,11 +365,11 @@ class TestLIDProbeLatency:
         return SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
-            target_languages=['en', 'zh'],
+            target_languages=["en", "zh"],
             online_chunk_size=1.2,
             vad_threshold=0.5,
             sampling_rate=16000,
-            lid_hop_ms=100
+            lid_hop_ms=100,
         )
 
     def test_lid_probe_latency(self, transcriber):
@@ -380,14 +386,14 @@ class TestLIDProbeLatency:
         chunk_size = 8000
 
         for i in range(0, len(initial_audio), chunk_size):
-            transcriber.process(initial_audio[i:i + chunk_size])
+            transcriber.process(initial_audio[i : i + chunk_size])
 
         # Now we have an active session, can benchmark LID
         if transcriber.current_session is None:
             pytest.skip("No active session for LID benchmarking")
 
-        from simul_whisper.whisper.audio import log_mel_spectrogram, pad_or_trim
         import torch
+        from simul_whisper.whisper.audio import log_mel_spectrogram, pad_or_trim
 
         tracker = LatencyTracker("lid_probe")
 
@@ -402,8 +408,7 @@ class TestLIDProbeLatency:
             # Pad and create mel
             lid_audio_padded = pad_or_trim(lid_audio)
             mel = log_mel_spectrogram(
-                lid_audio_padded,
-                n_mels=transcriber.current_session.processor.model.dims.n_mels
+                lid_audio_padded, n_mels=transcriber.current_session.processor.model.dims.n_mels
             )
 
             # Run encoder
@@ -413,11 +418,11 @@ class TestLIDProbeLatency:
                 )
 
             # Run LID probe
-            lid_probs = transcriber.lid_detector.detect(
+            transcriber.lid_detector.detect(
                 encoder_output=encoder_output,
                 model=transcriber.current_session.processor.model,
                 tokenizer=transcriber.current_session.processor.tokenizer,
-                timestamp=i * 0.1
+                timestamp=i * 0.1,
             )
 
             elapsed = time.perf_counter() - start
@@ -445,11 +450,8 @@ class TestVADLatency:
     def vad(self):
         """Create VAD for latency tests"""
         from vad_detector import SileroVAD
-        return SileroVAD(
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
-        )
+
+        return SileroVAD(threshold=0.5, sampling_rate=16000, min_silence_duration_ms=500)
 
     def test_vad_latency(self, vad):
         """
@@ -472,8 +474,9 @@ class TestVADLatency:
         BenchmarkStorage.update_benchmark("vad_check_speech", stats)
 
         target_ms = 1.0
-        assert stats.p95_ms < target_ms, \
-            f"VAD P95 latency {stats.p95_ms:.2f}ms exceeds target {target_ms}ms"
+        assert (
+            stats.p95_ms < target_ms
+        ), f"VAD P95 latency {stats.p95_ms:.2f}ms exceeds target {target_ms}ms"
 
         logger.info(f"✅ VAD latency P95: {stats.p95_ms:.2f}ms (target: < {target_ms}ms)")
 
@@ -499,7 +502,7 @@ class TestPerformanceRegression:
             p99_ms=60.0,
             min_ms=20.0,
             max_ms=80.0,
-            std_ms=10.0
+            std_ms=10.0,
         )
         BenchmarkStorage.update_benchmark(test_name, baseline)
 
@@ -512,14 +515,14 @@ class TestPerformanceRegression:
             p99_ms=95.0,
             min_ms=40.0,
             max_ms=120.0,
-            std_ms=15.0
+            std_ms=15.0,
         )
 
         # Load and compare
         benchmarks = BenchmarkStorage.load_benchmarks()
-        best = benchmarks[test_name]['best']['stats']
+        best = benchmarks[test_name]["best"]["stats"]
 
-        regression = current.p95_ms - best['p95_ms']
+        regression = current.p95_ms - best["p95_ms"]
 
         logger.info(f"Baseline P95: {best['p95_ms']:.2f}ms")
         logger.info(f"Current P95:  {current.p95_ms:.2f}ms")
@@ -547,10 +550,10 @@ class TestThroughput:
         return SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
-            target_languages=['en'],
+            target_languages=["en"],
             online_chunk_size=1.2,
             vad_threshold=0.5,
-            sampling_rate=16000
+            sampling_rate=16000,
         )
 
     def test_throughput_audio_seconds_per_second(self, transcriber):
@@ -571,7 +574,7 @@ class TestThroughput:
 
         chunks_processed = 0
         for i in range(0, len(audio), chunk_size):
-            chunk = audio[i:i + chunk_size]
+            chunk = audio[i : i + chunk_size]
             transcriber.process(chunk)
             chunks_processed += 1
 
@@ -592,22 +595,21 @@ class TestThroughput:
 
         # Save as benchmark
         throughput_stats = {
-            'audio_duration': total_audio_duration,
-            'wall_time': wall_time,
-            'throughput': throughput,
-            'timestamp': datetime.now().isoformat()
+            "audio_duration": total_audio_duration,
+            "wall_time": wall_time,
+            "throughput": throughput,
+            "timestamp": datetime.now().isoformat(),
         }
 
         benchmarks = BenchmarkStorage.load_benchmarks()
-        if 'throughput' not in benchmarks:
-            benchmarks['throughput'] = {'history': []}
-        benchmarks['throughput']['history'].append(throughput_stats)
-        benchmarks['throughput']['history'] = benchmarks['throughput']['history'][-10:]
+        if "throughput" not in benchmarks:
+            benchmarks["throughput"] = {"history": []}
+        benchmarks["throughput"]["history"].append(throughput_stats)
+        benchmarks["throughput"]["history"] = benchmarks["throughput"]["history"][-10:]
         BenchmarkStorage.save_benchmarks(benchmarks)
 
         # Must be real-time capable
-        assert throughput >= 1.0, \
-            f"Throughput {throughput:.2f}x below real-time requirement (1.0x)"
+        assert throughput >= 1.0, f"Throughput {throughput:.2f}x below real-time requirement (1.0x)"
 
         logger.info(f"✅ Throughput: {throughput:.2f}x real-time")
 

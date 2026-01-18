@@ -6,24 +6,24 @@ in the LiveTranslate ecosystem.
 """
 
 from .audio_service_client import AudioServiceClient
-from .translation_service_client import TranslationServiceClient
 from .fireflies_client import (
+    FirefliesAPIError,
+    FirefliesAuthError,
     FirefliesClient,
+    FirefliesConnectionError,
     FirefliesGraphQLClient,
     FirefliesRealtimeClient,
-    FirefliesAPIError,
-    FirefliesConnectionError,
-    FirefliesAuthError,
 )
+from .translation_service_client import TranslationServiceClient
 
 __all__ = [
     "AudioServiceClient",
-    "TranslationServiceClient",
+    "FirefliesAPIError",
+    "FirefliesAuthError",
     # Fireflies clients
     "FirefliesClient",
+    "FirefliesConnectionError",
     "FirefliesGraphQLClient",
     "FirefliesRealtimeClient",
-    "FirefliesAPIError",
-    "FirefliesConnectionError",
-    "FirefliesAuthError",
+    "TranslationServiceClient",
 ]

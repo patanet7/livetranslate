@@ -8,26 +8,26 @@ Contains business logic services:
 - CaptionBuffer: Display queue management for captions
 """
 
-from .sentence_aggregator import SentenceAggregator
+from .caption_buffer import (
+    Caption,
+    CaptionBuffer,
+    SessionCaptionManager,
+    create_caption_buffer,
+)
 from .glossary_service import GlossaryService
 from .rolling_window_translator import (
     RollingWindowTranslator,
     create_rolling_window_translator,
 )
-from .caption_buffer import (
-    CaptionBuffer,
-    Caption,
-    SessionCaptionManager,
-    create_caption_buffer,
-)
+from .sentence_aggregator import SentenceAggregator
 
 __all__ = [
-    "SentenceAggregator",
+    "Caption",
+    "CaptionBuffer",
     "GlossaryService",
     "RollingWindowTranslator",
-    "create_rolling_window_translator",
-    "CaptionBuffer",
-    "Caption",
+    "SentenceAggregator",
     "SessionCaptionManager",
     "create_caption_buffer",
+    "create_rolling_window_translator",
 ]

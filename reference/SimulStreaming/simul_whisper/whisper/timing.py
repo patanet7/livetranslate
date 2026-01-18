@@ -84,7 +84,7 @@ def backtrace(trace: np.ndarray):
 def dtw_cpu(x: np.ndarray):
     N, M = x.shape
     cost = np.ones((N + 1, M + 1), dtype=np.float32) * np.inf # cost: x[0, 0]到x[i-1, j-1]的最小代价
-    trace = -np.ones((N + 1, M + 1), dtype=np.float32) # trace: 
+    trace = -np.ones((N + 1, M + 1), dtype=np.float32) # trace:
 
     cost[0, 0] = 0
     for j in range(1, M + 1):

@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   Button,
@@ -7,7 +7,7 @@ import {
   Chip,
   Paper,
   LinearProgress,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Mic as MicIcon,
   Stop as StopIcon,
@@ -15,7 +15,7 @@ import {
   Download as DownloadIcon,
   Clear as ClearIcon,
   Pause as PauseIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface RecordingControlsProps {
   onStartRecording: () => void;
@@ -43,28 +43,28 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   const getRecordingStatus = () => {
     if (isRecording) {
       return {
-        text: 'Recording in progress...',
-        color: 'error' as const,
-        variant: 'filled' as const,
+        text: "Recording in progress...",
+        color: "error" as const,
+        variant: "filled" as const,
       };
     }
     if (hasRecording) {
       return {
-        text: 'Recording completed',
-        color: 'success' as const,
-        variant: 'filled' as const,
+        text: "Recording completed",
+        color: "success" as const,
+        variant: "filled" as const,
       };
     }
     return {
-      text: 'Ready to record',
-      color: 'primary' as const,
-      variant: 'outlined' as const,
+      text: "Ready to record",
+      color: "primary" as const,
+      variant: "outlined" as const,
     };
   };
 
@@ -73,7 +73,14 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   return (
     <Paper sx={{ p: 3 }}>
       <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 2,
+          }}
+        >
           <Stack direction="row" spacing={2} alignItems="center">
             <Button
               variant={isRecording ? "outlined" : "contained"}
@@ -83,9 +90,9 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
               size="large"
               sx={{ minWidth: 160 }}
             >
-              {isRecording ? 'Stop Recording' : 'Start Recording'}
+              {isRecording ? "Stop Recording" : "Start Recording"}
             </Button>
-            
+
             <Button
               variant="outlined"
               startIcon={isPlaying ? <PauseIcon /> : <PlayIcon />}
@@ -93,9 +100,9 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
               disabled={!hasRecording}
               size="large"
             >
-              {isPlaying ? 'Stop Playing' : 'Play Recording'}
+              {isPlaying ? "Stop Playing" : "Play Recording"}
             </Button>
-            
+
             <Button
               variant="outlined"
               startIcon={<DownloadIcon />}
@@ -104,7 +111,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
             >
               Download
             </Button>
-            
+
             <Button
               variant="outlined"
               startIcon={<ClearIcon />}
@@ -114,9 +121,14 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
               Clear
             </Button>
           </Stack>
-          
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="h4" component="div" fontFamily="monospace" color="primary.main">
+
+          <Box sx={{ textAlign: "right" }}>
+            <Typography
+              variant="h4"
+              component="div"
+              fontFamily="monospace"
+              color="primary.main"
+            >
               {formatDuration(recordingDuration)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
@@ -124,16 +136,16 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
             </Typography>
           </Box>
         </Box>
-        
+
         <Chip
           label={status.text}
           color={status.color}
           variant={status.variant}
           sx={{ mb: 1 }}
         />
-        
+
         {isRecording && (
-          <LinearProgress 
+          <LinearProgress
             sx={{ mt: 2, height: 6, borderRadius: 3 }}
             color="error"
           />

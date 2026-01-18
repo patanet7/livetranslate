@@ -15,22 +15,23 @@ Features:
 - Performance optimization for low latency
 """
 
-import os
-import time
-import logging
 import asyncio
+import base64
+import io
+import json
+import logging
+import os
 import threading
+import time
 import uuid
-from typing import Dict, Optional, Any, Tuple
-from dataclasses import dataclass, asdict
+from collections import deque
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-import json
+from typing import Any
+
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import io
-import base64
-from collections import deque
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -85,11 +86,11 @@ class TranslationDisplay:
     text: str
     source_language: str
     target_language: str
-    speaker_name: Optional[str]
+    speaker_name: str | None
     confidence: float
     timestamp: datetime
-    display_position: Tuple[int, int] = (0, 0)
-    expires_at: Optional[datetime] = None
+    display_position: tuple[int, int] = (0, 0)
+    expires_at: datetime | None = None
 
 
 @dataclass
@@ -98,8 +99,8 @@ class SpeakerInfo:
 
     speaker_id: str
     speaker_name: str
-    color: Tuple[int, int, int]
-    position: Tuple[int, int]
+    color: tuple[int, int, int]
+    position: tuple[int, int]
     last_active: datetime
 
 
@@ -166,9 +167,7 @@ class VirtualWebcamManager:
             for font_path in font_paths:
                 if os.path.exists(font_path):
                     try:
-                        self.fonts["regular"] = ImageFont.truetype(
-                            font_path, self.config.font_size
-                        )
+                        self.fonts["regular"] = ImageFont.truetype(font_path, self.config.font_size)
                         self.fonts["bold"] = ImageFont.truetype(
                             font_path, self.config.font_size + 4
                         )
@@ -195,7 +194,7 @@ class VirtualWebcamManager:
             self.fonts["bold"] = ImageFont.load_default()
             self.fonts["small"] = ImageFont.load_default()
 
-    def get_theme_colors(self) -> Dict[str, Tuple[int, int, int]]:
+    def get_theme_colors(self) -> dict[str, tuple[int, int, int]]:
         """Get color scheme for current theme."""
         themes = {
             Theme.DARK: {
@@ -302,7 +301,7 @@ class VirtualWebcamManager:
                 self.on_error(f"Webcam stop failed: {e}")
             return False
 
-    def add_translation(self, translation_data: Dict[str, Any]):
+    def add_translation(self, translation_data: dict[str, Any]):
         """Add a new translation to display."""
         try:
             # Determine display text and type
@@ -329,9 +328,7 @@ class VirtualWebcamManager:
 
             # Create translation display item
             translation = TranslationDisplay(
-                translation_id=translation_data.get(
-                    "translation_id", str(uuid.uuid4())
-                ),
+                translation_id=translation_data.get("translation_id", str(uuid.uuid4())),
                 text=display_text,
                 source_language=translation_data.get("source_language", "auto"),
                 target_language=translation_data.get("target_language", "en"),
@@ -360,14 +357,12 @@ class VirtualWebcamManager:
             # Log with appropriate prefix
             prefix = "TRANSCRIPTION" if is_original else "TRANSLATION"
             lang_info = f"[{translation_data.get('source_language', 'auto')} → {translation_data.get('target_language', 'en')}]"
-            logger.info(
-                f"{prefix} {lang_info} {formatted_speaker}: {display_text[:100]}..."
-            )
+            logger.info(f"{prefix} {lang_info} {formatted_speaker}: {display_text[:100]}...")
 
         except Exception as e:
             logger.error(f"Error adding translation: {e}")
 
-    def _add_speaker(self, speaker_id: str, speaker_name: Optional[str]):
+    def _add_speaker(self, speaker_id: str, speaker_name: str | None):
         """Add a new speaker to tracking."""
         color = self.speaker_colors[self.next_speaker_color % len(self.speaker_colors)]
         self.next_speaker_color += 1
@@ -508,11 +503,9 @@ class VirtualWebcamManager:
 
         # Render each translation with improved spacing
         y_offset = 30
-        max_display = min(
-            len(active_translations), self.config.max_translations_displayed
-        )
+        max_display = min(len(active_translations), self.config.max_translations_displayed)
 
-        for i, translation in enumerate(active_translations[:max_display]):
+        for translation in active_translations[:max_display]:
             self._draw_translation_box(draw, translation, y_offset, colors)
             y_offset += 100  # Increased space for enhanced boxes
 
@@ -615,7 +608,7 @@ class VirtualWebcamManager:
         draw: ImageDraw.Draw,
         translation: TranslationDisplay,
         y_offset: int,
-        colors: Dict[str, Tuple[int, int, int]],
+        colors: dict[str, tuple[int, int, int]],
     ):
         """Draw a translation box with text and metadata."""
         # Box dimensions
@@ -632,9 +625,7 @@ class VirtualWebcamManager:
         border_width = 2 if is_original else 1
 
         # Background with opacity
-        overlay_color = colors["overlay_bg"] + (
-            int(255 * self.config.background_opacity),
-        )
+        overlay_color = colors["overlay_bg"] + (int(255 * self.config.background_opacity),)
         draw.rectangle(
             [(x, y), (x + box_width, y + box_height)],
             fill=overlay_color,
@@ -705,9 +696,7 @@ class VirtualWebcamManager:
         if self.config.show_confidence:
             confidence_text = f"📊 {translation.confidence:.1%}"
             confidence_color = (
-                colors["accent"]
-                if translation.confidence > 0.8
-                else colors["text_secondary"]
+                colors["accent"] if translation.confidence > 0.8 else colors["text_secondary"]
             )
             draw.text(
                 (x + box_width - 80, y + 5),
@@ -718,9 +707,7 @@ class VirtualWebcamManager:
 
         # Language indicator (bottom right)
         if not is_original:
-            lang_text = (
-                f"🔄 {translation.source_language} → {translation.target_language}"
-            )
+            lang_text = f"🔄 {translation.source_language} → {translation.target_language}"
             draw.text(
                 (x + box_width - 120, y + box_height - 20),
                 lang_text,
@@ -745,7 +732,7 @@ class VirtualWebcamManager:
         x: int,
         y: int,
         width: int,
-        colors: Dict[str, Tuple[int, int, int]],
+        colors: dict[str, tuple[int, int, int]],
     ):
         """Draw translation in sidebar format."""
         # Similar to box but adapted for sidebar layout
@@ -791,7 +778,7 @@ class VirtualWebcamManager:
         draw: ImageDraw.Draw,
         translation: TranslationDisplay,
         y: int,
-        colors: Dict[str, Tuple[int, int, int]],
+        colors: dict[str, tuple[int, int, int]],
     ):
         """Draw translation in banner format."""
         text = translation.text
@@ -811,7 +798,7 @@ class VirtualWebcamManager:
         draw: ImageDraw.Draw,
         translation: TranslationDisplay,
         y: int,
-        colors: Dict[str, Tuple[int, int, int]],
+        colors: dict[str, tuple[int, int, int]],
     ):
         """Draw translation centered for fullscreen mode."""
         font = self.fonts.get("bold", ImageFont.load_default())
@@ -840,9 +827,7 @@ class VirtualWebcamManager:
         x = (self.config.width - text_width) // 2
         draw.text((x, y), translation.text, fill=colors["text_primary"], font=font)
 
-    def _draw_session_header(
-        self, draw: ImageDraw.Draw, colors: Dict[str, Tuple[int, int, int]]
-    ):
+    def _draw_session_header(self, draw: ImageDraw.Draw, colors: dict[str, tuple[int, int, int]]):
         """Draw session information header."""
         try:
             session_id = getattr(self, "session_id", "Unknown")
@@ -882,7 +867,7 @@ class VirtualWebcamManager:
 
             self.current_translations = active_translations
 
-    def get_current_frame_base64(self) -> Optional[str]:
+    def get_current_frame_base64(self) -> str | None:
         """Get current frame as base64 encoded image."""
         try:
             with self.frame_lock:
@@ -907,7 +892,7 @@ class VirtualWebcamManager:
             logger.error(f"Error converting frame to base64: {e}")
             return None
 
-    def get_webcam_stats(self) -> Dict[str, Any]:
+    def get_webcam_stats(self) -> dict[str, Any]:
         """Get comprehensive webcam statistics."""
         duration = time.time() - self.start_time if self.start_time else 0
         fps = self.frames_generated / duration if duration > 0 else 0
@@ -926,9 +911,7 @@ class VirtualWebcamManager:
 
 
 # Factory functions
-def create_virtual_webcam(
-    config: WebcamConfig, bot_manager=None
-) -> VirtualWebcamManager:
+def create_virtual_webcam(config: WebcamConfig, bot_manager=None) -> VirtualWebcamManager:
     """Create a virtual webcam manager instance."""
     return VirtualWebcamManager(config, bot_manager)
 
@@ -936,7 +919,7 @@ def create_virtual_webcam(
 def create_default_webcam_config(
     display_mode: DisplayMode = DisplayMode.OVERLAY,
     theme: Theme = Theme.DARK,
-    resolution: Tuple[int, int] = (1920, 1080),
+    resolution: tuple[int, int] = (1920, 1080),
 ) -> WebcamConfig:
     """Create a default webcam configuration."""
     return WebcamConfig(
@@ -950,9 +933,7 @@ def create_default_webcam_config(
 # Example usage
 async def main():
     """Example usage of virtual webcam."""
-    config = create_default_webcam_config(
-        display_mode=DisplayMode.OVERLAY, theme=Theme.DARK
-    )
+    config = create_default_webcam_config(display_mode=DisplayMode.OVERLAY, theme=Theme.DARK)
 
     webcam = create_virtual_webcam(config)
 

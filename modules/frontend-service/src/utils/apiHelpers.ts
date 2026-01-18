@@ -12,10 +12,10 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public data?: any
+    public data?: any,
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
@@ -37,12 +37,12 @@ export class ApiError extends Error {
 export async function fetchJson<T = any>(
   url: string,
   options?: RequestInit,
-  errorMessage?: string
+  errorMessage?: string,
 ): Promise<T> {
   try {
     const response = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...options?.headers,
       },
       ...options,
@@ -68,8 +68,8 @@ export async function fetchJson<T = any>(
     }
 
     // Handle empty responses (204 No Content, etc.)
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
       return {} as T;
     }
 
@@ -84,7 +84,7 @@ export async function fetchJson<T = any>(
     throw new ApiError(
       errorMessage || message,
       0, // 0 indicates network error
-      { originalError: error }
+      { originalError: error },
     );
   }
 }
@@ -98,9 +98,9 @@ export async function fetchJson<T = any>(
  */
 export async function get<T = any>(
   url: string,
-  errorMessage?: string
+  errorMessage?: string,
 ): Promise<T> {
-  return fetchJson<T>(url, { method: 'GET' }, errorMessage);
+  return fetchJson<T>(url, { method: "GET" }, errorMessage);
 }
 
 /**
@@ -114,15 +114,15 @@ export async function get<T = any>(
 export async function post<T = any>(
   url: string,
   data: any,
-  errorMessage?: string
+  errorMessage?: string,
 ): Promise<T> {
   return fetchJson<T>(
     url,
     {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     },
-    errorMessage
+    errorMessage,
   );
 }
 
@@ -137,15 +137,15 @@ export async function post<T = any>(
 export async function put<T = any>(
   url: string,
   data: any,
-  errorMessage?: string
+  errorMessage?: string,
 ): Promise<T> {
   return fetchJson<T>(
     url,
     {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     },
-    errorMessage
+    errorMessage,
   );
 }
 
@@ -158,9 +158,9 @@ export async function put<T = any>(
  */
 export async function del<T = any>(
   url: string,
-  errorMessage?: string
+  errorMessage?: string,
 ): Promise<T> {
-  return fetchJson<T>(url, { method: 'DELETE' }, errorMessage);
+  return fetchJson<T>(url, { method: "DELETE" }, errorMessage);
 }
 
 /**
@@ -180,14 +180,14 @@ export async function withRetry<T>(
   fn: () => Promise<T>,
   options: {
     maxRetries?: number;
-    backoff?: 'linear' | 'exponential';
+    backoff?: "linear" | "exponential";
     initialDelay?: number;
     shouldRetry?: (error: any) => boolean;
-  } = {}
+  } = {},
 ): Promise<T> {
   const {
     maxRetries = 3,
-    backoff = 'exponential',
+    backoff = "exponential",
     initialDelay = 1000,
     shouldRetry = (error) => {
       // Retry on network errors or 5xx server errors
@@ -209,18 +209,20 @@ export async function withRetry<T>(
 
       // Calculate delay with backoff strategy
       const delay =
-        backoff === 'exponential'
+        backoff === "exponential"
           ? initialDelay * Math.pow(2, attempt)
           : initialDelay * (attempt + 1);
 
-      console.log(`Request failed, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
+      console.log(
+        `Request failed, retrying in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`,
+      );
 
       // Wait before next retry
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  throw new Error('Max retries exceeded');
+  throw new Error("Max retries exceeded");
 }
 
 /**
@@ -238,10 +240,10 @@ export async function uploadFile<T = any>(
   url: string,
   file: File | Blob,
   onProgress?: (progress: number) => void,
-  additionalData?: Record<string, string>
+  additionalData?: Record<string, string>,
 ): Promise<T> {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append("file", file);
 
   // Add additional form fields
   if (additionalData) {
@@ -255,7 +257,7 @@ export async function uploadFile<T = any>(
 
     // Track upload progress
     if (onProgress) {
-      xhr.upload.addEventListener('progress', (event) => {
+      xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable) {
           const progress = Math.round((event.loaded / event.total) * 100);
           onProgress(progress);
@@ -263,7 +265,7 @@ export async function uploadFile<T = any>(
       });
     }
 
-    xhr.addEventListener('load', () => {
+    xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const response = JSON.parse(xhr.responseText);
@@ -278,24 +280,26 @@ export async function uploadFile<T = any>(
             new ApiError(
               errorData.detail || errorData.message || `HTTP ${xhr.status}`,
               xhr.status,
-              errorData
-            )
+              errorData,
+            ),
           );
         } catch {
-          reject(new ApiError(`HTTP ${xhr.status}: ${xhr.statusText}`, xhr.status));
+          reject(
+            new ApiError(`HTTP ${xhr.status}: ${xhr.statusText}`, xhr.status),
+          );
         }
       }
     });
 
-    xhr.addEventListener('error', () => {
-      reject(new ApiError('Network error', 0));
+    xhr.addEventListener("error", () => {
+      reject(new ApiError("Network error", 0));
     });
 
-    xhr.addEventListener('abort', () => {
-      reject(new ApiError('Upload aborted', 0));
+    xhr.addEventListener("abort", () => {
+      reject(new ApiError("Upload aborted", 0));
     });
 
-    xhr.open('POST', url);
+    xhr.open("POST", url);
     xhr.send(formData);
   });
 }
@@ -356,14 +360,17 @@ export function isNetworkError(error: any): boolean {
  *
  * Used for: Consistent error message extraction
  */
-export function getErrorMessage(error: any, defaultMessage = 'An error occurred'): string {
+export function getErrorMessage(
+  error: any,
+  defaultMessage = "An error occurred",
+): string {
   if (error instanceof ApiError) {
     return error.message;
   }
   if (error instanceof Error) {
     return error.message;
   }
-  if (typeof error === 'string') {
+  if (typeof error === "string") {
     return error;
   }
   if (error?.message) {

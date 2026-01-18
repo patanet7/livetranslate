@@ -307,5 +307,3 @@ Verification
 - Start a session, speak a few phrases, stop
 - Verify: one row in `seamless_sessions`, multiple `seamless_events`, at least one `translation_final` row in `seamless_transcripts`
 - Call retrieval endpoints and confirm shapes
-
-

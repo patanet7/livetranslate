@@ -26,14 +26,14 @@ Usage:
     result = await translator.translate(...)
 """
 
-import os
 import asyncio
 import logging
-from typing import Dict, Optional, List, Any
+import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
-from openai_compatible_translator import OpenAICompatibleTranslator, OpenAICompatibleConfig
+from openai_compatible_translator import OpenAICompatibleConfig, OpenAICompatibleTranslator
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelInfo:
     """Information about a loaded model"""
+
     model_name: str
     backend: str
     loaded_at: datetime
@@ -64,19 +65,19 @@ class RuntimeModelManager:
     """
 
     def __init__(self):
-        self.current_model: Optional[str] = None
-        self.current_backend: Optional[str] = None
-        self.current_translator: Optional[OpenAICompatibleTranslator] = None
+        self.current_model: str | None = None
+        self.current_backend: str | None = None
+        self.current_translator: OpenAICompatibleTranslator | None = None
 
         # Cache of initialized translators by "{backend}:{model}" key
-        self.model_cache: Dict[str, OpenAICompatibleTranslator] = {}
-        self.model_info: Dict[str, ModelInfo] = {}
+        self.model_cache: dict[str, OpenAICompatibleTranslator] = {}
+        self.model_info: dict[str, ModelInfo] = {}
 
         # Lock for thread-safe operations
         self._lock = asyncio.Lock()
 
         # Configuration for backends
-        self._backend_configs: Dict[str, Dict[str, Any]] = {}
+        self._backend_configs: dict[str, dict[str, Any]] = {}
 
         # Load backend configs from environment
         self._load_backend_configs()
@@ -173,7 +174,7 @@ class RuntimeModelManager:
                     self.current_translator = translator
                     self.current_model = model_name
                     self.current_backend = backend
-                    self.model_info[cache_key].last_used = datetime.now(timezone.utc)
+                    self.model_info[cache_key].last_used = datetime.now(UTC)
 
                     logger.info(f"Switched to cached model: {model_name} on {backend}")
                     return True
@@ -195,8 +196,8 @@ class RuntimeModelManager:
                     self.model_info[cache_key] = ModelInfo(
                         model_name=model_name,
                         backend=backend,
-                        loaded_at=datetime.now(timezone.utc),
-                        last_used=datetime.now(timezone.utc),
+                        loaded_at=datetime.now(UTC),
+                        last_used=datetime.now(UTC),
                     )
 
                     # Set as current
@@ -246,8 +247,8 @@ class RuntimeModelManager:
                     self.model_info[cache_key] = ModelInfo(
                         model_name=model_name,
                         backend=backend,
-                        loaded_at=datetime.now(timezone.utc),
-                        last_used=datetime.now(timezone.utc),
+                        loaded_at=datetime.now(UTC),
+                        last_used=datetime.now(UTC),
                     )
 
                 logger.info(f"Successfully preloaded model: {model_name} on {backend}")
@@ -260,7 +261,7 @@ class RuntimeModelManager:
             logger.error(f"Error preloading model {model_name} on {backend}: {e}")
             return False
 
-    async def get_current_translator(self) -> Optional[OpenAICompatibleTranslator]:
+    async def get_current_translator(self) -> OpenAICompatibleTranslator | None:
         """Get currently active translator"""
         async with self._lock:
             if self.current_translator and self.current_translator.is_ready:
@@ -268,11 +269,13 @@ class RuntimeModelManager:
                 cache_key = self._get_cache_key(self.current_model, self.current_backend)
                 if cache_key in self.model_info:
                     self.model_info[cache_key].request_count += 1
-                    self.model_info[cache_key].last_used = datetime.now(timezone.utc)
+                    self.model_info[cache_key].last_used = datetime.now(UTC)
                 return self.current_translator
             return None
 
-    async def get_translator(self, model_name: str, backend: str = "ollama") -> Optional[OpenAICompatibleTranslator]:
+    async def get_translator(
+        self, model_name: str, backend: str = "ollama"
+    ) -> OpenAICompatibleTranslator | None:
         """
         Get a specific translator, loading if necessary.
 
@@ -314,7 +317,7 @@ class RuntimeModelManager:
 
             return False
 
-    async def get_available_models(self, backend: str = "ollama") -> List[str]:
+    async def get_available_models(self, backend: str = "ollama") -> list[str]:
         """
         Get list of available models from a backend.
 
@@ -338,22 +341,24 @@ class RuntimeModelManager:
 
         return []
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current model manager status"""
         cached_models = []
-        for cache_key, info in self.model_info.items():
-            cached_models.append({
-                "model": info.model_name,
-                "backend": info.backend,
-                "loaded_at": info.loaded_at.isoformat(),
-                "last_used": info.last_used.isoformat(),
-                "request_count": info.request_count,
-                "error_count": info.error_count,
-                "is_current": (
-                    info.model_name == self.current_model and
-                    info.backend == self.current_backend
-                ),
-            })
+        for _cache_key, info in self.model_info.items():
+            cached_models.append(
+                {
+                    "model": info.model_name,
+                    "backend": info.backend,
+                    "loaded_at": info.loaded_at.isoformat(),
+                    "last_used": info.last_used.isoformat(),
+                    "request_count": info.request_count,
+                    "error_count": info.error_count,
+                    "is_current": (
+                        info.model_name == self.current_model
+                        and info.backend == self.current_backend
+                    ),
+                }
+            )
 
         return {
             "current_model": self.current_model,
@@ -383,7 +388,7 @@ class RuntimeModelManager:
 
 
 # Global instance for use across the service
-_global_model_manager: Optional[RuntimeModelManager] = None
+_global_model_manager: RuntimeModelManager | None = None
 
 
 def get_model_manager() -> RuntimeModelManager:

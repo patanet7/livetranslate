@@ -15,42 +15,45 @@ This is the production-ready approach for code-switching that:
 3. Avoids mid-utterance KV cache clearing (violates FEEDBACK.md line 6)
 """
 
-import numpy as np
-import torch
 import logging
-import time
+import os
 import re
-from typing import Optional, Dict, Any, List
-from dataclasses import dataclass
-from pathlib import Path
 
 # Import LID components (Milestone 2 Phase 2.1, 2.2)
 import sys
-import os
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import torch
 
 # Add src/ to path with HIGHEST PRIORITY to avoid tests/utils.py shadowing src/utils/
 src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)  # insert at position 0 (highest priority)
 
-from language_id import FrameLevelLID, SustainedLanguageDetector, LIDSmoother
+# Performance optimization utilities - explicitly import from src/utils to avoid tests/utils.py conflict
+# We need to import the package first, then the submodules
+import importlib.util
+
+from language_id import FrameLevelLID, LIDSmoother, SustainedLanguageDetector
 from simul_whisper.config import AlignAttConfig
 from simul_whisper.simul_whisper import PaddedAlignAttWhisper
 from simul_whisper.whisper import load_model
 from simul_whisper.whisper.tokenizer import get_tokenizer
-# VAD for silence filtering (FEEBACK.md line 12: "Keep VAD‑first processing")
+
+# VAD for silence filtering (FEEBACK.md line 12: "Keep VAD-first processing")
 from vad_detector import SileroVAD
 
-# Performance optimization utilities - explicitly import from src/utils to avoid tests/utils.py conflict
-# We need to import the package first, then the submodules
-import importlib.util
-utils_init_path = os.path.join(src_dir, 'utils', '__init__.py')
+utils_init_path = os.path.join(src_dir, "utils", "__init__.py")
 spec = importlib.util.spec_from_file_location("utils", utils_init_path)
 utils_module = importlib.util.module_from_spec(spec)
-sys.modules['utils'] = utils_module
+sys.modules["utils"] = utils_module
 spec.loader.exec_module(utils_module)
 
-from utils import RingBuffer, EncoderCache, PerformanceMetrics
+from utils import EncoderCache, PerformanceMetrics, RingBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +61,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SessionSegment:
     """Transcription segment from a single language session"""
+
     text: str
     language: str
     start_time: float
@@ -69,11 +73,12 @@ class SessionSegment:
 @dataclass
 class LanguageSession:
     """Represents one language session"""
+
     language: str
     processor: PaddedAlignAttWhisper  # SimulStreaming instance
     start_time: float
     end_time: float
-    segments: List[SessionSegment]
+    segments: list[SessionSegment]
     audio_samples_processed: int = 0
     is_final: bool = False  # Track if VAD detected speech end
 
@@ -106,8 +111,8 @@ class SessionRestartTranscriber:
     def __init__(
         self,
         model_path: str,  # Path to Whisper model (e.g., "/path/to/large-v3-turbo.pt")
-        models_dir: Optional[str] = None,  # Optional models directory
-        target_languages: List[str] = ['en', 'zh'],
+        models_dir: str | None = None,  # Optional models directory
+        target_languages: list[str] | None = None,
         online_chunk_size: float = 1.2,
         vad_threshold: float = 0.5,
         sampling_rate: int = 16000,
@@ -116,8 +121,10 @@ class SessionRestartTranscriber:
         min_dwell_frames: int = 6,
         min_dwell_ms: float = 250.0,
         decoder_type: str = "greedy",  # "greedy" or "beam"
-        beam_size: int = 1  # Beam size (only used if decoder_type="beam")
+        beam_size: int = 1,  # Beam size (only used if decoder_type="beam")
     ):
+        if target_languages is None:
+            target_languages = ["en", "zh"]
         self.model_path = model_path
         self.models_dir = models_dir or str(Path.home() / ".whisper" / "models")
         self.target_languages = target_languages
@@ -130,7 +137,9 @@ class SessionRestartTranscriber:
         if decoder_type == "greedy":
             self.beam_size = 1
             if beam_size != 1:
-                logger.warning(f"decoder_type='greedy' requires beam_size=1, overriding beam_size={beam_size}")
+                logger.warning(
+                    f"decoder_type='greedy' requires beam_size=1, overriding beam_size={beam_size}"
+                )
         else:
             self.beam_size = beam_size
 
@@ -142,7 +151,7 @@ class SessionRestartTranscriber:
         self.shared_tokenizer = get_tokenizer(
             self.shared_whisper_model.is_multilingual,
             language=None,  # No fixed language
-            task="transcribe"
+            task="transcribe",
         )
         logger.info(f"✅ Shared model loaded: {self.shared_whisper_model.dims}")
 
@@ -152,14 +161,14 @@ class SessionRestartTranscriber:
         self.lid_detector = FrameLevelLID(
             hop_ms=lid_hop_ms,
             target_languages=target_languages,
-            smoothing=True  # Median smoothing (5-frame window)
+            smoothing=True,  # Median smoothing (5-frame window)
         )
 
         # HMM/Viterbi smoother for additional stability (Phase 2.1)
         self.lid_smoother = LIDSmoother(
             languages=target_languages,
             transition_cost=0.3,  # Prefer staying in same language
-            window_size=5  # 500ms window at 10Hz
+            window_size=5,  # 500ms window at 10Hz
         )
 
         # Sustained language detection with hysteresis (Phase 2.2)
@@ -167,17 +176,17 @@ class SessionRestartTranscriber:
             confidence_margin=confidence_margin,
             min_dwell_frames=min_dwell_frames,
             min_dwell_ms=min_dwell_ms,
-            frame_hop_ms=lid_hop_ms
+            frame_hop_ms=lid_hop_ms,
         )
 
-        # VAD for filtering silence (FEEBACK.md line 12: "Keep VAD‑first processing")
+        # VAD for filtering silence (FEEBACK.md line 12: "Keep VAD-first processing")
         # Prevents hallucinations by NOT sending silence to Whisper
         self.vad = SileroVAD(
             threshold=vad_threshold,
             sampling_rate=sampling_rate,
-            min_silence_duration_ms=500  # 500ms silence = speech end (SimulStreaming default)
+            min_silence_duration_ms=500,  # 500ms silence = speech end (SimulStreaming default)
         )
-        self.vad_status = 'nonvoice'  # 'voice' or 'nonvoice'
+        self.vad_status = "nonvoice"  # 'voice' or 'nonvoice'
 
         # OPTIMIZATION: RingBuffer for O(1) audio buffering (replaces np.concatenate)
         # Preallocate 60 seconds of audio at 16kHz (prevents memory allocations)
@@ -185,8 +194,8 @@ class SessionRestartTranscriber:
         self.vad_audio_buffer = RingBuffer(capacity=vad_buffer_capacity, dtype=np.float32)
 
         # Current active session
-        self.current_session: Optional[LanguageSession] = None
-        self.all_sessions: List[LanguageSession] = []
+        self.current_session: LanguageSession | None = None
+        self.all_sessions: list[LanguageSession] = []
 
         # LID processing state
         # OPTIMIZATION: RingBuffer for LID audio (replaces np.concatenate)
@@ -197,7 +206,7 @@ class SessionRestartTranscriber:
 
         # OPTIMIZATION: Encoder cache for LID (avoids redundant encoder computations)
         # Cache up to 50 encoder outputs (5 seconds at 10Hz frame rate)
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         self.encoder_cache = EncoderCache(max_size=50, device=device)
 
         # Session timing
@@ -218,7 +227,7 @@ class SessionRestartTranscriber:
         # - Adjacent attribution: Don't care which exact chunk, just that SOME recent chunk produced output
 
         # OPTIMIZATION: Compiled regex for chunk tracking (5-10% overhead reduction)
-        self._alphanumeric_regex = re.compile(r'[a-zA-Z0-9]')
+        self._alphanumeric_regex = re.compile(r"[a-zA-Z0-9]")
 
         # Statistics
         self.total_switches = 0
@@ -228,7 +237,7 @@ class SessionRestartTranscriber:
         self.metrics = PerformanceMetrics(
             max_samples=1000,
             enable_logging=True,
-            log_interval_seconds=300.0  # Log every 5 minutes
+            log_interval_seconds=300.0,  # Log every 5 minutes
         )
 
         logger.info(
@@ -258,7 +267,11 @@ class SessionRestartTranscriber:
         Returns:
             Loaded Whisper model
         """
-        device = 'cuda' if torch.cuda.is_available() else ('mps' if torch.backends.mps.is_available() else 'cpu')
+        device = (
+            "cuda"
+            if torch.cuda.is_available()
+            else ("mps" if torch.backends.mps.is_available() else "cpu")
+        )
         logger.info(f"[Device] Loading shared model on {device}")
 
         model = load_model(model_path, device=device)
@@ -284,12 +297,12 @@ class SessionRestartTranscriber:
             audio_min_len=1.0,
             decoder_type=self.decoder_type,
             beam_size=self.beam_size,
-            logdir=None  # Disable logging for production
+            logdir=None,  # Disable logging for production
         )
 
         # Create PaddedAlignAttWhisper instance (SimulStreaming)
         # VAD filtering happens at session_manager level, NOT inside processor
-        # Per FEEBACK.md lines 12, 106, 272: "Keep VAD‑first processing"
+        # Per FEEBACK.md lines 12, 106, 272: "Keep VAD-first processing"
         whisper_processor = PaddedAlignAttWhisper(config)
 
         # Create session
@@ -301,7 +314,7 @@ class SessionRestartTranscriber:
             end_time=start_time,
             segments=[],
             audio_samples_processed=0,
-            is_final=False
+            is_final=False,
         )
 
         return session
@@ -336,7 +349,7 @@ class SessionRestartTranscriber:
                 start_time=self.current_session.start_time,
                 end_time=self.current_session.end_time,
                 is_final=True,
-                confidence=1.0
+                confidence=1.0,
             )
             self.current_session.segments.append(segment)
 
@@ -346,7 +359,7 @@ class SessionRestartTranscriber:
         # Add to history
         self.all_sessions.append(self.current_session)
 
-        logger.info(f"✅ Session finished with final text")
+        logger.info("✅ Session finished with final text")
 
     def _switch_session(self, new_language: str):
         """
@@ -372,11 +385,10 @@ class SessionRestartTranscriber:
         self.total_switches += 1
 
         logger.info(
-            f"✅ Session switched to {new_language} "
-            f"(total switches: {self.total_switches})"
+            f"✅ Session switched to {new_language} " f"(total switches: {self.total_switches})"
         )
 
-    def process(self, audio_chunk: np.ndarray) -> Dict[str, Any]:
+    def process(self, audio_chunk: np.ndarray) -> dict[str, Any]:
         """
         Process audio chunk with code-switching detection.
 
@@ -399,7 +411,7 @@ class SessionRestartTranscriber:
         if isinstance(audio_chunk, torch.Tensor):
             audio_chunk = audio_chunk.cpu().numpy()
 
-        # VAD-first processing (FEEDBACK.md line 12: "Keep VAD‑first processing")
+        # VAD-first processing (FEEDBACK.md line 12: "Keep VAD-first processing")
         # Pattern from Milestone 1 baseline (81.8% accuracy, zero hallucinations):
         # 1. Run VAD on every chunk
         # 2. ONLY buffer SPEECH audio (never buffer silence)
@@ -418,13 +430,13 @@ class SessionRestartTranscriber:
         if vad_result is not None:
             # Handle case where BOTH 'end' and 'start' are detected (speech ends and immediately restarts)
             # This happens when pauses are < 512ms (VAD buffer size)
-            has_end = 'end' in vad_result
-            has_start = 'start' in vad_result
+            has_end = "end" in vad_result
+            has_start = "start" in vad_result
 
             if has_start:
                 # Speech START detected - start processing
                 logger.info(f"🎤 VAD: Speech START detected at {vad_result['start']:.2f}s")
-                self.vad_status = 'voice'
+                self.vad_status = "voice"
                 should_process = True  # CRITICAL FIX: Process when speech starts!
                 should_buffer_chunk = True  # Buffer this speech chunk
                 # NOTE: Session creation moved to AFTER LID processing (lines ~603-614)
@@ -438,12 +450,12 @@ class SessionRestartTranscriber:
 
                 if not has_start:
                     # Pure END (no START) - entering silence
-                    self.vad_status = 'nonvoice'
+                    self.vad_status = "nonvoice"
                     should_buffer_chunk = False
                 # else: Both END and START - stay in 'voice' status, keep buffering
         else:
             # No VAD event - check current status
-            if self.vad_status == 'voice':
+            if self.vad_status == "voice":
                 # Ongoing speech - CONTINUE PROCESSING (SimulStreaming pattern)
                 should_process = True  # CRITICAL FIX: Process continuously during speech!
                 should_buffer_chunk = True  # Buffer ongoing speech
@@ -457,13 +469,17 @@ class SessionRestartTranscriber:
         # VAD-FIRST PATTERN: Buffer ALL audio (maintains temporal continuity)
         # OPTIMIZATION: Use RingBuffer.append() instead of np.concatenate() for O(1) operation
         # CRITICAL FIX: Always buffer ALL chunks (speech + silence) to maintain temporal continuity
-        with self.metrics.measure('vad.buffer_append'):
+        with self.metrics.measure("vad.buffer_append"):
             self.vad_audio_buffer.append(audio_chunk)
 
         if should_buffer_chunk:
-            logger.debug(f"✅ Buffered speech chunk: {len(audio_chunk)} samples (buffer now: {len(self.vad_audio_buffer)} samples)")
+            logger.debug(
+                f"✅ Buffered speech chunk: {len(audio_chunk)} samples (buffer now: {len(self.vad_audio_buffer)} samples)"
+            )
         else:
-            logger.debug(f"🔇 Buffered silence chunk: {len(audio_chunk)} samples (buffer now: {len(self.vad_audio_buffer)} samples)")
+            logger.debug(
+                f"🔇 Buffered silence chunk: {len(audio_chunk)} samples (buffer now: {len(self.vad_audio_buffer)} samples)"
+            )
 
         # If not processing yet (buffering ongoing speech or silence), trim buffer and return early
         if not should_process:
@@ -477,25 +493,27 @@ class SessionRestartTranscriber:
                 recent_audio = self.vad_audio_buffer.read_all()[-max_buffer_samples:]
                 self.vad_audio_buffer.clear()
                 self.vad_audio_buffer.append(recent_audio)
-                logger.debug(f"🗑️  Trimmed buffer: {excess} samples removed, keeping {len(self.vad_audio_buffer)} samples")
+                logger.debug(
+                    f"🗑️  Trimmed buffer: {excess} samples removed, keeping {len(self.vad_audio_buffer)} samples"
+                )
             return {
-                'text': '',
-                'language': self.sustained_detector.get_current_language(),
-                'is_final': False,
-                'segments': self._get_all_segments(),
-                'switch_detected': False,
-                'current_language': self.sustained_detector.get_current_language(),
-                'candidate_language': self.sustained_detector.get_candidate_language(),
-                'statistics': self.get_statistics(),
-                'chunk_id': chunk_id,
-                'chunks_since_output': chunk_id - self.last_chunk_with_output,
-                'silence_detected': False,
-                'vad_filtered': False  # Buffering speech, not filtered
+                "text": "",
+                "language": self.sustained_detector.get_current_language(),
+                "is_final": False,
+                "segments": self._get_all_segments(),
+                "switch_detected": False,
+                "current_language": self.sustained_detector.get_current_language(),
+                "candidate_language": self.sustained_detector.get_candidate_language(),
+                "statistics": self.get_statistics(),
+                "chunk_id": chunk_id,
+                "chunks_since_output": chunk_id - self.last_chunk_with_output,
+                "silence_detected": False,
+                "vad_filtered": False,  # Buffering speech, not filtered
             }
 
         # Add to LID buffer
         # OPTIMIZATION: Use RingBuffer.append() instead of np.concatenate()
-        with self.metrics.measure('lid.buffer_append'):
+        with self.metrics.measure("lid.buffer_append"):
             self.audio_buffer_for_lid.append(audio_chunk)
             # DEBUG: Log LID buffer state
             logger.debug(
@@ -530,16 +548,18 @@ class SessionRestartTranscriber:
         # This allows LID to detect language BEFORE first session is created
         while len(self.audio_buffer_for_lid) >= self.lid_hop_samples and can_run_lid:
             lid_frames_processed += 1
-            with self.metrics.measure('lid.total'):
+            with self.metrics.measure("lid.total"):
                 # Extract LID frame (O(1) with RingBuffer.consume())
-                with self.metrics.measure('lid.frame_extract'):
+                with self.metrics.measure("lid.frame_extract"):
                     # CRITICAL FIX: Always use 3-second window for LID accuracy
                     # Whisper pads to 30s, so we need at least 10% real audio (3s) to avoid English bias
                     # Solution: analyze last 3s of audio (or all available if less)
                     # Then consume only the hop size to advance the window
 
                     # Determine window size: use 3 seconds or all available audio
-                    lid_window_size = min(len(self.audio_buffer_for_lid), int(self.sampling_rate * 3))  # 3 seconds
+                    lid_window_size = min(
+                        len(self.audio_buffer_for_lid), int(self.sampling_rate * 3)
+                    )  # 3 seconds
 
                     is_initial_detection = False
                     if self.current_session is None:
@@ -576,7 +596,7 @@ class SessionRestartTranscriber:
 
                 if encoder_output is None:
                     # Cache miss - compute encoder output
-                    with self.metrics.measure('lid.encoder_forward'):
+                    with self.metrics.measure("lid.encoder_forward"):
                         # Pad audio to 30 seconds (Whisper requirement)
                         lid_audio_padded = pad_or_trim(lid_frame_audio)
 
@@ -584,8 +604,7 @@ class SessionRestartTranscriber:
                         # IMPORTANT: Use n_mels from shared model (128 for large-v3, 80 for older models)
                         # CRITICAL FIX: Uses shared model instead of session model (DI pattern)
                         mel = log_mel_spectrogram(
-                            lid_audio_padded,
-                            n_mels=self.shared_whisper_model.dims.n_mels
+                            lid_audio_padded, n_mels=self.shared_whisper_model.dims.n_mels
                         )
 
                         # Run encoder to get features (Whisper-native zero-cost probe)
@@ -602,26 +621,25 @@ class SessionRestartTranscriber:
                 # This is a READ-ONLY probe that extracts language token logits
                 # CRITICAL FIX: Uses shared model/tokenizer (DI pattern) - works even when session is None
                 current_time = self.last_lid_time + (self.lid_hop_samples / self.sampling_rate)
-                with self.metrics.measure('lid.detect'):
+                with self.metrics.measure("lid.detect"):
                     lid_probs = self.lid_detector.detect(
                         encoder_output=encoder_output,
                         model=self.shared_whisper_model,  # Use SHARED model (DI pattern)
                         tokenizer=self.shared_tokenizer,  # Use SHARED tokenizer (DI pattern)
-                        timestamp=current_time
+                        timestamp=current_time,
                     )
 
             # Apply Viterbi smoothing
-            with self.metrics.measure('lid.smoothing'):
+            with self.metrics.measure("lid.smoothing"):
                 smoothed_result = self.lid_smoother.smooth(
                     lid_probs=lid_probs,  # Now returns Dict[str, float] instead of LIDFrame
-                    timestamp=current_time
+                    timestamp=current_time,
                 )
 
             # Check for sustained language change
-            with self.metrics.measure('lid.sustained_detection'):
+            with self.metrics.measure("lid.sustained_detection"):
                 switch_event = self.sustained_detector.update(
-                    lid_probs=smoothed_result.smoothed_probabilities,
-                    timestamp=current_time
+                    lid_probs=smoothed_result.smoothed_probabilities, timestamp=current_time
                 )
 
             self.last_lid_time = current_time
@@ -673,18 +691,18 @@ class SessionRestartTranscriber:
                         f"(have {len(self.audio_buffer_for_lid)} samples = {len(self.audio_buffer_for_lid)/self.sampling_rate:.2f}s)"
                     )
                     return {
-                        'text': '',
-                        'language': None,
-                        'is_final': False,
-                        'segments': [],
-                        'switch_detected': False,
-                        'current_language': None,
-                        'candidate_language': None,
-                        'statistics': self.get_statistics(),
-                        'chunk_id': chunk_id,
-                        'chunks_since_output': chunk_id - self.last_chunk_with_output,
-                        'silence_detected': False,
-                        'waiting_for_lid': True
+                        "text": "",
+                        "language": None,
+                        "is_final": False,
+                        "segments": [],
+                        "switch_detected": False,
+                        "current_language": None,
+                        "candidate_language": None,
+                        "statistics": self.get_statistics(),
+                        "chunk_id": chunk_id,
+                        "chunks_since_output": chunk_id - self.last_chunk_with_output,
+                        "silence_detected": False,
+                        "waiting_for_lid": True,
                     }
                 else:
                     # Have enough audio but LID didn't run (should not happen)
@@ -695,21 +713,23 @@ class SessionRestartTranscriber:
                         f"Creating initial session with fallback language: {initial_language}"
                     )
             else:
-                logger.info(f"🆕 Creating initial session with LID-detected language: {initial_language}")
+                logger.info(
+                    f"🆕 Creating initial session with LID-detected language: {initial_language}"
+                )
 
             self.current_session = self._create_new_session(initial_language)
 
         # Safety check - ensure session exists before processing (should always be true now)
         if self.current_session is None:
             return {
-                'text': '',
-                'language': None,
-                'is_final': True,
-                'segments': self._get_all_segments(),
-                'switch_detected': False,
-                'current_language': self.sustained_detector.get_current_language(),
-                'candidate_language': self.sustained_detector.get_candidate_language(),
-                'statistics': self.get_statistics()
+                "text": "",
+                "language": None,
+                "is_final": True,
+                "segments": self._get_all_segments(),
+                "switch_detected": False,
+                "current_language": self.sustained_detector.get_current_language(),
+                "candidate_language": self.sustained_detector.get_candidate_language(),
+                "statistics": self.get_statistics(),
             }
 
         # Process audio with PaddedAlignAttWhisper (SimulStreaming)
@@ -717,13 +737,13 @@ class SessionRestartTranscriber:
 
         # Convert VAD buffer to torch tensor
         # OPTIMIZATION: Use RingBuffer.read_all() for efficient extraction
-        with self.metrics.measure('whisper.buffer_read'):
+        with self.metrics.measure("whisper.buffer_read"):
             vad_buffer_data = self.vad_audio_buffer.read_all()
             audio_tensor = torch.from_numpy(vad_buffer_data).float()
 
         # DEBUG: Log audio statistics before sending to Whisper
         if len(audio_tensor) > 0:
-            audio_rms = torch.sqrt(torch.mean(audio_tensor ** 2)).item()
+            audio_rms = torch.sqrt(torch.mean(audio_tensor**2)).item()
             audio_max = torch.max(torch.abs(audio_tensor)).item()
             logger.info(
                 f"📤 Sending {len(audio_tensor)} samples to Whisper: "
@@ -735,7 +755,7 @@ class SessionRestartTranscriber:
 
         # Insert accumulated audio into SimulStreaming
         # Reference: This is the correct pattern - feed SPEECH audio, not silence
-        with self.metrics.measure('whisper.insert_audio'):
+        with self.metrics.measure("whisper.insert_audio"):
             self.current_session.processor.insert_audio(audio_tensor)
 
         # Clear VAD buffer after sending to processor
@@ -744,7 +764,7 @@ class SessionRestartTranscriber:
 
         # Run inference
         # infer() returns: (token_ids, generation_metadata)
-        with self.metrics.measure('whisper.infer'):
+        with self.metrics.measure("whisper.infer"):
             token_ids, metadata = self.current_session.processor.infer(is_last=is_speech_end)
 
         # Update session
@@ -763,7 +783,7 @@ class SessionRestartTranscriber:
 
         if token_ids:
             # Decode token IDs to text using processor's tokenizer
-            with self.metrics.measure('whisper.decode'):
+            with self.metrics.measure("whisper.decode"):
                 transcribed_text = self.current_session.processor.tokenizer.decode(token_ids)
 
         # Create segment if we got transcription output
@@ -774,7 +794,7 @@ class SessionRestartTranscriber:
                 start_time=self.current_session.start_time,
                 end_time=self.current_session.end_time,
                 is_final=is_final_segment,  # Mark final if segment completed (hit pause/EOT)
-                confidence=1.0
+                confidence=1.0,
             )
             self.current_session.segments.append(segment)
 
@@ -790,9 +810,13 @@ class SessionRestartTranscriber:
 
         if is_meaningful:
             self.last_chunk_with_output = chunk_id
-            logger.debug(f"Chunk {chunk_id} produced meaningful output: '{transcribed_text[:50]}...'")
+            logger.debug(
+                f"Chunk {chunk_id} produced meaningful output: '{transcribed_text[:50]}...'"
+            )
         elif transcribed_text:
-            logger.debug(f"Chunk {chunk_id} produced trivial output (hallucination?): '{transcribed_text[:50]}...'")
+            logger.debug(
+                f"Chunk {chunk_id} produced trivial output (hallucination?): '{transcribed_text[:50]}...'"
+            )
 
         # Calculate silence detection metrics
         chunks_since_output = chunk_id - self.last_chunk_with_output
@@ -828,23 +852,25 @@ class SessionRestartTranscriber:
 
         # Build response
         response = {
-            'text': transcribed_text,
-            'language': self.sustained_detector.get_current_language() if self.current_session is None else self.current_session.language,
-            'is_final': is_final_segment,  # Final if this segment hit pause/EOT
-            'segments': self._get_all_segments(),
-            'switch_detected': switch_detected,
-            'current_language': self.sustained_detector.get_current_language(),
-            'candidate_language': self.sustained_detector.get_candidate_language(),
-            'statistics': self.get_statistics(),
+            "text": transcribed_text,
+            "language": self.sustained_detector.get_current_language()
+            if self.current_session is None
+            else self.current_session.language,
+            "is_final": is_final_segment,  # Final if this segment hit pause/EOT
+            "segments": self._get_all_segments(),
+            "switch_detected": switch_detected,
+            "current_language": self.sustained_detector.get_current_language(),
+            "candidate_language": self.sustained_detector.get_candidate_language(),
+            "statistics": self.get_statistics(),
             # Chunk tracking
-            'chunk_id': chunk_id,
-            'chunks_since_output': chunks_since_output,
-            'silence_detected': silence_detected
+            "chunk_id": chunk_id,
+            "chunks_since_output": chunks_since_output,
+            "silence_detected": silence_detected,
         }
 
         return response
 
-    def finalize(self) -> Dict[str, Any]:
+    def finalize(self) -> dict[str, Any]:
         """
         Finalize processing and flush any remaining buffered audio.
 
@@ -863,7 +889,9 @@ class SessionRestartTranscriber:
         # OPTIMIZATION: Use RingBuffer length check
         if not self.vad_audio_buffer.is_empty():
             buffer_size = len(self.vad_audio_buffer)
-            logger.info(f"📦 Flushing buffer: {buffer_size} samples ({buffer_size/self.sampling_rate:.2f}s)")
+            logger.info(
+                f"📦 Flushing buffer: {buffer_size} samples ({buffer_size/self.sampling_rate:.2f}s)"
+            )
 
             # Create session if needed
             if self.current_session is None:
@@ -879,7 +907,7 @@ class SessionRestartTranscriber:
             audio_tensor = torch.from_numpy(vad_buffer_data).float()
 
             # Log audio statistics
-            audio_rms = torch.sqrt(torch.mean(audio_tensor ** 2)).item()
+            audio_rms = torch.sqrt(torch.mean(audio_tensor**2)).item()
             audio_max = torch.max(torch.abs(audio_tensor)).item()
             logger.info(
                 f"📤 Final segment: {len(audio_tensor)} samples, "
@@ -891,7 +919,7 @@ class SessionRestartTranscriber:
             self.current_session.processor.insert_audio(audio_tensor)
 
             # Run inference with is_last=True to signal end of stream
-            token_ids, metadata = self.current_session.processor.infer(is_last=True)
+            token_ids, _metadata = self.current_session.processor.infer(is_last=True)
 
             # Decode tokens to text
             transcribed_text = self.current_session.processor.tokenizer.decode(token_ids).strip()
@@ -904,7 +932,7 @@ class SessionRestartTranscriber:
                     language=self.current_session.language,
                     start_time=self.current_session.start_time,
                     end_time=self.global_audio_position / self.sampling_rate,
-                    is_final=True
+                    is_final=True,
                 )
                 self.current_session.segments.append(segment)
 
@@ -914,7 +942,9 @@ class SessionRestartTranscriber:
 
             # Save final session
             if self.current_session is not None:
-                logger.info(f"💾 Saving final session ({len(self.current_session.segments)} segments)")
+                logger.info(
+                    f"💾 Saving final session ({len(self.current_session.segments)} segments)"
+                )
                 self.all_sessions.append(self.current_session)
                 self.current_session = None
         else:
@@ -922,41 +952,45 @@ class SessionRestartTranscriber:
 
         # Return final state
         return {
-            'text': '',
-            'language': self.sustained_detector.get_current_language(),
-            'is_final': True,
-            'segments': self._get_all_segments(),
-            'switch_detected': False,
-            'finalized': True
+            "text": "",
+            "language": self.sustained_detector.get_current_language(),
+            "is_final": True,
+            "segments": self._get_all_segments(),
+            "switch_detected": False,
+            "finalized": True,
         }
 
-    def _get_all_segments(self) -> List[Dict[str, Any]]:
+    def _get_all_segments(self) -> list[dict[str, Any]]:
         """Get all segments from all sessions (completed + current)"""
         all_segments = []
 
         # Add segments from completed sessions
         for session in self.all_sessions:
             for segment in session.segments:
-                all_segments.append({
-                    'text': segment.text,
-                    'language': segment.language,
-                    'start': segment.start_time,
-                    'end': segment.end_time,
-                    'is_final': segment.is_final,
-                    'confidence': segment.confidence
-                })
+                all_segments.append(
+                    {
+                        "text": segment.text,
+                        "language": segment.language,
+                        "start": segment.start_time,
+                        "end": segment.end_time,
+                        "is_final": segment.is_final,
+                        "confidence": segment.confidence,
+                    }
+                )
 
         # Add segments from current session
         if self.current_session:
             for segment in self.current_session.segments:
-                all_segments.append({
-                    'text': segment.text,
-                    'language': segment.language,
-                    'start': segment.start_time,
-                    'end': segment.end_time,
-                    'is_final': segment.is_final,
-                    'confidence': segment.confidence
-                })
+                all_segments.append(
+                    {
+                        "text": segment.text,
+                        "language": segment.language,
+                        "start": segment.start_time,
+                        "end": segment.end_time,
+                        "is_final": segment.is_final,
+                        "confidence": segment.confidence,
+                    }
+                )
 
         return all_segments
 
@@ -973,7 +1007,7 @@ class SessionRestartTranscriber:
         self.lid_smoother.reset()
         self.sustained_detector.reset()
         self.vad.reset()  # Reset VAD state
-        self.vad_status = 'nonvoice'
+        self.vad_status = "nonvoice"
 
         # OPTIMIZATION: Clear RingBuffers instead of recreating arrays
         self.vad_audio_buffer.clear()
@@ -1000,24 +1034,26 @@ class SessionRestartTranscriber:
 
         logger.info("✅ Reset complete")
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get transcription statistics with performance metrics"""
         return {
-            'current_language': self.current_session.language if self.current_session else None,
-            'total_sessions': len(self.all_sessions) + (1 if self.current_session else 0),
-            'total_switches': self.total_switches,
-            'total_audio_seconds': self.total_audio_samples / self.sampling_rate,
-            'lid_stats': self.lid_detector.get_statistics() if hasattr(self.lid_detector, 'get_statistics') else {},
-            'sustained_detector_stats': self.sustained_detector.get_statistics(),
-            'smoother_stats': self.lid_smoother.get_statistics(),
-            'session_duration': time.time() - self.session_start_time,
+            "current_language": self.current_session.language if self.current_session else None,
+            "total_sessions": len(self.all_sessions) + (1 if self.current_session else 0),
+            "total_switches": self.total_switches,
+            "total_audio_seconds": self.total_audio_samples / self.sampling_rate,
+            "lid_stats": self.lid_detector.get_statistics()
+            if hasattr(self.lid_detector, "get_statistics")
+            else {},
+            "sustained_detector_stats": self.sustained_detector.get_statistics(),
+            "smoother_stats": self.lid_smoother.get_statistics(),
+            "session_duration": time.time() - self.session_start_time,
             # Performance metrics
-            'performance': self.metrics.get_statistics(),
-            'encoder_cache': self.encoder_cache.get_statistics(),
-            'buffer_utilization': {
-                'vad_buffer': f"{len(self.vad_audio_buffer)}/{self.vad_audio_buffer.capacity}",
-                'lid_buffer': f"{len(self.audio_buffer_for_lid)}/{self.audio_buffer_for_lid.capacity}",
-            }
+            "performance": self.metrics.get_statistics(),
+            "encoder_cache": self.encoder_cache.get_statistics(),
+            "buffer_utilization": {
+                "vad_buffer": f"{len(self.vad_audio_buffer)}/{self.vad_audio_buffer.capacity}",
+                "lid_buffer": f"{len(self.audio_buffer_for_lid)}/{self.audio_buffer_for_lid.capacity}",
+            },
         }
 
     def get_performance_summary(self) -> str:

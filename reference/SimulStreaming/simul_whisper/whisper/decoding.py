@@ -524,7 +524,7 @@ class DecodingTask:
             model.is_multilingual, language=language, task=options.task
         )
         self.tokenizer: Tokenizer = tokenizer
-       
+
         # print(self.options)
 
         self.n_group: int = options.beam_size or options.best_of or 1

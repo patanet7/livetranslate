@@ -2,18 +2,20 @@
 Shared Test Fixtures for LiveTranslate Integration Tests
 Provides common fixtures for database, Redis, and service mocking
 """
-import pytest
+
 import asyncio
 import os
 import sys
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator, Generator
-from unittest.mock import Mock, AsyncMock
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from redis import Redis
+from unittest.mock import AsyncMock
+
 import fakeredis
 import numpy as np
+import pytest
+from redis import Redis
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 # Add project root and orchestration-service/src to Python path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -23,8 +25,7 @@ sys.path.insert(0, str(ORCHESTRATION_SRC))
 
 # Test configuration
 TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql://test_user:test_pass@localhost:5432/livetranslate_test"
+    "TEST_DATABASE_URL", "postgresql://test_user:test_pass@localhost:5432/livetranslate_test"
 )
 TEST_REDIS_URL = os.getenv("TEST_REDIS_URL", "redis://localhost:6379/1")
 USE_FAKE_REDIS = os.getenv("USE_FAKE_REDIS", "true").lower() == "true"
@@ -33,6 +34,7 @@ USE_FAKE_REDIS = os.getenv("USE_FAKE_REDIS", "true").lower() == "true"
 # ============================================
 # Event Loop Fixture
 # ============================================
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -46,6 +48,7 @@ def event_loop():
 # Database Fixtures
 # ============================================
 
+
 @pytest.fixture(scope="session")
 def test_db_engine():
     """Create test database engine (session-scoped)"""
@@ -54,7 +57,7 @@ def test_db_engine():
         echo=False,  # Set to True for SQL debugging
         pool_pre_ping=True,
         pool_size=5,
-        max_overflow=10
+        max_overflow=10,
     )
     yield engine
     engine.dispose()
@@ -67,9 +70,8 @@ async def postgres_fixture(test_db_engine) -> AsyncGenerator[Session, None]:
     Creates all tables before test, drops after
     """
     # Import models to ensure they're registered
-    from database.models import Base
     # Also import chat_models to register those tables
-    import database.chat_models
+    from database.models import Base
 
     # Clean up any existing tables first (from failed tests)
     Base.metadata.drop_all(test_db_engine, checkfirst=True)
@@ -78,8 +80,8 @@ async def postgres_fixture(test_db_engine) -> AsyncGenerator[Session, None]:
     Base.metadata.create_all(test_db_engine, checkfirst=True)
 
     # Create session
-    SessionLocal = sessionmaker(bind=test_db_engine, expire_on_commit=False)
-    session = SessionLocal()
+    session_local = sessionmaker(bind=test_db_engine, expire_on_commit=False)
+    session = session_local()
 
     yield session
 
@@ -97,6 +99,7 @@ async def db_session(postgres_fixture) -> Session:
 # ============================================
 # Redis Fixtures
 # ============================================
+
 
 @pytest.fixture
 async def redis_fixture() -> AsyncGenerator[Redis, None]:
@@ -122,6 +125,7 @@ async def redis_fixture() -> AsyncGenerator[Redis, None]:
 # Service Fixtures (Mocked)
 # ============================================
 
+
 @pytest.fixture
 async def whisper_service_fixture():
     """Mocked Whisper service for testing"""
@@ -130,17 +134,11 @@ async def whisper_service_fixture():
     # Default transcription response
     mock_service.transcribe.return_value = {
         "text": "Test transcription from Whisper",
-        "segments": [
-            {
-                "start": 0.0,
-                "end": 3.0,
-                "text": "Test transcription from Whisper"
-            }
-        ],
+        "segments": [{"start": 0.0, "end": 3.0, "text": "Test transcription from Whisper"}],
         "language": "en",
         "confidence": 0.95,
         "speaker_id": "SPEAKER_00",
-        "speaker_name": "Test Speaker"
+        "speaker_name": "Test Speaker",
     }
 
     # Health check
@@ -160,7 +158,7 @@ async def translation_service_fixture():
         "source_language": "en",
         "target_language": "es",
         "quality_score": 0.92,
-        "confidence": 0.90
+        "confidence": 0.90,
     }
 
     # Health check
@@ -171,10 +169,7 @@ async def translation_service_fixture():
 
 @pytest.fixture
 async def orchestration_service_fixture(
-    postgres_fixture,
-    redis_fixture,
-    whisper_service_fixture,
-    translation_service_fixture
+    postgres_fixture, redis_fixture, whisper_service_fixture, translation_service_fixture
 ):
     """
     Orchestration service with test dependencies
@@ -182,8 +177,8 @@ async def orchestration_service_fixture(
     """
     # Note: This will be implemented when we have the actual orchestration service
     # For now, returning a mock
-    from fastapi.testclient import TestClient
     from fastapi import FastAPI
+    from fastapi.testclient import TestClient
 
     # Create minimal test app
     app = FastAPI()
@@ -203,6 +198,7 @@ async def orchestration_service_fixture(
 # Audio Test Data Generators
 # ============================================
 
+
 @pytest.fixture
 def generate_test_audio():
     """Generate test audio data for testing"""
@@ -211,7 +207,7 @@ def generate_test_audio():
         duration: float = 3.0,
         sample_rate: int = 16000,
         frequency: float = 440.0,
-        noise_level: float = 0.0
+        noise_level: float = 0.0,
     ) -> np.ndarray:
         """
         Generate synthetic audio for testing
@@ -249,9 +245,7 @@ def generate_test_audio_chunks():
     """Generate chunked audio data for streaming tests"""
 
     def _generate_chunks(
-        duration: float = 10.0,
-        chunk_size: float = 2.0,
-        sample_rate: int = 16000
+        duration: float = 10.0, chunk_size: float = 2.0, sample_rate: int = 16000
     ) -> list:
         """
         Generate audio chunks for streaming tests
@@ -284,6 +278,7 @@ def generate_test_audio_chunks():
 # ============================================
 # Test Utilities
 # ============================================
+
 
 @pytest.fixture
 def calculate_wer():
@@ -341,9 +336,9 @@ def assert_latency():
             max_latency_ms: Maximum acceptable latency
             context: Context string for error message
         """
-        assert latency_ms <= max_latency_ms, (
-            f"{context} Latency {latency_ms}ms exceeds maximum {max_latency_ms}ms"
-        )
+        assert (
+            latency_ms <= max_latency_ms
+        ), f"{context} Latency {latency_ms}ms exceeds maximum {max_latency_ms}ms"
 
     return _assert
 
@@ -351,6 +346,7 @@ def assert_latency():
 # ============================================
 # Baseline Metrics Storage
 # ============================================
+
 
 @pytest.fixture(scope="session")
 def baseline_metrics():
@@ -376,6 +372,7 @@ def baseline_metrics():
 # Cleanup Fixtures
 # ============================================
 
+
 @pytest.fixture(autouse=True)
 async def cleanup_after_test():
     """Auto-cleanup after each test"""
@@ -389,29 +386,16 @@ async def cleanup_after_test():
 # Test Markers Setup
 # ============================================
 
+
 def pytest_configure(config):
     """Configure custom pytest markers"""
-    config.addinivalue_line(
-        "markers", "unit: Unit tests"
-    )
-    config.addinivalue_line(
-        "markers", "integration: Integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "slow: Tests that take significant time"
-    )
-    config.addinivalue_line(
-        "markers", "requires_gpu: Tests requiring GPU"
-    )
-    config.addinivalue_line(
-        "markers", "requires_npu: Tests requiring Intel NPU"
-    )
-    config.addinivalue_line(
-        "markers", "requires_db: Tests requiring database"
-    )
-    config.addinivalue_line(
-        "markers", "requires_redis: Tests requiring Redis"
-    )
+    config.addinivalue_line("markers", "unit: Unit tests")
+    config.addinivalue_line("markers", "integration: Integration tests")
+    config.addinivalue_line("markers", "slow: Tests that take significant time")
+    config.addinivalue_line("markers", "requires_gpu: Tests requiring GPU")
+    config.addinivalue_line("markers", "requires_npu: Tests requiring Intel NPU")
+    config.addinivalue_line("markers", "requires_db: Tests requiring database")
+    config.addinivalue_line("markers", "requires_redis: Tests requiring Redis")
     config.addinivalue_line(
         "markers", "feature_preservation: Regression tests for existing features"
     )

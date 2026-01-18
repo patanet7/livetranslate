@@ -9,22 +9,22 @@ Tests are SLOW but verify actual functionality.
 IMPORTANT: These tests will SKIP on Mac (OpenVINO not supported).
 """
 
-import pytest
-import numpy as np
-import sys
-from pathlib import Path
-import time
-
 # Check OpenVINO availability
-try:
-    import openvino_genai
-    import openvino as ov
-    OPENVINO_AVAILABLE = True
-except ImportError:
-    OPENVINO_AVAILABLE = False
+import importlib.util
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import pytest
+
+OPENVINO_AVAILABLE = (
+    importlib.util.find_spec("openvino") is not None
+    and importlib.util.find_spec("openvino_genai") is not None
+)
 
 # Import from actual source
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 if OPENVINO_AVAILABLE:
     from model_manager import ModelManager
@@ -33,7 +33,7 @@ if OPENVINO_AVAILABLE:
 pytestmark = [
     pytest.mark.slow,
     pytest.mark.integration,
-    pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not installed")
+    pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not installed"),
 ]
 
 
@@ -61,7 +61,7 @@ class TestOpenVINOModelManagerREAL:
         manager = ModelManager(
             model_name="whisper-tiny",  # Use tiny for speed
             device="npu",
-            models_dir=".models/openvino"  # Separate OpenVINO models!
+            models_dir=".models/openvino",  # Separate OpenVINO models!
         )
         print(f"✅ Model loaded on device: {manager.device}")
         return manager
@@ -74,9 +74,7 @@ class TestOpenVINOModelManagerREAL:
 
         print("\n🔧 Loading OpenVINO model (CPU)...")
         manager = ModelManager(
-            model_name="whisper-tiny",
-            device="cpu",
-            models_dir=".models/openvino"
+            model_name="whisper-tiny", device="cpu", models_dir=".models/openvino"
         )
         print(f"✅ Model loaded on device: {manager.device}")
         return manager
@@ -87,7 +85,7 @@ class TestOpenVINOModelManagerREAL:
 
         # Verify model is loaded
         assert manager.pipeline is not None
-        assert manager.device in ['npu', 'gpu', 'cpu']
+        assert manager.device in ["npu", "gpu", "cpu"]
 
         print(f"✅ OpenVINO model loaded on: {manager.device}")
 
@@ -107,7 +105,7 @@ class TestOpenVINOModelManagerREAL:
         assert result is not None
         assert isinstance(result, (str, dict))
 
-        text = result if isinstance(result, str) else result.get('text', '')
+        text = result if isinstance(result, str) else result.get("text", "")
 
         print(f"✅ Transcribed in {elapsed:.2f}s")
         print(f"📝 Result: {text[:100]}...")
@@ -116,14 +114,14 @@ class TestOpenVINOModelManagerREAL:
 
     def test_openvino_transcribe_silence(self, openvino_manager_cpu, silence_audio):
         """Test OpenVINO with silence"""
-        audio, sr = silence_audio
+        audio, _sr = silence_audio
 
-        print(f"\n🔇 OpenVINO transcribing silence...")
+        print("\n🔇 OpenVINO transcribing silence...")
 
         result = openvino_manager_cpu.safe_inference(audio)
 
         assert result is not None
-        text = result if isinstance(result, str) else result.get('text', '')
+        text = result if isinstance(result, str) else result.get("text", "")
 
         print(f"📝 Silence result: '{text}' (length: {len(text)})")
         assert len(text) < 50  # Should be empty or minimal
@@ -133,20 +131,20 @@ class TestOpenVINOModelManagerREAL:
         if not OPENVINO_AVAILABLE:
             pytest.skip("OpenVINO not available")
 
-        print(f"\n🔄 Testing device fallback chain...")
+        print("\n🔄 Testing device fallback chain...")
 
         # Try to create with NPU
         manager = ModelManager(
             model_name="whisper-tiny",
             device="auto",  # Auto-detect
-            models_dir=".models/openvino"
+            models_dir=".models/openvino",
         )
 
         detected_device = manager.device
         print(f"✅ Auto-detected device: {detected_device}")
 
         # Should have selected one of the valid devices
-        assert detected_device in ['npu', 'gpu', 'cpu']
+        assert detected_device in ["npu", "gpu", "cpu"]
 
         # Verify model is actually loaded
         assert manager.pipeline is not None
@@ -155,12 +153,12 @@ class TestOpenVINOModelManagerREAL:
         """Test NPU inference if NPU is available"""
         manager = openvino_manager_npu
 
-        if manager.device != 'npu':
+        if manager.device != "npu":
             pytest.skip("NPU not available, fell back to CPU/GPU")
 
-        audio, sr = hello_world_audio
+        audio, _sr = hello_world_audio
 
-        print(f"\n🚀 Testing NPU inference...")
+        print("\n🚀 Testing NPU inference...")
 
         start_time = time.time()
         result = manager.safe_inference(audio)
@@ -172,15 +170,15 @@ class TestOpenVINOModelManagerREAL:
 
         # Verify NPU-specific stats
         stats = manager.get_stats()
-        assert 'device' in stats
-        assert stats['device'] == 'npu'
+        assert "device" in stats
+        assert stats["device"] == "npu"
 
     def test_openvino_multiple_inferences(self, openvino_manager_cpu, hello_world_audio):
         """Test multiple sequential inferences"""
-        audio, sr = hello_world_audio
+        audio, _sr = hello_world_audio
         manager = openvino_manager_cpu
 
-        print(f"\n🔄 Running 5 sequential inferences...")
+        print("\n🔄 Running 5 sequential inferences...")
 
         results = []
         for i in range(5):
@@ -192,25 +190,23 @@ class TestOpenVINOModelManagerREAL:
         assert len(results) == 5
         assert all(r is not None for r in results)
 
-        print(f"✅ All inferences completed")
+        print("✅ All inferences completed")
 
     def test_openvino_cache_management(self):
         """Test OpenVINO LRU cache with multiple models"""
         if not OPENVINO_AVAILABLE:
             pytest.skip("OpenVINO not available")
 
-        print(f"\n💾 Testing cache management...")
+        print("\n💾 Testing cache management...")
 
         # Load 3 different models (should hit LRU limit)
-        models = ['whisper-tiny', 'whisper-base']
+        models = ["whisper-tiny", "whisper-base"]
         managers = []
 
         for model_name in models:
             try:
                 manager = ModelManager(
-                    model_name=model_name,
-                    device="cpu",
-                    models_dir=".models/openvino"
+                    model_name=model_name, device="cpu", models_dir=".models/openvino"
                 )
                 managers.append(manager)
                 print(f"  Loaded: {model_name}")
@@ -226,29 +222,29 @@ class TestOpenVINOModelManagerREAL:
         """Test health check with real model"""
         manager = openvino_manager_cpu
 
-        print(f"\n🏥 Running health check...")
+        print("\n🏥 Running health check...")
 
         health = manager.health_check()
 
         assert health is not None
         assert isinstance(health, dict)
-        assert 'status' in health
-        assert 'device' in health
+        assert "status" in health
+        assert "device" in health
 
         print(f"✅ Health status: {health['status']}")
         print(f"   Device: {health['device']}")
 
         # Status should be healthy
-        assert health['status'] in ['healthy', 'degraded', 'unhealthy']
+        assert health["status"] in ["healthy", "degraded", "unhealthy"]
 
     def test_openvino_clear_cache(self, openvino_manager_cpu):
         """Test cache clearing"""
         manager = openvino_manager_cpu
 
-        print(f"\n🧹 Testing cache clearing...")
+        print("\n🧹 Testing cache clearing...")
 
         # Get stats before
-        stats_before = manager.get_stats()
+        manager.get_stats()
 
         # Clear cache
         manager.clear_cache()
@@ -257,7 +253,7 @@ class TestOpenVINOModelManagerREAL:
         health = manager.health_check()
         assert health is not None
 
-        print(f"✅ Cache cleared successfully")
+        print("✅ Cache cleared successfully")
 
     def test_openvino_models_directory_separation(self):
         """Verify OpenVINO models go to .models/openvino/"""
@@ -286,22 +282,18 @@ class TestOpenVINOPerformanceREAL:
     def manager(self):
         if not OPENVINO_AVAILABLE:
             pytest.skip("OpenVINO not available")
-        return ModelManager(
-            model_name="whisper-tiny",
-            device="cpu",
-            models_dir=".models/openvino"
-        )
+        return ModelManager(model_name="whisper-tiny", device="cpu", models_dir=".models/openvino")
 
     def test_openvino_inference_performance(self, manager, hello_world_audio):
         """Measure real OpenVINO inference performance"""
-        audio, sr = hello_world_audio
+        audio, _sr = hello_world_audio
 
-        print(f"\n⚡ OpenVINO performance test: 10 inferences...")
+        print("\n⚡ OpenVINO performance test: 10 inferences...")
 
         timings = []
-        for i in range(10):
+        for _i in range(10):
             start = time.time()
-            result = manager.safe_inference(audio)
+            manager.safe_inference(audio)
             elapsed = time.time() - start
             timings.append(elapsed)
 
@@ -318,9 +310,9 @@ class TestOpenVINOPerformanceREAL:
         """Test thread-safe inference"""
         import threading
 
-        audio, sr = hello_world_audio
+        audio, _sr = hello_world_audio
 
-        print(f"\n🔀 OpenVINO concurrent test: 5 threads...")
+        print("\n🔀 OpenVINO concurrent test: 5 threads...")
 
         results = []
         errors = []
@@ -345,7 +337,7 @@ class TestOpenVINOPerformanceREAL:
         assert len(errors) == 0, f"Errors occurred: {errors}"
         assert len(results) == 5, "Not all threads completed"
 
-        print(f"✅ All 5 threads completed successfully")
+        print("✅ All 5 threads completed successfully")
 
 
 # Usage instructions

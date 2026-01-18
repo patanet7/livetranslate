@@ -37,9 +37,9 @@ Usage:
     # }
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any
 import logging
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,11 +57,8 @@ class SegmentTimestamper:
         pass
 
     def add_absolute_timestamps(
-        self,
-        segment: Dict[str, Any],
-        chunk_start_time: datetime,
-        is_final: bool = False
-    ) -> Dict[str, Any]:
+        self, segment: dict[str, Any], chunk_start_time: datetime, is_final: bool = False
+    ) -> dict[str, Any]:
         """
         Add absolute ISO 8601 timestamps to segment
 
@@ -106,22 +103,22 @@ class SegmentTimestamper:
             # }
         """
         # Get relative timestamps
-        start_offset = segment.get('start', 0.0)
-        end_offset = segment.get('end', 0.0)
+        start_offset = segment.get("start", 0.0)
+        end_offset = segment.get("end", 0.0)
 
         # Calculate absolute timestamps
         absolute_start = chunk_start_time + timedelta(seconds=start_offset)
         absolute_end = chunk_start_time + timedelta(seconds=end_offset)
 
         # Format as ISO 8601 with 'Z' suffix (UTC)
-        absolute_start_str = absolute_start.isoformat().replace('+00:00', 'Z')
-        absolute_end_str = absolute_end.isoformat().replace('+00:00', 'Z')
+        absolute_start_str = absolute_start.isoformat().replace("+00:00", "Z")
+        absolute_end_str = absolute_end.isoformat().replace("+00:00", "Z")
 
         # Create new segment with absolute timestamps
         timestamped_segment = segment.copy()
-        timestamped_segment['absolute_start_time'] = absolute_start_str
-        timestamped_segment['absolute_end_time'] = absolute_end_str
-        timestamped_segment['is_final'] = is_final
+        timestamped_segment["absolute_start_time"] = absolute_start_str
+        timestamped_segment["absolute_end_time"] = absolute_end_str
+        timestamped_segment["is_final"] = is_final
 
         logger.debug(
             f"Timestamped segment: {segment.get('text', '(no text)')} "
@@ -145,7 +142,7 @@ class SegmentTimestamper:
             formatted = timestamper.format_timestamp(dt)
             # "2025-01-15T10:30:00Z"
         """
-        return dt.isoformat().replace('+00:00', 'Z')
+        return dt.isoformat().replace("+00:00", "Z")
 
     def parse_timestamp(self, timestamp_str: str) -> datetime:
         """
@@ -162,8 +159,8 @@ class SegmentTimestamper:
             # datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
         """
         # Handle 'Z' suffix
-        if timestamp_str.endswith('Z'):
-            timestamp_str = timestamp_str[:-1] + '+00:00'
+        if timestamp_str.endswith("Z"):
+            timestamp_str = timestamp_str[:-1] + "+00:00"
 
         return datetime.fromisoformat(timestamp_str)
 
@@ -182,10 +179,10 @@ if __name__ == "__main__":
         "start": 0.0,
         "end": 2.5,
         "speaker": "SPEAKER_00",
-        "confidence": 0.95
+        "confidence": 0.95,
     }
 
-    chunk_start = datetime(2025, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    chunk_start = datetime(2025, 1, 15, 10, 30, 0, tzinfo=UTC)
     timestamped = timestamper.add_absolute_timestamps(segment, chunk_start)
 
     print(f"  Original: start={segment['start']}s, end={segment['end']}s")
@@ -193,7 +190,7 @@ if __name__ == "__main__":
     print(f"  Absolute start: {timestamped['absolute_start_time']}")
     print(f"  Absolute end: {timestamped['absolute_end_time']}")
     print(f"  is_final: {timestamped['is_final']}")
-    print(f"  ✅ Basic timestamping working")
+    print("  ✅ Basic timestamping working")
 
     # Test 2: With offset
     print("\n[TEST 2] With time offset:")
@@ -201,37 +198,31 @@ if __name__ == "__main__":
         "text": "How are you",
         "start": 3.0,  # 3 seconds into chunk
         "end": 5.0,
-        "speaker": "SPEAKER_01"
+        "speaker": "SPEAKER_01",
     }
 
     timestamped2 = timestamper.add_absolute_timestamps(segment2, chunk_start)
     print(f"  Offset: {segment2['start']}s")
     print(f"  Absolute start: {timestamped2['absolute_start_time']}")
-    print(f"  Expected: 2025-01-15T10:30:03Z")
-    print(f"  ✅ Offset timestamping working")
+    print("  Expected: 2025-01-15T10:30:03Z")
+    print("  ✅ Offset timestamping working")
 
     # Test 3: Final segment
     print("\n[TEST 3] Final segment flag:")
-    final_segment = {
-        "text": "Goodbye",
-        "start": 0.0,
-        "end": 1.0
-    }
+    final_segment = {"text": "Goodbye", "start": 0.0, "end": 1.0}
 
     timestamped_final = timestamper.add_absolute_timestamps(
-        final_segment,
-        chunk_start,
-        is_final=True
+        final_segment, chunk_start, is_final=True
     )
     print(f"  is_final: {timestamped_final['is_final']}")
-    print(f"  ✅ Final flag working")
+    print("  ✅ Final flag working")
 
     # Test 4: Parse timestamp
     print("\n[TEST 4] Parse timestamp:")
     parsed = timestamper.parse_timestamp("2025-01-15T10:30:00Z")
-    print(f"  Input: 2025-01-15T10:30:00Z")
+    print("  Input: 2025-01-15T10:30:00Z")
     print(f"  Parsed: {parsed}")
-    print(f"  ✅ Timestamp parsing working")
+    print("  ✅ Timestamp parsing working")
 
     print("\n" + "=" * 50)
     print("✅ Segment Timestamper Test Complete")

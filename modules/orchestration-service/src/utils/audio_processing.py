@@ -5,8 +5,8 @@ Provides audio validation and processing utilities.
 """
 
 import logging
-from typing import Dict, Any, Optional
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class AudioProcessor:
             "flac": {"mime": "audio/flac", "extension": ".flac"},
         }
 
-    def validate_audio_file(self, file_data: bytes, filename: str) -> Dict[str, Any]:
+    def validate_audio_file(self, file_data: bytes, filename: str) -> dict[str, Any]:
         """
         Validate audio file
 
@@ -76,16 +76,14 @@ class AudioProcessor:
                 "format": format_info["format"],
                 "mime_type": format_info["mime_type"],
                 "size": len(file_data),
-                "estimated_duration": self.estimate_duration(
-                    file_data, format_info["format"]
-                ),
+                "estimated_duration": self.estimate_duration(file_data, format_info["format"]),
             }
 
         except Exception as e:
             logger.error(f"Audio validation error: {e}")
-            return {"valid": False, "error": f"Validation failed: {str(e)}"}
+            return {"valid": False, "error": f"Validation failed: {e!s}"}
 
-    def detect_audio_format(self, file_data: bytes, filename: str) -> Dict[str, Any]:
+    def detect_audio_format(self, file_data: bytes, filename: str) -> dict[str, Any]:
         """
         Detect audio format from file data and filename
 
@@ -187,10 +185,7 @@ class AudioProcessor:
                     return False
 
                 # Check fmt chunk
-                if file_data[12:16] != b"fmt ":
-                    return False
-
-                return True
+                return file_data[12:16] == b"fmt "
 
             elif format_type == "mp3":
                 # Check MP3 header (ID3 or sync frame)
@@ -202,10 +197,7 @@ class AudioProcessor:
                     return True
 
                 # MP3 sync frame
-                if file_data[0] == 0xFF and (file_data[1] & 0xE0) == 0xE0:
-                    return True
-
-                return False
+                return bool(file_data[0] == 255 and file_data[1] & 224 == 224)
 
             elif format_type == "webm":
                 # Check WebM/Matroska header
@@ -243,7 +235,7 @@ class AudioProcessor:
             logger.error(f"Header validation error: {e}")
             return False
 
-    def estimate_duration(self, file_data: bytes, format_type: str) -> Optional[float]:
+    def estimate_duration(self, file_data: bytes, format_type: str) -> float | None:
         """
         Estimate audio duration (rough calculation)
 
@@ -262,18 +254,14 @@ class AudioProcessor:
                     sample_rate = int.from_bytes(file_data[24:28], byteorder="little")
 
                     # Extract bits per sample (bytes 34-35)
-                    bits_per_sample = int.from_bytes(
-                        file_data[34:36], byteorder="little"
-                    )
+                    bits_per_sample = int.from_bytes(file_data[34:36], byteorder="little")
 
                     # Extract channels (bytes 22-23)
                     channels = int.from_bytes(file_data[22:24], byteorder="little")
 
                     # Calculate duration
                     if sample_rate > 0 and bits_per_sample > 0 and channels > 0:
-                        bytes_per_second = (
-                            sample_rate * (bits_per_sample / 8) * channels
-                        )
+                        bytes_per_second = sample_rate * (bits_per_sample / 8) * channels
                         data_size = len(file_data) - 44  # Subtract header size
                         duration = data_size / bytes_per_second
                         return duration
@@ -297,7 +285,7 @@ class AudioProcessor:
             logger.error(f"Duration estimation error: {e}")
             return None
 
-    def get_audio_info(self, file_data: bytes, filename: str) -> Dict[str, Any]:
+    def get_audio_info(self, file_data: bytes, filename: str) -> dict[str, Any]:
         """
         Get comprehensive audio file information
 
@@ -334,9 +322,7 @@ class AudioProcessor:
             logger.error(f"Audio info extraction error: {e}")
             return {"valid": False, "error": str(e)}
 
-    def prepare_audio_for_processing(
-        self, file_data: bytes, target_format: str = "wav"
-    ) -> bytes:
+    def prepare_audio_for_processing(self, file_data: bytes, target_format: str = "wav") -> bytes:
         """
         Prepare audio data for processing (placeholder implementation)
 

@@ -16,16 +16,17 @@ Features:
 - Database integration for persistent storage
 """
 
-import time
-import logging
 import asyncio
-import threading
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, asdict
-from datetime import datetime
 import json
-import numpy as np
+import logging
+import threading
+import time
 from collections import deque
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from typing import Any
+
+import numpy as np
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -40,10 +41,10 @@ class ExternalSpeakerEvent:
     speaker_name: str
     event_type: str  # 'speaking_start', 'speaking_end', 'join', 'leave'
     timestamp: float
-    duration: Optional[float] = None
+    duration: float | None = None
     confidence: float = 1.0
     source: str = "google_meet"
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
 
 
 @dataclass
@@ -57,8 +58,8 @@ class InternalTranscriptionResult:
     language: str
     confidence: float
     session_id: str
-    audio_file_id: Optional[str] = None
-    processing_metadata: Dict[str, Any] = None
+    audio_file_id: str | None = None
+    processing_metadata: dict[str, Any] = None
 
 
 @dataclass
@@ -72,7 +73,7 @@ class CorrelationResult:
     timing_offset: float  # Difference between external and internal timestamps
     correlation_type: str  # 'exact', 'interpolated', 'inferred'
     timestamp: float
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
 
 
 @dataclass
@@ -98,7 +99,7 @@ class TimingAnalyzer:
 
     def analyze_timing_offset(
         self, external_time: float, internal_time: float
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         Analyze timing offset between external and internal timestamps.
 
@@ -144,27 +145,26 @@ class SpeakerStateTracker:
 
     def __init__(self, config: CorrelationConfig):
         self.config = config
-        self.active_speakers: Dict[str, float] = {}  # speaker_id -> start_time
+        self.active_speakers: dict[str, float] = {}  # speaker_id -> start_time
         self.recent_transitions: deque = deque(maxlen=50)
 
     def update_speaker_state(self, speaker_id: str, event_type: str, timestamp: float):
         """Update speaker state based on event."""
         if event_type == "speaking_start":
             self.active_speakers[speaker_id] = timestamp
-        elif event_type == "speaking_end":
-            if speaker_id in self.active_speakers:
-                duration = timestamp - self.active_speakers[speaker_id]
-                self.recent_transitions.append(
-                    {
-                        "speaker_id": speaker_id,
-                        "start_time": self.active_speakers[speaker_id],
-                        "end_time": timestamp,
-                        "duration": duration,
-                    }
-                )
-                del self.active_speakers[speaker_id]
+        elif event_type == "speaking_end" and speaker_id in self.active_speakers:
+            duration = timestamp - self.active_speakers[speaker_id]
+            self.recent_transitions.append(
+                {
+                    "speaker_id": speaker_id,
+                    "start_time": self.active_speakers[speaker_id],
+                    "end_time": timestamp,
+                    "duration": duration,
+                }
+            )
+            del self.active_speakers[speaker_id]
 
-    def get_active_speakers_at_time(self, timestamp: float) -> List[str]:
+    def get_active_speakers_at_time(self, timestamp: float) -> list[str]:
         """Get speakers who were active at a given time."""
         active = []
 
@@ -180,7 +180,7 @@ class SpeakerStateTracker:
 
         return list(set(active))
 
-    def get_most_likely_speaker(self, timestamp: float) -> Optional[str]:
+    def get_most_likely_speaker(self, timestamp: float) -> str | None:
         """Get the most likely speaker at a given time."""
         active_speakers = self.get_active_speakers_at_time(timestamp)
 
@@ -226,9 +226,9 @@ class TimeCorrelationEngine:
         self.speaker_tracker = SpeakerStateTracker(self.config)
 
         # Data storage
-        self.external_events: List[ExternalSpeakerEvent] = []
-        self.internal_results: List[InternalTranscriptionResult] = []
-        self.correlations: List[CorrelationResult] = []
+        self.external_events: list[ExternalSpeakerEvent] = []
+        self.internal_results: list[InternalTranscriptionResult] = []
+        self.correlations: list[CorrelationResult] = []
 
         # Pending correlation queue
         self.pending_internal: deque = deque(maxlen=100)
@@ -242,11 +242,12 @@ class TimeCorrelationEngine:
         # Thread safety
         self.lock = threading.RLock()
 
+        # Background task management (prevents fire-and-forget)
+        self._background_tasks: set[asyncio.Task] = set()
+
         logger.info(f"TimeCorrelationEngine initialized for session: {session_id}")
         logger.info(f"  Timing tolerance: {self.config.timing_tolerance}s")
-        logger.info(
-            f"  Audio delay compensation: {self.config.audio_delay_compensation}s"
-        )
+        logger.info(f"  Audio delay compensation: {self.config.audio_delay_compensation}s")
 
     def add_external_event(self, event: ExternalSpeakerEvent) -> bool:
         """Add external speaker event for correlation."""
@@ -285,7 +286,11 @@ class TimeCorrelationEngine:
                 # Store correlations in database if available
                 if correlations_made and self.bot_manager and self.database_manager:
                     for correlation in correlations_made:
-                        asyncio.create_task(self._store_correlation(correlation))
+                        task = asyncio.create_task(
+                            self._store_correlation(correlation)
+                        )
+                        self._background_tasks.add(task)
+                        task.add_done_callback(self._background_tasks.discard)
 
                 logger.debug(
                     f"Added internal result: {result.text[:50]}... at {result.start_timestamp}"
@@ -335,10 +340,7 @@ class TimeCorrelationEngine:
 
                 # Update statistics
                 self.total_correlations += 1
-                if (
-                    correlation.correlation_confidence
-                    >= self.config.min_correlation_confidence
-                ):
+                if correlation.correlation_confidence >= self.config.min_correlation_confidence:
                     self.successful_correlations += 1
 
                 self._update_average_confidence(correlation.correlation_confidence)
@@ -347,7 +349,7 @@ class TimeCorrelationEngine:
 
     def _find_best_correlation(
         self, internal_result: InternalTranscriptionResult
-    ) -> Optional[CorrelationResult]:
+    ) -> CorrelationResult | None:
         """Find the best correlation for an internal transcription result."""
         best_correlation = None
         best_confidence = 0.0
@@ -356,18 +358,13 @@ class TimeCorrelationEngine:
         compensated_start = self.timing_analyzer.compensate_audio_delay(
             internal_result.start_timestamp
         )
-        compensated_end = self.timing_analyzer.compensate_audio_delay(
-            internal_result.end_timestamp
-        )
+        compensated_end = self.timing_analyzer.compensate_audio_delay(internal_result.end_timestamp)
 
         # Method 1: Direct timeline correlation
         direct_correlation = self._correlate_with_timeline(
             internal_result, compensated_start, compensated_end
         )
-        if (
-            direct_correlation
-            and direct_correlation.correlation_confidence > best_confidence
-        ):
+        if direct_correlation and direct_correlation.correlation_confidence > best_confidence:
             best_correlation = direct_correlation
             best_confidence = direct_correlation.correlation_confidence
 
@@ -375,10 +372,7 @@ class TimeCorrelationEngine:
         inferred_correlation = self._infer_from_speaker_state(
             internal_result, compensated_start, compensated_end
         )
-        if (
-            inferred_correlation
-            and inferred_correlation.correlation_confidence > best_confidence
-        ):
+        if inferred_correlation and inferred_correlation.correlation_confidence > best_confidence:
             best_correlation = inferred_correlation
             best_confidence = inferred_correlation.correlation_confidence
 
@@ -394,9 +388,7 @@ class TimeCorrelationEngine:
             best_confidence = interpolated_correlation.correlation_confidence
 
         return (
-            best_correlation
-            if best_confidence >= self.config.min_correlation_confidence
-            else None
+            best_correlation if best_confidence >= self.config.min_correlation_confidence else None
         )
 
     def _correlate_with_timeline(
@@ -404,7 +396,7 @@ class TimeCorrelationEngine:
         internal_result: InternalTranscriptionResult,
         start_time: float,
         end_time: float,
-    ) -> Optional[CorrelationResult]:
+    ) -> CorrelationResult | None:
         """Correlate with explicit timeline events."""
         for event in self.external_events:
             if event.event_type not in ["speaking_start", "speaking_end"]:
@@ -441,7 +433,7 @@ class TimeCorrelationEngine:
         internal_result: InternalTranscriptionResult,
         start_time: float,
         end_time: float,
-    ) -> Optional[CorrelationResult]:
+    ) -> CorrelationResult | None:
         """Infer speaker from current speaker state."""
         # Get most likely speaker at the time
         likely_speaker = self.speaker_tracker.get_most_likely_speaker(start_time)
@@ -450,14 +442,8 @@ class TimeCorrelationEngine:
             # Find corresponding external event
             matching_event = None
             for event in self.external_events:
-                if (
-                    event.speaker_id == likely_speaker
-                    and event.event_type == "speaking_start"
-                ):
-                    if (
-                        abs(event.timestamp - start_time)
-                        <= self.config.timing_tolerance * 2
-                    ):
+                if event.speaker_id == likely_speaker and event.event_type == "speaking_start":
+                    if abs(event.timestamp - start_time) <= self.config.timing_tolerance * 2:
                         matching_event = event
                         break
 
@@ -492,7 +478,7 @@ class TimeCorrelationEngine:
         internal_result: InternalTranscriptionResult,
         start_time: float,
         end_time: float,
-    ) -> Optional[CorrelationResult]:
+    ) -> CorrelationResult | None:
         """Interpolate speaker from nearby timeline events."""
         # Find events before
         before_events = [e for e in self.external_events if e.timestamp < start_time]
@@ -541,13 +527,9 @@ class TimeCorrelationEngine:
         else:
             # Exponential moving average
             alpha = 0.1
-            self.average_confidence = (
-                1 - alpha
-            ) * self.average_confidence + alpha * new_confidence
+            self.average_confidence = (1 - alpha) * self.average_confidence + alpha * new_confidence
 
-    def get_correlations(
-        self, start_time: float = None, end_time: float = None
-    ) -> List[Dict]:
+    def get_correlations(self, start_time: float | None = None, end_time: float | None = None) -> list[dict]:
         """Get correlations for a time range."""
         with self.lock:
             filtered = []
@@ -578,12 +560,10 @@ class TimeCorrelationEngine:
 
             return sorted(filtered, key=lambda x: x["start_timestamp"])
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get correlation statistics."""
         with self.lock:
-            success_rate = self.successful_correlations / max(
-                1, self.total_correlations
-            )
+            success_rate = self.successful_correlations / max(1, self.total_correlations)
 
             return {
                 "session_id": self.session_id,
@@ -618,13 +598,9 @@ class TimeCorrelationEngine:
         elif format == "text":
             lines = []
             for corr in correlations:
-                timestamp = datetime.fromtimestamp(corr["start_timestamp"]).strftime(
-                    "%H:%M:%S"
-                )
+                timestamp = datetime.fromtimestamp(corr["start_timestamp"]).strftime("%H:%M:%S")
                 confidence = f"({corr['correlation_confidence']:.2f})"
-                lines.append(
-                    f"[{timestamp}] {corr['speaker_name']}: {corr['text']} {confidence}"
-                )
+                lines.append(f"[{timestamp}] {corr['speaker_name']}: {corr['text']} {confidence}")
             return "\n".join(lines)
 
         elif format == "srt":

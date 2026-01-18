@@ -4,9 +4,9 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
-import pytest
-import time
+
 import numpy as np
+import pytest
 
 
 class TestComputationallyAwareChunking:
@@ -19,7 +19,9 @@ class TestComputationallyAwareChunking:
         # EXPECTED TO FAIL - not implemented yet
 
         try:
-            from modules.orchestration_service.src.audio.computationally_aware_chunker import ComputationallyAwareChunker
+            from modules.orchestration_service.src.audio.computationally_aware_chunker import (
+                ComputationallyAwareChunker,
+            )
         except ImportError:
             pytest.skip("ComputationallyAwareChunker not implemented yet")
 
@@ -38,23 +40,20 @@ class TestComputationallyAwareChunking:
         # EXPECTED TO FAIL - not implemented yet
 
         try:
-            from modules.orchestration_service.src.audio.computationally_aware_chunker import ComputationallyAwareChunker
+            from modules.orchestration_service.src.audio.computationally_aware_chunker import (
+                ComputationallyAwareChunker,
+            )
         except ImportError:
             pytest.skip("ComputationallyAwareChunker not implemented yet")
 
         chunker = ComputationallyAwareChunker(
-            min_chunk_size=2.0,
-            max_chunk_size=5.0,
-            target_rtf=0.8
+            min_chunk_size=2.0, max_chunk_size=5.0, target_rtf=0.8
         )
 
         # Simulate falling behind (RTF > target)
         chunker.record_processing_time(chunk_duration=2.0, processing_time=2.0)  # RTF = 1.0
 
-        next_size = chunker.calculate_next_chunk_size(
-            available_audio=10.0,
-            current_buffer_size=5.0
-        )
+        next_size = chunker.calculate_next_chunk_size(available_audio=10.0, current_buffer_size=5.0)
 
         # Should increase chunk size
         assert next_size > 2.0, "Chunk size should increase when falling behind"
@@ -66,23 +65,20 @@ class TestComputationallyAwareChunking:
         # EXPECTED TO FAIL - not implemented yet
 
         try:
-            from modules.orchestration_service.src.audio.computationally_aware_chunker import ComputationallyAwareChunker
+            from modules.orchestration_service.src.audio.computationally_aware_chunker import (
+                ComputationallyAwareChunker,
+            )
         except ImportError:
             pytest.skip("ComputationallyAwareChunker not implemented yet")
 
         chunker = ComputationallyAwareChunker(
-            min_chunk_size=2.0,
-            max_chunk_size=5.0,
-            target_rtf=0.8
+            min_chunk_size=2.0, max_chunk_size=5.0, target_rtf=0.8
         )
 
         # Simulate keeping up (RTF < target)
         chunker.record_processing_time(chunk_duration=2.0, processing_time=1.2)  # RTF = 0.6
 
-        next_size = chunker.calculate_next_chunk_size(
-            available_audio=10.0,
-            current_buffer_size=3.0
-        )
+        next_size = chunker.calculate_next_chunk_size(available_audio=10.0, current_buffer_size=3.0)
 
         # Should use minimum to reduce latency
         assert next_size == 2.0, "Chunk size should be minimal when keeping up"
@@ -94,7 +90,9 @@ class TestComputationallyAwareChunking:
         # EXPECTED TO FAIL - not implemented yet
 
         try:
-            from modules.orchestration_service.src.audio.computationally_aware_chunker import ComputationallyAwareChunker
+            from modules.orchestration_service.src.audio.computationally_aware_chunker import (
+                ComputationallyAwareChunker,
+            )
         except ImportError:
             pytest.skip("ComputationallyAwareChunker not implemented yet")
 
@@ -102,8 +100,7 @@ class TestComputationallyAwareChunking:
 
         # Buffer overflow scenario: 15 seconds buffered
         chunk_size = chunker.calculate_next_chunk_size(
-            available_audio=15.0,
-            current_buffer_size=15.0
+            available_audio=15.0, current_buffer_size=15.0
         )
 
         # Should use larger chunks to drain buffer
@@ -117,7 +114,9 @@ class TestComputationallyAwareChunking:
         # EXPECTED TO FAIL - not implemented yet
 
         try:
-            from modules.orchestration_service.src.audio.computationally_aware_chunker import ComputationallyAwareChunker
+            from modules.orchestration_service.src.audio.computationally_aware_chunker import (
+                ComputationallyAwareChunker,
+            )
         except ImportError:
             pytest.skip("ComputationallyAwareChunker not implemented yet")
 
@@ -143,29 +142,25 @@ class TestComputationallyAwareChunking:
         # EXPECTED TO FAIL - not implemented yet
 
         try:
-            from modules.orchestration_service.src.audio.computationally_aware_chunker import ComputationallyAwareChunker
+            from modules.orchestration_service.src.audio.computationally_aware_chunker import (
+                ComputationallyAwareChunker,
+            )
         except ImportError:
             pytest.skip("ComputationallyAwareChunker not implemented yet")
 
         chunker = ComputationallyAwareChunker(min_chunk_size=2.0)
 
         # Should process when minimum chunk available
-        should_process = chunker.should_process_now(
-            available_audio=2.0,
-            time_since_last_chunk=0.5
-        )
+        should_process = chunker.should_process_now(available_audio=2.0, time_since_last_chunk=0.5)
         assert should_process, "Should process when min chunk available"
 
         # Should not process when insufficient audio
-        should_process = chunker.should_process_now(
-            available_audio=1.0,
-            time_since_last_chunk=0.5
-        )
+        should_process = chunker.should_process_now(available_audio=1.0, time_since_last_chunk=0.5)
         assert not should_process, "Should not process when audio insufficient"
 
         # Should force process after timeout
         should_process = chunker.should_process_now(
             available_audio=0.8,
-            time_since_last_chunk=6.0  # Exceeded 5s timeout
+            time_since_last_chunk=6.0,  # Exceeded 5s timeout
         )
         assert should_process, "Should force process after timeout"

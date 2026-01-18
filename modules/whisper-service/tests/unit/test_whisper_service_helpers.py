@@ -12,21 +12,24 @@ Following TDD principle: Test current behavior BEFORE refactoring
 NO MOCKS - Testing actual implementation behavior
 """
 
-import pytest
-import numpy as np
 import sys
 from pathlib import Path
-from typing import List, Tuple
 
 # Add src to path (adjusted for tests/unit/ location)
 SRC_DIR = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from whisper_service import WhisperService, TranscriptionRequest, TranscriptionResult
+import numpy as np
+import pytest
 from transcription.text_analysis import (
+    calculate_text_stability_score,
     detect_hallucination,
     find_stable_word_prefix,
-    calculate_text_stability_score
+)
+from whisper_service import (
+    TranscriptionRequest,
+    TranscriptionResult,
+    WhisperService,
 )
 
 
@@ -35,7 +38,7 @@ class TestHallucinationDetection:
 
     def test_empty_text_is_hallucination(self):
         """Empty or whitespace-only text should be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         assert detect_hallucination("", 0.8) is True
         assert detect_hallucination("   ", 0.8) is True
@@ -43,14 +46,14 @@ class TestHallucinationDetection:
 
     def test_short_text_is_hallucination(self):
         """Very short text (< 2 chars after strip) should be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         assert detect_hallucination("a", 0.8) is True
         assert detect_hallucination(" b ", 0.8) is True
 
     def test_repetitive_characters_are_hallucination(self):
         """Repetitive character patterns should be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         assert detect_hallucination("aaaa", 0.8) is True
         assert detect_hallucination("bbbb", 0.8) is True
@@ -58,7 +61,7 @@ class TestHallucinationDetection:
 
     def test_whisper_artifacts_are_hallucination(self):
         """Known Whisper hallucination patterns should be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         assert detect_hallucination("mbc 뉴스", 0.8) is True
         assert detect_hallucination("김정진입니다", 0.8) is True
@@ -66,7 +69,7 @@ class TestHallucinationDetection:
 
     def test_excessive_word_repetition(self):
         """Text with >80% word repetition should be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         # 10 words, only 1 unique (10% unique = below 20% threshold)
         repetitive = "the the the the the the the the the the"
@@ -74,7 +77,7 @@ class TestHallucinationDetection:
 
     def test_educational_content_not_hallucination(self):
         """Educational phrases should NOT be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         assert detect_hallucination("Let's practice this English phrase", 0.8) is False
         assert detect_hallucination("This is a language learning exercise", 0.8) is False
@@ -82,7 +85,7 @@ class TestHallucinationDetection:
 
     def test_normal_speech_not_hallucination(self):
         """Normal speech should NOT be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         assert detect_hallucination("Hello world, how are you today?", 0.8) is False
         assert detect_hallucination("The quick brown fox jumps over the lazy dog", 0.9) is False
@@ -90,7 +93,7 @@ class TestHallucinationDetection:
 
     def test_single_character_repetition(self):
         """Text with very few unique characters should be flagged"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         # Long text but only 2 unique characters (excluding spaces)
         assert detect_hallucination("aaa bbb aaa bbb aaa", 0.8) is True
@@ -101,9 +104,9 @@ class TestStabilityTracking:
 
     def test_empty_history_returns_empty_prefix(self):
         """Empty history should return empty stable prefix"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
-        text_history: List[Tuple[str, float]] = []
+        text_history: list[tuple[str, float]] = []
         current_text = "hello world"
 
         stable_prefix = find_stable_word_prefix(text_history, current_text)
@@ -111,7 +114,7 @@ class TestStabilityTracking:
 
     def test_single_item_history_returns_empty_prefix(self):
         """Single item in history should return empty prefix (need at least 2 for stability)"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         text_history = [("hello", 1.0)]
         current_text = "hello world"
@@ -121,7 +124,7 @@ class TestStabilityTracking:
 
     def test_consistent_prefix_detected(self):
         """Consistent word prefix across multiple texts should be detected"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         text_history = [
             ("hello world", 1.0),
@@ -138,7 +141,7 @@ class TestStabilityTracking:
 
     def test_unstable_words_not_included(self):
         """Words that change position should not be in stable prefix"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         text_history = [
             ("hello world", 1.0),
@@ -155,7 +158,7 @@ class TestStabilityTracking:
 
     def test_empty_current_text_returns_empty(self):
         """Empty current text should return empty stable prefix"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         text_history = [("hello", 1.0), ("hello world", 2.0)]
         current_text = ""
@@ -165,7 +168,7 @@ class TestStabilityTracking:
 
     def test_stability_score_calculation(self):
         """Test stability score calculation from text history"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
         text_history = [
             ("hello world", 1.0),
@@ -183,9 +186,9 @@ class TestStabilityTracking:
 
     def test_stability_score_empty_history(self):
         """Empty history should return 0 stability score"""
-        service = WhisperService(config={"orchestration_mode": True})
+        WhisperService(config={"orchestration_mode": True})
 
-        text_history: List[Tuple[str, float]] = []
+        text_history: list[tuple[str, float]] = []
         stable_prefix = ""
 
         score = calculate_text_stability_score(text_history, stable_prefix)
@@ -262,7 +265,7 @@ class TestDataClasses:
             language="en",
             streaming=True,
             beam_size=1,
-            session_id="test-123"
+            session_id="test-123",
         )
 
         assert request.model_name == "base"
@@ -280,7 +283,7 @@ class TestDataClasses:
             confidence_score=0.95,
             processing_time=1.5,
             model_used="base",
-            device_used="cpu"
+            device_used="cpu",
         )
 
         assert result.text == "Hello world"
@@ -307,7 +310,7 @@ class TestDataClasses:
             is_final=False,
             should_translate=True,
             translation_mode="draft",
-            stability_score=0.85
+            stability_score=0.85,
         )
 
         assert result.stable_text == "Hello world"
@@ -334,11 +337,7 @@ class TestWhisperServiceInitialization:
 
     def test_initialization_custom_config(self):
         """Test service initialization with custom config"""
-        config = {
-            "orchestration_mode": False,
-            "inference_interval": 5.0,
-            "models_dir": ".models"
-        }
+        config = {"orchestration_mode": False, "inference_interval": 5.0, "models_dir": ".models"}
         service = WhisperService(config=config)
 
         assert service.orchestration_mode is False

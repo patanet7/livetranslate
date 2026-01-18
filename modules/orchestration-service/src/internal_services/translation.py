@@ -13,10 +13,10 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
 from difflib import SequenceMatcher
+from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 TRANSLATION_MODULE_AVAILABLE = False
-TRANSLATION_IMPORT_ERROR: Optional[BaseException] = None
-_TRANSLATION_SOURCE_PATH: Optional[Path] = None
+TRANSLATION_IMPORT_ERROR: BaseException | None = None
+_TRANSLATION_SOURCE_PATH: Path | None = None
 
 try:
     repo_root = Path(__file__).resolve()
@@ -49,9 +49,7 @@ try:
         )
 
         TRANSLATION_MODULE_AVAILABLE = True
-        logger.info(
-            "Embedded translation module available at %s", translation_src.as_posix()
-        )
+        logger.info("Embedded translation module available at %s", translation_src.as_posix())
     else:
         TRANSLATION_IMPORT_ERROR = FileNotFoundError(
             f"translation-service source directory missing at {translation_src}"
@@ -60,9 +58,7 @@ try:
 except Exception as exc:  # pragma: no cover - import failures are environment dependent
     TRANSLATION_IMPORT_ERROR = exc
     TRANSLATION_MODULE_AVAILABLE = False
-    logger.warning(
-        "Failed to import embedded translation-service module: %s", exc, exc_info=True
-    )
+    logger.warning("Failed to import embedded translation-service module: %s", exc, exc_info=True)
 
 
 class UnifiedTranslationError(RuntimeError):
@@ -77,10 +73,10 @@ class UnifiedTranslationService:
     """
 
     def __init__(self) -> None:
-        self._service: Optional[_TranslationService] = None
+        self._service: _TranslationService | None = None
         self._init_lock = asyncio.Lock()
-        self._last_error: Optional[str] = None
-        self._default_languages: List[Dict[str, str]] = [
+        self._last_error: str | None = None
+        self._default_languages: list[dict[str, str]] = [
             {"code": "en", "name": "English"},
             {"code": "es", "name": "Spanish"},
             {"code": "fr", "name": "French"},
@@ -92,7 +88,7 @@ class UnifiedTranslationService:
             {"code": "ko", "name": "Korean"},
             {"code": "zh", "name": "Chinese"},
         ]
-        self._metrics: Dict[str, Any] = {
+        self._metrics: dict[str, Any] = {
             "total_translations": 0,
             "successful_translations": 0,
             "failed_translations": 0,
@@ -100,7 +96,7 @@ class UnifiedTranslationService:
             "language_pairs_processed": {},
             "model_performance": {},
         }
-        self._sessions: Dict[str, Dict[str, Any]] = {}
+        self._sessions: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # Service bootstrapping helpers
@@ -111,11 +107,11 @@ class UnifiedTranslationService:
         return TRANSLATION_MODULE_AVAILABLE
 
     @property
-    def last_error(self) -> Optional[str]:
+    def last_error(self) -> str | None:
         """Return the last initialization or runtime error message, if any."""
         return self._last_error
 
-    async def _ensure_service(self) -> Optional[_TranslationService]:
+    async def _ensure_service(self) -> _TranslationService | None:
         """
         Lazily create the underlying translation service. This matches the async
         factory provided by the microservice so model loading happens once.
@@ -150,9 +146,7 @@ class UnifiedTranslationService:
                 )
             except Exception as exc:  # pragma: no cover - highly environment dependent
                 self._last_error = str(exc)
-                logger.warning(
-                    "Embedded translation initialization failed: %s", exc, exc_info=True
-                )
+                logger.warning("Embedded translation initialization failed: %s", exc, exc_info=True)
                 self._service = None
 
         return self._service
@@ -166,12 +160,12 @@ class UnifiedTranslationService:
         *,
         text: str,
         target_language: str,
-        source_language: Optional[str] = None,
-        session_id: Optional[str] = None,
-        quality: Optional[str] = None,
-        model: Optional[str] = None,
+        source_language: str | None = None,
+        session_id: str | None = None,
+        quality: str | None = None,
+        model: str | None = None,
         confidence_threshold: float = 0.8,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Perform a translation request using the embedded service.
         Returns a dict aligned with the orchestration translation response.
@@ -196,9 +190,7 @@ class UnifiedTranslationService:
             backend_used = getattr(result, "backend_used", None)
 
             # Update basic metrics for analytics-style queries
-            self._metrics["total_translations"] = (
-                self._metrics.get("total_translations", 0) + 1
-            )
+            self._metrics["total_translations"] = self._metrics.get("total_translations", 0) + 1
             self._metrics["successful_translations"] = (
                 self._metrics.get("successful_translations", 0) + 1
             )
@@ -216,9 +208,7 @@ class UnifiedTranslationService:
                 model_key, {"count": 0, "total_processing_time": 0.0}
             )
             model_entry["count"] += 1
-            model_entry["total_processing_time"] += getattr(
-                result, "processing_time", 0.0
-            )
+            model_entry["total_processing_time"] += getattr(result, "processing_time", 0.0)
 
             return {
                 "translated_text": result.translated_text,
@@ -229,22 +219,16 @@ class UnifiedTranslationService:
                 "backend_used": backend_used or (model or "embedded"),
                 "model_used": model or backend_used or "embedded",
                 "session_id": getattr(result, "session_id", session_id),
-                "timestamp": getattr(
-                    result, "timestamp", datetime.now(timezone.utc).isoformat()
-                ),
+                "timestamp": getattr(result, "timestamp", datetime.now(UTC).isoformat()),
             }
         except Exception as exc:
             self._last_error = str(exc)
-            self._metrics["total_translations"] = (
-                self._metrics.get("total_translations", 0) + 1
-            )
-            self._metrics["failed_translations"] = (
-                self._metrics.get("failed_translations", 0) + 1
-            )
+            self._metrics["total_translations"] = self._metrics.get("total_translations", 0) + 1
+            self._metrics["failed_translations"] = self._metrics.get("failed_translations", 0) + 1
             logger.warning("Embedded translation failed: %s", exc, exc_info=True)
             raise UnifiedTranslationError(str(exc)) from exc
 
-    async def health(self) -> Dict[str, Any]:
+    async def health(self) -> dict[str, Any]:
         """
         Return health diagnostics for the embedded service. The structure mirrors
         the HTTP health endpoint used by the original microservice.
@@ -259,14 +243,12 @@ class UnifiedTranslationService:
             "source_path": _TRANSLATION_SOURCE_PATH.as_posix()
             if _TRANSLATION_SOURCE_PATH
             else None,
-            "fallback_mode": bool(getattr(service, "fallback_mode", False))
-            if service
-            else True,
+            "fallback_mode": bool(getattr(service, "fallback_mode", False)) if service else True,
             "last_error": self._last_error,
         }
         return status
 
-    async def get_supported_languages(self) -> List[Dict[str, str]]:
+    async def get_supported_languages(self) -> list[dict[str, str]]:
         """
         Return supported languages. When the embedded service exposes a richer
         list we attempt to use it, otherwise a conservative default is returned.
@@ -278,7 +260,7 @@ class UnifiedTranslationService:
                 return languages
         return list(self._default_languages)
 
-    async def detect_language(self, text: str) -> Dict[str, Any]:
+    async def detect_language(self, text: str) -> dict[str, Any]:
         """
         Provide a lightweight language detection fallback. If the embedded service
         exposes custom detectors in the future this can be expanded.
@@ -292,9 +274,7 @@ class UnifiedTranslationService:
 
             detected = langdetect.detect_langs(text)
             primary = detected[0]
-            alternatives = [
-                {candidate.lang: candidate.prob} for candidate in detected[1:3]
-            ]
+            alternatives = [{candidate.lang: candidate.prob} for candidate in detected[1:3]]
             return {
                 "language": primary.lang,
                 "confidence": primary.prob,
@@ -312,25 +292,25 @@ class UnifiedTranslationService:
     # Session & analytics helpers used by orchestration routers
     # ------------------------------------------------------------------
 
-    async def start_session(self, config: Optional[Dict[str, Any]] = None) -> str:
+    async def start_session(self, config: dict[str, Any] | None = None) -> str:
         """Create a lightweight real-time translation session."""
         session_id = (config or {}).get("session_id") or uuid4().hex
         self._sessions[session_id] = {
             "config": config or {},
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
+            "last_activity": datetime.now(UTC).isoformat(),
             "translations": 0,
         }
         return session_id
 
-    async def stop_session(self, session_id: str) -> Dict[str, Any]:
+    async def stop_session(self, session_id: str) -> dict[str, Any]:
         """Stop a real-time session and return summary stats."""
         session = self._sessions.pop(session_id, None)
         if not session:
             return {"status": "not_found", "session_id": session_id}
 
         duration = (
-            datetime.now(timezone.utc) - datetime.fromisoformat(session["created_at"])
+            datetime.now(UTC) - datetime.fromisoformat(session["created_at"])
         ).total_seconds()
 
         return {
@@ -342,7 +322,7 @@ class UnifiedTranslationService:
 
     async def realtime_translate(
         self, session_id: str, text: str, target_language: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Translate text within a session context."""
         if session_id not in self._sessions:
             await self.start_session({"session_id": session_id})
@@ -356,11 +336,11 @@ class UnifiedTranslationService:
 
         session = self._sessions[session_id]
         session["translations"] = session.get("translations", 0) + 1
-        session["last_activity"] = datetime.now(timezone.utc).isoformat()
+        session["last_activity"] = datetime.now(UTC).isoformat()
 
         return result
 
-    async def get_statistics(self) -> Dict[str, Any]:
+    async def get_statistics(self) -> dict[str, Any]:
         """Expose accumulated translation metrics."""
         total = self._metrics.get("total_translations", 0)
         total_time = self._metrics.get("total_processing_time", 0.0)
@@ -370,10 +350,10 @@ class UnifiedTranslationService:
             **self._metrics,
             "average_processing_time": avg_time,
             "active_sessions": len(self._sessions),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
-    async def get_models(self) -> List[Dict[str, Any]]:
+    async def get_models(self) -> list[dict[str, Any]]:
         """Return available models (basic defaults for embedded mode)."""
         models = []
         if self._service and hasattr(self._service, "backend_priority"):
@@ -396,7 +376,7 @@ class UnifiedTranslationService:
             )
         return models
 
-    async def get_device_info(self) -> Dict[str, Any]:
+    async def get_device_info(self) -> dict[str, Any]:
         """Return device/runtime info for diagnostics."""
         device = getattr(self._service, "inference_client", None)
         backend = None
@@ -409,23 +389,19 @@ class UnifiedTranslationService:
             "details": {
                 "module_imported": TRANSLATION_MODULE_AVAILABLE,
                 "fallback_mode": bool(
-                    getattr(self._service, "fallback_mode", False)
-                    if self._service
-                    else True
+                    getattr(self._service, "fallback_mode", False) if self._service else True
                 ),
             },
         }
 
     async def get_translation_quality(
         self, original: str, translated: str, source_lang: str, target_lang: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Compute a simple quality estimate using sequence matching. This is not a
         substitute for dedicated quality models but gives quick feedback.
         """
-        matcher = SequenceMatcher(
-            None, original.lower().strip(), translated.lower().strip()
-        )
+        matcher = SequenceMatcher(None, original.lower().strip(), translated.lower().strip())
         score = matcher.ratio()
         return {
             "score": score,
@@ -435,7 +411,7 @@ class UnifiedTranslationService:
         }
 
 
-_TRANSLATION_SINGLETON: Optional[UnifiedTranslationService] = None
+_TRANSLATION_SINGLETON: UnifiedTranslationService | None = None
 
 
 def get_unified_translation_service() -> UnifiedTranslationService:
@@ -453,8 +429,8 @@ def reset_unified_translation_service() -> None:
 
 
 __all__ = [
-    "UnifiedTranslationService",
     "UnifiedTranslationError",
+    "UnifiedTranslationService",
     "get_unified_translation_service",
     "reset_unified_translation_service",
 ]

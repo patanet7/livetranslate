@@ -10,9 +10,8 @@ Reference: SimulStreaming paper (IWSLT 2025)
 """
 
 import logging
-from typing import List, Tuple, Optional, Dict, Any
 from dataclasses import dataclass
-import numpy as np
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Hypothesis:
     """A single hypothesis in beam search"""
-    tokens: List[int]
+
+    tokens: list[int]
     score: float
     text: str = ""
     length_normalized_score: float = 0.0
@@ -54,7 +54,7 @@ class BeamSearchDecoder:
         length_penalty: float = 1.0,
         temperature: float = 0.0,
         no_repeat_ngram_size: int = 0,
-        early_stopping: bool = True
+        early_stopping: bool = True,
     ):
         """
         Initialize beam search decoder
@@ -72,21 +72,25 @@ class BeamSearchDecoder:
         self.no_repeat_ngram_size = no_repeat_ngram_size
         self.early_stopping = early_stopping
 
-        logger.info(f"BeamSearchDecoder initialized: beam_size={beam_size}, "
-                   f"length_penalty={length_penalty}, temperature={temperature}")
+        logger.info(
+            f"BeamSearchDecoder initialized: beam_size={beam_size}, "
+            f"length_penalty={length_penalty}, temperature={temperature}"
+        )
 
         # Validate beam size
         if beam_size < 1:
             raise ValueError("beam_size must be >= 1")
         if beam_size > 20:
-            logger.warning(f"beam_size={beam_size} is very large and may cause memory issues. "
-                         "Recommended: 1-10")
+            logger.warning(
+                f"beam_size={beam_size} is very large and may cause memory issues. "
+                "Recommended: 1-10"
+            )
 
     def is_greedy_mode(self) -> bool:
         """Check if decoder is in greedy mode (beam_size=1)"""
         return self.beam_size == 1
 
-    def configure_for_pytorch(self) -> Dict[str, Any]:
+    def configure_for_pytorch(self) -> dict[str, Any]:
         """
         Configure PyTorch Whisper (openai-whisper) for beam search
 
@@ -105,7 +109,7 @@ class BeamSearchDecoder:
 
         return config
 
-    def configure_for_transformers(self) -> Dict[str, Any]:
+    def configure_for_transformers(self) -> dict[str, Any]:
         """
         Configure HuggingFace Transformers pipeline for beam search
 
@@ -117,7 +121,7 @@ class BeamSearchDecoder:
             "length_penalty": self.length_penalty,
             "early_stopping": self.early_stopping,
             "no_repeat_ngram_size": self.no_repeat_ngram_size,
-            "return_timestamps": True
+            "return_timestamps": True,
         }
 
         # Temperature (for sampling)
@@ -129,7 +133,7 @@ class BeamSearchDecoder:
 
         return config
 
-    def rank_hypotheses(self, hypotheses: List[Hypothesis]) -> List[Hypothesis]:
+    def rank_hypotheses(self, hypotheses: list[Hypothesis]) -> list[Hypothesis]:
         """
         Rank hypotheses by length-normalized score
 
@@ -149,7 +153,7 @@ class BeamSearchDecoder:
 
         return ranked
 
-    def get_best_hypothesis(self, hypotheses: List[Hypothesis]) -> Hypothesis:
+    def get_best_hypothesis(self, hypotheses: list[Hypothesis]) -> Hypothesis:
         """
         Get the best hypothesis from beam search results
 
@@ -162,7 +166,7 @@ class BeamSearchDecoder:
         ranked = self.rank_hypotheses(hypotheses)
         return ranked[0] if ranked else None
 
-    def log_beam_statistics(self, hypotheses: List[Hypothesis]):
+    def log_beam_statistics(self, hypotheses: list[Hypothesis]):
         """Log statistics about beam search results"""
         if not hypotheses:
             logger.warning("[BEAM_SEARCH] No hypotheses generated")
@@ -172,10 +176,12 @@ class BeamSearchDecoder:
 
         logger.info(f"[BEAM_SEARCH] Generated {len(ranked)} hypotheses:")
         for i, hyp in enumerate(ranked[:3]):  # Show top 3
-            logger.info(f"  Rank {i+1}: score={hyp.score:.3f}, "
-                       f"norm_score={hyp.length_normalized_score:.3f}, "
-                       f"tokens={len(hyp.tokens)}, "
-                       f"text='{hyp.text[:50]}...'")
+            logger.info(
+                f"  Rank {i+1}: score={hyp.score:.3f}, "
+                f"norm_score={hyp.length_normalized_score:.3f}, "
+                f"tokens={len(hyp.tokens)}, "
+                f"text='{hyp.text[:50]}...'"
+            )
 
 
 class BeamSearchConfig:
@@ -186,20 +192,13 @@ class BeamSearchConfig:
     @staticmethod
     def fast() -> BeamSearchDecoder:
         """Fast mode: Greedy decoding (beam_size=1)"""
-        return BeamSearchDecoder(
-            beam_size=1,
-            length_penalty=1.0,
-            temperature=0.0
-        )
+        return BeamSearchDecoder(beam_size=1, length_penalty=1.0, temperature=0.0)
 
     @staticmethod
     def balanced() -> BeamSearchDecoder:
         """Balanced mode: Good quality/speed tradeoff (beam_size=3)"""
         return BeamSearchDecoder(
-            beam_size=3,
-            length_penalty=1.0,
-            temperature=0.0,
-            no_repeat_ngram_size=3
+            beam_size=3, length_penalty=1.0, temperature=0.0, no_repeat_ngram_size=3
         )
 
     @staticmethod
@@ -210,7 +209,7 @@ class BeamSearchConfig:
             length_penalty=1.0,
             temperature=0.0,
             no_repeat_ngram_size=3,
-            early_stopping=True
+            early_stopping=True,
         )
 
     @staticmethod
@@ -221,7 +220,7 @@ class BeamSearchConfig:
             length_penalty=1.0,
             temperature=0.0,
             no_repeat_ngram_size=3,
-            early_stopping=True
+            early_stopping=True,
         )
 
     @staticmethod
@@ -231,7 +230,7 @@ class BeamSearchConfig:
             "fast": BeamSearchConfig.fast,
             "balanced": BeamSearchConfig.balanced,
             "quality": BeamSearchConfig.quality,
-            "max_quality": BeamSearchConfig.max_quality
+            "max_quality": BeamSearchConfig.max_quality,
         }
 
         if name not in configs:
@@ -242,10 +241,7 @@ class BeamSearchConfig:
 
 
 # Convenience functions
-def create_beam_decoder(
-    beam_size: int = 5,
-    quality_preset: Optional[str] = None
-) -> BeamSearchDecoder:
+def create_beam_decoder(beam_size: int = 5, quality_preset: str | None = None) -> BeamSearchDecoder:
     """
     Create beam search decoder with smart defaults
 

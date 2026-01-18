@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -25,7 +25,7 @@ import {
   Tooltip,
   Paper,
   Grid,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Close,
   RestoreOutlined,
@@ -38,8 +38,8 @@ import {
   Memory,
   Warning,
   CheckCircle,
-} from '@mui/icons-material';
-import ListItemIcon from '@mui/material/ListItemIcon';
+} from "@mui/icons-material";
+import ListItemIcon from "@mui/material/ListItemIcon";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -47,7 +47,7 @@ interface SettingsPanelProps {
   nodeId: string;
   nodeData: any;
   onParameterChange: (nodeId: string, paramName: string, value: any) => void;
-  onGainChange: (nodeId: string, type: 'in' | 'out', value: number) => void;
+  onGainChange: (nodeId: string, type: "in" | "out", value: number) => void;
   onToggleEnabled: (nodeId: string, enabled: boolean) => void;
 }
 
@@ -57,7 +57,12 @@ interface TabPanelProps {
   value: number;
 }
 
-const TabPanel: React.FC<TabPanelProps> = ({ children, value, index, ...other }) => {
+const TabPanel: React.FC<TabPanelProps> = ({
+  children,
+  value,
+  index,
+  ...other
+}) => {
   return (
     <div
       role="tabpanel"
@@ -95,25 +100,27 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     nodeData.parameters.forEach((param: any) => {
       onParameterChange(nodeId, param.name, param.defaultValue || param.min);
     });
-    onGainChange(nodeId, 'in', 0);
-    onGainChange(nodeId, 'out', 0);
+    onGainChange(nodeId, "in", 0);
+    onGainChange(nodeId, "out", 0);
     setUnsavedChanges(false);
   };
 
   const handleSaveAsPreset = () => {
     // Save current settings as a preset (would integrate with PresetManager)
-    console.log('Saving settings as preset...');
+    console.log("Saving settings as preset...");
   };
 
   const formatGain = (value: number): string => {
-    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}dB`;
+    return `${value >= 0 ? "+" : ""}${value.toFixed(1)}dB`;
   };
 
-  const getPerformanceImpact = (param: any): 'low' | 'medium' | 'high' => {
+  const getPerformanceImpact = (param: any): "low" | "medium" | "high" => {
     // Simple heuristic for performance impact
-    if (param.name.includes('quality') || param.name.includes('advanced')) return 'high';
-    if (param.name.includes('basic') || param.name.includes('simple')) return 'low';
-    return 'medium';
+    if (param.name.includes("quality") || param.name.includes("advanced"))
+      return "high";
+    if (param.name.includes("basic") || param.name.includes("simple"))
+      return "low";
+    return "medium";
   };
 
   return (
@@ -123,13 +130,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       maxWidth="md"
       fullWidth
       PaperProps={{
-        sx: { height: '80vh', display: 'flex', flexDirection: 'column' }
+        sx: { height: "80vh", display: "flex", flexDirection: "column" },
       }}
     >
       <DialogTitle>
         <Box display="flex" alignItems="center" justifyContent="space-between">
           <Box display="flex" alignItems="center" gap={2}>
-            <nodeData.icon sx={{ fontSize: 24, color: 'primary.main' }} />
+            <nodeData.icon sx={{ fontSize: 24, color: "primary.main" }} />
             <Box>
               <Typography variant="h6">{nodeData.label} Settings</Typography>
               <Typography variant="caption" color="text.secondary">
@@ -144,12 +151,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       </DialogTitle>
 
       <DialogContent sx={{ flexGrow: 1, p: 0 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={activeTab} onChange={handleTabChange} aria-label="settings tabs">
-            <Tab label="Basic Settings" icon={<Settings sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab label="Audio I/O" icon={<VolumeUp sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab label="Performance" icon={<Speed sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab label="Advanced" icon={<Memory sx={{ fontSize: 16 }} />} iconPosition="start" />
+        <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            aria-label="settings tabs"
+          >
+            <Tab
+              label="Basic Settings"
+              icon={<Settings sx={{ fontSize: 16 }} />}
+              iconPosition="start"
+            />
+            <Tab
+              label="Audio I/O"
+              icon={<VolumeUp sx={{ fontSize: 16 }} />}
+              iconPosition="start"
+            />
+            <Tab
+              label="Performance"
+              icon={<Speed sx={{ fontSize: 16 }} />}
+              iconPosition="start"
+            />
+            <Tab
+              label="Advanced"
+              icon={<Memory sx={{ fontSize: 16 }} />}
+              iconPosition="start"
+            />
           </Tabs>
         </Box>
 
@@ -172,12 +199,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 label={
                   <Box>
                     <Typography variant="body1">
-                      {nodeData.enabled ? 'Component Enabled' : 'Component Disabled'}
+                      {nodeData.enabled
+                        ? "Component Enabled"
+                        : "Component Disabled"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {nodeData.enabled ? 
-                        'Audio will be processed through this component' : 
-                        'Audio will bypass this component'}
+                      {nodeData.enabled
+                        ? "Audio will be processed through this component"
+                        : "Audio will bypass this component"}
                     </Typography>
                   </Box>
                 }
@@ -191,19 +220,27 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </Typography>
               {nodeData.parameters.slice(0, 5).map((param: any) => (
                 <Box key={param.name} mb={3}>
-                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    mb={1}
+                  >
                     <Box display="flex" alignItems="center" gap={1}>
-                      <Typography variant="body2">{param.displayName || param.name}</Typography>
+                      <Typography variant="body2">
+                        {param.displayName || param.name}
+                      </Typography>
                       <Tooltip title={param.description} arrow>
-                        <Info sx={{ fontSize: 16, color: 'text.secondary' }} />
+                        <Info sx={{ fontSize: 16, color: "text.secondary" }} />
                       </Tooltip>
                     </Box>
                     <Typography variant="body2" fontWeight="bold">
-                      {param.value.toFixed(param.step < 1 ? 1 : 0)}{param.unit || ''}
+                      {param.value.toFixed(param.step < 1 ? 1 : 0)}
+                      {param.unit || ""}
                     </Typography>
                   </Box>
-                  
-                  {param.type === 'slider' && (
+
+                  {param.type === "slider" && (
                     <Slider
                       value={param.value}
                       min={param.min}
@@ -217,8 +254,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       sx={{ mt: 1 }}
                     />
                   )}
-                  
-                  {param.type === 'select' && (
+
+                  {param.type === "select" && (
                     <FormControl fullWidth size="small">
                       <Select
                         value={param.value}
@@ -235,8 +272,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       </Select>
                     </FormControl>
                   )}
-                  
-                  {param.type === 'toggle' && (
+
+                  {param.type === "toggle" && (
                     <Switch
                       checked={param.value}
                       onChange={(e) => {
@@ -250,21 +287,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </Box>
 
             {/* Quality Presets (for certain components) */}
-            {nodeData.label.includes('Enhancement') && (
+            {nodeData.label.includes("Enhancement") && (
               <Paper variant="outlined" sx={{ p: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Quick Presets
                 </Typography>
                 <Grid container spacing={1}>
                   <Grid item xs={4}>
-                    <Button 
-                      fullWidth 
-                      variant="outlined" 
+                    <Button
+                      fullWidth
+                      variant="outlined"
                       size="small"
                       onClick={() => {
                         // Apply light enhancement preset
-                        onParameterChange(nodeId, 'clarityEnhancement', 0.3);
-                        onParameterChange(nodeId, 'presenceBoost', 0.2);
+                        onParameterChange(nodeId, "clarityEnhancement", 0.3);
+                        onParameterChange(nodeId, "presenceBoost", 0.2);
                         setUnsavedChanges(true);
                       }}
                     >
@@ -272,14 +309,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </Button>
                   </Grid>
                   <Grid item xs={4}>
-                    <Button 
-                      fullWidth 
-                      variant="outlined" 
+                    <Button
+                      fullWidth
+                      variant="outlined"
                       size="small"
                       onClick={() => {
                         // Apply moderate enhancement preset
-                        onParameterChange(nodeId, 'clarityEnhancement', 0.6);
-                        onParameterChange(nodeId, 'presenceBoost', 0.5);
+                        onParameterChange(nodeId, "clarityEnhancement", 0.6);
+                        onParameterChange(nodeId, "presenceBoost", 0.5);
                         setUnsavedChanges(true);
                       }}
                     >
@@ -287,14 +324,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </Button>
                   </Grid>
                   <Grid item xs={4}>
-                    <Button 
-                      fullWidth 
-                      variant="outlined" 
+                    <Button
+                      fullWidth
+                      variant="outlined"
                       size="small"
                       onClick={() => {
                         // Apply heavy enhancement preset
-                        onParameterChange(nodeId, 'clarityEnhancement', 0.9);
-                        onParameterChange(nodeId, 'presenceBoost', 0.8);
+                        onParameterChange(nodeId, "clarityEnhancement", 0.9);
+                        onParameterChange(nodeId, "presenceBoost", 0.8);
                         setUnsavedChanges(true);
                       }}
                     >
@@ -316,7 +353,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 Input Gain Control
               </Typography>
               <Paper variant="outlined" sx={{ p: 2 }}>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Box
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  mb={2}
+                >
                   <Box display="flex" alignItems="center" gap={1}>
                     <VolumeDown />
                     <Typography variant="body2">Input Gain</Typography>
@@ -331,17 +373,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   max={20}
                   step={0.5}
                   marks={[
-                    { value: -20, label: '-20dB' },
-                    { value: 0, label: '0dB' },
-                    { value: 20, label: '+20dB' },
+                    { value: -20, label: "-20dB" },
+                    { value: 0, label: "0dB" },
+                    { value: 20, label: "+20dB" },
                   ]}
                   onChange={(_, value) => {
-                    onGainChange(nodeId, 'in', value as number);
+                    onGainChange(nodeId, "in", value as number);
                     setUnsavedChanges(true);
                   }}
                 />
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                  Adjust the input level before processing. Be careful not to cause clipping.
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ mt: 1 }}
+                >
+                  Adjust the input level before processing. Be careful not to
+                  cause clipping.
                 </Typography>
               </Paper>
             </Box>
@@ -352,7 +399,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 Output Gain Control
               </Typography>
               <Paper variant="outlined" sx={{ p: 2 }}>
-                <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+                <Box
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  mb={2}
+                >
                   <Box display="flex" alignItems="center" gap={1}>
                     <VolumeUp />
                     <Typography variant="body2">Output Gain</Typography>
@@ -367,17 +419,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   max={20}
                   step={0.5}
                   marks={[
-                    { value: -20, label: '-20dB' },
-                    { value: 0, label: '0dB' },
-                    { value: 20, label: '+20dB' },
+                    { value: -20, label: "-20dB" },
+                    { value: 0, label: "0dB" },
+                    { value: 20, label: "+20dB" },
                   ]}
                   onChange={(_, value) => {
-                    onGainChange(nodeId, 'out', value as number);
+                    onGainChange(nodeId, "out", value as number);
                     setUnsavedChanges(true);
                   }}
                 />
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                  Adjust the output level after processing. Match levels with other components.
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ mt: 1 }}
+                >
+                  Adjust the output level after processing. Match levels with
+                  other components.
                 </Typography>
               </Paper>
             </Box>
@@ -403,7 +460,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Box display="flex" alignItems="center" gap={1} mb={1}>
                       <Speed sx={{ fontSize: 20 }} />
-                      <Typography variant="body2">Processing Latency</Typography>
+                      <Typography variant="body2">
+                        Processing Latency
+                      </Typography>
                     </Box>
                     <Typography variant="h5" fontWeight="bold">
                       {nodeData.metrics.processingTimeMs.toFixed(1)}ms
@@ -413,7 +472,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </Typography>
                   </Paper>
                 </Grid>
-                
+
                 <Grid item xs={6}>
                   <Paper variant="outlined" sx={{ p: 2 }}>
                     <Box display="flex" alignItems="center" gap={1} mb={1}>
@@ -424,8 +483,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       {nodeData.metrics.cpuUsage.toFixed(0)}%
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {nodeData.metrics.cpuUsage < 20 ? 'Low' : 
-                       nodeData.metrics.cpuUsage < 50 ? 'Moderate' : 'High'} usage
+                      {nodeData.metrics.cpuUsage < 20
+                        ? "Low"
+                        : nodeData.metrics.cpuUsage < 50
+                          ? "Moderate"
+                          : "High"}{" "}
+                      usage
                     </Typography>
                   </Paper>
                 </Grid>
@@ -440,7 +503,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <List dense>
                 <ListItem>
                   <ListItemIcon>
-                    <CheckCircle sx={{ fontSize: 16, color: 'success.main' }} />
+                    <CheckCircle sx={{ fontSize: 16, color: "success.main" }} />
                   </ListItemIcon>
                   <ListItemText
                     primary="Reduce quality settings for lower latency"
@@ -449,24 +512,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </ListItem>
                 <ListItem>
                   <ListItemIcon>
-                    <Info sx={{ fontSize: 16, color: 'info.main' }} />
+                    <Info sx={{ fontSize: 16, color: "info.main" }} />
                   </ListItemIcon>
                   <ListItemText
                     primary="Disable unused features"
                     secondary="Turn off advanced processing when not needed"
                   />
                 </ListItem>
-                {nodeData.metrics && nodeData.metrics.processingTimeMs > nodeData.metrics.targetLatencyMs && (
-                  <ListItem>
-                    <ListItemIcon>
-                      <Warning sx={{ fontSize: 16, color: 'warning.main' }} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Processing time exceeds target"
-                      secondary="Consider simplifying settings or upgrading hardware"
-                    />
-                  </ListItem>
-                )}
+                {nodeData.metrics &&
+                  nodeData.metrics.processingTimeMs >
+                    nodeData.metrics.targetLatencyMs && (
+                    <ListItem>
+                      <ListItemIcon>
+                        <Warning sx={{ fontSize: 16, color: "warning.main" }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Processing time exceeds target"
+                        secondary="Consider simplifying settings or upgrading hardware"
+                      />
+                    </ListItem>
+                  )}
               </List>
             </Box>
 
@@ -478,16 +543,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <FormControl fullWidth size="small">
                 <InputLabel>Processing Mode</InputLabel>
                 <Select
-                  value={nodeData.stageConfig.mode || 'balanced'}
+                  value={nodeData.stageConfig.mode || "balanced"}
                   label="Processing Mode"
                   onChange={(e) => {
-                    onParameterChange(nodeId, 'mode', e.target.value);
+                    onParameterChange(nodeId, "mode", e.target.value);
                     setUnsavedChanges(true);
                   }}
                 >
                   <MenuItem value="fast">
                     <Box>
-                      <Typography variant="body2">Fast (Low Latency)</Typography>
+                      <Typography variant="body2">
+                        Fast (Low Latency)
+                      </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Prioritize speed over quality
                       </Typography>
@@ -519,8 +586,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <TabPanel value={activeTab} index={3}>
           <Box display="flex" flexDirection="column" gap={3}>
             <Alert severity="warning" icon={<Warning />}>
-              Advanced settings can significantly impact audio quality and performance. 
-              Modify with caution.
+              Advanced settings can significantly impact audio quality and
+              performance. Modify with caution.
             </Alert>
 
             {/* Additional Parameters */}
@@ -531,28 +598,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </Typography>
                 {nodeData.parameters.slice(5).map((param: any) => (
                   <Box key={param.name} mb={3}>
-                    <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                    <Box
+                      display="flex"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      mb={1}
+                    >
                       <Box display="flex" alignItems="center" gap={1}>
-                        <Typography variant="body2">{param.displayName || param.name}</Typography>
+                        <Typography variant="body2">
+                          {param.displayName || param.name}
+                        </Typography>
                         <Tooltip title={param.description} arrow>
-                          <Info sx={{ fontSize: 16, color: 'text.secondary' }} />
+                          <Info
+                            sx={{ fontSize: 16, color: "text.secondary" }}
+                          />
                         </Tooltip>
                         <Chip
                           label={getPerformanceImpact(param)}
                           size="small"
                           color={
-                            getPerformanceImpact(param) === 'high' ? 'error' :
-                            getPerformanceImpact(param) === 'medium' ? 'warning' : 'success'
+                            getPerformanceImpact(param) === "high"
+                              ? "error"
+                              : getPerformanceImpact(param) === "medium"
+                                ? "warning"
+                                : "success"
                           }
-                          sx={{ height: 18, fontSize: '0.7rem' }}
+                          sx={{ height: 18, fontSize: "0.7rem" }}
                         />
                       </Box>
                       <Typography variant="body2" fontWeight="bold">
-                        {param.value.toFixed(param.step < 1 ? 1 : 0)}{param.unit || ''}
+                        {param.value.toFixed(param.step < 1 ? 1 : 0)}
+                        {param.unit || ""}
                       </Typography>
                     </Box>
-                    
-                    {param.type === 'slider' && (
+
+                    {param.type === "slider" && (
                       <Slider
                         value={param.value}
                         min={param.min}
@@ -560,7 +640,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         step={param.step}
                         marks
                         onChange={(_, value) => {
-                          onParameterChange(nodeId, param.name, value as number);
+                          onParameterChange(
+                            nodeId,
+                            param.name,
+                            value as number,
+                          );
                           setUnsavedChanges(true);
                         }}
                         sx={{ mt: 1 }}
@@ -578,10 +662,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </Typography>
               <List dense>
                 <ListItem>
-                  <ListItemText
-                    primary="Component ID"
-                    secondary={nodeId}
-                  />
+                  <ListItemText primary="Component ID" secondary={nodeId} />
                 </ListItem>
                 <ListItem>
                   <ListItemText
@@ -610,10 +691,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             >
               Reset to Defaults
             </Button>
-            <Button
-              startIcon={<Save />}
-              onClick={handleSaveAsPreset}
-            >
+            <Button startIcon={<Save />} onClick={handleSaveAsPreset}>
               Save as Preset
             </Button>
           </Box>
@@ -626,9 +704,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 sx={{ mr: 2 }}
               />
             )}
-            <Button onClick={onClose}>
-              Close
-            </Button>
+            <Button onClick={onClose}>Close</Button>
           </Box>
         </Box>
       </DialogActions>
