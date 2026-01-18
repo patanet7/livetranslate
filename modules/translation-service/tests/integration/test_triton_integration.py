@@ -36,9 +36,10 @@ async def test_translation_service():
     payload = {"text": "Hello, how are you today?", "target_language": "Spanish"}
 
     try:
-        async with aiohttp.ClientSession() as session, session.post(
-            f"{TRANSLATION_SERVICE_URL}/translate", json=payload
-        ) as response:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(f"{TRANSLATION_SERVICE_URL}/translate", json=payload) as response,
+        ):
             if response.status == 200:
                 result = await response.json()
                 print(f"SUCCESS: Translation successful: {result.get('translated_text', '')}")

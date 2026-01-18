@@ -263,7 +263,9 @@ def create_connection_error(
     )
 
 
-def create_audio_error(message: str, details: str | None = None, session_id: str | None = None) -> ErrorInfo:
+def create_audio_error(
+    message: str, details: str | None = None, session_id: str | None = None
+) -> ErrorInfo:
     """Create an audio processing error"""
     return ErrorInfo(
         category=ErrorCategory.AUDIO_PROCESSING_FAILED,
@@ -275,7 +277,9 @@ def create_audio_error(message: str, details: str | None = None, session_id: str
     )
 
 
-def create_model_error(message: str, details: str | None = None, recoverable: bool = True) -> ErrorInfo:
+def create_model_error(
+    message: str, details: str | None = None, recoverable: bool = True
+) -> ErrorInfo:
     """Create a model/inference error"""
     return ErrorInfo(
         category=ErrorCategory.INFERENCE_FAILED,
@@ -299,7 +303,9 @@ def create_validation_error(message: str, parameter: str | None = None) -> Error
     )
 
 
-def create_session_error(message: str, session_id: str | None = None, expired: bool = False) -> ErrorInfo:
+def create_session_error(
+    message: str, session_id: str | None = None, expired: bool = False
+) -> ErrorInfo:
     """Create a session error"""
     category = ErrorCategory.SESSION_EXPIRED if expired else ErrorCategory.SESSION_NOT_FOUND
     return ErrorInfo(
@@ -311,7 +317,9 @@ def create_session_error(message: str, session_id: str | None = None, expired: b
     )
 
 
-def create_system_error(message: str, details: str | None = None, critical: bool = False) -> ErrorInfo:
+def create_system_error(
+    message: str, details: str | None = None, critical: bool = False
+) -> ErrorInfo:
     """Create a system error"""
     return ErrorInfo(
         category=ErrorCategory.INTERNAL_ERROR,

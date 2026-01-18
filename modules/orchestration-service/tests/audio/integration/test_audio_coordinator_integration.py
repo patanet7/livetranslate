@@ -6,9 +6,6 @@ Tests the complete AudioCoordinator integration including session management,
 audio processing, and end-to-end workflows using the actual API.
 """
 
-import asyncio
-from unittest.mock import patch, AsyncMock
-
 import numpy as np
 import pytest
 

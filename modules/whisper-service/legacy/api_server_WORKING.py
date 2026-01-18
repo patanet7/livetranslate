@@ -3304,7 +3304,10 @@ def _calculate_audio_quality_metrics(audio: np.ndarray, sr: int) -> dict:
 
 
 def _process_audio_data(
-    audio_data: bytes, enhance: bool = False, target_sr: int | None = None, quality: str | None = None
+    audio_data: bytes,
+    enhance: bool = False,
+    target_sr: int | None = None,
+    quality: str | None = None,
 ) -> np.ndarray:
     """Optimized audio processing with smart format detection and minimal memory usage"""
     start_time = time.time()
@@ -3518,7 +3521,9 @@ def _process_audio_data(
 
                 except Exception as wav_error:
                     logger.error(f"[AUDIO] All fallback methods failed: {wav_error}")
-                    raise Exception(f"Could not process audio format {format_hint}: {wav_error}") from wav_error
+                    raise Exception(
+                        f"Could not process audio format {format_hint}: {wav_error}"
+                    ) from wav_error
 
                 finally:
                     # Clean up WAV file

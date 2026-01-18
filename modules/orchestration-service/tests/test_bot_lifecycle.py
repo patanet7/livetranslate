@@ -60,51 +60,97 @@ try:
 except ImportError:
     # Placeholder classes for when imports are unavailable
     class GoogleMeetBotManager:  # type: ignore[no-redef]
-        def __init__(self, config): pass
-        async def initialize(self): pass
-        async def shutdown(self): pass
-        async def spawn_bot(self, request): return "bot-id"
-        def get_active_bots(self): return []
-        async def get_bot_status(self, bot_id): return None
-        async def complete_bot(self, bot_id): pass
+        def __init__(self, config):
+            pass
+
+        async def initialize(self):
+            pass
+
+        async def shutdown(self):
+            pass
+
+        async def spawn_bot(self, request):
+            return "bot-id"
+
+        def get_active_bots(self):
+            return []
+
+        async def get_bot_status(self, bot_id):
+            return None
+
+        async def complete_bot(self, bot_id):
+            pass
+
     class BotStatus:  # type: ignore[no-redef]
         SPAWNING = "spawning"
         ACTIVE = "active"
         COMPLETED = "completed"
+
     class MeetingRequest:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class AudioConfig:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class MeetingInfo:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class GoogleMeetAudioCapture:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class GoogleMeetCaptionProcessor:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class TimeCorrelationEngine:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class CorrelationConfig:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class ExternalSpeakerEvent:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class InternalTranscriptionResult:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class VirtualWebcamManager:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class WebcamConfig:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class DisplayMode:  # type: ignore[no-redef]
         pass
+
     class Theme:  # type: ignore[no-redef]
         pass
+
     class GoogleMeetBotIntegration:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class BotConfig:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class ServiceEndpoints:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class BotSessionDatabaseManager:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
 
 
 class TestBotLifecycle:

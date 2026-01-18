@@ -64,15 +64,24 @@ try:
 except ImportError:
     # Placeholder classes for when imports are unavailable
     class AudioConfig:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class MeetingInfo:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class GoogleMeetAudioCapture:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class AudioBuffer:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
+
     class AudioQualityAnalyzer:  # type: ignore[no-redef]
-        def __init__(self, **kwargs): pass
+        def __init__(self, **kwargs):
+            pass
 
 
 class TestAudioDeviceDetection:
@@ -648,9 +657,7 @@ class TestServiceIntegration:
             config=audio_config, whisper_service_url="http://localhost:5001"
         )
 
-        MeetingInfo(
-            meeting_id="service-test", meeting_title="Service Integration Test"
-        )
+        MeetingInfo(meeting_id="service-test", meeting_title="Service Integration Test")
 
         # Mock successful service response
         with patch("httpx.AsyncClient") as mock_client:

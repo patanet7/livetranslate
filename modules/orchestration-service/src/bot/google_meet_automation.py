@@ -553,9 +553,7 @@ class GoogleMeetAutomation:
             logger.info(f"Meeting state changed: {old_state} -> {new_state}")
 
             if self.on_state_change:
-                task = asyncio.create_task(
-                    self._safe_callback(self.on_state_change, new_state)
-                )
+                task = asyncio.create_task(self._safe_callback(self.on_state_change, new_state))
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
 

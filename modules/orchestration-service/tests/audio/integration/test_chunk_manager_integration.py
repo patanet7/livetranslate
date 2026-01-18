@@ -29,6 +29,7 @@ from src.audio.models import (
 try:
     from src.audio.chunk_manager import create_chunk_manager
 except ImportError:
+
     def create_chunk_manager(*args, **kwargs):
         """Placeholder - ChunkManager not yet implemented."""
         raise NotImplementedError("ChunkManager not yet implemented")

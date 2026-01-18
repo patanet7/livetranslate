@@ -931,9 +931,7 @@ class GoogleMeetBotIntegration:
                 }
 
                 # Process through pipeline asynchronously
-                task = asyncio.create_task(
-                    self._process_through_pipeline(pipeline_chunk)
-                )
+                task = asyncio.create_task(self._process_through_pipeline(pipeline_chunk))
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
             else:

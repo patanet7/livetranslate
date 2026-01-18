@@ -273,9 +273,7 @@ class TranslationSettings(BaseSettings):
     model: ModelSettings = Field(default_factory=ModelSettings)
     device: DeviceSettings = Field(default_factory=DeviceSettings)
     backend: BackendSettings = Field(default_factory=BackendSettings)
-    integration: ServiceIntegrationSettings = Field(
-        default_factory=ServiceIntegrationSettings
-    )
+    integration: ServiceIntegrationSettings = Field(default_factory=ServiceIntegrationSettings)
     quality: QualitySettings = Field(default_factory=QualitySettings)
     performance: PerformanceSettings = Field(default_factory=PerformanceSettings)
 

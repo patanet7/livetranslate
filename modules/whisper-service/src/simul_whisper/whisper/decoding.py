@@ -569,7 +569,7 @@ class DecodingTask:
                 self.tokenizer.encode(" " + prompt.strip()) if isinstance(prompt, str) else prompt
             )
             # if self.options.add_sot:
-            tokens = [self.tokenizer.sot_prev, *prompt_tokens[-(self.n_ctx // 2 - 1):], *tokens]
+            tokens = [self.tokenizer.sot_prev, *prompt_tokens[-(self.n_ctx // 2 - 1) :], *tokens]
             # else:
             #    tokens = ([self.tokenizer.sot_prev] + tokens + prompt_tokens[-(self.n_ctx // 2 - 1) :])
         # print("return", tokens)

@@ -67,7 +67,8 @@ def _download(url: str, root: str, in_memory: bool) -> bytes | str:
             return model_bytes if in_memory else download_target
         else:
             warnings.warn(
-                f"{download_target} exists, but the SHA256 checksum does not match; re-downloading the file", stacklevel=2
+                f"{download_target} exists, but the SHA256 checksum does not match; re-downloading the file",
+                stacklevel=2,
             )
 
     with (

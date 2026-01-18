@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
     class _WhisperService(Protocol):
         model_manager: Any
+
         async def transcribe(self, request: Any) -> Any: ...
 
     class _TranscriptionRequest(Protocol):
@@ -45,6 +46,7 @@ if TYPE_CHECKING:
         processing_time: float
         session_id: str | None
         timestamp: str
+
 
 # Add shared module to path for model registry (append to avoid conflicts)
 _SHARED_PATH = Path(__file__).parent.parent.parent.parent.parent / "shared" / "src"

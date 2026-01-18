@@ -213,9 +213,7 @@ class ContinuousStreamProcessor:
                     )
 
                 # Send to translation service
-                task = asyncio.create_task(
-                    self._send_to_translation_service(clean_text, language)
-                )
+                task = asyncio.create_task(self._send_to_translation_service(clean_text, language))
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
 

@@ -130,7 +130,9 @@ async def update_component_configuration(component: str, config_updates: dict[st
         raise
     except Exception as e:
         logger.error(f"Error updating {component} configuration: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to update {component} configuration") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to update {component} configuration"
+        ) from e
 
 
 @router.post("/preset/{preset_name}")
@@ -243,7 +245,9 @@ async def get_whisper_service_sync_status():
         }
     except Exception as e:
         logger.error(f"Error getting whisper sync status: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get whisper service sync status") from e
+        raise HTTPException(
+            status_code=500, detail="Failed to get whisper service sync status"
+        ) from e
 
 
 @router.get("/compatibility")
@@ -445,7 +449,9 @@ async def switch_translation_model(request: ModelSwitchRequest):
         raise
     except Exception as e:
         logger.error(f"Error switching translation model: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to switch translation model: {e!s}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to switch translation model: {e!s}"
+        ) from e
 
 
 @router.post("/translation/preload-model")
@@ -491,7 +497,9 @@ async def preload_translation_model(request: ModelSwitchRequest):
         raise
     except Exception as e:
         logger.error(f"Error preloading translation model: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to preload translation model: {e!s}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Failed to preload translation model: {e!s}"
+        ) from e
 
 
 @router.get("/translation/model-status")

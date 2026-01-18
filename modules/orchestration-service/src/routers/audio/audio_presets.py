@@ -222,9 +222,7 @@ async def get_preset_details(
         # Add usage statistics (placeholder)
         preset["usage_stats"] = {
             "times_used": np.random.randint(10, 1000),
-            "last_used": (
-                datetime.now(UTC) - timedelta(days=np.random.randint(1, 30))
-            ).isoformat(),
+            "last_used": (datetime.now(UTC) - timedelta(days=np.random.randint(1, 30))).isoformat(),
             "average_rating": round(4.0 + np.random.random(), 1),
         }
 
@@ -253,9 +251,7 @@ async def apply_preset_to_audio(
     - **audio_data**: Base64 encoded audio data
     - **override_config**: Optional config overrides for the preset
     """
-    correlation_id = (
-        f"preset_apply_{preset_name}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
-    )
+    correlation_id = f"preset_apply_{preset_name}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,

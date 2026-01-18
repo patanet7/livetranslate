@@ -212,9 +212,7 @@ class TestPyTorchIntegration:
             # Clear and run inference
             manager.dec_attns.clear()
 
-            manager.safe_inference(
-                model_name=model_name, audio_data=audio_data, beam_size=1
-            )
+            manager.safe_inference(model_name=model_name, audio_data=audio_data, beam_size=1)
 
             # Analyze attention
             if len(manager.dec_attns) > 0:

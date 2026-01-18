@@ -514,9 +514,7 @@ class FirefliesMockServer:
         # Start streaming scenario if available
         scenario = self._scenarios.get(transcript_id)
         if scenario:
-            task = asyncio.create_task(
-                self._stream_scenario(ws, scenario)
-            )
+            task = asyncio.create_task(self._stream_scenario(ws, scenario))
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 

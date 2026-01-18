@@ -401,7 +401,9 @@ class ModelManager:
                         # Clear the pipeline to force reload
                         if model_name in self.pipelines:
                             del self.pipelines[model_name]
-                        raise Exception("Device error - model will be reloaded on next request") from device_error
+                        raise Exception(
+                            "Device error - model will be reloaded on next request"
+                        ) from device_error
 
                     elif (
                         "ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY" in error_msg

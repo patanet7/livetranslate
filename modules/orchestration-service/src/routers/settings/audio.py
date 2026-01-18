@@ -37,7 +37,9 @@ async def get_audio_processing_settings():
         return config
     except Exception as e:
         logger.error(f"Error getting audio processing settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load audio processing settings") from e
+        raise HTTPException(
+            status_code=500, detail="Failed to load audio processing settings"
+        ) from e
 
 
 @router.post("/audio-processing")
@@ -55,7 +57,9 @@ async def save_audio_processing_settings(config: AudioProcessingConfig):
             raise HTTPException(status_code=500, detail="Failed to save audio processing settings")
     except Exception as e:
         logger.error(f"Error saving audio processing settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save audio processing settings") from e
+        raise HTTPException(
+            status_code=500, detail="Failed to save audio processing settings"
+        ) from e
 
 
 @router.post("/audio-processing/test")

@@ -131,13 +131,9 @@ class TestLIDProbabilityInvariants:
                 event = detector.update(lid_probs, timestamp)
 
                 # Verify state consistency
+                assert detector.current_language in lid_probs or detector.current_language is None
                 assert (
-                    detector.current_language in lid_probs
-                    or detector.current_language is None
-                )
-                assert (
-                    detector.candidate_language in lid_probs
-                    or detector.candidate_language is None
+                    detector.candidate_language in lid_probs or detector.candidate_language is None
                 )
 
                 if event is not None:

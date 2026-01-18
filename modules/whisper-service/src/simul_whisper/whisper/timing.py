@@ -39,7 +39,8 @@ def median_filter(x: torch.Tensor, filter_width: int):
         except (RuntimeError, subprocess.CalledProcessError):
             warnings.warn(
                 "Failed to launch Triton kernels, likely due to missing CUDA toolkit; "
-                "falling back to a slower median kernel implementation...", stacklevel=2
+                "falling back to a slower median kernel implementation...",
+                stacklevel=2,
             )
 
     if result is None:
@@ -142,7 +143,8 @@ def dtw(x: torch.Tensor) -> np.ndarray:
         except (RuntimeError, subprocess.CalledProcessError):
             warnings.warn(
                 "Failed to launch Triton kernels, likely due to missing CUDA toolkit; "
-                "falling back to a slower DTW implementation...", stacklevel=2
+                "falling back to a slower DTW implementation...",
+                stacklevel=2,
             )
 
     return dtw_cpu(x.double().cpu().numpy())
@@ -240,8 +242,7 @@ def find_alignment(
     start_times = jump_times[word_boundaries[:-1]]
     end_times = jump_times[word_boundaries[1:]]
     word_probabilities = [
-        np.mean(text_token_probs[i:j])
-        for i, j in itertools.pairwise(word_boundaries)
+        np.mean(text_token_probs[i:j]) for i, j in itertools.pairwise(word_boundaries)
     ]
 
     return [
@@ -293,8 +294,8 @@ def add_word_timestamps(
     tokenizer: Tokenizer,
     mel: torch.Tensor,
     num_frames: int,
-    prepend_punctuations: str = "\"'\"\u00bf([{-",
-    append_punctuations: str = "\"'.\u3002,\uff0c!\uff01?\uff1f:\uff1a\")]}、",
+    prepend_punctuations: str = '"\'"\u00bf([{-',
+    append_punctuations: str = '"\'.\u3002,\uff0c!\uff01?\uff1f:\uff1a")]}、',
     last_speech_timestamp: float,
     **kwargs,
 ):

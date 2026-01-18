@@ -128,7 +128,6 @@ def benchmark_buffer_operations(iterations: int = 100):
     chunk_size = 8000
     buffer = np.array([], dtype=np.float32)
 
-
     # Benchmark append
     timings_append = []
     for _ in range(iterations):

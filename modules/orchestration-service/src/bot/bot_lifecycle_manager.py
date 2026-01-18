@@ -912,7 +912,10 @@ class BotLifecycleManager:
             return True
 
         # Poor performance with declining trend
-        return bool(health_metrics.health_status == HealthStatus.POOR and analysis.get("trend") == "declining")
+        return bool(
+            health_metrics.health_status == HealthStatus.POOR
+            and analysis.get("trend") == "declining"
+        )
 
     async def _initiate_intervention(
         self, bot_id: str, health_metrics: HealthMetrics, analysis: dict[str, Any]

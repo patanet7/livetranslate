@@ -420,7 +420,9 @@ class OpenVINOModelManager:
 
                     # Handle specific error types
                     if "Infer Request is busy" in error_msg:
-                        raise NPUError("NPU is busy processing another request. Please try again.") from inference_error
+                        raise NPUError(
+                            "NPU is busy processing another request. Please try again."
+                        ) from inference_error
 
                     elif any(
                         err in error_msg
@@ -438,7 +440,9 @@ class OpenVINOModelManager:
                     elif "out of memory" in error_msg.lower() or "memory" in error_msg.lower():
                         logger.warning("Memory pressure detected, clearing cache")
                         self.clear_cache()
-                        raise InferenceError(f"Memory error during inference: {error_msg}") from inference_error
+                        raise InferenceError(
+                            f"Memory error during inference: {error_msg}"
+                        ) from inference_error
 
                     else:
                         raise InferenceError(f"Inference failed: {error_msg}") from inference_error

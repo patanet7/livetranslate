@@ -27,7 +27,12 @@ def test_imports():
         )
 
         # Verify all imported classes are actually class types
-        exception_classes = [AudioCorruptionError, AudioFormatError, AudioQualityError, AudioValidationError]
+        exception_classes = [
+            AudioCorruptionError,
+            AudioFormatError,
+            AudioQualityError,
+            AudioValidationError,
+        ]
         assert all(isinstance(cls, type) for cls in exception_classes)
         print("[+] Exception classes imported successfully")
 

@@ -243,9 +243,7 @@ class TestCompleteAudioFlow:
 
         # Generate test audio
         audio_bytes = audio_test_suite.generate_test_audio("wav")
-        audio_test_suite.create_upload_file(
-            audio_bytes, "test_audio.wav", "audio/wav"
-        )
+        audio_test_suite.create_upload_file(audio_bytes, "test_audio.wav", "audio/wav")
 
         # Mock successful whisper service response
         whisper_response = {
@@ -522,10 +520,8 @@ class TestCompleteAudioFlow:
             if response.status_code == 200:
                 response_data = response.json()
                 # Check if error is reported in response
-                assert (
-                    "error" in response_data
-                    or ("status" in response_data
-                    and response_data["status"] == "error")
+                assert "error" in response_data or (
+                    "status" in response_data and response_data["status"] == "error"
                 ), f"Expected error for {test_case['description']}"
             else:
                 # Direct HTTP error

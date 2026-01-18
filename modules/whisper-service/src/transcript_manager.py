@@ -76,7 +76,10 @@ class TranscriptManager:
     """
 
     def __init__(
-        self, storage_dir: str | None = None, max_sessions: int = 100, session_timeout: float = 3600.0
+        self,
+        storage_dir: str | None = None,
+        max_sessions: int = 100,
+        session_timeout: float = 3600.0,
     ):
         """
         Initialize transcript manager.
@@ -116,7 +119,9 @@ class TranscriptManager:
         logger.info(f"  Session timeout: {self.session_timeout}s")
         logger.info(f"  Storage: {'persistent' if self.storage_path else 'memory-only'}")
 
-    def store_segment(self, text: str, session_id: str, metadata: dict[str, Any] | None = None) -> bool:
+    def store_segment(
+        self, text: str, session_id: str, metadata: dict[str, Any] | None = None
+    ) -> bool:
         """
         Store a transcript segment for a session.
 
@@ -210,7 +215,9 @@ class TranscriptManager:
             logger.error(f"Failed to get session transcript: {e}")
             return None
 
-    def get_session_segments(self, session_id: str, limit: int | None = None) -> list[TranscriptSegment]:
+    def get_session_segments(
+        self, session_id: str, limit: int | None = None
+    ) -> list[TranscriptSegment]:
         """
         Get transcript segments for a session.
 

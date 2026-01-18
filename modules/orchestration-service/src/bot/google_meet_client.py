@@ -22,8 +22,8 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from google.auth.transport.requests import Request
@@ -244,7 +244,9 @@ class GoogleMeetConferenceManager:
             logger.error(f"Failed to get conference record {conference_name}: {e}")
             return None
 
-    async def list_conference_records(self, filter_query: str | None = None) -> list[ConferenceRecord]:
+    async def list_conference_records(
+        self, filter_query: str | None = None
+    ) -> list[ConferenceRecord]:
         """List conference records with optional filtering."""
         try:
             request = self.service.conferenceRecords().list()
@@ -480,7 +482,9 @@ class GoogleMeetClient:
             logger.error(f"Error processing meeting URI {meeting_uri}: {e}")
             return None
 
-    async def monitor_active_conference(self, space_name: str, callback: Callable | None = None) -> bool:
+    async def monitor_active_conference(
+        self, space_name: str, callback: Callable | None = None
+    ) -> bool:
         """Monitor an active conference for events."""
         try:
             if not self.is_ready():
@@ -500,9 +504,7 @@ class GoogleMeetClient:
             }
 
             # Start monitoring task
-            task = asyncio.create_task(
-                self._monitor_conference_loop(space_name)
-            )
+            task = asyncio.create_task(self._monitor_conference_loop(space_name))
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 

@@ -350,9 +350,7 @@ async def test_full_conversation_flow():
 
         # Verify out-of-order behavior
         # Alice speaks, then Bob, then Alice again - Alice should get new bubble
-        [
-            r for i, r in enumerate(results) if CONVERSATION_SCRIPT[i].speaker == "Alice"
-        ]
+        [r for i, r in enumerate(results) if CONVERSATION_SCRIPT[i].speaker == "Alice"]
         # After Bob speaks, Alice's next utterance should NOT aggregate
         # Find where Alice speaks after Bob
         speakers = [u.speaker for u in CONVERSATION_SCRIPT]

@@ -141,23 +141,21 @@ class EnglishNumberNormalizer:
         self.specials = {"and", "double", "triple", "point"}
 
         self.words = {
-
-                key
-                for mapping in [
-                    self.zeros,
-                    self.ones,
-                    self.ones_suffixed,
-                    self.tens,
-                    self.tens_suffixed,
-                    self.multipliers,
-                    self.multipliers_suffixed,
-                    self.preceding_prefixers,
-                    self.following_prefixers,
-                    self.suffixers,
-                    self.specials,
-                ]
-                for key in mapping
-
+            key
+            for mapping in [
+                self.zeros,
+                self.ones,
+                self.ones_suffixed,
+                self.tens,
+                self.tens_suffixed,
+                self.multipliers,
+                self.multipliers_suffixed,
+                self.preceding_prefixers,
+                self.following_prefixers,
+                self.suffixers,
+                self.specials,
+            ]
+            for key in mapping
         }
         self.literal_words = {"one", "ones"}
 
