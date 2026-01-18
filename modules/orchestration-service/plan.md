@@ -109,46 +109,41 @@ tests/fireflies/integration/test_pipeline_dry_integration.py - 20 passed ✅
 
 ---
 
-## 📋 Phase 5: Legacy Code Cleanup (2026-01-17)
+## 📋 Phase 5: Legacy Code Removal (2026-01-17)
 
 ### What Was Done
 
-Moved deprecated modules that were replaced by the unified pipeline architecture.
+Removed deprecated modules that were replaced by the unified pipeline architecture.
 
 ### Audit Findings
 
 | File | Usage | Action |
 |------|-------|--------|
-| `streaming_coordinator.py` | NOT imported anywhere in production | Moved to `src/deprecated/` |
-| `speaker_grouper.py` | Only imported by `streaming_coordinator.py` | Moved to `src/deprecated/` |
-| `segment_deduplicator.py` | Only imported by `streaming_coordinator.py` | Moved to `src/deprecated/` |
+| `streaming_coordinator.py` | NOT imported anywhere in production | **DELETED** |
+| `speaker_grouper.py` | Only imported by `streaming_coordinator.py` | **DELETED** |
+| `segment_deduplicator.py` | Only imported by `streaming_coordinator.py` | **DELETED** |
 
-### Files Moved
+### Files Deleted
 
-**Source → Deprecated:**
-- `src/streaming_coordinator.py` → `src/deprecated/streaming_coordinator.py`
-- `src/speaker_grouper.py` → `src/deprecated/speaker_grouper.py`
-- `src/segment_deduplicator.py` → `src/deprecated/segment_deduplicator.py`
+**Source files (~1,700 lines removed):**
+- `src/streaming_coordinator.py` (~1,200 lines)
+- `src/speaker_grouper.py` (~200 lines)
+- `src/segment_deduplicator.py` (~300 lines)
 
-**Tests → Deprecated:**
-- `tests/test_speaker_grouping_integration.py` → `tests/deprecated/test_speaker_grouping_integration.py`
-- `tests/test_segment_deduplication_integration.py` → `tests/deprecated/test_segment_deduplication_integration.py`
-
-### Files Created
-
-- `src/deprecated/__init__.py` - Module marker
-- `src/deprecated/README.md` - Documentation explaining deprecation and migration guide
+**Test files:**
+- `tests/test_speaker_grouping_integration.py`
+- `tests/test_segment_deduplication_integration.py`
 
 ### Replacement Architecture
 
-All deprecated functionality is now handled by:
+All deleted functionality is now handled by:
 - `TranscriptionPipelineCoordinator` - Central processing coordinator
 - `SentenceAggregator` - Handles sentence boundary detection and speaker grouping
 - Source adapters - Handle deduplication via unique `chunk_id` tracking
 
 ### Test Results
 
-All 555 fireflies tests pass after cleanup.
+All 555 fireflies tests pass after removal.
 
 ---
 
