@@ -1,9 +1,23 @@
-# Data Pipeline Integration - COMPLETE ✅
+# Data Pipeline Integration - COMPLETE
 
-**Date**: 2025-11-05  
-**Implementation**: Microservices Architecture Integration  
-**Status**: ✅ **PRODUCTION READY**  
+**Date**: 2025-11-05 (Original) / 2026-01-17 (DRY Refactoring)
+**Implementation**: Microservices Architecture Integration + Unified Pipeline
+**Status**: PRODUCTION READY
 **Score**: 10/10 - Clean microservices architecture with proper separation of concerns
+
+## 2026-01-17 Update: DRY Pipeline Refactoring
+
+This document was originally written when the `TranscriptionDataPipeline` was integrated with `AudioCoordinator`. Since then, a major DRY refactoring was completed:
+
+**Key Changes**:
+1. **Unified Pipeline** - ALL transcript sources now use `TranscriptionPipelineCoordinator`
+2. **Adapter Pattern** - Source-specific adapters convert to unified `TranscriptChunk` format
+3. **Legacy Code Removed** - 1,884 lines deleted (streaming_coordinator, speaker_grouper, segment_deduplicator)
+4. **Fireflies Client Rewritten** - Now uses `socketio.AsyncClient()` instead of raw WebSocket
+
+See `PIPELINE_INTEGRATION_SUMMARY.md` and `plan.md` for full details on the DRY refactoring.
+
+---
 
 ---
 

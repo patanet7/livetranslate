@@ -1,12 +1,58 @@
 # Data Pipeline Implementation
 
+**Last Updated**: 2026-01-17
+
 Complete production-ready data pipeline for the LiveTranslate transcription and translation system.
 
 ## 📋 Overview
 
 This implementation provides a comprehensive data pipeline for managing the complete audio → transcription → translation flow with database persistence, real-time querying, and advanced analytics.
 
+**Important**: As of 2026-01-17, this pipeline is used by ALL transcript sources through the unified `TranscriptionPipelineCoordinator`. See the "Unified Pipeline Architecture" section below.
+
 ## 🏗️ Architecture
+
+### Unified Pipeline Architecture (2026-01-17)
+
+ALL transcript sources now flow through the same pipeline:
+
+```
+ALL TRANSCRIPT SOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+│
+├─ Fireflies Live ────┐
+│  (Socket.IO)        │
+│                     ├──→ ChunkAdapter (source-specific)
+├─ Fireflies Import ──┤          │
+│  (GraphQL batch)    │          ↓
+│                     │   TranscriptChunk (UNIFIED FORMAT)
+├─ Audio Upload ──────┤          │
+│  (Whisper result)   │          ↓
+│                     │   TranscriptionPipelineCoordinator
+├─ Google Meet Bot ───┘          │
+   (Whisper stream)              ├─→ SentenceAggregator
+                                 │
+                                 ├─→ RollingWindowTranslator
+                                 │   └─→ GlossaryService
+                                 │   └─→ TranslationServiceClient
+                                 │
+                                 ├─→ CaptionBuffer (real-time display)
+                                 │
+                                 └─→ BotSessionDatabaseManager
+                                     ├─→ TranscriptManager.store()
+                                     └─→ TranslationManager.store()
+```
+
+### Available Adapters
+
+| Adapter | Source Type | Description |
+|---------|-------------|-------------|
+| `FirefliesChunkAdapter` | `fireflies` | Fireflies WebSocket live transcription |
+| `ImportChunkAdapter` | `fireflies_import` | Imported Fireflies transcripts |
+| `AudioUploadChunkAdapter` | `audio_upload` | Whisper results from audio uploads |
+| `GoogleMeetChunkAdapter` | `google_meet` | Google Meet bot transcription |
+
+### Legacy Flow (Still Supported for Reference)
 
 ```
 Audio Capture

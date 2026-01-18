@@ -482,6 +482,55 @@ services:
 
 ## 🏗️ Architecture
 
+### Unified Transcription Pipeline (DRY Architecture)
+
+**As of 2026-01-17, ALL transcript sources flow through a single unified pipeline.**
+
+```
+ALL TRANSCRIPT SOURCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+│
+├─ Fireflies Live ────────┐
+│  (Socket.IO WebSocket)  │
+│                         ├──→ ChunkAdapter (source-specific)
+├─ Fireflies Import ──────┤          │
+│  (GraphQL batch)        │          ↓
+│                         │   TranscriptChunk (UNIFIED FORMAT)
+├─ Audio Upload ──────────┤          │
+│  (Whisper result)       │          ↓
+│                         │   TranscriptionPipelineCoordinator
+├─ Google Meet Bot ───────┘          │
+   (Whisper stream)                  ├─→ SentenceAggregator
+                                     │   (hybrid boundary detection)
+                                     │
+                                     ├─→ RollingWindowTranslator
+                                     │   └─→ GlossaryService (term injection)
+                                     │   └─→ TranslationServiceClient
+                                     │
+                                     ├─→ CaptionBuffer (real-time display)
+                                     │
+                                     └─→ BotSessionDatabaseManager
+                                         ├─→ TranscriptManager.store()
+                                         └─→ TranslationManager.store()
+```
+
+### Adapter Pattern
+
+Each transcript source has its own adapter that converts source-specific data to a unified format:
+
+| Adapter | Source | Input Format | File |
+|---------|--------|--------------|------|
+| `FirefliesChunkAdapter` | Fireflies WebSocket | `{transcript_id, chunk_id, text, speaker_name, start_time, end_time}` | `adapters/fireflies_adapter.py` |
+| `ImportChunkAdapter` | Fireflies Import | `{text, speaker_name, start_time, end_time, index}` | `adapters/import_adapter.py` |
+| `AudioUploadChunkAdapter` | Whisper Results | `{text, start, end, speaker, confidence}` | `adapters/audio_adapter.py` |
+| `GoogleMeetChunkAdapter` | Google Meet Bot | `{transcript, speaker_id, speaker_name, timestamp}` | `adapters/google_meet_adapter.py` |
+
+**Adding a new transcript source:**
+1. Create a new adapter in `src/services/pipeline/adapters/`
+2. Extend `ChunkAdapter` base class
+3. Implement `adapt()`, `extract_speaker()`, and `validate()` methods
+4. Use the adapter with `TranscriptionPipelineCoordinator`
+
 ### Service Components
 
 ```

@@ -1,5 +1,27 @@
 # Event & Queue Architecture Proposal
 
+**Status**: Partially Implemented (2026-01-17)
+
+> **Note**: The transcription pipeline has been refactored to use a unified `TranscriptionPipelineCoordinator` with source-specific adapters. This document describes the original event-driven proposal. Some aspects have been implemented differently - see `src/services/pipeline/` for the current implementation.
+
+## Current Implementation (2026-01-17)
+
+The transcription pipeline now uses a synchronous coordinator pattern instead of Redis streams:
+
+```
+Transcript Source → ChunkAdapter → TranscriptChunk → TranscriptionPipelineCoordinator
+    ├─→ SentenceAggregator
+    ├─→ RollingWindowTranslator
+    ├─→ CaptionBuffer
+    └─→ Database Storage
+```
+
+See `PIPELINE_INTEGRATION_SUMMARY.md` for details on the unified pipeline.
+
+---
+
+## Original Proposal (Event-Driven Architecture)
+
 ## Goals
 - Decouple request/response handling in the FastAPI orchestration service from long-running audio/Bot workloads.
 - Provide a consistent envelope for cross-service messages (API ↔ workers ↔ downstream services).
