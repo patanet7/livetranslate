@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   CircularProgress,
@@ -6,21 +6,21 @@ import {
   LinearProgress,
   useTheme,
   alpha,
-} from '@mui/material';
-import { motion } from 'framer-motion';
+} from "@mui/material";
+import { motion } from "framer-motion";
 
 interface LoadingScreenProps {
   message?: string;
   progress?: number;
-  variant?: 'circular' | 'linear' | 'minimal';
-  size?: 'small' | 'medium' | 'large';
+  variant?: "circular" | "linear" | "minimal";
+  size?: "small" | "medium" | "large";
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
-  message = 'Loading...',
+  message = "Loading...",
   progress,
-  variant = 'circular',
-  size = 'medium',
+  variant = "circular",
+  size = "medium",
 }) => {
   const theme = useTheme();
 
@@ -32,36 +32,36 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   const containerVariants = {
     initial: { opacity: 0 },
-    animate: { 
+    animate: {
       opacity: 1,
-      transition: { duration: 0.3 }
+      transition: { duration: 0.3 },
     },
-    exit: { 
+    exit: {
       opacity: 0,
-      transition: { duration: 0.2 }
-    }
+      transition: { duration: 0.2 },
+    },
   };
 
   const contentVariants = {
     initial: { scale: 0.8, opacity: 0 },
-    animate: { 
-      scale: 1, 
+    animate: {
+      scale: 1,
       opacity: 1,
-      transition: { 
+      transition: {
         delay: 0.1,
         duration: 0.4,
-        ease: "easeOut"
-      }
-    }
+        ease: "easeOut",
+      },
+    },
   };
 
-  if (variant === 'minimal') {
+  if (variant === "minimal") {
     return (
       <Box
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           padding: theme.spacing(2),
         }}
       >
@@ -79,26 +79,26 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     >
       <Box
         sx={{
-          position: 'fixed',
+          position: "fixed",
           top: 0,
           left: 0,
           right: 0,
           bottom: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
           backgroundColor: alpha(theme.palette.background.default, 0.9),
-          backdropFilter: 'blur(4px)',
+          backdropFilter: "blur(4px)",
           zIndex: theme.zIndex.modal + 1,
         }}
       >
         <motion.div variants={contentVariants}>
           <Box
             sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
               gap: 3,
               padding: theme.spacing(4),
               borderRadius: theme.shape.borderRadius * 2,
@@ -109,10 +109,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             }}
           >
             {/* Loading indicator */}
-            {variant === 'circular' && (
-              <Box sx={{ position: 'relative', display: 'inline-flex' }}>
-                <CircularProgress 
-                  size={sizeMap[size]} 
+            {variant === "circular" && (
+              <Box sx={{ position: "relative", display: "inline-flex" }}>
+                <CircularProgress
+                  size={sizeMap[size]}
                   thickness={4}
                   sx={{
                     color: theme.palette.primary.main,
@@ -125,10 +125,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                       left: 0,
                       bottom: 0,
                       right: 0,
-                      position: 'absolute',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      position: "absolute",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
                     <Typography
@@ -145,10 +145,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             )}
 
             {/* Loading message */}
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography 
-                variant="h6" 
-                sx={{ 
+            <Box sx={{ textAlign: "center" }}>
+              <Typography
+                variant="h6"
+                sx={{
                   fontWeight: 500,
                   color: theme.palette.text.primary,
                   marginBottom: 1,
@@ -156,24 +156,24 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
               >
                 {message}
               </Typography>
-              
-              {progress !== undefined && variant === 'linear' && (
+
+              {progress !== undefined && variant === "linear" && (
                 <Box sx={{ width: 200, marginTop: 2 }}>
-                  <LinearProgress 
-                    variant="determinate" 
+                  <LinearProgress
+                    variant="determinate"
                     value={progress}
                     sx={{
                       height: 6,
                       borderRadius: 3,
                       backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                      '& .MuiLinearProgress-bar': {
+                      "& .MuiLinearProgress-bar": {
                         borderRadius: 3,
                         backgroundColor: theme.palette.primary.main,
                       },
                     }}
                   />
-                  <Typography 
-                    variant="body2" 
+                  <Typography
+                    variant="body2"
                     color="text.secondary"
                     sx={{ marginTop: 1, fontWeight: 500 }}
                   >
@@ -184,7 +184,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             </Box>
 
             {/* Loading dots animation */}
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Box sx={{ display: "flex", gap: 0.5 }}>
               {[0, 1, 2].map((index) => (
                 <motion.div
                   key={index}
@@ -203,7 +203,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     sx={{
                       width: 8,
                       height: 8,
-                      borderRadius: '50%',
+                      borderRadius: "50%",
                       backgroundColor: theme.palette.primary.main,
                     }}
                   />

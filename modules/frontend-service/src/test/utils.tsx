@@ -1,29 +1,29 @@
-import React from 'react';
-import { render as rtlRender, RenderOptions } from '@testing-library/react';
-import { configureStore, PreloadedState } from '@reduxjs/toolkit';
-import { Provider } from 'react-redux';
-import { BrowserRouter } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import { vi } from 'vitest';
+import React from "react";
+import { render as rtlRender, RenderOptions } from "@testing-library/react";
+import { configureStore, PreloadedState } from "@reduxjs/toolkit";
+import { Provider } from "react-redux";
+import { BrowserRouter } from "react-router-dom";
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { vi } from "vitest";
 
 // Import store slices
-import audioSlice from '@/store/slices/audioSlice';
-import botSlice from '@/store/slices/botSlice';
-import websocketSlice from '@/store/slices/websocketSlice';
-import uiSlice from '@/store/slices/uiSlice';
-import systemSlice from '@/store/slices/systemSlice';
-import { apiSlice } from '@/store/slices/apiSlice';
-import { RootState } from '@/store';
-import { theme } from '@/styles/theme';
-import { getCurrentISOTimestamp } from '@/utils/dateTimeUtils';
+import audioSlice from "@/store/slices/audioSlice";
+import botSlice from "@/store/slices/botSlice";
+import websocketSlice from "@/store/slices/websocketSlice";
+import uiSlice from "@/store/slices/uiSlice";
+import systemSlice from "@/store/slices/systemSlice";
+import { apiSlice } from "@/store/slices/apiSlice";
+import { RootState } from "@/store";
+import { theme } from "@/styles/theme";
+import { getCurrentISOTimestamp } from "@/utils/dateTimeUtils";
 
 // Mock data factories
 export const createMockAudioDevice = (overrides = {}) => ({
-  deviceId: 'mock-device-id',
-  label: 'Mock Audio Device',
-  kind: 'audioinput' as const,
-  groupId: 'mock-group-id',
+  deviceId: "mock-device-id",
+  label: "Mock Audio Device",
+  kind: "audioinput" as const,
+  groupId: "mock-group-id",
   ...overrides,
 });
 
@@ -32,15 +32,15 @@ export const createMockBotInstance = (overrides: any = {}) => {
   const hourAgo = new Date(Date.now() - 3600000).toISOString();
 
   return {
-    id: overrides.id || overrides.botId || 'mock-bot-id',
-    botId: overrides.botId || 'mock-bot-id',
-    status: 'active' as const,
+    id: overrides.id || overrides.botId || "mock-bot-id",
+    botId: overrides.botId || "mock-bot-id",
+    status: "active" as const,
     config: {
       meetingInfo: {
-        meetingId: 'mock-meeting-id',
-        meetingTitle: 'Mock Meeting',
-        platform: 'google_meet' as const,
-        organizerEmail: 'organizer@example.com',
+        meetingId: "mock-meeting-id",
+        meetingTitle: "Mock Meeting",
+        platform: "google_meet" as const,
+        organizerEmail: "organizer@example.com",
         participantCount: 3,
       },
       audioCapture: {
@@ -52,22 +52,22 @@ export const createMockBotInstance = (overrides: any = {}) => {
         enableAutoGain: true,
       },
       translation: {
-        targetLanguages: ['en', 'es'],
+        targetLanguages: ["en", "es"],
         enableAutoTranslation: true,
-        translationQuality: 'balanced' as const,
+        translationQuality: "balanced" as const,
         realTimeTranslation: true,
       },
       webcam: {
         width: 1280,
         height: 720,
         fps: 30,
-        displayMode: 'overlay' as const,
-        theme: 'dark' as const,
+        displayMode: "overlay" as const,
+        theme: "dark" as const,
         maxTranslationsDisplayed: 5,
         fontSize: 16,
         backgroundOpacity: 0.8,
       },
-      priority: 'medium' as const,
+      priority: "medium" as const,
       enableRecording: true,
       enableTranscription: true,
       enableSpeakerDiarization: true,
@@ -80,7 +80,7 @@ export const createMockBotInstance = (overrides: any = {}) => {
       totalAudioDurationS: 120.5,
       averageQualityScore: 0.85,
       lastCaptureTimestamp: now,
-      deviceInfo: 'Mock Audio Device',
+      deviceInfo: "Mock Audio Device",
       sampleRateActual: 16000,
       channelsActual: 1,
     },
@@ -101,8 +101,8 @@ export const createMockBotInstance = (overrides: any = {}) => {
         width: 1280,
         height: 720,
         fps: 30,
-        displayMode: 'overlay' as const,
-        theme: 'dark' as const,
+        displayMode: "overlay" as const,
+        theme: "dark" as const,
         maxTranslationsDisplayed: 5,
         fontSize: 16,
         backgroundOpacity: 0.8,
@@ -135,12 +135,12 @@ export const createMockBotInstance = (overrides: any = {}) => {
 };
 
 export const createMockTranslation = (overrides = {}) => ({
-  translationId: 'mock-translation-id',
-  translatedText: 'This is a mock translation',
-  sourceLanguage: 'en',
-  targetLanguage: 'es',
-  speakerName: 'Speaker 1',
-  speakerId: 'speaker-1',
+  translationId: "mock-translation-id",
+  translatedText: "This is a mock translation",
+  sourceLanguage: "en",
+  targetLanguage: "es",
+  speakerName: "Speaker 1",
+  speakerId: "speaker-1",
   translationConfidence: 0.95,
   timestamp: Date.now(),
   ...overrides,
@@ -171,16 +171,20 @@ export function createTestStore(preloadedState?: PreloadedState<RootState>) {
       getDefaultMiddleware({
         serializableCheck: {
           ignoredActions: [
-            'audio/setVisualizationData',
-            'audio/setAudioBlob',
-            'bot/updateAudioCapture',
-            'websocket/messageReceived',
+            "audio/setVisualizationData",
+            "audio/setAudioBlob",
+            "bot/updateAudioCapture",
+            "websocket/messageReceived",
           ],
-          ignoredActionsPaths: ['payload.blob', 'payload.frequencyData', 'payload.timeData'],
+          ignoredActionsPaths: [
+            "payload.blob",
+            "payload.frequencyData",
+            "payload.timeData",
+          ],
           ignoredPaths: [
-            'audio.recording.blob',
-            'audio.visualization.frequencyData',
-            'audio.visualization.timeData',
+            "audio.recording.blob",
+            "audio.visualization.frequencyData",
+            "audio.visualization.timeData",
           ],
         },
       }).concat(apiSlice.middleware),
@@ -188,7 +192,7 @@ export function createTestStore(preloadedState?: PreloadedState<RootState>) {
 }
 
 // Custom render function
-interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
+interface ExtendedRenderOptions extends Omit<RenderOptions, "queries"> {
   preloadedState?: PreloadedState<RootState>;
   store?: ReturnType<typeof createTestStore>;
   withRouter?: boolean;
@@ -203,15 +207,15 @@ export function render(
     withRouter = true,
     withTheme = true,
     ...renderOptions
-  }: ExtendedRenderOptions = {}
+  }: ExtendedRenderOptions = {},
 ) {
   function Wrapper({ children }: { children: React.ReactNode }) {
     let wrapped = <Provider store={store}>{children}</Provider>;
-    
+
     if (withRouter) {
       wrapped = <BrowserRouter>{wrapped}</BrowserRouter>;
     }
-    
+
     if (withTheme) {
       wrapped = (
         <ThemeProvider theme={theme}>
@@ -220,7 +224,7 @@ export function render(
         </ThemeProvider>
       );
     }
-    
+
     return wrapped;
   }
 
@@ -231,13 +235,16 @@ export function render(
 }
 
 // Mock API responses
-export const mockApiResponse = (data: any, options: { delay?: number; shouldFail?: boolean } = {}) => {
+export const mockApiResponse = (
+  data: any,
+  options: { delay?: number; shouldFail?: boolean } = {},
+) => {
   const { delay = 0, shouldFail = false } = options;
-  
+
   return new Promise((resolve, reject) => {
     setTimeout(() => {
       if (shouldFail) {
-        reject(new Error('Mock API Error'));
+        reject(new Error("Mock API Error"));
       } else {
         resolve({
           ok: true,
@@ -253,7 +260,7 @@ export const mockApiResponse = (data: any, options: { delay?: number; shouldFail
 // Mock WebSocket
 export const createMockWebSocket = () => {
   const eventListeners: Record<string, Array<(event: any) => void>> = {};
-  
+
   return {
     send: vi.fn(),
     close: vi.fn(),
@@ -263,14 +270,18 @@ export const createMockWebSocket = () => {
       }
       eventListeners[event].push(listener);
     }),
-    removeEventListener: vi.fn((event: string, listener: (event: any) => void) => {
-      if (eventListeners[event]) {
-        eventListeners[event] = eventListeners[event].filter(l => l !== listener);
-      }
-    }),
+    removeEventListener: vi.fn(
+      (event: string, listener: (event: any) => void) => {
+        if (eventListeners[event]) {
+          eventListeners[event] = eventListeners[event].filter(
+            (l) => l !== listener,
+          );
+        }
+      },
+    ),
     dispatchEvent: vi.fn((event: string, data: any) => {
       if (eventListeners[event]) {
-        eventListeners[event].forEach(listener => listener(data));
+        eventListeners[event].forEach((listener) => listener(data));
       }
     }),
     readyState: 1, // OPEN
@@ -293,17 +304,17 @@ export const createMockFileList = (files: File[]): FileList => {
       }
     },
   };
-  
+
   return fileList as FileList;
 };
 
 export const createMockFile = (
   name: string,
   content: string,
-  options: { type?: string; lastModified?: number } = {}
+  options: { type?: string; lastModified?: number } = {},
 ): File => {
-  const { type = 'text/plain', lastModified = Date.now() } = options;
-  
+  const { type = "text/plain", lastModified = Date.now() } = options;
+
   return new File([content], name, {
     type,
     lastModified,
@@ -314,7 +325,7 @@ export const createMockFile = (
 export const createMockAudioBuffer = (
   sampleRate = 44100,
   numberOfChannels = 2,
-  length = 44100
+  length = 44100,
 ) => ({
   sampleRate,
   numberOfChannels,
@@ -326,18 +337,18 @@ export const createMockAudioBuffer = (
 });
 
 export const createMockMediaStream = () => ({
-  id: 'mock-stream-id',
+  id: "mock-stream-id",
   active: true,
   getTracks: vi.fn(() => []),
   getVideoTracks: vi.fn(() => []),
   getAudioTracks: vi.fn(() => [
     {
-      id: 'mock-audio-track',
-      kind: 'audio',
-      label: 'Mock Audio Track',
+      id: "mock-audio-track",
+      kind: "audio",
+      label: "Mock Audio Track",
       enabled: true,
       muted: false,
-      readyState: 'live',
+      readyState: "live",
       stop: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -351,33 +362,33 @@ export const createMockMediaStream = () => ({
 
 // Test data constants
 export const MOCK_MEETING_REQUEST = {
-  meetingId: 'abc-defg-hij',
-  meetingTitle: 'Test Meeting',
-  organizerEmail: 'test@example.com',
-  targetLanguages: ['en', 'es', 'fr'],
+  meetingId: "abc-defg-hij",
+  meetingTitle: "Test Meeting",
+  organizerEmail: "test@example.com",
+  targetLanguages: ["en", "es", "fr"],
   autoTranslation: true,
-  priority: 'medium' as const,
+  priority: "medium" as const,
 };
 
 export const MOCK_AUDIO_CONFIG = {
   sampleRate: 16000,
   channels: 1,
-  dtype: 'float32',
+  dtype: "float32",
   blocksize: 1024,
   chunkDuration: 1.0,
   qualityThreshold: 0.7,
   duration: 30,
-  deviceId: 'mock-device-id',
-  format: 'audio/webm;codecs=opus',
-  quality: 'medium',
+  deviceId: "mock-device-id",
+  format: "audio/webm;codecs=opus",
+  quality: "medium",
   autoStop: true,
   echoCancellation: true,
   noiseSuppression: true,
   autoGainControl: true,
   rawAudio: false,
-  source: 'microphone' as const,
+  source: "microphone" as const,
 };
 
 // Re-export everything from testing library
-export * from '@testing-library/react';
-export { default as userEvent } from '@testing-library/user-event';
+export * from "@testing-library/react";
+export { default as userEvent } from "@testing-library/user-event";

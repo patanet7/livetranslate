@@ -124,14 +124,14 @@ while [ $elapsed -lt $ADMISSION_TIMEOUT ]; do
     echo "✅ Bot admitted to meeting! Found admission screenshot."
     break
   fi
-  
+
   # Check if container is still running
   if ! docker ps --format "table {{.Names}}" | grep -q "$CONTAINER_NAME"; then
     echo "❌ Bot container stopped unexpectedly before admission"
     wait $BOT_PID
     exit 1
   fi
-  
+
   echo "⏳ Still waiting for admission... (${elapsed}s elapsed)"
   sleep $ADMISSION_CHECK_INTERVAL
   elapsed=$((elapsed + ADMISSION_CHECK_INTERVAL))
@@ -185,13 +185,13 @@ cleanup_and_exit() {
 cleanup_on_interrupt() {
     echo ""
     echo "🛑 Interrupt received! Sending Redis leave command..."
-    
+
     # Send Redis leave command
     echo "📡 Sending 'leave' command via Redis..."
     docker run --rm --network vexa_dev_vexa_default \
       redis:alpine redis-cli -h redis -p 6379 \
       PUBLISH "$REDIS_CHANNEL" '{"action":"leave"}'
-    
+
     echo "⏳ Monitoring for graceful shutdown..."
     SHUTDOWN_TIMEOUT=30
     shutdown_elapsed=0
@@ -205,13 +205,13 @@ cleanup_on_interrupt() {
         shutdown_elapsed=$((shutdown_elapsed + 2))
       fi
     done
-    
+
     if [ $shutdown_elapsed -ge $SHUTDOWN_TIMEOUT ]; then
       echo "❌ Bot did not stop within ${SHUTDOWN_TIMEOUT} seconds"
       echo "🔍 Checking bot logs..."
       docker logs "$CONTAINER_NAME" --tail 100 | grep -E "leave|shutdown|graceful" || true
     fi
-    
+
     echo "🎉 Manual stop completed!"
     cleanup_and_exit 0
 }

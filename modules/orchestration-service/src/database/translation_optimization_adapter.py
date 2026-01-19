@@ -5,12 +5,12 @@ Provides database operations for translation caching, batching, and performance 
 Uses the translation optimization schema (migration-translation-optimization.sql).
 """
 
-import logging
 import hashlib
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone
 import json
+import logging
 import uuid
+from datetime import UTC, datetime
+from typing import Any
 
 from .database import DatabaseManager
 
@@ -69,7 +69,7 @@ class TranslationOptimizationAdapter:
         # Normalize text (lowercase, strip whitespace)
         normalized_text = text.lower().strip()
         content = f"{source_lang}:{target_lang}:{normalized_text}"
-        return hashlib.md5(content.encode()).hexdigest()
+        return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
 
     async def record_cache_stat(
         self,
@@ -79,12 +79,12 @@ class TranslationOptimizationAdapter:
         target_language: str,
         was_cache_hit: bool,
         cache_latency_ms: float,
-        translation_latency_ms: Optional[float] = None,
-        model_used: Optional[str] = None,
-        translation_service: Optional[str] = None,
-        confidence: Optional[float] = None,
-        quality: Optional[float] = None,
-    ) -> Optional[int]:
+        translation_latency_ms: float | None = None,
+        model_used: str | None = None,
+        translation_service: str | None = None,
+        confidence: float | None = None,
+        quality: float | None = None,
+    ) -> int | None:
         """
         Record a cache lookup statistic.
 
@@ -140,8 +140,8 @@ class TranslationOptimizationAdapter:
             return None
 
     async def get_cache_performance(
-        self, session_id: Optional[str] = None, model_used: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, session_id: str | None = None, model_used: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get cache performance statistics.
 
@@ -182,16 +182,16 @@ class TranslationOptimizationAdapter:
         session_id: str,
         source_text: str,
         source_language: str,
-        target_languages: List[str],
+        target_languages: list[str],
         total_time_ms: float,
         cache_hits: int,
         cache_misses: int,
-        model_requested: Optional[str] = None,
+        model_requested: str | None = None,
         success_count: int = 0,
         error_count: int = 0,
-        results: Optional[Dict] = None,
-        batch_id: Optional[str] = None,
-    ) -> Optional[str]:
+        results: dict | None = None,
+        batch_id: str | None = None,
+    ) -> str | None:
         """
         Record a multi-language translation batch.
 
@@ -250,8 +250,8 @@ class TranslationOptimizationAdapter:
             return None
 
     async def get_batch_efficiency(
-        self, session_id: Optional[str] = None, model_requested: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, session_id: str | None = None, model_requested: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Get batch translation efficiency metrics.
 
@@ -295,7 +295,7 @@ class TranslationOptimizationAdapter:
         target_language: str,
         latency_ms: float,
         success: bool,
-        confidence: Optional[float] = None,
+        confidence: float | None = None,
         was_cached: bool = False,
     ) -> bool:
         """
@@ -340,9 +340,9 @@ class TranslationOptimizationAdapter:
 
     async def get_model_comparison(
         self,
-        source_language: Optional[str] = None,
-        target_language: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        source_language: str | None = None,
+        target_language: str | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Get model performance comparison.
 
@@ -382,7 +382,7 @@ class TranslationOptimizationAdapter:
 
     async def get_or_create_translation_context(
         self, session_id: str, target_language: str, context_window_size: int = 5
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get or create translation context for a session and language.
 
@@ -422,9 +422,7 @@ class TranslationOptimizationAdapter:
                     context_window_size,
                 )
 
-                logger.info(
-                    f"Created translation context for {session_id}, lang={target_language}"
-                )
+                logger.info(f"Created translation context for {session_id}, lang={target_language}")
 
                 return dict(new_context) if new_context else None
 
@@ -465,9 +463,7 @@ class TranslationOptimizationAdapter:
                 )
 
                 if not context:
-                    logger.warning(
-                        f"No context found for {session_id}, {target_language}"
-                    )
+                    logger.warning(f"No context found for {session_id}, {target_language}")
                     return False
 
                 window_size = context["context_window_size"]
@@ -477,7 +473,7 @@ class TranslationOptimizationAdapter:
                 new_entry = {
                     "source": source_text,
                     "translation": translated_text,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
 
                 recent_translations.append(new_entry)
@@ -508,9 +504,7 @@ class TranslationOptimizationAdapter:
     # SESSION SUMMARY METHODS
     # =========================================================================
 
-    async def get_session_translation_summary(
-        self, session_id: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_session_translation_summary(self, session_id: str) -> dict[str, Any] | None:
         """
         Get translation summary for a session with optimization metrics.
 
@@ -543,13 +537,13 @@ class TranslationOptimizationAdapter:
     async def update_translation_optimization_metadata(
         self,
         translation_id: str,
-        model_name: Optional[str] = None,
-        model_backend: Optional[str] = None,
-        batch_id: Optional[str] = None,
-        was_cached: Optional[bool] = None,
-        cache_latency_ms: Optional[float] = None,
-        translation_latency_ms: Optional[float] = None,
-        optimization_metadata: Optional[Dict] = None,
+        model_name: str | None = None,
+        model_backend: str | None = None,
+        batch_id: str | None = None,
+        was_cached: bool | None = None,
+        cache_latency_ms: float | None = None,
+        translation_latency_ms: float | None = None,
+        optimization_metadata: dict | None = None,
     ) -> bool:
         """
         Update optimization metadata for an existing translation record.

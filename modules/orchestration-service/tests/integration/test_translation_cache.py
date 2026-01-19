@@ -9,10 +9,10 @@ Requirements:
 """
 
 import asyncio
-import pytest
-import time
 import os
+import time
 
+import pytest
 
 # Test configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/1")
@@ -60,9 +60,7 @@ class TestTranslationCache:
         )
 
         # Get translation from cache
-        result = await cache.get(
-            text=text, source_lang=source_lang, target_lang=target_lang
-        )
+        result = await cache.get(text=text, source_lang=source_lang, target_lang=target_lang)
 
         # Verify result
         assert result is not None
@@ -103,17 +101,11 @@ class TestTranslationCache:
         )
 
         # Get with different case and whitespace
-        result1 = await cache.get(
-            text="hello world", source_lang="en", target_lang="es"
-        )
+        result1 = await cache.get(text="hello world", source_lang="en", target_lang="es")
 
-        result2 = await cache.get(
-            text="HELLO WORLD", source_lang="en", target_lang="es"
-        )
+        result2 = await cache.get(text="HELLO WORLD", source_lang="en", target_lang="es")
 
-        result3 = await cache.get(
-            text="  hello world  ", source_lang="en", target_lang="es"
-        )
+        result3 = await cache.get(text="  hello world  ", source_lang="en", target_lang="es")
 
         # All should return the same cached result
         assert result1 is not None
@@ -294,9 +286,7 @@ class TestTranslationCache:
                 pytest.skip("Translation optimization schema not available")
 
             # Create cache with database tracking
-            cache = TranslationResultCache(
-                redis_url=REDIS_URL, ttl=3600, db_adapter=opt_adapter
-            )
+            cache = TranslationResultCache(redis_url=REDIS_URL, ttl=3600, db_adapter=opt_adapter)
 
             # Generate cache activity
             text = "Database tracking test"
@@ -308,9 +298,7 @@ class TestTranslationCache:
             assert result1 is None
 
             # Set in cache
-            await cache.set(
-                text, source_lang, target_lang, "Prueba de seguimiento", 0.95
-            )
+            await cache.set(text, source_lang, target_lang, "Prueba de seguimiento", 0.95)
 
             # Cache hit (second time)
             result2 = await cache.get(text, source_lang, target_lang)

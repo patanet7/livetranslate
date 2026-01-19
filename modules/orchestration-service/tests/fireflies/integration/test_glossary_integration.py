@@ -15,13 +15,11 @@ These tests verify that glossary terms are properly:
 - Applied during translation
 """
 
-import sys
 import os
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
-from uuid import uuid4
-import re
+
 import pytest
 
 # Prevent FastAPI app import issues
@@ -33,19 +31,27 @@ src_path = orchestration_root / "src"
 sys.path.insert(0, str(orchestration_root))
 sys.path.insert(0, str(src_path))
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Boolean, Text, JSON, Float, ForeignKey, or_
-from sqlalchemy.orm import sessionmaker, Session, declarative_base, relationship, selectinload
 import uuid as uuid_module
 
 # Import Fireflies models (these should work)
 from models.fireflies import (
-    FirefliesChunk,
     FirefliesSessionConfig,
-    TranslationUnit,
     TranslationContext,
     TranslationResult,
+    TranslationUnit,
 )
-
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    create_engine,
+)
+from sqlalchemy.orm import Session, declarative_base, relationship, selectinload, sessionmaker
 
 # =============================================================================
 # Test-Local Database Models (matching glossary_service tests)
@@ -67,12 +73,14 @@ class IntGlossary(IntegrationBase):
     target_languages = Column(JSON, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
     is_default = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     created_by = Column(String(255), nullable=True)
     entry_count = Column(Integer, nullable=False, default=0)
 
-    entries = relationship("IntGlossaryEntry", back_populates="glossary", cascade="all, delete-orphan")
+    entries = relationship(
+        "IntGlossaryEntry", back_populates="glossary", cascade="all, delete-orphan"
+    )
 
 
 class IntGlossaryEntry(IntegrationBase):
@@ -90,12 +98,12 @@ class IntGlossaryEntry(IntegrationBase):
     case_sensitive = Column(Boolean, nullable=False, default=False)
     match_whole_word = Column(Boolean, nullable=False, default=True)
     priority = Column(Integer, nullable=False, default=0)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
     glossary = relationship("IntGlossary", back_populates="entries")
 
-    def get_translation(self, target_language: str) -> Optional[str]:
+    def get_translation(self, target_language: str) -> str | None:
         if self.translations and target_language in self.translations:
             return self.translations[target_language]
         return None
@@ -115,8 +123,8 @@ class IntGlossaryService:
     def create_glossary(
         self,
         name: str,
-        target_languages: List[str],
-        domain: Optional[str] = None,
+        target_languages: list[str],
+        domain: str | None = None,
         is_default: bool = False,
     ) -> IntGlossary:
         glossary = IntGlossary(
@@ -134,7 +142,7 @@ class IntGlossaryService:
         self,
         glossary_id,
         source_term: str,
-        translations: Dict[str, str],
+        translations: dict[str, str],
         priority: int = 0,
     ) -> IntGlossaryEntry:
         entry = IntGlossaryEntry(
@@ -145,7 +153,9 @@ class IntGlossaryService:
             priority=priority,
         )
         self.db.add(entry)
-        glossary = self.db.query(IntGlossary).filter(IntGlossary.glossary_id == str(glossary_id)).first()
+        glossary = (
+            self.db.query(IntGlossary).filter(IntGlossary.glossary_id == str(glossary_id)).first()
+        )
         if glossary:
             glossary.entry_count = (glossary.entry_count or 0) + 1
         self.db.commit()
@@ -157,17 +167,20 @@ class IntGlossaryService:
         glossary_id,
         target_language: str,
         include_default: bool = True,
-    ) -> Dict[str, str]:
-        terms: Dict[str, str] = {}
+    ) -> dict[str, str]:
+        terms: dict[str, str] = {}
 
         # Get default glossary terms first
         if include_default:
-            defaults = self.db.query(IntGlossary).options(
-                selectinload(IntGlossary.entries)
-            ).filter(
-                IntGlossary.is_active == True,
-                IntGlossary.is_default == True,
-            ).all()
+            defaults = (
+                self.db.query(IntGlossary)
+                .options(selectinload(IntGlossary.entries))
+                .filter(
+                    IntGlossary.is_active,
+                    IntGlossary.is_default,
+                )
+                .all()
+            )
 
             for glossary in defaults:
                 for entry in glossary.entries:
@@ -177,9 +190,12 @@ class IntGlossaryService:
 
         # Get specific glossary terms (overrides default)
         if glossary_id:
-            glossary = self.db.query(IntGlossary).options(
-                selectinload(IntGlossary.entries)
-            ).filter(IntGlossary.glossary_id == str(glossary_id)).first()
+            glossary = (
+                self.db.query(IntGlossary)
+                .options(selectinload(IntGlossary.entries))
+                .filter(IntGlossary.glossary_id == str(glossary_id))
+                .first()
+            )
 
             if glossary and glossary.is_active:
                 for entry in sorted(glossary.entries, key=lambda e: e.priority):
@@ -206,8 +222,8 @@ def db_engine():
 @pytest.fixture
 def db_session(db_engine):
     """Create database session."""
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
-    session = SessionLocal()
+    session_local = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    session = session_local()
     try:
         yield session
     finally:
@@ -234,7 +250,11 @@ def tech_glossary(glossary_service):
         ("backend", {"es": "servidor", "fr": "serveur", "de": "Backend"}, 5),
         ("frontend", {"es": "interfaz", "fr": "interface", "de": "Frontend"}, 5),
         ("deployment", {"es": "despliegue", "fr": "déploiement", "de": "Bereitstellung"}, 5),
-        ("microservices", {"es": "microservicios", "fr": "microservices", "de": "Microservices"}, 8),
+        (
+            "microservices",
+            {"es": "microservicios", "fr": "microservices", "de": "Microservices"},
+            8,
+        ),
         ("Kubernetes", {"es": "Kubernetes", "fr": "Kubernetes", "de": "Kubernetes"}, 10),
         ("container", {"es": "contenedor", "fr": "conteneur", "de": "Container"}, 5),
     ]
@@ -296,9 +316,7 @@ def sample_session_config():
 class TestGlossaryTranslationContextIntegration:
     """Tests for glossary integration with TranslationContext."""
 
-    def test_glossary_terms_in_translation_context(
-        self, glossary_service, tech_glossary
-    ):
+    def test_glossary_terms_in_translation_context(self, glossary_service, tech_glossary):
         """Test that glossary terms are properly loaded into TranslationContext."""
         # Get terms for Spanish
         terms = glossary_service.get_glossary_terms(
@@ -328,9 +346,7 @@ class TestGlossaryTranslationContextIntegration:
         assert "backend -> servidor" in formatted
         assert "deployment -> despliegue" in formatted
 
-    def test_glossary_merging_in_context(
-        self, glossary_service, tech_glossary, default_glossary
-    ):
+    def test_glossary_merging_in_context(self, glossary_service, tech_glossary, default_glossary):
         """Test that default and specific glossaries are merged correctly."""
         terms = glossary_service.get_glossary_terms(
             glossary_id=tech_glossary.glossary_id,
@@ -415,9 +431,7 @@ class TestFullTranslationPipelineIntegration:
 
         # Verify the text contains glossary terms
         text = translation_unit.text
-        glossary_terms_in_text = [
-            term for term in terms.keys() if term.lower() in text.lower()
-        ]
+        glossary_terms_in_text = [term for term in terms if term.lower() in text.lower()]
 
         assert "API" in glossary_terms_in_text
         assert "deployment" in glossary_terms_in_text
@@ -428,9 +442,7 @@ class TestFullTranslationPipelineIntegration:
         assert context.glossary["deployment"] == "despliegue"
         assert context.glossary["Kubernetes"] == "Kubernetes"
 
-    def test_multi_speaker_conversation_with_glossary(
-        self, glossary_service, tech_glossary
-    ):
+    def test_multi_speaker_conversation_with_glossary(self, glossary_service, tech_glossary):
         """Test handling multi-speaker conversation with glossary terms."""
         # Simulate conversation between two speakers
         conversation = [
@@ -494,9 +506,7 @@ class TestFullTranslationPipelineIntegration:
         # Final context should have 2 previous sentences
         assert len(context_window) == 3
 
-    def test_translation_result_tracks_glossary_terms(
-        self, glossary_service, tech_glossary
-    ):
+    def test_translation_result_tracks_glossary_terms(self, glossary_service, tech_glossary):
         """Test that TranslationResult tracks applied glossary terms."""
         terms = glossary_service.get_glossary_terms(
             glossary_id=tech_glossary.glossary_id,
@@ -508,10 +518,7 @@ class TestFullTranslationPipelineIntegration:
         original_text = "The API and backend are ready for deployment."
 
         # Find which glossary terms appear in the text
-        applied_terms = [
-            term for term in terms.keys()
-            if term.lower() in original_text.lower()
-        ]
+        applied_terms = [term for term in terms if term.lower() in original_text.lower()]
 
         # Create TranslationResult
         result = TranslationResult(
@@ -542,9 +549,7 @@ class TestFullTranslationPipelineIntegration:
 class TestGlossaryOverrideBehavior:
     """Tests for glossary term override behavior."""
 
-    def test_specific_glossary_overrides_default(
-        self, glossary_service, db_session
-    ):
+    def test_specific_glossary_overrides_default(self, glossary_service, db_session):
         """Test that session-specific glossary overrides default terms."""
         # Create default glossary
         default = glossary_service.create_glossary(
@@ -581,9 +586,7 @@ class TestGlossaryOverrideBehavior:
         # Tech term should override default
         assert terms["container"] == "contenedor"
 
-    def test_priority_based_term_selection(
-        self, glossary_service
-    ):
+    def test_priority_based_term_selection(self, glossary_service):
         """Test that higher priority terms are selected."""
         glossary = glossary_service.create_glossary(
             name="Priority Test",
@@ -624,9 +627,7 @@ class TestGlossaryOverrideBehavior:
 class TestMultiLanguageGlossaryIntegration:
     """Tests for multi-language glossary handling."""
 
-    def test_same_glossary_different_languages(
-        self, glossary_service, tech_glossary
-    ):
+    def test_same_glossary_different_languages(self, glossary_service, tech_glossary):
         """Test getting terms for different target languages."""
         terms_es = glossary_service.get_glossary_terms(
             glossary_id=tech_glossary.glossary_id,
@@ -655,9 +656,7 @@ class TestMultiLanguageGlossaryIntegration:
         assert terms_fr["deployment"] == "déploiement"
         assert terms_de["deployment"] == "Bereitstellung"
 
-    def test_translation_context_per_language(
-        self, glossary_service, tech_glossary
-    ):
+    def test_translation_context_per_language(self, glossary_service, tech_glossary):
         """Test creating separate TranslationContext per target language."""
         languages = ["es", "fr", "de"]
         contexts = {}
@@ -690,9 +689,7 @@ class TestMultiLanguageGlossaryIntegration:
 class TestGlossaryIntegrationEdgeCases:
     """Tests for edge cases in glossary integration."""
 
-    def test_missing_target_language_translation(
-        self, glossary_service
-    ):
+    def test_missing_target_language_translation(self, glossary_service):
         """Test handling when entry doesn't have target language translation."""
         glossary = glossary_service.create_glossary(
             name="Partial",
@@ -769,5 +766,5 @@ class TestGlossaryIntegrationEdgeCases:
         )
 
         # No glossary terms should match
-        applied = [t for t in terms.keys() if t.lower() in unit.text.lower()]
+        applied = [t for t in terms if t.lower() in unit.text.lower()]
         assert len(applied) == 0

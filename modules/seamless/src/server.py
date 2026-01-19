@@ -1,14 +1,13 @@
 import asyncio
 import base64
+import contextlib
 import json
-import os
 from datetime import datetime
-from typing import Dict, Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .streaming_st import StreamingTranslator, StreamingConfig
+from .streaming_st import StreamingConfig, StreamingTranslator
 
 app = FastAPI(title="Seamless Demo Service", version="0.1.0")
 
@@ -26,19 +25,23 @@ class SessionState:
         self.session_id = session_id
         self.src_lang = src_lang
         self.tgt_lang = tgt_lang
-        self.translator = StreamingTranslator(StreamingConfig(source_lang=src_lang, target_lang=tgt_lang))
+        self.translator = StreamingTranslator(
+            StreamingConfig(source_lang=src_lang, target_lang=tgt_lang)
+        )
         self._partial_task: asyncio.Task | None = None
 
     async def send_partial_if_any(self, websocket: WebSocket) -> None:
         text = self.translator.infer_partial()
         if text:
             await websocket.send_text(
-                json.dumps({
-                    "type": "translation_partial",
-                    "lang": "en",
-                    "text": text,
-                    "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                })
+                json.dumps(
+                    {
+                        "type": "translation_partial",
+                        "lang": "en",
+                        "text": text,
+                        "timestamp": int(datetime.utcnow().timestamp() * 1000),
+                    }
+                )
             )
 
 
@@ -62,12 +65,16 @@ async def websocket_stream(websocket: WebSocket, session_id: str | None = None) 
     state._partial_task = asyncio.create_task(_periodic_partial(websocket, state))
 
     try:
-        await websocket.send_text(json.dumps({
-            "type": "connection_established",
-            "session_id": sid,
-            "message": "Seamless demo WS connected",
-            "timestamp": datetime.utcnow().isoformat(),
-        }))
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "connection_established",
+                    "session_id": sid,
+                    "message": "Seamless demo WS connected",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
+        )
 
         while True:
             raw = await websocket.receive_text()
@@ -78,13 +85,19 @@ async def websocket_stream(websocket: WebSocket, session_id: str | None = None) 
                 state.src_lang = msg.get("source", state.src_lang) or state.src_lang
                 state.tgt_lang = msg.get("target", state.tgt_lang) or state.tgt_lang
                 # Recreate translator if languages changed
-                state.translator = StreamingTranslator(StreamingConfig(source_lang=state.src_lang, target_lang=state.tgt_lang))
-                await websocket.send_text(json.dumps({
-                    "type": "config_ack",
-                    "source": state.src_lang,
-                    "target": state.tgt_lang,
-                    "timestamp": datetime.utcnow().isoformat(),
-                }))
+                state.translator = StreamingTranslator(
+                    StreamingConfig(source_lang=state.src_lang, target_lang=state.tgt_lang)
+                )
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "config_ack",
+                            "source": state.src_lang,
+                            "target": state.tgt_lang,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    )
+                )
 
             elif mtype == "audio_chunk":
                 b64 = msg.get("data", "")
@@ -97,27 +110,31 @@ async def websocket_stream(websocket: WebSocket, session_id: str | None = None) 
 
             elif mtype == "end":
                 final_text = state.translator.infer_final()
-                await websocket.send_text(json.dumps({
-                    "type": "translation_final",
-                    "lang": "en",
-                    "text": final_text,
-                    "timestamp": int(datetime.utcnow().timestamp() * 1000),
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "translation_final",
+                            "lang": "en",
+                            "text": final_text,
+                            "timestamp": int(datetime.utcnow().timestamp() * 1000),
+                        }
+                    )
+                )
                 break
 
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "message": str(e),
-        }))
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "error",
+                    "message": str(e),
+                }
+            )
+        )
     finally:
         if state._partial_task and not state._partial_task.done():
             state._partial_task.cancel()
-        try:
+        with contextlib.suppress(Exception):
             await websocket.close()
-        except Exception:
-            pass
-
-

@@ -9,7 +9,7 @@ containing:
 
   - Zero or more \0 bytes as required to pad the packet to PACKET_SIZE
 
-Originally from the UEDIN team of the ELITR project. 
+Originally from the UEDIN team of the ELITR project.
 """
 
 PACKET_SIZE = 65536

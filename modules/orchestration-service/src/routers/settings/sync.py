@@ -6,21 +6,20 @@ translation service configuration sync, and runtime model management.
 """
 
 from ._shared import (
-    logger,
     CONFIG_SYNC_AVAILABLE,
-    get_config_sync_manager,
-    get_unified_configuration,
-    update_configuration,
-    apply_configuration_preset,
-    sync_all_configurations,
-    ModelSwitchRequest,
-    get_translation_service_client,
     TRANSLATION_SERVICE_URL,
+    Any,
     APIRouter,
     HTTPException,
+    ModelSwitchRequest,
     aiohttp,
-    Dict,
-    Any,
+    apply_configuration_preset,
+    get_config_sync_manager,
+    get_translation_service_client,
+    get_unified_configuration,
+    logger,
+    sync_all_configurations,
+    update_configuration,
 )
 
 router = APIRouter(prefix="/sync", tags=["settings-sync"])
@@ -58,9 +57,7 @@ async def get_configuration_sync_status():
             "orchestration_mode": unified_config.get("orchestration_service", {}).get(
                 "service_mode", "unknown"
             ),
-            "translation_service_status": translation_config.get(
-                "service_status", "unknown"
-            ),
+            "translation_service_status": translation_config.get("service_status", "unknown"),
             "translation_backend": translation_config.get("backend", "unknown"),
             "translation_model": translation_config.get("model_name", "unknown"),
             "compatibility_status": "synchronized",
@@ -70,7 +67,7 @@ async def get_configuration_sync_status():
         }
     except Exception as e:
         logger.error(f"Error getting sync status: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get sync status")
+        raise HTTPException(status_code=500, detail="Failed to get sync status") from e
 
 
 @router.get("/unified")
@@ -91,15 +88,11 @@ async def get_unified_configuration_endpoint():
         return unified_config
     except Exception as e:
         logger.error(f"Error getting unified configuration: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to get unified configuration"
-        )
+        raise HTTPException(status_code=500, detail="Failed to get unified configuration") from e
 
 
 @router.post("/update/{component}")
-async def update_component_configuration(
-    component: str, config_updates: Dict[str, Any]
-):
+async def update_component_configuration(component: str, config_updates: dict[str, Any]):
     """
     Update configuration for a specific component (whisper, orchestration, or unified)
     Changes will be propagated to other components automatically
@@ -118,9 +111,7 @@ async def update_component_configuration(
         )
 
     try:
-        update_result = await update_configuration(
-            component, config_updates, propagate=True
-        )
+        update_result = await update_configuration(component, config_updates, propagate=True)
 
         if not update_result["success"]:
             raise HTTPException(
@@ -141,7 +132,7 @@ async def update_component_configuration(
         logger.error(f"Error updating {component} configuration: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to update {component} configuration"
-        )
+        ) from e
 
 
 @router.post("/preset/{preset_name}")
@@ -173,9 +164,7 @@ async def apply_configuration_preset_endpoint(preset_name: str):
         raise
     except Exception as e:
         logger.error(f"Error applying preset {preset_name}: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to apply preset {preset_name}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to apply preset {preset_name}") from e
 
 
 @router.post("/force")
@@ -197,9 +186,7 @@ async def force_configuration_sync():
         }
     except Exception as e:
         logger.error(f"Error forcing configuration sync: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to force configuration sync"
-        )
+        raise HTTPException(status_code=500, detail="Failed to force configuration sync") from e
 
 
 @router.get("/presets")
@@ -260,7 +247,7 @@ async def get_whisper_service_sync_status():
         logger.error(f"Error getting whisper sync status: {e}")
         raise HTTPException(
             status_code=500, detail="Failed to get whisper service sync status"
-        )
+        ) from e
 
 
 @router.get("/compatibility")
@@ -277,16 +264,14 @@ async def get_configuration_compatibility():
 
     try:
         config_manager = await get_config_sync_manager()
-        compatibility_status = (
-            await config_manager._validate_configuration_compatibility()
-        )
+        compatibility_status = await config_manager._validate_configuration_compatibility()
 
         return compatibility_status
     except Exception as e:
         logger.error(f"Error checking configuration compatibility: {e}")
         return {
             "compatible": False,
-            "issues": [f"Failed to check compatibility: {str(e)}"],
+            "issues": [f"Failed to check compatibility: {e!s}"],
             "warnings": [],
             "sync_required": True,
             "message": "Error checking compatibility",
@@ -294,7 +279,7 @@ async def get_configuration_compatibility():
 
 
 @router.post("/preset")
-async def apply_configuration_preset_by_name(preset_data: Dict[str, Any]):
+async def apply_configuration_preset_by_name(preset_data: dict[str, Any]):
     """Apply a configuration preset by name"""
     if not CONFIG_SYNC_AVAILABLE:
         raise HTTPException(
@@ -352,9 +337,7 @@ async def get_translation_service_configuration():
             "translation_service": translation_config,
             "sync_info": {
                 "last_sync": unified_config.get("sync_info", {}).get("last_sync"),
-                "services_synced": unified_config.get("sync_info", {}).get(
-                    "services_synced", []
-                ),
+                "services_synced": unified_config.get("sync_info", {}).get("services_synced", []),
                 "configuration_version": unified_config.get("sync_info", {}).get(
                     "configuration_version", "1.1"
                 ),
@@ -364,11 +347,11 @@ async def get_translation_service_configuration():
         logger.error(f"Error getting translation service configuration: {e}")
         raise HTTPException(
             status_code=500, detail="Failed to get translation service configuration"
-        )
+        ) from e
 
 
 @router.post("/translation")
-async def update_translation_service_configuration(config_updates: Dict[str, Any]):
+async def update_translation_service_configuration(config_updates: dict[str, Any]):
     """Update translation service configuration with automatic synchronization"""
     if not CONFIG_SYNC_AVAILABLE:
         raise HTTPException(
@@ -377,9 +360,7 @@ async def update_translation_service_configuration(config_updates: Dict[str, Any
         )
 
     try:
-        update_result = await update_configuration(
-            "translation", config_updates, propagate=True
-        )
+        update_result = await update_configuration("translation", config_updates, propagate=True)
 
         if not update_result["success"]:
             raise HTTPException(
@@ -400,8 +381,8 @@ async def update_translation_service_configuration(config_updates: Dict[str, Any
         logger.error(f"Error updating translation configuration: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to update translation configuration: {str(e)}",
-        )
+            detail=f"Failed to update translation configuration: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -463,14 +444,14 @@ async def switch_translation_model(request: ModelSwitchRequest):
         raise HTTPException(
             status_code=503,
             detail="Translation service unavailable - cannot switch model",
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error switching translation model: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to switch translation model: {str(e)}"
-        )
+            status_code=500, detail=f"Failed to switch translation model: {e!s}"
+        ) from e
 
 
 @router.post("/translation/preload-model")
@@ -511,14 +492,14 @@ async def preload_translation_model(request: ModelSwitchRequest):
         raise HTTPException(
             status_code=503,
             detail="Translation service unavailable - cannot preload model",
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error preloading translation model: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to preload translation model: {str(e)}"
-        )
+            status_code=500, detail=f"Failed to preload translation model: {e!s}"
+        ) from e
 
 
 @router.get("/translation/model-status")
@@ -530,41 +511,41 @@ async def get_translation_model_status():
     and supported backends.
     """
     try:
-        async with await get_translation_service_client() as client:
-            async with client.get(
-                f"{TRANSLATION_SERVICE_URL}/api/models/status"
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "current_model": result.get("current_model"),
-                        "current_backend": result.get("current_backend"),
-                        "is_ready": result.get("is_ready", False),
-                        "cached_models": result.get("cached_models", []),
-                        "cache_size": result.get("cache_size", 0),
-                        "supported_backends": result.get("supported_backends", []),
-                        "source": "orchestration_proxy",
-                    }
-                else:
-                    error_text = await response.text()
-                    raise HTTPException(
-                        status_code=response.status,
-                        detail=f"Translation service error: {error_text}",
-                    )
+        async with (
+            await get_translation_service_client() as client,
+            client.get(f"{TRANSLATION_SERVICE_URL}/api/models/status") as response,
+        ):
+            if response.status == 200:
+                result = await response.json()
+                return {
+                    "success": True,
+                    "current_model": result.get("current_model"),
+                    "current_backend": result.get("current_backend"),
+                    "is_ready": result.get("is_ready", False),
+                    "cached_models": result.get("cached_models", []),
+                    "cache_size": result.get("cache_size", 0),
+                    "supported_backends": result.get("supported_backends", []),
+                    "source": "orchestration_proxy",
+                }
+            else:
+                error_text = await response.text()
+                raise HTTPException(
+                    status_code=response.status,
+                    detail=f"Translation service error: {error_text}",
+                )
     except aiohttp.ClientError as e:
         logger.error(f"Failed to connect to translation service for model status: {e}")
         raise HTTPException(
             status_code=503,
             detail="Translation service unavailable - cannot get model status",
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting translation model status: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Failed to get translation model status: {str(e)}"
-        )
+            status_code=500, detail=f"Failed to get translation model status: {e!s}"
+        ) from e
 
 
 @router.get("/translation/available-models/{backend}")
@@ -578,36 +559,34 @@ async def get_available_translation_models(backend: str = "ollama"):
     ```
     """
     try:
-        async with await get_translation_service_client() as client:
-            async with client.get(
-                f"{TRANSLATION_SERVICE_URL}/api/models/list/{backend}"
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "backend": result.get("backend"),
-                        "models": result.get("models", []),
-                        "count": result.get("count", 0),
-                        "timestamp": result.get("timestamp"),
-                        "source": "orchestration_proxy",
-                    }
-                else:
-                    error_text = await response.text()
-                    raise HTTPException(
-                        status_code=response.status,
-                        detail=f"Translation service error: {error_text}",
-                    )
+        async with (
+            await get_translation_service_client() as client,
+            client.get(f"{TRANSLATION_SERVICE_URL}/api/models/list/{backend}") as response,
+        ):
+            if response.status == 200:
+                result = await response.json()
+                return {
+                    "success": True,
+                    "backend": result.get("backend"),
+                    "models": result.get("models", []),
+                    "count": result.get("count", 0),
+                    "timestamp": result.get("timestamp"),
+                    "source": "orchestration_proxy",
+                }
+            else:
+                error_text = await response.text()
+                raise HTTPException(
+                    status_code=response.status,
+                    detail=f"Translation service error: {error_text}",
+                )
     except aiohttp.ClientError as e:
         logger.error(f"Failed to connect to translation service for available models: {e}")
         raise HTTPException(
             status_code=503,
             detail="Translation service unavailable - cannot list models",
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting available translation models: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get available models: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to get available models: {e!s}") from e

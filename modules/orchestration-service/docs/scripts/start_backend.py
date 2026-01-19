@@ -3,8 +3,8 @@
 Startup script for the orchestration service backend
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add src directory to Python path

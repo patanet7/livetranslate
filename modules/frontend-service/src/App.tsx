@@ -1,44 +1,52 @@
-import React, { useEffect, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Provider } from 'react-redux';
-import { ThemeProvider, CssBaseline } from '@mui/material';
-import { SnackbarProvider } from 'notistack';
+import React, { useEffect, Suspense } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Provider } from "react-redux";
+import { ThemeProvider, CssBaseline } from "@mui/material";
+import { SnackbarProvider } from "notistack";
 
 // Store
-import { store } from '@/store';
-import { useAppDispatch, useAppSelector } from '@/store';
+import { store } from "@/store";
+import { useAppDispatch, useAppSelector } from "@/store";
 
 // Theme
-import { lightTheme, darkTheme } from '@/styles/theme';
+import { lightTheme, darkTheme } from "@/styles/theme";
 
 // Hooks
-import { useBreakpoint } from '@/hooks/useBreakpoint';
-import { useWebSocket } from '@/hooks/useWebSocket';
+import { useBreakpoint } from "@/hooks/useBreakpoint";
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 // Layout components
-import { AppLayout } from '@/components/layout/AppLayout';
-import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { AppLayout } from "@/components/layout/AppLayout";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 // Actions
-import { initializeUI, setBreakpoint } from '@/store/slices/uiSlice';
+import { initializeUI, setBreakpoint } from "@/store/slices/uiSlice";
 
 // Lazy-loaded pages for code splitting
-const Dashboard = React.lazy(() => import('@/pages/Dashboard'));
-const AudioProcessingHub = React.lazy(() => import('@/pages/AudioProcessingHub'));
-const StreamingProcessor = React.lazy(() => import('@/pages/StreamingProcessor'));
-const WebSocketStreamingDemo = React.lazy(() => import('@/pages/WebSocketStreamingDemo'));
-const BotManagement = React.lazy(() => import('@/pages/BotManagement'));
-const Analytics = React.lazy(() => import('@/pages/Analytics'));
-const SystemAnalytics = React.lazy(() => import('@/pages/SystemAnalytics'));
-const Settings = React.lazy(() => import('@/pages/Settings'));
-const ChatHistory = React.lazy(() => import('@/pages/ChatHistory'));
-const CaptionOverlay = React.lazy(() => import('@/pages/CaptionOverlay'));
+const Dashboard = React.lazy(() => import("@/pages/Dashboard"));
+const AudioProcessingHub = React.lazy(
+  () => import("@/pages/AudioProcessingHub"),
+);
+const StreamingProcessor = React.lazy(
+  () => import("@/pages/StreamingProcessor"),
+);
+const WebSocketStreamingDemo = React.lazy(
+  () => import("@/pages/WebSocketStreamingDemo"),
+);
+const BotManagement = React.lazy(() => import("@/pages/BotManagement"));
+const Analytics = React.lazy(() => import("@/pages/Analytics"));
+const SystemAnalytics = React.lazy(() => import("@/pages/SystemAnalytics"));
+const Settings = React.lazy(() => import("@/pages/Settings"));
+const ChatHistory = React.lazy(() => import("@/pages/ChatHistory"));
+const CaptionOverlay = React.lazy(() => import("@/pages/CaptionOverlay"));
 
 // App initialization component
-const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const AppInitializer: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const dispatch = useAppDispatch();
-  const { theme } = useAppSelector(state => state.ui);
+  const { theme } = useAppSelector((state) => state.ui);
   const breakpoint = useBreakpoint();
 
   // Initialize WebSocket connection
@@ -54,16 +62,16 @@ const AppInitializer: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }, [dispatch, breakpoint]);
 
   // Select theme based on UI state
-  const selectedTheme = theme === 'light' ? lightTheme : darkTheme;
+  const selectedTheme = theme === "light" ? lightTheme : darkTheme;
 
   return (
     <ThemeProvider theme={selectedTheme}>
       <CssBaseline />
-      <SnackbarProvider 
+      <SnackbarProvider
         maxSnack={3}
         anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
+          vertical: "top",
+          horizontal: "right",
         }}
         dense
       >
@@ -104,47 +112,89 @@ const App: React.FC = () => {
                 <Routes>
                   {/* Main Dashboard */}
                   <Route path="/" element={<Dashboard />} />
-                  
+
                   {/* Audio Processing Hub - Unified Audio Processing Interface */}
                   <Route path="/audio-hub" element={<AudioProcessingHub />} />
-                  <Route path="/audio-processing" element={<AudioProcessingHub />} />
-                  <Route path="/audio-hub/:tab" element={<AudioProcessingHub />} />
-                  
+                  <Route
+                    path="/audio-processing"
+                    element={<AudioProcessingHub />}
+                  />
+                  <Route
+                    path="/audio-hub/:tab"
+                    element={<AudioProcessingHub />}
+                  />
+
                   {/* Legacy Audio Routes - Redirect to AudioProcessingHub */}
                   <Route path="/audio-test" element={<AudioProcessingHub />} />
-                  <Route path="/audio-testing" element={<AudioProcessingHub />} />
-                  <Route path="/pipeline-studio" element={<AudioProcessingHub />} />
+                  <Route
+                    path="/audio-testing"
+                    element={<AudioProcessingHub />}
+                  />
+                  <Route
+                    path="/pipeline-studio"
+                    element={<AudioProcessingHub />}
+                  />
                   <Route path="/pipeline" element={<AudioProcessingHub />} />
-                  <Route path="/transcription-testing" element={<AudioProcessingHub />} />
-                  <Route path="/transcription-test" element={<AudioProcessingHub />} />
-                  <Route path="/transcription" element={<AudioProcessingHub />} />
-                  <Route path="/translation-testing" element={<AudioProcessingHub />} />
-                  <Route path="/translation-test" element={<AudioProcessingHub />} />
+                  <Route
+                    path="/transcription-testing"
+                    element={<AudioProcessingHub />}
+                  />
+                  <Route
+                    path="/transcription-test"
+                    element={<AudioProcessingHub />}
+                  />
+                  <Route
+                    path="/transcription"
+                    element={<AudioProcessingHub />}
+                  />
+                  <Route
+                    path="/translation-testing"
+                    element={<AudioProcessingHub />}
+                  />
+                  <Route
+                    path="/translation-test"
+                    element={<AudioProcessingHub />}
+                  />
                   <Route path="/translation" element={<AudioProcessingHub />} />
-                  <Route path="/meeting-test" element={<AudioProcessingHub />} />
+                  <Route
+                    path="/meeting-test"
+                    element={<AudioProcessingHub />}
+                  />
                   <Route path="/meeting" element={<AudioProcessingHub />} />
-                  <Route path="/streaming-processor" element={<StreamingProcessor />} />
+                  <Route
+                    path="/streaming-processor"
+                    element={<StreamingProcessor />}
+                  />
                   <Route path="/streaming" element={<StreamingProcessor />} />
                   <Route path="/stream" element={<StreamingProcessor />} />
 
                   {/* WebSocket Audio Streaming Demo */}
-                  <Route path="/websocket-demo" element={<WebSocketStreamingDemo />} />
-                  <Route path="/websocket-streaming" element={<WebSocketStreamingDemo />} />
+                  <Route
+                    path="/websocket-demo"
+                    element={<WebSocketStreamingDemo />}
+                  />
+                  <Route
+                    path="/websocket-streaming"
+                    element={<WebSocketStreamingDemo />}
+                  />
                   <Route path="/ws-demo" element={<WebSocketStreamingDemo />} />
 
                   {/* Bot Management */}
                   <Route path="/bot-management" element={<BotManagement />} />
                   <Route path="/bots" element={<BotManagement />} />
-                  
+
                   {/* Analytics Dashboard */}
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/metrics" element={<Analytics />} />
-                  
+
                   {/* System Analytics Dashboard */}
-                  <Route path="/system-analytics" element={<SystemAnalytics />} />
+                  <Route
+                    path="/system-analytics"
+                    element={<SystemAnalytics />}
+                  />
                   <Route path="/system-metrics" element={<SystemAnalytics />} />
                   <Route path="/monitoring" element={<SystemAnalytics />} />
-                  
+
                   {/* Settings */}
                   <Route path="/settings" element={<Settings />} />
 

@@ -1,0 +1,226 @@
+# Pre-commit configuration for Orchestration Service
+# Inherits from root config and adds FastAPI-specific checks
+# Run: pre-commit install && pre-commit run --all-files
+
+default_language_version:
+  python: python3.12
+
+# Service-specific file patterns
+files: ^(src/|tests/|config/|static/)
+
+repos:
+  # =============================================================================
+  # Inherit from Root - General Hooks
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-ast
+        name: Check Python AST (orchestration-service)
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: check-json
+      - id: check-toml
+      - id: end-of-file-fixer
+        exclude: '\.min\.(js|css)$'
+      - id: trailing-whitespace
+        exclude: '\.min\.(js|css)$'
+      - id: debug-statements
+      - id: check-merge-conflict
+
+  # =============================================================================
+  # Python Formatting and Linting (Ruff)
+  # =============================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        name: Ruff linter (orchestration-service)
+        args:
+          - '--fix'
+          - '--exit-non-zero-on-fix'
+          - '--config'
+          - 'pyproject.toml'
+        types_or: [python, pyi]
+        exclude: '^\.venv/'
+      - id: ruff-format
+        name: Ruff formatter (orchestration-service)
+        args:
+          - '--config'
+          - 'pyproject.toml'
+        types_or: [python, pyi]
+        exclude: '^\.venv/'
+
+  # =============================================================================
+  # Type Checking
+  # =============================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        name: MyPy (orchestration-service)
+        additional_dependencies:
+          - types-requests
+          - types-redis
+          - types-PyYAML
+          - types-python-dateutil
+          - pydantic>=2.0
+          - fastapi>=0.100.0
+          - sqlalchemy>=2.0
+        files: '^src/.*\.py$'
+        exclude: '^(\.venv/|tests/|deprecated/)'
+        args:
+          - '--ignore-missing-imports'
+          - '--python-version=3.12'
+
+  # =============================================================================
+  # Security Scanning
+  # =============================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.2
+    hooks:
+      - id: bandit
+        name: Bandit security scan (orchestration-service)
+        args:
+          - '-c'
+          - 'pyproject.toml'
+          - '--recursive'
+          - '--severity-level'
+          - 'low'
+          - '--confidence-level'
+          - 'medium'
+        files: '^src/.*\.py$'
+        exclude: '^(tests/|\.venv/|deprecated/)'
+
+  # =============================================================================
+  # FastAPI Specific Checks
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check for missing Depends() in FastAPI routes
+      - id: fastapi-depends-check
+        name: Check FastAPI dependency injection
+        language: pygrep
+        entry: '@(app|router)\.(get|post|put|patch|delete)\([^)]*\)\s*\nasync def \w+\([^)]*(?<!Depends\([^)]*\))[^)]*\):'
+        files: '^src/(routers|api)/.*\.py$'
+        types: [python]
+        # Informational - helps catch missing Depends()
+
+      # Ensure API routes have proper response models
+      - id: fastapi-response-model
+        name: Check response model annotations
+        language: pygrep
+        entry: '@(app|router)\.(get|post|put|patch|delete)\([^)]*response_model'
+        files: '^src/(routers|api)/.*\.py$'
+        types: [python]
+        # Informational - suggests adding response_model
+
+      # Check for SQL injection risks in SQLAlchemy
+      - id: sqlalchemy-injection-check
+        name: Check SQL injection patterns
+        language: pygrep
+        entry: "(execute|text)\\([^)]*f[\"']|\\.format\\([^)]*\\)|%\\s*[\"'].*%"
+        files: '^src/.*\.py$'
+        exclude: '^(tests/|\.venv/)'
+        types: [python]
+
+      # Ensure WebSocket handlers have proper error handling
+      - id: websocket-error-handling
+        name: Check WebSocket error handling
+        language: pygrep
+        entry: 'async def \w+\([^)]*WebSocket[^)]*\):\n\s+(?!try:|""")'
+        files: '^src/.*\.py$'
+        types: [python]
+
+      # Check for hardcoded secrets patterns
+      - id: no-hardcoded-secrets
+        name: No hardcoded secrets
+        language: pygrep
+        entry: "(password|secret|api_key|token)\\s*=\\s*[\"'][^\"']+[\"']"
+        files: '^src/.*\.py$'
+        exclude: '^(tests/|\.venv/|config/)'
+        types: [python]
+
+      # Ensure CORS is properly configured
+      - id: cors-configuration
+        name: Check CORS configuration
+        language: pygrep
+        entry: 'allow_origins\s*=\s*\["\*"\]'
+        files: '^src/.*\.py$'
+        types: [python]
+        # Warns about wildcard CORS origins
+
+  # =============================================================================
+  # Bot Management Security Checks
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check Docker command injection in bot manager
+      - id: docker-command-safety
+        name: Check Docker command safety
+        language: pygrep
+        entry: 'subprocess\.(run|Popen|call)\([^)]*shell\s*=\s*True'
+        files: '^src/bot/.*\.py$'
+        types: [python]
+
+      # Ensure bot sessions have proper cleanup
+      - id: bot-session-cleanup
+        name: Check bot session cleanup
+        language: pygrep
+        entry: '(terminate|cleanup|shutdown)'
+        files: '^src/bot/.*\.py$'
+        types: [python]
+        # Informational - ensures cleanup methods exist
+
+  # =============================================================================
+  # Static Files Security
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check for inline JavaScript in HTML
+      - id: no-inline-js
+        name: No inline JavaScript
+        language: pygrep
+        entry: 'onclick=|onload=|onerror=|javascript:'
+        files: '^static/.*\.(html|htm)$'
+
+      # Check for hardcoded URLs in JavaScript
+      - id: no-hardcoded-urls-js
+        name: No hardcoded URLs in JS
+        language: pygrep
+        entry: '(localhost|127\.0\.0\.1|0\.0\.0\.0):\d+'
+        files: '^static/.*\.js$'
+        exclude: '\.min\.js$'
+
+  # =============================================================================
+  # Dependencies Check
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: check-pyproject
+        name: Validate pyproject.toml
+        language: python
+        entry: python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))"
+        files: '^pyproject\.toml$'
+        pass_filenames: false
+
+# =============================================================================
+# Service-Specific Excludes
+# =============================================================================
+exclude: |
+  (?x)^(
+    \.venv/|
+    __pycache__/|
+    \.pytest_cache/|
+    \.mypy_cache/|
+    \.ruff_cache/|
+    dist/|
+    build/|
+    \.eggs/|
+    .*\.egg-info/|
+    htmlcov/|
+    \.coverage|
+    \.tox/|
+    deprecated/|
+    static/.*\.min\.(js|css)
+  )

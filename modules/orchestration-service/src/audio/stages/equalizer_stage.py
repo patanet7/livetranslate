@@ -6,11 +6,13 @@ Modular equalizer implementation that can be used independently
 or as part of the complete audio processing pipeline.
 """
 
+from typing import Any
+
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple
+
+from ..config import EqualizerBand, EqualizerConfig
 from ..stage_components import BaseAudioStage
-from ..config import EqualizerConfig, EqualizerBand
 
 
 class EqualizerStage(BaseAudioStage):
@@ -71,7 +73,7 @@ class EqualizerStage(BaseAudioStage):
 
     def _design_peaking_filter(
         self, band: EqualizerBand, nyquist: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Design peaking filter for mid-frequency bands."""
         freq_norm = band.frequency / nyquist
         freq_norm = max(0.001, min(0.999, freq_norm))  # Clamp to valid range
@@ -81,9 +83,7 @@ class EqualizerStage(BaseAudioStage):
 
         # Calculate Q from bandwidth (octaves)
         # Q = fc / bandwidth_hz
-        bandwidth_hz = (
-            band.frequency * (2**band.bandwidth - 1) / (2**band.bandwidth + 1)
-        )
+        bandwidth_hz = band.frequency * (2**band.bandwidth - 1) / (2**band.bandwidth + 1)
         q_factor = band.frequency / max(bandwidth_hz, 1.0)
         q_factor = max(0.1, min(q_factor, 30.0))  # Reasonable Q range
 
@@ -106,7 +106,7 @@ class EqualizerStage(BaseAudioStage):
 
     def _design_shelf_filter(
         self, band: EqualizerBand, nyquist: float, shelf_type: str
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Design shelf filter for low/high frequency ranges."""
         freq_norm = band.frequency / nyquist
         freq_norm = max(0.001, min(0.999, freq_norm))
@@ -128,7 +128,7 @@ class EqualizerStage(BaseAudioStage):
 
     def _design_basic_filter(
         self, band: EqualizerBand, nyquist: float, filter_type: str
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Design basic low/high pass filter."""
         freq_norm = band.frequency / nyquist
         freq_norm = max(0.001, min(0.999, freq_norm))
@@ -138,9 +138,7 @@ class EqualizerStage(BaseAudioStage):
 
         return b, a
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through equalizer."""
         try:
             processed = audio_data.copy()
@@ -155,7 +153,7 @@ class EqualizerStage(BaseAudioStage):
 
             # Apply each enabled filter band
             for i, (band, filter_coeff, filter_state) in enumerate(
-                zip(self.config.bands, self.filters, self.filter_states)
+                zip(self.config.bands, self.filters, self.filter_states, strict=False)
             ):
                 if filter_coeff is None or not band.enabled:
                     continue
@@ -182,15 +180,11 @@ class EqualizerStage(BaseAudioStage):
                         if band.gain > 0:
                             # Boost - add filtered signal
                             mix_ratio = min(abs(band.gain) / 20.0, 1.0)  # Scale gain
-                            processed = (
-                                processed + (filtered_audio - processed) * mix_ratio
-                            )
+                            processed = processed + (filtered_audio - processed) * mix_ratio
                         else:
                             # Cut - subtract filtered signal
                             mix_ratio = min(abs(band.gain) / 20.0, 1.0)
-                            processed = (
-                                processed - (filtered_audio - processed) * mix_ratio
-                            )
+                            processed = processed - (filtered_audio - processed) * mix_ratio
 
                         bands_applied.append(f"{band.filter_type}_{band.frequency}Hz")
                         band_gains.append(band.gain)
@@ -224,9 +218,9 @@ class EqualizerStage(BaseAudioStage):
             return processed, metadata
 
         except Exception as e:
-            raise Exception(f"Equalization failed: {e}")
+            raise Exception(f"Equalization failed: {e}") from e
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         band_configs = []
         for band in self.config.bands:
@@ -248,7 +242,7 @@ class EqualizerStage(BaseAudioStage):
             "preset_name": getattr(self.config, "preset_name", "custom"),
         }
 
-    def get_frequency_response(self, frequencies: np.ndarray = None) -> Dict[str, Any]:
+    def get_frequency_response(self, frequencies: np.ndarray = None) -> dict[str, Any]:
         """Get frequency response of the equalizer."""
         if frequencies is None:
             frequencies = np.logspace(1, 4, 100)  # 10 Hz to 10 kHz
@@ -259,7 +253,9 @@ class EqualizerStage(BaseAudioStage):
 
         band_responses = []
 
-        for i, (band, filter_coeff) in enumerate(zip(self.config.bands, self.filters)):
+        for _i, (band, filter_coeff) in enumerate(
+            zip(self.config.bands, self.filters, strict=False)
+        ):
             if filter_coeff is None or not band.enabled:
                 band_responses.append(np.ones(len(frequencies)))
                 continue
@@ -290,10 +286,10 @@ class EqualizerStage(BaseAudioStage):
     def update_band(
         self,
         band_index: int,
-        frequency: float = None,
-        gain: float = None,
-        bandwidth: float = None,
-        enabled: bool = None,
+        frequency: float | None = None,
+        gain: float | None = None,
+        bandwidth: float | None = None,
+        enabled: bool | None = None,
     ):
         """Update a specific equalizer band."""
         if 0 <= band_index < len(self.config.bands):
@@ -340,7 +336,7 @@ class EqualizerStage(BaseAudioStage):
             self.config.gain_out = preset_config.get("gain_out", 0.0)
             self._design_filters()
 
-    def _create_flat_preset(self) -> Dict[str, Any]:
+    def _create_flat_preset(self) -> dict[str, Any]:
         """Create flat/neutral EQ preset."""
         return {
             "bands": [
@@ -384,7 +380,7 @@ class EqualizerStage(BaseAudioStage):
             "gain_out": 0.0,
         }
 
-    def _create_voice_enhance_preset(self) -> Dict[str, Any]:
+    def _create_voice_enhance_preset(self) -> dict[str, Any]:
         """Create voice enhancement EQ preset."""
         return {
             "bands": [
@@ -428,7 +424,7 @@ class EqualizerStage(BaseAudioStage):
             "gain_out": 0.0,
         }
 
-    def _create_bass_boost_preset(self) -> Dict[str, Any]:
+    def _create_bass_boost_preset(self) -> dict[str, Any]:
         """Create bass boost EQ preset."""
         return {
             "bands": [
@@ -472,7 +468,7 @@ class EqualizerStage(BaseAudioStage):
             "gain_out": -2.0,  # Compensate for boost
         }
 
-    def _create_treble_boost_preset(self) -> Dict[str, Any]:
+    def _create_treble_boost_preset(self) -> dict[str, Any]:
         """Create treble boost EQ preset."""
         return {
             "bands": [
@@ -516,7 +512,7 @@ class EqualizerStage(BaseAudioStage):
             "gain_out": -1.0,
         }
 
-    def _create_mid_cut_preset(self) -> Dict[str, Any]:
+    def _create_mid_cut_preset(self) -> dict[str, Any]:
         """Create mid-cut EQ preset (scooped sound)."""
         return {
             "bands": [
@@ -560,7 +556,7 @@ class EqualizerStage(BaseAudioStage):
             "gain_out": 0.0,
         }
 
-    def _create_broadcast_preset(self) -> Dict[str, Any]:
+    def _create_broadcast_preset(self) -> dict[str, Any]:
         """Create broadcast/radio EQ preset."""
         return {
             "bands": [

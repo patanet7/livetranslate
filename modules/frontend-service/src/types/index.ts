@@ -2,7 +2,7 @@
 export interface AudioDevice {
   deviceId: string;
   label: string;
-  kind: 'audioinput' | 'audiooutput';
+  kind: "audioinput" | "audiooutput";
   groupId: string;
 }
 
@@ -23,7 +23,7 @@ export interface AudioConfig {
   noiseSuppression: boolean;
   autoGainControl: boolean;
   rawAudio: boolean;
-  source: 'microphone' | 'file' | 'sample';
+  source: "microphone" | "file" | "sample";
 }
 
 export interface AudioQualityMetrics {
@@ -32,25 +32,25 @@ export interface AudioQualityMetrics {
   peakLevel: number;
   frequency?: number;
   clipping?: number;
-  
+
   // Advanced Audio Metrics
   zeroCrossingRate?: number;
   snrEstimate?: number;
   signalToNoise?: number;
   clippingDetected?: boolean;
-  
+
   // Meeting-Specific Metrics (Enhanced)
-  voiceActivity?: number;              // Voice activity percentage (0-1)
-  spectralCentroid?: number;           // Frequency brightness (Hz)
-  dynamicRange?: number;               // Peak - RMS difference (dB)
-  speechClarity?: number;              // Speech frequency prominence (0-1)
-  backgroundNoise?: number;            // Background noise level (0-1)
-  
+  voiceActivity?: number; // Voice activity percentage (0-1)
+  spectralCentroid?: number; // Frequency brightness (Hz)
+  dynamicRange?: number; // Peak - RMS difference (dB)
+  speechClarity?: number; // Speech frequency prominence (0-1)
+  backgroundNoise?: number; // Background noise level (0-1)
+
   // Quality Assessment
-  qualityScore?: number;               // Overall quality score (0-100)
-  qualityAssessment?: 'excellent' | 'good' | 'fair' | 'poor';
-  recommendations?: string[];          // Quality improvement suggestions
-  issues?: string[];                   // Detected audio issues
+  qualityScore?: number; // Overall quality score (0-100)
+  qualityAssessment?: "excellent" | "good" | "fair" | "poor";
+  recommendations?: string[]; // Quality improvement suggestions
+  issues?: string[]; // Detected audio issues
 }
 
 export interface RecordingState {
@@ -61,7 +61,7 @@ export interface RecordingState {
   format: string;
   sampleRate: number;
   recordedBlobUrl: string | null; // ✅ Store serializable URL string instead of Blob
-  status: 'idle' | 'recording' | 'processing' | 'completed' | 'error';
+  status: "idle" | "recording" | "processing" | "completed" | "error";
   isPlaying: boolean;
   recordingStartTime?: number | null;
   sessionId?: string | null;
@@ -92,7 +92,15 @@ export interface VisualizationState {
 }
 
 // Bot Management Types
-export type BotStatus = 'spawning' | 'joining' | 'active' | 'recording' | 'processing' | 'error' | 'terminating' | 'terminated';
+export type BotStatus =
+  | "spawning"
+  | "joining"
+  | "active"
+  | "recording"
+  | "processing"
+  | "error"
+  | "terminating"
+  | "terminated";
 
 export interface MeetingRequest {
   meetingId: string;
@@ -100,7 +108,7 @@ export interface MeetingRequest {
   organizerEmail?: string;
   targetLanguages: string[];
   autoTranslation: boolean;
-  priority: 'low' | 'medium' | 'high';
+  priority: "low" | "medium" | "high";
 }
 
 export interface MeetingInfo {
@@ -114,19 +122,19 @@ export interface BotInstance {
   id: string;
   botId: string;
   status: BotStatus;
-  config: import('./bot').BotConfiguration;
-  
+  config: import("./bot").BotConfiguration;
+
   // Statistics matching backend structure
-  audioCapture: import('./bot').AudioCaptureStats;
-  captionProcessor: import('./bot').CaptionProcessorStats;
-  virtualWebcam: import('./bot').VirtualWebcamStats;
-  timeCorrelation: import('./bot').TimeCorrelationStats;
-  performance: import('./bot').BotPerformanceStats;
-  
+  audioCapture: import("./bot").AudioCaptureStats;
+  captionProcessor: import("./bot").CaptionProcessorStats;
+  virtualWebcam: import("./bot").VirtualWebcamStats;
+  timeCorrelation: import("./bot").TimeCorrelationStats;
+  performance: import("./bot").BotPerformanceStats;
+
   // Runtime information
   lastActiveAt: string; // ISO string
   errorMessages: string[];
-  
+
   // Timestamps
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
@@ -134,7 +142,7 @@ export interface BotInstance {
 
 export interface SpeakerTimelineEvent {
   eventId: string;
-  eventType: 'speaking_start' | 'speaking_end' | 'join' | 'leave';
+  eventType: "speaking_start" | "speaking_end" | "join" | "leave";
   speakerId: string;
   speakerName: string;
   timestamp: number;
@@ -156,8 +164,8 @@ export interface WebcamConfig {
   width: number;
   height: number;
   fps: number;
-  displayMode: 'overlay' | 'sidebar' | 'fullscreen';
-  theme: 'light' | 'dark' | 'auto';
+  displayMode: "overlay" | "sidebar" | "fullscreen";
+  theme: "light" | "dark" | "auto";
   maxTranslationsDisplayed: number;
   fontSize: number;
   backgroundOpacity: number;
@@ -190,7 +198,7 @@ export interface PaginatedResponse<T> {
 // Service Health Types
 export interface ServiceHealth {
   serviceName: string;
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: "healthy" | "degraded" | "unhealthy";
   version: string;
   uptime: number;
   lastCheck: number;
@@ -198,7 +206,7 @@ export interface ServiceHealth {
 }
 
 export interface SystemHealth {
-  overall: 'healthy' | 'degraded' | 'unhealthy';
+  overall: "healthy" | "degraded" | "unhealthy";
   services: ServiceHealth[];
   timestamp: number;
 }
@@ -208,7 +216,7 @@ export interface ProcessingStage {
   id: string;
   name: string;
   description: string;
-  status: 'pending' | 'processing' | 'completed' | 'error';
+  status: "pending" | "processing" | "completed" | "error";
   progress: number;
   startTime?: number;
   endTime?: number;
@@ -227,14 +235,14 @@ export interface ProcessingPreset {
 }
 
 export interface ProcessingLog {
-  level: 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
+  level: "INFO" | "SUCCESS" | "WARNING" | "ERROR";
   message: string;
   timestamp: number;
 }
 
 // UI State Types
 export interface UIState {
-  theme: 'light' | 'dark';
+  theme: "light" | "dark";
   sidebarOpen: boolean;
   activeTab: string;
   notifications: Notification[];
@@ -244,7 +252,7 @@ export interface UIState {
 
 export interface Notification {
   id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: "info" | "success" | "warning" | "error";
   title: string;
   message: string;
   timestamp: number;
@@ -268,8 +276,8 @@ export interface FormFieldProps {
 }
 
 // Export specific types to avoid conflicts
-export * from './audio';
-export * from './bot';
+export * from "./audio";
+export * from "./bot";
 
 // Export additional bot-related types and enums
 export {
@@ -277,7 +285,7 @@ export {
   MeetingPlatform,
   WebcamDisplayMode,
   WebcamTheme,
-} from './bot';
+} from "./bot";
 
 export type {
   BotConfiguration,
@@ -288,15 +296,15 @@ export type {
   CaptionProcessorStats,
   VirtualWebcamStats,
   TimeCorrelationStats,
-  BotPerformanceStats
-} from './bot';
+  BotPerformanceStats,
+} from "./bot";
 
 // Export WebSocket types selectively to avoid conflicts
-export type { 
-  WebSocketEventType, 
-  WebSocketEventData, 
-  WebSocketMessage, 
-  WebSocketResponse, 
-  WebSocketStats, 
-  WebSocketConfig 
-} from './websocket';
+export type {
+  WebSocketEventType,
+  WebSocketEventData,
+  WebSocketMessage,
+  WebSocketResponse,
+  WebSocketStats,
+  WebSocketConfig,
+} from "./websocket";

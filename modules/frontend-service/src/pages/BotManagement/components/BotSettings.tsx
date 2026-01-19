@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Typography,
   Box,
@@ -21,7 +21,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Settings as SettingsIcon,
   Save as SaveIcon,
@@ -32,9 +32,9 @@ import {
   Security as SecurityIcon,
   Speed as SpeedIcon,
   Storage as StorageIcon,
-} from '@mui/icons-material';
-import { TabPanel } from '@/components/ui';
-import { SUPPORTED_LANGUAGES } from '@/constants/languages';
+} from "@mui/icons-material";
+import { TabPanel } from "@/components/ui";
+import { SUPPORTED_LANGUAGES } from "@/constants/languages";
 
 interface BotSettingsProps {
   onSettingsUpdate: (settings: BotConfiguration) => void;
@@ -53,18 +53,18 @@ interface BotConfiguration {
     echoCancellation: boolean;
     autoGainControl: boolean;
   };
-  
+
   // Translation Settings
   translation: {
     enabledLanguages: string[];
     defaultSourceLanguage: string;
     simultaneousTranslation: boolean;
-    translationQuality: 'fast' | 'balanced' | 'accurate';
+    translationQuality: "fast" | "balanced" | "accurate";
     confidenceThreshold: number;
     maxTranslationLength: number;
     fallbackLanguage: string;
   };
-  
+
   // Performance Settings
   performance: {
     maxConcurrentBots: number;
@@ -73,9 +73,9 @@ interface BotConfiguration {
     memoryLimit: number;
     cpuThreshold: number;
     enableProfiling: boolean;
-    logLevel: 'debug' | 'info' | 'warning' | 'error';
+    logLevel: "debug" | "info" | "warning" | "error";
   };
-  
+
   // Security Settings
   security: {
     enableEncryption: boolean;
@@ -86,7 +86,7 @@ interface BotConfiguration {
     allowedDomains: string[];
     enableAuditLog: boolean;
   };
-  
+
   // Storage Settings
   storage: {
     retentionPeriod: number;
@@ -111,13 +111,24 @@ const defaultSettings: BotConfiguration = {
     autoGainControl: true,
   },
   translation: {
-    enabledLanguages: ['en', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'ko', 'zh', 'ru'],
-    defaultSourceLanguage: 'en',
+    enabledLanguages: [
+      "en",
+      "es",
+      "fr",
+      "de",
+      "it",
+      "pt",
+      "ja",
+      "ko",
+      "zh",
+      "ru",
+    ],
+    defaultSourceLanguage: "en",
     simultaneousTranslation: true,
-    translationQuality: 'balanced',
+    translationQuality: "balanced",
     confidenceThreshold: 0.7,
     maxTranslationLength: 500,
-    fallbackLanguage: 'en',
+    fallbackLanguage: "en",
   },
   performance: {
     maxConcurrentBots: 10,
@@ -126,7 +137,7 @@ const defaultSettings: BotConfiguration = {
     memoryLimit: 2048,
     cpuThreshold: 80,
     enableProfiling: false,
-    logLevel: 'info',
+    logLevel: "info",
   },
   security: {
     enableEncryption: true,
@@ -134,7 +145,7 @@ const defaultSettings: BotConfiguration = {
     maxSessionDuration: 14400,
     enableRateLimiting: true,
     rateLimit: 100,
-    allowedDomains: ['meet.google.com', 'teams.microsoft.com'],
+    allowedDomains: ["meet.google.com", "teams.microsoft.com"],
     enableAuditLog: true,
   },
   storage: {
@@ -149,7 +160,9 @@ const defaultSettings: BotConfiguration = {
 
 const availableLanguages = SUPPORTED_LANGUAGES;
 
-export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) => {
+export const BotSettings: React.FC<BotSettingsProps> = ({
+  onSettingsUpdate,
+}) => {
   const [tabValue, setTabValue] = useState(0);
   const [settings, setSettings] = useState<BotConfiguration>(defaultSettings);
   const [hasChanges, setHasChanges] = useState(false);
@@ -157,8 +170,8 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
   const [notification, setNotification] = useState<{
     show: boolean;
     message: string;
-    severity: 'success' | 'error' | 'info';
-  }>({ show: false, message: '', severity: 'info' });
+    severity: "success" | "error" | "info";
+  }>({ show: false, message: "", severity: "info" });
 
   useEffect(() => {
     loadSettings();
@@ -166,18 +179,22 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('/api/bot/settings');
+      const response = await fetch("/api/bot/settings");
       if (response.ok) {
         const data = await response.json();
         setSettings({ ...defaultSettings, ...data });
       }
     } catch (error) {
-      console.error('Failed to load settings:', error);
+      console.error("Failed to load settings:", error);
     }
   };
 
-  const handleSettingChange = (section: keyof BotConfiguration, field: string, value: any) => {
-    setSettings(prev => ({
+  const handleSettingChange = (
+    section: keyof BotConfiguration,
+    field: string,
+    value: any,
+  ) => {
+    setSettings((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
@@ -190,9 +207,9 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
   const handleSaveSettings = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/bot/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/bot/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
 
@@ -200,18 +217,18 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
         setHasChanges(false);
         setNotification({
           show: true,
-          message: 'Settings saved successfully',
-          severity: 'success',
+          message: "Settings saved successfully",
+          severity: "success",
         });
         onSettingsUpdate(settings);
       } else {
-        throw new Error('Failed to save settings');
+        throw new Error("Failed to save settings");
       }
     } catch (error) {
       setNotification({
         show: true,
-        message: 'Failed to save settings',
-        severity: 'error',
+        message: "Failed to save settings",
+        severity: "error",
       });
     } finally {
       setLoading(false);
@@ -226,17 +243,24 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
   const toggleLanguage = (languageCode: string) => {
     const currentLanguages = settings.translation.enabledLanguages;
     const newLanguages = currentLanguages.includes(languageCode)
-      ? currentLanguages.filter(lang => lang !== languageCode)
+      ? currentLanguages.filter((lang) => lang !== languageCode)
       : [...currentLanguages, languageCode];
-    
-    handleSettingChange('translation', 'enabledLanguages', newLanguages);
+
+    handleSettingChange("translation", "enabledLanguages", newLanguages);
   };
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
         <Typography variant="h6">
-          <SettingsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          <SettingsIcon sx={{ mr: 1, verticalAlign: "middle" }} />
           Bot Configuration Settings
         </Typography>
         <Stack direction="row" spacing={2}>
@@ -253,23 +277,26 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
             disabled={!hasChanges || loading}
             startIcon={<SaveIcon />}
           >
-            {loading ? 'Saving...' : 'Save Settings'}
+            {loading ? "Saving..." : "Save Settings"}
           </Button>
         </Stack>
       </Box>
 
       {notification.show && (
-        <Alert 
-          severity={notification.severity} 
+        <Alert
+          severity={notification.severity}
           sx={{ mb: 2 }}
-          onClose={() => setNotification(prev => ({ ...prev, show: false }))}
+          onClose={() => setNotification((prev) => ({ ...prev, show: false }))}
         >
           {notification.message}
         </Alert>
       )}
 
-      <Paper sx={{ width: '100%' }}>
-        <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
+      <Paper sx={{ width: "100%" }}>
+        <Tabs
+          value={tabValue}
+          onChange={(_, newValue) => setTabValue(newValue)}
+        >
           <Tab icon={<AudioIcon />} label="Audio Processing" />
           <Tab icon={<LanguageIcon />} label="Translation" />
           <Tab icon={<SpeedIcon />} label="Performance" />
@@ -291,10 +318,18 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       <Select
                         value={settings.audioProcessing.sampleRate}
                         label="Sample Rate"
-                        onChange={(e) => handleSettingChange('audioProcessing', 'sampleRate', e.target.value)}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "audioProcessing",
+                            "sampleRate",
+                            e.target.value,
+                          )
+                        }
                       >
                         <MenuItem value={8000}>8000 Hz</MenuItem>
-                        <MenuItem value={16000}>16000 Hz (Recommended)</MenuItem>
+                        <MenuItem value={16000}>
+                          16000 Hz (Recommended)
+                        </MenuItem>
                         <MenuItem value={44100}>44100 Hz</MenuItem>
                         <MenuItem value={48000}>48000 Hz</MenuItem>
                       </Select>
@@ -305,7 +340,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       <Select
                         value={settings.audioProcessing.channels}
                         label="Channels"
-                        onChange={(e) => handleSettingChange('audioProcessing', 'channels', e.target.value)}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "audioProcessing",
+                            "channels",
+                            e.target.value,
+                          )
+                        }
                       >
                         <MenuItem value={1}>Mono (Recommended)</MenuItem>
                         <MenuItem value={2}>Stereo</MenuItem>
@@ -317,7 +358,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       <Select
                         value={settings.audioProcessing.bitDepth}
                         label="Bit Depth"
-                        onChange={(e) => handleSettingChange('audioProcessing', 'bitDepth', e.target.value)}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "audioProcessing",
+                            "bitDepth",
+                            e.target.value,
+                          )
+                        }
                       >
                         <MenuItem value={16}>16-bit (Recommended)</MenuItem>
                         <MenuItem value={24}>24-bit</MenuItem>
@@ -340,7 +387,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.audioProcessing.vadEnabled}
-                          onChange={(e) => handleSettingChange('audioProcessing', 'vadEnabled', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "audioProcessing",
+                              "vadEnabled",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Voice Activity Detection"
@@ -349,19 +402,26 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                     {settings.audioProcessing.vadEnabled && (
                       <Box>
                         <Typography variant="body2" gutterBottom>
-                          VAD Aggressiveness: {settings.audioProcessing.vadAggressiveness}
+                          VAD Aggressiveness:{" "}
+                          {settings.audioProcessing.vadAggressiveness}
                         </Typography>
                         <Slider
                           value={settings.audioProcessing.vadAggressiveness}
-                          onChange={(_, value) => handleSettingChange('audioProcessing', 'vadAggressiveness', value)}
+                          onChange={(_, value) =>
+                            handleSettingChange(
+                              "audioProcessing",
+                              "vadAggressiveness",
+                              value,
+                            )
+                          }
                           min={0}
                           max={3}
                           step={1}
                           marks={[
-                            { value: 0, label: 'Least' },
-                            { value: 1, label: 'Low' },
-                            { value: 2, label: 'Normal' },
-                            { value: 3, label: 'Most' },
+                            { value: 0, label: "Least" },
+                            { value: 1, label: "Low" },
+                            { value: 2, label: "Normal" },
+                            { value: 3, label: "Most" },
                           ]}
                         />
                       </Box>
@@ -371,7 +431,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.audioProcessing.noiseReduction}
-                          onChange={(e) => handleSettingChange('audioProcessing', 'noiseReduction', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "audioProcessing",
+                              "noiseReduction",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Noise Reduction"
@@ -380,16 +446,28 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                     {settings.audioProcessing.noiseReduction && (
                       <Box>
                         <Typography variant="body2" gutterBottom>
-                          Noise Reduction Level: {Math.round(settings.audioProcessing.noiseReductionLevel * 100)}%
+                          Noise Reduction Level:{" "}
+                          {Math.round(
+                            settings.audioProcessing.noiseReductionLevel * 100,
+                          )}
+                          %
                         </Typography>
                         <Slider
                           value={settings.audioProcessing.noiseReductionLevel}
-                          onChange={(_, value) => handleSettingChange('audioProcessing', 'noiseReductionLevel', value)}
+                          onChange={(_, value) =>
+                            handleSettingChange(
+                              "audioProcessing",
+                              "noiseReductionLevel",
+                              value,
+                            )
+                          }
                           min={0}
                           max={1}
                           step={0.1}
                           valueLabelDisplay="auto"
-                          valueLabelFormat={(value) => `${Math.round(value * 100)}%`}
+                          valueLabelFormat={(value) =>
+                            `${Math.round(value * 100)}%`
+                          }
                         />
                       </Box>
                     )}
@@ -398,7 +476,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.audioProcessing.echoCancellation}
-                          onChange={(e) => handleSettingChange('audioProcessing', 'echoCancellation', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "audioProcessing",
+                              "echoCancellation",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Echo Cancellation"
@@ -408,7 +492,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.audioProcessing.autoGainControl}
-                          onChange={(e) => handleSettingChange('audioProcessing', 'autoGainControl', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "audioProcessing",
+                              "autoGainControl",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Auto Gain Control"
@@ -425,7 +515,9 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
             <Grid item xs={12} md={6}>
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="subtitle1">Language Configuration</Typography>
+                  <Typography variant="subtitle1">
+                    Language Configuration
+                  </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={2}>
@@ -434,7 +526,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       <Select
                         value={settings.translation.defaultSourceLanguage}
                         label="Default Source Language"
-                        onChange={(e) => handleSettingChange('translation', 'defaultSourceLanguage', e.target.value)}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "translation",
+                            "defaultSourceLanguage",
+                            e.target.value,
+                          )
+                        }
                       >
                         {availableLanguages.map((lang) => (
                           <MenuItem key={lang.code} value={lang.code}>
@@ -449,7 +547,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       <Select
                         value={settings.translation.fallbackLanguage}
                         label="Fallback Language"
-                        onChange={(e) => handleSettingChange('translation', 'fallbackLanguage', e.target.value)}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "translation",
+                            "fallbackLanguage",
+                            e.target.value,
+                          )
+                        }
                       >
                         {availableLanguages.map((lang) => (
                           <MenuItem key={lang.code} value={lang.code}>
@@ -460,16 +564,29 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                     </FormControl>
 
                     <Typography variant="body2" gutterBottom>
-                      Enabled Languages ({settings.translation.enabledLanguages.length})
+                      Enabled Languages (
+                      {settings.translation.enabledLanguages.length})
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                       {availableLanguages.map((language) => (
                         <Chip
                           key={language.code}
                           label={language.name}
                           clickable
-                          color={settings.translation.enabledLanguages.includes(language.code) ? 'primary' : 'default'}
-                          variant={settings.translation.enabledLanguages.includes(language.code) ? 'filled' : 'outlined'}
+                          color={
+                            settings.translation.enabledLanguages.includes(
+                              language.code,
+                            )
+                              ? "primary"
+                              : "default"
+                          }
+                          variant={
+                            settings.translation.enabledLanguages.includes(
+                              language.code,
+                            )
+                              ? "filled"
+                              : "outlined"
+                          }
                           onClick={() => toggleLanguage(language.code)}
                         />
                       ))}
@@ -482,7 +599,9 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
             <Grid item xs={12} md={6}>
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="subtitle1">Translation Quality</Typography>
+                  <Typography variant="subtitle1">
+                    Translation Quality
+                  </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={2}>
@@ -491,26 +610,48 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       <Select
                         value={settings.translation.translationQuality}
                         label="Translation Quality"
-                        onChange={(e) => handleSettingChange('translation', 'translationQuality', e.target.value)}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "translation",
+                            "translationQuality",
+                            e.target.value,
+                          )
+                        }
                       >
                         <MenuItem value="fast">Fast (Lower accuracy)</MenuItem>
-                        <MenuItem value="balanced">Balanced (Recommended)</MenuItem>
-                        <MenuItem value="accurate">Accurate (Higher latency)</MenuItem>
+                        <MenuItem value="balanced">
+                          Balanced (Recommended)
+                        </MenuItem>
+                        <MenuItem value="accurate">
+                          Accurate (Higher latency)
+                        </MenuItem>
                       </Select>
                     </FormControl>
 
                     <Box>
                       <Typography variant="body2" gutterBottom>
-                        Confidence Threshold: {Math.round(settings.translation.confidenceThreshold * 100)}%
+                        Confidence Threshold:{" "}
+                        {Math.round(
+                          settings.translation.confidenceThreshold * 100,
+                        )}
+                        %
                       </Typography>
                       <Slider
                         value={settings.translation.confidenceThreshold}
-                        onChange={(_, value) => handleSettingChange('translation', 'confidenceThreshold', value)}
+                        onChange={(_, value) =>
+                          handleSettingChange(
+                            "translation",
+                            "confidenceThreshold",
+                            value,
+                          )
+                        }
                         min={0.1}
                         max={1}
                         step={0.05}
                         valueLabelDisplay="auto"
-                        valueLabelFormat={(value) => `${Math.round(value * 100)}%`}
+                        valueLabelFormat={(value) =>
+                          `${Math.round(value * 100)}%`
+                        }
                       />
                     </Box>
 
@@ -519,7 +660,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Max Translation Length"
                       type="number"
                       value={settings.translation.maxTranslationLength}
-                      onChange={(e) => handleSettingChange('translation', 'maxTranslationLength', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "translation",
+                          "maxTranslationLength",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Maximum characters per translation"
                     />
 
@@ -527,7 +674,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.translation.simultaneousTranslation}
-                          onChange={(e) => handleSettingChange('translation', 'simultaneousTranslation', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "translation",
+                              "simultaneousTranslation",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Simultaneous Translation"
@@ -553,7 +706,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Max Concurrent Bots"
                       type="number"
                       value={settings.performance.maxConcurrentBots}
-                      onChange={(e) => handleSettingChange('performance', 'maxConcurrentBots', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "performance",
+                          "maxConcurrentBots",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Maximum number of bots running simultaneously"
                     />
 
@@ -562,7 +721,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Processing Timeout (ms)"
                       type="number"
                       value={settings.performance.processingTimeout}
-                      onChange={(e) => handleSettingChange('performance', 'processingTimeout', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "performance",
+                          "processingTimeout",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Maximum time for processing operations"
                     />
 
@@ -571,7 +736,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Memory Limit (MB)"
                       type="number"
                       value={settings.performance.memoryLimit}
-                      onChange={(e) => handleSettingChange('performance', 'memoryLimit', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "performance",
+                          "memoryLimit",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Maximum memory usage per bot"
                     />
 
@@ -581,7 +752,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       </Typography>
                       <Slider
                         value={settings.performance.cpuThreshold}
-                        onChange={(_, value) => handleSettingChange('performance', 'cpuThreshold', value)}
+                        onChange={(_, value) =>
+                          handleSettingChange(
+                            "performance",
+                            "cpuThreshold",
+                            value,
+                          )
+                        }
                         min={50}
                         max={100}
                         step={5}
@@ -606,7 +783,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Retry Attempts"
                       type="number"
                       value={settings.performance.retryAttempts}
-                      onChange={(e) => handleSettingChange('performance', 'retryAttempts', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "performance",
+                          "retryAttempts",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Number of retry attempts for failed operations"
                     />
 
@@ -615,7 +798,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       <Select
                         value={settings.performance.logLevel}
                         label="Log Level"
-                        onChange={(e) => handleSettingChange('performance', 'logLevel', e.target.value)}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "performance",
+                            "logLevel",
+                            e.target.value,
+                          )
+                        }
                       >
                         <MenuItem value="debug">Debug (Most verbose)</MenuItem>
                         <MenuItem value="info">Info (Recommended)</MenuItem>
@@ -628,7 +817,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.performance.enableProfiling}
-                          onChange={(e) => handleSettingChange('performance', 'enableProfiling', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "performance",
+                              "enableProfiling",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Enable Performance Profiling"
@@ -653,7 +848,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.security.enableEncryption}
-                          onChange={(e) => handleSettingChange('security', 'enableEncryption', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "security",
+                              "enableEncryption",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Enable Encryption"
@@ -663,7 +864,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.security.enableRateLimiting}
-                          onChange={(e) => handleSettingChange('security', 'enableRateLimiting', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "security",
+                              "enableRateLimiting",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Enable Rate Limiting"
@@ -675,7 +882,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                         label="Rate Limit (requests/minute)"
                         type="number"
                         value={settings.security.rateLimit}
-                        onChange={(e) => handleSettingChange('security', 'rateLimit', parseInt(e.target.value))}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "security",
+                            "rateLimit",
+                            parseInt(e.target.value),
+                          )
+                        }
                       />
                     )}
 
@@ -683,7 +896,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.security.enableAuditLog}
-                          onChange={(e) => handleSettingChange('security', 'enableAuditLog', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "security",
+                              "enableAuditLog",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Enable Audit Logging"
@@ -696,7 +915,9 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
             <Grid item xs={12} md={6}>
               <Accordion defaultExpanded>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="subtitle1">Session Management</Typography>
+                  <Typography variant="subtitle1">
+                    Session Management
+                  </Typography>
                 </AccordionSummary>
                 <AccordionDetails>
                   <Stack spacing={2}>
@@ -705,7 +926,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Session Timeout (seconds)"
                       type="number"
                       value={settings.security.sessionTimeout}
-                      onChange={(e) => handleSettingChange('security', 'sessionTimeout', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "security",
+                          "sessionTimeout",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Idle session timeout"
                     />
 
@@ -714,21 +941,34 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Max Session Duration (seconds)"
                       type="number"
                       value={settings.security.maxSessionDuration}
-                      onChange={(e) => handleSettingChange('security', 'maxSessionDuration', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "security",
+                          "maxSessionDuration",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Maximum session duration"
                     />
 
                     <Typography variant="body2" gutterBottom>
                       Allowed Domains
                     </Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                       {settings.security.allowedDomains.map((domain, index) => (
                         <Chip
                           key={index}
                           label={domain}
                           onDelete={() => {
-                            const newDomains = settings.security.allowedDomains.filter((_, i) => i !== index);
-                            handleSettingChange('security', 'allowedDomains', newDomains);
+                            const newDomains =
+                              settings.security.allowedDomains.filter(
+                                (_, i) => i !== index,
+                              );
+                            handleSettingChange(
+                              "security",
+                              "allowedDomains",
+                              newDomains,
+                            );
                           }}
                         />
                       ))}
@@ -754,7 +994,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Retention Period (days)"
                       type="number"
                       value={settings.storage.retentionPeriod}
-                      onChange={(e) => handleSettingChange('storage', 'retentionPeriod', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "storage",
+                          "retentionPeriod",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="How long to keep session data"
                     />
 
@@ -763,7 +1009,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       label="Max Storage Size (MB)"
                       type="number"
                       value={settings.storage.maxStorageSize}
-                      onChange={(e) => handleSettingChange('storage', 'maxStorageSize', parseInt(e.target.value))}
+                      onChange={(e) =>
+                        handleSettingChange(
+                          "storage",
+                          "maxStorageSize",
+                          parseInt(e.target.value),
+                        )
+                      }
                       helperText="Maximum storage space usage"
                     />
 
@@ -771,7 +1023,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.storage.autoCleanup}
-                          onChange={(e) => handleSettingChange('storage', 'autoCleanup', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "storage",
+                              "autoCleanup",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Auto Cleanup Old Data"
@@ -781,7 +1039,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.storage.compressionEnabled}
-                          onChange={(e) => handleSettingChange('storage', 'compressionEnabled', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "storage",
+                              "compressionEnabled",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Enable Data Compression"
@@ -802,7 +1066,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                       control={
                         <Switch
                           checked={settings.storage.enableBackup}
-                          onChange={(e) => handleSettingChange('storage', 'enableBackup', e.target.checked)}
+                          onChange={(e) =>
+                            handleSettingChange(
+                              "storage",
+                              "enableBackup",
+                              e.target.checked,
+                            )
+                          }
                         />
                       }
                       label="Enable Automatic Backups"
@@ -814,7 +1084,13 @@ export const BotSettings: React.FC<BotSettingsProps> = ({ onSettingsUpdate }) =>
                         label="Backup Frequency (hours)"
                         type="number"
                         value={settings.storage.backupFrequency}
-                        onChange={(e) => handleSettingChange('storage', 'backupFrequency', parseInt(e.target.value))}
+                        onChange={(e) =>
+                          handleSettingChange(
+                            "storage",
+                            "backupFrequency",
+                            parseInt(e.target.value),
+                          )
+                        }
                         helperText="How often to create backups"
                       />
                     )}

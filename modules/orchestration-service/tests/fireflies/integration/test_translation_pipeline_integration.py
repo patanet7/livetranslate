@@ -10,24 +10,25 @@ Uses test-local implementations to avoid import chain issues.
 """
 
 import asyncio
-import pytest
-import time
 import threading
+import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional, List, Dict, Callable, Any
-from uuid import UUID, uuid4
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any, ClassVar
+from uuid import uuid4
 
+import pytest
 
 # =============================================================================
 # Test-Local Model Definitions
 # =============================================================================
 
+
 @dataclass
 class FirefliesChunk:
     """Incoming transcript chunk from Fireflies."""
+
     transcript_id: str
     chunk_id: str
     text: str
@@ -39,27 +40,30 @@ class FirefliesChunk:
 @dataclass
 class TranslationUnit:
     """Complete sentence ready for translation."""
+
     text: str
     speaker_name: str
     start_time: float
     end_time: float
-    chunk_ids: List[str]
+    chunk_ids: list[str]
     boundary_type: str  # punctuation, pause, speaker_change, nlp, forced
     word_count: int
-    session_id: Optional[str] = None
+    session_id: str | None = None
 
 
 @dataclass
 class TranslationContext:
     """Context for translation including glossary and previous sentences."""
-    previous_sentences: List[str] = field(default_factory=list)
-    glossary_terms: Dict[str, str] = field(default_factory=dict)
-    domain: Optional[str] = None
+
+    previous_sentences: list[str] = field(default_factory=list)
+    glossary_terms: dict[str, str] = field(default_factory=dict)
+    domain: str | None = None
 
 
 @dataclass
 class TranslationResult:
     """Result of translation."""
+
     original_text: str
     translated_text: str
     source_language: str
@@ -67,16 +71,17 @@ class TranslationResult:
     speaker_name: str
     confidence: float = 0.0
     context_used: bool = False
-    glossary_terms_applied: List[str] = field(default_factory=list)
+    glossary_terms_applied: list[str] = field(default_factory=list)
     translation_time_ms: float = 0.0
 
 
 @dataclass
 class Caption:
     """A display caption with timing and speaker info."""
+
     id: str
     translated_text: str
-    original_text: Optional[str]
+    original_text: str | None
     speaker_name: str
     speaker_color: str
     target_language: str
@@ -89,7 +94,7 @@ class Caption:
     def is_expired(self) -> bool:
         return time.time() > self.expires_at
 
-    def to_display_dict(self) -> Dict[str, Any]:
+    def to_display_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "text": self.translated_text,
@@ -105,6 +110,7 @@ class Caption:
 # Test-Local Service Implementations
 # =============================================================================
 
+
 class SentenceAggregator:
     """Aggregates streaming transcript chunks into complete sentences."""
 
@@ -119,10 +125,21 @@ class SentenceAggregator:
         self.max_buffer_words = max_buffer_words
         self.max_buffer_seconds = max_buffer_seconds
         self.min_words_for_translation = min_words_for_translation
-        self.buffers: Dict[str, Dict] = {}
-        self.abbreviations = {'dr.', 'mr.', 'mrs.', 'ms.', 'prof.', 'inc.', 'ltd.', 'etc.', 'e.g.', 'i.e.'}
+        self.buffers: dict[str, dict] = {}
+        self.abbreviations = {
+            "dr.",
+            "mr.",
+            "mrs.",
+            "ms.",
+            "prof.",
+            "inc.",
+            "ltd.",
+            "etc.",
+            "e.g.",
+            "i.e.",
+        }
 
-    def process_chunk(self, chunk: FirefliesChunk) -> List[TranslationUnit]:
+    def process_chunk(self, chunk: FirefliesChunk) -> list[TranslationUnit]:
         """Process incoming chunk, return complete sentences ready for translation."""
         speaker = chunk.speaker_name
         results = []
@@ -161,7 +178,7 @@ class SentenceAggregator:
 
         return results
 
-    def _extract_punctuated_sentences(self, speaker: str) -> List[TranslationUnit]:
+    def _extract_punctuated_sentences(self, speaker: str) -> list[TranslationUnit]:
         """Extract sentences that end with punctuation."""
         buffer = self.buffers[speaker]
         results = []
@@ -169,7 +186,8 @@ class SentenceAggregator:
 
         # Find sentence boundaries
         import re
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+
+        sentences = re.split(r"(?<=[.!?])\s+", text)
 
         if len(sentences) > 1:
             # Extract complete sentences
@@ -196,7 +214,7 @@ class SentenceAggregator:
 
         return results
 
-    def _flush_buffer(self, speaker: str, boundary_type: str) -> List[TranslationUnit]:
+    def _flush_buffer(self, speaker: str, boundary_type: str) -> list[TranslationUnit]:
         """Flush buffer and return translation unit."""
         buffer = self.buffers[speaker]
         results = []
@@ -222,7 +240,7 @@ class SentenceAggregator:
 
         return results
 
-    def flush_all(self) -> List[TranslationUnit]:
+    def flush_all(self) -> list[TranslationUnit]:
         """Flush all speaker buffers."""
         results = []
         for speaker in list(self.buffers.keys()):
@@ -236,15 +254,15 @@ class MockTranslationClient:
     def __init__(self, delay_ms: float = 50):
         self.delay_ms = delay_ms
         self.call_count = 0
-        self.translations: Dict[str, str] = {}  # Pre-defined translations
+        self.translations: dict[str, str] = {}  # Pre-defined translations
 
     async def translate(
         self,
         text: str,
         target_language: str,
         source_language: str = "en",
-        prompt: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        prompt: str | None = None,
+    ) -> dict[str, Any]:
         """Mock translation."""
         self.call_count += 1
         await asyncio.sleep(self.delay_ms / 1000)
@@ -269,7 +287,7 @@ class RollingWindowTranslator:
     def __init__(
         self,
         translation_client: MockTranslationClient,
-        glossary_service: Optional[Any] = None,
+        glossary_service: Any | None = None,
         window_size: int = 3,
         include_cross_speaker_context: bool = True,
     ):
@@ -277,7 +295,7 @@ class RollingWindowTranslator:
         self.glossary_service = glossary_service
         self.window_size = window_size
         self.include_cross_speaker_context = include_cross_speaker_context
-        self.speaker_windows: Dict[str, deque] = {}
+        self.speaker_windows: dict[str, deque] = {}
         self.global_window: deque = deque(maxlen=window_size)
         self.translation_count = 0
         self.error_count = 0
@@ -292,7 +310,7 @@ class RollingWindowTranslator:
         self,
         unit: TranslationUnit,
         target_language: str,
-        glossary_terms: Optional[Dict[str, str]] = None,
+        glossary_terms: dict[str, str] | None = None,
         source_language: str = "en",
     ) -> TranslationResult:
         """Translate a unit with context window and glossary."""
@@ -352,7 +370,7 @@ class RollingWindowTranslator:
                 translation_time_ms=elapsed_ms,
             )
 
-        except Exception as e:
+        except Exception:
             self.error_count += 1
             raise
 
@@ -365,7 +383,7 @@ class RollingWindowTranslator:
 class CaptionBuffer:
     """Manages caption display queue with expiration and speaker colors."""
 
-    MATERIAL_COLORS = [
+    MATERIAL_COLORS: ClassVar[list[str]] = [
         "#2196F3",  # Blue
         "#4CAF50",  # Green
         "#FF9800",  # Orange
@@ -382,8 +400,8 @@ class CaptionBuffer:
         default_duration: float = 8.0,
         min_display_time: float = 2.0,
         show_original: bool = True,
-        on_caption_added: Optional[Callable[[Caption], None]] = None,
-        on_caption_expired: Optional[Callable[[Caption], None]] = None,
+        on_caption_added: Callable[[Caption], None] | None = None,
+        on_caption_expired: Callable[[Caption], None] | None = None,
     ):
         self.max_captions = max_captions
         self.default_duration = default_duration
@@ -391,8 +409,8 @@ class CaptionBuffer:
         self.show_original = show_original
         self.on_caption_added = on_caption_added
         self.on_caption_expired = on_caption_expired
-        self._captions: List[Caption] = []
-        self._speaker_colors: Dict[str, str] = {}
+        self._captions: list[Caption] = []
+        self._speaker_colors: dict[str, str] = {}
         self._next_color_index = 0
         self._lock = threading.RLock()
 
@@ -408,7 +426,7 @@ class CaptionBuffer:
     def add_caption(
         self,
         translation_result: TranslationResult,
-        duration: Optional[float] = None,
+        duration: float | None = None,
         priority: int = 0,
     ) -> Caption:
         """Add a caption from translation result."""
@@ -447,10 +465,10 @@ class CaptionBuffer:
 
             return caption
 
-    def _cleanup_expired(self) -> List[Caption]:
+    def _cleanup_expired(self) -> list[Caption]:
         """Remove expired captions."""
         expired = []
-        now = time.time()
+        time.time()
         remaining = []
 
         for caption in self._captions:
@@ -464,13 +482,13 @@ class CaptionBuffer:
         self._captions = remaining
         return expired
 
-    def get_active_captions(self) -> List[Caption]:
+    def get_active_captions(self) -> list[Caption]:
         """Get all active (non-expired) captions."""
         with self._lock:
             self._cleanup_expired()
             return list(self._captions)
 
-    def get_display_data(self) -> List[Dict[str, Any]]:
+    def get_display_data(self) -> list[dict[str, Any]]:
         """Get caption data for display."""
         return [c.to_display_dict() for c in self.get_active_captions()]
 
@@ -483,6 +501,7 @@ class CaptionBuffer:
 # =============================================================================
 # Integration Tests
 # =============================================================================
+
 
 class TestFullPipelineIntegration:
     """Tests for the complete translation pipeline."""
@@ -620,9 +639,7 @@ class TestFullPipelineIntegration:
         """Test glossary terms are applied during translation."""
         # GIVEN: A sentence with glossary terms
         chunk = FirefliesChunk(
-            "t1", "c1",
-            "The API integration with OAuth is complete.",
-            "Alice", 0.0, 2.0
+            "t1", "c1", "The API integration with OAuth is complete.", "Alice", 0.0, 2.0
         )
 
         glossary = {
@@ -701,7 +718,7 @@ class TestFullPipelineIntegration:
         sentences = ["First message.", "Second message.", "Third message."]
 
         for i, sentence in enumerate(sentences):
-            chunk = FirefliesChunk("t1", f"c{i}", sentence, f"Speaker{i}", float(i), float(i)+1.0)
+            chunk = FirefliesChunk("t1", f"c{i}", sentence, f"Speaker{i}", float(i), float(i) + 1.0)
             units = aggregator.process_chunk(chunk)
             units.extend(aggregator.flush_all())
 
@@ -730,8 +747,8 @@ class TestFullPipelineIntegration:
             unit = TranslationUnit(
                 text=sentence,
                 speaker_name="Alice",
-                start_time=float(i*2),
-                end_time=float(i*2 + 1),
+                start_time=float(i * 2),
+                end_time=float(i * 2 + 1),
                 chunk_ids=[f"a{i}"],
                 boundary_type="punctuation",
                 word_count=2,
@@ -742,8 +759,8 @@ class TestFullPipelineIntegration:
             unit = TranslationUnit(
                 text=sentence,
                 speaker_name="Bob",
-                start_time=float(i*2 + 1),
-                end_time=float(i*2 + 2),
+                start_time=float(i * 2 + 1),
+                end_time=float(i * 2 + 2),
                 chunk_ids=[f"b{i}"],
                 boundary_type="punctuation",
                 word_count=2,
@@ -756,8 +773,8 @@ class TestFullPipelineIntegration:
 
         assert len(alice_window) == 2  # Limited by window_size
         assert len(bob_window) == 2
-        assert "Alice" in list(alice_window)[0]
-        assert "Bob" in list(bob_window)[0]
+        assert "Alice" in next(iter(alice_window))
+        assert "Bob" in next(iter(bob_window))
 
     @pytest.mark.asyncio
     async def test_full_meeting_simulation(self, aggregator, translator, caption_buffer):
@@ -767,12 +784,10 @@ class TestFullPipelineIntegration:
             # Meeting start
             ("Alice", "Good morning everyone, let's begin.", 0.0, 2.0),
             ("Bob", "Thanks Alice. I have the status update ready.", 3.0, 5.0),
-
             # Discussion
             ("Bob", "The backend API is now complete.", 6.0, 8.0),
             ("Charlie", "Great work! What about the frontend?", 9.0, 11.0),
             ("Alice", "We're still working on that.", 12.0, 14.0),
-
             # Wrap up
             ("Alice", "Let's meet again tomorrow.", 15.0, 17.0),
             ("Bob", "Sounds good to me.", 18.0, 19.0),
@@ -824,6 +839,7 @@ class TestPipelineErrorHandling:
     @pytest.mark.asyncio
     async def test_translation_error_recovery(self, aggregator):
         """Test pipeline continues after translation error."""
+
         # GIVEN: A client that fails once then succeeds
         class FailOnceClient(MockTranslationClient):
             def __init__(self):
@@ -846,7 +862,9 @@ class TestPipelineErrorHandling:
         successes = []
 
         for i, sentence in enumerate(sentences):
-            chunk = FirefliesChunk("t1", f"c{i}", sentence, "Alice", float(i)*2, float(i)*2+1.0)
+            chunk = FirefliesChunk(
+                "t1", f"c{i}", sentence, "Alice", float(i) * 2, float(i) * 2 + 1.0
+            )
             units = aggregator.process_chunk(chunk)
             units.extend(aggregator.flush_all())
 
@@ -859,14 +877,18 @@ class TestPipelineErrorHandling:
                     errors.append((sentence, str(e)))
 
         # THEN: First should fail, second should succeed
-        assert len(errors) == 1, f"Expected 1 error, got {len(errors)}. Errors: {errors}, Successes: {successes}, Fail count: {fail_client.fail_count}"
-        assert len(successes) == 1, f"Expected 1 success, got {len(successes)}. Errors: {errors}, Successes: {successes}"
+        assert (
+            len(errors) == 1
+        ), f"Expected 1 error, got {len(errors)}. Errors: {errors}, Successes: {successes}, Fail count: {fail_client.fail_count}"
+        assert (
+            len(successes) == 1
+        ), f"Expected 1 success, got {len(successes)}. Errors: {errors}, Successes: {successes}"
         assert translator.error_count == 1
 
     @pytest.mark.asyncio
     async def test_empty_chunk_handling(self, aggregator):
         """Test pipeline handles empty chunks gracefully."""
-        translator = RollingWindowTranslator(translation_client=MockTranslationClient())
+        RollingWindowTranslator(translation_client=MockTranslationClient())
 
         # GIVEN: Chunks with empty text
         chunks = [
@@ -894,9 +916,7 @@ class TestPipelinePerformance:
     async def test_high_throughput(self):
         """Test pipeline handles high message volume."""
         aggregator = SentenceAggregator()
-        translator = RollingWindowTranslator(
-            translation_client=MockTranslationClient(delay_ms=1)
-        )
+        translator = RollingWindowTranslator(translation_client=MockTranslationClient(delay_ms=1))
         caption_buffer = CaptionBuffer(max_captions=100)
 
         # GIVEN: 100 messages
@@ -904,10 +924,12 @@ class TestPipelinePerformance:
 
         for i in range(100):
             chunk = FirefliesChunk(
-                f"t1", f"c{i}",
+                "t1",
+                f"c{i}",
                 f"Message number {i} from the meeting.",
                 f"Speaker{i % 5}",
-                float(i), float(i) + 0.5
+                float(i),
+                float(i) + 0.5,
             )
 
             units = aggregator.process_chunk(chunk)
@@ -965,9 +987,7 @@ class TestCallbackIntegration:
             on_caption_expired=lambda c: expired_captions.append(c),
         )
 
-        translator = RollingWindowTranslator(
-            translation_client=MockTranslationClient(delay_ms=1)
-        )
+        translator = RollingWindowTranslator(translation_client=MockTranslationClient(delay_ms=1))
 
         # WHEN: Adding captions
         for i in range(3):

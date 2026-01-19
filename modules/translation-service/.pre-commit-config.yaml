@@ -1,0 +1,167 @@
+# Pre-commit configuration for Translation Service
+# Inherits from root config and adds service-specific checks
+# Run: pre-commit install && pre-commit run --all-files
+
+default_language_version:
+  python: python3.12
+
+# Service-specific file patterns
+files: ^(src/|tests/|config/)
+
+repos:
+  # =============================================================================
+  # Inherit from Root - General Hooks
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-ast
+        name: Check Python AST (translation-service)
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: check-json
+      - id: check-toml
+      - id: end-of-file-fixer
+        exclude: '\.min\.(js|css)$'
+      - id: trailing-whitespace
+        exclude: '\.min\.(js|css)$'
+      - id: debug-statements
+      - id: check-merge-conflict
+
+  # =============================================================================
+  # Python Formatting and Linting (Ruff)
+  # =============================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        name: Ruff linter (translation-service)
+        args:
+          - '--fix'
+          - '--exit-non-zero-on-fix'
+          - '--config'
+          - 'pyproject.toml'
+        types_or: [python, pyi]
+        exclude: '^\.venv/'
+      - id: ruff-format
+        name: Ruff formatter (translation-service)
+        args:
+          - '--config'
+          - 'pyproject.toml'
+        types_or: [python, pyi]
+        exclude: '^\.venv/'
+
+  # =============================================================================
+  # Type Checking
+  # =============================================================================
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        name: MyPy (translation-service)
+        additional_dependencies:
+          - types-requests
+          - types-redis
+          - types-PyYAML
+          - pydantic>=2.0
+          - flask
+          - fastapi
+        files: '^src/.*\.py$'
+        exclude: '^(\.venv/|tests/)'
+        args:
+          - '--ignore-missing-imports'
+          - '--python-version=3.12'
+
+  # =============================================================================
+  # Security Scanning
+  # =============================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.2
+    hooks:
+      - id: bandit
+        name: Bandit security scan (translation-service)
+        args:
+          - '-c'
+          - 'pyproject.toml'
+          - '--recursive'
+          - '--severity-level'
+          - 'low'
+          - '--confidence-level'
+          - 'medium'
+        files: '^src/.*\.py$'
+        exclude: '^(tests/|\.venv/)'
+
+  # =============================================================================
+  # Translation Service Specific - GPU Memory Safety
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check for unsafe CUDA operations
+      - id: cuda-memory-check
+        name: Check CUDA memory safety patterns
+        language: pygrep
+        entry: "(torch\\.cuda\\.empty_cache\\(\\)|\\.cuda\\(\\)|\\.to\\([\"']cuda[\"']\\))"
+        files: '^src/.*\.py$'
+        exclude: '^(tests/|\.venv/|src/gpu/)'
+        types: [python]
+        # This is informational - warns about direct CUDA usage outside gpu/ module
+        # Exit code 0 means pattern NOT found (good), 1 means pattern found (warning)
+        pass_filenames: true
+
+      # Ensure GPU code has proper error handling
+      - id: gpu-error-handling
+        name: Check GPU error handling
+        language: pygrep
+        entry: 'torch\.cuda\.(is_available|device_count|get_device_properties)'
+        files: '^src/gpu/.*\.py$'
+        types: [python]
+        pass_filenames: true
+
+      # Check for hardcoded model paths
+      - id: no-hardcoded-model-paths
+        name: No hardcoded model paths
+        language: pygrep
+        entry: '(/models/|/\.cache/huggingface/|C:\\\\|D:\\\\)'
+        files: '^src/.*\.py$'
+        exclude: '^(tests/|\.venv/|config/)'
+        types: [python]
+
+      # Ensure async functions have proper error handling
+      - id: async-error-handling
+        name: Check async error handling
+        language: pygrep
+        entry: 'async def [^:]+:\n\s+(?!try:|""")'
+        files: '^src/.*\.py$'
+        types: [python]
+        # Note: This is a lint suggestion, not a hard failure
+
+  # =============================================================================
+  # Dependencies Check
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: check-pyproject
+        name: Validate pyproject.toml
+        language: python
+        entry: python -c "import tomllib; tomllib.load(open('pyproject.toml', 'rb'))"
+        files: '^pyproject\.toml$'
+        pass_filenames: false
+
+# =============================================================================
+# Service-Specific Excludes
+# =============================================================================
+exclude: |
+  (?x)^(
+    \.venv/|
+    __pycache__/|
+    \.pytest_cache/|
+    \.mypy_cache/|
+    \.ruff_cache/|
+    dist/|
+    build/|
+    \.eggs/|
+    .*\.egg-info/|
+    htmlcov/|
+    \.coverage|
+    \.tox/
+  )

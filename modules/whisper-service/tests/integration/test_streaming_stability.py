@@ -8,15 +8,14 @@ Tests streaming mode with the real service to see:
 - Stable vs unstable text separation
 """
 
-import socketio
-import json
-import numpy as np
-import soundfile as sf
 import base64
 import time
-import asyncio
+
+import numpy as np
+import socketio
 
 SERVICE_URL = "http://localhost:5001"
+
 
 def test_streaming_with_stability():
     """Test streaming transcription with stability tracking using Socket.IO"""
@@ -34,7 +33,7 @@ def test_streaming_with_stability():
     for i in range(6):  # 6 chunks = 3 seconds total
         # Generate speech-like audio
         t = np.linspace(0, chunk_duration, int(sample_rate * chunk_duration))
-        freq = 200 + 50 * np.sin(2 * np.pi * (i+1) * t)
+        freq = 200 + 50 * np.sin(2 * np.pi * (i + 1) * t)
         audio = 0.3 * np.sin(2 * np.pi * freq * t)
         audio += 0.15 * np.sin(2 * np.pi * 2 * freq * t)
 
@@ -59,11 +58,11 @@ def test_streaming_with_stability():
 
     sio = socketio.Client()
 
-    @sio.on('connect')
+    @sio.on("connect")
     def on_connect():
         print("✅ Connected to Socket.IO\n")
 
-    @sio.on('transcription_result')
+    @sio.on("transcription_result")
     def on_transcription(data):
         nonlocal emission_count, draft_count, final_count
         emission_count += 1
@@ -72,17 +71,21 @@ def test_streaming_with_stability():
         print(f"  Full Text: '{data.get('text', 'N/A')[:60]}...'")
 
         # Check for Phase 3C fields
-        stable_text = data.get('stable_text', 'NOT_PRESENT')
-        unstable_text = data.get('unstable_text', 'NOT_PRESENT')
-        is_draft = data.get('is_draft', False)
-        is_final = data.get('is_final', False)
-        should_translate = data.get('should_translate', False)
-        translation_mode = data.get('translation_mode', 'none')
-        stability_score = data.get('stability_score', 0.0)
+        stable_text = data.get("stable_text", "NOT_PRESENT")
+        unstable_text = data.get("unstable_text", "NOT_PRESENT")
+        is_draft = data.get("is_draft", False)
+        is_final = data.get("is_final", False)
+        should_translate = data.get("should_translate", False)
+        translation_mode = data.get("translation_mode", "none")
+        stability_score = data.get("stability_score", 0.0)
 
-        print(f"\n  🎯 Stability Tracking:")
-        print(f"    Stable Text: '{stable_text[:40] if stable_text != 'NOT_PRESENT' else stable_text}...'")
-        print(f"    Unstable Text: '{unstable_text[:20] if unstable_text != 'NOT_PRESENT' else unstable_text}...'")
+        print("\n  🎯 Stability Tracking:")
+        print(
+            f"    Stable Text: '{stable_text[:40] if stable_text != 'NOT_PRESENT' else stable_text}...'"
+        )
+        print(
+            f"    Unstable Text: '{unstable_text[:20] if unstable_text != 'NOT_PRESENT' else unstable_text}...'"
+        )
         print(f"    Is Draft: {is_draft}")
         print(f"    Is Final: {is_final}")
         print(f"    Should Translate: {should_translate}")
@@ -91,15 +94,15 @@ def test_streaming_with_stability():
 
         if is_draft:
             draft_count += 1
-            print(f"    ✏️  DRAFT EMISSION (stable prefix grew)")
+            print("    ✏️  DRAFT EMISSION (stable prefix grew)")
 
         if is_final:
             final_count += 1
-            print(f"    ✅ FINAL EMISSION (segment boundary)")
+            print("    ✅ FINAL EMISSION (segment boundary)")
 
         results.append(data)
 
-    @sio.on('error')
+    @sio.on("error")
     def on_error(data):
         print(f"  ❌ Error: {data.get('message', 'Unknown')}")
 
@@ -110,9 +113,9 @@ def test_streaming_with_stability():
         session_id = f"test-streaming-{int(time.time())}"
         print(f"[3] Joining session: {session_id}...")
 
-        sio.emit('join_session', {'session_id': session_id})
+        sio.emit("join_session", {"session_id": session_id})
         time.sleep(0.5)  # Wait for join
-        print(f"✅ Joined session\n")
+        print("✅ Joined session\n")
 
         # Stream audio chunks
         print("[4] Streaming audio chunks and monitoring for draft/final emissions...")
@@ -123,17 +126,20 @@ def test_streaming_with_stability():
 
             # Encode audio chunk
             chunk_bytes = chunk.tobytes()
-            chunk_b64 = base64.b64encode(chunk_bytes).decode('utf-8')
+            chunk_b64 = base64.b64encode(chunk_bytes).decode("utf-8")
 
             # Send transcribe_stream event
-            sio.emit('transcribe_stream', {
-                "session_id": session_id,
-                "audio_data": chunk_b64,
-                "model_name": "large-v3-turbo",
-                "language": "en",
-                "beam_size": 5,
-                "sample_rate": sample_rate
-            })
+            sio.emit(
+                "transcribe_stream",
+                {
+                    "session_id": session_id,
+                    "audio_data": chunk_b64,
+                    "model_name": "large-v3-turbo",
+                    "language": "en",
+                    "beam_size": 5,
+                    "sample_rate": sample_rate,
+                },
+            )
 
             # Wait for processing
             time.sleep(1.0)
@@ -151,7 +157,7 @@ def test_streaming_with_stability():
             print("   - VAD filtered out all chunks (no speech detected)")
             print("   - Streaming mode not triggering transcription")
             print("   - Minimum buffer duration not reached")
-        elif len(results) > 0 and results[0].get('stable_text') == 'NOT_PRESENT':
+        elif len(results) > 0 and results[0].get("stable_text") == "NOT_PRESENT":
             print("\n⚠️  Stability fields NOT present in response")
             print("   Phase 3C might not be fully integrated with WebSocket API")
         else:
@@ -159,7 +165,7 @@ def test_streaming_with_stability():
             print("   Draft/Final emissions with stable/unstable text separation confirmed")
 
         # Leave session
-        sio.emit('leave_session', {'session_id': session_id})
+        sio.emit("leave_session", {"session_id": session_id})
         time.sleep(0.5)
 
         sio.disconnect()
@@ -167,7 +173,9 @@ def test_streaming_with_stability():
     except Exception as e:
         print(f"\n❌ Socket.IO test failed: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 def main():
     """Run streaming test"""
@@ -181,6 +189,7 @@ def main():
     print("\n" + "=" * 80)
     print("TEST COMPLETE")
     print("=" * 80 + "\n")
+
 
 if __name__ == "__main__":
     main()

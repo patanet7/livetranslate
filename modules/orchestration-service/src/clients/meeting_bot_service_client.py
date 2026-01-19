@@ -6,7 +6,8 @@ Uses ScreenApp's battle-tested GoogleMeetBot via HTTP.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any
+
 import httpx
 from pydantic import BaseModel
 
@@ -18,10 +19,10 @@ class JoinRequest(BaseModel):
     botName: str
     botId: str
     userId: str
-    teamId: Optional[str] = "livetranslate-team"
-    timezone: Optional[str] = "UTC"
-    eventId: Optional[str] = None
-    bearerToken: Optional[str] = None
+    teamId: str | None = "livetranslate-team"
+    timezone: str | None = "UTC"
+    eventId: str | None = None
+    bearerToken: str | None = None
 
 
 class JoinResponse(BaseModel):
@@ -30,17 +31,17 @@ class JoinResponse(BaseModel):
     success: bool
     botId: str
     correlationId: str
-    message: Optional[str] = None
-    error: Optional[str] = None
+    message: str | None = None
+    error: str | None = None
 
 
 class BotStatusResponse(BaseModel):
     """Response from status check"""
 
     success: bool
-    botId: Optional[str] = None
-    state: Optional[str] = None
-    error: Optional[str] = None
+    botId: str | None = None
+    state: str | None = None
+    error: str | None = None
 
 
 class MeetingBotServiceClient:
@@ -71,8 +72,8 @@ class MeetingBotServiceClient:
         user_id: str,
         team_id: str = "livetranslate-team",
         timezone: str = "UTC",
-        event_id: Optional[str] = None,
-        bearer_token: Optional[str] = None,
+        event_id: str | None = None,
+        bearer_token: str | None = None,
     ) -> JoinResponse:
         """
         Request a bot to join a Google Meet meeting.
@@ -151,7 +152,7 @@ class MeetingBotServiceClient:
             data = response.json()
             return BotStatusResponse(**data)
 
-    async def leave_meeting(self, bot_id: str) -> Dict[str, Any]:
+    async def leave_meeting(self, bot_id: str) -> dict[str, Any]:
         """
         Request a bot to leave a meeting.
 
@@ -173,9 +174,7 @@ class MeetingBotServiceClient:
             data = response.json()
 
             if data.get("success"):
-                self.logger.info(
-                    "Bot leave request successful", extra={"bot_id": bot_id}
-                )
+                self.logger.info("Bot leave request successful", extra={"bot_id": bot_id})
             else:
                 self.logger.error(
                     f"Bot leave request failed: {data.get('error')}",
@@ -184,7 +183,7 @@ class MeetingBotServiceClient:
 
             return data
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """
         Check if the meeting-bot-service is healthy.
 

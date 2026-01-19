@@ -13,11 +13,12 @@ Tests:
 """
 
 import asyncio
-import sys
 import os
+import sys
 import wave
-import numpy as np
 from pathlib import Path
+
+import numpy as np
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
@@ -179,9 +180,7 @@ async def test_socketio_whisper_client():
 
         for i, chunk in enumerate(chunks):
             chunk_bytes = chunk.tobytes()
-            print(
-                f"\n📤 Sending chunk {i + 1}/{len(chunks)} ({len(chunk_bytes)} bytes)"
-            )
+            print(f"\n📤 Sending chunk {i + 1}/{len(chunks)} ({len(chunk_bytes)} bytes)")
 
             await client.send_audio_chunk(session_id, chunk_bytes)
 
@@ -207,9 +206,7 @@ async def test_socketio_whisper_client():
 
         if results:
             # Combine all text
-            full_text = " ".join(
-                [r.get("stable_text") or r.get("text", "") for r in results]
-            )
+            full_text = " ".join([r.get("stable_text") or r.get("text", "") for r in results])
 
             print("\n📄 Full transcription:")
             print(f"   '{full_text}'")
@@ -236,20 +233,14 @@ async def test_socketio_whisper_client():
             print(f"   Keywords found: {found_count}/{len(keywords)}")
 
             # Success criteria
-            passed = (
-                len(results) > 0
-                and found_count >= 2
-                and (draft_count > 0 or final_count > 0)
-            )
+            passed = len(results) > 0 and found_count >= 2 and (draft_count > 0 or final_count > 0)
 
             print("\n" + "=" * 80)
             if passed:
                 print("✅ TEST PASSED - SocketIOWhisperClient working correctly!")
                 print(f"   ✓ Received {len(results)} results")
                 print(f"   ✓ Found {found_count}/{len(keywords)} JFK keywords")
-                print(
-                    f"   ✓ Streaming markers present (draft={draft_count}, final={final_count})"
-                )
+                print(f"   ✓ Streaming markers present (draft={draft_count}, final={final_count})")
             else:
                 print("❌ TEST FAILED - SocketIOWhisperClient incomplete")
                 print(f"   Results: {len(results)}")

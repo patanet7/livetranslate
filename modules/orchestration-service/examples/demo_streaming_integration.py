@@ -39,29 +39,30 @@ Output:
     - Can be converted to video with ffmpeg
 """
 
-import sys
-import asyncio
-import logging
 import argparse
-from pathlib import Path
-from datetime import datetime
-import time
+import asyncio
+import io
 import json
-from typing import Dict, Any
+import logging
+import sys
+import time
+import wave
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 import httpx
 import numpy as np
 from PIL import Image
-import io
-import wave
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from bot.virtual_webcam import (
-    VirtualWebcamManager,
-    WebcamConfig,
     DisplayMode,
     Theme,
+    VirtualWebcamManager,
+    WebcamConfig,
 )
 
 # Configure logging
@@ -206,9 +207,7 @@ class AudioStreamSimulator:
         wav_buffer.seek(0)
         return wav_buffer.read()
 
-    def generate_tone_audio_chunk(
-        self, duration_seconds: float, frequency: float = 440.0
-    ) -> bytes:
+    def generate_tone_audio_chunk(self, duration_seconds: float, frequency: float = 440.0) -> bytes:
         """Generate a tone audio chunk (for more realistic testing)."""
         num_samples = int(self.sample_rate * duration_seconds)
 
@@ -255,9 +254,7 @@ class AudioStreamSimulator:
                 "sample_rate": self.sample_rate,
             }
 
-            logger.info(
-                f"Generated audio chunk {i + 1}/{num_chunks} ({len(audio_bytes)} bytes)"
-            )
+            logger.info(f"Generated audio chunk {i + 1}/{num_chunks} ({len(audio_bytes)} bytes)")
 
             # Call the callback with audio data
             await chunk_callback(audio_bytes, chunk_metadata)
@@ -284,9 +281,7 @@ class StreamingIntegrationDemo:
 
     def __init__(self, mode: str = "mock"):
         self.mode = mode
-        self.output_dir = (
-            Path(__file__).parent / "test_output" / "streaming_integration_demo"
-        )
+        self.output_dir = Path(__file__).parent / "test_output" / "streaming_integration_demo"
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Service configuration
@@ -316,7 +311,7 @@ class StreamingIntegrationDemo:
         print(f"  {text}")
         print("=" * 100 + "\n")
 
-    async def check_services(self) -> Dict[str, bool]:
+    async def check_services(self) -> dict[str, bool]:
         """Check which services are available."""
         services = {"orchestration": False, "whisper": False, "translation": False}
 
@@ -434,8 +429,8 @@ class StreamingIntegrationDemo:
                 logger.error(f"Error saving frame {frame_count}: {e}")
 
     async def send_audio_chunk_via_http(
-        self, audio_bytes: bytes, chunk_metadata: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, audio_bytes: bytes, chunk_metadata: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Send audio chunk via REAL HTTP POST to /api/audio/upload.
         This is the KEY integration point - uses real service communication.
@@ -553,9 +548,7 @@ class StreamingIntegrationDemo:
         self.print_banner("✅ INTEGRATION VALIDATION")
 
         total_chunks = len(self.integration_results)
-        successful_chunks = sum(
-            1 for r in self.integration_results if r["status"] == "success"
-        )
+        successful_chunks = sum(1 for r in self.integration_results if r["status"] == "success")
         failed_chunks = total_chunks - successful_chunks
 
         print("📊 Processing Results:")
@@ -593,9 +586,7 @@ class StreamingIntegrationDemo:
 
         # Check 2: Processing success
         if successful_chunks > 0:
-            print(
-                f"   ✅ Audio processing successful ({successful_chunks}/{total_chunks})"
-            )
+            print(f"   ✅ Audio processing successful ({successful_chunks}/{total_chunks})")
         else:
             print("   ❌ All audio processing failed")
             all_passed = False
@@ -626,9 +617,7 @@ class StreamingIntegrationDemo:
             "chunks_processed": len(self.integration_results),
             "frames_saved": len(self.frames_saved),
             "integration_results": self.integration_results,
-            "webcam_stats": self.webcam_manager.get_webcam_stats()
-            if self.webcam_manager
-            else None,
+            "webcam_stats": self.webcam_manager.get_webcam_stats() if self.webcam_manager else None,
         }
 
         # Save report to JSON
@@ -643,9 +632,7 @@ class StreamingIntegrationDemo:
         print("   ✅ STREAMING audio chunks (not fake data)")
         print("   ✅ REAL HTTP POST /api/audio/upload")
         print("   ✅ AudioCoordinator processing")
-        print(
-            f"   ✅ Whisper service integration ({'mocked' if self.mode != 'real' else 'real'})"
-        )
+        print(f"   ✅ Whisper service integration ({'mocked' if self.mode != 'real' else 'real'})")
         print(
             f"   ✅ Translation service integration ({'mocked' if self.mode != 'real' else 'real'})"
         )
@@ -660,9 +647,7 @@ class StreamingIntegrationDemo:
 
         print("\n🔍 Key Differences from Unit Test:")
         print("   ❌ Unit test: webcam.add_translation(fake_data)")
-        print(
-            "   ✅ This test: HTTP POST → AudioCoordinator → Services → BotIntegration → Webcam"
-        )
+        print("   ✅ This test: HTTP POST → AudioCoordinator → Services → BotIntegration → Webcam")
 
         print("\n" + "=" * 100)
 
@@ -694,9 +679,7 @@ async def main():
         default="mock",
         help="Test mode: mock (all mocked), real (all real), hybrid (mock services, real orchestration)",
     )
-    parser.add_argument(
-        "--chunks", type=int, default=5, help="Number of audio chunks to stream"
-    )
+    parser.add_argument("--chunks", type=int, default=5, help="Number of audio chunks to stream")
 
     args = parser.parse_args()
 
@@ -712,9 +695,7 @@ async def main():
         print("Available services:")
         for service, available in services.items():
             status = "✅" if available else "❌"
-            print(
-                f"   {status} {service}: {'available' if available else 'not available'}"
-            )
+            print(f"   {status} {service}: {'available' if available else 'not available'}")
 
         # Determine test mode based on available services
         if args.mode == "real" and not all(services.values()):

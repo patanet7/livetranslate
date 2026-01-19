@@ -4,6 +4,7 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
+
 import pytest
 
 
@@ -18,6 +19,8 @@ class TestContextCarryover:
 
         try:
             from modules.whisper_service.src.context_manager import ContextManager
+
+            assert isinstance(ContextManager, type), "ContextManager must be a class"
         except ImportError:
             pytest.skip("ContextManager not implemented yet")
 
@@ -41,6 +44,8 @@ class TestContextCarryover:
 
         try:
             from modules.whisper_service.src.context_manager import ContextManager
+
+            assert isinstance(ContextManager, type), "ContextManager must be a class"
         except ImportError:
             pytest.skip("ContextManager not implemented yet")
 
@@ -48,7 +53,7 @@ class TestContextCarryover:
 
         # Add many long segments
         long_segment = "This is a very long segment with lots of words " * 20
-        for i in range(20):
+        for _i in range(20):
             manager.update_context(long_segment)
 
         prompt = manager.get_init_prompt()
@@ -66,11 +71,13 @@ class TestContextCarryover:
 
         try:
             from modules.whisper_service.src.context_manager import ContextManager
+
+            assert isinstance(ContextManager, type), "ContextManager must be a class"
         except ImportError:
             pytest.skip("ContextManager not implemented yet")
 
         # Generate long audio in chunks
-        audio_chunks = generate_test_audio_chunks(duration=30.0, chunk_size=3.0)
+        generate_test_audio_chunks(duration=30.0, chunk_size=3.0)
 
         # Simulate coherence scores
         # Without context carryover
@@ -91,6 +98,8 @@ class TestContextCarryover:
 
         try:
             from modules.whisper_service.src.context_manager import ContextManager
+
+            assert isinstance(ContextManager, type), "ContextManager must be a class"
         except ImportError:
             pytest.skip("ContextManager not implemented yet")
 
@@ -121,6 +130,8 @@ class TestContextCarryover:
 
         try:
             from modules.whisper_service.src.context_manager import ContextManager
+
+            assert isinstance(ContextManager, type), "ContextManager must be a class"
         except ImportError:
             pytest.skip("ContextManager not implemented yet")
 
@@ -148,6 +159,8 @@ class TestContextCarryover:
 
         try:
             from modules.whisper_service.src.context_manager import ContextManager
+
+            assert isinstance(ContextManager, type), "ContextManager must be a class"
         except ImportError:
             pytest.skip("ContextManager not implemented yet")
 

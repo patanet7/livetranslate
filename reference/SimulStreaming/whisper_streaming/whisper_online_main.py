@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 # This code is retrieved from the original WhisperStreaming whisper_online.py .
-# It is refactored and simplified. Only the code that is needed for the 
-# SimulWhisper backend is kept. 
+# It is refactored and simplified. Only the code that is needed for the
+# SimulWhisper backend is kept.
 
 
 import sys
@@ -31,23 +31,23 @@ def processor_args(parser):
     parser: argparse.ArgumentParser object
     """
     group = parser.add_argument_group("WhisperStreaming processor arguments (shared for simulation from file and for the server)")
-    group.add_argument('--min-chunk-size', type=float, default=1.2, 
+    group.add_argument('--min-chunk-size', type=float, default=1.2,
                         help='Minimum audio chunk size in seconds. It waits up to this time to do processing. If the processing takes shorter '
                         'time, it waits, otherwise it processes the whole segment that was received by this time.')
 
-    group.add_argument('--lan', '--language', type=str, default="en", 
+    group.add_argument('--lan', '--language', type=str, default="en",
                         help="Source language code, e.g. en, de, cs, or auto for automatic language detection from speech.")
-    group.add_argument('--task', type=str, default='transcribe', 
+    group.add_argument('--task', type=str, default='transcribe',
                         choices=["transcribe","translate"],
                         help="Transcribe or translate.")
 
-    group.add_argument('--vac', action="store_true", default=False, 
+    group.add_argument('--vac', action="store_true", default=False,
                         help='Use VAC = voice activity controller. Recommended. Requires torch.')
-    group.add_argument('--vac-chunk-size', type=float, default=0.04, 
+    group.add_argument('--vac-chunk-size', type=float, default=0.04,
                         help='VAC sample size in seconds.')
 
-    parser.add_argument("-l", "--log-level", dest="log_level", 
-                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
+    parser.add_argument("-l", "--log-level", dest="log_level",
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                         help="Set the log level", default='DEBUG')
 
     parser.add_argument("--logdir", help="Directory to save audio segments and generated texts for debugging.",
@@ -96,7 +96,7 @@ def simulation_args(parser):
 
 def main_simulation_from_file(factory, add_args=None):
     '''
-    factory: function that creates the ASR and online processor object from args and logger.  
+    factory: function that creates the ASR and online processor object from args and logger.
             or in the default WhisperStreaming local agreement backends (not implemented but could be).
     add_args: add specific args for the backend
     '''
@@ -169,7 +169,7 @@ def main_simulation_from_file(factory, add_args=None):
         else:
             output_transcript(o)
         now = None
-    elif args.comp_unaware:  # computational unaware mode 
+    elif args.comp_unaware:  # computational unaware mode
         end = beg + min_chunk
         while True:
             a = load_audio_chunk(audio_path,beg,end)
@@ -186,9 +186,9 @@ def main_simulation_from_file(factory, add_args=None):
 
             if end >= duration:
                 break
-            
+
             beg = end
-            
+
             if end + min_chunk > duration:
                 end = duration
             else:

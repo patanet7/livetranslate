@@ -17,11 +17,11 @@ Key Concept from SimulStreaming:
 Reference: modules/whisper-service/buffer_plan.md Phase 2 (lines 69-257)
 """
 
-from dataclasses import dataclass, field
-from typing import List, Tuple, Optional, Dict, Any
-import time
-import math
 import logging
+import math
+import time
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +36,12 @@ class StabilityConfig:
     - High Quality (medical, legal): threshold=0.95, min_hold=0.5s, max_latency=3.0s
     - Balanced (conversation): threshold=0.85, min_hold=0.3s, max_latency=2.0s
     """
-    stability_threshold: float = 0.85      # Min confidence for stable token
-    min_stable_words: int = 2              # Min words before emitting
-    min_hold_time: float = 0.3             # Min time to observe token (seconds)
-    max_latency: float = 2.0               # Max delay before forcing emit
-    word_boundary_bonus: float = 0.1       # Confidence boost at word boundaries
+
+    stability_threshold: float = 0.85  # Min confidence for stable token
+    min_stable_words: int = 2  # Min words before emitting
+    min_hold_time: float = 0.3  # Min time to observe token (seconds)
+    max_latency: float = 2.0  # Max delay before forcing emit
+    word_boundary_bonus: float = 0.1  # Confidence boost at word boundaries
 
 
 @dataclass
@@ -54,13 +55,14 @@ class TokenState:
     - Temporal information (first seen, last updated)
     - Linguistic info (word boundary detection)
     """
+
     token_id: int
     text: str
     logprob: float
-    first_seen: float      # Timestamp when first generated
-    last_updated: float    # Timestamp of last appearance
-    update_count: int      # How many times it's been consistent
-    confidence: float      # Current confidence score (0.0-1.0)
+    first_seen: float  # Timestamp when first generated
+    last_updated: float  # Timestamp of last appearance
+    update_count: int  # How many times it's been consistent
+    confidence: float  # Current confidence score (0.0-1.0)
     is_word_boundary: bool = False  # True if ends a word
 
 
@@ -104,19 +106,23 @@ class StabilityTracker:
         self.tokenizer = tokenizer
 
         # Token tracking
-        self.stable_prefix: List[TokenState] = []
-        self.unstable_tail: List[TokenState] = []
+        self.stable_prefix: list[TokenState] = []
+        self.unstable_tail: list[TokenState] = []
 
         # Stability detection state
         self.last_emit_time = time.time()
 
-        logger.info(f"[StabilityTracker] Initialized with threshold={config.stability_threshold}, "
-                   f"min_hold={config.min_hold_time}s, max_latency={config.max_latency}s")
+        logger.info(
+            f"[StabilityTracker] Initialized with threshold={config.stability_threshold}, "
+            f"min_hold={config.min_hold_time}s, max_latency={config.max_latency}s"
+        )
 
-    def update(self,
-               new_tokens: List[int],
-               logprobs: Optional[List[float]] = None,
-               timestamp: Optional[float] = None) -> Tuple[List[TokenState], bool]:
+    def update(
+        self,
+        new_tokens: list[int],
+        logprobs: list[float] | None = None,
+        timestamp: float | None = None,
+    ) -> tuple[list[TokenState], bool]:
         """
         Update with new tokens from decoder.
 
@@ -152,9 +158,11 @@ class StabilityTracker:
             self.unstable_tail = aligned[stable_idx:]
             self.last_emit_time = timestamp
 
-            logger.info(f"[StabilityTracker] 📝 {len(new_stable)} new stable tokens: "
-                       f"'{self._decode_tokens(new_stable)}' "
-                       f"(stable_prefix={len(self.stable_prefix)}, unstable_tail={len(self.unstable_tail)})")
+            logger.info(
+                f"[StabilityTracker] 📝 {len(new_stable)} new stable tokens: "
+                f"'{self._decode_tokens(new_stable)}' "
+                f"(stable_prefix={len(self.stable_prefix)}, unstable_tail={len(self.unstable_tail)})"
+            )
         else:
             self.unstable_tail = aligned
 
@@ -162,14 +170,15 @@ class StabilityTracker:
         should_force = self._should_force_emit(timestamp)
 
         if should_force:
-            logger.info(f"[StabilityTracker] ⏰ Force emit triggered (latency={timestamp - self.last_emit_time:.2f}s > {self.config.max_latency}s)")
+            logger.info(
+                f"[StabilityTracker] ⏰ Force emit triggered (latency={timestamp - self.last_emit_time:.2f}s > {self.config.max_latency}s)"
+            )
 
         return new_stable, should_force
 
-    def _align_tokens(self,
-                     new_tokens: List[int],
-                     logprobs: List[float],
-                     timestamp: float) -> List[TokenState]:
+    def _align_tokens(
+        self, new_tokens: list[int], logprobs: list[float], timestamp: float
+    ) -> list[TokenState]:
         """
         Align new tokens with existing unstable tail.
 
@@ -184,7 +193,7 @@ class StabilityTracker:
         matched = 0
 
         # Find matching prefix
-        for i, (old, new_tok) in enumerate(zip(self.unstable_tail, new_tokens)):
+        for i, (old, new_tok) in enumerate(zip(self.unstable_tail, new_tokens, strict=False)):
             if old.token_id == new_tok:
                 matched = i + 1
                 # Token matched - increment consistency counter
@@ -192,8 +201,10 @@ class StabilityTracker:
                 old.last_updated = timestamp
                 old.confidence = self._compute_confidence(old, logprobs[i])
 
-                logger.debug(f"[StabilityTracker] Token {i} matched: '{old.text}' "
-                           f"(update_count={old.update_count}, confidence={old.confidence:.3f})")
+                logger.debug(
+                    f"[StabilityTracker] Token {i} matched: '{old.text}' "
+                    f"(update_count={old.update_count}, confidence={old.confidence:.3f})"
+                )
             else:
                 # Mismatch - stop here
                 break
@@ -211,14 +222,16 @@ class StabilityTracker:
                 last_updated=timestamp,
                 update_count=1,
                 confidence=math.exp(lp) if lp < 0 else lp,
-                is_word_boundary=self._is_word_boundary(tok)
+                is_word_boundary=self._is_word_boundary(tok),
             )
-            for tok, lp in zip(new_tokens[matched:], logprobs[matched:])
+            for tok, lp in zip(new_tokens[matched:], logprobs[matched:], strict=False)
         ]
 
         if new_states:
-            logger.debug(f"[StabilityTracker] {len(new_states)} new tokens: "
-                        f"'{self._decode_tokens(new_states)}'")
+            logger.debug(
+                f"[StabilityTracker] {len(new_states)} new tokens: "
+                f"'{self._decode_tokens(new_states)}'"
+            )
 
         return result + new_states
 
@@ -242,9 +255,7 @@ class StabilityTracker:
 
         return min(base_conf + consistency_bonus + time_bonus, 1.0)
 
-    def _find_stable_boundary(self,
-                             tokens: List[TokenState],
-                             timestamp: float) -> int:
+    def _find_stable_boundary(self, tokens: list[TokenState], timestamp: float) -> int:
         """
         Find index where tokens transition from stable to unstable.
 
@@ -262,30 +273,36 @@ class StabilityTracker:
 
             # Check stability criteria
             if token.update_count < 3:
-                logger.debug(f"[StabilityTracker] Token {i} unstable: update_count={token.update_count} < 3")
+                logger.debug(
+                    f"[StabilityTracker] Token {i} unstable: update_count={token.update_count} < 3"
+                )
                 return i
 
             if token.confidence < self.config.stability_threshold:
-                logger.debug(f"[StabilityTracker] Token {i} unstable: confidence={token.confidence:.3f} < {self.config.stability_threshold}")
+                logger.debug(
+                    f"[StabilityTracker] Token {i} unstable: confidence={token.confidence:.3f} < {self.config.stability_threshold}"
+                )
                 return i
 
             if age < self.config.min_hold_time:
-                logger.debug(f"[StabilityTracker] Token {i} unstable: age={age:.3f}s < {self.config.min_hold_time}s")
+                logger.debug(
+                    f"[StabilityTracker] Token {i} unstable: age={age:.3f}s < {self.config.min_hold_time}s"
+                )
                 return i
 
             # Bonus: word boundaries are natural stable points
             if token.is_word_boundary:
                 # Check if next few tokens are also stable
-                if self._check_word_stability(tokens[i+1:i+4], timestamp):
-                    logger.debug(f"[StabilityTracker] Word boundary detected at token {i}: '{token.text}'")
+                if self._check_word_stability(tokens[i + 1 : i + 4], timestamp):
+                    logger.debug(
+                        f"[StabilityTracker] Word boundary detected at token {i}: '{token.text}'"
+                    )
                     return i + 1
 
         # All tokens are stable
         return len(tokens)
 
-    def _check_word_stability(self,
-                             tokens: List[TokenState],
-                             timestamp: float) -> bool:
+    def _check_word_stability(self, tokens: list[TokenState], timestamp: float) -> bool:
         """
         Check if a word (sequence of tokens) is stable.
 
@@ -295,8 +312,7 @@ class StabilityTracker:
             return True
 
         return all(
-            t.update_count >= 2 and
-            t.confidence >= self.config.stability_threshold * 0.9
+            t.update_count >= 2 and t.confidence >= self.config.stability_threshold * 0.9
             for t in tokens[:3]
         )
 
@@ -314,14 +330,11 @@ class StabilityTracker:
         text = self.tokenizer.decode([token_id])
 
         # Starts with space = word boundary
-        if text.startswith(' '):
+        if text.startswith(" "):
             return True
 
         # Ends with punctuation = sentence boundary
-        if text.rstrip() != text or text.endswith(('.', '!', '?', ',', ';', ':')):
-            return True
-
-        return False
+        return bool(text.rstrip() != text or text.endswith((".", "!", "?", ",", ";", ":")))
 
     def _should_force_emit(self, timestamp: float) -> bool:
         """
@@ -332,7 +345,7 @@ class StabilityTracker:
         elapsed = timestamp - self.last_emit_time
         return elapsed >= self.config.max_latency
 
-    def _decode_tokens(self, tokens: List[TokenState]) -> str:
+    def _decode_tokens(self, tokens: list[TokenState]) -> str:
         """Decode list of TokenState to text."""
         if not tokens:
             return ""
@@ -350,7 +363,7 @@ class StabilityTracker:
         """Get full text (stable + unstable)."""
         return self.get_stable_text() + self.get_unstable_text()
 
-    def finalize_segment(self) -> List[TokenState]:
+    def finalize_segment(self) -> list[TokenState]:
         """
         Mark all tokens as stable at segment boundary.
 
@@ -359,8 +372,10 @@ class StabilityTracker:
         """
         all_stable = self.stable_prefix + self.unstable_tail
 
-        logger.info(f"[StabilityTracker] 🏁 Finalizing segment: {len(all_stable)} tokens "
-                   f"('{self._decode_tokens(all_stable)}')")
+        logger.info(
+            f"[StabilityTracker] 🏁 Finalizing segment: {len(all_stable)} tokens "
+            f"('{self._decode_tokens(all_stable)}')"
+        )
 
         # Reset state for next segment
         self.stable_prefix = []
@@ -376,14 +391,20 @@ class StabilityTracker:
         self.last_emit_time = time.time()
         logger.info("[StabilityTracker] ♻️  State reset")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get current tracker statistics."""
         return {
-            'stable_count': len(self.stable_prefix),
-            'unstable_count': len(self.unstable_tail),
-            'stable_text': self.get_stable_text(),
-            'unstable_text': self.get_unstable_text(),
-            'time_since_emit': time.time() - self.last_emit_time,
-            'avg_stable_confidence': sum(t.confidence for t in self.stable_prefix) / len(self.stable_prefix) if self.stable_prefix else 0.0,
-            'avg_unstable_confidence': sum(t.confidence for t in self.unstable_tail) / len(self.unstable_tail) if self.unstable_tail else 0.0
+            "stable_count": len(self.stable_prefix),
+            "unstable_count": len(self.unstable_tail),
+            "stable_text": self.get_stable_text(),
+            "unstable_text": self.get_unstable_text(),
+            "time_since_emit": time.time() - self.last_emit_time,
+            "avg_stable_confidence": sum(t.confidence for t in self.stable_prefix)
+            / len(self.stable_prefix)
+            if self.stable_prefix
+            else 0.0,
+            "avg_unstable_confidence": sum(t.confidence for t in self.unstable_tail)
+            / len(self.unstable_tail)
+            if self.unstable_tail
+            else 0.0,
         }

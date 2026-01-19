@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Button,
@@ -18,13 +18,13 @@ import {
   Switch,
   Slider,
   Paper,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Save as SaveIcon,
   Upload as UploadIcon,
   Download as DownloadIcon,
   Settings as SettingsIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface PresetConfig {
   vad: { enabled: boolean; aggressiveness: number };
@@ -43,10 +43,10 @@ interface PresetConfiguration {
 
 const presetConfigurations: PresetConfiguration[] = [
   {
-    id: 'speech',
-    name: 'Speech',
-    icon: '🗣️',
-    description: 'Optimized for clear speech recording',
+    id: "speech",
+    name: "Speech",
+    icon: "🗣️",
+    description: "Optimized for clear speech recording",
     config: {
       vad: { enabled: true, aggressiveness: 2 },
       voiceFilter: { enabled: true, lowcut: 85, highcut: 300 },
@@ -55,10 +55,10 @@ const presetConfigurations: PresetConfiguration[] = [
     },
   },
   {
-    id: 'podcast',
-    name: 'Podcast',
-    icon: '🎙️',
-    description: 'Professional podcast recording quality',
+    id: "podcast",
+    name: "Podcast",
+    icon: "🎙️",
+    description: "Professional podcast recording quality",
     config: {
       vad: { enabled: true, aggressiveness: 1 },
       voiceFilter: { enabled: true, lowcut: 80, highcut: 350 },
@@ -67,10 +67,10 @@ const presetConfigurations: PresetConfiguration[] = [
     },
   },
   {
-    id: 'noisy',
-    name: 'Noisy Environment',
-    icon: '🔊',
-    description: 'Aggressive noise reduction for noisy environments',
+    id: "noisy",
+    name: "Noisy Environment",
+    icon: "🔊",
+    description: "Aggressive noise reduction for noisy environments",
     config: {
       vad: { enabled: true, aggressiveness: 3 },
       voiceFilter: { enabled: true, lowcut: 100, highcut: 280 },
@@ -79,10 +79,10 @@ const presetConfigurations: PresetConfiguration[] = [
     },
   },
   {
-    id: 'clean',
-    name: 'Clean Audio',
-    icon: '✨',
-    description: 'Minimal processing for clean audio sources',
+    id: "clean",
+    name: "Clean Audio",
+    icon: "✨",
+    description: "Minimal processing for clean audio sources",
     config: {
       vad: { enabled: true, aggressiveness: 1 },
       voiceFilter: { enabled: false },
@@ -91,10 +91,10 @@ const presetConfigurations: PresetConfiguration[] = [
     },
   },
   {
-    id: 'music',
-    name: 'Music Vocal',
-    icon: '🎵',
-    description: 'Optimized for vocals in music',
+    id: "music",
+    name: "Music Vocal",
+    icon: "🎵",
+    description: "Optimized for vocals in music",
     config: {
       vad: { enabled: true, aggressiveness: 1 },
       voiceFilter: { enabled: true, lowcut: 70, highcut: 400 },
@@ -103,10 +103,10 @@ const presetConfigurations: PresetConfiguration[] = [
     },
   },
   {
-    id: 'broadcast',
-    name: 'Broadcast',
-    icon: '📻',
-    description: 'Broadcast-quality audio processing',
+    id: "broadcast",
+    name: "Broadcast",
+    icon: "📻",
+    description: "Broadcast-quality audio processing",
     config: {
       vad: { enabled: true, aggressiveness: 2 },
       voiceFilter: { enabled: true, lowcut: 90, highcut: 320 },
@@ -117,41 +117,42 @@ const presetConfigurations: PresetConfiguration[] = [
 ];
 
 export const ProcessingPresets: React.FC = () => {
-  const [selectedPreset, setSelectedPreset] = useState<string>('speech');
+  const [selectedPreset, setSelectedPreset] = useState<string>("speech");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [customPreset, setCustomPreset] = useState<{
     name: string;
     description: string;
     config: PresetConfig;
   }>({
-    name: '',
-    description: '',
+    name: "",
+    description: "",
     config: presetConfigurations[0].config,
   });
 
   const handlePresetSelect = (presetId: string) => {
     setSelectedPreset(presetId);
-    const preset = presetConfigurations.find(p => p.id === presetId);
+    const preset = presetConfigurations.find((p) => p.id === presetId);
     if (preset) {
       // Apply preset configuration
-      console.log('Applying preset:', preset.name, preset.config);
+      console.log("Applying preset:", preset.name, preset.config);
     }
   };
 
   const handleSaveCustomPreset = () => {
     // Save custom preset logic
-    console.log('Saving custom preset:', customPreset);
+    console.log("Saving custom preset:", customPreset);
     setCustomDialogOpen(false);
   };
 
   const handleExportPresets = () => {
     const dataStr = JSON.stringify(presetConfigurations, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = 'audio-processing-presets.json';
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
+    const dataUri =
+      "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+    const exportFileDefaultName = "audio-processing-presets.json";
+
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", dataUri);
+    linkElement.setAttribute("download", exportFileDefaultName);
     linkElement.click();
   };
 
@@ -162,10 +163,10 @@ export const ProcessingPresets: React.FC = () => {
       reader.onload = (e) => {
         try {
           const imported = JSON.parse(e.target?.result as string);
-          console.log('Imported presets:', imported);
+          console.log("Imported presets:", imported);
           // Handle imported presets
         } catch (error) {
-          console.error('Error importing presets:', error);
+          console.error("Error importing presets:", error);
         }
       };
       reader.readAsText(file);
@@ -174,10 +175,15 @@ export const ProcessingPresets: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6">
-          ⚙️ Processing Presets
-        </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Typography variant="h6">⚙️ Processing Presets</Typography>
         <Stack direction="row" spacing={1}>
           <Button
             variant="outlined"
@@ -217,30 +223,39 @@ export const ProcessingPresets: React.FC = () => {
           <Grid item xs={12} sm={6} md={4} key={preset.id}>
             <Card
               sx={{
-                cursor: 'pointer',
+                cursor: "pointer",
                 border: selectedPreset === preset.id ? 2 : 1,
-                borderColor: selectedPreset === preset.id ? 'primary.main' : 'divider',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  transform: 'translateY(-2px)',
+                borderColor:
+                  selectedPreset === preset.id ? "primary.main" : "divider",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  borderColor: "primary.main",
+                  transform: "translateY(-2px)",
                   boxShadow: 3,
                 },
               }}
               onClick={() => handlePresetSelect(preset.id)}
             >
               <CardContent>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  alignItems="center"
+                  sx={{ mb: 2 }}
+                >
                   <Box
                     sx={{
-                      fontSize: '2rem',
+                      fontSize: "2rem",
                       width: 48,
                       height: 48,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: selectedPreset === preset.id ? 'primary.main' : 'grey.100',
-                      borderRadius: '50%',
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor:
+                        selectedPreset === preset.id
+                          ? "primary.main"
+                          : "grey.100",
+                      borderRadius: "50%",
                     }}
                   >
                     {preset.icon}
@@ -259,9 +274,9 @@ export const ProcessingPresets: React.FC = () => {
                   {Object.entries(preset.config).map(([key, value]) => (
                     <Chip
                       key={key}
-                      label={`${key}: ${(value as any).enabled ? 'ON' : 'OFF'}`}
+                      label={`${key}: ${(value as any).enabled ? "ON" : "OFF"}`}
                       size="small"
-                      color={(value as any).enabled ? 'primary' : 'default'}
+                      color={(value as any).enabled ? "primary" : "default"}
                       variant="outlined"
                     />
                   ))}
@@ -281,7 +296,7 @@ export const ProcessingPresets: React.FC = () => {
                     label="Active"
                     color="primary"
                     size="small"
-                    sx={{ ml: 'auto' }}
+                    sx={{ ml: "auto" }}
                   />
                 )}
               </CardActions>
@@ -303,13 +318,20 @@ export const ProcessingPresets: React.FC = () => {
             <TextField
               label="Preset Name"
               value={customPreset.name}
-              onChange={(e) => setCustomPreset({ ...customPreset, name: e.target.value })}
+              onChange={(e) =>
+                setCustomPreset({ ...customPreset, name: e.target.value })
+              }
               fullWidth
             />
             <TextField
               label="Description"
               value={customPreset.description}
-              onChange={(e) => setCustomPreset({ ...customPreset, description: e.target.value })}
+              onChange={(e) =>
+                setCustomPreset({
+                  ...customPreset,
+                  description: e.target.value,
+                })
+              }
               fullWidth
               multiline
               rows={2}
@@ -323,13 +345,18 @@ export const ProcessingPresets: React.FC = () => {
                 control={
                   <Switch
                     checked={customPreset.config.vad.enabled}
-                    onChange={(e) => setCustomPreset({
-                      ...customPreset,
-                      config: {
-                        ...customPreset.config,
-                        vad: { ...customPreset.config.vad, enabled: e.target.checked }
-                      }
-                    })}
+                    onChange={(e) =>
+                      setCustomPreset({
+                        ...customPreset,
+                        config: {
+                          ...customPreset.config,
+                          vad: {
+                            ...customPreset.config.vad,
+                            enabled: e.target.checked,
+                          },
+                        },
+                      })
+                    }
                   />
                 }
                 label="Enable VAD"
@@ -339,13 +366,18 @@ export const ProcessingPresets: React.FC = () => {
               </Typography>
               <Slider
                 value={customPreset.config.vad.aggressiveness}
-                onChange={(_, value) => setCustomPreset({
-                  ...customPreset,
-                  config: {
-                    ...customPreset.config,
-                    vad: { ...customPreset.config.vad, aggressiveness: value as number }
-                  }
-                })}
+                onChange={(_, value) =>
+                  setCustomPreset({
+                    ...customPreset,
+                    config: {
+                      ...customPreset.config,
+                      vad: {
+                        ...customPreset.config.vad,
+                        aggressiveness: value as number,
+                      },
+                    },
+                  })
+                }
                 min={0}
                 max={3}
                 step={1}
@@ -362,13 +394,18 @@ export const ProcessingPresets: React.FC = () => {
                 control={
                   <Switch
                     checked={customPreset.config.voiceFilter.enabled}
-                    onChange={(e) => setCustomPreset({
-                      ...customPreset,
-                      config: {
-                        ...customPreset.config,
-                        voiceFilter: { ...customPreset.config.voiceFilter, enabled: e.target.checked }
-                      }
-                    })}
+                    onChange={(e) =>
+                      setCustomPreset({
+                        ...customPreset,
+                        config: {
+                          ...customPreset.config,
+                          voiceFilter: {
+                            ...customPreset.config.voiceFilter,
+                            enabled: e.target.checked,
+                          },
+                        },
+                      })
+                    }
                   />
                 }
                 label="Enable Voice Filter"
@@ -378,13 +415,18 @@ export const ProcessingPresets: React.FC = () => {
               </Typography>
               <Slider
                 value={customPreset.config.voiceFilter.lowcut}
-                onChange={(_, value) => setCustomPreset({
-                  ...customPreset,
-                  config: {
-                    ...customPreset.config,
-                    voiceFilter: { ...customPreset.config.voiceFilter, lowcut: value as number }
-                  }
-                })}
+                onChange={(_, value) =>
+                  setCustomPreset({
+                    ...customPreset,
+                    config: {
+                      ...customPreset.config,
+                      voiceFilter: {
+                        ...customPreset.config.voiceFilter,
+                        lowcut: value as number,
+                      },
+                    },
+                  })
+                }
                 min={50}
                 max={200}
                 disabled={!customPreset.config.voiceFilter.enabled}
@@ -394,13 +436,18 @@ export const ProcessingPresets: React.FC = () => {
               </Typography>
               <Slider
                 value={customPreset.config.voiceFilter.highcut}
-                onChange={(_, value) => setCustomPreset({
-                  ...customPreset,
-                  config: {
-                    ...customPreset.config,
-                    voiceFilter: { ...customPreset.config.voiceFilter, highcut: value as number }
-                  }
-                })}
+                onChange={(_, value) =>
+                  setCustomPreset({
+                    ...customPreset,
+                    config: {
+                      ...customPreset.config,
+                      voiceFilter: {
+                        ...customPreset.config.voiceFilter,
+                        highcut: value as number,
+                      },
+                    },
+                  })
+                }
                 min={250}
                 max={500}
                 disabled={!customPreset.config.voiceFilter.enabled}
@@ -409,9 +456,7 @@ export const ProcessingPresets: React.FC = () => {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCustomDialogOpen(false)}>
-            Cancel
-          </Button>
+          <Button onClick={() => setCustomDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleSaveCustomPreset} variant="contained">
             Save Preset
           </Button>

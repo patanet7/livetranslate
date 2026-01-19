@@ -9,7 +9,8 @@ a consistent API.
 Phase 2 Refactoring: Created 2025-10-25
 """
 
-from typing import Protocol, List, Dict, Any, Optional
+from typing import Any, Protocol
+
 import numpy as np
 
 
@@ -61,12 +62,7 @@ class WhisperModel(Protocol):
         """
         ...
 
-    def safe_inference(
-        self,
-        model_name: str,
-        audio_data: np.ndarray,
-        **kwargs
-    ) -> Any:
+    def safe_inference(self, model_name: str, audio_data: np.ndarray, **kwargs) -> Any:
         """
         Perform thread-safe inference on audio data.
 
@@ -94,7 +90,7 @@ class WhisperModel(Protocol):
         """
         ...
 
-    def list_models(self) -> List[str]:
+    def list_models(self) -> list[str]:
         """
         List available Whisper models.
 
@@ -162,8 +158,8 @@ ExtendedModelType = WhisperModelExtended
 
 
 __all__ = [
-    'WhisperModel',
-    'WhisperModelExtended',
-    'ModelType',
-    'ExtendedModelType',
+    "ExtendedModelType",
+    "ModelType",
+    "WhisperModel",
+    "WhisperModelExtended",
 ]

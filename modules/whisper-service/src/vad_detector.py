@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Silero VAD Integration
 
@@ -10,11 +9,10 @@ Implements FixedVADIterator pattern for chunk-by-chunk filtering.
 """
 
 import logging
-import os
-import torch
-import numpy as np
-from typing import Optional, Dict
 from pathlib import Path
+
+import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +24,14 @@ class VADIterator:
     Based on SimulStreaming's implementation.
     """
 
-    def __init__(self,
-                 model,
-                 threshold: float = 0.5,
-                 sampling_rate: int = 16000,
-                 min_silence_duration_ms: int = 500,
-                 speech_pad_ms: int = 100):
+    def __init__(
+        self,
+        model,
+        threshold: float = 0.5,
+        sampling_rate: int = 16000,
+        min_silence_duration_ms: int = 500,
+        speech_pad_ms: int = 100,
+    ):
         """
         Initialize VAD Iterator.
 
@@ -47,7 +47,7 @@ class VADIterator:
         self.sampling_rate = sampling_rate
 
         if sampling_rate not in [8000, 16000]:
-            raise ValueError('VADIterator only supports 8000 or 16000 Hz')
+            raise ValueError("VADIterator only supports 8000 or 16000 Hz")
 
         self.min_silence_samples = int(sampling_rate * min_silence_duration_ms / 1000)
         self.speech_pad_samples = int(sampling_rate * speech_pad_ms / 1000)
@@ -57,11 +57,11 @@ class VADIterator:
         """Reset VAD state for new audio stream."""
         self.model.reset_states()
         self.triggered = False  # Currently in speech segment
-        self.temp_end = 0       # Temporary end position
-        self.current_sample = 0 # Current position in stream
+        self.temp_end = 0  # Temporary end position
+        self.current_sample = 0  # Current position in stream
 
     @torch.no_grad()
-    def __call__(self, x: np.ndarray, return_seconds: bool = False) -> Optional[Dict]:
+    def __call__(self, x: np.ndarray, return_seconds: bool = False) -> dict | None:
         """
         Process audio chunk and detect speech start/end.
 
@@ -90,8 +90,14 @@ class VADIterator:
         # Speech START detected
         if (speech_prob >= self.threshold) and not self.triggered:
             self.triggered = True
-            speech_start = max(0, self.current_sample - self.speech_pad_samples - window_size_samples)
-            return {'start': int(speech_start) if not return_seconds else round(speech_start / self.sampling_rate, 1)}
+            speech_start = max(
+                0, self.current_sample - self.speech_pad_samples - window_size_samples
+            )
+            return {
+                "start": int(speech_start)
+                if not return_seconds
+                else round(speech_start / self.sampling_rate, 1)
+            }
 
         # Speech END detected (with hysteresis: threshold - 0.15)
         if (speech_prob < self.threshold - 0.15) and self.triggered:
@@ -105,7 +111,11 @@ class VADIterator:
                 speech_end = self.temp_end + self.speech_pad_samples - window_size_samples
                 self.temp_end = 0
                 self.triggered = False
-                return {'end': int(speech_end) if not return_seconds else round(speech_end / self.sampling_rate, 1)}
+                return {
+                    "end": int(speech_end)
+                    if not return_seconds
+                    else round(speech_end / self.sampling_rate, 1)
+                }
 
         return None
 
@@ -123,7 +133,7 @@ class FixedVADIterator(VADIterator):
         super().reset_states()
         self.buffer = np.array([], dtype=np.float32)
 
-    def __call__(self, x: np.ndarray, return_seconds: bool = False) -> Optional[Dict]:
+    def __call__(self, x: np.ndarray, return_seconds: bool = False) -> dict | None:
         """
         Process audio of any length by buffering to 512-sample chunks.
 
@@ -138,7 +148,9 @@ class FixedVADIterator(VADIterator):
         self.buffer = np.append(self.buffer, x)
         buffer_size_after = len(self.buffer)
 
-        logger.info(f"[FixedVAD] Received {incoming_len} samples, buffer now {buffer_size_after} samples")
+        logger.info(
+            f"[FixedVAD] Received {incoming_len} samples, buffer now {buffer_size_after} samples"
+        )
 
         ret = None
 
@@ -162,15 +174,17 @@ class FixedVADIterator(VADIterator):
                 # Merge multiple events - can have BOTH 'end' and 'start' simultaneously
                 # This happens when speech ends and immediately starts again (< 512ms gap)
                 # Session manager handles both events in sequence: END first, then START
-                if 'end' in r:
-                    ret['end'] = r['end']  # Update to latest end
-                if 'start' in r:
+                if "end" in r:
+                    ret["end"] = r["end"]  # Update to latest end
+                if "start" in r:
                     # Add START even if we have END - both can coexist
                     # Session manager processes END first, then START begins new buffer
-                    ret['start'] = r['start']
+                    ret["start"] = r["start"]
 
         if chunks_processed > 0:
-            logger.info(f"[FixedVAD] Processed {chunks_processed} chunks, {len(self.buffer)} samples remaining")
+            logger.info(
+                f"[FixedVAD] Processed {chunks_processed} chunks, {len(self.buffer)} samples remaining"
+            )
 
         return ret if ret != {} else None
 
@@ -183,10 +197,9 @@ class SileroVAD:
     adding audio to the buffer (SimulStreaming pattern).
     """
 
-    def __init__(self,
-                 threshold: float = 0.5,
-                 sampling_rate: int = 16000,
-                 min_silence_duration_ms: int = 500):
+    def __init__(
+        self, threshold: float = 0.5, sampling_rate: int = 16000, min_silence_duration_ms: int = 500
+    ):
         """
         Initialize Silero VAD with FixedVADIterator.
 
@@ -203,7 +216,7 @@ class SileroVAD:
             logger.info("[VAD] Loading Silero VAD model...")
 
             # Set custom cache directory to .models/silero-vad
-            cache_dir = Path(__file__).parent.parent / '.models' / 'silero-vad'
+            cache_dir = Path(__file__).parent.parent / ".models" / "silero-vad"
             cache_dir.mkdir(parents=True, exist_ok=True)
 
             # Set torch hub directory to our custom cache
@@ -211,11 +224,11 @@ class SileroVAD:
 
             logger.info(f"[VAD] Using cache directory: {cache_dir.parent}")
 
-            model, _ = torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
+            model, _ = torch.hub.load(  # nosec B614
+                repo_or_dir="snakers4/silero-vad",
+                model="silero_vad",
                 force_reload=False,
-                onnx=False
+                onnx=False,
             )
             model.eval()
 
@@ -224,10 +237,12 @@ class SileroVAD:
                 model,
                 threshold=threshold,
                 sampling_rate=sampling_rate,
-                min_silence_duration_ms=min_silence_duration_ms
+                min_silence_duration_ms=min_silence_duration_ms,
             )
 
-            logger.info(f"[VAD] ✅ Silero VAD loaded (threshold={threshold}, min_silence={min_silence_duration_ms}ms)")
+            logger.info(
+                f"[VAD] ✅ Silero VAD loaded (threshold={threshold}, min_silence={min_silence_duration_ms}ms)"
+            )
 
         except Exception as e:
             logger.error(f"[VAD] ❌ Failed to load Silero VAD: {e}")
@@ -238,7 +253,7 @@ class SileroVAD:
         if self.vad_iterator:
             self.vad_iterator.reset_states()
 
-    def check_speech(self, audio: np.ndarray) -> Optional[Dict]:
+    def check_speech(self, audio: np.ndarray) -> dict | None:
         """
         Check if audio chunk contains speech (pre-filter pattern).
 
@@ -255,16 +270,18 @@ class SileroVAD:
 
         try:
             # Log audio statistics for debugging
-            rms = np.sqrt(np.mean(audio ** 2))
+            rms = np.sqrt(np.mean(audio**2))
             max_amp = np.max(np.abs(audio))
-            logger.info(f"[VAD] Audio chunk: RMS={rms:.6f}, Max={max_amp:.6f}, Length={len(audio)} samples")
+            logger.info(
+                f"[VAD] Audio chunk: RMS={rms:.6f}, Max={max_amp:.6f}, Length={len(audio)} samples"
+            )
 
             result = self.vad_iterator(audio, return_seconds=True)
 
             if result is not None:
                 logger.info(f"[VAD] ✅ Detection: {result}")
             else:
-                logger.info(f"[VAD] ⏸️ No state change (waiting for more audio)")
+                logger.info("[VAD] ⏸️ No state change (waiting for more audio)")
 
             return result
         except Exception as e:
@@ -273,10 +290,10 @@ class SileroVAD:
 
 
 # Global instance for easy access
-_global_vad: Optional[SileroVAD] = None
+_global_vad: SileroVAD | None = None
 
 
-def get_vad(threshold: float = 0.5) -> Optional[SileroVAD]:
+def get_vad(threshold: float = 0.5) -> SileroVAD | None:
     """
     Get or create global VAD instance.
 

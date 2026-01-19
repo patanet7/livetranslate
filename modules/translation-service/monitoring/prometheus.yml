@@ -15,20 +15,20 @@ scrape_configs:
       - targets: ['triton-translation:8002']
     scrape_interval: 10s
     metrics_path: '/metrics'
-    
+
   # Translation Service metrics
   - job_name: 'translation-service'
     static_configs:
       - targets: ['triton-translation:5003']
     scrape_interval: 15s
     metrics_path: '/metrics'
-    
+
   # Redis metrics (if redis_exporter is added)
   - job_name: 'redis'
     static_configs:
       - targets: ['redis-triton:6379']
     scrape_interval: 30s
-    
+
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:

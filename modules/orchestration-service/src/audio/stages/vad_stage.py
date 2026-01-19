@@ -6,10 +6,12 @@ Modular VAD implementation that can be used independently
 or as part of the complete audio processing pipeline.
 """
 
+from typing import Any
+
 import numpy as np
-from typing import Dict, Any, Tuple
-from ..stage_components import BaseAudioStage
+
 from ..config import VADConfig, VADMode
+from ..stage_components import BaseAudioStage
 
 
 class VADStage(BaseAudioStage):
@@ -29,9 +31,7 @@ class VADStage(BaseAudioStage):
 
         self.is_initialized = True
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through VAD."""
         try:
             if self.config.mode == VADMode.BASIC:
@@ -55,9 +55,9 @@ class VADStage(BaseAudioStage):
             return audio_data, metadata
 
         except Exception as e:
-            raise Exception(f"VAD processing failed: {e}")
+            raise Exception(f"VAD processing failed: {e}") from e
 
-    def _energy_based_vad(self, audio_data: np.ndarray) -> Tuple[bool, float]:
+    def _energy_based_vad(self, audio_data: np.ndarray) -> tuple[bool, float]:
         """Energy-based voice activity detection."""
         # Calculate RMS energy
         rms_energy = np.sqrt(np.mean(audio_data**2))
@@ -83,7 +83,7 @@ class VADStage(BaseAudioStage):
 
         return voice_detected, confidence
 
-    def _webrtc_vad_simulation(self, audio_data: np.ndarray) -> Tuple[bool, float]:
+    def _webrtc_vad_simulation(self, audio_data: np.ndarray) -> tuple[bool, float]:
         """WebRTC VAD simulation."""
         # Calculate energy in voice frequency range
         voice_energy = self._calculate_voice_frequency_energy(audio_data)
@@ -95,16 +95,14 @@ class VADStage(BaseAudioStage):
         voice_detected = voice_energy > adjusted_threshold
 
         # Confidence based on energy ratio
-        confidence = (
-            min(1.0, voice_energy / adjusted_threshold) if voice_detected else 0.0
-        )
+        confidence = min(1.0, voice_energy / adjusted_threshold) if voice_detected else 0.0
 
         # Apply sensitivity
         confidence = confidence * self.config.sensitivity
 
         return voice_detected, confidence
 
-    def _aggressive_vad(self, audio_data: np.ndarray) -> Tuple[bool, float]:
+    def _aggressive_vad(self, audio_data: np.ndarray) -> tuple[bool, float]:
         """Aggressive VAD with stricter criteria."""
         # Use both energy and frequency analysis
         rms_energy = np.sqrt(np.mean(audio_data**2))
@@ -143,9 +141,7 @@ class VADStage(BaseAudioStage):
         freqs = np.fft.rfftfreq(len(audio_data), 1 / self.sample_rate)
 
         # Find indices for voice frequency range
-        voice_mask = (freqs >= self.config.voice_freq_min) & (
-            freqs <= self.config.voice_freq_max
-        )
+        voice_mask = (freqs >= self.config.voice_freq_min) & (freqs <= self.config.voice_freq_max)
 
         if not np.any(voice_mask):
             return 0.0
@@ -159,7 +155,7 @@ class VADStage(BaseAudioStage):
 
         return voice_energy / total_energy
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -172,7 +168,7 @@ class VADStage(BaseAudioStage):
             "sensitivity": self.config.sensitivity,
         }
 
-    def get_voice_detection_result(self, audio_data: np.ndarray) -> Dict[str, Any]:
+    def get_voice_detection_result(self, audio_data: np.ndarray) -> dict[str, Any]:
         """Get voice detection result without processing audio."""
         result = self.process(audio_data)
         return {

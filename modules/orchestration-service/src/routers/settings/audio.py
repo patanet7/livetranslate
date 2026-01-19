@@ -5,20 +5,19 @@ Handles audio processing settings, chunking configuration, and correlation setti
 """
 
 from ._shared import (
-    logger,
-    AudioProcessingConfig,
-    ChunkingConfig,
-    CorrelationConfig,
     AUDIO_CONFIG_FILE,
     CHUNKING_CONFIG_FILE,
     CORRELATION_CONFIG_FILE,
-    load_config,
-    save_config,
+    Any,
     APIRouter,
+    AudioProcessingConfig,
+    ChunkingConfig,
+    CorrelationConfig,
     HTTPException,
     asyncio,
-    Dict,
-    Any,
+    load_config,
+    logger,
+    save_config,
 )
 
 router = APIRouter(tags=["settings-audio"])
@@ -29,7 +28,7 @@ router = APIRouter(tags=["settings-audio"])
 # ============================================================================
 
 
-@router.get("/audio-processing", response_model=Dict[str, Any])
+@router.get("/audio-processing", response_model=dict[str, Any])
 async def get_audio_processing_settings():
     """Get current audio processing configuration"""
     try:
@@ -40,7 +39,7 @@ async def get_audio_processing_settings():
         logger.error(f"Error getting audio processing settings: {e}")
         raise HTTPException(
             status_code=500, detail="Failed to load audio processing settings"
-        )
+        ) from e
 
 
 @router.post("/audio-processing")
@@ -55,18 +54,16 @@ async def save_audio_processing_settings(config: AudioProcessingConfig):
                 "config": config_dict,
             }
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to save audio processing settings"
-            )
+            raise HTTPException(status_code=500, detail="Failed to save audio processing settings")
     except Exception as e:
         logger.error(f"Error saving audio processing settings: {e}")
         raise HTTPException(
             status_code=500, detail="Failed to save audio processing settings"
-        )
+        ) from e
 
 
 @router.post("/audio-processing/test")
-async def test_audio_processing(test_config: Dict[str, Any]):
+async def test_audio_processing(test_config: dict[str, Any]):
     """Test audio processing configuration"""
     try:
         await asyncio.sleep(1)  # Simulate processing
@@ -85,7 +82,7 @@ async def test_audio_processing(test_config: Dict[str, Any]):
         }
     except Exception as e:
         logger.error(f"Error testing audio processing: {e}")
-        raise HTTPException(status_code=500, detail="Audio processing test failed")
+        raise HTTPException(status_code=500, detail="Audio processing test failed") from e
 
 
 # ============================================================================
@@ -93,7 +90,7 @@ async def test_audio_processing(test_config: Dict[str, Any]):
 # ============================================================================
 
 
-@router.get("/chunking", response_model=Dict[str, Any])
+@router.get("/chunking", response_model=dict[str, Any])
 async def get_chunking_settings():
     """Get current chunking configuration"""
     try:
@@ -102,7 +99,7 @@ async def get_chunking_settings():
         return config
     except Exception as e:
         logger.error(f"Error getting chunking settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load chunking settings")
+        raise HTTPException(status_code=500, detail="Failed to load chunking settings") from e
 
 
 @router.post("/chunking")
@@ -117,12 +114,10 @@ async def save_chunking_settings(config: ChunkingConfig):
                 "config": config_dict,
             }
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to save chunking settings"
-            )
+            raise HTTPException(status_code=500, detail="Failed to save chunking settings")
     except Exception as e:
         logger.error(f"Error saving chunking settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save chunking settings")
+        raise HTTPException(status_code=500, detail="Failed to save chunking settings") from e
 
 
 @router.get("/chunking/stats")
@@ -138,9 +133,7 @@ async def get_chunking_stats():
         }
     except Exception as e:
         logger.error(f"Error getting chunking stats: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to load chunking statistics"
-        )
+        raise HTTPException(status_code=500, detail="Failed to load chunking statistics") from e
 
 
 # ============================================================================
@@ -148,7 +141,7 @@ async def get_chunking_stats():
 # ============================================================================
 
 
-@router.get("/correlation", response_model=Dict[str, Any])
+@router.get("/correlation", response_model=dict[str, Any])
 async def get_correlation_settings():
     """Get current correlation configuration"""
     try:
@@ -157,9 +150,7 @@ async def get_correlation_settings():
         return config
     except Exception as e:
         logger.error(f"Error getting correlation settings: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to load correlation settings"
-        )
+        raise HTTPException(status_code=500, detail="Failed to load correlation settings") from e
 
 
 @router.post("/correlation")
@@ -174,14 +165,10 @@ async def save_correlation_settings(config: CorrelationConfig):
                 "config": config_dict,
             }
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to save correlation settings"
-            )
+            raise HTTPException(status_code=500, detail="Failed to save correlation settings")
     except Exception as e:
         logger.error(f"Error saving correlation settings: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to save correlation settings"
-        )
+        raise HTTPException(status_code=500, detail="Failed to save correlation settings") from e
 
 
 @router.get("/correlation/manual-mappings")
@@ -207,11 +194,11 @@ async def get_manual_mappings():
         ]
     except Exception as e:
         logger.error(f"Error getting manual mappings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load manual mappings")
+        raise HTTPException(status_code=500, detail="Failed to load manual mappings") from e
 
 
 @router.post("/correlation/manual-mappings")
-async def save_manual_mapping(mapping: Dict[str, Any]):
+async def save_manual_mapping(mapping: dict[str, Any]):
     """Save manual speaker mapping"""
     try:
         required_fields = [
@@ -221,9 +208,7 @@ async def save_manual_mapping(mapping: Dict[str, Any]):
         ]
         for field in required_fields:
             if field not in mapping:
-                raise HTTPException(
-                    status_code=400, detail=f"Missing required field: {field}"
-                )
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
 
         return {
             "message": "Manual speaker mapping saved successfully",
@@ -233,7 +218,7 @@ async def save_manual_mapping(mapping: Dict[str, Any]):
         raise
     except Exception as e:
         logger.error(f"Error saving manual mapping: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save manual mapping")
+        raise HTTPException(status_code=500, detail="Failed to save manual mapping") from e
 
 
 @router.delete("/correlation/manual-mappings/{mapping_id}")
@@ -243,7 +228,7 @@ async def delete_manual_mapping(mapping_id: str):
         return {"message": f"Manual speaker mapping {mapping_id} deleted successfully"}
     except Exception as e:
         logger.error(f"Error deleting manual mapping: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete manual mapping")
+        raise HTTPException(status_code=500, detail="Failed to delete manual mapping") from e
 
 
 @router.get("/correlation/stats")
@@ -259,13 +244,11 @@ async def get_correlation_stats():
         }
     except Exception as e:
         logger.error(f"Error getting correlation stats: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to load correlation statistics"
-        )
+        raise HTTPException(status_code=500, detail="Failed to load correlation statistics") from e
 
 
 @router.post("/correlation/test")
-async def test_correlation(test_config: Dict[str, Any]):
+async def test_correlation(test_config: dict[str, Any]):
     """Test speaker correlation configuration"""
     try:
         await asyncio.sleep(2)
@@ -280,4 +263,4 @@ async def test_correlation(test_config: Dict[str, Any]):
         }
     except Exception as e:
         logger.error(f"Error testing correlation: {e}")
-        raise HTTPException(status_code=500, detail="Correlation test failed")
+        raise HTTPException(status_code=500, detail="Correlation test failed") from e

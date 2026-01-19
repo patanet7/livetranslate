@@ -17,15 +17,15 @@ Expected Performance Improvements:
 - Total latency: -35% (50-80ms → 30-50ms)
 """
 
+from .encoder_cache import BatchEncoderCache, EncoderCache
+from .performance_metrics import OperationStats, PerformanceMetrics, TimingContext
 from .ring_buffer import RingBuffer
-from .encoder_cache import EncoderCache, BatchEncoderCache
-from .performance_metrics import PerformanceMetrics, OperationStats, TimingContext
 
 __all__ = [
-    'RingBuffer',
-    'EncoderCache',
-    'BatchEncoderCache',
-    'PerformanceMetrics',
-    'OperationStats',
-    'TimingContext',
+    "BatchEncoderCache",
+    "EncoderCache",
+    "OperationStats",
+    "PerformanceMetrics",
+    "RingBuffer",
+    "TimingContext",
 ]

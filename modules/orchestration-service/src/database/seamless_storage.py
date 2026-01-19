@@ -1,10 +1,9 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import aiosqlite
-
 
 DEFAULT_DB_PATH = os.getenv("SEAMLESS_DB_PATH", "./data/seamless_demo.db")
 
@@ -65,8 +64,8 @@ async def open_session(
     created_at_iso: str,
     source_lang: str,
     target_lang: str,
-    client_ip: Optional[str],
-    user_agent: Optional[str],
+    client_ip: str | None,
+    user_agent: str | None,
 ) -> None:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
@@ -100,7 +99,7 @@ async def close_session(session_id: str, ended_at_iso: str) -> None:
 
 
 async def add_event(
-    session_id: str, event_type: str, payload: Dict[str, Any], timestamp_ms: int
+    session_id: str, event_type: str, payload: dict[str, Any], timestamp_ms: int
 ) -> None:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
@@ -130,7 +129,7 @@ async def add_transcript(
 
 
 # Retrieval helpers
-async def list_sessions(limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+async def list_sessions(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
@@ -142,7 +141,7 @@ async def list_sessions(limit: int = 50, offset: int = 0) -> List[Dict[str, Any]
         return [dict(r) for r in rows]
 
 
-async def get_session(session_id: str) -> Optional[Dict[str, Any]]:
+async def get_session(session_id: str) -> dict[str, Any] | None:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row
@@ -156,15 +155,15 @@ async def get_session(session_id: str) -> Optional[Dict[str, Any]]:
 
 async def get_events(
     session_id: str,
-    from_ms: Optional[int] = None,
-    to_ms: Optional[int] = None,
-    types_csv: Optional[str] = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    types_csv: str | None = None,
     limit: int = 500,
     offset: int = 0,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     db_path = _resolve_db_path()
     query = "SELECT id, event_type, payload, timestamp_ms FROM seamless_events WHERE session_id = ?"
-    params: List[Any] = [session_id]
+    params: list[Any] = [session_id]
     if from_ms is not None:
         query += " AND timestamp_ms >= ?"
         params.append(from_ms)
@@ -187,7 +186,7 @@ async def get_events(
         return [dict(r) for r in rows]
 
 
-async def get_transcripts(session_id: str) -> List[Dict[str, Any]]:
+async def get_transcripts(session_id: str) -> list[dict[str, Any]]:
     db_path = _resolve_db_path()
     async with aiosqlite.connect(db_path) as db:
         db.row_factory = aiosqlite.Row

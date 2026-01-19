@@ -11,18 +11,18 @@ Usage:
     python scripts/benchmark.py --audio test_audio.wav
 """
 
-import sys
-import os
 import argparse
+import sys
 import time
-import numpy as np
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+import numpy as np
 
+# Add src to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
+from service_config import VADConfig
 from vad_detector import SileroVAD
-from service_config import VADConfig, LIDConfig
 
 
 def generate_test_audio(duration_seconds: float = 5.0, sample_rate: int = 16000) -> np.ndarray:
@@ -32,9 +32,9 @@ def generate_test_audio(duration_seconds: float = 5.0, sample_rate: int = 16000)
 
     # Generate speech-like signal (sum of sine waves with noise)
     audio = (
-        0.3 * np.sin(2 * np.pi * 200 * t) +
-        0.2 * np.sin(2 * np.pi * 300 * t) +
-        0.1 * np.random.randn(samples)
+        0.3 * np.sin(2 * np.pi * 200 * t)
+        + 0.2 * np.sin(2 * np.pi * 300 * t)
+        + 0.1 * np.random.randn(samples)
     )
 
     return audio.astype(np.float32)
@@ -49,7 +49,7 @@ def benchmark_vad(iterations: int = 100, chunk_size: int = 8000):
     vad = SileroVAD(
         threshold=config.threshold,
         sampling_rate=config.sampling_rate,
-        min_silence_duration_ms=config.min_silence_duration_ms
+        min_silence_duration_ms=config.min_silence_duration_ms,
     )
 
     # Generate test audio
@@ -73,7 +73,7 @@ def benchmark_vad(iterations: int = 100, chunk_size: int = 8000):
     max_time = max(timings)
     p95 = sorted(timings)[int(len(timings) * 0.95)]
 
-    print(f"✅ VAD Performance:")
+    print("✅ VAD Performance:")
     print(f"   - Average: {avg:.2f}ms")
     print(f"   - Min: {min_time:.2f}ms")
     print(f"   - Max: {max_time:.2f}ms")
@@ -97,10 +97,10 @@ def benchmark_audio_processing(iterations: int = 100):
     audio = generate_test_audio(duration_seconds=1.0)
 
     operations = {
-        'RMS Calculation': lambda x: np.sqrt(np.mean(x ** 2)),
-        'Max Amplitude': lambda x: np.max(np.abs(x)),
-        'Normalization': lambda x: x / np.max(np.abs(x)),
-        'Concatenation': lambda x: np.concatenate([x, x]),
+        "RMS Calculation": lambda x: np.sqrt(np.mean(x**2)),
+        "Max Amplitude": lambda x: np.max(np.abs(x)),
+        "Normalization": lambda x: x / np.max(np.abs(x)),
+        "Concatenation": lambda x: np.concatenate([x, x]),
     }
 
     for op_name, op_func in operations.items():
@@ -127,8 +127,6 @@ def benchmark_buffer_operations(iterations: int = 100):
 
     chunk_size = 8000
     buffer = np.array([], dtype=np.float32)
-
-    operations = []
 
     # Benchmark append
     timings_append = []
@@ -158,12 +156,14 @@ def load_audio_file(file_path: str) -> np.ndarray:
     """Load audio file for testing"""
     try:
         import soundfile as sf
+
         audio, sr = sf.read(file_path)
 
         # Resample if needed
         if sr != 16000:
             print(f"⚠️  Resampling from {sr}Hz to 16000Hz")
             from scipy.signal import resample
+
             audio = resample(audio, int(len(audio) * 16000 / sr))
 
         return audio.astype(np.float32)
@@ -188,7 +188,7 @@ def benchmark_real_audio(audio_file: str):
     vad = SileroVAD(
         threshold=config.threshold,
         sampling_rate=config.sampling_rate,
-        min_silence_duration_ms=config.min_silence_duration_ms
+        min_silence_duration_ms=config.min_silence_duration_ms,
     )
 
     # Process in chunks
@@ -201,7 +201,7 @@ def benchmark_real_audio(audio_file: str):
     speech_events = []
 
     for i in range(total_chunks):
-        chunk = audio[i * chunk_size:(i + 1) * chunk_size]
+        chunk = audio[i * chunk_size : (i + 1) * chunk_size]
         result = vad.check_speech(chunk)
 
         if result:
@@ -209,39 +209,30 @@ def benchmark_real_audio(audio_file: str):
 
     elapsed = time.time() - start_time
 
-    print(f"✅ Processing Complete:")
+    print("✅ Processing Complete:")
     print(f"   - Total Time: {elapsed:.2f}s")
     print(f"   - Real-time Factor: {duration/elapsed:.2f}x")
     print(f"   - Speech Events: {len(speech_events)}")
 
     if duration / elapsed > 1.0:
-        print(f"   ✅ Faster than real-time")
+        print("   ✅ Faster than real-time")
     else:
-        print(f"   ⚠️  Slower than real-time")
+        print("   ⚠️  Slower than real-time")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Benchmark Whisper Service Components'
-    )
+    parser = argparse.ArgumentParser(description="Benchmark Whisper Service Components")
     parser.add_argument(
-        '--component',
+        "--component",
         type=str,
-        default='all',
-        choices=['vad', 'audio', 'buffer', 'all'],
-        help='Component to benchmark'
+        default="all",
+        choices=["vad", "audio", "buffer", "all"],
+        help="Component to benchmark",
     )
     parser.add_argument(
-        '--iterations',
-        type=int,
-        default=100,
-        help='Number of iterations for benchmarks'
+        "--iterations", type=int, default=100, help="Number of iterations for benchmarks"
     )
-    parser.add_argument(
-        '--audio',
-        type=str,
-        help='Audio file to benchmark with'
-    )
+    parser.add_argument("--audio", type=str, help="Audio file to benchmark with")
 
     args = parser.parse_args()
 
@@ -252,13 +243,13 @@ def main():
     if args.audio:
         benchmark_real_audio(args.audio)
     else:
-        if args.component in ['vad', 'all']:
+        if args.component in ["vad", "all"]:
             benchmark_vad(iterations=args.iterations)
 
-        if args.component in ['audio', 'all']:
+        if args.component in ["audio", "all"]:
             benchmark_audio_processing(iterations=args.iterations)
 
-        if args.component in ['buffer', 'all']:
+        if args.component in ["buffer", "all"]:
             benchmark_buffer_operations(iterations=args.iterations)
 
     print("\n" + "=" * 60)
@@ -266,5 +257,5 @@ def main():
     print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

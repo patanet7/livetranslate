@@ -15,15 +15,18 @@ Key differences from file playback:
 Expected: Proper JFK transcription with VAD filtering silence
 """
 
-import socketio
-import numpy as np
 import base64
+import os
 import time
 import wave
-import os
+
+import numpy as np
+import socketio
 
 SERVICE_URL = "http://localhost:5001"
-JFK_AUDIO_PATH = "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+JFK_AUDIO_PATH = (
+    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+)
 
 # SimulStreaming default configuration
 CHUNK_DURATION = 1.2  # seconds (SimulStreaming default --min-chunk-size)
@@ -33,7 +36,7 @@ SAMPLE_RATE = 16000
 
 def load_wav_audio(file_path, max_duration=None):
     """Load WAV audio file with optional duration limit"""
-    with wave.open(file_path, 'rb') as wav_file:
+    with wave.open(file_path, "rb") as wav_file:
         sample_rate = wav_file.getframerate()
         n_channels = wav_file.getnchannels()
         n_frames = wav_file.getnframes()
@@ -64,13 +67,15 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
         enable_vad: Whether to enable VAD pre-filtering (True for live, False for file playback)
         test_name: Descriptive name for this test run
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print(f"LIVE STREAMING SIMULATION TEST - {test_name}")
-    print("="*80)
+    print("=" * 80)
     print(f"Chunk Duration: {CHUNK_DURATION}s (SimulStreaming default)")
     print(f"Test Duration: {TEST_DURATION}s")
-    print(f"Enable VAD: {enable_vad} ({'live microphone mode' if enable_vad else 'file playback mode'})")
-    print("="*80)
+    print(
+        f"Enable VAD: {enable_vad} ({'live microphone mode' if enable_vad else 'file playback mode'})"
+    )
+    print("=" * 80)
 
     # Load JFK audio
     if not os.path.exists(JFK_AUDIO_PATH):
@@ -86,6 +91,7 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
     if jfk_sample_rate != SAMPLE_RATE:
         print(f"🔄 Resampling from {jfk_sample_rate}Hz to {SAMPLE_RATE}Hz...")
         from scipy import signal
+
         jfk_audio = signal.resample(jfk_audio, int(len(jfk_audio) * SAMPLE_RATE / jfk_sample_rate))
         jfk_sample_rate = SAMPLE_RATE
         print(f"✅ Resampled to {SAMPLE_RATE}Hz")
@@ -93,7 +99,7 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
     # Calculate chunk size
     chunk_size = int(SAMPLE_RATE * CHUNK_DURATION)
     num_chunks = int(len(jfk_audio) / chunk_size)
-    print(f"\n📊 Streaming configuration:")
+    print("\n📊 Streaming configuration:")
     print(f"   Chunk size: {chunk_size} samples ({CHUNK_DURATION}s)")
     print(f"   Total chunks: {num_chunks}")
     print(f"   Total duration: {num_chunks * CHUNK_DURATION:.1f}s")
@@ -104,17 +110,17 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
     sio = socketio.Client()
     results = []
 
-    @sio.on('connect')
+    @sio.on("connect")
     def on_connect():
         print("✅ Connected to Socket.IO")
 
-    @sio.on('transcription_result')
+    @sio.on("transcription_result")
     def on_result(data):
         results.append(data)
-        text = data.get('text', '')
-        is_draft = data.get('is_draft', False)
-        is_final = data.get('is_final', False)
-        stable_text = data.get('stable_text', '')
+        text = data.get("text", "")
+        is_draft = data.get("is_draft", False)
+        is_final = data.get("is_final", False)
+        stable_text = data.get("stable_text", "")
 
         status = "✏️ DRAFT" if is_draft else ("✅ FINAL" if is_final else "📝 UPDATE")
         print(f"\n{status} Result #{len(results)}:")
@@ -122,7 +128,7 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
         if stable_text and stable_text != text:
             print(f"   Stable: '{stable_text[:40]}'")
 
-    @sio.on('error')
+    @sio.on("error")
     def on_error(data):
         print(f"❌ Error: {data.get('message')}")
 
@@ -137,12 +143,12 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
             raise Exception("Failed to establish Socket.IO connection")
 
         session_id = f"live-sim-{int(time.time())}"
-        sio.emit('join_session', {'session_id': session_id})
+        sio.emit("join_session", {"session_id": session_id})
         time.sleep(0.5)  # Wait for join_session to complete
 
-        print(f"\n🎙️  Starting live streaming simulation...")
+        print("\n🎙️  Starting live streaming simulation...")
         print(f"   Session ID: {session_id}")
-        print("="*80)
+        print("=" * 80)
 
         # Stream chunks - NO ARTIFICIAL DELAYS (process at computation speed)
         start_time = time.time()
@@ -154,25 +160,28 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
 
             # Pad last chunk if needed
             if len(chunk) < chunk_size:
-                chunk = np.pad(chunk, (0, chunk_size - len(chunk)), 'constant')
+                chunk = np.pad(chunk, (0, chunk_size - len(chunk)), "constant")
 
             # Convert float32 [-1.0, 1.0] to int16 for transmission (server expects int16)
             chunk_int16 = (chunk * 32768.0).astype(np.int16)
             chunk_bytes = chunk_int16.tobytes()
-            chunk_b64 = base64.b64encode(chunk_bytes).decode('utf-8')
+            chunk_b64 = base64.b64encode(chunk_bytes).decode("utf-8")
 
             # Send chunk with configuration
-            sio.emit('transcribe_stream', {
-                "session_id": session_id,
-                "audio_data": chunk_b64,
-                "model_name": "large-v3-turbo",
-                "language": "en",
-                "beam_size": 5,
-                "sample_rate": SAMPLE_RATE,
-                "task": "transcribe",
-                "target_language": "en",
-                "enable_vad": enable_vad,  # Configurable: True for live mic, False for file playback
-            })
+            sio.emit(
+                "transcribe_stream",
+                {
+                    "session_id": session_id,
+                    "audio_data": chunk_b64,
+                    "model_name": "large-v3-turbo",
+                    "language": "en",
+                    "beam_size": 5,
+                    "sample_rate": SAMPLE_RATE,
+                    "task": "transcribe",
+                    "target_language": "en",
+                    "enable_vad": enable_vad,  # Configurable: True for live mic, False for file playback
+                },
+            )
 
             # Brief pause to allow processing (but NOT real-time playback delay)
             time.sleep(0.1)  # Just enough for Socket.IO processing
@@ -189,7 +198,7 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
         print("   (Waiting 10 seconds for stateful Whisper processing...)")
         time.sleep(10.0)  # Increased wait time for stateful processing
 
-        sio.emit('leave_session', {'session_id': session_id})
+        sio.emit("leave_session", {"session_id": session_id})
         time.sleep(0.3)
         sio.disconnect()
 
@@ -198,15 +207,16 @@ def run_live_streaming_test(enable_vad=True, test_name="Default"):
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return {"passed": False, "error": str(e)}
 
 
 def analyze_results(results):
     """Analyze streaming test results"""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEST RESULTS ANALYSIS")
-    print("="*80)
+    print("=" * 80)
 
     analysis = {
         "passed": False,
@@ -214,7 +224,7 @@ def analyze_results(results):
         "has_stability_fields": False,
         "has_text": False,
         "transcription_text": "",
-        "details": {}
+        "details": {},
     }
 
     if len(results) == 0:
@@ -230,8 +240,14 @@ def analyze_results(results):
 
     # Check Phase 3C fields
     first_result = results[0]
-    stability_fields = ['stable_text', 'unstable_text', 'is_draft', 'is_final',
-                       'should_translate', 'stability_score']
+    stability_fields = [
+        "stable_text",
+        "unstable_text",
+        "is_draft",
+        "is_final",
+        "should_translate",
+        "stability_score",
+    ]
     missing_fields = [f for f in stability_fields if f not in first_result]
 
     analysis["has_stability_fields"] = len(missing_fields) == 0
@@ -243,7 +259,7 @@ def analyze_results(results):
         print(f"⚠️  Missing stability fields: {missing_fields}")
 
     # Check for text
-    analysis["has_text"] = 'text' in first_result and len(first_result.get('text', '').strip()) > 0
+    analysis["has_text"] = "text" in first_result and len(first_result.get("text", "").strip()) > 0
 
     if analysis["has_text"]:
         print("✅ Transcription text present")
@@ -251,7 +267,7 @@ def analyze_results(results):
         print("❌ No transcription text")
 
     # Collect full transcription
-    full_text = ' '.join([r.get('text', '') for r in results])
+    full_text = " ".join([r.get("text", "") for r in results])
     analysis["transcription_text"] = full_text.strip()
 
     # Check for JFK keywords
@@ -260,36 +276,36 @@ def analyze_results(results):
 
     print(f"\n📝 Transcription ({len(full_text)} chars):")
     print(f"   '{full_text[:100]}'...")
-    print(f"\n🔍 JFK keyword detection:")
+    print("\n🔍 JFK keyword detection:")
     print(f"   Expected: {jfk_keywords}")
     print(f"   Found: {found_keywords} ({len(found_keywords)}/{len(jfk_keywords)})")
 
     # Extract stability details
     if analysis["has_stability_fields"]:
         analysis["details"] = {
-            "stable_text": first_result.get('stable_text', '')[:50],
-            "unstable_text": first_result.get('unstable_text', '')[:30],
-            "is_draft": first_result.get('is_draft'),
-            "is_final": first_result.get('is_final'),
-            "should_translate": first_result.get('should_translate'),
-            "stability_score": first_result.get('stability_score'),
+            "stable_text": first_result.get("stable_text", "")[:50],
+            "unstable_text": first_result.get("unstable_text", "")[:30],
+            "is_draft": first_result.get("is_draft"),
+            "is_final": first_result.get("is_final"),
+            "should_translate": first_result.get("should_translate"),
+            "stability_score": first_result.get("stability_score"),
         }
 
-        print(f"\n🎯 Stability tracking (first result):")
+        print("\n🎯 Stability tracking (first result):")
         print(f"   Draft: {analysis['details']['is_draft']}")
         print(f"   Final: {analysis['details']['is_final']}")
         print(f"   Stability score: {analysis['details']['stability_score']}")
 
     # Test passes if we have stability fields, text, and JFK keywords
-    analysis["passed"] = (analysis["has_stability_fields"] and
-                         analysis["has_text"] and
-                         len(found_keywords) >= 2)
+    analysis["passed"] = (
+        analysis["has_stability_fields"] and analysis["has_text"] and len(found_keywords) >= 2
+    )
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     if analysis["passed"]:
         print("✅ TEST PASSED!")
-        print(f"   - Phase 3C stability tracking: WORKING")
-        print(f"   - VAD live filtering: WORKING")
+        print("   - Phase 3C stability tracking: WORKING")
+        print("   - VAD live filtering: WORKING")
         print(f"   - JFK transcription: SUCCESSFUL ({len(found_keywords)}/4 keywords)")
     else:
         print("❌ TEST FAILED!")
@@ -299,41 +315,43 @@ def analyze_results(results):
             print("   - No transcription text")
         if len(found_keywords) < 2:
             print(f"   - Poor transcription quality ({len(found_keywords)}/4 keywords)")
-    print("="*80)
+    print("=" * 80)
 
     return analysis
 
 
 def main():
     """Run live streaming simulation tests (both VAD modes)"""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("LIVE STREAMING SIMULATION - DUAL MODE TEST")
     print("Testing both VAD=False (file playback) and VAD=True (live mic)")
-    print("="*80)
+    print("=" * 80)
 
     results = []
 
     # Test 1: VAD = False (file playback mode)
-    print("\n\n" + "🎬 "*20)
+    print("\n\n" + "🎬 " * 20)
     print("TEST 1: FILE PLAYBACK MODE (enable_vad=False)")
-    print("🎬 "*20)
-    result_vad_false = run_live_streaming_test(enable_vad=False, test_name="File Playback (VAD OFF)")
+    print("🎬 " * 20)
+    result_vad_false = run_live_streaming_test(
+        enable_vad=False, test_name="File Playback (VAD OFF)"
+    )
     results.append(("VAD=False", result_vad_false))
 
     # Wait between tests
     time.sleep(3)
 
     # Test 2: VAD = True (live microphone mode)
-    print("\n\n" + "🎙️ "*20)
+    print("\n\n" + "🎙️ " * 20)
     print("TEST 2: LIVE MICROPHONE MODE (enable_vad=True)")
-    print("🎙️ "*20)
+    print("🎙️ " * 20)
     result_vad_true = run_live_streaming_test(enable_vad=True, test_name="Live Microphone (VAD ON)")
     results.append(("VAD=True", result_vad_true))
 
     # Summary
-    print("\n\n" + "="*80)
+    print("\n\n" + "=" * 80)
     print("DUAL MODE TEST SUMMARY")
-    print("="*80)
+    print("=" * 80)
     for test_name, result in results:
         status = "✅ PASSED" if result.get("passed") else "❌ FAILED"
         print(f"\n{status} - {test_name}")
@@ -344,12 +362,12 @@ def main():
 
     # Overall pass/fail
     all_passed = all(r.get("passed") for _, r in results)
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     if all_passed:
         print("✅ ALL TESTS PASSED!")
     else:
         print("❌ SOME TESTS FAILED - See details above")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     return 0 if all_passed else 1
 

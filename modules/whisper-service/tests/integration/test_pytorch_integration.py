@@ -10,18 +10,18 @@ This test verifies:
 4. AlignAtt decoder can use the captured attention data
 """
 
-import pytest
-import numpy as np
-import torch
 import sys
 from pathlib import Path
 
-# Add src directory to path
+# Add src directory to path before imports
 SRC_DIR = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from whisper_service import ModelManager
+import numpy as np
+import pytest
+import torch
 from alignatt_decoder import AlignAttDecoder
+from whisper_service import ModelManager
 
 
 class TestPyTorchIntegration:
@@ -44,8 +44,8 @@ class TestPyTorchIntegration:
 
             # Verify model loaded
             assert model is not None, "Model should not be None"
-            assert hasattr(model, 'decoder'), "Model should have decoder"
-            assert hasattr(model, 'encoder'), "Model should have encoder"
+            assert hasattr(model, "decoder"), "Model should have decoder"
+            assert hasattr(model, "encoder"), "Model should have encoder"
 
             # Verify device
             assert manager.device in ["cuda", "mps", "cpu"], f"Invalid device: {manager.device}"
@@ -70,9 +70,9 @@ class TestPyTorchIntegration:
             # Verify hooks are installed
             hook_count = 0
             for block in model.decoder.blocks:
-                if hasattr(block, 'cross_attn'):
+                if hasattr(block, "cross_attn"):
                     # Check if hooks are registered
-                    if hasattr(block.cross_attn, '_forward_hooks'):
+                    if hasattr(block.cross_attn, "_forward_hooks"):
                         hook_count += len(block.cross_attn._forward_hooks)
 
             assert hook_count > 0, "No attention hooks found on decoder blocks"
@@ -93,7 +93,7 @@ class TestPyTorchIntegration:
         model_name = "large-v3"
 
         try:
-            model = manager.load_model(model_name)
+            manager.load_model(model_name)
 
             # Create dummy audio (1 second of silence at 16kHz)
             audio_data = np.zeros(16000, dtype=np.float32)
@@ -104,11 +104,11 @@ class TestPyTorchIntegration:
             print(f"Running inference on {manager.device}...")
 
             # Perform inference
-            result = manager.safe_inference(
+            manager.safe_inference(
                 model_name=model_name,
                 audio_data=audio_data,
                 beam_size=1,  # Greedy for speed
-                streaming_policy="alignatt"  # Enable AlignAtt
+                streaming_policy="alignatt",  # Enable AlignAtt
             )
 
             # Verify attention was captured
@@ -145,7 +145,7 @@ class TestPyTorchIntegration:
         model_name = "large-v3"
 
         try:
-            model = manager.load_model(model_name)
+            manager.load_model(model_name)
 
             # Create dummy audio
             audio_data = np.zeros(16000, dtype=np.float32)
@@ -164,11 +164,11 @@ class TestPyTorchIntegration:
             manager.dec_attns.clear()
 
             # Perform inference with AlignAtt
-            result = manager.safe_inference(
+            manager.safe_inference(
                 model_name=model_name,
                 audio_data=audio_data,
                 beam_size=1,
-                streaming_policy="alignatt"
+                streaming_policy="alignatt",
             )
 
             # Verify attention was captured
@@ -176,9 +176,11 @@ class TestPyTorchIntegration:
 
             # Verify AlignAtt settings were applied
             assert alignatt.max_frame > 0, "AlignAtt max_frame not set"
-            assert alignatt.max_frame == audio_frames - 10, f"Expected {audio_frames - 10}, got {alignatt.max_frame}"
+            assert (
+                alignatt.max_frame == audio_frames - 10
+            ), f"Expected {audio_frames - 10}, got {alignatt.max_frame}"
 
-            print(f"✅ AlignAtt successfully configured with captured attention")
+            print("✅ AlignAtt successfully configured with captured attention")
             print(f"   Captured {len(manager.dec_attns)} attention layers")
             print(f"   Frame threshold: {alignatt.max_frame}/{audio_frames}")
 
@@ -202,7 +204,7 @@ class TestPyTorchIntegration:
         model_name = "large-v3"
 
         try:
-            model = manager.load_model(model_name)
+            manager.load_model(model_name)
 
             # Create dummy audio
             audio_data = np.zeros(16000, dtype=np.float32)
@@ -210,11 +212,7 @@ class TestPyTorchIntegration:
             # Clear and run inference
             manager.dec_attns.clear()
 
-            result = manager.safe_inference(
-                model_name=model_name,
-                audio_data=audio_data,
-                beam_size=1
-            )
+            manager.safe_inference(model_name=model_name, audio_data=audio_data, beam_size=1)
 
             # Analyze attention
             if len(manager.dec_attns) > 0:
@@ -229,11 +227,15 @@ class TestPyTorchIntegration:
                     if isinstance(last_attn, torch.Tensor):
                         max_frames = torch.argmax(last_attn, dim=-1)
                         print(f"   Max attention frames shape: {max_frames.shape}")
-                        print(f"   Max frame indices (first 10): {max_frames[:10] if len(max_frames) > 10 else max_frames}")
+                        print(
+                            f"   Max frame indices (first 10): {max_frames[:10] if len(max_frames) > 10 else max_frames}"
+                        )
                     else:
                         max_frames = np.argmax(last_attn, axis=-1)
                         print(f"   Max attention frames shape: {max_frames.shape}")
-                        print(f"   Max frame indices (first 10): {max_frames[:10] if len(max_frames) > 10 else max_frames}")
+                        print(
+                            f"   Max frame indices (first 10): {max_frames[:10] if len(max_frames) > 10 else max_frames}"
+                        )
 
                     print("✅ Attention can be analyzed for frame-level decisions")
                 else:

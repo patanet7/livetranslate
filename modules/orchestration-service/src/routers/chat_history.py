@@ -7,22 +7,20 @@ Provides CRUD endpoints for conversations, messages, and full-text search.
 
 import logging
 import uuid
-from typing import List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status, Depends, Query
+from database import (
+    ChatMessage,
+    ConversationSession,
+    User,
+    get_db_session,
+)
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-
-from database import (
-    get_db_session,
-    User,
-    ConversationSession,
-    ChatMessage,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +37,8 @@ class CreateUserRequest(BaseModel):
 
     user_id: str
     email: str
-    name: Optional[str] = None
-    image_url: Optional[str] = None
+    name: str | None = None
+    image_url: str | None = None
     preferred_language: str = "en"
     max_concurrent_sessions: int = 10
 
@@ -50,11 +48,11 @@ class UserResponse(BaseModel):
 
     user_id: str
     email: str
-    name: Optional[str]
-    image_url: Optional[str]
-    preferred_language: Optional[str]
+    name: str | None
+    image_url: str | None
+    preferred_language: str | None
     created_at: datetime
-    last_active_at: Optional[datetime]
+    last_active_at: datetime | None
     is_active: bool
 
 
@@ -63,9 +61,9 @@ class CreateSessionRequest(BaseModel):
 
     user_id: str
     session_type: str = "user_chat"
-    session_title: Optional[str] = None
+    session_title: str | None = None
     enable_translation: bool = False
-    target_languages: Optional[List[str]] = None
+    target_languages: list[str] | None = None
 
 
 class SessionResponse(BaseModel):
@@ -74,13 +72,13 @@ class SessionResponse(BaseModel):
     session_id: str
     user_id: str
     session_type: str
-    session_title: Optional[str]
+    session_title: str | None
     started_at: datetime
-    ended_at: Optional[datetime]
-    last_message_at: Optional[datetime]
+    ended_at: datetime | None
+    last_message_at: datetime | None
     message_count: int
     enable_translation: bool
-    target_languages: Optional[List[str]]
+    target_languages: list[str] | None
 
 
 class CreateMessageRequest(BaseModel):
@@ -89,11 +87,11 @@ class CreateMessageRequest(BaseModel):
     session_id: str
     role: str = Field(..., pattern="^(user|assistant|system)$")
     content: str
-    original_language: Optional[str] = "en"
-    translated_content: Optional[dict] = None
-    confidence: Optional[int] = None
-    speaker_id: Optional[str] = None
-    speaker_name: Optional[str] = None
+    original_language: str | None = "en"
+    translated_content: dict | None = None
+    confidence: int | None = None
+    speaker_id: str | None = None
+    speaker_name: str | None = None
 
 
 class MessageResponse(BaseModel):
@@ -104,12 +102,12 @@ class MessageResponse(BaseModel):
     sequence_number: int
     role: str
     content: str
-    original_language: Optional[str]
-    translated_content: Optional[dict]
+    original_language: str | None
+    translated_content: dict | None
     timestamp: datetime
-    confidence: Optional[int]
-    speaker_id: Optional[str]
-    speaker_name: Optional[str]
+    confidence: int | None
+    speaker_id: str | None
+    speaker_name: str | None
 
 
 # ============================================================================
@@ -118,9 +116,7 @@ class MessageResponse(BaseModel):
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(
-    request: CreateUserRequest, db: AsyncSession = Depends(get_db_session)
-):
+async def create_user(request: CreateUserRequest, db: AsyncSession = Depends(get_db_session)):
     """Create a new user"""
     try:
         # Check if user already exists
@@ -156,9 +152,7 @@ async def create_user(
     except Exception as e:
         logger.error(f"Failed to create user: {e}")
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
@@ -180,12 +174,8 @@ async def get_user(user_id: str, db: AsyncSession = Depends(get_db_session)):
 # ============================================================================
 
 
-@router.post(
-    "/sessions", response_model=SessionResponse, status_code=status.HTTP_201_CREATED
-)
-async def create_session(
-    request: CreateSessionRequest, db: AsyncSession = Depends(get_db_session)
-):
+@router.post("/sessions", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
+async def create_session(request: CreateSessionRequest, db: AsyncSession = Depends(get_db_session)):
     """Create new conversation session"""
     try:
         # Verify user exists
@@ -220,9 +210,7 @@ async def create_session(
     except Exception as e:
         logger.error(f"Failed to create session: {e}")
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
@@ -230,10 +218,10 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db_session
     """Get session by ID"""
     try:
         session_uuid = uuid.UUID(session_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid session ID format"
-        )
+        ) from e
 
     result = await db.execute(
         select(ConversationSession)
@@ -251,12 +239,12 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db_session
     return SessionResponse(**session.to_dict())
 
 
-@router.get("/sessions", response_model=List[SessionResponse])
+@router.get("/sessions", response_model=list[SessionResponse])
 async def list_sessions(
     user_id: str,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    session_type: Optional[str] = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    session_type: str | None = None,
     limit: int = Query(50, le=1000),
     offset: int = 0,
     db: AsyncSession = Depends(get_db_session),
@@ -287,15 +275,13 @@ async def delete_session(session_id: str, db: AsyncSession = Depends(get_db_sess
     """Delete conversation session (cascade deletes messages)"""
     try:
         session_uuid = uuid.UUID(session_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid session ID format"
-        )
+        ) from e
 
     result = await db.execute(
-        select(ConversationSession).where(
-            ConversationSession.session_id == session_uuid
-        )
+        select(ConversationSession).where(ConversationSession.session_id == session_uuid)
     )
     session = result.scalar_one_or_none()
 
@@ -318,28 +304,22 @@ async def delete_session(session_id: str, db: AsyncSession = Depends(get_db_sess
 # ============================================================================
 
 
-@router.post(
-    "/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED
-)
-async def create_message(
-    request: CreateMessageRequest, db: AsyncSession = Depends(get_db_session)
-):
+@router.post("/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
+async def create_message(request: CreateMessageRequest, db: AsyncSession = Depends(get_db_session)):
     """Add message to conversation session"""
     try:
         # Parse session UUID
         try:
             session_uuid = uuid.UUID(request.session_id)
-        except ValueError:
+        except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid session ID format",
-            )
+            ) from e
 
         # Verify session exists
         result = await db.execute(
-            select(ConversationSession).where(
-                ConversationSession.session_id == session_uuid
-            )
+            select(ConversationSession).where(ConversationSession.session_id == session_uuid)
         )
         session = result.scalar_one_or_none()
 
@@ -365,9 +345,7 @@ async def create_message(
         await db.commit()
         await db.refresh(message)
 
-        logger.info(
-            f"Added message to session {request.session_id}: {message.message_id}"
-        )
+        logger.info(f"Added message to session {request.session_id}: {message.message_id}")
 
         return MessageResponse(**message.to_dict())
 
@@ -376,12 +354,10 @@ async def create_message(
     except Exception as e:
         logger.error(f"Failed to create message: {e}")
         await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 
-@router.get("/messages/{session_id}", response_model=List[MessageResponse])
+@router.get("/messages/{session_id}", response_model=list[MessageResponse])
 async def get_messages(
     session_id: str,
     limit: int = Query(100, le=1000),
@@ -391,10 +367,10 @@ async def get_messages(
     """Get all messages in a session"""
     try:
         session_uuid = uuid.UUID(session_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid session ID format"
-        )
+        ) from e
 
     query = (
         select(ChatMessage)
@@ -410,7 +386,7 @@ async def get_messages(
     return [MessageResponse(**m.to_dict()) for m in messages]
 
 
-@router.get("/search", response_model=List[MessageResponse])
+@router.get("/search", response_model=list[MessageResponse])
 async def search_messages(
     user_id: str,
     query: str,
@@ -448,16 +424,14 @@ async def export_session(
     """Export conversation session in various formats"""
     try:
         session_uuid = uuid.UUID(session_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid session ID format"
-        )
+        ) from e
 
     # Get session
     session_result = await db.execute(
-        select(ConversationSession).where(
-            ConversationSession.session_id == session_uuid
-        )
+        select(ConversationSession).where(ConversationSession.session_id == session_uuid)
     )
     session = session_result.scalar_one_or_none()
 
@@ -494,9 +468,7 @@ async def export_session(
             lines.append(f"  {msg.content}")
             lines.append("")
 
-        return JSONResponse(
-            content={"content": "\n".join(lines), "format": "text/plain"}
-        )
+        return JSONResponse(content={"content": "\n".join(lines), "format": "text/plain"})
 
 
 # ============================================================================
@@ -505,16 +477,14 @@ async def export_session(
 
 
 @router.get("/statistics/{session_id}")
-async def get_session_statistics(
-    session_id: str, db: AsyncSession = Depends(get_db_session)
-):
+async def get_session_statistics(session_id: str, db: AsyncSession = Depends(get_db_session)):
     """Get conversation statistics for a session"""
     try:
         session_uuid = uuid.UUID(session_id)
-    except ValueError:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid session ID format"
-        )
+        ) from e
 
     # Get session
     result = await db.execute(

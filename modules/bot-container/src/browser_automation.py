@@ -19,15 +19,15 @@ Future enhancements (Phase 3.3c):
 """
 
 import logging
-from enum import Enum
-from typing import Optional
 from dataclasses import dataclass
+from enum import Enum
 
 logger = logging.getLogger(__name__)
 
 
 class MeetingState(Enum):
     """Google Meet session states"""
+
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     JOINED = "joined"
@@ -38,6 +38,7 @@ class MeetingState(Enum):
 @dataclass
 class BrowserConfig:
     """Browser automation configuration"""
+
     headless: bool = True
     audio_capture_enabled: bool = True
     video_enabled: bool = False
@@ -59,11 +60,11 @@ class GoogleMeetAutomation:
         await browser.cleanup()
     """
 
-    def __init__(self, config: Optional[BrowserConfig] = None):
+    def __init__(self, config: BrowserConfig | None = None):
         self.config = config or BrowserConfig()
         self.driver = None  # Will be set in Phase 3.3c
         self.state = MeetingState.DISCONNECTED
-        self.meeting_url: Optional[str] = None
+        self.meeting_url: str | None = None
 
     async def initialize(self):
         """
@@ -148,11 +149,7 @@ class GoogleMeetAutomation:
 # Example usage
 async def example_usage():
     """Example of using Google Meet automation"""
-    config = BrowserConfig(
-        headless=True,
-        audio_capture_enabled=True,
-        video_enabled=False
-    )
+    config = BrowserConfig(headless=True, audio_capture_enabled=True, video_enabled=False)
 
     browser = GoogleMeetAutomation(config)
 
@@ -165,6 +162,7 @@ async def example_usage():
 
         # Stay in meeting
         import asyncio
+
         await asyncio.sleep(60)  # Stay for 1 minute
 
         # Leave meeting
@@ -176,5 +174,6 @@ async def example_usage():
 
 if __name__ == "__main__":
     import asyncio
+
     logging.basicConfig(level=logging.INFO)
     asyncio.run(example_usage())

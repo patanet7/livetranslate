@@ -2,9 +2,9 @@ Code for Simultationeus LLM Translation with EuroLLM
 ====================================================
 
 EuroLLM-9B-Instruct
-- dir with huggingface model 
+- dir with huggingface model
 - created with `git clone https://huggingface.co/utter-project/EuroLLM-9B-Instruct`
-- or with `git clone git@hf.co:utter-project/EuroLLM-9B-Instruct` -- after authorising to hf.co 
+- or with `git clone git@hf.co:utter-project/EuroLLM-9B-Instruct` -- after authorising to hf.co
 
 
 ct2_EuroLLM-9B-Instruct
@@ -19,7 +19,7 @@ sentence_segmenter.py
 simul_llm_translate.py
 - the code for EuroLLM inference with LocalAgreement
 
-Dependencies: 
+Dependencies:
 - TODO: installation instructions
 - The dependencies are CTranslate2, with this
 
@@ -34,7 +34,7 @@ Usage:
 cat gold-asr-dir//2022.acl-long.110.txt | python3 simul_llm_translate.py --min-chunk-size 1 --language de --language-specific-len-threshold --max-context-length 80 --buffer_trimming sentences
 
 
-- or *instance.log format of IWSLT2025 
+- or *instance.log format of IWSLT2025
 python3 simul_llm_translate.py --input-instance gold-asr-dir//2022.acl-long.110.instance.log --min-chunk-size 1 --language de --max-context-length 300 | tee out
 
 - I used the following parameters:
@@ -70,14 +70,14 @@ Usage: For the dir where the whole dev set is processed. It will create *instanc
 
 ./slaal-de.sh de-output/ > de-output/slaal
 
-- versioning: I have all this code in a private repo (quite messy at the moment). If you'd like to improve my code, or use my updates that I will do in coming weeks, I will add you to my repo. 
+- versioning: I have all this code in a private repo (quite messy at the moment). If you'd like to improve my code, or use my updates that I will do in coming weeks, I will add you to my repo.
 
 
 
 
 
 I could share more, if you need:
-	- Update of Stream_LAAL.py that I use: 
+	- Update of Stream_LAAL.py that I use:
 	- the selected ASR candidates outputs, to evaluate realistic ASR quality and latency
 
 

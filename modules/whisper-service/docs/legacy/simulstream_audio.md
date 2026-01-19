@@ -65,4 +65,3 @@ SimulStreaming Audio Processing Pipeline - Complete Analysis
   3. Key Difference vs Our Code:
     - SimulStreaming: Accumulates chunks in list → concatenates → calls insert_audio() ONCE per process_iter()
     - Our current code: Calls insert_audio() for EACH small chunk directly
-

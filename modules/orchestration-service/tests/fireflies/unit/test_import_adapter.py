@@ -7,10 +7,8 @@ the same pipeline as live data.
 """
 
 import pytest
-from datetime import datetime, timezone
-
-from services.pipeline.adapters.import_adapter import ImportChunkAdapter
 from services.pipeline.adapters.base import TranscriptChunk
+from services.pipeline.adapters.import_adapter import ImportChunkAdapter
 
 
 class TestImportChunkAdapterBasics:
@@ -346,6 +344,7 @@ class TestImportChunkAdapterEdgeCases:
 
     def test_adapt_with_object_having_dict(self, adapter):
         """Adapt works with objects that have __dict__."""
+
         class SentenceObject:
             def __init__(self):
                 self.text = "Object text"

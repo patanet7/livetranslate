@@ -2,15 +2,16 @@
 """
 Quick test to verify Google login automation works
 """
+
 import asyncio
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from google_meet_automation import GoogleMeetAutomation, BrowserConfig
+from google_meet_automation import BrowserConfig, GoogleMeetAutomation
 
 
 async def test_login():
@@ -36,7 +37,7 @@ async def test_login():
         google_email=email,
         google_password=password,
         screenshots_enabled=True,
-        screenshots_path="/tmp/test-screenshots"
+        screenshots_path="/tmp/test-screenshots",
     )
 
     automation = GoogleMeetAutomation(config)
@@ -86,6 +87,7 @@ async def test_login():
         print(f"❌ ERROR: {e}")
         print("=" * 70)
         import traceback
+
         traceback.print_exc()
         return False
 

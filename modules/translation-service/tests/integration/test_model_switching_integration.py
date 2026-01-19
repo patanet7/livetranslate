@@ -11,30 +11,34 @@ These tests verify ACTUAL model switching with the translation service:
 6. Model status verification
 
 Requirements:
-- Translation service running on localhost:5003
-- Ollama server accessible with at least 2 models available
+- Translation service running (configure via TRANSLATION_SERVICE_URL env var)
+- Ollama server accessible (configure via OLLAMA_BASE_URL env var)
 - Run: python -m pytest tests/integration/test_model_switching_integration.py -v
+
+Configuration:
+- Set environment variables or create tests/.env.test file
+- See tests/.env.test.example for available options
 
 Author: Claude Code
 Date: 2026-01-11
 """
 
-import pytest
+from __future__ import annotations
+
 import asyncio
-import aiohttp
-import time
 import logging
-import os
-from datetime import datetime
-from typing import Dict, Any, List, Optional
+import time
+from typing import Any
+
+import aiohttp
+import pytest
+
+# Import config from conftest (automatically loaded by pytest)
+from conftest import test_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Service configuration
-TRANSLATION_SERVICE_URL = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.239:11434")
 
 # Test texts for translation
 TEST_TEXTS = {
@@ -48,9 +52,9 @@ TEST_TEXTS = {
 class TranslationServiceClient:
     """Client for testing the translation service"""
 
-    def __init__(self, base_url: str = TRANSLATION_SERVICE_URL):
-        self.base_url = base_url
-        self.session: Optional[aiohttp.ClientSession] = None
+    def __init__(self, base_url: str | None = None):
+        self.base_url = base_url or test_config.translation_service_url
+        self.session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -60,7 +64,7 @@ class TranslationServiceClient:
         if self.session:
             await self.session.close()
 
-    async def health_check(self) -> Dict[str, Any]:
+    async def health_check(self) -> dict[str, Any]:
         """Check if service is healthy"""
         async with self.session.get(f"{self.base_url}/health") as response:
             return await response.json()
@@ -70,7 +74,7 @@ class TranslationServiceClient:
         text: str,
         source_language: str = "en",
         target_language: str = "es",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Translate text"""
         payload = {
             "text": text,
@@ -93,12 +97,12 @@ class TranslationServiceClient:
 
         return {"status_code": 404, "detail": "No working translate endpoint found"}
 
-    async def get_model_status(self) -> Dict[str, Any]:
+    async def get_model_status(self) -> dict[str, Any]:
         """Get current model status"""
         async with self.session.get(f"{self.base_url}/api/models/status") as response:
             return await response.json()
 
-    async def switch_model(self, model: str, backend: str = "ollama") -> Dict[str, Any]:
+    async def switch_model(self, model: str, backend: str = "ollama") -> dict[str, Any]:
         """Switch to a different model"""
         payload = {"model": model, "backend": backend}
         async with self.session.post(
@@ -109,7 +113,7 @@ class TranslationServiceClient:
             result["status_code"] = response.status
             return result
 
-    async def preload_model(self, model: str, backend: str = "ollama") -> Dict[str, Any]:
+    async def preload_model(self, model: str, backend: str = "ollama") -> dict[str, Any]:
         """Preload a model"""
         payload = {"model": model, "backend": backend}
         async with self.session.post(
@@ -120,7 +124,7 @@ class TranslationServiceClient:
             result["status_code"] = response.status
             return result
 
-    async def unload_model(self, model: str, backend: str = "ollama") -> Dict[str, Any]:
+    async def unload_model(self, model: str, backend: str = "ollama") -> dict[str, Any]:
         """Unload a cached model"""
         payload = {"model": model, "backend": backend}
         async with self.session.post(
@@ -131,19 +135,17 @@ class TranslationServiceClient:
             result["status_code"] = response.status
             return result
 
-    async def list_models(self, backend: str = "ollama") -> Dict[str, Any]:
+    async def list_models(self, backend: str = "ollama") -> dict[str, Any]:
         """List available models"""
-        async with self.session.get(
-            f"{self.base_url}/api/models/list/{backend}"
-        ) as response:
+        async with self.session.get(f"{self.base_url}/api/models/list/{backend}") as response:
             return await response.json()
 
 
-async def get_available_ollama_models() -> List[str]:
+async def get_available_ollama_models() -> list[str]:
     """Get list of available Ollama models"""
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(f"{OLLAMA_BASE_URL}/api/tags") as response:
+            async with session.get(f"{test_config.ollama_base_url}/api/tags") as response:
                 if response.status == 200:
                     data = await response.json()
                     return [m["name"] for m in data.get("models", [])]
@@ -214,7 +216,7 @@ class TestTranslationBeforeSwitch:
         assert "translated_text" in result, f"No translated_text in result: {result}"
         assert len(result["translated_text"]) > 0, "Empty translation"
 
-        logger.info(f"✅ Translation (initial model):")
+        logger.info("✅ Translation (initial model):")
         logger.info(f"   EN: {TEST_TEXTS['simple']}")
         logger.info(f"   ES: {result['translated_text']}")
         logger.info(f"   Backend: {result.get('backend_used', 'unknown')}")
@@ -308,8 +310,9 @@ class TestModelSwitching:
         # Step 6: Verify status shows new model
         logger.info("\n📋 Step 6: Verifying model status...")
         final_status = await client.get_model_status()
-        assert final_status.get("current_model") == new_model, \
-            f"Status shows wrong model: {final_status.get('current_model')} != {new_model}"
+        assert (
+            final_status.get("current_model") == new_model
+        ), f"Status shows wrong model: {final_status.get('current_model')} != {new_model}"
         logger.info(f"   ✅ Status confirms current model: {final_status.get('current_model')}")
 
         # Step 7: Switch back to original model
@@ -397,13 +400,14 @@ class TestModelPreloading:
         logger.info(f"   Warm switch time: {warm_switch_time:.2f}s")
 
         # Warm should be faster than cold
-        logger.info(f"\n📊 Comparison:")
+        logger.info("\n📊 Comparison:")
         logger.info(f"   Cold: {cold_switch_time:.2f}s")
         logger.info(f"   Warm: {warm_switch_time:.2f}s")
         logger.info(f"   Speedup: {cold_switch_time / warm_switch_time:.1f}x")
 
-        assert warm_switch_time < cold_switch_time, \
-            f"Warm switch should be faster: {warm_switch_time:.2f}s >= {cold_switch_time:.2f}s"
+        assert (
+            warm_switch_time < cold_switch_time
+        ), f"Warm switch should be faster: {warm_switch_time:.2f}s >= {cold_switch_time:.2f}s"
 
         logger.info("✅ Preload/cache test passed - warm switch is faster")
 
@@ -474,12 +478,14 @@ class TestTranslationQuality:
         for text_key, text in TEST_TEXTS.items():
             result = await client.translate(text, "en", "es")
             if result.get("status_code") == 200:
-                results.append({
-                    "type": text_key,
-                    "original": text,
-                    "translated": result.get("translated_text"),
-                    "confidence": result.get("confidence_score"),
-                })
+                results.append(
+                    {
+                        "type": text_key,
+                        "original": text,
+                        "translated": result.get("translated_text"),
+                        "confidence": result.get("confidence_score"),
+                    }
+                )
 
         logger.info("\n📝 Translation samples:")
         for r in results:
@@ -495,12 +501,13 @@ class TestTranslationQuality:
 # Main test runner
 # ============================================================================
 
+
 async def run_all_tests():
     """Run all integration tests manually (without pytest)"""
     logger.info("=" * 70)
     logger.info("MODEL SWITCHING INTEGRATION TESTS")
-    logger.info(f"Translation Service: {TRANSLATION_SERVICE_URL}")
-    logger.info(f"Ollama Server: {OLLAMA_BASE_URL}")
+    logger.info(f"Translation Service: {test_config.translation_service_url}")
+    logger.info(f"Ollama Server: {test_config.ollama_base_url}")
     logger.info("=" * 70)
 
     async with TranslationServiceClient() as client:
@@ -511,7 +518,7 @@ async def run_all_tests():
             if health.get("status") != "healthy":
                 logger.error(f"❌ Service not healthy: {health}")
                 return False
-            logger.info(f"✅ Service healthy")
+            logger.info("✅ Service healthy")
         except Exception as e:
             logger.error(f"❌ Cannot connect to service: {e}")
             return False
@@ -535,7 +542,7 @@ async def run_all_tests():
         logger.info("\n📝 Testing translation with current model...")
         result = await client.translate("Hello, how are you?", "en", "es")
         if result.get("status_code") == 200:
-            logger.info(f"   EN: Hello, how are you?")
+            logger.info("   EN: Hello, how are you?")
             logger.info(f"   ES: {result.get('translated_text')}")
         else:
             logger.error(f"   ❌ Translation failed: {result}")

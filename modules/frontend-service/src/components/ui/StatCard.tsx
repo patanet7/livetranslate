@@ -5,8 +5,8 @@
  * Eliminates 22+ duplicate Grid+Paper+Typography patterns.
  */
 
-import React from 'react';
-import { Grid, Paper, Typography, GridProps } from '@mui/material';
+import React from "react";
+import { Grid, Paper, Typography, GridProps } from "@mui/material";
 
 export interface StatCardProps {
   /**
@@ -23,7 +23,14 @@ export interface StatCardProps {
    * Color theme for the value
    * @default 'primary'
    */
-  color?: 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info' | 'default';
+  color?:
+    | "primary"
+    | "secondary"
+    | "success"
+    | "error"
+    | "warning"
+    | "info"
+    | "default";
 
   /**
    * Grid item props for responsive layout
@@ -92,7 +99,7 @@ export interface StatCardProps {
 export const StatCard: React.FC<StatCardProps> = ({
   value,
   label,
-  color = 'primary',
+  color = "primary",
   gridProps = { xs: 12, md: 6, lg: 2.4 },
   icon,
   subtitle,
@@ -101,7 +108,7 @@ export const StatCard: React.FC<StatCardProps> = ({
 }) => {
   // Format value if formatter provided
   const displayValue =
-    formatter && (typeof value === 'string' || typeof value === 'number')
+    formatter && (typeof value === "string" || typeof value === "number")
       ? formatter(value)
       : value;
 
@@ -111,11 +118,11 @@ export const StatCard: React.FC<StatCardProps> = ({
         elevation={elevation}
         sx={{
           p: 2,
-          textAlign: 'center',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
+          textAlign: "center",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
         }}
       >
         {icon && (
@@ -124,15 +131,19 @@ export const StatCard: React.FC<StatCardProps> = ({
             sx={{
               mb: 1,
               color: `${color}.main`,
-              display: 'flex',
-              justifyContent: 'center',
+              display: "flex",
+              justifyContent: "center",
             }}
           >
             {icon}
           </Typography>
         )}
 
-        <Typography variant="h6" color={`${color}.main`} sx={{ fontWeight: 600 }}>
+        <Typography
+          variant="h6"
+          color={`${color}.main`}
+          sx={{ fontWeight: 600 }}
+        >
           {displayValue}
         </Typography>
 
@@ -162,7 +173,9 @@ export const StatCard: React.FC<StatCardProps> = ({
  *   <StatCard value={5} label="Errors" color="error" />
  * </StatCardGroup>
  */
-export const StatCardGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const StatCardGroup: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   return (
     <Grid container spacing={3}>
       {children}

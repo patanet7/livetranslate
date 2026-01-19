@@ -15,7 +15,8 @@ Features:
 """
 
 import logging
-from typing import Dict, Optional, Any, Tuple
+from typing import Any
+
 import numpy as np
 
 from .config import (
@@ -23,21 +24,21 @@ from .config import (
 )
 from .stage_components import ModularAudioPipeline, StagePerformanceTarget
 from .stages import (
-    VADStage,
-    VoiceFilterStage,
-    NoiseReductionStage,
-    VoiceEnhancementStage,
-    EqualizerStage,
-    SpectralDenoisingStage,
-    ConventionalDenoisingStage,
     AGCStage,
+    ConventionalDenoisingStage,
+    EqualizerStage,
+    NoiseReductionStage,
+    SpectralDenoisingStage,
+    VADStage,
+    VoiceEnhancementStage,
+    VoiceFilterStage,
 )
 
 # Import enhanced stages (now the default)
 from .stages_enhanced import (
-    LUFSNormalizationStageEnhanced as LUFSNormalizationStage,
     CompressionStageEnhanced as CompressionStage,
     LimiterStageEnhanced as LimiterStage,
+    LUFSNormalizationStageEnhanced as LUFSNormalizationStage,
 )
 
 # Import with try/catch to handle missing database module gracefully
@@ -62,7 +63,7 @@ class AudioPipelineProcessor:
         self,
         config: AudioProcessingConfig,
         sample_rate: int = 16000,
-        database_url: str = None,
+        database_url: str | None = None,
     ):
         self.config = config
         self.sample_rate = sample_rate
@@ -86,20 +87,14 @@ class AudioPipelineProcessor:
         # Set optional performance targets
         self._set_performance_targets()
 
-        logger.info(
-            f"Modular AudioPipelineProcessor initialized with preset: {config.preset_name}"
-        )
+        logger.info(f"Modular AudioPipelineProcessor initialized with preset: {config.preset_name}")
 
     def _initialize_stages(self):
         """Initialize all processing stages (using enhanced implementations for LUFS, Compression, Limiter)."""
         # Create stage instances
         vad_stage = VADStage(self.config.vad, self.sample_rate)
-        voice_filter_stage = VoiceFilterStage(
-            self.config.voice_filter, self.sample_rate
-        )
-        noise_reduction_stage = NoiseReductionStage(
-            self.config.noise_reduction, self.sample_rate
-        )
+        voice_filter_stage = VoiceFilterStage(self.config.voice_filter, self.sample_rate)
+        noise_reduction_stage = NoiseReductionStage(self.config.noise_reduction, self.sample_rate)
         voice_enhancement_stage = VoiceEnhancementStage(
             self.config.voice_enhancement, self.sample_rate
         )
@@ -161,18 +156,12 @@ class AudioPipelineProcessor:
 
         performance_targets = {
             "vad": StagePerformanceTarget(target_latency_ms=5.0, max_latency_ms=10.0),
-            "voice_filter": StagePerformanceTarget(
-                target_latency_ms=8.0, max_latency_ms=15.0
-            ),
-            "noise_reduction": StagePerformanceTarget(
-                target_latency_ms=15.0, max_latency_ms=25.0
-            ),
+            "voice_filter": StagePerformanceTarget(target_latency_ms=8.0, max_latency_ms=15.0),
+            "noise_reduction": StagePerformanceTarget(target_latency_ms=15.0, max_latency_ms=25.0),
             "voice_enhancement": StagePerformanceTarget(
                 target_latency_ms=10.0, max_latency_ms=20.0
             ),
-            "equalizer": StagePerformanceTarget(
-                target_latency_ms=12.0, max_latency_ms=22.0
-            ),
+            "equalizer": StagePerformanceTarget(target_latency_ms=12.0, max_latency_ms=22.0),
             "spectral_denoising": StagePerformanceTarget(
                 target_latency_ms=20.0, max_latency_ms=35.0
             ),
@@ -183,12 +172,8 @@ class AudioPipelineProcessor:
                 target_latency_ms=18.0, max_latency_ms=30.0
             ),
             "agc": StagePerformanceTarget(target_latency_ms=12.0, max_latency_ms=20.0),
-            "compression": StagePerformanceTarget(
-                target_latency_ms=8.0, max_latency_ms=15.0
-            ),
-            "limiter": StagePerformanceTarget(
-                target_latency_ms=6.0, max_latency_ms=12.0
-            ),
+            "compression": StagePerformanceTarget(target_latency_ms=8.0, max_latency_ms=15.0),
+            "limiter": StagePerformanceTarget(target_latency_ms=6.0, max_latency_ms=12.0),
         }
 
         # Apply targets to stages
@@ -205,27 +190,19 @@ class AudioPipelineProcessor:
         if self.pipeline.get_stage("voice_filter"):
             self.pipeline.get_stage("voice_filter").update_config(config.voice_filter)
         if self.pipeline.get_stage("noise_reduction"):
-            self.pipeline.get_stage("noise_reduction").update_config(
-                config.noise_reduction
-            )
+            self.pipeline.get_stage("noise_reduction").update_config(config.noise_reduction)
         if self.pipeline.get_stage("voice_enhancement"):
-            self.pipeline.get_stage("voice_enhancement").update_config(
-                config.voice_enhancement
-            )
+            self.pipeline.get_stage("voice_enhancement").update_config(config.voice_enhancement)
         if self.pipeline.get_stage("equalizer"):
             self.pipeline.get_stage("equalizer").update_config(config.equalizer)
         if self.pipeline.get_stage("spectral_denoising"):
-            self.pipeline.get_stage("spectral_denoising").update_config(
-                config.spectral_denoising
-            )
+            self.pipeline.get_stage("spectral_denoising").update_config(config.spectral_denoising)
         if self.pipeline.get_stage("conventional_denoising"):
             self.pipeline.get_stage("conventional_denoising").update_config(
                 config.conventional_denoising
             )
         if self.pipeline.get_stage("lufs_normalization"):
-            self.pipeline.get_stage("lufs_normalization").update_config(
-                config.lufs_normalization
-            )
+            self.pipeline.get_stage("lufs_normalization").update_config(config.lufs_normalization)
         if self.pipeline.get_stage("agc"):
             self.pipeline.get_stage("agc").update_config(config.agc)
         if self.pipeline.get_stage("compression"):
@@ -257,8 +234,8 @@ class AudioPipelineProcessor:
         logger.info(f"Audio pipeline config updated to preset: {config.preset_name}")
 
     def process_audio_chunk(
-        self, audio_data: np.ndarray, session_id: str = None, chunk_id: str = None
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        self, audio_data: np.ndarray, session_id: str | None = None, chunk_id: str | None = None
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """
         Process audio chunk through the modular pipeline with comprehensive monitoring.
 
@@ -291,12 +268,8 @@ class AudioPipelineProcessor:
             processing_metadata["stage_results"] = pipeline_result["stage_results"]
 
             # Add legacy fields for backward compatibility
-            processing_metadata["stages_applied"] = processing_metadata.get(
-                "stages_processed", []
-            )
-            processing_metadata["vad_result"] = self._extract_vad_result(
-                pipeline_result
-            )
+            processing_metadata["stages_applied"] = processing_metadata.get("stages_processed", [])
+            processing_metadata["vad_result"] = self._extract_vad_result(pipeline_result)
             processing_metadata["quality_metrics"] = self._calculate_quality_metrics(
                 audio_data, processed_audio
             )
@@ -322,17 +295,13 @@ class AudioPipelineProcessor:
                     "stages_processed": [],
                     "stages_bypassed": [],
                     "stages_with_errors": ["pipeline"],
-                    "performance_warnings": [
-                        {"type": "pipeline_error", "message": str(e)}
-                    ],
+                    "performance_warnings": [{"type": "pipeline_error", "message": str(e)}],
                 },
             }
 
             return audio_data, error_metadata
 
-    def _extract_vad_result(
-        self, pipeline_result: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def _extract_vad_result(self, pipeline_result: dict[str, Any]) -> dict[str, Any] | None:
         """Extract VAD result from pipeline results."""
         stage_results = pipeline_result.get("stage_results", {})
         vad_result = stage_results.get("vad")
@@ -347,7 +316,7 @@ class AudioPipelineProcessor:
 
     def _calculate_quality_metrics(
         self, input_audio: np.ndarray, output_audio: np.ndarray
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Calculate quality metrics for processed audio."""
         try:
             # Calculate basic quality metrics
@@ -372,7 +341,7 @@ class AudioPipelineProcessor:
 
     def process_single_stage(
         self, stage_name: str, audio_data: np.ndarray
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Process audio through a single stage only."""
         result = self.pipeline.process_single_stage(stage_name, audio_data)
 
@@ -386,11 +355,11 @@ class AudioPipelineProcessor:
 
         return None
 
-    def get_pipeline_statistics(self) -> Dict[str, Any]:
+    def get_pipeline_statistics(self) -> dict[str, Any]:
         """Get comprehensive pipeline statistics."""
         return self.pipeline.get_pipeline_statistics()
 
-    def get_stage_statistics(self, stage_name: str) -> Optional[Dict[str, Any]]:
+    def get_stage_statistics(self, stage_name: str) -> dict[str, Any] | None:
         """Get statistics for a specific stage."""
         stage = self.pipeline.get_stage(stage_name)
         return stage.get_statistics() if stage else None
@@ -400,14 +369,14 @@ class AudioPipelineProcessor:
         self.pipeline.reset_all_statistics()
 
     def get_database_statistics(
-        self, hours: int = 24, session_id: str = None
-    ) -> Dict[str, Any]:
+        self, hours: int = 24, session_id: str | None = None
+    ) -> dict[str, Any]:
         """Get processing statistics from database."""
         if self.metrics_manager:
             return self.metrics_manager.get_processing_statistics(hours, session_id)
         return {"error": "Database metrics not available"}
 
-    def get_real_time_metrics(self, minutes: int = 5) -> Dict[str, Any]:
+    def get_real_time_metrics(self, minutes: int = 5) -> dict[str, Any]:
         """Get real-time metrics from database."""
         if self.metrics_manager:
             return self.metrics_manager.get_real_time_metrics(minutes)
@@ -418,9 +387,7 @@ class AudioPipelineProcessor:
         if self.metrics_manager:
             self.metrics_manager.cleanup_old_metrics(days_to_keep)
 
-    def set_stage_performance_target(
-        self, stage_name: str, target: StagePerformanceTarget
-    ):
+    def set_stage_performance_target(self, stage_name: str, target: StagePerformanceTarget):
         """Set performance target for a specific stage."""
         self.pipeline.set_stage_performance_target(stage_name, target)
 
@@ -428,7 +395,7 @@ class AudioPipelineProcessor:
         """Enable or disable a specific stage."""
         self.pipeline.enable_stage(stage_name, enabled)
 
-    def get_stage_config(self, stage_name: str) -> Optional[Dict[str, Any]]:
+    def get_stage_config(self, stage_name: str) -> dict[str, Any] | None:
         """Get current configuration for a specific stage."""
         stage = self.pipeline.get_stage(stage_name)
         if stage:
@@ -437,7 +404,7 @@ class AudioPipelineProcessor:
 
 
 def create_audio_pipeline_processor(
-    config: AudioProcessingConfig, sample_rate: int = 16000, database_url: str = None
+    config: AudioProcessingConfig, sample_rate: int = 16000, database_url: str | None = None
 ) -> AudioPipelineProcessor:
     """Factory function to create an AudioPipelineProcessor instance."""
     return AudioPipelineProcessor(config, sample_rate, database_url)

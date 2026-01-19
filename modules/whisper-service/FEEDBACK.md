@@ -406,4 +406,3 @@ Do not touch KV or SOT mid‑utterance.
 
 
 This yields high accuracy on mixed Mandarin‑English speech with low added latency. It is compatible with your Whisper v3 stack and keeps transcription and translation staged cleanly.
-

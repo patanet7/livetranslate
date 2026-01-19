@@ -9,21 +9,21 @@ Bot lifecycle endpoints including:
 - Bot termination (/{bot_id}/terminate)
 """
 
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
+from dependencies import get_bot_manager, get_event_publisher
 from fastapi import Depends, HTTPException, status
+from models.bot import BotSpawnRequest
 
 from ._shared import (
-    create_bot_router,
-    BotResponse,
     BotListResponse,
-    logger,
+    BotResponse,
+    create_bot_router,
     get_error_response,
+    logger,
     validate_bot_exists,
 )
-from models.bot import BotSpawnRequest
-from dependencies import get_bot_manager, get_event_publisher
 
 # Create router for bot lifecycle management
 router = create_bot_router()
@@ -113,14 +113,14 @@ async def spawn_bot(
         logger.error(f"Failed to spawn bot: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to spawn bot: {str(e)}",
+            f"Failed to spawn bot: {e!s}",
             {"meeting_id": request.meeting_id, "error": str(e)},
-        )
+        ) from e
 
 
 @router.get("/")
 async def list_bots(
-    status_filter: Optional[str] = None,
+    status_filter: str | None = None,
     limit: int = 100,
     offset: int = 0,
     bot_manager=Depends(get_bot_manager),
@@ -140,9 +140,7 @@ async def list_bots(
 
         # Apply status filter if provided
         if status_filter:
-            filtered_bots = [
-                bot for bot in all_bots if bot.status.lower() == status_filter.lower()
-            ]
+            filtered_bots = [bot for bot in all_bots if bot.status.lower() == status_filter.lower()]
         else:
             filtered_bots = all_bots
 
@@ -179,8 +177,8 @@ async def list_bots(
     except Exception as e:
         logger.error(f"Failed to list bots: {e}")
         raise get_error_response(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, f"Failed to list bots: {str(e)}"
-        )
+            status.HTTP_500_INTERNAL_SERVER_ERROR, f"Failed to list bots: {e!s}"
+        ) from e
 
 
 @router.get("/active")
@@ -221,14 +219,12 @@ async def list_active_bots(bot_manager=Depends(get_bot_manager)) -> BotListRespo
         logger.error(f"Failed to list active bots: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to list active bots: {str(e)}",
-        )
+            f"Failed to list active bots: {e!s}",
+        ) from e
 
 
 @router.get("/{bot_id}", response_model=BotResponse)
-async def get_bot_details(
-    bot_id: str, bot_manager=Depends(get_bot_manager)
-) -> BotResponse:
+async def get_bot_details(bot_id: str, bot_manager=Depends(get_bot_manager)) -> BotResponse:
     """
     Get detailed information about a specific bot
     """
@@ -260,18 +256,18 @@ async def get_bot_details(
         logger.error(f"Failed to get bot details for {bot_id}: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot details: {str(e)}",
+            f"Failed to get bot details: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.post("/{bot_id}/terminate")
 async def terminate_bot(
     bot_id: str,
-    reason: Optional[str] = None,
+    reason: str | None = None,
     bot_manager=Depends(get_bot_manager),
     event_publisher=Depends(get_event_publisher),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Terminate a bot instance
 
@@ -306,7 +302,7 @@ async def terminate_bot(
             "status": "terminated",
             "message": "Bot terminated successfully",
             "reason": reason or "Manual termination",
-            "terminated_at": datetime.now(timezone.utc).isoformat(),
+            "terminated_at": datetime.now(UTC).isoformat(),
             "termination_result": termination_result,
         }
 
@@ -316,15 +312,13 @@ async def terminate_bot(
         logger.error(f"Failed to terminate bot {bot_id}: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to terminate bot: {str(e)}",
+            f"Failed to terminate bot: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/{bot_id}/status")
-async def get_bot_status(
-    bot_id: str, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+async def get_bot_status(bot_id: str, bot_manager=Depends(get_bot_manager)) -> dict[str, Any]:
     """
     Get current status of a bot
     """
@@ -347,7 +341,7 @@ async def get_bot_status(
             "meeting_connected": detailed_status.get("meeting_connected", False),
             "audio_active": detailed_status.get("audio_active", False),
             "processing_active": detailed_status.get("processing_active", False),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except HTTPException:
@@ -356,15 +350,13 @@ async def get_bot_status(
         logger.error(f"Failed to get bot status for {bot_id}: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot status: {str(e)}",
+            f"Failed to get bot status: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.post("/{bot_id}/restart")
-async def restart_bot(
-    bot_id: str, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+async def restart_bot(bot_id: str, bot_manager=Depends(get_bot_manager)) -> dict[str, Any]:
     """
     Restart a bot instance
     """
@@ -383,7 +375,7 @@ async def restart_bot(
             "bot_id": bot_id,
             "status": "restarted",
             "message": "Bot restarted successfully",
-            "restarted_at": datetime.now(timezone.utc).isoformat(),
+            "restarted_at": datetime.now(UTC).isoformat(),
             "restart_result": restart_result,
         }
 
@@ -393,6 +385,6 @@ async def restart_bot(
         logger.error(f"Failed to restart bot {bot_id}: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to restart bot: {str(e)}",
+            f"Failed to restart bot: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e

@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Dict
 
 from audio.config_sync import (
     ConfigSyncModes,
@@ -18,7 +17,7 @@ from worker.redis_consumer import ConsumerConfig, RedisStreamConsumer
 logger = logging.getLogger(__name__)
 
 
-async def handle_config_event(event: Dict[str, str]) -> None:
+async def handle_config_event(event: dict[str, str]) -> None:
     event_type = event.get("event_type")
     payload = event.get("payload", {})
 
@@ -41,9 +40,7 @@ async def handle_config_event(event: Dict[str, str]) -> None:
         )
         if updates:
             await manager.update_configuration(component, updates)
-            logger.info(
-                "Applied service settings update for %s (%s)", service_name, component
-            )
+            logger.info("Applied service settings update for %s (%s)", service_name, component)
     elif event_type == "UserSettingsUpdateRequested":
         logger.warning("User settings worker pathway not yet implemented: %s", payload)
     else:

@@ -8,24 +8,24 @@ Advanced audio analysis endpoints including:
 - Audio Quality Metrics
 """
 
-import numpy as np
-from datetime import datetime, timezone
-from typing import List, Dict, Any
+from datetime import UTC, datetime
+from typing import Any
 
+import numpy as np
+from dependencies import get_audio_service_client, get_config_manager
 from fastapi import Depends, HTTPException, status
+from utils.audio_errors import (
+    AudioProcessingBaseError,
+    AudioProcessingError,
+    ValidationError,
+)
 
 from ._shared import (
     create_audio_router,
-    logger,
     error_boundary,
     format_recovery,
+    logger,
     service_recovery,
-)
-from dependencies import get_audio_service_client, get_config_manager
-from utils.audio_errors import (
-    ValidationError,
-    AudioProcessingError,
-    AudioProcessingBaseError,
 )
 
 # Create router for audio analysis
@@ -34,10 +34,10 @@ router = create_audio_router()
 
 @router.post("/analyze/fft")
 async def analyze_audio_fft(
-    request: Dict[str, Any],
+    request: dict[str, Any],
     audio_client=Depends(get_audio_service_client),
     config_manager=Depends(get_config_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Perform FFT (Fast Fourier Transform) analysis on audio data
 
@@ -46,7 +46,7 @@ async def analyze_audio_fft(
     - **overlap**: Window overlap percentage (default: 0.5)
     - **window_type**: Window function type (default: 'hann')
     """
-    correlation_id = f"fft_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"fft_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -109,18 +109,18 @@ async def analyze_audio_fft(
                     "window_type": window_type,
                 },
                 "result": analysis_result,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
         except AudioProcessingBaseError:
             raise
         except Exception as e:
             raise AudioProcessingError(
-                f"FFT analysis failed: {str(e)}",
+                f"FFT analysis failed: {e!s}",
                 correlation_id=analysis_correlation_id,
                 processing_stage="fft_analysis",
                 details={"error": str(e)},
-            )
+            ) from e
 
 
 async def _perform_fft_analysis(
@@ -129,7 +129,7 @@ async def _perform_fft_analysis(
     overlap: float,
     window_type: str,
     correlation_id: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Core FFT analysis implementation"""
     try:
         # Decode audio data (placeholder - would use actual audio processing)
@@ -144,8 +144,7 @@ async def _perform_fft_analysis(
         peak_frequency = frequencies[np.argmax(magnitudes)]
         spectral_centroid = np.sum(frequencies * magnitudes) / np.sum(magnitudes)
         spectral_bandwidth = np.sqrt(
-            np.sum(((frequencies - spectral_centroid) ** 2) * magnitudes)
-            / np.sum(magnitudes)
+            np.sum(((frequencies - spectral_centroid) ** 2) * magnitudes) / np.sum(magnitudes)
         )
 
         return {
@@ -165,19 +164,19 @@ async def _perform_fft_analysis(
 
     except Exception as e:
         raise AudioProcessingError(
-            f"FFT computation failed: {str(e)}",
+            f"FFT computation failed: {e!s}",
             correlation_id=correlation_id,
             processing_stage="fft_computation",
             details={"error": str(e)},
-        )
+        ) from e
 
 
 @router.post("/analyze/lufs")
 async def analyze_audio_lufs(
-    request: Dict[str, Any],
+    request: dict[str, Any],
     audio_client=Depends(get_audio_service_client),
     config_manager=Depends(get_config_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Perform LUFS (Loudness Units relative to Full Scale) analysis
 
@@ -185,7 +184,7 @@ async def analyze_audio_lufs(
     - **measurement_type**: Type of LUFS measurement ('integrated', 'short_term', 'momentary')
     - **target_lufs**: Target LUFS level for comparison (default: -23.0)
     """
-    correlation_id = f"lufs_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"lufs_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -247,23 +246,23 @@ async def analyze_audio_lufs(
                     "target_lufs": target_lufs,
                 },
                 "result": analysis_result,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
         except AudioProcessingBaseError:
             raise
         except Exception as e:
             raise AudioProcessingError(
-                f"LUFS analysis failed: {str(e)}",
+                f"LUFS analysis failed: {e!s}",
                 correlation_id=analysis_correlation_id,
                 processing_stage="lufs_analysis",
                 details={"error": str(e)},
-            )
+            ) from e
 
 
 async def _perform_lufs_analysis(
     audio_data: str, measurement_type: str, target_lufs: float, correlation_id: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Core LUFS analysis implementation"""
     try:
         # Simulate LUFS analysis results (placeholder implementation)
@@ -301,9 +300,7 @@ async def _perform_lufs_analysis(
             "true_peak_db": round(float(true_peak), 2),
             "loudness_range_lu": round(float(dynamic_range), 2),
             "broadcast_compliance": broadcast_compliance,
-            "quality_assessment": _assess_loudness_quality(
-                measured_lufs, dynamic_range
-            ),
+            "quality_assessment": _assess_loudness_quality(measured_lufs, dynamic_range),
             "recommendations": _generate_loudness_recommendations(
                 measured_lufs, target_lufs, dynamic_range
             ),
@@ -312,16 +309,14 @@ async def _perform_lufs_analysis(
 
     except Exception as e:
         raise AudioProcessingError(
-            f"LUFS computation failed: {str(e)}",
+            f"LUFS computation failed: {e!s}",
             correlation_id=correlation_id,
             processing_stage="lufs_computation",
             details={"error": str(e)},
-        )
+        ) from e
 
 
-def _assess_loudness_quality(
-    measured_lufs: float, dynamic_range: float
-) -> Dict[str, Any]:
+def _assess_loudness_quality(measured_lufs: float, dynamic_range: float) -> dict[str, Any]:
     """Assess audio quality based on loudness metrics"""
 
     # Quality assessment based on LUFS and dynamic range
@@ -354,9 +349,7 @@ def _assess_loudness_quality(
 
     # Overall quality
     quality_scores = {"excellent": 4, "good": 3, "fair": 2, "poor": 1}
-    overall_score = (
-        quality_scores[loudness_quality] + quality_scores[dynamics_quality]
-    ) / 2
+    overall_score = (quality_scores[loudness_quality] + quality_scores[dynamics_quality]) / 2
 
     if overall_score >= 3.5:
         overall_quality = "excellent"
@@ -379,7 +372,7 @@ def _assess_loudness_quality(
 
 def _generate_loudness_recommendations(
     measured_lufs: float, target_lufs: float, dynamic_range: float
-) -> List[str]:
+) -> list[str]:
     """Generate recommendations for loudness optimization"""
     recommendations = []
 
@@ -399,18 +392,14 @@ def _generate_loudness_recommendations(
         recommendations.append("Consider applying limiting to prevent distortion")
 
     if measured_lufs < -35.0:
-        recommendations.append(
-            "Apply compression and normalization to increase loudness"
-        )
+        recommendations.append("Apply compression and normalization to increase loudness")
 
     if dynamic_range < 6.0:
         recommendations.append(
             "Audio is heavily compressed - consider using less aggressive compression"
         )
     elif dynamic_range > 25.0:
-        recommendations.append(
-            "Very high dynamic range - may need compression for broadcast"
-        )
+        recommendations.append("Very high dynamic range - may need compression for broadcast")
 
     if not recommendations:
         recommendations.append("Audio loudness is within acceptable parameters")
@@ -421,7 +410,7 @@ def _generate_loudness_recommendations(
 @router.get("/analyze/spectrum/{session_id}")
 async def get_spectrum_analysis(
     session_id: str, audio_client=Depends(get_audio_service_client)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get real-time spectrum analysis for an active audio session
     """
@@ -432,7 +421,7 @@ async def get_spectrum_analysis(
         return {
             "session_id": session_id,
             "spectrum_data": spectrum_data,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "analysis_type": "real_time_spectrum",
         }
 
@@ -440,18 +429,18 @@ async def get_spectrum_analysis(
         logger.error(f"Failed to get spectrum analysis for session {session_id}: {e}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Session not found or spectrum analysis unavailable: {str(e)}",
-        )
+            detail=f"Session not found or spectrum analysis unavailable: {e!s}",
+        ) from e
 
 
 @router.post("/analyze/quality")
 async def analyze_audio_quality(
-    request: Dict[str, Any], audio_client=Depends(get_audio_service_client)
-) -> Dict[str, Any]:
+    request: dict[str, Any], audio_client=Depends(get_audio_service_client)
+) -> dict[str, Any]:
     """
     Comprehensive audio quality analysis including SNR, THD, and other metrics
     """
-    correlation_id = f"quality_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"quality_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     try:
         audio_data = request.get("audio_data")
@@ -461,28 +450,24 @@ async def analyze_audio_quality(
             )
 
         # Perform comprehensive quality analysis
-        quality_metrics = await _analyze_comprehensive_quality(
-            audio_data, correlation_id
-        )
+        quality_metrics = await _analyze_comprehensive_quality(audio_data, correlation_id)
 
         return {
             "analysis_id": correlation_id,
             "analysis_type": "comprehensive_quality",
             "metrics": quality_metrics,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
         logger.error(f"Quality analysis failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Quality analysis failed: {str(e)}",
-        )
+            detail=f"Quality analysis failed: {e!s}",
+        ) from e
 
 
-async def _analyze_comprehensive_quality(
-    audio_data: str, correlation_id: str
-) -> Dict[str, Any]:
+async def _analyze_comprehensive_quality(audio_data: str, correlation_id: str) -> dict[str, Any]:
     """Perform comprehensive audio quality analysis"""
     # Placeholder implementation for comprehensive quality analysis
     # In real implementation, this would calculate SNR, THD, frequency response, etc.

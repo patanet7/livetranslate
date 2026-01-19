@@ -68,7 +68,7 @@ function startRecording(data) {
     language = data.language;
 
     const uuid = generateUUID();
-    socket.onopen = function(e) { 
+    socket.onopen = function(e) {
       socket.send(
         JSON.stringify({
             uid: uuid,
@@ -85,12 +85,12 @@ function startRecording(data) {
       const data = JSON.parse(event.data);
       if (data["uid"] !== uuid)
         return;
-      
+
       if (data["status"] === "WAIT"){
         await browser.runtime.sendMessage({ action: "showPopup", data: data["message"] })
         return;
       }
-      
+
       if (!isServerReady && data["message"] === "SERVER_READY"){
         isServerReady = true;
         return;
@@ -98,12 +98,12 @@ function startRecording(data) {
 
       if (language === null ){
         language = data["language"];
-        await browser.runtime.sendMessage({ action: "updateSelectedLanguage", data: language })      
+        await browser.runtime.sendMessage({ action: "updateSelectedLanguage", data: language })
         return
       }
 
       if (data["message"] === "DISCONNECT"){
-        await browser.runtime.sendMessage({ action: "toggleCaptureButtons", data: false })        
+        await browser.runtime.sendMessage({ action: "toggleCaptureButtons", data: false })
         return
       }
 
@@ -129,7 +129,7 @@ function startRecording(data) {
         const audioData16kHz = resampleTo16kHZ(inputData, audioContext.sampleRate);
 
         audioDataCache.push(inputData);
-        
+
         socket.send(audioData16kHz);
       };
 
@@ -312,13 +312,13 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       isCapturing = true;
       startRecording(data);
   } else if (action === "stopCapture") {
-    
+
     isCapturing = false;
     if (socket) {
         socket.close();
         socket = null;
     }
-    
+
     if (audioContext) {
         audioContext.close();
         audioContext = null;
@@ -329,36 +329,36 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     remove_element();
 
   } else if (action === "showWaitPopup") {
-    
+
     initPopupElement();
 
     showPopup(`Estimated wait time ~ ${Math.round(data)} minutes`);
 
   } else if (action === "show_transcript"){
     if (!isCapturing) return;
-    init_element();    
+    init_element();
     message = JSON.parse(data);
     message = message["segments"];
-    
+
     var text = '';
     for (var i = 0; i < message.length; i++) {
         text += message[i].text + ' ';
     }
     text = text.replace(/(\r\n|\n|\r)/gm, "");
-    
+
     var elem = document.getElementById('t3');
     elem.innerHTML = text;
-  
+
     var line_height_style = getStyle('t3', 'line-height');
     var line_height = parseInt(line_height_style.substring(0, line_height_style.length - 2));
     var divHeight = elem.offsetHeight;
     var lines = divHeight / line_height;
-  
+
     text_segments = [];
     text_segments = get_lines(elem, line_height);
-    
+
     elem.innerHTML = '';
-  
+
     if (text_segments.length > 2) {
         for (var i = 0; i < 3; i++) {
             document.getElementById('t' + i).innerHTML = text_segments[text_segments.length - 3 + i];
@@ -368,7 +368,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
             document.getElementById('t' + i).innerHTML = '';
         }
     }
-  
+
     if (text_segments.length <= 2) {
         for (var i = 0; i < text_segments.length; i++) {
             document.getElementById('t' + i).innerHTML = text_segments[i];
@@ -378,7 +378,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
             document.getElementById('t' + i).innerHTML = text_segments[text_segments.length - 3 + i];
         }
     }
-  
+
     for (var i = 1; i < 3; i++)
     {
         var parent_elem = document.getElementById('t' + (i - 1));

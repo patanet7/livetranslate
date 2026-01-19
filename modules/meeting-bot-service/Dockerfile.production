@@ -54,7 +54,7 @@ RUN groupadd -g 1001 nodejs && \
 # Copy Chrome policy to allow protocol launching
 RUN mkdir -p /etc/opt/chrome/policies/managed
 COPY --chown=nodejs:nodejs auto_launch_protocols.json /etc/opt/chrome/policies/managed/auto_launch_protocols.json
-    
+
 # Copy package files
 COPY package*.json ./
 
@@ -96,4 +96,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Set the entry point
 ENTRYPOINT ["/usr/src/app/xvfb-run-wrapper"]
 
-CMD ["node", "dist/index.js"] 
+CMD ["node", "dist/index.js"]

@@ -8,6 +8,7 @@ Tests the actual endpoint with minimal mocking to verify:
 """
 
 import io
+
 import numpy as np
 import soundfile as sf
 from fastapi.testclient import TestClient
@@ -55,19 +56,18 @@ def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
 
         # CRITICAL: Verify NO placeholder
         transcription = processing_result.get("transcription", "")
-        assert "placeholder" not in transcription.lower(), (
-            "REGRESSION: Found placeholder in response!"
-        )
+        assert (
+            "placeholder" not in transcription.lower()
+        ), "REGRESSION: Found placeholder in response!"
 
         # Verify we got real text (not empty, actual Whisper transcription)
-        assert transcription is not None and len(transcription) > 0, (
-            "Expected real transcription, got empty or None"
-        )
+        assert (
+            transcription is not None and len(transcription) > 0
+        ), "Expected real transcription, got empty or None"
 
         # Verify processing status
         assert (
-            result.get("status") == "processed"
-            or processing_result.get("status") == "processed"
+            result.get("status") == "processed" or processing_result.get("status") == "processed"
         ), f"Expected status 'processed', got: {result.get('status')}"
 
         print("✅ TEST PASSED: Upload endpoint works with real Whisper processing!")

@@ -6,8 +6,8 @@ Tests for the basic audio models that are currently implemented.
 These tests focus on what's actually available in the codebase.
 """
 
-import unittest
 import sys
+import unittest
 from pathlib import Path
 
 # Add src to path for imports - go up 4 levels to get to orchestration-service root
@@ -16,19 +16,18 @@ src_path = orchestration_root / "src"
 sys.path.insert(0, str(orchestration_root))
 sys.path.insert(0, str(src_path))
 
-from src.audio.models import (
-    AudioChunkMetadata,
-    AudioChunkingConfig,
-    SourceType,
-    ProcessingStatus,
-    create_audio_chunk_metadata,
-    get_default_chunking_config,
-)
-
 from src.audio.config import (
+    AudioPreset,
     AudioProcessingConfig,
     get_default_audio_processing_config,
-    AudioPreset,
+)
+from src.audio.models import (
+    AudioChunkingConfig,
+    AudioChunkMetadata,
+    ProcessingStatus,
+    SourceType,
+    create_audio_chunk_metadata,
+    get_default_chunking_config,
 )
 
 
@@ -136,7 +135,7 @@ class TestAudioProcessingConfig(unittest.TestCase):
         assert config.preset_name == "test_preset"
         assert config.enabled_stages == ["vad", "noise_reduction"]
         assert config.sample_rate == 44100
-        assert config.real_time_priority == False
+        assert not config.real_time_priority
 
 
 class TestEnums(unittest.TestCase):

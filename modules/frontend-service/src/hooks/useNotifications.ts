@@ -5,9 +5,9 @@
  * Eliminates duplicate addNotification dispatch patterns.
  */
 
-import { useCallback } from 'react';
-import { useAppDispatch } from '@/store';
-import { addNotification } from '@/store/slices/uiSlice';
+import { useCallback } from "react";
+import { useAppDispatch } from "@/store";
+import { addNotification } from "@/store/slices/uiSlice";
 
 /**
  * Hook for managing notifications
@@ -41,14 +41,14 @@ export const useNotifications = () => {
     (title: string, message?: string, autoHide = true) => {
       dispatch(
         addNotification({
-          type: 'success',
+          type: "success",
           title,
           message: message || title,
           autoHide,
-        })
+        }),
       );
     },
-    [dispatch]
+    [dispatch],
   );
 
   /**
@@ -62,14 +62,14 @@ export const useNotifications = () => {
     (title: string, message?: string, autoHide = false) => {
       dispatch(
         addNotification({
-          type: 'error',
+          type: "error",
           title,
           message: message || title,
           autoHide,
-        })
+        }),
       );
     },
-    [dispatch]
+    [dispatch],
   );
 
   /**
@@ -83,14 +83,14 @@ export const useNotifications = () => {
     (title: string, message?: string, autoHide = true) => {
       dispatch(
         addNotification({
-          type: 'warning',
+          type: "warning",
           title,
           message: message || title,
           autoHide,
-        })
+        }),
       );
     },
-    [dispatch]
+    [dispatch],
   );
 
   /**
@@ -104,14 +104,14 @@ export const useNotifications = () => {
     (title: string, message?: string, autoHide = true) => {
       dispatch(
         addNotification({
-          type: 'info',
+          type: "info",
           title,
           message: message || title,
           autoHide,
-        })
+        }),
       );
     },
-    [dispatch]
+    [dispatch],
   );
 
   /**
@@ -122,23 +122,23 @@ export const useNotifications = () => {
    * @param autoHide - Auto-hide after delay (default: false)
    */
   const notifyFromError = useCallback(
-    (error: any, title = 'Error', autoHide = false) => {
+    (error: any, title = "Error", autoHide = false) => {
       const message =
         error?.message ||
         error?.detail ||
         error?.error ||
-        (typeof error === 'string' ? error : 'An unexpected error occurred');
+        (typeof error === "string" ? error : "An unexpected error occurred");
 
       dispatch(
         addNotification({
-          type: 'error',
+          type: "error",
           title,
           message,
           autoHide,
-        })
+        }),
       );
     },
-    [dispatch]
+    [dispatch],
   );
 
   /**
@@ -154,7 +154,7 @@ export const useNotifications = () => {
       success: boolean,
       successMessage: string,
       errorMessage: string,
-      error?: any
+      error?: any,
     ) => {
       if (success) {
         notifySuccess(successMessage);
@@ -162,10 +162,10 @@ export const useNotifications = () => {
         const message = error
           ? error?.message || error?.detail || errorMessage
           : errorMessage;
-        notifyError('Operation Failed', message);
+        notifyError("Operation Failed", message);
       }
     },
-    [notifySuccess, notifyError]
+    [notifySuccess, notifyError],
   );
 
   return {

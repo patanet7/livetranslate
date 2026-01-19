@@ -22,7 +22,7 @@ if (-not (Test-Path $SecretsDir)) {
 # Function to generate secure random password
 function Generate-SecurePassword {
     param([int]$Length = 32)
-    
+
     $chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     $password = ""
     for ($i = 0; $i -lt $Length; $i++) {
@@ -38,10 +38,10 @@ function Create-SecretFile {
         [string]$SecretValue,
         [string]$Description
     )
-    
+
     $SecretFile = Join-Path $SecretsDir "$SecretName.txt"
     $SecretValue | Out-File -FilePath $SecretFile -Encoding UTF8 -NoNewline
-    
+
     # Set restrictive permissions (Windows)
     try {
         $acl = Get-Acl $SecretFile
@@ -63,7 +63,7 @@ function Create-SecretFile {
 # Generate secrets based on environment
 if ($Environment -eq "development") {
     Write-Host "`nGenerating development secrets..." -ForegroundColor Yellow
-    
+
     # Development secrets (predictable for testing)
     Create-SecretFile -SecretName "jwt_secret" -SecretValue "dev-jwt-secret-key-change-in-production" -Description "JWT signing key"
     Create-SecretFile -SecretName "db_password" -SecretValue "dev-postgres-password" -Description "PostgreSQL password"
@@ -72,21 +72,21 @@ if ($Environment -eq "development") {
     Create-SecretFile -SecretName "api_key_anthropic" -SecretValue "sk-ant-dev-anthropic-key-placeholder" -Description "Anthropic API key"
     Create-SecretFile -SecretName "api_key_google" -SecretValue "dev-google-api-key-placeholder" -Description "Google API key"
     Create-SecretFile -SecretName "session_secret" -SecretValue "dev-session-secret-key" -Description "Session encryption key"
-    
+
 } else {
     Write-Host "`nGenerating production secrets..." -ForegroundColor Red
-    
+
     # Production secrets (randomly generated)
     Create-SecretFile -SecretName "jwt_secret" -SecretValue (Generate-SecurePassword -Length 64) -Description "JWT signing key"
     Create-SecretFile -SecretName "db_password" -SecretValue (Generate-SecurePassword -Length 32) -Description "PostgreSQL password"
     Create-SecretFile -SecretName "redis_password" -SecretValue (Generate-SecurePassword -Length 32) -Description "Redis password"
     Create-SecretFile -SecretName "session_secret" -SecretValue (Generate-SecurePassword -Length 64) -Description "Session encryption key"
-    
+
     # API keys need to be set manually in production
     Create-SecretFile -SecretName "api_key_openai" -SecretValue "REPLACE_WITH_REAL_OPENAI_KEY" -Description "OpenAI API key"
     Create-SecretFile -SecretName "api_key_anthropic" -SecretValue "REPLACE_WITH_REAL_ANTHROPIC_KEY" -Description "Anthropic API key"
     Create-SecretFile -SecretName "api_key_google" -SecretValue "REPLACE_WITH_REAL_GOOGLE_KEY" -Description "Google API key"
-    
+
     Write-Host "`nIMPORTANT: Update API keys in .secrets/ directory with real values!" -ForegroundColor Red
 }
 
@@ -245,4 +245,4 @@ if ($Environment -eq "production") {
     Write-Host "  4. Configure monitoring for secret access" -ForegroundColor Red
 }
 
-Write-Host "`nSecrets management setup completed!" -ForegroundColor Green 
+Write-Host "`nSecrets management setup completed!" -ForegroundColor Green

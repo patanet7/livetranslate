@@ -2,30 +2,30 @@
 <#
 .SYNOPSIS
     Start Translation Service with GPU acceleration
-    
+
 .DESCRIPTION
     Starts the LiveTranslate Translation Service with optimal configuration for
     GPU-accelerated inference using vLLM, Ollama, or Triton backends.
-    
+
 .PARAMETER Backend
     Inference backend to use (auto, vllm, ollama, triton)
-    
+
 .PARAMETER Port
     Port to run the service on (default: 5003)
-    
+
 .PARAMETER LogLevel
     Logging level (DEBUG, INFO, WARNING, ERROR)
-    
+
 .PARAMETER GPU
     Enable GPU acceleration (default: true)
-    
+
 .PARAMETER Model
     Model name to load (default: auto-detect)
-    
+
 .EXAMPLE
     .\start-translation-service.ps1
     Start with auto-detection
-    
+
 .EXAMPLE
     .\start-translation-service.ps1 -Backend vllm -GPU $true
     Start with vLLM backend and GPU acceleration
@@ -67,7 +67,7 @@ if ($currentDir -ne $expectedDir) {
     Write-Warning "⚠️  Current directory: $currentDir"
     Write-Warning "⚠️  Expected directory: $expectedDir"
     Write-Info "💡 Attempting to navigate to translation service directory..."
-    
+
     # Try to find and navigate to the translation service directory
     $possiblePaths = @(
         ".\modules\translation-service",
@@ -75,7 +75,7 @@ if ($currentDir -ne $expectedDir) {
         ".\translation-service",
         "..\..\modules\translation-service"
     )
-    
+
     $found = $false
     foreach ($path in $possiblePaths) {
         if (Test-Path $path) {
@@ -85,7 +85,7 @@ if ($currentDir -ne $expectedDir) {
             break
         }
     }
-    
+
     if (-not $found) {
         Write-Error "❌ Could not find translation-service directory"
         Write-Info "💡 Please run this script from the translation-service directory"
@@ -130,7 +130,7 @@ $venvPath = "venv"
 if (-not (Test-Path $venvPath)) {
     Write-Info "📦 Creating Python virtual environment..."
     python -m venv $venvPath
-    
+
     if ($LASTEXITCODE -ne 0) {
         Write-Error "❌ Failed to create virtual environment"
         exit 1
@@ -151,30 +151,30 @@ $pipList = pip list 2>&1
 
 if ($pipList -notmatch "fastapi" -or $pipList -notmatch "uvicorn") {
     Write-Info "📦 Installing required dependencies..."
-    
+
     # Install base requirements
     pip install --upgrade pip
     pip install -r requirements.txt
-    
+
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "⚠️  Basic requirements installation had issues, continuing..."
     }
-    
+
     # Try to install optional GPU dependencies if GPU is enabled
     if ($GPU) {
         Write-Info "🚀 Installing GPU dependencies..."
-        
+
         # Check if CUDA is available
         try {
             $cudaVersion = nvidia-smi 2>&1
             if ($cudaVersion -match "CUDA Version: (\d+\.\d+)") {
                 $detectedCuda = $matches[1]
                 Write-Info "🎮 CUDA detected: $detectedCuda"
-                
+
                 # Install PyTorch with CUDA support
                 Write-Info "📦 Installing PyTorch with CUDA support..."
                 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-                
+
                 # Try to install vLLM if not present
                 if ($pipList -notmatch "vllm") {
                     Write-Info "📦 Installing vLLM..."

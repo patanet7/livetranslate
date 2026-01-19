@@ -6,7 +6,8 @@ Formats API responses for orchestration service integration.
 Extracted from whisper_service.py for better modularity and testability.
 """
 
-from typing import Dict, Any
+from typing import Any
+
 from transcription import TranscriptionResult
 
 
@@ -15,8 +16,8 @@ def format_success_response(
     session_id: str,
     result: TranscriptionResult,
     processing_time: float,
-    chunk_metadata: Dict[str, Any]
-) -> Dict[str, Any]:
+    chunk_metadata: dict[str, Any],
+) -> dict[str, Any]:
     """
     Format a successful orchestration chunk processing response.
 
@@ -39,23 +40,23 @@ def format_success_response(
             "language": result.language,
             "confidence_score": result.confidence_score,
             "segments": result.segments,
-            "timestamp": result.timestamp
+            "timestamp": result.timestamp,
         },
         "processing_info": {
             "model_used": result.model_used,
             "device_used": result.device_used,
             "processing_time": processing_time,
             "chunk_metadata": chunk_metadata,
-            "service_mode": "orchestration"
+            "service_mode": "orchestration",
         },
-        "chunk_sequence": chunk_metadata.get('sequence_number', 0),
+        "chunk_sequence": chunk_metadata.get("sequence_number", 0),
         "chunk_timing": {
-            "start_time": chunk_metadata.get('start_time', 0.0),
-            "end_time": chunk_metadata.get('end_time', 0.0),
-            "duration": chunk_metadata.get('duration', 0.0),
-            "overlap_start": chunk_metadata.get('overlap_start', 0.0),
-            "overlap_end": chunk_metadata.get('overlap_end', 0.0)
-        }
+            "start_time": chunk_metadata.get("start_time", 0.0),
+            "end_time": chunk_metadata.get("end_time", 0.0),
+            "duration": chunk_metadata.get("duration", 0.0),
+            "overlap_start": chunk_metadata.get("overlap_start", 0.0),
+            "overlap_end": chunk_metadata.get("overlap_end", 0.0),
+        },
     }
 
 
@@ -64,8 +65,8 @@ def format_error_response(
     session_id: str,
     error: Exception,
     processing_time: float,
-    chunk_metadata: Dict[str, Any]
-) -> Dict[str, Any]:
+    chunk_metadata: dict[str, Any],
+) -> dict[str, Any]:
     """
     Format an error response for failed chunk processing.
 
@@ -86,5 +87,5 @@ def format_error_response(
         "error": str(error),
         "error_type": "orchestration_processing_error",
         "processing_time": processing_time,
-        "chunk_metadata": chunk_metadata
+        "chunk_metadata": chunk_metadata,
     }

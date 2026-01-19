@@ -12,29 +12,29 @@ services:
     environment:
       # Service URLs
       - WHISPER_SERVICE_URL=http://whisper-service:5001
-      - SPEAKER_SERVICE_URL=http://speaker-service:5002  
+      - SPEAKER_SERVICE_URL=http://speaker-service:5002
       - TRANSLATION_SERVICE_URL=http://translation-service:5003
-      
+
       # Configuration
       - LOG_LEVEL=INFO
       - SECRET_KEY=orchestration-secret-key-change-in-production
-      
+
       # WebSocket settings
       - WEBSOCKET_MAX_CONNECTIONS=10000
       - WEBSOCKET_TIMEOUT=1800
-      
+
       # Monitoring
       - HEALTH_CHECK_INTERVAL=10
-      
+
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
-    
+
     networks:
       - livetranslate
-    
+
     restart: unless-stopped
-    
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s

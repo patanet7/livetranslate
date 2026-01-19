@@ -6,9 +6,10 @@ Demonstrates and tests audio chunking with SMPTE timecode for proper overlap han
 This test runs standalone without database dependencies.
 """
 
-import pytest
+from typing import Any
+
 import numpy as np
-from typing import List, Dict, Any
+import pytest
 from timecode import Timecode
 
 
@@ -30,7 +31,7 @@ def chunk_audio_with_smpte(
     sample_rate: int = 16000,
     sample_width: int = 2,
     framerate: str = "30",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Split audio into overlapping chunks with SMPTE timecode.
 
@@ -114,7 +115,7 @@ class TestSMPTEChunking:
 
         # Verify timecodes
         assert chunks[0]["smpte_timecode"]["start"] == "00:00:00:00"
-        assert chunks[0]["has_overlap"] == False
+        assert not chunks[0]["has_overlap"]
 
         print(f"\n✅ Basic chunking: {len(chunks)} chunks")
         for i, chunk in enumerate(chunks):
@@ -139,17 +140,15 @@ class TestSMPTEChunking:
             current = chunks[i]
             previous = chunks[i - 1]
 
-            assert current["has_overlap"] == True
-            assert current["start_time_seconds"] < previous["end_time_seconds"], (
-                f"Chunk {i} should overlap with previous"
-            )
+            assert current["has_overlap"]
+            assert (
+                current["start_time_seconds"] < previous["end_time_seconds"]
+            ), f"Chunk {i} should overlap with previous"
 
             # Verify overlap amount
             overlap_time = previous["end_time_seconds"] - current["start_time_seconds"]
             overlap_ms = overlap_time * 1000
-            assert 95 <= overlap_ms <= 105, (
-                f"Overlap should be ~100ms, got {overlap_ms:.1f}ms"
-            )
+            assert 95 <= overlap_ms <= 105, f"Overlap should be ~100ms, got {overlap_ms:.1f}ms"
 
         print(
             f"\n✅ Overlapping chunks: {len(chunks)} chunks with {chunks[1]['overlap_ms']}ms overlap"
@@ -204,12 +203,10 @@ class TestSMPTEChunking:
             assert gap <= 0, f"No gaps allowed (gap: {gap:.3f}s at chunk {i})"
 
         # Verify total duration
-        total_duration = (
-            chunks[-1]["end_time_seconds"] - chunks[0]["start_time_seconds"]
-        )
-        assert abs(total_duration - 3.0) < 0.1, (
-            f"Total duration should be ~3.0s, got {total_duration:.2f}s"
-        )
+        total_duration = chunks[-1]["end_time_seconds"] - chunks[0]["start_time_seconds"]
+        assert (
+            abs(total_duration - 3.0) < 0.1
+        ), f"Total duration should be ~3.0s, got {total_duration:.2f}s"
 
         print("\n✅ Timeline reconstruction successful")
         print(f"   Total chunks: {len(chunks)}")

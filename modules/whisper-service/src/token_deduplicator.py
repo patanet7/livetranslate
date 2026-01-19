@@ -23,7 +23,6 @@ Reference: Common pattern in streaming ASR systems
 """
 
 import logging
-from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +49,11 @@ class TokenDeduplicator:
 
     def __init__(self, lookback_tokens: int = 10):
         self.lookback_tokens = lookback_tokens
-        self.previous_tokens: List[int] = []
+        self.previous_tokens: list[int] = []
 
         logger.info(f"TokenDeduplicator initialized (lookback={lookback_tokens} tokens)")
 
-    def deduplicate(self, new_tokens: List[int]) -> List[int]:
+    def deduplicate(self, new_tokens: list[int]) -> list[int]:
         """
         Deduplicate tokens by removing overlap with previous chunk.
 
@@ -86,18 +85,10 @@ class TokenDeduplicator:
         overlap_length = self._find_overlap_length(self.previous_tokens, new_tokens)
 
         if overlap_length > 0:
-            logger.info(
-                f"[DEDUP] Found {overlap_length} token overlap at chunk boundary"
-            )
-            logger.debug(
-                f"[DEDUP] Previous suffix: {self.previous_tokens[-overlap_length:]}"
-            )
-            logger.debug(
-                f"[DEDUP] New prefix:      {new_tokens[:overlap_length]}"
-            )
-            logger.debug(
-                f"[DEDUP] Removing {overlap_length} tokens from new chunk"
-            )
+            logger.info(f"[DEDUP] Found {overlap_length} token overlap at chunk boundary")
+            logger.debug(f"[DEDUP] Previous suffix: {self.previous_tokens[-overlap_length:]}")
+            logger.debug(f"[DEDUP] New prefix:      {new_tokens[:overlap_length]}")
+            logger.debug(f"[DEDUP] Removing {overlap_length} tokens from new chunk")
 
             # Remove overlapping prefix from new tokens
             deduplicated = new_tokens[overlap_length:]
@@ -115,7 +106,7 @@ class TokenDeduplicator:
 
         return deduplicated
 
-    def _find_overlap_length(self, prev: List[int], new: List[int]) -> int:
+    def _find_overlap_length(self, prev: list[int], new: list[int]) -> int:
         """
         Find longest overlap where prev's suffix matches new's prefix.
 
@@ -147,7 +138,7 @@ class TokenDeduplicator:
 
         return 0
 
-    def _update_previous(self, tokens: List[int]):
+    def _update_previous(self, tokens: list[int]):
         """
         Update stored previous tokens with last N tokens from current chunk.
 
@@ -155,13 +146,11 @@ class TokenDeduplicator:
             tokens: Current chunk's tokens
         """
         if len(tokens) > self.lookback_tokens:
-            self.previous_tokens = tokens[-self.lookback_tokens:]
+            self.previous_tokens = tokens[-self.lookback_tokens :]
         else:
             self.previous_tokens = tokens.copy()
 
-        logger.debug(
-            f"[DEDUP] Updated previous tokens: {len(self.previous_tokens)} tokens stored"
-        )
+        logger.debug(f"[DEDUP] Updated previous tokens: {len(self.previous_tokens)} tokens stored")
 
     def reset(self):
         """
@@ -183,21 +172,19 @@ class TokenDeduplicator:
             Dictionary with current state
         """
         return {
-            'lookback_tokens': self.lookback_tokens,
-            'previous_tokens_count': len(self.previous_tokens),
-            'previous_tokens': self.previous_tokens,
+            "lookback_tokens": self.lookback_tokens,
+            "previous_tokens_count": len(self.previous_tokens),
+            "previous_tokens": self.previous_tokens,
         }
 
 
 # Example usage and testing
 if __name__ == "__main__":
-    import sys
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TokenDeduplicator - Example Usage")
-    print("="*80)
+    print("=" * 80)
 
     deduper = TokenDeduplicator(lookback_tokens=10)
 
@@ -242,6 +229,6 @@ if __name__ == "__main__":
     clean6 = deduper.deduplicate(chunk6)
     print(f"Clean 6: {clean6} (removed {len(chunk6) - len(clean6)} overlapping tokens)")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("✅ TokenDeduplicator examples complete")
-    print("="*80)
+    print("=" * 80)

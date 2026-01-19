@@ -133,7 +133,7 @@ const handleRedisMessage = async (message: string, channel: string, page: Page |
   log(`[DEBUG] handleRedisMessage entered for channel ${channel}. Message: ${message.substring(0, 100)}...`);
   // ++++++++++++++++++++++++++++++++++
   log(`Received command on ${channel}: ${message}`);
-  // --- ADDED: Implement reconfigure command handling --- 
+  // --- ADDED: Implement reconfigure command handling ---
   try {
       const command = JSON.parse(message);
       if (command.action === 'reconfigure') {
@@ -252,7 +252,7 @@ async function performGracefulLeave(
   if (botManagerCallbackUrl && currentConnectionId) {
     // Use unified callback for exit status
     const statusMapping = mapExitReasonToStatus(finalCallbackReason, finalCallbackExitCode);
-    
+
     const botConfig = {
       botManagerCallbackUrl,
       connectionId: currentConnectionId,
@@ -362,7 +362,7 @@ export async function runBot(botConfig: BotConfig): Promise<void> {
       await redisSubscriber.subscribe(commandChannel, (message, channel) => {
           log(`[DEBUG] Redis subscribe callback fired for channel ${channel}.`); // Log before handling
           handleRedisMessage(message, channel, page)
-      }); 
+      });
       // ++++++++++++++++++++++++++++++++++++++++++++++++
       log(`Subscribed to Redis channel: ${commandChannel}`);
 
@@ -381,7 +381,7 @@ export async function runBot(botConfig: BotConfig): Promise<void> {
   if (botConfig.platform === "teams") {
     log("Using MS Edge browser for Teams platform (simple-bot.js approach)");
     // Launch browser in headless mode with Edge channel with insecure WebSocket support
-    browserInstance = await chromium.launch({ 
+    browserInstance = await chromium.launch({
       headless: false,
       channel: 'msedge',
       args: [
@@ -395,13 +395,13 @@ export async function runBot(botConfig: BotConfig): Promise<void> {
         '--disable-features=VizDisplayCompositor'
       ]
     });
-    
+
     // Create context with simple permissions (exactly like simple-bot.js)
     const context = await browserInstance.newContext({
       permissions: ['microphone', 'camera'],
       ignoreHTTPSErrors: true
     });
-    
+
     page = await context.newPage();
   } else {
     log("Using Chrome browser for non-Teams platform");
@@ -425,7 +425,7 @@ export async function runBot(botConfig: BotConfig): Promise<void> {
         height: 720
       }
     });
-    
+
     page = await context.newPage();
   }
 

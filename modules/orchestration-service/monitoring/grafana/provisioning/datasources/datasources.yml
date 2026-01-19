@@ -40,4 +40,4 @@ datasources:
     editable: true
     jsonData:
       implementation: "prometheus"
-    secureJsonData: {} 
+    secureJsonData: {}

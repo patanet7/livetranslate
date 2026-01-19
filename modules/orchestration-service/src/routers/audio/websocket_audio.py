@@ -19,15 +19,13 @@ This matches the bot pattern:
 Moved from standalone routers/websocket_audio.py for package consolidation.
 """
 
-import logging
-import base64
 import asyncio
-from typing import Dict, Set
-from datetime import datetime, timezone
+import base64
+import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from socketio_whisper_client import SocketIOWhisperClient
-
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +33,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Track active connections and sessions
-_active_connections: Set[str] = set()
-_session_to_connections: Dict[str, Set[str]] = {}
+_active_connections: set[str] = set()
+_session_to_connections: dict[str, set[str]] = {}
+
+# Background task tracking (prevents fire-and-forget)
+_background_tasks: set[asyncio.Task] = set()
 
 # Create singleton Socket.IO Whisper client
 whisper_client = SocketIOWhisperClient(
@@ -81,7 +82,7 @@ async def websocket_audio_stream(websocket: WebSocket):
             {
                 "type": "connected",
                 "connection_id": connection_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
 
@@ -96,7 +97,7 @@ async def websocket_audio_stream(websocket: WebSocket):
             # Handle authenticate
             if msg_type == "authenticate":
                 user_id = message.get("user_id")
-                token = message.get("token")
+                message.get("token")
 
                 # TODO: Implement actual authentication
                 logger.info(f"Authenticated user: {user_id}")
@@ -131,15 +132,15 @@ async def websocket_audio_stream(websocket: WebSocket):
                     # Set up callback to forward segments to frontend
                     def segment_callback(segment: dict):
                         """Forward segments from Whisper to frontend"""
-                        asyncio.create_task(
+                        task = asyncio.create_task(
                             websocket.send_json({"type": "segment", **segment})
                         )
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
 
                     whisper_client.on_segment(segment_callback)
 
-                    await whisper_client.start_stream(
-                        session_id=session_id, config=config
-                    )
+                    await whisper_client.start_stream(session_id=session_id, config=config)
 
                     logger.info(f"Whisper session started: {session_id}")
 
@@ -147,7 +148,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                         {
                             "type": "session_started",
                             "session_id": session_id,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                         }
                     )
 
@@ -157,7 +158,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                         {
                             "type": "error",
                             "error": f"Failed to start session: {e}",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                         }
                     )
 
@@ -168,7 +169,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                         {
                             "type": "error",
                             "error": "No active session. Please send start_session first.",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                         }
                     )
                     continue
@@ -181,7 +182,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                         {
                             "type": "error",
                             "error": "Missing audio data",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                         }
                     )
                     continue
@@ -206,7 +207,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                         {
                             "type": "error",
                             "error": f"Audio processing failed: {e}",
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "timestamp": datetime.now(UTC).isoformat(),
                         }
                     )
 
@@ -231,14 +232,14 @@ async def websocket_audio_stream(websocket: WebSocket):
                     {
                         "type": "session_ended",
                         "session_id": end_session_id,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     }
                 )
 
             # Handle ping
             elif msg_type == "ping":
                 await websocket.send_json(
-                    {"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}
+                    {"type": "pong", "timestamp": datetime.now(UTC).isoformat()}
                 )
 
             else:
@@ -247,7 +248,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                     {
                         "type": "error",
                         "error": f"Unknown message type: {msg_type}",
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                     }
                 )
 

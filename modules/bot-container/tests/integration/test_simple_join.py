@@ -2,15 +2,15 @@
 """
 Simple test - just navigate and wait with browser visible
 """
+
 import asyncio
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from google_meet_automation import GoogleMeetAutomation, BrowserConfig
+from google_meet_automation import BrowserConfig, GoogleMeetAutomation
 
 
 async def test_simple():
@@ -25,7 +25,7 @@ async def test_simple():
         google_email="thomas.patane@xbanker.ai",
         google_password="8$bbG@E#CKK4s9Qx47Ty5ed2wss3Yn3f",
         screenshots_enabled=True,
-        screenshots_path="/tmp/test-screenshots-meeting"
+        screenshots_path="/tmp/test-screenshots-meeting",
     )
 
     automation = GoogleMeetAutomation(config)
@@ -41,7 +41,7 @@ async def test_simple():
 
         # Navigate to meeting
         print(f"🚪 Navigating to {meeting_url}")
-        await automation.page.goto(meeting_url, wait_until='networkidle')
+        await automation.page.goto(meeting_url, wait_until="networkidle")
         print("✅ Page loaded")
 
         # Wait a bit for page to settle
@@ -55,7 +55,7 @@ async def test_simple():
         print("\n🔍 Looking for join button...")
 
         # List all buttons on the page
-        buttons = await automation.page.query_selector_all('button')
+        buttons = await automation.page.query_selector_all("button")
         print(f"Found {len(buttons)} buttons on page")
 
         for i, button in enumerate(buttons):
@@ -78,6 +78,7 @@ async def test_simple():
     except Exception as e:
         print(f"❌ ERROR: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         print("\n🧹 Cleaning up...")

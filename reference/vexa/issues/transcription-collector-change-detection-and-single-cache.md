@@ -179,5 +179,3 @@ This ensures bounded memory via TTLs and explicit cleanup.
 - `vexa/docs/websocket.md`
 - `vexa/issues/bot-reconfiguration-identity-mismatch.md`
 - `vexa/issues/meeting-token-and-meeting-id-auth.md`
-
-

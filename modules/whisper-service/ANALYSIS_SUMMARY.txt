@@ -276,8 +276,8 @@ Estimate to Fix:
 KEY TAKEAWAY
 ================================================================================
 
-The whisper service is PRODUCTION-READY for SINGLE-LANGUAGE transcription but 
-FUNDAMENTALLY BROKEN for code-switching due to architectural incompatibilities 
+The whisper service is PRODUCTION-READY for SINGLE-LANGUAGE transcription but
+FUNDAMENTALLY BROKEN for code-switching due to architectural incompatibilities
 in SimulStreaming.
 
 The cleanest path forward is to:
@@ -285,7 +285,7 @@ The cleanest path forward is to:
 2. Implement session-restart approach for inter-sentence switching (70-85%)
 3. Consider standard Whisper for true code-switching (60-80%, higher latency)
 
-Do NOT attempt parallel decoders without deep understanding of Whisper's 
+Do NOT attempt parallel decoders without deep understanding of Whisper's
 training assumptions and transformer architecture constraints.
 
 ================================================================================
@@ -296,6 +296,5 @@ Duration: Comprehensive analysis of 74 Python files
 Method: Code review, pattern analysis, test result comparison, architectural assessment
 Confidence: HIGH - Evidence-based findings documented with specific code references
 
-Questions? See the detailed analysis documents for specific code locations and 
+Questions? See the detailed analysis documents for specific code locations and
 implementation guidance.
-

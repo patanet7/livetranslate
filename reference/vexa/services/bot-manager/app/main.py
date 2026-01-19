@@ -37,8 +37,8 @@ from datetime import datetime # For start_time
 # --- Status Transition Helper ---
 
 async def update_meeting_status(
-    meeting: Meeting, 
-    new_status: MeetingStatus, 
+    meeting: Meeting,
+    new_status: MeetingStatus,
     db: AsyncSession,
     completion_reason: Optional[MeetingCompletionReason] = None,
     failure_stage: Optional[MeetingFailureStage] = None,
@@ -48,7 +48,7 @@ async def update_meeting_status(
 ) -> bool:
     """
     Update meeting status with proper validation and data enrichment.
-    
+
     Args:
         meeting: Meeting object to update
         new_status: New status to set
@@ -56,21 +56,21 @@ async def update_meeting_status(
         completion_reason: Reason for completion (if applicable)
         failure_stage: Stage where failure occurred (if applicable)
         error_details: Additional error details
-        
+
     Returns:
         True if status was updated, False if transition was invalid
     """
     current_status = MeetingStatus(meeting.status)
-    
+
     # Validate transition
     if not is_valid_status_transition(current_status, new_status):
         logger.warning(f"Invalid status transition from '{current_status.value}' to '{new_status.value}' for meeting {meeting.id}")
         return False
-    
+
     # Update status
     old_status = meeting.status
     meeting.status = new_status.value
-    
+
     # Update data field with status-specific information (work on a fresh copy so JSONB change is detected)
     if not meeting.data:
         current_data: Dict[str, Any] = {}
@@ -79,19 +79,19 @@ async def update_meeting_status(
             current_data = dict(meeting.data)
         except Exception:
             current_data = {}
-    
+
     if new_status == MeetingStatus.COMPLETED:
         if completion_reason:
             current_data['completion_reason'] = completion_reason.value
         meeting.end_time = datetime.utcnow()
-        
+
     elif new_status == MeetingStatus.FAILED:
         if failure_stage:
             current_data['failure_stage'] = failure_stage.value
         if error_details:
             current_data['error_details'] = error_details
         meeting.end_time = datetime.utcnow()
-    
+
     # Add status transition metadata: single canonical list at data['status_transition']
     transition_entry = {
         'from': old_status,
@@ -136,10 +136,10 @@ async def update_meeting_status(
 
     # Assign back the rebuilt data object so SQLAlchemy marks JSONB as changed
     meeting.data = current_data
-    
+
     await db.commit()
     await db.refresh(meeting)
-    
+
     logger.info(f"Meeting {meeting.id} status updated from '{old_status}' to '{new_status.value}'")
     return True
 
@@ -165,7 +165,7 @@ async def publish_meeting_status_change(meeting_id: int, new_status: str, redis_
         logger.error(f"Failed to publish meeting status change for meeting {meeting_id}: {e}")
 
 async def schedule_status_webhook_task(
-    meeting: Meeting, 
+    meeting: Meeting,
     background_tasks: BackgroundTasks,
     old_status: str,
     new_status: str,
@@ -180,7 +180,7 @@ async def schedule_status_webhook_task(
         'timestamp': datetime.utcnow().isoformat(),
         'transition_source': transition_source
     }
-    
+
     # Schedule the webhook task with status change information
     background_tasks.add_task(
         run_status_webhook_task,
@@ -339,7 +339,7 @@ async def request_bot(
         Meeting.platform_specific_id == native_meeting_id,
         Meeting.status.in_(['requested', 'active']) # Do NOT block on 'stopping' to allow immediate new bot
     ).order_by(desc(Meeting.created_at)).limit(1) # Get the latest one if multiple somehow exist
-    
+
     result = await db.execute(existing_meeting_stmt)
     existing_meeting = result.scalars().first()
 
@@ -350,7 +350,7 @@ async def request_bot(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"An active or requested meeting already exists for this platform and meeting ID. Platform: {req.platform.value}, Native Meeting ID: {native_meeting_id}"
         )
-    
+
     # --- Fast-fail concurrency limit check (DB-based) ---
     user_limit = int(getattr(current_user, "max_concurrent_bots", 0) or 0)
     if user_limit > 0:
@@ -373,7 +373,7 @@ async def request_bot(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User has reached the maximum concurrent bot limit ({user_limit})."
             )
-    
+
     if existing_meeting is None:
         logger.info(f"No active/valid existing meeting found for user {current_user.id}, platform '{req.platform.value}', native ID '{native_meeting_id}'. Proceeding to create a new meeting record.")
         # Create Meeting record in DB
@@ -381,7 +381,7 @@ async def request_bot(
         meeting_data = {}
         if req.passcode:
             meeting_data['passcode'] = req.passcode
-            
+
         new_meeting = Meeting(
             user_id=current_user.id,
             platform=req.platform.value,
@@ -421,7 +421,7 @@ async def request_bot(
     # If existing_meeting was NOT cleared (which means it was valid and running), an exception should have been raised.
     # So, at this point, 'new_meeting' should be the definitive meeting record for the new bot.
     # The previous 'meeting_id = new_meeting.id' should now be 'meeting_id_for_bot' as defined above.
-    
+
     # Ensure we are using the correct meeting object for the rest of the process.
     # If existing_meeting was cleared, then new_meeting is the current one.
     current_meeting_for_bot_launch = None
@@ -496,7 +496,7 @@ async def request_bot(
             if not container_id: error_msg += " Container ID not returned."
             if not connection_id: error_msg += " Connection ID not generated/returned."
             logger.error(f"{error_msg} for meeting {meeting_id}")
-            
+
             current_meeting_for_bot_launch.status = 'error'
             await db.commit()
             await publish_meeting_status_change(meeting_id, 'error', redis_client, req.platform.value, native_meeting_id, current_user.id)
@@ -535,10 +535,10 @@ async def request_bot(
         try:
             # Fetch again or use current_meeting_for_bot_launch if it's the correct one to update
             meeting_to_update = await db.get(Meeting, meeting_id) # Re-fetch to be safe with session state
-            if meeting_to_update and meeting_to_update.status not in ['error', 'failed', 'completed']: 
+            if meeting_to_update and meeting_to_update.status not in ['error', 'failed', 'completed']:
                  logger.warning(f"Updating meeting {meeting_id} status to 'error' due to HTTPException {http_exc.status_code}.")
                  meeting_to_update.status = 'error'
-                 if container_id: 
+                 if container_id:
                      meeting_to_update.bot_container_id = container_id
                  await db.commit()
                  await publish_meeting_status_change(meeting_id, 'error', redis_client, req.platform.value, native_meeting_id, current_user.id)
@@ -593,7 +593,7 @@ async def update_bot_config(
         Meeting.platform_specific_id == native_meeting_id,
         Meeting.status == MeetingStatus.ACTIVE.value # Must be active to reconfigure
     ).order_by(Meeting.created_at.desc()) # <-- ADDED: Order by created_at descending
-    
+
     result = await db.execute(active_meeting_stmt)
     active_meeting = result.scalars().first() # Takes the most recent one
 
@@ -733,8 +733,8 @@ async def stop_bot(
     if not meeting.bot_container_id:
         logger.info(f"Stop request: Meeting {meeting.id} has no container ID (status: {meeting.status}). Finalizing immediately.")
         success = await update_meeting_status(
-            meeting, 
-            MeetingStatus.COMPLETED, 
+            meeting,
+            MeetingStatus.COMPLETED,
             db,
             completion_reason=MeetingCompletionReason.STOPPED
         )
@@ -806,7 +806,7 @@ async def stop_bot(
     # 4. Schedule delayed container stop task
     logger.info(f"Scheduling delayed stop task for container {meeting.bot_container_id} (meeting {meeting.id}).")
     # Pass container_id and delay
-    background_tasks.add_task(_delayed_container_stop, meeting.bot_container_id, 30) 
+    background_tasks.add_task(_delayed_container_stop, meeting.bot_container_id, 30)
 
     # 5. Update Meeting status (Consider 'stopping' or keep 'active')
     # Option A: Keep 'active' - relies on collector/other process to detect actual stop
@@ -815,7 +815,7 @@ async def stop_bot(
     # The bot will transition directly to 'completed' or 'failed' via callback
     logger.info(f"Stop request accepted for meeting {meeting.id}. Bot will transition to completed/failed via callback.")
     # Optionally clear container ID here or when stop is confirmed?
-    # meeting.bot_container_id = None 
+    # meeting.bot_container_id = None
     # Don't set end_time here, let the stop confirmation (or lack thereof) handle it.
     await db.commit()
     logger.info(f"Meeting {meeting.id} status updated.")
@@ -827,7 +827,7 @@ async def stop_bot(
     logger.info(f"Stop request for meeting {meeting.id} accepted. Leave command sent, delayed stop scheduled.")
     return {"message": "Stop request accepted and is being processed."}
 
-# --- NEW Endpoint: Get Running Bot Status --- 
+# --- NEW Endpoint: Get Running Bot Status ---
 @app.get("/bots/status",
          response_model=BotStatusResponse,
          summary="Get status of running bot containers for the authenticated user",
@@ -838,9 +838,9 @@ async def get_user_bots_status(
     """Retrieves a list of currently running bot containers associated with the user's API key."""
     user_token, current_user = auth_data
     user_id = current_user.id
-    
+
     logger.info(f"Fetching running bot status for user {user_id}")
-    
+
     try:
         # Call the function from orchestrator_utils - ADD AWAIT HERE
         running_bots_list = await get_running_bots_status(user_id)
@@ -853,7 +853,7 @@ async def get_user_bots_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve bot status."
         )
-# --- END Endpoint: Get Running Bot Status --- 
+# --- END Endpoint: Get Running Bot Status ---
 
 # --- ADDED: Endpoint for Vexa-Bot to report its exit status ---
 @app.post("/bots/internal/callback/exited",
@@ -874,7 +874,7 @@ async def bot_exit_callback(
     - If the exit was due to an error, a delayed stop is scheduled to ensure cleanup.
     """
     logger.info(f"Received bot exit callback: connection_id={payload.connection_id}, exit_code={payload.exit_code}, reason={payload.reason}")
-    
+
     session_uid = payload.connection_id
     exit_code = payload.exit_code
 
@@ -909,8 +909,8 @@ async def bot_exit_callback(
             if payload.platform_specific_error:
                 transition_meta["platform_specific_error"] = payload.platform_specific_error
             success = await update_meeting_status(
-                meeting, 
-                MeetingStatus.COMPLETED, 
+                meeting,
+                MeetingStatus.COMPLETED,
                 db,
                 completion_reason=provided_reason,
                 error_details=payload.error_details if isinstance(payload.error_details, str) else (json.dumps(payload.error_details) if payload.error_details else None),
@@ -935,8 +935,8 @@ async def bot_exit_callback(
             if payload.platform_specific_error:
                 transition_meta["platform_specific_error"] = payload.platform_specific_error
             success = await update_meeting_status(
-                meeting, 
-                MeetingStatus.FAILED, 
+                meeting,
+                MeetingStatus.FAILED,
                 db,
                 failure_stage=provided_stage,
                 error_details=error_msg,
@@ -949,12 +949,12 @@ async def bot_exit_callback(
             else:
                 logger.error(f"Bot exit callback: Failed to update meeting {meeting_id} status to 'failed'")
                 return {"status": "error", "detail": "Failed to update meeting status"}
-            
+
             # Store detailed error information in the meeting's data field
             if payload.error_details or payload.platform_specific_error:
                 if not meeting.data:
                     meeting.data = {}
-                
+
                 error_data = {
                     "exit_code": exit_code,
                     "reason": payload.reason,
@@ -962,11 +962,11 @@ async def bot_exit_callback(
                     "error_details": payload.error_details,
                     "platform_specific_error": payload.platform_specific_error
                 }
-                
+
                 # Store in data field for debugging and analysis
                 meeting.data["last_error"] = error_data
                 logger.info(f"Bot exit callback: Stored error details in meeting {meeting_id} data: {error_data}")
-        
+
         meeting.end_time = datetime.utcnow()
         await db.commit()
         await db.refresh(meeting)
@@ -1014,7 +1014,7 @@ async def bot_startup_callback(
     - Ensures database consistency when containers are automatically restarted.
     """
     logger.info(f"Received bot startup callback: connection_id={payload.connection_id}, container_id={payload.container_id}")
-    
+
     session_uid = payload.connection_id
     container_id = payload.container_id
 
@@ -1046,8 +1046,8 @@ async def bot_startup_callback(
         old_status = meeting.status
         if meeting.status in [MeetingStatus.REQUESTED.value, MeetingStatus.JOINING.value, MeetingStatus.AWAITING_ADMISSION.value, MeetingStatus.FAILED.value]:
             success = await update_meeting_status(
-                meeting, 
-                MeetingStatus.ACTIVE, 
+                meeting,
+                MeetingStatus.ACTIVE,
                 db
             )
             if success:
@@ -1099,7 +1099,7 @@ async def bot_joining_callback(
     - Updates the meeting status to 'joining' when the bot starts joining.
     """
     logger.info(f"Received bot joining callback: connection_id={payload.connection_id}, container_id={payload.container_id}")
-    
+
     session_uid = payload.connection_id
     container_id = payload.container_id
 
@@ -1171,7 +1171,7 @@ async def bot_awaiting_admission_callback(
     - Updates the meeting status to 'awaiting_admission' when the bot is in waiting room.
     """
     logger.info(f"Received bot awaiting admission callback: connection_id={payload.connection_id}, container_id={payload.container_id}")
-    
+
     session_uid = payload.connection_id
     container_id = payload.container_id
 
@@ -1241,18 +1241,18 @@ async def bot_status_change_callback(
 ):
     """
     Unified callback endpoint for all bot status changes.
-    
+
     This endpoint handles:
     - joining: Bot starts joining the meeting
     - awaiting_admission: Bot is in waiting room
     - active: Bot is admitted and active in meeting
     - completed: Bot successfully completed the meeting
     - failed: Bot failed for some reason
-    
+
     All status changes trigger webhook notifications if user has webhook URL configured.
     """
     logger.info(f"Received unified bot status change callback: connection_id={payload.connection_id}, status={payload.status.value}, reason={payload.reason}")
-    
+
     session_uid = payload.connection_id
     new_status = payload.status
     reason = payload.reason
@@ -1277,14 +1277,14 @@ async def bot_status_change_callback(
             return {"status": "error", "detail": f"Meeting {meeting_id} not found"}
 
         # Check if user stopped early (ignore transitions except for completed/failed)
-        if (meeting.data and isinstance(meeting.data, dict) and 
-            meeting.data.get("stop_requested") and 
+        if (meeting.data and isinstance(meeting.data, dict) and
+            meeting.data.get("stop_requested") and
             new_status not in [MeetingStatus.COMPLETED, MeetingStatus.FAILED]):
             logger.info(f"Bot status change callback: stop_requested set for meeting {meeting.id}. Ignoring {new_status.value} transition.")
             return {"status": "ignored", "detail": "stop requested"}
 
         old_status = meeting.status
-        
+
         # Handle different status changes
         if new_status == MeetingStatus.COMPLETED:
             # Handle completion
@@ -1294,15 +1294,15 @@ async def bot_status_change_callback(
                 db=db,
                 completion_reason=payload.completion_reason
             )
-            
+
             if success:
                 meeting.end_time = datetime.utcnow()
                 await db.commit()
                 await db.refresh(meeting)
-                
+
                 # Schedule post-meeting tasks (including original webhook)
                 background_tasks.add_task(run_all_tasks, meeting.id)
-                
+
         elif new_status == MeetingStatus.FAILED:
             # Handle failure
             success = await update_meeting_status(
@@ -1312,10 +1312,10 @@ async def bot_status_change_callback(
                 failure_stage=payload.failure_stage,
                 error_details=str(payload.error_details) if payload.error_details else None
             )
-            
+
             if success:
                 meeting.end_time = datetime.utcnow()
-                
+
                 # Store detailed error information
                 if payload.error_details or payload.platform_specific_error:
                     if not meeting.data:
@@ -1327,13 +1327,13 @@ async def bot_status_change_callback(
                         "error_details": payload.error_details,
                         "platform_specific_error": payload.platform_specific_error
                     }
-                
+
                 await db.commit()
                 await db.refresh(meeting)
-                
+
                 # Schedule post-meeting tasks (including original webhook)
                 background_tasks.add_task(run_all_tasks, meeting.id)
-                
+
         elif new_status == MeetingStatus.ACTIVE:
             # Handle activation
             if meeting.status in [MeetingStatus.REQUESTED.value, MeetingStatus.JOINING.value, MeetingStatus.AWAITING_ADMISSION.value, MeetingStatus.FAILED.value]:
@@ -1353,7 +1353,7 @@ async def bot_status_change_callback(
             else:
                 logger.warning(f"Bot status change callback: Meeting {meeting_id} has unexpected status '{meeting.status}', not updating to active")
                 return {"status": "warning", "detail": f"Meeting status '{meeting.status}' not updated to active"}
-                
+
         else:
             # Handle other status changes (joining, awaiting_admission)
             success = await update_meeting_status(meeting, new_status, db)
@@ -1393,4 +1393,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8080, # Default port for bot-manager
         reload=True # Enable reload for development if needed
-    ) 
+    )

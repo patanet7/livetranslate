@@ -14,11 +14,12 @@ Test Scenarios:
 6. End-to-End Pipeline - Full transcript to translation flow
 """
 
+import json
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-import json
+
 import pytest
 
 # Add src to path for imports - src must come BEFORE orchestration_root
@@ -29,33 +30,30 @@ sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(orchestration_root))
 
 # FastAPI test imports
-from fastapi.testclient import TestClient
 from fastapi import FastAPI
-
-# Import using same path as production code (without src. prefix)
-from routers.fireflies import (
-    router,
-    FirefliesSessionManager,
-    get_session_manager,
-    get_fireflies_config,
-)
-
+from fastapi.testclient import TestClient
 from models.fireflies import (
+    CaptionBroadcast,
+    CaptionEntry,
     FirefliesChunk,
+    FirefliesConnectionStatus,
     FirefliesMeeting,
     FirefliesSession,
     FirefliesSessionConfig,
-    FirefliesConnectionStatus,
+    MeetingState,
     SpeakerBuffer,
-    TranslationUnit,
     TranslationContext,
     TranslationResult,
-    CaptionEntry,
-    CaptionBroadcast,
-    MeetingState,
+    TranslationUnit,
 )
 
-
+# Import using same path as production code (without src. prefix)
+from routers.fireflies import (
+    FirefliesSessionManager,
+    get_fireflies_config,
+    get_session_manager,
+    router,
+)
 
 # =============================================================================
 # Test App Setup
@@ -118,7 +116,7 @@ class MockFirefliesWebSocketServer:
         self.messages_sent = []
         self.chunk_counter = 0
 
-    def authenticate(self, api_key: str, transcript_id: str) -> Dict[str, Any]:
+    def authenticate(self, api_key: str, transcript_id: str) -> dict[str, Any]:
         """Simulate authentication."""
         if api_key.startswith("invalid"):
             return {"type": "auth.failed", "message": "Invalid API key"}
@@ -127,7 +125,7 @@ class MockFirefliesWebSocketServer:
         self.transcript_id = transcript_id
         return {"type": "auth.success"}
 
-    def connect(self) -> Dict[str, Any]:
+    def connect(self) -> dict[str, Any]:
         """Simulate connection establishment."""
         self.connected = True
         return {"type": "connection.established"}
@@ -136,9 +134,9 @@ class MockFirefliesWebSocketServer:
         self,
         text: str,
         speaker_name: str = "TestSpeaker",
-        start_time: Optional[float] = None,
-        end_time: Optional[float] = None,
-    ) -> Dict[str, Any]:
+        start_time: float | None = None,
+        end_time: float | None = None,
+    ) -> dict[str, Any]:
         """Generate a transcript chunk."""
         self.chunk_counter += 1
 
@@ -186,9 +184,7 @@ class TestFullConnectionFlow:
         async def on_transcript(chunk: FirefliesChunk):
             received_chunks.append(chunk)
 
-        async def on_status_change(
-            status: FirefliesConnectionStatus, message: Optional[str]
-        ):
+        async def on_status_change(status: FirefliesConnectionStatus, message: str | None):
             status_changes.append((status, message))
 
         # Simulate the flow with mocked client
@@ -199,16 +195,14 @@ class TestFullConnectionFlow:
 
         manager = FirefliesSessionManager()
 
-        with patch("routers.fireflies.FirefliesClient") as MockClientClass:
+        with patch("routers.fireflies.FirefliesClient") as mock_client_class:
             mock_client = AsyncMock()
-            MockClientClass.return_value = mock_client
+            mock_client_class.return_value = mock_client
 
             # Simulate successful connection
             async def mock_connect_realtime(*args, **kwargs):
                 # Simulate authentication
-                auth_response = mock_ws_server.authenticate(
-                    config.api_key, config.transcript_id
-                )
+                auth_response = mock_ws_server.authenticate(config.api_key, config.transcript_id)
                 assert auth_response["type"] == "auth.success"
 
                 # Call status callback
@@ -247,18 +241,14 @@ class TestFullConnectionFlow:
         status_changes = []
         errors = []
 
-        async def on_status_change(
-            status: FirefliesConnectionStatus, message: Optional[str]
-        ):
+        async def on_status_change(status: FirefliesConnectionStatus, message: str | None):
             status_changes.append((status, message))
 
-        async def on_error(message: str, exception: Optional[Exception]):
+        async def on_error(message: str, exception: Exception | None):
             errors.append(message)
 
         # Use invalid API key
-        auth_response = mock_ws_server.authenticate(
-            "invalid-api-key", "test-transcript"
-        )
+        auth_response = mock_ws_server.authenticate("invalid-api-key", "test-transcript")
 
         assert auth_response["type"] == "auth.failed"
         assert mock_ws_server.authenticated is False
@@ -277,10 +267,10 @@ class TestMultipleSessions:
         """Test creating multiple concurrent sessions."""
         manager = FirefliesSessionManager()
 
-        with patch("routers.fireflies.FirefliesClient") as MockClientClass:
+        with patch("routers.fireflies.FirefliesClient") as mock_client_class:
             mock_client1 = AsyncMock()
             mock_client2 = AsyncMock()
-            MockClientClass.side_effect = [mock_client1, mock_client2]
+            mock_client_class.side_effect = [mock_client1, mock_client2]
 
             mock_client1.connect_realtime = AsyncMock()
             mock_client2.connect_realtime = AsyncMock()
@@ -305,10 +295,10 @@ class TestMultipleSessions:
         """Test disconnecting a specific session while others remain."""
         manager = FirefliesSessionManager()
 
-        with patch("routers.fireflies.FirefliesClient") as MockClientClass:
+        with patch("routers.fireflies.FirefliesClient") as mock_client_class:
             mock_client1 = AsyncMock()
             mock_client2 = AsyncMock()
-            MockClientClass.side_effect = [mock_client1, mock_client2]
+            mock_client_class.side_effect = [mock_client1, mock_client2]
 
             mock_client1.connect_realtime = AsyncMock()
             mock_client2.connect_realtime = AsyncMock()
@@ -494,7 +484,7 @@ class TestTranslationContextIntegration:
         # Simulate rolling window of size 2
         window_size = 2
 
-        for i, current_sentence in enumerate(sentences):
+        for i, _current_sentence in enumerate(sentences):
             # Get context window
             start_idx = max(0, i - window_size)
             context_sentences = sentences[start_idx:i]
@@ -563,7 +553,7 @@ class TestEndToEndPipeline:
         )
 
         # 3. Create translation context
-        context = TranslationContext(
+        TranslationContext(
             previous_sentences=[],
             glossary={},
             target_language="es",
@@ -720,15 +710,13 @@ class TestMeetingDiscoveryIntegration:
             ),
         ]
 
-        test_app.dependency_overrides[get_fireflies_config] = (
-            lambda: mock_fireflies_config
-        )
+        test_app.dependency_overrides[get_fireflies_config] = lambda: mock_fireflies_config
 
-        with patch("routers.fireflies.FirefliesClient") as MockClient:
+        with patch("routers.fireflies.FirefliesClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.get_active_meetings = AsyncMock(return_value=meetings)
             mock_client.close = AsyncMock()
-            MockClient.return_value = mock_client
+            mock_client_class.return_value = mock_client
 
             with TestClient(test_app) as client:
                 response = client.post(
@@ -899,10 +887,10 @@ class TestPerformanceIntegration:
         )
 
         # Simulate processing
-        for i in range(50):
+        for _i in range(50):
             session.chunks_received += 1
 
-        for i in range(15):
+        for _i in range(15):
             session.sentences_produced += 1
 
         # Each sentence translated to 3 languages

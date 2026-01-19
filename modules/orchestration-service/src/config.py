@@ -6,19 +6,19 @@ Centralized configuration using Pydantic Settings with environment variable supp
 and validation.
 """
 
-from typing import List, Dict, Any, Optional
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
 try:
+    from pydantic import ConfigDict, Field, field_validator
     from pydantic_settings import BaseSettings
-    from pydantic import Field, field_validator, ValidationInfo, ConfigDict
 except ImportError:
     from pydantic import (
         BaseSettings,
+        ConfigDict,
         Field,
         field_validator,
-        ConfigDict,
     )
 
 
@@ -161,7 +161,7 @@ class SecuritySettings(BaseSettings):
         default="HS256",
         description="JWT algorithm",
     )
-    cors_origins: List[str] = Field(
+    cors_origins: list[str] = Field(
         default=["http://localhost:3000", "http://localhost:5173"],
         description="Allowed CORS origins",
     )
@@ -187,7 +187,7 @@ class LoggingSettings(BaseSettings):
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         description="Log format string",
     )
-    file_path: Optional[str] = Field(
+    file_path: str | None = Field(
         default=None,
         description="Log file path (optional)",
     )
@@ -358,7 +358,7 @@ class FirefliesSettings(BaseSettings):
     )
 
     # Default Target Languages
-    default_target_languages: List[str] = Field(
+    default_target_languages: list[str] = Field(
         default=["es"],
         description="Default target languages for translation",
     )
@@ -399,7 +399,7 @@ class OBSSettings(BaseSettings):
         default=4455,
         description="OBS WebSocket server port",
     )
-    password: Optional[str] = Field(
+    password: str | None = Field(
         default=None,
         description="OBS WebSocket server password (optional)",
     )
@@ -409,7 +409,7 @@ class OBSSettings(BaseSettings):
         default="LiveTranslate Caption",
         description="Name of text source for captions",
     )
-    speaker_source: Optional[str] = Field(
+    speaker_source: str | None = Field(
         default=None,
         description="Name of text source for speaker names",
     )
@@ -578,11 +578,11 @@ class Settings(BaseSettings):
         """Check if running in development"""
         return self.environment == "development"
 
-    def get_cors_origins(self) -> List[str]:
+    def get_cors_origins(self) -> list[str]:
         """Get CORS origins list"""
         return self.security.cors_origins
 
-    def get_service_urls(self) -> Dict[str, str]:
+    def get_service_urls(self) -> dict[str, str]:
         """Get all service URLs"""
         return {
             "audio": self.services.audio_service_url,
@@ -592,15 +592,16 @@ class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env", case_sensitive=True, extra="allow")
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance"""
     return Settings()
 
 
-def load_config_from_file(config_path: str) -> Dict[str, Any]:
+def load_config_from_file(config_path: str) -> dict[str, Any]:
     """Load configuration from YAML/JSON file"""
     import json
+
     import yaml
 
     config_file = Path(config_path)
@@ -608,15 +609,13 @@ def load_config_from_file(config_path: str) -> Dict[str, Any]:
     if not config_file.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
 
-    with open(config_file, "r", encoding="utf-8") as f:
+    with open(config_file, encoding="utf-8") as f:
         if config_file.suffix.lower() in [".yaml", ".yml"]:
             return yaml.safe_load(f)
         elif config_file.suffix.lower() == ".json":
             return json.load(f)
         else:
-            raise ValueError(
-                f"Unsupported configuration file format: {config_file.suffix}"
-            )
+            raise ValueError(f"Unsupported configuration file format: {config_file.suffix}")
 
 
 def create_settings_from_file(config_path: str) -> Settings:
@@ -650,9 +649,7 @@ def get_production_settings() -> Settings:
     return Settings(
         debug=False,
         environment="production",
-        logging=LoggingSettings(
-            level="INFO", file_path="/var/log/orchestration-service.log"
-        ),
+        logging=LoggingSettings(level="INFO", file_path="/var/log/orchestration-service.log"),
         database=DatabaseSettings(echo=False),
         workers=8,  # More workers for production
         websocket=WebSocketSettings(max_connections=5000),  # Higher connection limit

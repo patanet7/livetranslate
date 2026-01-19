@@ -9,12 +9,13 @@ These tests simulate the actual streaming use case where:
 5. System handles concurrent chunk processing
 """
 
-import pytest
 import asyncio
 import io
-import numpy as np
-import soundfile as sf
 from unittest.mock import AsyncMock, patch
+
+import numpy as np
+import pytest
+import soundfile as sf
 from fastapi.testclient import TestClient
 
 
@@ -110,16 +111,14 @@ class TestStreamingSimulation:
         """
         from src.main_fastapi import app
 
-        chunks, sample_rate = streaming_audio_chunks
+        chunks, _sample_rate = streaming_audio_chunks
 
-        with patch(
-            "src.routers.audio.audio_core.get_audio_coordinator"
-        ) as mock_get_coordinator:
+        with patch("src.routers.audio.audio_core.get_audio_coordinator") as mock_get_coordinator:
             mock_coordinator = AsyncMock()
 
             # Create side effects for progressive responses
             chunk_results = []
-            for i, whisper_resp in enumerate(mock_progressive_whisper_responses):
+            for whisper_resp in mock_progressive_whisper_responses:
                 chunk_results.append(
                     {
                         "status": "processed",
@@ -161,9 +160,9 @@ class TestStreamingSimulation:
                     },
                 )
 
-                assert response.status_code == 200, (
-                    f"Chunk {i} failed with status {response.status_code}: {response.text}"
-                )
+                assert (
+                    response.status_code == 200
+                ), f"Chunk {i} failed with status {response.status_code}: {response.text}"
 
                 result = response.json()
                 processing_result = result["processing_result"]
@@ -191,13 +190,9 @@ class TestStreamingSimulation:
 
             # Reconstruct full transcription
             full_text = " ".join(r["transcription"] for r in results)
-            expected_text = (
-                "Hello, how are you doing today? I'm testing the streaming system."
-            )
+            expected_text = "Hello, how are you doing today? I'm testing the streaming system."
 
-            assert full_text == expected_text, (
-                f"Expected: '{expected_text}'\nGot: '{full_text}'"
-            )
+            assert full_text == expected_text, f"Expected: '{expected_text}'\nGot: '{full_text}'"
 
             # Verify speaker changes were detected
             speakers = [r["speakers"][0] for r in results]
@@ -221,11 +216,9 @@ class TestStreamingSimulation:
         """
         from src.main_fastapi import app
 
-        chunks, sample_rate = streaming_audio_chunks
+        chunks, _sample_rate = streaming_audio_chunks
 
-        with patch(
-            "src.routers.audio.audio_core.get_audio_coordinator"
-        ) as mock_get_coordinator:
+        with patch("src.routers.audio.audio_core.get_audio_coordinator") as mock_get_coordinator:
             mock_coordinator = AsyncMock()
 
             # Simulate slower processing (chunks arrive faster than processing)
@@ -235,9 +228,7 @@ class TestStreamingSimulation:
                 slow_process.calls.append(True)
                 return {
                     "status": "processed",
-                    "transcription": mock_progressive_whisper_responses[call_count][
-                        "text"
-                    ],
+                    "transcription": mock_progressive_whisper_responses[call_count]["text"],
                     "processing_time": 0.2,
                 }
 
@@ -265,23 +256,15 @@ class TestStreamingSimulation:
 
             # Send all chunks concurrently
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [
-                    executor.submit(send_chunk, i, chunk)
-                    for i, chunk in enumerate(chunks)
-                ]
+                futures = [executor.submit(send_chunk, i, chunk) for i, chunk in enumerate(chunks)]
 
-                responses = [
-                    future.result()
-                    for future in concurrent.futures.as_completed(futures)
-                ]
+                responses = [future.result() for future in concurrent.futures.as_completed(futures)]
 
             # Verify all processed successfully
             responses.sort(key=lambda x: x[0])  # Sort by chunk index
 
             for i, response in responses:
-                assert response.status_code == 200, (
-                    f"Concurrent chunk {i} failed: {response.text}"
-                )
+                assert response.status_code == 200, f"Concurrent chunk {i} failed: {response.text}"
 
             print("\n✅ CONCURRENT PROCESSING PASSED!")
             print(f"   Processed {len(responses)} chunks concurrently")
@@ -298,7 +281,7 @@ class TestStreamingSimulation:
         """
         from src.main_fastapi import app
 
-        chunks, sample_rate = streaming_audio_chunks
+        chunks, _sample_rate = streaming_audio_chunks
 
         # Mock translation responses
         mock_translations = {
@@ -318,9 +301,7 @@ class TestStreamingSimulation:
             ],
         }
 
-        with patch(
-            "src.routers.audio.audio_core.get_audio_coordinator"
-        ) as mock_get_coordinator:
+        with patch("src.routers.audio.audio_core.get_audio_coordinator") as mock_get_coordinator:
             mock_coordinator = AsyncMock()
 
             # Create results with translations
@@ -387,10 +368,10 @@ class TestStreamingSimulation:
             full_es = " ".join(r["translations"]["es"]["text"] for r in results)
             full_fr = " ".join(r["translations"]["fr"]["text"] for r in results)
 
-            expected_es = (
-                "Hola, ¿cómo estás hoy? Estoy probando el sistema de streaming."
+            expected_es = "Hola, ¿cómo estás hoy? Estoy probando el sistema de streaming."
+            expected_fr = (
+                "Bonjour, comment allez-vous aujourd'hui? Je teste le système de streaming."
             )
-            expected_fr = "Bonjour, comment allez-vous aujourd'hui? Je teste le système de streaming."
 
             assert full_es == expected_es
             assert full_fr == expected_fr
@@ -410,11 +391,9 @@ class TestStreamingSimulation:
         """
         from src.main_fastapi import app
 
-        chunks, sample_rate = streaming_audio_chunks
+        chunks, _sample_rate = streaming_audio_chunks
 
-        with patch(
-            "src.routers.audio.audio_core.get_audio_coordinator"
-        ) as mock_get_coordinator:
+        with patch("src.routers.audio.audio_core.get_audio_coordinator") as mock_get_coordinator:
             mock_coordinator = AsyncMock()
 
             # Simulate chunk 2 failing
@@ -431,9 +410,7 @@ class TestStreamingSimulation:
                 else:
                     return {
                         "status": "processed",
-                        "transcription": mock_progressive_whisper_responses[call_count][
-                            "text"
-                        ],
+                        "transcription": mock_progressive_whisper_responses[call_count]["text"],
                         "processing_time": 0.5,
                     }
 
@@ -456,9 +433,7 @@ class TestStreamingSimulation:
                     },
                 )
 
-                assert (
-                    response.status_code == 200
-                )  # Even errors return 200 with error in body
+                assert response.status_code == 200  # Even errors return 200 with error in body
                 result = response.json()
                 processing_result = result["processing_result"]
 

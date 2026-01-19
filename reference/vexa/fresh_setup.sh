@@ -64,5 +64,3 @@ else
   echo "  make all"
 fi
 echo "Then open the API docs at http://localhost:18056/docs (or the port in .env)."
-
-

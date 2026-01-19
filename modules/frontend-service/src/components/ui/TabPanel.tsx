@@ -10,8 +10,8 @@
  * - PipelineEditor components
  */
 
-import React from 'react';
-import { Box, Fade } from '@mui/material';
+import React from "react";
+import { Box, Fade } from "@mui/material";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -25,7 +25,7 @@ export const TabPanel: React.FC<TabPanelProps> = ({
   children,
   value,
   index,
-  idPrefix = 'tabpanel',
+  idPrefix = "tabpanel",
   disableFade = false,
   ...other
 }) => {
@@ -37,15 +37,13 @@ export const TabPanel: React.FC<TabPanelProps> = ({
       aria-labelledby={`${idPrefix}-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ py: 3 }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
     </div>
   );
 
-  return disableFade ? content : (
+  return disableFade ? (
+    content
+  ) : (
     <Fade in={value === index} timeout={300}>
       {content}
     </Fade>

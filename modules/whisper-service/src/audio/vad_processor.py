@@ -23,7 +23,7 @@ Only kept for backward compatibility with legacy WhisperService.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any
 
 import numpy as np
 
@@ -49,7 +49,7 @@ class VADProcessor:
             vad: VAD detector instance (SileroVAD or similar)
         """
         self.vad = vad
-        self.session_vad_states: Dict[str, Optional[str]] = {}
+        self.session_vad_states: dict[str, str | None] = {}
 
     def process_chunk(self, audio_chunk: np.ndarray, session_id: str) -> bool:
         """
@@ -99,9 +99,11 @@ class VADProcessor:
         for _ in range(silence_frames):
             self.vad.check_speech(silence_chunk)
 
-        logger.info(f"[VAD] Session {session_id}: 🔧 Preloaded VAD with {silence_frames} silence frames for immediate readiness")
+        logger.info(
+            f"[VAD] Session {session_id}: 🔧 Preloaded VAD with {silence_frames} silence frames for immediate readiness"
+        )
 
-    def _handle_vad_event(self, vad_result: Dict[str, Any], session_id: str) -> bool:
+    def _handle_vad_event(self, vad_result: dict[str, Any], session_id: str) -> bool:
         """
         Handle explicit VAD start/end events.
 
@@ -112,17 +114,21 @@ class VADProcessor:
         Returns:
             True if chunk should be kept, False otherwise
         """
-        if 'start' in vad_result:
-            self.session_vad_states[session_id] = 'voice'
-            logger.info(f"[VAD] Session {session_id}: 🎤 Speech started at {vad_result['start']:.2f}s")
-        elif 'end' in vad_result:
-            self.session_vad_states[session_id] = 'nonvoice'
+        if "start" in vad_result:
+            self.session_vad_states[session_id] = "voice"
+            logger.info(
+                f"[VAD] Session {session_id}: 🎤 Speech started at {vad_result['start']:.2f}s"
+            )
+        elif "end" in vad_result:
+            self.session_vad_states[session_id] = "nonvoice"
             logger.info(f"[VAD] Session {session_id}: 🔇 Speech ended at {vad_result['end']:.2f}s")
 
         # Only keep chunks when in voice state
         current_state = self.session_vad_states.get(session_id)
-        if current_state != 'voice':
-            logger.info(f"[VAD] Session {session_id}: ❌ Discarding chunk (state: {current_state}, vad_result: {vad_result})")
+        if current_state != "voice":
+            logger.info(
+                f"[VAD] Session {session_id}: ❌ Discarding chunk (state: {current_state}, vad_result: {vad_result})"
+            )
             return False
 
         return True
@@ -144,20 +150,26 @@ class VADProcessor:
         """
         current_state = self.session_vad_states.get(session_id)
 
-        if current_state == 'voice':
+        if current_state == "voice":
             # Still in speech - vad_result is None but we're between start and end
-            logger.debug(f"[VAD] Session {session_id}: ✅ Ongoing speech (vad_result=None, state=voice)")
+            logger.debug(
+                f"[VAD] Session {session_id}: ✅ Ongoing speech (vad_result=None, state=voice)"
+            )
             return True
 
         elif current_state is None:
             # CRITICAL FIX: First chunks - VAD needs data to accumulate
             # ACCEPT these chunks so VAD can build up its analysis window
-            logger.debug(f"[VAD] Session {session_id}: ✅ Accepting initial chunk for VAD analysis (state=None)")
+            logger.debug(
+                f"[VAD] Session {session_id}: ✅ Accepting initial chunk for VAD analysis (state=None)"
+            )
             return True
 
-        elif current_state == 'nonvoice':
+        elif current_state == "nonvoice":
             # Confirmed non-voice state and still no speech detected - discard
-            logger.info(f"[VAD] Session {session_id}: ❌ Discarding chunk (state: nonvoice, vad_result: None)")
+            logger.info(
+                f"[VAD] Session {session_id}: ❌ Discarding chunk (state: nonvoice, vad_result: None)"
+            )
             return False
 
         # Default: accept chunk

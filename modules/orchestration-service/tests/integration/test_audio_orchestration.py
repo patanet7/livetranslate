@@ -13,14 +13,15 @@ NO MOCKS for database - uses real PostgreSQL test database
 Service responses use fixtures that match actual response formats
 """
 
-import pytest
 import asyncio
 import os
 import wave
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Any, List
-from datetime import datetime, timezone
+from typing import Any
+
 import numpy as np
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -35,11 +36,10 @@ except ImportError:
 
 # Database imports
 from src.database import (
-    DatabaseManager,
     Base,
+    DatabaseManager,
 )
 from src.database.unified_bot_session_repository import UnifiedBotSessionRepository
-
 
 # Test Configuration
 BASE_URL = "http://localhost:3000"
@@ -48,12 +48,12 @@ BASE_URL = "http://localhost:3000"
 # Sync URL for SQLAlchemy create_engine (psycopg2)
 TEST_DB_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
 )
 # Async URL for async operations (asyncpg)
 TEST_DB_URL_ASYNC = os.getenv(
     "TEST_DATABASE_URL_ASYNC",
-    "postgresql+asyncpg://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
+    "postgresql+asyncpg://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
 )
 
 
@@ -77,7 +77,8 @@ def test_database():
     # This avoids issues with partial drops and index conflicts
     with engine.connect() as conn:
         # Drop all indexes first
-        conn.execute(text("""
+        conn.execute(
+            text("""
             DO $$ DECLARE
                 idx RECORD;
             BEGIN
@@ -89,10 +90,12 @@ def test_database():
                     EXECUTE 'DROP INDEX IF EXISTS public.' || quote_ident(idx.indexname) || ' CASCADE';
                 END LOOP;
             END $$;
-        """))
+        """)
+        )
 
         # Then drop all tables
-        conn.execute(text("""
+        conn.execute(
+            text("""
             DO $$ DECLARE
                 r RECORD;
             BEGIN
@@ -100,17 +103,18 @@ def test_database():
                     EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
                 END LOOP;
             END $$;
-        """))
+        """)
+        )
         conn.commit()
 
     # Now create all tables fresh
     Base.metadata.create_all(bind=engine)
 
-    SessionLocal = sessionmaker(bind=engine)
+    session_local = sessionmaker(bind=engine)
 
     yield {
         "engine": engine,
-        "session_factory": SessionLocal,
+        "session_factory": session_local,
         "url": TEST_DB_URL,
     }
 
@@ -174,10 +178,10 @@ def whisper_transcription_response():
         text: str = "Hello, this is a test transcription.",
         language: str = "en",
         confidence: float = 0.95,
-        segments: List[Dict] = None,
-        speakers: List[Dict] = None,
+        segments: list[dict] | None = None,
+        speakers: list[dict] | None = None,
         processing_time: float = 0.5,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a realistic transcription response"""
 
         if segments is None:
@@ -231,7 +235,7 @@ def translation_service_response():
         target_language: str = "es",
         confidence: float = 0.93,
         processing_time: float = 0.3,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a realistic translation response"""
 
         return {
@@ -243,7 +247,7 @@ def translation_service_response():
             "model_used": "default",
             "backend_used": "embedded",
             "session_id": None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     return _create
@@ -316,7 +320,7 @@ def chunk_audio():
         chunk_size_ms: int = 100,
         sample_rate: int = 16000,
         sample_width: int = 2,  # 16-bit = 2 bytes
-    ) -> List[bytes]:
+    ) -> list[bytes]:
         """
         Split audio data into time-based chunks.
 
@@ -361,7 +365,7 @@ def chunk_audio_with_overlap():
         sample_rate: int = 16000,
         sample_width: int = 2,
         framerate: str = "30",  # SMPTE framerate (24, 25, 30, etc.)
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Split audio with overlap and SMPTE timecode metadata.
 
@@ -379,7 +383,7 @@ def chunk_audio_with_overlap():
         samples_per_chunk = int((chunk_size_ms / 1000.0) * sample_rate)
         overlap_samples = int((overlap_ms / 1000.0) * sample_rate)
         bytes_per_chunk = samples_per_chunk * sample_width
-        overlap_bytes = overlap_samples * sample_width
+        overlap_samples * sample_width
 
         # Stride considers overlap
         stride_samples = samples_per_chunk - overlap_samples
@@ -529,9 +533,7 @@ class TestDatabaseIntegration:
         assert retrieved_audio.audio_id == audio_file.audio_id
         assert retrieved_audio.file_size == len(audio_data)
 
-    async def test_transcript_storage(
-        self, bot_repository, whisper_transcription_response
-    ):
+    async def test_transcript_storage(self, bot_repository, whisper_transcription_response):
         """
         TEST: Store transcription results in database
         VERIFY: Transcripts persisted with segments and speakers
@@ -575,9 +577,7 @@ class TestDatabaseIntegration:
         assert len(transcript_record.segments) > 0
         assert len(transcript_record.speakers) > 0
 
-    async def test_translation_storage(
-        self, bot_repository, translation_service_response
-    ):
+    async def test_translation_storage(self, bot_repository, translation_service_response):
         """
         TEST: Store translation results in database
         VERIFY: Translations linked to transcripts correctly
@@ -652,15 +652,13 @@ class TestAudioChunking:
         # Verify chunk sizes (16kHz * 0.1s * 2 bytes/sample = 3200 bytes)
         expected_chunk_size = 3200
         for i, chunk in enumerate(chunks):
-            assert len(chunk) == expected_chunk_size, (
-                f"Chunk {i} should be {expected_chunk_size} bytes"
-            )
+            assert (
+                len(chunk) == expected_chunk_size
+            ), f"Chunk {i} should be {expected_chunk_size} bytes"
 
         # Verify total data preserved
         total_reconstructed = b"".join(chunks)
-        assert len(total_reconstructed) == len(audio_data), (
-            "All audio data should be preserved"
-        )
+        assert len(total_reconstructed) == len(audio_data), "All audio data should be preserved"
 
     async def test_chunk_streaming_to_database(
         self,
@@ -798,9 +796,7 @@ class TestAudioChunking:
         )
 
         # Generate audio (10 seconds for clear timecode testing)
-        audio_data = generate_test_audio(
-            duration_seconds=10.0, sample_rate=16000, frequency=440
-        )
+        audio_data = generate_test_audio(duration_seconds=10.0, sample_rate=16000, frequency=440)
 
         # Create overlapping chunks with SMPTE timecode
         chunks = chunk_audio_with_overlap(
@@ -831,13 +827,9 @@ class TestAudioChunking:
             ), f"Chunk {i} should overlap with previous chunk"
 
             # Verify overlap amount (approximately 100ms)
-            overlap_time = (
-                previous_chunk["end_time_seconds"] - current_chunk["start_time_seconds"]
-            )
+            overlap_time = previous_chunk["end_time_seconds"] - current_chunk["start_time_seconds"]
             overlap_ms = overlap_time * 1000
-            assert 95 <= overlap_ms <= 105, (
-                f"Overlap should be ~100ms, got {overlap_ms:.1f}ms"
-            )
+            assert 95 <= overlap_ms <= 105, f"Overlap should be ~100ms, got {overlap_ms:.1f}ms"
 
             # Verify SMPTE timecodes
             if current_chunk.get("smpte_timecode"):
@@ -888,17 +880,11 @@ class TestAudioChunking:
             gap = retrieved_chunks[i]["start"] - retrieved_chunks[i - 1]["end"]
             assert gap <= 0, f"No gaps allowed between chunks (gap: {gap:.3f}s)"
 
-        print(
-            f"\n   ✅ All {len(chunks)} chunks stored with proper SMPTE timecode metadata"
-        )
-        print(
-            f"   ✅ Overlaps verified: {chunks[1]['overlap_ms']}ms between consecutive chunks"
-        )
+        print(f"\n   ✅ All {len(chunks)} chunks stored with proper SMPTE timecode metadata")
+        print(f"   ✅ Overlaps verified: {chunks[1]['overlap_ms']}ms between consecutive chunks")
         print("   ✅ Timeline reconstructed from database successfully")
         if chunks[0].get("smpte_timecode"):
-            print(
-                f"   ✅ SMPTE framerate: {chunks[0]['smpte_timecode']['framerate']} fps"
-            )
+            print(f"   ✅ SMPTE framerate: {chunks[0]['smpte_timecode']['framerate']} fps")
 
 
 # =============================================================================
@@ -1038,9 +1024,7 @@ class TestSessionMetrics:
 
         metrics["average_transcription_time"] = np.mean(metrics["transcription_times"])
         metrics["average_translation_time"] = np.mean(metrics["translation_times"])
-        metrics["throughput"] = (
-            metrics["total_audio_duration"] / metrics["total_processing_time"]
-        )
+        metrics["throughput"] = metrics["total_audio_duration"] / metrics["total_processing_time"]
 
         # Verify metrics
         assert metrics["chunks_processed"] == num_chunks
@@ -1052,9 +1036,7 @@ class TestSessionMetrics:
         print("\n📊 Processing Metrics:")
         print(f"   Chunks processed: {metrics['chunks_processed']}")
         print(f"   Total duration: {metrics['total_audio_duration']:.2f}s")
-        print(
-            f"   Avg transcription time: {metrics['average_transcription_time']:.3f}s"
-        )
+        print(f"   Avg transcription time: {metrics['average_transcription_time']:.3f}s")
         print(f"   Avg translation time: {metrics['average_translation_time']:.3f}s")
         print(f"   Throughput: {metrics['throughput']:.2f}x realtime")
 
@@ -1063,7 +1045,7 @@ class TestSessionMetrics:
 # SUMMARY
 # =============================================================================
 
-"""
+_TEST_SUMMARY = """
 Test Summary:
 =============
 

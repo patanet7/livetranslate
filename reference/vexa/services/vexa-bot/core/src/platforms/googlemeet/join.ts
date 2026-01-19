@@ -1,7 +1,7 @@
 import { Page } from "playwright";
 import { log, randomDelay, callJoiningCallback } from "../../utils";
 import { BotConfig } from "../../types";
-import { 
+import {
   googleNameInputSelectors,
   googleJoinButtonSelectors,
   googleMicrophoneButtonSelectors,
@@ -9,9 +9,9 @@ import {
 } from "./selectors";
 
 export async function joinGoogleMeeting(
-  page: Page, 
-  meetingUrl: string, 
-  botName: string, 
+  page: Page,
+  meetingUrl: string,
+  botName: string,
   botConfig: BotConfig
 ): Promise<void> {
   await page.goto(meetingUrl, { waitUntil: "networkidle" });
@@ -20,7 +20,7 @@ export async function joinGoogleMeeting(
   // Take screenshot after navigation
   await page.screenshot({ path: '/app/storage/screenshots/bot-checkpoint-0-after-navigation.png', fullPage: true });
   log("📸 Screenshot taken: After navigation to meeting URL");
-  
+
   // --- Call joining callback to notify bot-manager that bot is joining ---
   try {
     await callJoiningCallback(botConfig);
@@ -36,12 +36,12 @@ export async function joinGoogleMeeting(
   // Enter name and join
   await page.waitForTimeout(randomDelay(1000));
   log("Attempting to find name input field...");
-  
+
   // Use selector from selectors.ts instead of inline
   const nameFieldSelector = googleNameInputSelectors[0];
   await page.waitForSelector(nameFieldSelector, { timeout: 120000 }); // 120 seconds
   log("Name input field found.");
-  
+
   // Take screenshot after finding name field
   await page.screenshot({ path: '/app/storage/screenshots/bot-checkpoint-0-name-field-found.png', fullPage: true });
   log("📸 Screenshot taken: Name input field found");
@@ -58,7 +58,7 @@ export async function joinGoogleMeeting(
   } catch (e) {
     log("Microphone already muted or not found.");
   }
-  
+
   try {
     await page.waitForTimeout(randomDelay(500));
     const cameraSelector = googleCameraButtonSelectors[0];
@@ -73,7 +73,7 @@ export async function joinGoogleMeeting(
   await page.waitForSelector(joinSelector, { timeout: 60000 });
   await page.click(joinSelector);
   log(`${botName} joined the Google Meet Meeting.`);
-  
+
   // Take screenshot after clicking "Ask to join"
   await page.screenshot({ path: '/app/storage/screenshots/bot-checkpoint-0-after-ask-to-join.png', fullPage: true });
   log("📸 Screenshot taken: After clicking 'Ask to join'");

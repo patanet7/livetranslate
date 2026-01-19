@@ -9,14 +9,14 @@
  * - TranscriptionTesting/index.tsx
  */
 
-import { useEffect, useCallback } from 'react';
-import { useAppDispatch } from '@/store';
-import { setAudioDevices, addProcessingLog } from '@/store/slices/audioSlice';
+import { useEffect, useCallback } from "react";
+import { useAppDispatch } from "@/store";
+import { setAudioDevices, addProcessingLog } from "@/store/slices/audioSlice";
 
 interface AudioDeviceInfo {
   deviceId: string;
   label: string;
-  kind: 'audioinput';
+  kind: "audioinput";
   groupId: string;
 }
 
@@ -51,44 +51,54 @@ export const useAudioDevices = (options: UseAudioDevicesOptions = {}) => {
     autoSelect = false,
     selectedDevice,
     onDevicesLoaded,
-    onDeviceSelected
+    onDeviceSelected,
   } = options;
 
   const initializeDevices = useCallback(async () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const audioDevices = devices
-        .filter(device => device.kind === 'audioinput')
-        .map(device => ({
+        .filter((device) => device.kind === "audioinput")
+        .map((device) => ({
           deviceId: device.deviceId,
-          label: device.label || `Microphone ${device.deviceId.substring(0, 8)}`,
-          kind: device.kind as 'audioinput',
-          groupId: device.groupId || ''
+          label:
+            device.label || `Microphone ${device.deviceId.substring(0, 8)}`,
+          kind: device.kind as "audioinput",
+          groupId: device.groupId || "",
         }));
 
       dispatch(setAudioDevices(audioDevices));
 
       // Auto-select first device if requested and no device selected
-      if (autoSelect && audioDevices.length > 0 && !selectedDevice && onDeviceSelected) {
+      if (
+        autoSelect &&
+        audioDevices.length > 0 &&
+        !selectedDevice &&
+        onDeviceSelected
+      ) {
         onDeviceSelected(audioDevices[0].deviceId);
       }
 
-      dispatch(addProcessingLog({
-        level: 'INFO',
-        message: `Found ${audioDevices.length} audio input devices`,
-        timestamp: Date.now()
-      }));
+      dispatch(
+        addProcessingLog({
+          level: "INFO",
+          message: `Found ${audioDevices.length} audio input devices`,
+          timestamp: Date.now(),
+        }),
+      );
 
       // Call optional callback
       if (onDevicesLoaded) {
         onDevicesLoaded(audioDevices);
       }
     } catch (error) {
-      dispatch(addProcessingLog({
-        level: 'ERROR',
-        message: `Failed to load audio devices: ${error}`,
-        timestamp: Date.now()
-      }));
+      dispatch(
+        addProcessingLog({
+          level: "ERROR",
+          message: `Failed to load audio devices: ${error}`,
+          timestamp: Date.now(),
+        }),
+      );
     }
   }, [dispatch, autoSelect, selectedDevice, onDevicesLoaded, onDeviceSelected]);
 
@@ -101,7 +111,7 @@ export const useAudioDevices = (options: UseAudioDevicesOptions = {}) => {
     /**
      * Manually refresh device list
      */
-    refreshDevices: initializeDevices
+    refreshDevices: initializeDevices,
   };
 };
 

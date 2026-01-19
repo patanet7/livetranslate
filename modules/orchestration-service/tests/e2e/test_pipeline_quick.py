@@ -13,21 +13,21 @@ Requirements:
     - Database schema initialized
 """
 
+import asyncio
 import os
 import sys
-import asyncio
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+from database.bot_session_manager import create_bot_session_manager
 from pipeline.data_pipeline import (
-    create_data_pipeline,
     AudioChunkMetadata,
     TranscriptionResult,
     TranslationResult,
+    create_data_pipeline,
 )
-from database.bot_session_manager import create_bot_session_manager
 
 
 async def main():
@@ -118,9 +118,7 @@ async def main():
             chunk_end_time=5.0,
         )
 
-        file_id = await pipeline.process_audio_chunk(
-            session_id, audio_bytes, "wav", metadata
-        )
+        file_id = await pipeline.process_audio_chunk(session_id, audio_bytes, "wav", metadata)
 
         if file_id:
             print(f"  ✅ Audio stored: {file_id}")
@@ -162,9 +160,7 @@ async def main():
 
         transcript_ids = []
         for trans in transcriptions:
-            tid = await pipeline.process_transcription_result(
-                session_id, file_id, trans
-            )
+            tid = await pipeline.process_transcription_result(session_id, file_id, trans)
             if tid:
                 transcript_ids.append(tid)
                 print(f"  ✅ Transcript stored: {tid} (Speaker: {trans.speaker})")
@@ -215,10 +211,8 @@ async def main():
         timeline = await pipeline.get_session_timeline(session_id)
         print(f"  ✅ Timeline retrieved: {len(timeline)} entries")
 
-        for i, entry in enumerate(timeline[:5]):  # Show first 5
-            print(
-                f"     [{entry.timestamp:.1f}s] {entry.entry_type}: {entry.content[:40]}..."
-            )
+        for entry in timeline[:5]:  # Show first 5
+            print(f"     [{entry.timestamp:.1f}s] {entry.entry_type}: {entry.content[:40]}...")
 
         if len(timeline) > 5:
             print(f"     ... and {len(timeline) - 5} more entries")
@@ -262,21 +256,13 @@ async def main():
     # Test 7: Comprehensive Session Data
     print("\n📊 Test 7: Comprehensive Session Data")
     try:
-        comprehensive = await pipeline.db_manager.get_comprehensive_session_data(
-            session_id
-        )
+        comprehensive = await pipeline.db_manager.get_comprehensive_session_data(session_id)
 
         if comprehensive:
             print("  ✅ Comprehensive data retrieved")
-            print(
-                f"     Audio files: {comprehensive['statistics']['audio_files_count']}"
-            )
-            print(
-                f"     Transcripts: {comprehensive['statistics']['transcripts_count']}"
-            )
-            print(
-                f"     Translations: {comprehensive['statistics']['translations_count']}"
-            )
+            print(f"     Audio files: {comprehensive['statistics']['audio_files_count']}")
+            print(f"     Transcripts: {comprehensive['statistics']['transcripts_count']}")
+            print(f"     Translations: {comprehensive['statistics']['translations_count']}")
         else:
             raise Exception("Comprehensive data retrieval failed")
 
@@ -303,9 +289,7 @@ async def main():
     print("=" * 70)
     print("\nThe data pipeline is working correctly!")
     print("\nNext steps:")
-    print(
-        "  1. Run full integration tests: pytest tests/test_data_pipeline_integration.py"
-    )
+    print("  1. Run full integration tests: pytest tests/test_data_pipeline_integration.py")
     print("  2. Register API router in your FastAPI app")
     print("  3. Test API endpoints with curl or Postman")
     print("  4. Integrate with Whisper and Translation services")

@@ -1,0 +1,246 @@
+# Pre-commit configuration for Frontend Service
+# React + TypeScript specific checks
+# Run: pre-commit install && pre-commit run --all-files
+
+default_language_version:
+  node: 18.0.0
+
+# Service-specific file patterns
+files: ^(src/|public/|tests/)
+
+repos:
+  # =============================================================================
+  # General Hooks
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+        exclude: '\.min\.(js|css)$|\.lock$'
+      - id: trailing-whitespace
+        exclude: '\.min\.(js|css)$|\.lock$'
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+        exclude: '\.lock$|pnpm-lock\.yaml$'
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # =============================================================================
+  # ESLint - TypeScript/React Linting
+  # =============================================================================
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.18.0
+    hooks:
+      - id: eslint
+        name: ESLint (TypeScript/React)
+        args:
+          - '--max-warnings=0'
+          - '--fix'
+          - '--ext'
+          - '.ts,.tsx,.js,.jsx'
+        files: '^src/.*\.(ts|tsx|js|jsx)$'
+        additional_dependencies:
+          - eslint@9.18.0
+          - eslint-config-prettier@9.1.0
+          - eslint-plugin-react@7.37.4
+          - eslint-plugin-react-hooks@5.1.0
+          - eslint-plugin-react-refresh@0.4.18
+          - eslint-plugin-jsx-a11y@6.10.2
+          - eslint-plugin-import@2.31.0
+          - '@typescript-eslint/eslint-plugin@8.20.0'
+          - '@typescript-eslint/parser@8.20.0'
+          - typescript@5.7.3
+
+  # =============================================================================
+  # Prettier - Code Formatting
+  # =============================================================================
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: Prettier
+        files: '^src/.*\.(ts|tsx|js|jsx|json|css|scss|md)$'
+        exclude: '\.min\.(js|css)$'
+        args:
+          - '--write'
+          - '--config'
+          - '.prettierrc'
+
+  # =============================================================================
+  # TypeScript Type Checking (via local hook)
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: typescript-check
+        name: TypeScript type check
+        language: system
+        entry: pnpm run type-check
+        files: '\.(ts|tsx)$'
+        pass_filenames: false
+        types: [file]
+
+  # =============================================================================
+  # React/TypeScript Security Checks
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check for dangerous HTML rendering
+      - id: no-dangerous-html
+        name: No dangerouslySetInnerHTML
+        language: pygrep
+        entry: 'dangerouslySetInnerHTML'
+        files: '^src/.*\.(tsx|jsx)$'
+        # Warn about XSS risks
+
+      # Check for hardcoded API keys/secrets
+      - id: no-hardcoded-secrets-js
+        name: No hardcoded secrets in JS/TS
+        language: pygrep
+        entry: "(api[_-]?key|apiKey|secret|password|token)\\s*[:=]\\s*[\"'][^\"']{10,}[\"']"
+        files: '^src/.*\.(ts|tsx|js|jsx)$'
+        exclude: '\.test\.(ts|tsx|js|jsx)$|\.spec\.(ts|tsx|js|jsx)$'
+
+      # Check for console.log statements
+      - id: no-console-log
+        name: No console.log in production code
+        language: pygrep
+        entry: 'console\.(log|debug|info|warn|error)'
+        files: '^src/.*\.(ts|tsx|js|jsx)$'
+        exclude: '\.test\.(ts|tsx|js|jsx)$|\.spec\.(ts|tsx|js|jsx)$|/hooks/useDebug|/utils/logger'
+
+      # Check for TODO/FIXME comments
+      - id: check-todos
+        name: Check TODO/FIXME comments
+        language: pygrep
+        entry: '(TODO|FIXME|XXX|HACK):'
+        files: '^src/.*\.(ts|tsx|js|jsx)$'
+        # Informational - warns about pending work
+
+      # Ensure useEffect has dependency arrays
+      - id: useeffect-deps
+        name: Check useEffect dependencies
+        language: pygrep
+        entry: 'useEffect\([^)]+\)\s*;'
+        files: '^src/.*\.(tsx|jsx)$'
+        # Warns about useEffect without dependency array
+
+      # Check for inline styles (prefer CSS classes)
+      - id: no-inline-styles
+        name: No inline styles
+        language: pygrep
+        entry: 'style=\{\{'
+        files: '^src/.*\.(tsx|jsx)$'
+        exclude: '/components/ui/|\.test\.(tsx|jsx)$'
+        # Informational - suggests using CSS classes
+
+  # =============================================================================
+  # Accessibility Checks
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check for missing alt attributes on images
+      - id: img-alt-check
+        name: Check img alt attributes
+        language: pygrep
+        entry: '<img[^>]+(?!alt=)[^>]*>'
+        files: '^src/.*\.(tsx|jsx)$'
+
+      # Check for proper button types
+      - id: button-type-check
+        name: Check button type attributes
+        language: pygrep
+        entry: '<button[^>]+(?!type=)[^>]*>'
+        files: '^src/.*\.(tsx|jsx)$'
+
+      # Check for aria labels on interactive elements
+      - id: aria-label-check
+        name: Check aria labels
+        language: pygrep
+        entry: '<(button|a|input)[^>]+onClick[^>]+(?!aria-label)[^>]*>'
+        files: '^src/.*\.(tsx|jsx)$'
+
+  # =============================================================================
+  # Import Organization
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check for circular imports (basic pattern)
+      - id: circular-import-check
+        name: Check circular imports
+        language: pygrep
+        entry: "from '\\.\\./"
+        files: '^src/.*\.(ts|tsx)$'
+        # Informational - warns about relative parent imports
+
+      # Check for absolute imports pattern
+      - id: absolute-imports
+        name: Prefer absolute imports
+        language: pygrep
+        entry: "from '\\.\\./\\.\\./\\.\\."
+        files: '^src/.*\.(ts|tsx)$'
+        # Warns about deep relative imports
+
+  # =============================================================================
+  # Testing Checks
+  # =============================================================================
+  - repo: local
+    hooks:
+      # Check test file naming
+      - id: test-file-naming
+        name: Check test file naming
+        language: pygrep
+        entry: '^(?!.*\.(test|spec)\.(ts|tsx|js|jsx)$).*$'
+        files: '^src/.*/__tests__/.*\.(ts|tsx|js|jsx)$'
+        # Ensures test files follow naming convention
+
+      # Check for skipped tests
+      - id: no-skipped-tests
+        name: No skipped tests
+        language: pygrep
+        entry: '(it\.skip|test\.skip|describe\.skip|xit|xtest|xdescribe)'
+        files: '\.(test|spec)\.(ts|tsx|js|jsx)$'
+        # Warns about skipped tests
+
+  # =============================================================================
+  # Package.json Validation
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: package-json-check
+        name: Validate package.json
+        language: system
+        entry: node -e "JSON.parse(require('fs').readFileSync('package.json', 'utf8'))"
+        files: '^package\.json$'
+        pass_filenames: false
+
+      # Check for outdated dependencies (informational)
+      - id: outdated-deps-check
+        name: Check outdated dependencies
+        language: system
+        entry: pnpm outdated --format json || true
+        files: '^package\.json$'
+        pass_filenames: false
+        always_run: false
+        stages: [manual]
+
+# =============================================================================
+# Service-Specific Excludes
+# =============================================================================
+exclude: |
+  (?x)^(
+    node_modules/|
+    dist/|
+    build/|
+    coverage/|
+    \.next/|
+    \.cache/|
+    \.vite/|
+    pnpm-lock\.yaml|
+    package-lock\.json|
+    .*\.min\.(js|css)|
+    public/.*\.js|
+    storybook-static/
+  )

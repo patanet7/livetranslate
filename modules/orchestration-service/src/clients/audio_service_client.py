@@ -5,33 +5,35 @@ Handles communication with the Whisper-based audio processing service.
 Provides methods for transcription, speaker diarization, and audio analysis.
 """
 
-import logging
 import asyncio
+import builtins
 import json
-import ssl
+import logging
 import mimetypes
 import os
+import ssl
 import sys
-from typing import Dict, Any, Optional, List, AsyncGenerator, Tuple
+from collections.abc import AsyncGenerator
 from pathlib import Path
-import aiohttp
+from typing import Any
+
 import aiofiles
+import aiohttp
+from internal_services.audio import (
+    UnifiedAudioError,
+    get_unified_audio_service,
+)
 from pydantic import BaseModel
 from utils.audio_errors import (
     AudioFormatError,
-    ServiceUnavailableError,
-    NetworkError,
-    TimeoutError,
     CircuitBreaker,
-    RetryManager,
-    RetryConfig,
     ErrorLogger,
+    NetworkError,
+    RetryConfig,
+    RetryManager,
+    ServiceUnavailableError,
+    TimeoutError,
     error_boundary,
-)
-
-from internal_services.audio import (
-    get_unified_audio_service,
-    UnifiedAudioError,
 )
 
 # Add shared module to path for model registry (append to avoid conflicts)
@@ -41,15 +43,14 @@ if str(_SHARED_PATH) not in sys.path:
 
 try:
     from model_registry import ModelRegistry
+
     _MODEL_REGISTRY_AVAILABLE = True
 except ImportError:
     _MODEL_REGISTRY_AVAILABLE = False
 
 # Default whisper model from registry or fallback
 _DEFAULT_WHISPER_MODEL = (
-    ModelRegistry.DEFAULT_WHISPER_MODEL
-    if _MODEL_REGISTRY_AVAILABLE
-    else "whisper-base"
+    ModelRegistry.DEFAULT_WHISPER_MODEL if _MODEL_REGISTRY_AVAILABLE else "whisper-base"
 )
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ WEBM_SIGNATURES = [
 ]
 
 
-def detect_audio_format(audio_data: bytes) -> Tuple[str, str]:
+def detect_audio_format(audio_data: bytes) -> tuple[str, str]:
     """
     Detect audio format from binary data and return MIME type and file extension.
 
@@ -102,10 +103,7 @@ def detect_audio_format(audio_data: bytes) -> Tuple[str, str]:
         if audio_data.startswith(signature):
             return mime_type, extension
         # Also check at offset 8 for some MP4 variants
-        if (
-            len(audio_data) > 8 + len(signature)
-            and audio_data[8 : 8 + len(signature)] == signature
-        ):
+        if len(audio_data) > 8 + len(signature) and audio_data[8 : 8 + len(signature)] == signature:
             return mime_type, extension
 
     # Fallback: try to detect MP3 by looking for frame headers anywhere in first 1KB
@@ -123,7 +121,7 @@ def detect_audio_format(audio_data: bytes) -> Tuple[str, str]:
 
 
 def generate_filename(
-    base_name: str, audio_data: bytes = None, original_filename: str = None
+    base_name: str, audio_data: bytes | None = None, original_filename: str | None = None
 ) -> str:
     """
     Generate appropriate filename based on audio format detection.
@@ -152,7 +150,7 @@ def generate_filename(
 class TranscriptionRequest(BaseModel):
     """Request model for transcription"""
 
-    language: Optional[str] = None
+    language: str | None = None
     task: str = "transcribe"  # transcribe or translate
     enable_diarization: bool = True
     enable_vad: bool = True
@@ -164,19 +162,19 @@ class TranscriptionResponse(BaseModel):
 
     text: str
     language: str
-    segments: List[Dict[str, Any]]
-    speakers: Optional[List[Dict[str, Any]]] = None
+    segments: list[dict[str, Any]]
+    speakers: list[dict[str, Any]] | None = None
     processing_time: float
     confidence: float
 
     # Phase 3C: Stability Tracking Fields
-    stable_text: Optional[str] = None  # Confirmed stable text
-    unstable_text: Optional[str] = None  # Still-forming unstable text
+    stable_text: str | None = None  # Confirmed stable text
+    unstable_text: str | None = None  # Still-forming unstable text
     is_draft: bool = False  # True = incremental update, False = complete segment
     is_final: bool = False  # True = segment complete, no more changes
     should_translate: bool = False  # True if stable text should be translated
     stability_score: float = 0.0  # Stability confidence (0.0-1.0)
-    translation_mode: Optional[str] = None  # "whisper_translate" or "external_service"
+    translation_mode: str | None = None  # "whisper_translate" or "external_service"
 
 
 class AudioServiceClient:
@@ -184,8 +182,8 @@ class AudioServiceClient:
 
     def __init__(
         self,
-        base_url: Optional[str] = None,
-        timeout: Optional[float] = None,
+        base_url: str | None = None,
+        timeout: float | None = None,
         config_manager=None,
         settings=None,
     ):
@@ -200,7 +198,7 @@ class AudioServiceClient:
             resolved_base_url = None
         self.base_url = resolved_base_url
         timeout_seconds = timeout or self._get_timeout()
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
         self.timeout = aiohttp.ClientTimeout(total=timeout_seconds)
         self._embedded_service = get_unified_audio_service()
         prefer_local = os.getenv("AUDIO_PREFER_EMBEDDED", "true")
@@ -301,17 +299,13 @@ class AudioServiceClient:
                 )
                 # Explicitly disable SSL for HTTP connections
                 connector = aiohttp.TCPConnector(ssl=False)
-                self.session = aiohttp.ClientSession(
-                    connector=connector, timeout=self.timeout
-                )
+                self.session = aiohttp.ClientSession(connector=connector, timeout=self.timeout)
             else:
                 logger.debug(
                     f"Using HTTPS connection with SSL context for audio service at {self.base_url}"
                 )
                 connector = aiohttp.TCPConnector(ssl=self.ssl_context)
-                self.session = aiohttp.ClientSession(
-                    connector=connector, timeout=self.timeout
-                )
+                self.session = aiohttp.ClientSession(connector=connector, timeout=self.timeout)
             # Store the current event loop for future comparisons
             try:
                 self._session_loop = asyncio.get_running_loop()
@@ -325,7 +319,7 @@ class AudioServiceClient:
         if self.session and not self.session.closed:
             await self.session.close()
 
-    async def health_check(self, correlation_id: str = None) -> Dict[str, Any]:
+    async def health_check(self, correlation_id: str | None = None) -> dict[str, Any]:
         """Check audio service health with comprehensive error handling"""
         correlation_id = correlation_id or f"health_{asyncio.get_event_loop().time()}"
 
@@ -348,13 +342,11 @@ class AudioServiceClient:
             },
         ):
             try:
-                return await self.circuit_breaker.call(
-                    self._health_check_internal, correlation_id
-                )
+                return await self.circuit_breaker.call(self._health_check_internal, correlation_id)
             except Exception as e:
                 self.error_logger.log_error(
                     ServiceUnavailableError(
-                        f"Health check failed: {str(e)}",
+                        f"Health check failed: {e!s}",
                         correlation_id=correlation_id,
                         service_name="audio_service",
                     )
@@ -367,7 +359,7 @@ class AudioServiceClient:
                     "correlation_id": correlation_id,
                 }
 
-    async def _health_check_internal(self, correlation_id: str) -> Dict[str, Any]:
+    async def _health_check_internal(self, correlation_id: str) -> dict[str, Any]:
         """Internal health check implementation"""
         try:
             if not self._remote_enabled():
@@ -381,9 +373,7 @@ class AudioServiceClient:
                 async with session.get(url) as response:
                     if response.status == 200:
                         data = await response.json()
-                        logger.info(
-                            f"[{correlation_id}] Audio service health check successful"
-                        )
+                        logger.info(f"[{correlation_id}] Audio service health check successful")
                         return {
                             "status": "healthy",
                             "service": "audio",
@@ -398,12 +388,12 @@ class AudioServiceClient:
                             correlation_id=correlation_id,
                             service_name="audio_service",
                         )
-            except asyncio.TimeoutError:
+            except builtins.TimeoutError as e:
                 raise TimeoutError(
                     f"Health check timed out after {self.timeout.total}s",
                     correlation_id=correlation_id,
                     timeout_details={"timeout_seconds": self.timeout.total},
-                )
+                ) from e
         except aiohttp.ClientConnectorError as e:
             error_msg = str(e)
             if "ssl" in error_msg.lower() and self.base_url.startswith("http://"):
@@ -415,7 +405,7 @@ class AudioServiceClient:
                         "url": url,
                         "original_error": error_msg,
                     },
-                )
+                ) from e
             else:
                 raise NetworkError(
                     f"Connection error to audio service: {error_msg}",
@@ -425,7 +415,7 @@ class AudioServiceClient:
                         "url": url,
                         "original_error": error_msg,
                     },
-                )
+                ) from e
         except Exception as e:
             logger.error(f"Audio service health check failed: {type(e).__name__}: {e}")
             logger.error(f"URL attempted: {url}")
@@ -433,10 +423,10 @@ class AudioServiceClient:
                 "status": "unhealthy",
                 "service": "audio",
                 "url": self.base_url,
-                "error": f"{type(e).__name__}: {str(e)}",
+                "error": f"{type(e).__name__}: {e!s}",
             }
 
-    async def get_models(self) -> List[str]:
+    async def get_models(self) -> list[str]:
         """Get available Whisper models"""
         if self._embedded_enabled():
             try:
@@ -459,7 +449,7 @@ class AudioServiceClient:
             logger.error(f"Failed to get models: {e}")
             return ["whisper-tiny"]  # fallback
 
-    async def get_device_info(self) -> Dict[str, Any]:
+    async def get_device_info(self) -> dict[str, Any]:
         """Get current device information (CPU/GPU/NPU) from audio service"""
         if self._embedded_enabled():
             try:
@@ -486,12 +476,10 @@ class AudioServiceClient:
         self,
         audio_file: Path,
         request_params: TranscriptionRequest,
-        correlation_id: str = None,
+        correlation_id: str | None = None,
     ) -> TranscriptionResponse:
         """Transcribe an audio file with comprehensive error handling"""
-        correlation_id = (
-            correlation_id or f"transcribe_file_{asyncio.get_event_loop().time()}"
-        )
+        correlation_id = correlation_id or f"transcribe_file_{asyncio.get_event_loop().time()}"
 
         async with error_boundary(
             correlation_id=correlation_id,
@@ -561,9 +549,7 @@ class AudioServiceClient:
             data = aiohttp.FormData()
             data.add_field("language", request_params.language or "auto")
             data.add_field("task", request_params.task)
-            data.add_field(
-                "enable_diarization", str(request_params.enable_diarization).lower()
-            )
+            data.add_field("enable_diarization", str(request_params.enable_diarization).lower())
             data.add_field("enable_vad", str(request_params.enable_vad).lower())
             data.add_field("model", request_params.model)
 
@@ -580,17 +566,13 @@ class AudioServiceClient:
                 content_type=mime_type,
             )
 
-            async with session.post(
-                f"{self.base_url}/transcribe", data=data
-            ) as response:
+            async with session.post(f"{self.base_url}/transcribe", data=data) as response:
                 if response.status == 200:
                     result = await response.json()
                     return TranscriptionResponse(**result)
                 else:
                     error_text = await response.text()
-                    raise Exception(
-                        f"Transcription failed: HTTP {response.status} - {error_text}"
-                    )
+                    raise Exception(f"Transcription failed: HTTP {response.status} - {error_text}")
 
         except Exception as e:
             logger.error(f"File transcription failed: {e}")
@@ -600,8 +582,8 @@ class AudioServiceClient:
         self,
         audio_bytes: bytes,
         request_params: TranscriptionRequest,
-        correlation_id: Optional[str] = None,
-    ) -> Optional[TranscriptionResponse]:
+        correlation_id: str | None = None,
+    ) -> TranscriptionResponse | None:
         """Attempt to handle transcription using the embedded service."""
         if not self._embedded_enabled():
             return None
@@ -619,13 +601,11 @@ class AudioServiceClient:
                 self._embedded_failure_logged = True
             return None
         except Exception as exc:
-            logger.exception(
-                "Embedded audio transcription failed (%s): %s", correlation_id, exc
-            )
+            logger.exception("Embedded audio transcription failed (%s): %s", correlation_id, exc)
             return None
 
         segments_raw = result.get("segments") or []
-        segments: List[Dict[str, Any]] = []
+        segments: list[dict[str, Any]] = []
         for item in segments_raw:
             if isinstance(item, dict):
                 segments.append(item)
@@ -633,7 +613,7 @@ class AudioServiceClient:
                 segments.append({"raw": str(item)})
 
         speakers_raw = result.get("speakers") or []
-        speakers: Optional[List[Dict[str, Any]]] = None
+        speakers: list[dict[str, Any]] | None = None
         if isinstance(speakers_raw, list) and speakers_raw:
             speakers = []
             for speaker in speakers_raw:
@@ -675,21 +655,15 @@ class AudioServiceClient:
             data = aiohttp.FormData()
             data.add_field("language", request_params.language or "auto")
             data.add_field("task", request_params.task)
-            data.add_field(
-                "enable_diarization", str(request_params.enable_diarization).lower()
-            )
+            data.add_field("enable_diarization", str(request_params.enable_diarization).lower())
             data.add_field("enable_vad", str(request_params.enable_vad).lower())
             data.add_field("model", request_params.model)
             # Detect audio format and set appropriate content-type and filename
             mime_type, _ = detect_audio_format(audio_data)
             filename = generate_filename("stream", audio_data)
-            data.add_field(
-                "audio", audio_data, filename=filename, content_type=mime_type
-            )
+            data.add_field("audio", audio_data, filename=filename, content_type=mime_type)
 
-            async with session.post(
-                f"{self.base_url}/transcribe", data=data
-            ) as response:
+            async with session.post(f"{self.base_url}/transcribe", data=data) as response:
                 if response.status == 200:
                     result = await response.json()
                     return TranscriptionResponse(**result)
@@ -703,7 +677,7 @@ class AudioServiceClient:
             logger.error(f"Stream transcription failed: {e}")
             raise
 
-    async def start_realtime_session(self, session_config: Dict[str, Any]) -> str:
+    async def start_realtime_session(self, session_config: dict[str, Any]) -> str:
         """Start a real-time transcription session"""
         try:
             if not self._remote_enabled():
@@ -728,7 +702,7 @@ class AudioServiceClient:
 
     async def send_realtime_audio(
         self, session_id: str, audio_chunk: bytes
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Send audio chunk to real-time session"""
         try:
             if not self._remote_enabled():
@@ -740,13 +714,9 @@ class AudioServiceClient:
             # Detect audio format and set appropriate content-type and filename
             mime_type, _ = detect_audio_format(audio_chunk)
             filename = generate_filename("chunk", audio_chunk)
-            data.add_field(
-                "audio_chunk", audio_chunk, filename=filename, content_type=mime_type
-            )
+            data.add_field("audio_chunk", audio_chunk, filename=filename, content_type=mime_type)
 
-            async with session.post(
-                f"{self.base_url}/api/realtime/audio", data=data
-            ) as response:
+            async with session.post(f"{self.base_url}/api/realtime/audio", data=data) as response:
                 if response.status == 200:
                     return await response.json()
                 elif response.status == 202:
@@ -754,16 +724,14 @@ class AudioServiceClient:
                     return None
                 else:
                     error_text = await response.text()
-                    logger.error(
-                        f"Realtime audio failed: HTTP {response.status} - {error_text}"
-                    )
+                    logger.error(f"Realtime audio failed: HTTP {response.status} - {error_text}")
                     return None
 
         except Exception as e:
             logger.error(f"Failed to send realtime audio: {e}")
             return None
 
-    async def stop_realtime_session(self, session_id: str) -> Dict[str, Any]:
+    async def stop_realtime_session(self, session_id: str) -> dict[str, Any]:
         """Stop a real-time transcription session"""
         try:
             if not self._remote_enabled():
@@ -786,14 +754,12 @@ class AudioServiceClient:
             logger.error(f"Failed to stop realtime session: {e}")
             return {"status": "error", "message": str(e)}
 
-    async def get_session_status(self, session_id: str) -> Dict[str, Any]:
+    async def get_session_status(self, session_id: str) -> dict[str, Any]:
         """Get status of a real-time session"""
         try:
             session = await self._get_session()
 
-            async with session.get(
-                f"{self.base_url}/api/realtime/status/{session_id}"
-            ) as response:
+            async with session.get(f"{self.base_url}/api/realtime/status/{session_id}") as response:
                 if response.status == 200:
                     return await response.json()
                 else:
@@ -803,7 +769,7 @@ class AudioServiceClient:
             logger.error(f"Failed to get session status: {e}")
             return {"status": "error", "message": str(e)}
 
-    async def analyze_audio(self, audio_data: bytes) -> Dict[str, Any]:
+    async def analyze_audio(self, audio_data: bytes) -> dict[str, Any]:
         """Analyze audio for quality metrics"""
         try:
             session = await self._get_session()
@@ -812,26 +778,20 @@ class AudioServiceClient:
             # Detect audio format and set appropriate content-type and filename
             mime_type, _ = detect_audio_format(audio_data)
             filename = generate_filename("analyze", audio_data)
-            data.add_field(
-                "audio", audio_data, filename=filename, content_type=mime_type
-            )
+            data.add_field("audio", audio_data, filename=filename, content_type=mime_type)
 
-            async with session.post(
-                f"{self.base_url}/api/analyze", data=data
-            ) as response:
+            async with session.post(f"{self.base_url}/api/analyze", data=data) as response:
                 if response.status == 200:
                     return await response.json()
                 else:
                     error_text = await response.text()
-                    raise Exception(
-                        f"Audio analysis failed: HTTP {response.status} - {error_text}"
-                    )
+                    raise Exception(f"Audio analysis failed: HTTP {response.status} - {error_text}")
 
         except Exception as e:
             logger.error(f"Audio analysis failed: {e}")
             raise
 
-    async def get_statistics(self) -> Dict[str, Any]:
+    async def get_statistics(self) -> dict[str, Any]:
         """Get service statistics"""
         if self._embedded_enabled():
             try:
@@ -857,8 +817,8 @@ class AudioServiceClient:
     # Enhanced pipeline processing methods for orchestration integration
 
     async def process_audio_batch(
-        self, request_data: Dict[str, Any], request_id: str
-    ) -> Dict[str, Any]:
+        self, request_data: dict[str, Any], request_id: str
+    ) -> dict[str, Any]:
         """Process audio through the enhanced pipeline in batch mode"""
         try:
             session = await self._get_session()
@@ -873,9 +833,7 @@ class AudioServiceClient:
                 # Detect audio format and set appropriate content-type and filename
                 mime_type, _ = detect_audio_format(audio_file_data)
                 filename = generate_filename("audio", audio_file_data)
-                data.add_field(
-                    "audio", audio_file_data, filename=filename, content_type=mime_type
-                )
+                data.add_field("audio", audio_file_data, filename=filename, content_type=mime_type)
 
             # Add pipeline configuration
             if "config" in request_data:
@@ -887,14 +845,10 @@ class AudioServiceClient:
             data.add_field("request_id", request_id)
 
             # Enhanced pipeline processing endpoint
-            async with session.post(
-                f"{self.base_url}/api/process-pipeline", data=data
-            ) as response:
+            async with session.post(f"{self.base_url}/api/process-pipeline", data=data) as response:
                 if response.status == 200:
                     result = await response.json()
-                    logger.info(
-                        f"Audio batch processing completed for request {request_id}"
-                    )
+                    logger.info(f"Audio batch processing completed for request {request_id}")
                     return result
                 else:
                     error_text = await response.text()
@@ -910,8 +864,8 @@ class AudioServiceClient:
             raise
 
     async def start_audio_streaming(
-        self, request_data: Dict[str, Any], request_id: str
-    ) -> Dict[str, Any]:
+        self, request_data: dict[str, Any], request_id: str
+    ) -> dict[str, Any]:
         """Start streaming audio processing"""
         try:
             session = await self._get_session()
@@ -942,21 +896,15 @@ class AudioServiceClient:
                     )
 
         except Exception as e:
-            logger.error(
-                f"Failed to start audio streaming for request {request_id}: {e}"
-            )
+            logger.error(f"Failed to start audio streaming for request {request_id}: {e}")
             raise
 
-    async def stream_processing_results(
-        self, session_id: str
-    ) -> AsyncGenerator[str, None]:
+    async def stream_processing_results(self, session_id: str) -> AsyncGenerator[str, None]:
         """Stream real-time processing results"""
         try:
             session = await self._get_session()
 
-            async with session.get(
-                f"{self.base_url}/api/stream-results/{session_id}"
-            ) as response:
+            async with session.get(f"{self.base_url}/api/stream-results/{session_id}") as response:
                 if response.status == 200:
                     async for line in response.content:
                         if line:
@@ -975,8 +923,8 @@ class AudioServiceClient:
             raise
 
     async def process_uploaded_file(
-        self, file_path: str, request_data: Dict[str, Any], request_id: str
-    ) -> Dict[str, Any]:
+        self, file_path: str, request_data: dict[str, Any], request_id: str
+    ) -> dict[str, Any]:
         """Process an uploaded audio file"""
         try:
             session = await self._get_session()
@@ -1009,15 +957,11 @@ class AudioServiceClient:
                 "enable_diarization",
                 str(request_data.get("speaker_diarization", True)).lower(),
             )
-            data.add_field(
-                "enable_vad", str(request_data.get("enable_vad", True)).lower()
-            )
+            data.add_field("enable_vad", str(request_data.get("enable_vad", True)).lower())
             data.add_field("model", request_data.get("whisper_model", "whisper-tiny"))
 
             # Use the standard whisper service transcribe endpoint
-            async with session.post(
-                f"{self.base_url}/transcribe", data=data
-            ) as response:
+            async with session.post(f"{self.base_url}/transcribe", data=data) as response:
                 if response.status == 200:
                     result = await response.json()
                     logger.info(f"File processing completed for request {request_id}")
@@ -1035,7 +979,7 @@ class AudioServiceClient:
             logger.error(f"File processing failed for request {request_id}: {e}")
             raise
 
-    async def get_processing_stats(self) -> Dict[str, Any]:
+    async def get_processing_stats(self) -> dict[str, Any]:
         """Get enhanced processing statistics"""
         try:
             session = await self._get_session()
@@ -1070,7 +1014,7 @@ class AudioServiceClient:
                 "error": str(e),
             }
 
-    async def get_processed_file(self, request_id: str, format: str) -> Dict[str, Any]:
+    async def get_processed_file(self, request_id: str, format: str) -> dict[str, Any]:
         """Get information about a processed file for download"""
         try:
             session = await self._get_session()
@@ -1100,7 +1044,7 @@ class AudioServiceClient:
             logger.error(f"Failed to get processed file for request {request_id}: {e}")
             return {"error": str(e), "status": 500}
 
-    async def get_processing_statistics(self) -> Dict[str, Any]:
+    async def get_processing_statistics(self) -> dict[str, Any]:
         """Get audio processing statistics for analytics API"""
         try:
             session = await self._get_session()
@@ -1114,14 +1058,10 @@ class AudioServiceClient:
                         "total_requests": result.get("total_requests", 0),
                         "successful_requests": result.get("successful_requests", 0),
                         "failed_requests": result.get("failed_requests", 0),
-                        "average_processing_time_ms": result.get(
-                            "average_processing_time", 0
-                        )
+                        "average_processing_time_ms": result.get("average_processing_time", 0)
                         * 1000,  # Convert to ms
                         "active_sessions": result.get("active_sessions", 0),
-                        "transcription_accuracy": result.get(
-                            "transcription_accuracy", 0.0
-                        ),
+                        "transcription_accuracy": result.get("transcription_accuracy", 0.0),
                         "device_utilization": result.get("device_utilization", 0.0),
                         "model_performance": result.get("model_performance", {}),
                         "error_rate": result.get("failed_requests", 0)

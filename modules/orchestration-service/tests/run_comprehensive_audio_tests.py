@@ -6,15 +6,15 @@ This script runs the complete suite of audio processing tests including
 integration, performance, error handling, and regression testing.
 """
 
-import logging
 import argparse
-import time
 import json
-import sys
-from typing import Dict, List, Any
-from datetime import datetime
-import subprocess
+import logging
 import platform
+import subprocess
+import sys
+import time
+from datetime import datetime
+from typing import Any
 
 import psutil
 
@@ -60,10 +60,10 @@ class TestSuiteRunner:
     def run_test_category(
         self,
         category: str,
-        test_files: List[str],
-        markers: List[str] = None,
+        test_files: list[str],
+        markers: list[str] | None = None,
         verbose: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a specific category of tests."""
         logger.info(f"Running {category} tests...")
 
@@ -119,7 +119,7 @@ class TestSuiteRunner:
 
         return test_result
 
-    def run_integration_tests(self, verbose: bool = True) -> Dict[str, Any]:
+    def run_integration_tests(self, verbose: bool = True) -> dict[str, Any]:
         """Run integration tests."""
         test_files = [
             "tests/integration/test_complete_audio_flow.py",
@@ -131,7 +131,7 @@ class TestSuiteRunner:
             "integration", test_files, markers=["not slow"], verbose=verbose
         )
 
-    def run_performance_tests(self, verbose: bool = True) -> Dict[str, Any]:
+    def run_performance_tests(self, verbose: bool = True) -> dict[str, Any]:
         """Run performance tests."""
         test_files = [
             "tests/integration/test_complete_audio_flow.py::TestCompleteAudioFlow::test_performance_benchmarks",
@@ -144,7 +144,7 @@ class TestSuiteRunner:
             "performance", test_files, markers=["performance"], verbose=verbose
         )
 
-    def run_error_handling_tests(self, verbose: bool = True) -> Dict[str, Any]:
+    def run_error_handling_tests(self, verbose: bool = True) -> dict[str, Any]:
         """Run error handling tests."""
         test_files = [
             "tests/integration/test_complete_audio_flow.py::TestCompleteAudioFlow::test_error_scenarios_comprehensive",
@@ -155,7 +155,7 @@ class TestSuiteRunner:
             "error_handling", test_files, markers=["error"], verbose=verbose
         )
 
-    def run_format_compatibility_tests(self, verbose: bool = True) -> Dict[str, Any]:
+    def run_format_compatibility_tests(self, verbose: bool = True) -> dict[str, Any]:
         """Run format compatibility tests."""
         test_files = [
             "tests/integration/test_complete_audio_flow.py::TestCompleteAudioFlow::test_format_compatibility_all_formats",
@@ -166,7 +166,7 @@ class TestSuiteRunner:
             "format_compatibility", test_files, markers=["format"], verbose=verbose
         )
 
-    def run_unit_tests(self, verbose: bool = True) -> Dict[str, Any]:
+    def run_unit_tests(self, verbose: bool = True) -> dict[str, Any]:
         """Run unit tests."""
         test_files = [
             "tests/unit/test_audio_models.py",
@@ -178,8 +178,8 @@ class TestSuiteRunner:
         return self.run_test_category("unit", test_files, verbose=verbose)
 
     def run_comprehensive_suite(
-        self, categories: List[str] = None, verbose: bool = True, quick: bool = False
-    ) -> Dict[str, Any]:
+        self, categories: list[str] | None = None, verbose: bool = True, quick: bool = False
+    ) -> dict[str, Any]:
         """Run the complete comprehensive test suite."""
         self.start_time = time.time()
 
@@ -221,13 +221,9 @@ class TestSuiteRunner:
 
                 # Log results
                 if result["exit_code"] == 0:
-                    logger.info(
-                        f"✅ {category} tests PASSED ({result['duration']:.1f}s)"
-                    )
+                    logger.info(f"✅ {category} tests PASSED ({result['duration']:.1f}s)")
                 else:
-                    logger.error(
-                        f"❌ {category} tests FAILED ({result['duration']:.1f}s)"
-                    )
+                    logger.error(f"❌ {category} tests FAILED ({result['duration']:.1f}s)")
 
                 if "summary_line" in result:
                     logger.info(f"   {result['summary_line']}")
@@ -253,9 +249,7 @@ class TestSuiteRunner:
             return
 
         # Calculate summary statistics
-        total_duration = (
-            self.end_time - self.start_time if self.start_time and self.end_time else 0
-        )
+        total_duration = self.end_time - self.start_time if self.start_time and self.end_time else 0
         passed_categories = [
             cat for cat, result in self.results.items() if result.get("exit_code") == 0
         ]
@@ -297,9 +291,7 @@ class TestSuiteRunner:
         print(f"Categories Tested: {len(self.results)}")
         print(f"Categories Passed: {len(passed_categories)}")
         print(f"Categories Failed: {len(failed_categories)}")
-        print(
-            f"Overall Result: {'✅ PASS' if len(failed_categories) == 0 else '❌ FAIL'}"
-        )
+        print(f"Overall Result: {'✅ PASS' if len(failed_categories) == 0 else '❌ FAIL'}")
 
         print("\nCategory Results:")
         for category, result in self.results.items():
@@ -314,7 +306,7 @@ class TestSuiteRunner:
                 print(f"  {category}:")
                 if "error" in result:
                     print(f"    Error: {result['error']}")
-                if "stderr" in result and result["stderr"]:
+                if result.get("stderr"):
                     stderr_lines = result["stderr"].split("\n")[:5]  # First 5 lines
                     for line in stderr_lines:
                         if line.strip():
@@ -332,9 +324,7 @@ class TestSuiteRunner:
         memory_mb = process.memory_info().rss / (1024 * 1024)
         cpu_percent = process.cpu_percent()
 
-        logger.info(
-            f"Current resource usage: {memory_mb:.1f}MB RAM, {cpu_percent:.1f}% CPU"
-        )
+        logger.info(f"Current resource usage: {memory_mb:.1f}MB RAM, {cpu_percent:.1f}% CPU")
 
 
 def main():
@@ -361,9 +351,7 @@ def main():
         help="Run quick tests only (skip performance tests)",
     )
 
-    parser.add_argument(
-        "--verbose", action="store_true", default=True, help="Verbose output"
-    )
+    parser.add_argument("--verbose", action="store_true", default=True, help="Verbose output")
 
     parser.add_argument(
         "--output",
@@ -371,9 +359,7 @@ def main():
         help="Output file for test report",
     )
 
-    parser.add_argument(
-        "--working-dir", default=".", help="Working directory for tests"
-    )
+    parser.add_argument("--working-dir", default=".", help="Working directory for tests")
 
     args = parser.parse_args()
 
@@ -396,7 +382,7 @@ def main():
         )
 
         # Generate report
-        report = runner.generate_report(args.output)
+        runner.generate_report(args.output)
 
         # Exit with appropriate code
         failed_count = len([r for r in results.values() if r.get("exit_code") != 0])

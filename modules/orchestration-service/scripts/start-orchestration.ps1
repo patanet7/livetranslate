@@ -34,13 +34,13 @@ try {
     $PY_VERSION = & $PY_BIN -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
     $PY_MAJOR = & $PY_BIN -c "import sys; print(sys.version_info.major)" 2>$null
     $PY_MINOR = & $PY_BIN -c "import sys; print(sys.version_info.minor)" 2>$null
-    
+
     if ([int]$PY_MAJOR -lt 3 -or ([int]$PY_MAJOR -eq 3 -and [int]$PY_MINOR -lt 8)) {
         Write-Host "Error: Python >= 3.8 required. Current: $PY_VERSION" -ForegroundColor Red
         Write-Host "Please activate the conda environment: conda activate livetranslate-orchestration" -ForegroundColor Yellow
         exit 1
     }
-    
+
     Write-Host "Python version: $PY_VERSION" -ForegroundColor Green
 } catch {
     Write-Host "Error checking Python version" -ForegroundColor Red

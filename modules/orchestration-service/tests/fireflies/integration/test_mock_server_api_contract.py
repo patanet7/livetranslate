@@ -13,7 +13,6 @@ Run with:
 """
 
 import asyncio
-import json
 import logging
 import sys
 from datetime import datetime
@@ -27,31 +26,26 @@ sys.path.insert(0, str(TEST_DIR))
 
 import aiohttp
 
-# Import mock server
-from fireflies.mocks.fireflies_mock_server import (
-    FirefliesMockServer,
-    MockTranscriptScenario,
-    MockChunk,
-    MockMeeting,
-)
-
 # Import fixtures
 from fireflies.fixtures.meeting_transcript_5min import (
     MEETING_TRANSCRIPT,
-    GLOSSARY_TERMS,
-    TranscriptEntry,
 )
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+# Import mock server
+from fireflies.mocks.fireflies_mock_server import (
+    FirefliesMockServer,
+    MockChunk,
+    MockTranscriptScenario,
 )
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
 # =============================================================================
 # Test Results Logging
 # =============================================================================
+
 
 class TestResultsLogger:
     """Log test results to file."""
@@ -69,14 +63,16 @@ class TestResultsLogger:
             "test": test_name,
             "status": status,
             "details": details,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
         self.results.append(result)
         logger.info(f"[{status}] {test_name}: {details[:100] if details else 'OK'}")
 
     def write_results(self):
         """Write results to file."""
-        filename = f"{datetime.now().strftime('%Y-%m-%d')}_test_mock_server_api_contract_results.log"
+        filename = (
+            f"{datetime.now().strftime('%Y-%m-%d')}_test_mock_server_api_contract_results.log"
+        )
         filepath = self.output_dir / filename
 
         with open(filepath, "w") as f:
@@ -86,7 +82,7 @@ class TestResultsLogger:
             passed = sum(1 for r in self.results if r["status"] == "PASS")
             failed = sum(1 for r in self.results if r["status"] == "FAIL")
 
-            f.write(f"## Summary\n")
+            f.write("## Summary\n")
             f.write(f"- Total: {len(self.results)}\n")
             f.write(f"- Passed: {passed}\n")
             f.write(f"- Failed: {failed}\n\n")
@@ -95,7 +91,7 @@ class TestResultsLogger:
             for result in self.results:
                 f.write(f"### {result['test']}\n")
                 f.write(f"Status: {result['status']}\n")
-                if result['details']:
+                if result["details"]:
                     f.write(f"Details:\n```\n{result['details']}\n```\n")
                 f.write("\n")
 
@@ -107,6 +103,7 @@ class TestResultsLogger:
 # Mock Server Tests
 # =============================================================================
 
+
 async def test_mock_server_health():
     """Test that the mock server starts and health check works."""
     server = FirefliesMockServer(host="localhost", port=8090)
@@ -115,7 +112,7 @@ async def test_mock_server_health():
         await server.start()
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://localhost:8090/health") as resp:
+            async with session.get("http://localhost:8090/health") as resp:
                 assert resp.status == 200
                 data = await resp.json()
                 assert data["status"] == "ok"
@@ -142,16 +139,11 @@ async def test_mock_server_graphql():
         await server.start()
 
         async with aiohttp.ClientSession() as session:
-            payload = {
-                "query": "query { active_meetings { id title } }",
-                "variables": {}
-            }
+            payload = {"query": "query { active_meetings { id title } }", "variables": {}}
             headers = {"Authorization": "Bearer test-api-key"}
 
             async with session.post(
-                "http://localhost:8091/graphql",
-                json=payload,
-                headers=headers
+                "http://localhost:8091/graphql", json=payload, headers=headers
             ) as resp:
                 assert resp.status == 200
                 data = await resp.json()
@@ -183,9 +175,10 @@ async def test_mock_server_websocket():
 
         async with aiohttp.ClientSession() as session:
             # REAL Fireflies API: Auth via URL query parameters
-            ws_url = f"ws://localhost:8092/realtime?token=test-api-key&transcript_id={transcript_id}"
+            ws_url = (
+                f"ws://localhost:8092/realtime?token=test-api-key&transcript_id={transcript_id}"
+            )
             async with session.ws_connect(ws_url) as ws:
-
                 # Receive messages (auth happens automatically via URL params)
                 timeout = asyncio.get_event_loop().time() + 3.0
                 while asyncio.get_event_loop().time() < timeout:
@@ -195,7 +188,7 @@ async def test_mock_server_websocket():
                             received_chunks.append(msg["data"]["text"])
                         if len(received_chunks) >= 2:
                             break
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         continue
 
         if len(received_chunks) == 2:
@@ -234,25 +227,31 @@ async def test_mock_server_with_transcript_fixture():
 
         async with aiohttp.ClientSession() as session:
             # REAL Fireflies API: Auth via URL query parameters
-            ws_url = f"ws://localhost:8093/realtime?token=test-api-key&transcript_id={transcript_id}"
+            ws_url = (
+                f"ws://localhost:8093/realtime?token=test-api-key&transcript_id={transcript_id}"
+            )
             async with session.ws_connect(ws_url) as ws:
-
                 timeout = asyncio.get_event_loop().time() + 3.0
                 while asyncio.get_event_loop().time() < timeout:
                     try:
                         msg = await asyncio.wait_for(ws.receive_json(), timeout=0.5)
                         if msg.get("type") == "transcription.broadcast":
-                            received_chunks.append({
-                                "text": msg["data"]["text"],
-                                "speaker": msg["data"]["speaker_name"]
-                            })
+                            received_chunks.append(
+                                {
+                                    "text": msg["data"]["text"],
+                                    "speaker": msg["data"]["speaker_name"],
+                                }
+                            )
                         if len(received_chunks) >= 5:
                             break
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         continue
 
         if len(received_chunks) >= 5:
-            return True, f"Received {len(received_chunks)} chunks from fixture. First: {received_chunks[0]}"
+            return (
+                True,
+                f"Received {len(received_chunks)} chunks from fixture. First: {received_chunks[0]}",
+            )
         else:
             return False, f"Only received {len(received_chunks)} chunks (expected 5)"
 
@@ -265,6 +264,7 @@ async def test_mock_server_with_transcript_fixture():
 # =============================================================================
 # V3 API Contract Tests
 # =============================================================================
+
 
 async def test_v3_translation_health():
     """Test V3 translation service is available."""
@@ -289,17 +289,17 @@ async def test_v3_translate_simple():
                 "backend": "ollama",
                 "max_tokens": 64,
                 "temperature": 0.3,
-                "system_prompt": "You are a translator. Return ONLY the translation, nothing else."
+                "system_prompt": "You are a translator. Return ONLY the translation, nothing else.",
             }
 
-            async with session.post(
-                "http://localhost:5003/api/v3/translate",
-                json=payload
-            ) as resp:
+            async with session.post("http://localhost:5003/api/v3/translate", json=payload) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     translation = data.get("text", "")
-                    return True, f"Translation: {translation}, Time: {data.get('processing_time_ms', 0):.0f}ms"
+                    return (
+                        True,
+                        f"Translation: {translation}, Time: {data.get('processing_time_ms', 0):.0f}ms",
+                    )
                 else:
                     error = await resp.text()
                     return False, f"V3 translate returned {resp.status}: {error}"
@@ -334,10 +334,7 @@ Provide ONLY the Spanish translation, no explanations."""
                 "temperature": 0.3,
             }
 
-            async with session.post(
-                "http://localhost:5003/api/v3/translate",
-                json=payload
-            ) as resp:
+            async with session.post("http://localhost:5003/api/v3/translate", json=payload) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     translation = data.get("text", "")
@@ -383,30 +380,30 @@ Provide ONLY the Spanish translation."""
                 }
 
                 async with session.post(
-                    "http://localhost:5003/api/v3/translate",
-                    json=payload
+                    "http://localhost:5003/api/v3/translate", json=payload
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         translation = data.get("text", "").lower()
                         has_term = expected_spanish.lower() in translation
-                        results.append({
-                            "term": term,
-                            "expected": expected_spanish,
-                            "translation": data.get("text"),
-                            "found": has_term
-                        })
+                        results.append(
+                            {
+                                "term": term,
+                                "expected": expected_spanish,
+                                "translation": data.get("text"),
+                                "found": has_term,
+                            }
+                        )
                     else:
-                        results.append({
-                            "term": term,
-                            "error": f"HTTP {resp.status}"
-                        })
+                        results.append({"term": term, "error": f"HTTP {resp.status}"})
 
         successful = sum(1 for r in results if r.get("found", False))
-        details = "\n".join([
-            f"  - {r['term']}: {'OK' if r.get('found') else 'MISS'} -> {r.get('translation', r.get('error'))}"
-            for r in results
-        ])
+        details = "\n".join(
+            [
+                f"  - {r['term']}: {'OK' if r.get('found') else 'MISS'} -> {r.get('translation', r.get('error'))}"
+                for r in results
+            ]
+        )
 
         if successful == len(test_cases):
             return True, f"All {len(test_cases)} glossary terms applied:\n{details}"
@@ -420,6 +417,7 @@ Provide ONLY the Spanish translation."""
 # =============================================================================
 # Integration Test
 # =============================================================================
+
 
 async def test_mock_to_translation_integration():
     """Test full flow: Mock server -> (simulate) -> V3 Translation using REAL Fireflies auth."""
@@ -447,9 +445,10 @@ async def test_mock_to_translation_integration():
 
         async with aiohttp.ClientSession() as session:
             # REAL Fireflies API: Auth via URL query parameters
-            ws_url = f"ws://localhost:8094/realtime?token=test-api-key&transcript_id={transcript_id}"
+            ws_url = (
+                f"ws://localhost:8094/realtime?token=test-api-key&transcript_id={transcript_id}"
+            )
             async with session.ws_connect(ws_url) as ws:
-
                 timeout = asyncio.get_event_loop().time() + 3.0
                 while asyncio.get_event_loop().time() < timeout:
                     try:
@@ -458,7 +457,7 @@ async def test_mock_to_translation_integration():
                             received_chunks.append(msg["data"])
                         if len(received_chunks) >= 3:
                             break
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         continue
 
             # Now translate each received chunk via V3 API
@@ -479,33 +478,38 @@ Provide ONLY the Spanish translation."""
                 }
 
                 async with session.post(
-                    "http://localhost:5003/api/v3/translate",
-                    json=payload
+                    "http://localhost:5003/api/v3/translate", json=payload
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        translations.append({
-                            "original": chunk["text"],
-                            "speaker": chunk["speaker_name"],
-                            "translation": data.get("text"),
-                            "time_ms": data.get("processing_time_ms", 0)
-                        })
+                        translations.append(
+                            {
+                                "original": chunk["text"],
+                                "speaker": chunk["speaker_name"],
+                                "translation": data.get("text"),
+                                "time_ms": data.get("processing_time_ms", 0),
+                            }
+                        )
                     else:
                         error = await resp.text()
-                        translations.append({
-                            "original": chunk["text"],
-                            "error": f"HTTP {resp.status}: {error}"
-                        })
+                        translations.append(
+                            {"original": chunk["text"], "error": f"HTTP {resp.status}: {error}"}
+                        )
 
         # Check results
         successful = sum(1 for t in translations if "translation" in t)
-        details = "\n".join([
-            f"  [{t.get('speaker', '?')}] {t['original'][:40]}... -> {t.get('translation', t.get('error'))[:50]}..."
-            for t in translations
-        ])
+        details = "\n".join(
+            [
+                f"  [{t.get('speaker', '?')}] {t['original'][:40]}... -> {t.get('translation', t.get('error'))[:50]}..."
+                for t in translations
+            ]
+        )
 
         if successful == len(received_chunks):
-            return True, f"Full integration: {len(received_chunks)} chunks received, all translated:\n{details}"
+            return (
+                True,
+                f"Full integration: {len(received_chunks)} chunks received, all translated:\n{details}",
+            )
         else:
             return False, f"Only {successful}/{len(received_chunks)} translated:\n{details}"
 
@@ -522,14 +526,16 @@ async def test_mock_with_real_fireflies_client():
     This is the ultimate contract verification - if the real client can
     connect to and receive data from our mock, the contracts match.
     """
-    from clients.fireflies_client import FirefliesRealtimeClient, FirefliesConnectionStatus
+    from clients.fireflies_client import FirefliesRealtimeClient
 
     server = FirefliesMockServer(host="localhost", port=8095)
 
     # Create a scenario
     chunks = [
         MockChunk(text="Hello from mock", speaker_name="MockSpeaker", start_time=0, end_time=0.5),
-        MockChunk(text="Testing the contract", speaker_name="MockSpeaker", start_time=0.6, end_time=1.2),
+        MockChunk(
+            text="Testing the contract", speaker_name="MockSpeaker", start_time=0.6, end_time=1.2
+        ),
     ]
     scenario = MockTranscriptScenario(chunks=chunks, chunk_delay_ms=200)
     transcript_id = server.add_scenario(scenario)
@@ -565,7 +571,10 @@ async def test_mock_with_real_fireflies_client():
 
         if len(received_chunks) >= 2:
             texts = [c.text for c in received_chunks]
-            return True, f"REAL FirefliesRealtimeClient received {len(received_chunks)} chunks from mock: {texts}"
+            return (
+                True,
+                f"REAL FirefliesRealtimeClient received {len(received_chunks)} chunks from mock: {texts}",
+            )
         else:
             return False, f"Only received {len(received_chunks)} chunks (expected 2)"
 
@@ -578,6 +587,7 @@ async def test_mock_with_real_fireflies_client():
 # =============================================================================
 # Main
 # =============================================================================
+
 
 async def main():
     """Run all tests."""
@@ -620,7 +630,9 @@ async def main():
         print("\n⚠️  Translation service not available. Skipping V3 API tests.")
         print("    Start translation service with:")
         print("    cd modules/translation-service/src")
-        print("    OLLAMA_ENABLE=true OLLAMA_BASE_URL=http://localhost:11434/v1 poetry run uvicorn api_server_fastapi:app --port 5003")
+        print(
+            "    OLLAMA_ENABLE=true OLLAMA_BASE_URL=http://localhost:11434/v1 poetry run uvicorn api_server_fastapi:app --port 5003"
+        )
     else:
         passed, details = await test_v3_translate_simple()
         results_logger.log("V3 Simple Translation", passed, details)

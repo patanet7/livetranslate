@@ -20,6 +20,44 @@ TEST_CONFIG = {
     "redis_url": "redis://localhost:6379",
 }
 
-# Test utilities
-from .utils import *
-from .fixtures import * 
+# Test utilities - explicit imports to avoid F403/F405 errors
+from .fixtures import (
+    audio_channels,
+    audio_chunk_size,
+    audio_duration,
+    audio_format,
+    audio_generator,
+    authenticated_websocket_client,
+    benchmark_thresholds,
+    error_scenarios,
+    event_loop,
+    expected_response_schemas,
+    http_client,
+    multiple_websocket_clients,
+    performance_monitor,
+    reconnection_scenarios,
+    redis_helper,
+    sample_api_endpoints,
+    sample_rate,
+    sample_websocket_messages,
+    setup_test_environment,
+    stress_test_config,
+    test_audio_file,
+    test_audio_noise,
+    test_audio_silence,
+    test_audio_sine_wave,
+    test_config,
+    test_isolation,
+    websocket_client,
+)
+from .utils import (
+    HTTPTestClient,
+    PerformanceMonitor,
+    RedisTestHelper,
+    TestAudioGenerator,
+    WebSocketTestClient,
+    assert_response_time,
+    assert_websocket_message,
+    generate_test_token,
+    wait_for_condition,
+)

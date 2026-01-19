@@ -13,7 +13,7 @@ if libs_dir not in sys.path:
     sys.path.insert(0, libs_dir)
 # --------------------
 
-from shared_models.database import recreate_db, logger as db_logger, Base 
+from shared_models.database import recreate_db, logger as db_logger, Base
 
 
 # Configure logging to see the warnings/errors from recreate_db
@@ -42,10 +42,10 @@ if __name__ == "__main__":
     print("by dropping and recreating all tables based on shared_models.")
     print("Make sure this is absolutely intended, especially in production!")
     print("+" * 60)
-    
+
     # Simple confirmation prompt
     confirm = input("Type 'recreate' to proceed: ")
-    
+
     if confirm == 'recreate':
         print("\nConfirmation received. Proceeding with database recreation...\n", flush=True)
         try:
@@ -57,4 +57,4 @@ if __name__ == "__main__":
             sys.exit(1)
     else:
         print("\nConfirmation not received or incorrect. Database recreation cancelled.\n", flush=True)
-        sys.exit(0) 
+        sys.exit(0)

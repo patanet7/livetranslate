@@ -24,12 +24,12 @@ Usage:
     )
 """
 
-import uuid
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +38,19 @@ logger = logging.getLogger(__name__)
 # Event Type Definitions
 # =============================================================================
 
+
 class EventType:
     """Valid event types for session events."""
-    PIPELINE = "pipeline"    # Normal processing events
-    ERROR = "error"          # Error events
+
+    PIPELINE = "pipeline"  # Normal processing events
+    ERROR = "error"  # Error events
     MILESTONE = "milestone"  # Major pipeline milestones
-    METRIC = "metric"        # Performance metrics
+    METRIC = "metric"  # Performance metrics
 
 
 class EventSeverity:
     """Severity levels for events."""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
@@ -57,6 +60,7 @@ class EventSeverity:
 
 class PipelineEvents:
     """Standard pipeline event names."""
+
     CHUNK_RECEIVED = "chunk_received"
     SENTENCE_AGGREGATED = "sentence_aggregated"
     TRANSCRIPT_STORED = "transcript_stored"
@@ -71,6 +75,7 @@ class PipelineEvents:
 
 class ErrorEvents:
     """Standard error event names."""
+
     VALIDATION_FAILED = "validation_failed"
     TRANSLATION_FAILED = "translation_failed"
     STORAGE_FAILED = "storage_failed"
@@ -81,6 +86,7 @@ class ErrorEvents:
 # =============================================================================
 # Session Event Data Classes
 # =============================================================================
+
 
 @dataclass
 class SessionEvent:
@@ -93,11 +99,11 @@ class SessionEvent:
     timestamp: datetime
     severity: str = EventSeverity.INFO
     source: str = "pipeline_coordinator"
-    event_data: Optional[Dict[str, Any]] = None
-    trace_id: Optional[str] = None
-    span_id: Optional[str] = None
+    event_data: dict[str, Any] | None = None
+    trace_id: str | None = None
+    span_id: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for database insertion."""
         return {
             "event_id": self.event_id,
@@ -117,6 +123,7 @@ class SessionEvent:
 # Session Event Writer
 # =============================================================================
 
+
 class SessionEventWriter:
     """
     Write audit events to session_events table.
@@ -134,7 +141,7 @@ class SessionEventWriter:
                         If None, events will be logged but not persisted.
         """
         self.db_manager = db_manager
-        self._buffer: List[SessionEvent] = []
+        self._buffer: list[SessionEvent] = []
         self._buffer_size = 10  # Flush after this many events
 
     async def log_event(
@@ -142,12 +149,12 @@ class SessionEventWriter:
         session_id: str,
         event_type: str,
         event_name: str,
-        event_data: Optional[Dict[str, Any]] = None,
+        event_data: dict[str, Any] | None = None,
         severity: str = EventSeverity.INFO,
         source: str = "pipeline_coordinator",
-        trace_id: Optional[str] = None,
-        span_id: Optional[str] = None,
-    ) -> Optional[str]:
+        trace_id: str | None = None,
+        span_id: str | None = None,
+    ) -> str | None:
         """
         Log a session event.
 
@@ -171,7 +178,7 @@ class SessionEventWriter:
             session_id=session_id,
             event_type=event_type,
             event_name=event_name,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             severity=severity,
             source=source,
             event_data=event_data,
@@ -191,11 +198,11 @@ class SessionEventWriter:
         trace_prefix = f"[trace:{trace_id[:8]}] " if trace_id else ""
         logger.log(
             log_level,
-            f"{trace_prefix}[{session_id}] {event_type}.{event_name}: {json.dumps(event_data or {})}"
+            f"{trace_prefix}[{session_id}] {event_type}.{event_name}: {json.dumps(event_data or {})}",
         )
 
         # Persist to database if available
-        if self.db_manager and hasattr(self.db_manager, 'db_pool') and self.db_manager.db_pool:
+        if self.db_manager and hasattr(self.db_manager, "db_pool") and self.db_manager.db_pool:
             try:
                 await self._persist_event(event)
                 return event_id
@@ -237,9 +244,9 @@ class SessionEventWriter:
         self,
         session_id: str,
         event_name: str,
-        event_data: Optional[Dict[str, Any]] = None,
-        trace_id: Optional[str] = None,
-    ) -> Optional[str]:
+        event_data: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+    ) -> str | None:
         """
         Log a pipeline event (convenience method).
 
@@ -263,10 +270,10 @@ class SessionEventWriter:
         session_id: str,
         error_name: str,
         error_message: str,
-        error_data: Optional[Dict[str, Any]] = None,
+        error_data: dict[str, Any] | None = None,
         severity: str = EventSeverity.ERROR,
-        trace_id: Optional[str] = None,
-    ) -> Optional[str]:
+        trace_id: str | None = None,
+    ) -> str | None:
         """
         Log an error event.
 
@@ -295,9 +302,9 @@ class SessionEventWriter:
         self,
         session_id: str,
         milestone_name: str,
-        milestone_data: Optional[Dict[str, Any]] = None,
-        trace_id: Optional[str] = None,
-    ) -> Optional[str]:
+        milestone_data: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+    ) -> str | None:
         """
         Log a milestone event (major pipeline events).
 
@@ -323,9 +330,9 @@ class SessionEventWriter:
         metric_name: str,
         metric_value: float,
         metric_unit: str = "",
-        additional_data: Optional[Dict[str, Any]] = None,
-        trace_id: Optional[str] = None,
-    ) -> Optional[str]:
+        additional_data: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+    ) -> str | None:
         """
         Log a performance metric.
 
@@ -386,14 +393,15 @@ class SessionEventWriter:
 # Query Functions
 # =============================================================================
 
+
 async def get_session_events(
     db_manager,
     session_id: str,
-    event_type: Optional[str] = None,
-    severity: Optional[str] = None,
+    event_type: str | None = None,
+    severity: str | None = None,
     limit: int = 100,
     offset: int = 0,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Query events for a session.
 
@@ -432,7 +440,9 @@ async def get_session_events(
         if severity:
             min_level = severity_order.index(severity.lower())
             valid_severities = severity_order[min_level:]
-            placeholders = ", ".join(f"${i}" for i in range(param_idx, param_idx + len(valid_severities)))
+            placeholders = ", ".join(
+                f"${i}" for i in range(param_idx, param_idx + len(valid_severities))
+            )
             query += f" AND severity IN ({placeholders})"
             params.extend(valid_severities)
             param_idx += len(valid_severities)
@@ -463,7 +473,7 @@ async def get_trace_events(
     db_manager,
     trace_id: str,
     limit: int = 100,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Get all events for a specific trace.
 

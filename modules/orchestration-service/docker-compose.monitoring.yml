@@ -10,37 +10,37 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Service URLs for orchestration  
+      # Service URLs for orchestration
       - WHISPER_SERVICE_URL=http://audio-service:5001
       - TRANSLATION_SERVICE_URL=http://translation-service:5003
-      
+
       # Configuration
       - LOG_LEVEL=INFO
       - SECRET_KEY=orchestration-secret-key-change-in-production
-      
+
       # WebSocket settings
       - WEBSOCKET_MAX_CONNECTIONS=10000
       - WEBSOCKET_TIMEOUT=1800
-      
+
       # Monitoring integration
       - PROMETHEUS_METRICS_ENABLED=true
       - HEALTH_CHECK_INTERVAL=10
-      
+
       # Logging for Loki
       - LOG_FORMAT=json
       - LOG_FILE=/app/logs/orchestration.log
-      
+
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
       - ./monitoring:/app/monitoring
-    
+
     networks:
       - livetranslate
       - monitoring
-    
+
     restart: unless-stopped
-    
+
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
@@ -55,7 +55,7 @@ services:
       - "prometheus.io/path=/api/metrics"
 
   # === MONITORING STACK ===
-  
+
   # Prometheus - Metrics Collection and Storage
   prometheus:
     image: prom/prometheus:v2.47.0
@@ -171,7 +171,7 @@ services:
       - loki
 
   # === SYSTEM MONITORING ===
-  
+
   # Node Exporter - System Metrics
   node-exporter:
     image: prom/node-exporter:v1.6.1

@@ -12,7 +12,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from bot.docker_bot_manager import DockerBotManager, BotStatus
+from bot.docker_bot_manager import BotStatus, DockerBotManager
 
 
 async def test_manager_creation():
@@ -50,9 +50,7 @@ async def test_callbacks():
     manager.docker_client = None
 
     # Start bot
-    connection_id = await manager.start_bot(
-        "https://meet.google.com/test", "token", "user-123"
-    )
+    connection_id = await manager.start_bot("https://meet.google.com/test", "token", "user-123")
 
     # Simulate callback progression
     await manager.handle_bot_callback(connection_id, "started", {})
@@ -131,9 +129,7 @@ async def test_health_check():
     manager.docker_client = None
 
     # Start and activate bot
-    connection_id = await manager.start_bot(
-        "https://meet.google.com/test", "token", "user-123"
-    )
+    connection_id = await manager.start_bot("https://meet.google.com/test", "token", "user-123")
     await manager.handle_bot_callback(connection_id, "active", {})
 
     bot = manager.get_bot(connection_id)

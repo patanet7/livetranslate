@@ -25,24 +25,24 @@ Version: 1.0
 
 import os
 import sys
-import pytest
-import pytest_asyncio
 import uuid
 from pathlib import Path
+
+import pytest
+import pytest_asyncio
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from pipeline.data_pipeline import (
-    TranscriptionDataPipeline,
-    AudioChunkMetadata,
-    TranscriptionResult,
-    TranslationResult,
-)
 from database.bot_session_manager import (
     create_bot_session_manager,
 )
-
+from pipeline.data_pipeline import (
+    AudioChunkMetadata,
+    TranscriptionDataPipeline,
+    TranscriptionResult,
+    TranslationResult,
+)
 
 # ============================================================================
 # TEST CONFIGURATION
@@ -245,9 +245,7 @@ async def test_multiple_audio_chunks(pipeline, test_session):
             chunk_end_time=(i + 1) * 2.0,
         )
 
-        file_id = await pipeline.process_audio_chunk(
-            test_session, audio_bytes, "wav", metadata
-        )
+        file_id = await pipeline.process_audio_chunk(test_session, audio_bytes, "wav", metadata)
         assert file_id is not None
         file_ids.append(file_id)
 
@@ -256,9 +254,7 @@ async def test_multiple_audio_chunks(pipeline, test_session):
     assert len(set(file_ids)) == 3  # All unique
 
     # List session audio files
-    audio_files = await pipeline.db_manager.audio_manager.list_session_audio_files(
-        test_session
-    )
+    audio_files = await pipeline.db_manager.audio_manager.list_session_audio_files(test_session)
     assert len(audio_files) == 3
 
 
@@ -295,9 +291,7 @@ async def test_transcription_storage(pipeline, test_session):
     assert transcript_id.startswith("transcript_"), "Invalid transcript_id format"
 
     # Verify transcript record
-    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(
-        test_session
-    )
+    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(test_session)
     assert len(transcripts) == 1
 
     transcript = transcripts[0]
@@ -340,9 +334,7 @@ async def test_speaker_diarization_tracking(pipeline, test_session):
         transcript_ids.append(transcript_id)
 
     # Verify all transcripts stored
-    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(
-        test_session
-    )
+    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(test_session)
     assert len(transcripts) == 4
 
     # Verify speaker tracking
@@ -383,9 +375,7 @@ async def test_translation_storage(pipeline, test_session):
         confidence=0.95,
     )
 
-    transcript_id = await pipeline.process_transcription_result(
-        test_session, None, transcription
-    )
+    transcript_id = await pipeline.process_transcription_result(test_session, None, transcription)
     assert transcript_id is not None
 
     # Create translations
@@ -424,10 +414,8 @@ async def test_translation_storage(pipeline, test_session):
     assert len(translation_ids) == 2
 
     # Get translations from database
-    stored_translations = (
-        await pipeline.db_manager.translation_manager.get_session_translations(
-            test_session
-        )
+    stored_translations = await pipeline.db_manager.translation_manager.get_session_translations(
+        test_session
     )
     assert len(stored_translations) == 2
 
@@ -456,9 +444,7 @@ async def test_complete_pipeline_flow(pipeline, test_session):
         chunk_end_time=10.0,
     )
 
-    file_id = await pipeline.process_audio_chunk(
-        test_session, audio_bytes, "wav", metadata
-    )
+    file_id = await pipeline.process_audio_chunk(test_session, audio_bytes, "wav", metadata)
     assert file_id is not None
 
     # Step 2: Store multiple transcriptions with different speakers
@@ -546,29 +532,21 @@ async def test_complete_pipeline_flow(pipeline, test_session):
     # Step 4: Verify complete data structure
 
     # Audio files
-    audio_files = await pipeline.db_manager.audio_manager.list_session_audio_files(
-        test_session
-    )
+    audio_files = await pipeline.db_manager.audio_manager.list_session_audio_files(test_session)
     assert len(audio_files) == 1
 
     # Transcripts
-    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(
-        test_session
-    )
+    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(test_session)
     assert len(transcripts) == 3
 
     # Translations
-    translations = (
-        await pipeline.db_manager.translation_manager.get_session_translations(
-            test_session
-        )
-    )
-    assert len(translations) == 6  # 3 transcripts × 2 languages
-
-    # Verify comprehensive session data
-    comprehensive = await pipeline.db_manager.get_comprehensive_session_data(
+    translations = await pipeline.db_manager.translation_manager.get_session_translations(
         test_session
     )
+    assert len(translations) == 6  # 3 transcripts x 2 languages
+
+    # Verify comprehensive session data
+    comprehensive = await pipeline.db_manager.get_comprehensive_session_data(test_session)
     assert comprehensive is not None
     assert comprehensive["statistics"]["audio_files_count"] == 1
     assert comprehensive["statistics"]["transcripts_count"] == 3
@@ -585,15 +563,9 @@ async def test_timeline_reconstruction(pipeline, test_session):
     """Test timeline reconstruction with transcripts and translations."""
     # Create test data
     transcriptions = [
-        TranscriptionResult(
-            "First segment", "en", 0.0, 2.0, "SPEAKER_00", confidence=0.95
-        ),
-        TranscriptionResult(
-            "Second segment", "en", 2.0, 4.0, "SPEAKER_01", confidence=0.93
-        ),
-        TranscriptionResult(
-            "Third segment", "en", 4.0, 6.0, "SPEAKER_00", confidence=0.94
-        ),
+        TranscriptionResult("First segment", "en", 0.0, 2.0, "SPEAKER_00", confidence=0.95),
+        TranscriptionResult("Second segment", "en", 2.0, 4.0, "SPEAKER_01", confidence=0.93),
+        TranscriptionResult("Third segment", "en", 4.0, 6.0, "SPEAKER_00", confidence=0.94),
     ]
 
     transcript_ids = []
@@ -646,17 +618,11 @@ async def test_timeline_filtering(pipeline, test_session):
         tid = await pipeline.process_transcription_result(test_session, None, trans)
 
         # Add Spanish translation
-        translation = TranslationResult(
-            f"ES: {text}", lang, "es", speaker, confidence=0.90
-        )
-        await pipeline.process_translation_result(
-            test_session, tid, translation, start, end
-        )
+        translation = TranslationResult(f"ES: {text}", lang, "es", speaker, confidence=0.90)
+        await pipeline.process_translation_result(test_session, tid, translation, start, end)
 
     # Test time range filter
-    timeline_range = await pipeline.get_session_timeline(
-        test_session, start_time=2.0, end_time=6.0
-    )
+    timeline_range = await pipeline.get_session_timeline(test_session, start_time=2.0, end_time=6.0)
     # Should have entries between 2.0 and 6.0 (2 transcripts + 2 translations = 4)
     assert len(timeline_range) == 4
 
@@ -717,9 +683,7 @@ async def test_speaker_statistics(pipeline, test_session):
                 speaker_name=speaker_name,
                 confidence=0.90,
             )
-            await pipeline.process_translation_result(
-                test_session, tid, translation, start, end
-            )
+            await pipeline.process_translation_result(test_session, tid, translation, start, end)
 
     # Get speaker statistics
     stats = await pipeline.get_speaker_statistics(test_session)
@@ -731,9 +695,7 @@ async def test_speaker_statistics(pipeline, test_session):
     for stat in stats:
         expected_segments = dict(speakers_data)[stat.speaker_id][1]
         assert stat.total_segments == expected_segments
-        assert (
-            stat.total_speaking_time == expected_segments * 2.0
-        )  # 2 seconds per segment
+        assert stat.total_speaking_time == expected_segments * 2.0  # 2 seconds per segment
         assert stat.total_translations > 0
 
 
@@ -770,9 +732,7 @@ async def test_full_text_search(pipeline, test_session):
     assert any("Python" in r.transcript_text for r in results)
 
     # Test fuzzy search
-    results_fuzzy = await pipeline.search_transcripts(
-        test_session, "programming", use_fuzzy=True
-    )
+    results_fuzzy = await pipeline.search_transcripts(test_session, "programming", use_fuzzy=True)
     assert len(results_fuzzy) >= 1
 
     # Test phrase search
@@ -822,9 +782,7 @@ async def test_edge_cases(pipeline, test_session):
         speaker="SPEAKER_00",
         confidence=0.95,
     )
-    transcript_id = await pipeline.process_transcription_result(
-        test_session, None, trans
-    )
+    transcript_id = await pipeline.process_transcription_result(test_session, None, trans)
     assert transcript_id is not None
 
     # Zero duration segment

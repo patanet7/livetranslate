@@ -41,4 +41,3 @@ Interactive Jupyter notebooks for testing and development are located in the `..
 - **Discord**: https://discord.gg/Ga9duGkVz9
 - **GitHub Issues**: https://github.com/Vexa-ai/vexa/issues
 - **Website**: https://vexa.ai
-

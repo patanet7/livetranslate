@@ -7,26 +7,25 @@ and improved performance over the legacy Flask implementation.
 """
 
 # CRITICAL: Load .env file FIRST before any other imports
-from dotenv import load_dotenv
-load_dotenv()
-
-import logging
 import json
+import logging
+import sys
 import time
-from typing import Dict, Any
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, HTTPException, status, Depends, Request
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse, Response, FileResponse
-from fastapi.security import HTTPBearer
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.security import HTTPBearer
+from fastapi.staticfiles import StaticFiles
 
-import sys
-from datetime import datetime, timezone
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 router_logger = logging.getLogger("router_registration")
@@ -108,9 +107,7 @@ try:
     import_logger.info("[OK] websocket_router imported successfully")
     routers_status["websocket_router"] = {
         "status": "success",
-        "routes": len(websocket_router.routes)
-        if hasattr(websocket_router, "routes")
-        else 0,
+        "routes": len(websocket_router.routes) if hasattr(websocket_router, "routes") else 0,
     }
 
     import_logger.debug("Importing system_router...")
@@ -128,9 +125,7 @@ try:
     import_logger.info("[OK] settings_router imported successfully")
     routers_status["settings_router"] = {
         "status": "success",
-        "routes": len(settings_router.routes)
-        if hasattr(settings_router, "routes")
-        else 0,
+        "routes": len(settings_router.routes) if hasattr(settings_router, "routes") else 0,
     }
 
     import_logger.debug("Importing translation_router...")
@@ -139,9 +134,7 @@ try:
     import_logger.info("[OK] translation_router imported successfully")
     routers_status["translation_router"] = {
         "status": "success",
-        "routes": len(translation_router.routes)
-        if hasattr(translation_router, "routes")
-        else 0,
+        "routes": len(translation_router.routes) if hasattr(translation_router, "routes") else 0,
     }
 
     import_logger.debug("Importing analytics_router...")
@@ -150,9 +143,7 @@ try:
     import_logger.info("[OK] analytics_router imported successfully")
     routers_status["analytics_router"] = {
         "status": "success",
-        "routes": len(analytics_router.routes)
-        if hasattr(analytics_router, "routes")
-        else 0,
+        "routes": len(analytics_router.routes) if hasattr(analytics_router, "routes") else 0,
     }
 
     import_logger.debug("Importing chat_history_router...")
@@ -161,9 +152,7 @@ try:
     import_logger.info("[OK] chat_history_router imported successfully")
     routers_status["chat_history_router"] = {
         "status": "success",
-        "routes": len(chat_history_router.routes)
-        if hasattr(chat_history_router, "routes")
-        else 0,
+        "routes": len(chat_history_router.routes) if hasattr(chat_history_router, "routes") else 0,
     }
 
     # Import websocket_audio_router
@@ -185,9 +174,7 @@ try:
     import_logger.info("[OK] glossary_router imported successfully")
     routers_status["glossary_router"] = {
         "status": "success",
-        "routes": len(glossary_router.routes)
-        if hasattr(glossary_router, "routes")
-        else 0,
+        "routes": len(glossary_router.routes) if hasattr(glossary_router, "routes") else 0,
     }
 
     # Import captions_router
@@ -197,9 +184,7 @@ try:
     import_logger.info("[OK] captions_router imported successfully")
     routers_status["captions_router"] = {
         "status": "success",
-        "routes": len(captions_router.routes)
-        if hasattr(captions_router, "routes")
-        else 0,
+        "routes": len(captions_router.routes) if hasattr(captions_router, "routes") else 0,
     }
 
     # Import fireflies_router
@@ -209,16 +194,12 @@ try:
     import_logger.info("[OK] fireflies_router imported successfully")
     routers_status["fireflies_router"] = {
         "status": "success",
-        "routes": len(fireflies_router.routes)
-        if hasattr(fireflies_router, "routes")
-        else 0,
+        "routes": len(fireflies_router.routes) if hasattr(fireflies_router, "routes") else 0,
     }
 
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
-        import_logger.info(
-            f"  {router_name}: {status['status']} ({status['routes']} routes)"
-        )
+        import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
 
 except ImportError as e:
     import_logger.error(f"[ERROR] Router import failed: {e}")
@@ -231,7 +212,7 @@ except ImportError as e:
 # Import models with logging
 try:
     import_logger.debug("Importing models...")
-    from models import SystemStatus, ServiceHealth, ConfigUpdate, ErrorResponse
+    from models import ConfigUpdate, ErrorResponse
 
     import_logger.info("[OK] Models imported successfully")
 except ImportError as e:
@@ -242,10 +223,9 @@ try:
     import_logger.debug("Importing dependencies...")
     from dependencies import (
         get_config_manager,
-        get_websocket_manager,
-        get_health_monitor,
-        get_bot_manager,
         get_database_manager,
+        get_health_monitor,
+        get_websocket_manager,
     )
 
     import_logger.info("[OK] Dependencies imported successfully")
@@ -256,9 +236,9 @@ except ImportError as e:
 try:
     import_logger.debug("Importing middleware...")
     from middleware import (
-        SecurityMiddleware,
-        LoggingMiddleware,
         ErrorHandlingMiddleware,
+        LoggingMiddleware,
+        SecurityMiddleware,
     )
 
     import_logger.info("[OK] Middleware imported successfully")
@@ -275,9 +255,7 @@ except ImportError as e:
     import_logger.error(f"[ERROR] Config import failed: {e}")
 
 import_logger.info("[TARGET] Import analysis complete - checking for any failures...")
-failed_imports = [
-    name for name, status in routers_status.items() if status["status"] == "failed"
-]
+failed_imports = [name for name, status in routers_status.items() if status["status"] == "failed"]
 if failed_imports:
     import_logger.error(f"[CRITICAL] Failed imports detected: {failed_imports}")
     sys.exit(1)
@@ -332,7 +310,7 @@ async def lifespan(app: FastAPI):
 
     try:
         # Initialize managers
-        settings = get_settings()
+        get_settings()
 
         # Initialize dependencies
         from dependencies import startup_dependencies
@@ -373,6 +351,7 @@ app = FastAPI(
 
 # Register centralized exception handlers for consistent error responses
 from errors import register_exception_handlers
+
 register_exception_handlers(app)
 startup_logger.info("[OK] Registered centralized exception handlers")
 
@@ -451,9 +430,7 @@ router_logger.info("[OK] audio_router registered successfully")
 # Register audio_coordination_router with different prefix to resolve conflict
 router_logger.info("[2] Registering audio_coordination_router...")
 audio_coord_prefix = "/api/audio-coordination"  # Different prefix to avoid conflict
-log_router_details(
-    "audio_coordination_router", audio_coordination_router, audio_coord_prefix
-)
+log_router_details("audio_coordination_router", audio_coordination_router, audio_coord_prefix)
 conflicts = check_route_conflicts(
     audio_coord_prefix, "audio_coordination_router", registered_routes
 )
@@ -475,9 +452,7 @@ router_logger.info("[OK] bot_router registered successfully")
 
 # Register bot_management_router (new Docker-based management)
 router_logger.info("[3a] Registering bot_management_router...")
-log_router_details(
-    "bot_management_router", bot_management_router, "/api"
-)  # Add /api prefix
+log_router_details("bot_management_router", bot_management_router, "/api")  # Add /api prefix
 conflicts = check_route_conflicts("/api", "bot_management_router", registered_routes)
 app.include_router(
     bot_management_router, prefix="/api"
@@ -487,12 +462,8 @@ router_logger.info("[OK] bot_management_router registered successfully")
 
 # Register bot_callbacks_router (internal callbacks from bot containers)
 router_logger.info("[3b] Registering bot_callbacks_router...")
-log_router_details(
-    "bot_callbacks_router", bot_callbacks_router, "/api"
-)  # Add /api prefix
-conflicts = check_route_conflicts(
-    "/api/bots/internal", "bot_callbacks_router", registered_routes
-)
+log_router_details("bot_callbacks_router", bot_callbacks_router, "/api")  # Add /api prefix
+conflicts = check_route_conflicts("/api/bots/internal", "bot_callbacks_router", registered_routes)
 app.include_router(
     bot_callbacks_router, prefix="/api"
 )  # Add /api prefix so routes become /api/bots/internal/*
@@ -502,9 +473,7 @@ router_logger.info("[OK] bot_callbacks_router registered successfully")
 # Register websocket_router
 router_logger.info("[4] Registering websocket_router...")
 log_router_details("websocket_router", websocket_router, "/api/websocket")
-conflicts = check_route_conflicts(
-    "/api/websocket", "websocket_router", registered_routes
-)
+conflicts = check_route_conflicts("/api/websocket", "websocket_router", registered_routes)
 app.include_router(websocket_router, prefix="/api/websocket", tags=["WebSocket"])
 registered_routes.append(("/api/websocket", "websocket_router"))
 router_logger.info("[OK] websocket_router registered successfully")
@@ -532,22 +501,16 @@ try:
     from routers.pipeline import router as pipeline_router
 
     log_router_details("pipeline_router", pipeline_router, "/api/pipeline")
-    conflicts = check_route_conflicts(
-        "/api/pipeline", "pipeline_router", registered_routes
-    )
-    app.include_router(
-        pipeline_router, prefix="/api/pipeline", tags=["Pipeline Processing"]
-    )
+    conflicts = check_route_conflicts("/api/pipeline", "pipeline_router", registered_routes)
+    app.include_router(pipeline_router, prefix="/api/pipeline", tags=["Pipeline Processing"])
     registered_routes.append(("/api/pipeline", "pipeline_router"))
     router_logger.info("pipeline_router registered successfully")
 except Exception as e:
-    router_logger.error(f"Failed to register pipeline_router: {str(e)}")
+    router_logger.error(f"Failed to register pipeline_router: {e!s}")
 
 router_logger.info("[8] Registering translation_router...")
 log_router_details("translation_router", translation_router, "/api/translation")
-conflicts = check_route_conflicts(
-    "/api/translation", "translation_router", registered_routes
-)
+conflicts = check_route_conflicts("/api/translation", "translation_router", registered_routes)
 app.include_router(translation_router, prefix="/api/translation", tags=["Translation"])
 registered_routes.append(("/api/translation", "translation_router"))
 router_logger.info(" translation_router registered successfully")
@@ -559,9 +522,7 @@ router_logger.info(" translation_router registered successfully")
 # Register analytics_router
 router_logger.info("[9] Registering analytics_router...")
 log_router_details("analytics_router", analytics_router, "/api/analytics")
-conflicts = check_route_conflicts(
-    "/api/analytics", "analytics_router", registered_routes
-)
+conflicts = check_route_conflicts("/api/analytics", "analytics_router", registered_routes)
 app.include_router(analytics_router, prefix="/api/analytics", tags=["Analytics"])
 registered_routes.append(("/api/analytics", "analytics_router"))
 router_logger.info(" analytics_router registered successfully")
@@ -577,21 +538,15 @@ router_logger.info(" chat_history_router registered successfully")
 # Register websocket_audio_router (Real-time audio streaming)
 router_logger.info("[12] Registering websocket_audio_router...")
 log_router_details("websocket_audio_router", websocket_audio_router, "/api/audio")
-conflicts = check_route_conflicts(
-    "/api/audio", "websocket_audio_router", registered_routes
-)
-app.include_router(
-    websocket_audio_router, prefix="/api/audio", tags=["WebSocket Audio"]
-)
+conflicts = check_route_conflicts("/api/audio", "websocket_audio_router", registered_routes)
+app.include_router(websocket_audio_router, prefix="/api/audio", tags=["WebSocket Audio"])
 registered_routes.append(("/api/audio", "websocket_audio_router"))
 router_logger.info(" websocket_audio_router registered successfully")
 
 # Register glossary_router (Glossary management for translation)
 router_logger.info("[13] Registering glossary_router...")
 log_router_details("glossary_router", glossary_router, "/api/glossaries")
-conflicts = check_route_conflicts(
-    "/api/glossaries", "glossary_router", registered_routes
-)
+conflicts = check_route_conflicts("/api/glossaries", "glossary_router", registered_routes)
 app.include_router(glossary_router, prefix="/api", tags=["Glossaries"])
 registered_routes.append(("/api/glossaries", "glossary_router"))
 router_logger.info(" glossary_router registered successfully")
@@ -599,9 +554,7 @@ router_logger.info(" glossary_router registered successfully")
 # Register captions_router (Real-time caption streaming)
 router_logger.info("[14] Registering captions_router...")
 log_router_details("captions_router", captions_router, "/api/captions")
-conflicts = check_route_conflicts(
-    "/api/captions", "captions_router", registered_routes
-)
+conflicts = check_route_conflicts("/api/captions", "captions_router", registered_routes)
 app.include_router(captions_router, prefix="/api", tags=["Captions"])
 registered_routes.append(("/api/captions", "captions_router"))
 router_logger.info(" captions_router registered successfully")
@@ -609,9 +562,7 @@ router_logger.info(" captions_router registered successfully")
 # Register fireflies_router (Fireflies.ai integration)
 router_logger.info("[15] Registering fireflies_router...")
 log_router_details("fireflies_router", fireflies_router, "/fireflies")
-conflicts = check_route_conflicts(
-    "/fireflies", "fireflies_router", registered_routes
-)
+conflicts = check_route_conflicts("/fireflies", "fireflies_router", registered_routes)
 app.include_router(fireflies_router, tags=["Fireflies"])
 registered_routes.append(("/fireflies", "fireflies_router"))
 router_logger.info(" fireflies_router registered successfully")
@@ -622,9 +573,7 @@ total_routes = 0
 for prefix, name in registered_routes:
     router_logger.info(f"   {name}: {prefix}")
     if name == "audio_router":
-        total_routes += (
-            len(audio_router.routes) if hasattr(audio_router, "routes") else 0
-        )
+        total_routes += len(audio_router.routes) if hasattr(audio_router, "routes") else 0
     elif name == "audio_coordination_router":
         total_routes += (
             len(audio_coordination_router.routes)
@@ -658,18 +607,14 @@ async def get_debug_routes():
             }
             routes_info.append(route_info)
 
-        route_logger.info(
-            f"Debug routes endpoint called - returning {len(routes_info)} routes"
-        )
+        route_logger.info(f"Debug routes endpoint called - returning {len(routes_info)} routes")
 
         return {
             "total_routes": len(routes_info),
             "routes": routes_info,
             "registered_routers": registered_routes if registered_routes else [],
-            "registered_routers_count": len(registered_routes)
-            if registered_routes
-            else 0,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "registered_routers_count": len(registered_routes) if registered_routes else 0,
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
         route_logger.error(f"Error in debug/routes endpoint: {e}")
@@ -678,7 +623,7 @@ async def get_debug_routes():
             "total_routes": 0,
             "routes": [],
             "registered_routers": [],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
 
@@ -702,10 +647,8 @@ async def get_debug_routers():
             "router_count": len(router_status),
             "router_status": router_status,
             "registered_routes": registered_routes if registered_routes else [],
-            "registered_routes_count": len(registered_routes)
-            if registered_routes
-            else 0,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "registered_routes_count": len(registered_routes) if registered_routes else 0,
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
         route_logger.error(f"Error in debug/routers endpoint: {e}")
@@ -714,7 +657,7 @@ async def get_debug_routers():
             "router_count": 0,
             "router_status": {},
             "registered_routes": [],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
 
@@ -738,7 +681,7 @@ async def get_debug_conflicts():
             "all_prefixes": {},
             "resolution_status": "ERROR",
             "error": "No registered routes found - service may not be fully initialized",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     # Check for conflicts
@@ -754,9 +697,7 @@ async def get_debug_conflicts():
         else:
             prefixes_seen[prefix] = name
 
-    route_logger.info(
-        f"Debug conflicts endpoint called - found {len(conflicts)} conflicts"
-    )
+    route_logger.info(f"Debug conflicts endpoint called - found {len(conflicts)} conflicts")
 
     return {
         "conflict_count": len(conflicts),
@@ -764,7 +705,7 @@ async def get_debug_conflicts():
         "all_prefixes": prefixes_seen,
         "resolution_status": "RESOLVED" if len(conflicts) == 0 else "NEEDS_ATTENTION",
         "registered_routes_count": len(registered_routes),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -780,16 +721,12 @@ async def get_debug_imports():
             "import_count": len(routers_status),
             "import_status": routers_status,
             "successful_imports": [
-                name
-                for name, status in routers_status.items()
-                if status["status"] == "success"
+                name for name, status in routers_status.items() if status["status"] == "success"
             ],
             "failed_imports": [
-                name
-                for name, status in routers_status.items()
-                if status["status"] == "failed"
+                name for name, status in routers_status.items() if status["status"] == "failed"
             ],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
     except Exception as e:
         import_logger.error(f"Error in debug/imports endpoint: {e}")
@@ -799,7 +736,7 @@ async def get_debug_imports():
             "import_status": {},
             "successful_imports": [],
             "failed_imports": [],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
 
@@ -829,7 +766,7 @@ async def get_debug_health():
             "debug_session_id": startup_logger.name,
             "registered_routes_available": bool(registered_routes),
             "routers_status_available": bool(routers_status),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         startup_logger.info(
@@ -848,7 +785,7 @@ async def get_debug_health():
             "import_status": "failed",
             "conflicts_detected": 0,
             "debug_session_id": startup_logger.name,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
 
@@ -864,7 +801,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
     """
     import json
     import logging
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from dependencies import get_websocket_manager
     from utils.rate_limiting import RateLimiter
 
@@ -885,8 +823,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
         user_agent = websocket.headers.get("user-agent", "unknown")
 
         # Create connection ID and register manually since we already accepted
-        from uuid import uuid4
         import time
+        from uuid import uuid4
 
         # Import the proper ConnectionInfo class
         from managers.websocket_manager import ConnectionInfo, ConnectionState
@@ -914,7 +852,7 @@ async def websocket_endpoint_direct(websocket: WebSocket):
         logger.info(f"WebSocket connection registered: {connection_id}")
 
         # Send welcome message in frontend-expected format
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         welcome_message = {
             "type": "connection:established",
             "data": {
@@ -934,17 +872,15 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                 raw_message = await websocket.receive_text()
 
                 # Rate limiting check
-                if not await ws_rate_limiter.is_allowed(
-                    client_ip, "websocket", 100, 60
-                ):
+                if not await ws_rate_limiter.is_allowed(client_ip, "websocket", 100, 60):
                     error_response = {
                         "type": "error:rate_limit",
                         "data": {
                             "error": "Rate limit exceeded",
                             "error_code": "RATE_LIMIT",
                         },
-                        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                        "messageId": f"rate-limit-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
+                        "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                        "messageId": f"rate-limit-{int(datetime.now(UTC).timestamp() * 1000)}-{connection_id[:8]}",
                     }
                     await websocket.send_text(json.dumps(error_response))
                     continue
@@ -960,11 +896,11 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                         pong_response = {
                             "type": "connection:pong",
                             "data": {
-                                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                                "server_time": datetime.now(timezone.utc).isoformat(),
+                                "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                                "server_time": datetime.now(UTC).isoformat(),
                             },
-                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                            "messageId": f"pong-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
+                            "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                            "messageId": f"pong-{int(datetime.now(UTC).timestamp() * 1000)}-{connection_id[:8]}",
                             "correlationId": message_data.get("messageId"),
                         }
                         await websocket.send_text(json.dumps(pong_response))
@@ -972,8 +908,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                         # Handle basic ping/pong
                         pong_response = {
                             "type": "pong",
-                            "data": {"timestamp": datetime.now(timezone.utc).isoformat()},
-                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                            "data": {"timestamp": datetime.now(UTC).isoformat()},
+                            "timestamp": int(datetime.now(UTC).timestamp() * 1000),
                         }
                         await websocket.send_text(json.dumps(pong_response))
                     elif message_type == "system:health_request":
@@ -987,8 +923,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             health_response = {
                                 "type": "system:health_update",
                                 "data": health_data,
-                                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                                "messageId": f"health-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
+                                "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                                "messageId": f"health-{int(datetime.now(UTC).timestamp() * 1000)}-{connection_id[:8]}",
                                 "correlationId": message_data.get("messageId"),
                             }
                             await websocket.send_text(json.dumps(health_response))
@@ -997,8 +933,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             error_response = {
                                 "type": "error:health_data",
                                 "data": {"error": str(e)},
-                                "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                                "messageId": f"error-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
+                                "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                                "messageId": f"error-{int(datetime.now(UTC).timestamp() * 1000)}-{connection_id[:8]}",
                                 "correlationId": message_data.get("messageId"),
                             }
                             await websocket.send_text(json.dumps(error_response))
@@ -1007,17 +943,15 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                         session_id = message_data.get("session_id", connection_id)
                         config = message_data.get("config", {})
 
-                        logger.info(
-                            f"Starting session for {session_id} with config: {config}"
-                        )
+                        logger.info(f"Starting session for {session_id} with config: {config}")
 
                         session_response = {
                             "type": "session_started",
                             "session_id": session_id,
                             "connection_id": connection_id,
                             "config": config,
-                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                            "messageId": f"session-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
+                            "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                            "messageId": f"session-{int(datetime.now(UTC).timestamp() * 1000)}-{connection_id[:8]}",
                             "correlationId": message_data.get("messageId"),
                         }
                         await websocket.send_text(json.dumps(session_response))
@@ -1029,8 +963,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                                 "original_message": message_data,
                                 "echo_from": "orchestration-service",
                             },
-                            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                            "messageId": f"echo-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
+                            "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                            "messageId": f"echo-{int(datetime.now(UTC).timestamp() * 1000)}-{connection_id[:8]}",
                             "correlationId": message_data.get("messageId"),
                         }
                         await websocket.send_text(json.dumps(echo_response))
@@ -1042,8 +976,8 @@ async def websocket_endpoint_direct(websocket: WebSocket):
                             "error": f"Invalid message format: {e}",
                             "error_code": "INVALID_FORMAT",
                         },
-                        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                        "messageId": f"error-{int(datetime.now(timezone.utc).timestamp() * 1000)}-{connection_id[:8]}",
+                        "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+                        "messageId": f"error-{int(datetime.now(UTC).timestamp() * 1000)}-{connection_id[:8]}",
                     }
                     await websocket.send_text(json.dumps(error_response))
                     continue
@@ -1107,7 +1041,7 @@ async def serve_react_app():
     index_path = Path(__file__).parent.parent / "frontend" / "dist" / "index.html"
 
     if index_path.exists():
-        with open(index_path, "r", encoding="utf-8") as f:
+        with open(index_path, encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     else:
         return HTMLResponse(
@@ -1117,35 +1051,35 @@ async def serve_react_app():
             <head>
                 <title>LiveTranslate Orchestration Service</title>
                 <style>
-                    body { 
-                        font-family: 'Inter', sans-serif; 
-                        margin: 40px; 
-                        background: #1a1a1a; 
-                        color: #e0e0e0; 
-                        text-align: center; 
+                    body {
+                        font-family: 'Inter', sans-serif;
+                        margin: 40px;
+                        background: #1a1a1a;
+                        color: #e0e0e0;
+                        text-align: center;
                     }
-                    .container { 
-                        max-width: 600px; 
-                        margin: 0 auto; 
-                        padding: 40px; 
-                        background: #2d2d2d; 
-                        border-radius: 12px; 
+                    .container {
+                        max-width: 600px;
+                        margin: 0 auto;
+                        padding: 40px;
+                        background: #2d2d2d;
+                        border-radius: 12px;
                         box-shadow: 0 8px 32px rgba(0,0,0,0.3);
                     }
                     h1 { color: #4ECDC4; margin-bottom: 20px; }
                     .status { color: #96CEB4; margin: 20px 0; }
-                    .links a { 
-                        color: #4ECDC4; 
-                        text-decoration: none; 
-                        margin: 0 15px; 
-                        padding: 10px 20px; 
-                        border: 1px solid #4ECDC4; 
-                        border-radius: 6px; 
+                    .links a {
+                        color: #4ECDC4;
+                        text-decoration: none;
+                        margin: 0 15px;
+                        padding: 10px 20px;
+                        border: 1px solid #4ECDC4;
+                        border-radius: 6px;
                         transition: all 0.3s ease;
                     }
-                    .links a:hover { 
-                        background: #4ECDC4; 
-                        color: #1a1a1a; 
+                    .links a:hover {
+                        background: #4ECDC4;
+                        color: #1a1a1a;
                     }
                 </style>
             </head>
@@ -1197,14 +1131,14 @@ async def health_check(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Health check failed",
-        )
+        ) from e
 
 
 @app.get("/api/health/{service_name}")
 async def get_service_health(
     service_name: str,
     health_monitor=Depends(get_health_monitor),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get health status for a specific service
 
     Args:
@@ -1258,8 +1192,8 @@ async def get_service_health(
         logger.error(f"Service health check failed for '{service_name}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to check health for service '{service_name}': {str(e)}",
-        )
+            detail=f"Failed to check health for service '{service_name}': {e!s}",
+        ) from e
 
 
 @app.get("/api/services/status")
@@ -1277,9 +1211,7 @@ async def get_services_status(
                 "status": service_health.status.value if service_health else "unknown",
                 "url": service_config.url,
                 "last_check": service_health.last_check if service_health else None,
-                "response_time": service_health.response_time
-                if service_health
-                else None,
+                "response_time": service_health.response_time if service_health else None,
                 "error_count": service_health.error_count if service_health else 0,
             }
 
@@ -1298,13 +1230,13 @@ async def get_services_status(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Services status check failed",
-        )
+        ) from e
 
 
-@app.post("/api/config/update", response_model=Dict[str, Any])
+@app.post("/api/config/update", response_model=dict[str, Any])
 async def update_configuration(
     config_update: ConfigUpdate, config_manager=Depends(get_config_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Update system configuration"""
     try:
         # For now, just return success with current config
@@ -1319,14 +1251,14 @@ async def update_configuration(
         logger.error(f"Configuration update failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Configuration update failed: {str(e)}",
-        )
+            detail=f"Configuration update failed: {e!s}",
+        ) from e
 
 
 @app.get("/api/websocket/stats")
 async def get_websocket_stats(
     websocket_manager=Depends(get_websocket_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Get WebSocket connection statistics"""
     try:
         stats = websocket_manager.get_stats()
@@ -1336,7 +1268,7 @@ async def get_websocket_stats(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve WebSocket statistics",
-        )
+        ) from e
 
 
 @app.exception_handler(HTTPException)
@@ -1373,24 +1305,24 @@ def custom_openapi():
         version="2.0.0",
         description="""
         ## LiveTranslate Orchestration Service API
-        
+
         Modern FastAPI backend for orchestrating audio processing, translation, and bot management services.
-        
+
         ### Features
         - **Audio Processing**: Real-time audio capture and processing
         - **Bot Management**: Google Meet bot lifecycle management
         - **WebSocket**: Real-time communication with connection pooling
         - **System Management**: Health monitoring and configuration
         - **Analytics**: Performance metrics and monitoring
-        
+
         ### Authentication
         - Bearer token authentication for protected endpoints
         - WebSocket authentication via token parameter
-        
+
         ### Rate Limiting
         - API endpoints: 100 requests/minute
         - WebSocket connections: 10 connections/IP
-        
+
         ### Error Handling
         - Consistent error response format
         - Detailed error messages for development

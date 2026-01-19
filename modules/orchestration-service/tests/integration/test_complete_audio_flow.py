@@ -7,34 +7,34 @@ through orchestration to whisper and translation services, ensuring all
 components work together seamlessly.
 """
 
-import logging
-import time
 import io
-from pathlib import Path
-from typing import Dict
-from unittest.mock import AsyncMock, Mock
-import wave
-
-import pytest
-import httpx
-import numpy as np
-from fastapi import UploadFile
-from fastapi.testclient import TestClient
+import logging
 
 # Import the application and dependencies
 import sys
+import time
+import wave
+from pathlib import Path
+from typing import ClassVar
+from unittest.mock import AsyncMock, Mock
+
+import httpx
+import numpy as np
+import pytest
+from fastapi import UploadFile
+from fastapi.testclient import TestClient
 
 service_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(service_root / "src"))
 
-from main_fastapi import app
 from dependencies import (
-    get_config_manager,
-    get_audio_service_client,
-    get_translation_service_client,
     get_audio_coordinator,
+    get_audio_service_client,
+    get_config_manager,
     get_config_sync_manager,
+    get_translation_service_client,
 )
+from main_fastapi import app
 
 # Configure logging for tests
 logging.basicConfig(level=logging.INFO)
@@ -48,7 +48,7 @@ class AudioFlowTestSuite:
     SAMPLE_RATE = 16000
     TEST_DURATION = 3.0
     CHUNK_SIZE = 2048
-    SUPPORTED_FORMATS = ["wav", "mp3", "webm", "ogg", "mp4", "flac"]
+    SUPPORTED_FORMATS: ClassVar[list[str]] = ["wav", "mp3", "webm", "ogg", "mp4", "flac"]
 
     def __init__(self):
         self.test_session_id = None
@@ -58,8 +58,8 @@ class AudioFlowTestSuite:
     def generate_test_audio(
         self,
         format_type: str,
-        duration: float = None,
-        sample_rate: int = None,
+        duration: float | None = None,
+        sample_rate: int | None = None,
         corrupt: bool = False,
     ) -> bytes:
         """Generate test audio data in various formats."""
@@ -169,7 +169,7 @@ class AudioFlowTestSuite:
 
     def calculate_performance_metrics(
         self, start_time: float, end_time: float, audio_duration: float
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Calculate performance metrics for audio processing."""
         processing_time = end_time - start_time
         real_time_factor = processing_time / audio_duration
@@ -212,9 +212,7 @@ def test_client():
     # Override dependencies
     app.dependency_overrides[get_config_manager] = lambda: mock_config_manager
     app.dependency_overrides[get_audio_service_client] = lambda: mock_audio_client
-    app.dependency_overrides[get_translation_service_client] = (
-        lambda: mock_translation_client
-    )
+    app.dependency_overrides[get_translation_service_client] = lambda: mock_translation_client
     app.dependency_overrides[get_audio_coordinator] = lambda: mock_audio_coordinator
     app.dependency_overrides[get_config_sync_manager] = lambda: mock_config_sync_manager
 
@@ -245,9 +243,7 @@ class TestCompleteAudioFlow:
 
         # Generate test audio
         audio_bytes = audio_test_suite.generate_test_audio("wav")
-        upload_file = audio_test_suite.create_upload_file(
-            audio_bytes, "test_audio.wav", "audio/wav"
-        )
+        audio_test_suite.create_upload_file(audio_bytes, "test_audio.wav", "audio/wav")
 
         # Mock successful whisper service response
         whisper_response = {
@@ -334,9 +330,7 @@ class TestCompleteAudioFlow:
         )
 
         # Performance assertions
-        assert (
-            metrics["real_time_factor"] < 2.0
-        )  # Should process faster than 2x real-time
+        assert metrics["real_time_factor"] < 2.0  # Should process faster than 2x real-time
         assert metrics["processing_time"] < 10.0  # Should complete within 10 seconds
 
         # Verify service calls were made
@@ -344,9 +338,7 @@ class TestCompleteAudioFlow:
         assert mocks["translation_client"].post.called
 
     @pytest.mark.asyncio
-    async def test_format_compatibility_all_formats(
-        self, test_client, audio_test_suite
-    ):
+    async def test_format_compatibility_all_formats(self, test_client, audio_test_suite):
         """Test pipeline compatibility with all supported audio formats."""
         client, mocks = test_client
 
@@ -405,9 +397,7 @@ class TestCompleteAudioFlow:
 
         # Verify all formats were processed successfully
         for format_type, result in results.items():
-            assert result["status_code"] == 200, (
-                f"Format {format_type} failed: {result['error']}"
-            )
+            assert result["status_code"] == 200, f"Format {format_type} failed: {result['error']}"
             assert result["response"] is not None
             assert "transcription" in result["response"]
             assert result["processing_time"] < 15.0  # Reasonable processing time
@@ -473,9 +463,7 @@ class TestCompleteAudioFlow:
             response_data = response.json()
             assert "transcription" in response_data
             assert response_data["session_id"] == f"concurrent_session_{session_index}"
-            assert (
-                processing_time < 10.0
-            )  # Each session should complete reasonably quickly
+            assert processing_time < 10.0  # Each session should complete reasonably quickly
 
         # Verify total processing time is reasonable
         total_time = end_time - start_time
@@ -487,7 +475,7 @@ class TestCompleteAudioFlow:
     @pytest.mark.asyncio
     async def test_error_scenarios_comprehensive(self, test_client, audio_test_suite):
         """Test comprehensive error handling scenarios."""
-        client, mocks = test_client
+        client, _mocks = test_client
 
         error_test_cases = [
             {
@@ -498,9 +486,7 @@ class TestCompleteAudioFlow:
             },
             {
                 "name": "corrupted_audio",
-                "audio_bytes": audio_test_suite.generate_test_audio(
-                    "wav", corrupt=True
-                ),
+                "audio_bytes": audio_test_suite.generate_test_audio("wav", corrupt=True),
                 "expected_status": 422,
                 "description": "Corrupted audio data",
             },
@@ -534,16 +520,14 @@ class TestCompleteAudioFlow:
             if response.status_code == 200:
                 response_data = response.json()
                 # Check if error is reported in response
-                assert (
-                    "error" in response_data
-                    or "status" in response_data
-                    and response_data["status"] == "error"
+                assert "error" in response_data or (
+                    "status" in response_data and response_data["status"] == "error"
                 ), f"Expected error for {test_case['description']}"
             else:
                 # Direct HTTP error
-                assert response.status_code >= 400, (
-                    f"Expected error status for {test_case['description']}"
-                )
+                assert (
+                    response.status_code >= 400
+                ), f"Expected error status for {test_case['description']}"
 
     @pytest.mark.asyncio
     async def test_service_failure_scenarios(self, test_client, audio_test_suite):
@@ -553,9 +537,7 @@ class TestCompleteAudioFlow:
         audio_bytes = audio_test_suite.generate_test_audio("wav")
 
         # Test whisper service failure
-        mocks["audio_client"].post.side_effect = httpx.ConnectError(
-            "Whisper service unavailable"
-        )
+        mocks["audio_client"].post.side_effect = httpx.ConnectError("Whisper service unavailable")
 
         response = client.post(
             "/api/audio/upload",
@@ -670,27 +652,25 @@ class TestCompleteAudioFlow:
             assert response.status_code == 200
 
             # Calculate metrics
-            metrics = audio_test_suite.calculate_performance_metrics(
-                start_time, end_time, duration
-            )
+            metrics = audio_test_suite.calculate_performance_metrics(start_time, end_time, duration)
             performance_results[duration] = metrics
 
         # Performance assertions
         for duration, metrics in performance_results.items():
             # Real-time factor should be reasonable (< 1.5x for most cases)
-            assert metrics["real_time_factor"] < 3.0, (
-                f"Real-time factor too high for {duration}s audio: {metrics['real_time_factor']}"
-            )
+            assert (
+                metrics["real_time_factor"] < 3.0
+            ), f"Real-time factor too high for {duration}s audio: {metrics['real_time_factor']}"
 
             # Processing time should be reasonable
-            assert metrics["processing_time"] < 30.0, (
-                f"Processing time too high for {duration}s audio: {metrics['processing_time']}"
-            )
+            assert (
+                metrics["processing_time"] < 30.0
+            ), f"Processing time too high for {duration}s audio: {metrics['processing_time']}"
 
             # Throughput should be positive
-            assert metrics["throughput"] > 0, (
-                f"Invalid throughput for {duration}s audio: {metrics['throughput']}"
-            )
+            assert (
+                metrics["throughput"] > 0
+            ), f"Invalid throughput for {duration}s audio: {metrics['throughput']}"
 
         # Log performance results for monitoring
         logger.info("Performance benchmark results:")
@@ -703,8 +683,9 @@ class TestCompleteAudioFlow:
     @pytest.mark.asyncio
     async def test_memory_usage_monitoring(self, test_client, audio_test_suite):
         """Test memory usage during audio processing."""
-        import psutil
         import os
+
+        import psutil
 
         client, mocks = test_client
 
@@ -751,18 +732,18 @@ class TestCompleteAudioFlow:
         memory_growth = max_memory - initial_memory
 
         # Memory assertions
-        assert memory_growth < 500, (
-            f"Excessive memory growth: {memory_growth}MB"
-        )  # Should not grow > 500MB
+        assert (
+            memory_growth < 500
+        ), f"Excessive memory growth: {memory_growth}MB"  # Should not grow > 500MB
 
         # Check for memory leaks (no continuous growth)
         if len(memory_usage) > 5:
             recent_avg = np.mean(memory_usage[-3:])
             early_avg = np.mean(memory_usage[2:5])
             growth_rate = (recent_avg - early_avg) / early_avg
-            assert growth_rate < 0.5, (
-                f"Potential memory leak detected: {growth_rate * 100:.1f}% growth"
-            )
+            assert (
+                growth_rate < 0.5
+            ), f"Potential memory leak detected: {growth_rate * 100:.1f}% growth"
 
         logger.info(
             f"Memory usage: Initial={initial_memory:.1f}MB, Max={max_memory:.1f}MB, "
@@ -837,10 +818,7 @@ class TestCompleteAudioFlow:
 
             # Check speaker diarization was applied correctly
             if config["enable_diarization"]:
-                assert (
-                    "speaker_id" in transcription
-                    and transcription["speaker_id"] is not None
-                )
+                assert "speaker_id" in transcription and transcription["speaker_id"] is not None
 
             # Verify configuration sync manager was called
             assert (
@@ -993,9 +971,7 @@ class TestCompleteAudioFlow:
             assert len(batch_text) > 0
             assert len(streaming_text) > 0
 
-            logger.info(
-                f"Batch processing: {batch_time:.2f}s, Streaming: {streaming_time:.2f}s"
-            )
+            logger.info(f"Batch processing: {batch_time:.2f}s, Streaming: {streaming_time:.2f}s")
         else:
             # Streaming not supported via this endpoint, which is acceptable
             logger.info(

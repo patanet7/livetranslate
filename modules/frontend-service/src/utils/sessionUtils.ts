@@ -10,7 +10,7 @@
  * @param prefix - Session ID prefix (e.g., 'streaming_test', 'meeting_test')
  * @returns Unique session ID string
  */
-export function generateSessionId(prefix: string = 'session'): string {
+export function generateSessionId(prefix: string = "session"): string {
   const timestamp = Date.now();
   const randomSuffix = Math.random().toString(36).substring(2, 11);
   return `${prefix}_${timestamp}_${randomSuffix}`;
@@ -22,7 +22,7 @@ export function generateSessionId(prefix: string = 'session'): string {
  * @returns Unique request ID string
  */
 export function generateRequestId(): string {
-  return generateSessionId('req');
+  return generateSessionId("req");
 }
 
 /**
@@ -40,8 +40,10 @@ export function generateChunkId(): string {
  * @param sessionId - Session ID string
  * @returns Timestamp or null if invalid
  */
-export function extractTimestampFromSessionId(sessionId: string): number | null {
-  const parts = sessionId.split('_');
+export function extractTimestampFromSessionId(
+  sessionId: string,
+): number | null {
+  const parts = sessionId.split("_");
   if (parts.length >= 2) {
     const timestamp = parseInt(parts[1], 10);
     return isNaN(timestamp) ? null : timestamp;
@@ -56,6 +58,6 @@ export function extractTimestampFromSessionId(sessionId: string): number | null 
  * @returns True if valid format
  */
 export function isValidSessionId(sessionId: string): boolean {
-  const parts = sessionId.split('_');
+  const parts = sessionId.split("_");
   return parts.length === 3 && !isNaN(parseInt(parts[1], 10));
 }

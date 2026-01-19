@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Audio Processing Configuration System - Orchestration Service
 
@@ -17,16 +16,18 @@ Features:
 """
 
 import asyncio
+import contextlib
 import logging
 import os
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable
-from datetime import datetime, timezone
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
-import yaml
-import numpy as np
+from pathlib import Path
+from typing import Any
 
+import numpy as np
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -362,9 +363,7 @@ class NoiseReductionConfig:
         self.gain_in = max(-20.0, min(20.0, self.gain_in))
         self.gain_out = max(-20.0, min(20.0, self.gain_out))
         self.strength = max(0.0, min(1.0, self.strength))
-        self.stationary_noise_reduction = max(
-            0.0, min(1.0, self.stationary_noise_reduction)
-        )
+        self.stationary_noise_reduction = max(0.0, min(1.0, self.stationary_noise_reduction))
         self.non_stationary_noise_reduction = max(
             0.0, min(1.0, self.non_stationary_noise_reduction)
         )
@@ -450,9 +449,7 @@ class EqualizerBand:
     frequency: float = 1000.0  # Hz - Center frequency
     gain: float = 0.0  # dB - Gain adjustment (-20 to +20)
     bandwidth: float = 1.0  # Octaves - Bandwidth for peaking filters
-    filter_type: str = (
-        "peaking"  # Type: peaking, low_shelf, high_shelf, low_pass, high_pass
-    )
+    filter_type: str = "peaking"  # Type: peaking, low_shelf, high_shelf, low_pass, high_pass
 
     def __post_init__(self):
         # Validation
@@ -472,7 +469,7 @@ class EqualizerConfig:
     enabled: bool = False  # Disabled by default (optional stage)
     gain_in: float = 0.0  # dB - Input gain adjustment
     gain_out: float = 0.0  # dB - Output gain adjustment
-    bands: List[EqualizerBand] = field(
+    bands: list[EqualizerBand] = field(
         default_factory=lambda: [
             # Default 5-band EQ configuration
             EqualizerBand(
@@ -576,15 +573,13 @@ class ModularPipelineConfig:
     """Fully modular audio processing pipeline configuration."""
 
     # Pipeline definition as ordered list of stage instances
-    pipeline: List[StageInstance] = field(
+    pipeline: list[StageInstance] = field(
         default_factory=lambda: [
             StageInstance("vad", "vad_main"),
             StageInstance("voice_filter", "voice_filter_main"),
             StageInstance("noise_reduction", "noise_reduction_main"),
             StageInstance("voice_enhancement", "voice_enhancement_main"),
-            StageInstance(
-                "equalizer", "equalizer_main", enabled=False
-            ),  # Optional by default
+            StageInstance("equalizer", "equalizer_main", enabled=False),  # Optional by default
             StageInstance("agc", "agc_main"),
             StageInstance("compression", "compression_main"),
             StageInstance("limiter", "limiter_main"),
@@ -605,22 +600,20 @@ class ModularPipelineConfig:
     # Metadata
     preset_name: str = "default"
     version: str = "2.0"  # Modular version
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    last_modified: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    last_modified: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     def add_stage(
         self,
         stage_type: str,
-        instance_id: str = None,
+        instance_id: str | None = None,
         config: Any = None,
         position: int = -1,
     ) -> str:
         """Add a new stage instance to the pipeline."""
         if instance_id is None:
             # Generate unique ID
-            existing_ids = [
-                s.instance_id for s in self.pipeline if s.stage_type == stage_type
-            ]
+            existing_ids = [s.instance_id for s in self.pipeline if s.stage_type == stage_type]
             instance_id = f"{stage_type}_{len(existing_ids) + 1}"
 
         new_stage = StageInstance(stage_type, instance_id, config=config)
@@ -661,14 +654,14 @@ class ModularPipelineConfig:
         self.pipeline.insert(new_position, stage)
         return True
 
-    def get_stage(self, instance_id: str) -> Optional[StageInstance]:
+    def get_stage(self, instance_id: str) -> StageInstance | None:
         """Get a stage instance by ID."""
         for stage in self.pipeline:
             if stage.instance_id == instance_id:
                 return stage
         return None
 
-    def get_stages_by_type(self, stage_type: str) -> List[StageInstance]:
+    def get_stages_by_type(self, stage_type: str) -> list[StageInstance]:
         """Get all stage instances of a specific type."""
         return [s for s in self.pipeline if s.stage_type == stage_type]
 
@@ -678,9 +671,7 @@ class ModularPipelineConfig:
         if stage:
             stage.enabled = enabled
 
-    def duplicate_stage(
-        self, instance_id: str, new_instance_id: str = None
-    ) -> Optional[str]:
+    def duplicate_stage(self, instance_id: str, new_instance_id: str | None = None) -> str | None:
         """Duplicate an existing stage with its configuration."""
         source_stage = self.get_stage(instance_id)
         if not source_stage:
@@ -704,11 +695,11 @@ class ModularPipelineConfig:
         self.pipeline.append(new_stage)
         return new_instance_id
 
-    def get_enabled_stages(self) -> List[StageInstance]:
+    def get_enabled_stages(self) -> list[StageInstance]:
         """Get all enabled stage instances in order."""
         return [s for s in self.pipeline if s.enabled]
 
-    def save_preset(self, name: str) -> Dict[str, Any]:
+    def save_preset(self, name: str) -> dict[str, Any]:
         """Save current pipeline configuration as a preset."""
         from dataclasses import asdict
 
@@ -725,7 +716,7 @@ class ModularPipelineConfig:
                 "cpu_usage_limit": self.cpu_usage_limit,
                 "processing_timeout": self.processing_timeout,
             },
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
         return preset_data
 
@@ -738,26 +729,20 @@ class AudioProcessingConfig:
     vad: VADConfig = field(default_factory=VADConfig)
     voice_filter: VoiceFilterConfig = field(default_factory=VoiceFilterConfig)
     noise_reduction: NoiseReductionConfig = field(default_factory=NoiseReductionConfig)
-    voice_enhancement: VoiceEnhancementConfig = field(
-        default_factory=VoiceEnhancementConfig
-    )
+    voice_enhancement: VoiceEnhancementConfig = field(default_factory=VoiceEnhancementConfig)
     equalizer: EqualizerConfig = field(default_factory=EqualizerConfig)
-    spectral_denoising: SpectralDenoisingConfig = field(
-        default_factory=SpectralDenoisingConfig
-    )
+    spectral_denoising: SpectralDenoisingConfig = field(default_factory=SpectralDenoisingConfig)
     conventional_denoising: ConventionalDenoisingConfig = field(
         default_factory=ConventionalDenoisingConfig
     )
-    lufs_normalization: LUFSNormalizationConfig = field(
-        default_factory=LUFSNormalizationConfig
-    )
+    lufs_normalization: LUFSNormalizationConfig = field(default_factory=LUFSNormalizationConfig)
     agc: AGCConfig = field(default_factory=AGCConfig)
     compression: CompressionConfig = field(default_factory=CompressionConfig)
     limiter: LimiterConfig = field(default_factory=LimiterConfig)
     quality: QualityConfig = field(default_factory=QualityConfig)
 
     # Pipeline control
-    enabled_stages: List[str] = field(
+    enabled_stages: list[str] = field(
         default_factory=lambda: [
             "vad",
             "voice_filter",
@@ -772,7 +757,7 @@ class AudioProcessingConfig:
             "limiter",
         ]
     )
-    pause_after_stage: Dict[str, bool] = field(default_factory=dict)  # For debugging
+    pause_after_stage: dict[str, bool] = field(default_factory=dict)  # For debugging
     bypass_on_low_quality: bool = True  # Bypass processing if input quality is too low
 
     # Global settings
@@ -789,10 +774,10 @@ class AudioProcessingConfig:
     # Metadata
     preset_name: str = "default"
     version: str = "1.0"
-    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    last_modified: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    last_modified: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
-    def get_stage_config(self, stage_name: str) -> Optional[Any]:
+    def get_stage_config(self, stage_name: str) -> Any | None:
         """Get configuration for a specific processing stage."""
         return getattr(self, stage_name, None)
 
@@ -806,28 +791,26 @@ class AudioProcessingConfig:
             self.enabled_stages.append(stage_name)
         elif not enabled and stage_name in self.enabled_stages:
             self.enabled_stages.remove(stage_name)
-        self.last_modified = datetime.now(timezone.utc).isoformat()
+        self.last_modified = datetime.now(UTC).isoformat()
 
-    def update_from_dict(self, config_dict: Dict[str, Any]):
+    def update_from_dict(self, config_dict: dict[str, Any]):
         """Update configuration from dictionary."""
         for key, value in config_dict.items():
             if hasattr(self, key):
                 if isinstance(
                     getattr(self, key),
-                    (
-                        VADConfig,
-                        VoiceFilterConfig,
-                        NoiseReductionConfig,
-                        VoiceEnhancementConfig,
-                        EqualizerConfig,
-                        SpectralDenoisingConfig,
-                        ConventionalDenoisingConfig,
-                        LUFSNormalizationConfig,
-                        AGCConfig,
-                        CompressionConfig,
-                        LimiterConfig,
-                        QualityConfig,
-                    ),
+                    VADConfig
+                    | VoiceFilterConfig
+                    | NoiseReductionConfig
+                    | VoiceEnhancementConfig
+                    | EqualizerConfig
+                    | SpectralDenoisingConfig
+                    | ConventionalDenoisingConfig
+                    | LUFSNormalizationConfig
+                    | AGCConfig
+                    | CompressionConfig
+                    | LimiterConfig
+                    | QualityConfig,
                 ):
                     # Update nested config objects
                     current_config = getattr(self, key)
@@ -836,7 +819,7 @@ class AudioProcessingConfig:
                             setattr(current_config, nested_key, nested_value)
                 else:
                     setattr(self, key, value)
-        self.last_modified = datetime.now(timezone.utc).isoformat()
+        self.last_modified = datetime.now(UTC).isoformat()
 
 
 class AudioConfigurationManager:
@@ -847,7 +830,7 @@ class AudioConfigurationManager:
 
     def __init__(
         self,
-        config_file_path: Optional[str] = None,
+        config_file_path: str | None = None,
         database_adapter=None,
         auto_reload: bool = False,
     ):
@@ -863,15 +846,15 @@ class AudioConfigurationManager:
 
         # Current configurations
         self.default_config = AudioProcessingConfig()
-        self.session_configs: Dict[str, AudioProcessingConfig] = {}
-        self.preset_configs: Dict[str, AudioProcessingConfig] = {}
+        self.session_configs: dict[str, AudioProcessingConfig] = {}
+        self.preset_configs: dict[str, AudioProcessingConfig] = {}
 
         # File watching
         self.last_file_mtime = 0
-        self.file_watch_task: Optional[asyncio.Task] = None
+        self.file_watch_task: asyncio.Task | None = None
 
         # Change callbacks
-        self.config_change_callbacks: List[Callable] = []
+        self.config_change_callbacks: list[Callable] = []
 
         # Load built-in presets
         self._load_builtin_presets()
@@ -906,10 +889,8 @@ class AudioConfigurationManager:
         """Shutdown the configuration manager."""
         if self.file_watch_task:
             self.file_watch_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.file_watch_task
-            except asyncio.CancelledError:
-                pass
 
         logger.info("Audio configuration manager shutdown")
 
@@ -917,9 +898,7 @@ class AudioConfigurationManager:
         """Load built-in preset configurations."""
 
         # Default preset
-        self.preset_configs[AudioPreset.DEFAULT] = AudioProcessingConfig(
-            preset_name="default"
-        )
+        self.preset_configs[AudioPreset.DEFAULT] = AudioProcessingConfig(preset_name="default")
 
         # Voice optimized preset
         voice_config = AudioProcessingConfig(preset_name="voice")
@@ -1003,7 +982,7 @@ class AudioConfigurationManager:
 
             if config_path.exists():
                 try:
-                    with open(config_path, "r") as f:
+                    with open(config_path) as f:
                         # Use safe_load to prevent Python object construction issues
                         config_data = yaml.safe_load(f)
 
@@ -1019,14 +998,10 @@ class AudioConfigurationManager:
                     logger.error(f"YAML parsing error in {config_path}: {yaml_e}")
                     logger.info("Using default configuration due to YAML error")
                 except Exception as file_e:
-                    logger.error(
-                        f"Error reading configuration file {config_path}: {file_e}"
-                    )
+                    logger.error(f"Error reading configuration file {config_path}: {file_e}")
                     logger.info("Using default configuration due to file error")
             else:
-                logger.info(
-                    f"Configuration file {config_path} not found, using defaults"
-                )
+                logger.info(f"Configuration file {config_path} not found, using defaults")
                 # Optionally create the directory and default file
                 try:
                     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1062,7 +1037,7 @@ class AudioConfigurationManager:
         except Exception as e:
             logger.error(f"Failed to save configuration to file: {e}")
 
-    def _config_to_safe_dict(self, config: AudioProcessingConfig) -> Dict[str, Any]:
+    def _config_to_safe_dict(self, config: AudioProcessingConfig) -> dict[str, Any]:
         """Convert config to dictionary with safe enum serialization."""
 
         def convert_value(value):
@@ -1071,7 +1046,7 @@ class AudioConfigurationManager:
             elif hasattr(value, "__dict__"):
                 # Handle nested objects
                 return {k: convert_value(v) for k, v in value.__dict__.items()}
-            elif isinstance(value, (list, tuple)):
+            elif isinstance(value, list | tuple):
                 return [convert_value(item) for item in value]
             elif isinstance(value, dict):
                 return {k: convert_value(v) for k, v in value.items()}
@@ -1109,9 +1084,7 @@ class AudioConfigurationManager:
                     if current_mtime > self.last_file_mtime:
                         logger.info("Configuration file changed, reloading...")
                         await self._load_config_from_file()
-                        await self._notify_config_change(
-                            "file_reload", self.default_config
-                        )
+                        await self._notify_config_change("file_reload", self.default_config)
 
         except asyncio.CancelledError:
             logger.info("Configuration file watching stopped")
@@ -1128,20 +1101,18 @@ class AudioConfigurationManager:
         """Get configuration for a specific session, or default if not found."""
         return self.session_configs.get(session_id, self.default_config)
 
-    def get_preset_config(self, preset_name: str) -> Optional[AudioProcessingConfig]:
+    def get_preset_config(self, preset_name: str) -> AudioProcessingConfig | None:
         """Get a preset configuration."""
         return self.preset_configs.get(preset_name)
 
-    def get_available_presets(self) -> List[str]:
+    def get_available_presets(self) -> list[str]:
         """Get list of available presets."""
         return list(self.preset_configs.keys())
 
-    async def set_default_config(
-        self, config: AudioProcessingConfig, save_to_file: bool = True
-    ):
+    async def set_default_config(self, config: AudioProcessingConfig, save_to_file: bool = True):
         """Set the default configuration."""
         self.default_config = config
-        self.default_config.last_modified = datetime.now(timezone.utc).isoformat()
+        self.default_config.last_modified = datetime.now(UTC).isoformat()
 
         if save_to_file:
             await self._save_config_to_file()
@@ -1154,7 +1125,7 @@ class AudioConfigurationManager:
     async def set_session_config(self, session_id: str, config: AudioProcessingConfig):
         """Set configuration for a specific session."""
         self.session_configs[session_id] = config
-        config.last_modified = datetime.now(timezone.utc).isoformat()
+        config.last_modified = datetime.now(UTC).isoformat()
 
         if self.database_adapter:
             await self._save_config_to_database(config, f"session_{session_id}")
@@ -1163,8 +1134,8 @@ class AudioConfigurationManager:
 
     async def update_config_from_dict(
         self,
-        config_updates: Dict[str, Any],
-        session_id: Optional[str] = None,
+        config_updates: dict[str, Any],
+        session_id: str | None = None,
         save_persistent: bool = True,
     ) -> AudioProcessingConfig:
         """Update configuration from dictionary of changes."""
@@ -1174,9 +1145,7 @@ class AudioConfigurationManager:
             if session_id not in self.session_configs:
                 # Create new session config based on default
                 self.session_configs[session_id] = AudioProcessingConfig()
-                self.session_configs[session_id].update_from_dict(
-                    asdict(self.default_config)
-                )
+                self.session_configs[session_id].update_from_dict(asdict(self.default_config))
 
             config = self.session_configs[session_id]
             config.update_from_dict(config_updates)
@@ -1198,9 +1167,7 @@ class AudioConfigurationManager:
             await self._notify_config_change("default_updated", self.default_config)
             return self.default_config
 
-    async def apply_preset(
-        self, preset_name: str, session_id: Optional[str] = None
-    ) -> bool:
+    async def apply_preset(self, preset_name: str, session_id: str | None = None) -> bool:
         """Apply a preset configuration."""
         preset_config = self.get_preset_config(preset_name)
         if not preset_config:
@@ -1230,7 +1197,7 @@ class AudioConfigurationManager:
         self,
         change_type: str,
         config: AudioProcessingConfig,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
     ):
         """Notify all callbacks of configuration changes."""
         for callback in self.config_change_callbacks:
@@ -1242,7 +1209,7 @@ class AudioConfigurationManager:
             except Exception as e:
                 logger.error(f"Error in config change callback: {e}")
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    def get_config_schema(self) -> dict[str, Any]:
         """Get the configuration schema for frontend validation."""
         return {
             "vad": {
@@ -1462,10 +1429,10 @@ class AudioConfigurationManager:
             },
         }
 
-    def validate_config_updates(self, config_updates: Dict[str, Any]) -> List[str]:
+    def validate_config_updates(self, config_updates: dict[str, Any]) -> list[str]:
         """Validate configuration updates and return list of errors."""
         errors = []
-        schema = self.get_config_schema()
+        self.get_config_schema()
 
         # TODO: Implement comprehensive validation
         # This would validate each field against the schema
@@ -1475,7 +1442,7 @@ class AudioConfigurationManager:
 
 # Factory functions
 def create_audio_config_manager(
-    config_file_path: Optional[str] = None,
+    config_file_path: str | None = None,
     database_adapter=None,
     auto_reload: bool = False,
 ) -> AudioConfigurationManager:
@@ -1490,7 +1457,7 @@ def get_default_audio_processing_config() -> AudioProcessingConfig:
 
 def create_audio_processing_config_from_preset(
     preset_name: str,
-) -> Optional[AudioProcessingConfig]:
+) -> AudioProcessingConfig | None:
     """Create audio processing config from preset name."""
     manager = AudioConfigurationManager()
     manager._load_builtin_presets()

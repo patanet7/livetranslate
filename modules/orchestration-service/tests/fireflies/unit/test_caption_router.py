@@ -6,12 +6,12 @@ Written BEFORE implementation following TDD principles.
 """
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
-from uuid import uuid4
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
+
 import pytest
-import json
+from pydantic import ValidationError
 
 # Add src to path
 orchestration_root = Path(__file__).parent.parent.parent.parent
@@ -19,13 +19,9 @@ src_path = orchestration_root / "src"
 sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(orchestration_root))
 
-from fastapi import FastAPI, WebSocket
-from fastapi.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
 
 # Import models we'll use
-from models.fireflies import CaptionEntry, CaptionBroadcast
-
+from models.fireflies import CaptionBroadcast, CaptionEntry
 
 # =============================================================================
 # Test Fixtures
@@ -53,7 +49,7 @@ def sample_caption():
         speaker_name="Alice",
         speaker_color="#4CAF50",
         target_language="es",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         duration_seconds=8.0,
         confidence=0.95,
     )
@@ -300,7 +296,7 @@ class TestCaptionContracts:
 
     def test_caption_entry_requires_id(self):
         """Test CaptionEntry requires id field."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             CaptionEntry(
                 # Missing id
                 translated_text="Hola",
@@ -310,7 +306,7 @@ class TestCaptionContracts:
 
     def test_caption_entry_requires_translated_text(self):
         """Test CaptionEntry requires translated_text field."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             CaptionEntry(
                 id="caption-001",
                 # Missing translated_text
@@ -320,7 +316,7 @@ class TestCaptionContracts:
 
     def test_caption_broadcast_requires_session_id(self):
         """Test CaptionBroadcast requires session_id field."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             CaptionBroadcast(
                 # Missing session_id
                 captions=[],

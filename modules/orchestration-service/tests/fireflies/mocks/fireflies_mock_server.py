@@ -24,14 +24,16 @@ Usage:
     await server.stop()
 """
 
-import logging
 import asyncio
+import contextlib
 import json
+import logging
 import uuid
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Callable, Set
-from aiohttp import web, WSMsgType
+from datetime import UTC, datetime
+from typing import Any
+
+from aiohttp import WSMsgType, web
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +50,13 @@ class MockMeeting:
     id: str = field(default_factory=lambda: f"meeting_{uuid.uuid4().hex[:8]}")
     title: str = "Test Meeting"
     organizer_email: str = "test@example.com"
-    meeting_link: Optional[str] = "https://meet.example.com/test"
-    start_time: Optional[datetime] = field(default_factory=lambda: datetime.now(timezone.utc))
-    end_time: Optional[datetime] = None
+    meeting_link: str | None = "https://meet.example.com/test"
+    start_time: datetime | None = field(default_factory=lambda: datetime.now(UTC))
+    end_time: datetime | None = None
     privacy: str = "private"
     state: str = "active"
 
-    def to_graphql_dict(self) -> Dict[str, Any]:
+    def to_graphql_dict(self) -> dict[str, Any]:
         """Convert to GraphQL response format."""
         return {
             "id": self.id,
@@ -80,7 +82,7 @@ class MockChunk:
     confidence: float = 0.95
     is_final: bool = True
 
-    def to_websocket_dict(self, transcript_id: str) -> Dict[str, Any]:
+    def to_websocket_dict(self, transcript_id: str) -> dict[str, Any]:
         """Convert to WebSocket message format."""
         return {
             "type": "transcription.broadcast",
@@ -93,7 +95,7 @@ class MockChunk:
                 "end_time": self.end_time,
                 "confidence": self.confidence,
                 "is_final": self.is_final,
-            }
+            },
         }
 
 
@@ -107,21 +109,21 @@ class MockTranscriptScenario:
 
     transcript_id: str = field(default_factory=lambda: f"transcript_{uuid.uuid4().hex[:8]}")
     meeting: MockMeeting = field(default_factory=MockMeeting)
-    chunks: List[MockChunk] = field(default_factory=list)
+    chunks: list[MockChunk] = field(default_factory=list)
 
     # Timing configuration
     chunk_delay_ms: float = 500.0  # Delay between chunks
-    word_delay_ms: float = 100.0   # Delay per word (for word-by-word streaming)
-    stream_mode: str = "chunks"     # "chunks" or "words"
+    word_delay_ms: float = 100.0  # Delay per word (for word-by-word streaming)
+    stream_mode: str = "chunks"  # "chunks" or "words"
 
     # Error simulation
-    simulate_disconnect_after_chunks: Optional[int] = None
-    simulate_error_message: Optional[str] = None
+    simulate_disconnect_after_chunks: int | None = None
+    simulate_error_message: str | None = None
 
     @classmethod
     def conversation_scenario(
         cls,
-        speakers: List[str] = None,
+        speakers: list[str] | None = None,
         num_exchanges: int = 10,
         chunk_delay_ms: float = 500.0,
     ) -> "MockTranscriptScenario":
@@ -209,7 +211,7 @@ class MockTranscriptScenario:
         accumulated_text = ""
         for i, word in enumerate(words):
             accumulated_text = (accumulated_text + " " + word).strip()
-            is_final = (i == len(words) - 1)
+            is_final = i == len(words) - 1
 
             chunk = MockChunk(
                 chunk_id=f"chunk_{i+1:04d}",
@@ -248,7 +250,7 @@ class FirefliesMockServer:
         self,
         host: str = "localhost",
         port: int = 8080,
-        valid_api_keys: Optional[Set[str]] = None,
+        valid_api_keys: set[str] | None = None,
     ):
         """
         Initialize the mock server.
@@ -263,18 +265,18 @@ class FirefliesMockServer:
         self.valid_api_keys = valid_api_keys or {"test-api-key", "ff-test-key"}
 
         # Scenarios by transcript ID
-        self._scenarios: Dict[str, MockTranscriptScenario] = {}
+        self._scenarios: dict[str, MockTranscriptScenario] = {}
 
         # Active meetings (for GraphQL queries)
-        self._meetings: List[MockMeeting] = []
+        self._meetings: list[MockMeeting] = []
 
         # Connected WebSocket clients by transcript ID
-        self._ws_clients: Dict[str, Set[web.WebSocketResponse]] = {}
+        self._ws_clients: dict[str, set[web.WebSocketResponse]] = {}
 
         # Server state
-        self._app: Optional[web.Application] = None
-        self._runner: Optional[web.AppRunner] = None
-        self._site: Optional[web.TCPSite] = None
+        self._app: web.Application | None = None
+        self._runner: web.AppRunner | None = None
+        self._site: web.TCPSite | None = None
 
         # Statistics
         self._stats = {
@@ -283,6 +285,9 @@ class FirefliesMockServer:
             "chunks_sent": 0,
             "errors": 0,
         }
+
+        # Background task tracking (prevents fire-and-forget)
+        self._background_tasks: set[asyncio.Task] = set()
 
     @property
     def graphql_url(self) -> str:
@@ -295,7 +300,7 @@ class FirefliesMockServer:
         return f"ws://{self.host}:{self.port}/realtime"
 
     @property
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         """Server statistics."""
         return self._stats.copy()
 
@@ -331,7 +336,7 @@ class FirefliesMockServer:
         self._scenarios.clear()
         self._meetings.clear()
 
-    def get_scenario(self, transcript_id: str) -> Optional[MockTranscriptScenario]:
+    def get_scenario(self, transcript_id: str) -> MockTranscriptScenario | None:
         """Get scenario by transcript ID."""
         return self._scenarios.get(transcript_id)
 
@@ -359,12 +364,10 @@ class FirefliesMockServer:
     async def stop(self):
         """Stop the mock server."""
         # Close all WebSocket connections (copy to avoid modification during iteration)
-        for transcript_id, clients in list(self._ws_clients.items()):
+        for _transcript_id, clients in list(self._ws_clients.items()):
             for ws in list(clients):
-                try:
+                with contextlib.suppress(Exception):
                     await ws.close()
-                except Exception:
-                    pass
         self._ws_clients.clear()
 
         # Stop the server
@@ -385,11 +388,13 @@ class FirefliesMockServer:
 
     async def _handle_health(self, request: web.Request) -> web.Response:
         """Health check endpoint."""
-        return web.json_response({
-            "status": "ok",
-            "scenarios": len(self._scenarios),
-            "active_connections": sum(len(c) for c in self._ws_clients.values()),
-        })
+        return web.json_response(
+            {
+                "status": "ok",
+                "scenarios": len(self._scenarios),
+                "active_connections": sum(len(c) for c in self._ws_clients.values()),
+            }
+        )
 
     async def _handle_graphql(self, request: web.Request) -> web.Response:
         """Handle GraphQL requests."""
@@ -427,7 +432,7 @@ class FirefliesMockServer:
 
     async def _handle_active_meetings_query(
         self,
-        variables: Dict[str, Any],
+        variables: dict[str, Any],
     ) -> web.Response:
         """Handle active_meetings GraphQL query."""
         email_filter = variables.get("email")
@@ -446,11 +451,13 @@ class FirefliesMockServer:
 
             filtered_meetings.append(meeting.to_graphql_dict())
 
-        return web.json_response({
-            "data": {
-                "active_meetings": filtered_meetings,
+        return web.json_response(
+            {
+                "data": {
+                    "active_meetings": filtered_meetings,
+                }
             }
-        })
+        )
 
     async def _handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
         """
@@ -473,19 +480,23 @@ class FirefliesMockServer:
 
         # Validate API key
         if not self._validate_api_key(f"Bearer {token}"):
-            await ws.send_json({
-                "type": "auth.failed",
-                "message": "Invalid API key",
-            })
+            await ws.send_json(
+                {
+                    "type": "auth.failed",
+                    "message": "Invalid API key",
+                }
+            )
             await ws.close()
             return ws
 
         # Validate transcript_id
         if not transcript_id:
-            await ws.send_json({
-                "type": "auth.failed",
-                "message": "Missing transcript_id",
-            })
+            await ws.send_json(
+                {
+                    "type": "auth.failed",
+                    "message": "Missing transcript_id",
+                }
+            )
             await ws.close()
             return ws
 
@@ -503,7 +514,9 @@ class FirefliesMockServer:
         # Start streaming scenario if available
         scenario = self._scenarios.get(transcript_id)
         if scenario:
-            asyncio.create_task(self._stream_scenario(ws, scenario))
+            task = asyncio.create_task(self._stream_scenario(ws, scenario))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
         try:
             async for msg in ws:
@@ -564,10 +577,12 @@ class FirefliesMockServer:
 
             # Send error if configured
             if scenario.simulate_error_message:
-                await ws.send_json({
-                    "type": "error",
-                    "message": scenario.simulate_error_message,
-                })
+                await ws.send_json(
+                    {
+                        "type": "error",
+                        "message": scenario.simulate_error_message,
+                    }
+                )
 
         except Exception as e:
             logger.error(f"Error streaming scenario: {e}")
@@ -588,7 +603,7 @@ class FirefliesMockServer:
     async def broadcast_to_transcript(
         self,
         transcript_id: str,
-        message: Dict[str, Any],
+        message: dict[str, Any],
     ):
         """Broadcast a message to all clients connected to a transcript."""
         clients = self._ws_clients.get(transcript_id, set())
@@ -630,7 +645,7 @@ class FirefliesMockServer:
 async def create_mock_server(
     host: str = "localhost",
     port: int = 8080,
-    scenarios: Optional[List[MockTranscriptScenario]] = None,
+    scenarios: list[MockTranscriptScenario] | None = None,
 ) -> FirefliesMockServer:
     """
     Create and start a mock server for testing.
@@ -655,6 +670,7 @@ async def create_mock_server(
 
 # Example usage
 if __name__ == "__main__":
+
     async def main():
         # Create server with conversation scenario
         server = FirefliesMockServer()
@@ -667,13 +683,13 @@ if __name__ == "__main__":
         )
         server.add_scenario(scenario)
 
-        print(f"Starting mock server...")
+        print("Starting mock server...")
         await server.start()
 
         print(f"GraphQL URL: {server.graphql_url}")
         print(f"WebSocket URL: {server.websocket_url}")
         print(f"Transcript ID: {scenario.transcript_id}")
-        print(f"\nPress Ctrl+C to stop...")
+        print("\nPress Ctrl+C to stop...")
 
         try:
             while True:

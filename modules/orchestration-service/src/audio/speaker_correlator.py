@@ -15,16 +15,16 @@ Key Features:
 """
 
 import asyncio
+import json
 import logging
 import time
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
-import json
+from typing import Any
 
 from .models import (
-    SpeakerCorrelation,
     CorrelationType,
+    SpeakerCorrelation,
     create_speaker_correlation,
 )
 
@@ -47,11 +47,11 @@ class ManualSpeakerMapping:
 
     whisper_speaker_id: str
     display_name: str
-    real_name: Optional[str] = None
-    notes: Optional[str] = None
+    real_name: str | None = None
+    notes: str | None = None
     confidence: float = 1.0  # Manual mappings have full confidence
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "whisper_speaker_id": self.whisper_speaker_id,
             "display_name": self.display_name,
@@ -67,11 +67,11 @@ class LoopbackSpeakerInfo:
 
     estimated_speaker_count: int = 1
     primary_speaker_name: str = "Primary Speaker"
-    secondary_speakers: List[str] = field(default_factory=list)
+    secondary_speakers: list[str] = field(default_factory=list)
     audio_source_description: str = "Loopback Audio"
     mixing_detected: bool = False  # Multiple speakers detected in single stream
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "estimated_speaker_count": self.estimated_speaker_count,
             "primary_speaker_name": self.primary_speaker_name,
@@ -87,13 +87,13 @@ class CorrelationResult:
 
     success: bool
     method_used: CorrelationMethod
-    correlations: List[SpeakerCorrelation]
+    correlations: list[SpeakerCorrelation]
     confidence_score: float
     processing_time_ms: float
-    notes: Optional[str] = None
+    notes: str | None = None
     fallback_applied: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "method_used": self.method_used.value,
@@ -130,15 +130,11 @@ class SpeakerCorrelationManager:
         self.min_confidence_threshold = min_confidence_threshold
 
         # Manual mappings storage
-        self.manual_mappings: Dict[
-            str, List[ManualSpeakerMapping]
-        ] = {}  # session_id -> mappings
-        self.loopback_configs: Dict[
-            str, LoopbackSpeakerInfo
-        ] = {}  # session_id -> config
+        self.manual_mappings: dict[str, list[ManualSpeakerMapping]] = {}  # session_id -> mappings
+        self.loopback_configs: dict[str, LoopbackSpeakerInfo] = {}  # session_id -> config
 
         # Correlation cache
-        self.correlation_cache: Dict[str, List[SpeakerCorrelation]] = {}
+        self.correlation_cache: dict[str, list[SpeakerCorrelation]] = {}
 
         # Statistics
         self.correlation_stats = {
@@ -154,7 +150,7 @@ class SpeakerCorrelationManager:
         )
 
     async def set_manual_speaker_mapping(
-        self, session_id: str, mappings: List[ManualSpeakerMapping]
+        self, session_id: str, mappings: list[ManualSpeakerMapping]
     ) -> bool:
         """Set manual speaker mappings for a session (for testing)."""
         try:
@@ -164,9 +160,7 @@ class SpeakerCorrelationManager:
                 f"Set manual speaker mappings for session {session_id}: {len(mappings)} mappings"
             )
             for mapping in mappings:
-                logger.debug(
-                    f"  {mapping.whisper_speaker_id} -> {mapping.display_name}"
-                )
+                logger.debug(f"  {mapping.whisper_speaker_id} -> {mapping.display_name}")
 
             return True
 
@@ -174,9 +168,7 @@ class SpeakerCorrelationManager:
             logger.error(f"Failed to set manual mappings for session {session_id}: {e}")
             return False
 
-    async def set_loopback_config(
-        self, session_id: str, config: LoopbackSpeakerInfo
-    ) -> bool:
+    async def set_loopback_config(self, session_id: str, config: LoopbackSpeakerInfo) -> bool:
         """Set loopback audio configuration for a session."""
         try:
             self.loopback_configs[session_id] = config
@@ -196,11 +188,11 @@ class SpeakerCorrelationManager:
     async def correlate_speakers(
         self,
         session_id: str,
-        whisper_speakers: List[Dict[str, Any]],
-        google_meet_speakers: Optional[List[Dict[str, Any]]] = None,
+        whisper_speakers: list[dict[str, Any]],
+        google_meet_speakers: list[dict[str, Any]] | None = None,
         start_timestamp: float = 0.0,
         end_timestamp: float = 0.0,
-        force_method: Optional[CorrelationMethod] = None,
+        force_method: CorrelationMethod | None = None,
     ) -> CorrelationResult:
         """
         Correlate Whisper speakers with external sources.
@@ -266,9 +258,7 @@ class SpeakerCorrelationManager:
 
             # Validate correlations
             valid_correlations = [
-                c
-                for c in correlations
-                if c.correlation_confidence >= self.min_confidence_threshold
+                c for c in correlations if c.correlation_confidence >= self.min_confidence_threshold
             ]
 
             if len(valid_correlations) < len(correlations):
@@ -323,16 +313,16 @@ class SpeakerCorrelationManager:
                 correlations=[],
                 confidence_score=0.0,
                 processing_time_ms=processing_time,
-                notes=f"Correlation failed: {str(e)}",
+                notes=f"Correlation failed: {e!s}",
                 fallback_applied=True,
             )
 
     async def _determine_correlation_method(
         self,
         session_id: str,
-        whisper_speakers: List[Dict[str, Any]],
-        google_meet_speakers: Optional[List[Dict[str, Any]]],
-        force_method: Optional[CorrelationMethod],
+        whisper_speakers: list[dict[str, Any]],
+        google_meet_speakers: list[dict[str, Any]] | None,
+        force_method: CorrelationMethod | None,
     ) -> CorrelationMethod:
         """Determine the best correlation method to use."""
 
@@ -361,10 +351,10 @@ class SpeakerCorrelationManager:
     async def _correlate_manual(
         self,
         session_id: str,
-        whisper_speakers: List[Dict[str, Any]],
+        whisper_speakers: list[dict[str, Any]],
         start_timestamp: float,
         end_timestamp: float,
-    ) -> Tuple[List[SpeakerCorrelation], float, Optional[str]]:
+    ) -> tuple[list[SpeakerCorrelation], float, str | None]:
         """Correlate using manual mappings."""
 
         correlations = []
@@ -412,11 +402,11 @@ class SpeakerCorrelationManager:
     async def _correlate_google_meet(
         self,
         session_id: str,
-        whisper_speakers: List[Dict[str, Any]],
-        google_meet_speakers: List[Dict[str, Any]],
+        whisper_speakers: list[dict[str, Any]],
+        google_meet_speakers: list[dict[str, Any]],
         start_timestamp: float,
         end_timestamp: float,
-    ) -> Tuple[List[SpeakerCorrelation], float, Optional[str]]:
+    ) -> tuple[list[SpeakerCorrelation], float, str | None]:
         """Correlate using Google Meet speaker data."""
 
         # This would implement temporal alignment between Whisper and Google Meet speakers
@@ -439,9 +429,7 @@ class SpeakerCorrelationManager:
                     start_timestamp=start_timestamp,
                     end_timestamp=end_timestamp,
                     correlation_method="google_meet_temporal",
-                    external_speaker_name=gmeet_speaker.get(
-                        "name", f"Google Meet Speaker {i + 1}"
-                    ),
+                    external_speaker_name=gmeet_speaker.get("name", f"Google Meet Speaker {i + 1}"),
                     external_speaker_id=gmeet_speaker.get("id", f"gmeet_{i}"),
                     google_meet_speaker_name=gmeet_speaker.get("name"),
                     correlation_metadata={
@@ -459,11 +447,11 @@ class SpeakerCorrelationManager:
     async def _correlate_temporal(
         self,
         session_id: str,
-        whisper_speakers: List[Dict[str, Any]],
-        google_meet_speakers: List[Dict[str, Any]],
+        whisper_speakers: list[dict[str, Any]],
+        google_meet_speakers: list[dict[str, Any]],
         start_timestamp: float,
         end_timestamp: float,
-    ) -> Tuple[List[SpeakerCorrelation], float, Optional[str]]:
+    ) -> tuple[list[SpeakerCorrelation], float, str | None]:
         """Correlate using temporal alignment."""
 
         # Advanced temporal correlation would go here
@@ -479,10 +467,10 @@ class SpeakerCorrelationManager:
     async def _correlate_fallback(
         self,
         session_id: str,
-        whisper_speakers: List[Dict[str, Any]],
+        whisper_speakers: list[dict[str, Any]],
         start_timestamp: float,
         end_timestamp: float,
-    ) -> Tuple[List[SpeakerCorrelation], float, Optional[str]]:
+    ) -> tuple[list[SpeakerCorrelation], float, str | None]:
         """Fallback correlation using loopback config or generic names."""
 
         correlations = []
@@ -519,22 +507,18 @@ class SpeakerCorrelationManager:
                 external_speaker_id=external_id,
                 correlation_metadata={
                     "fallback_method": True,
-                    "loopback_config": loopback_config.to_dict()
-                    if loopback_config
-                    else None,
+                    "loopback_config": loopback_config.to_dict() if loopback_config else None,
                     "notes": notes,
                 },
             )
             correlations.append(correlation)
 
         confidence_score = 0.5 if correlations else 0.0
-        notes = (
-            f"Fallback correlation: {len(correlations)} speakers assigned generic names"
-        )
+        notes = f"Fallback correlation: {len(correlations)} speakers assigned generic names"
 
         return correlations, confidence_score, notes
 
-    async def _store_correlations(self, correlations: List[SpeakerCorrelation]) -> bool:
+    async def _store_correlations(self, correlations: list[SpeakerCorrelation]) -> bool:
         """Store correlations in database."""
         try:
             if not self.database_adapter:
@@ -550,9 +534,7 @@ class SpeakerCorrelationManager:
             logger.error(f"Failed to store speaker correlations: {e}")
             return False
 
-    async def get_session_correlations(
-        self, session_id: str
-    ) -> List[SpeakerCorrelation]:
+    async def get_session_correlations(self, session_id: str) -> list[SpeakerCorrelation]:
         """Get cached correlations for a session."""
         return self.correlation_cache.get(session_id, [])
 
@@ -575,7 +557,7 @@ class SpeakerCorrelationManager:
             logger.error(f"Failed to clear correlations for session {session_id}: {e}")
             return False
 
-    def get_correlation_statistics(self) -> Dict[str, Any]:
+    def get_correlation_statistics(self) -> dict[str, Any]:
         """Get correlation statistics."""
         total = self.correlation_stats["total_attempts"]
 
@@ -592,7 +574,7 @@ class SpeakerCorrelationManager:
             else 0.0,
         }
 
-    async def test_correlation_flow(self, session_id: str) -> Dict[str, Any]:
+    async def test_correlation_flow(self, session_id: str) -> dict[str, Any]:
         """Test the correlation flow with sample data (for development)."""
 
         # Sample Whisper speakers
@@ -603,12 +585,8 @@ class SpeakerCorrelationManager:
 
         # Test manual mapping
         manual_mappings = [
-            ManualSpeakerMapping(
-                "speaker_0", "Test User 1", "John Doe", "Primary speaker"
-            ),
-            ManualSpeakerMapping(
-                "speaker_1", "Test User 2", "Jane Smith", "Secondary speaker"
-            ),
+            ManualSpeakerMapping("speaker_0", "Test User 1", "John Doe", "Primary speaker"),
+            ManualSpeakerMapping("speaker_1", "Test User 2", "Jane Smith", "Secondary speaker"),
         ]
 
         await self.set_manual_speaker_mapping(session_id, manual_mappings)

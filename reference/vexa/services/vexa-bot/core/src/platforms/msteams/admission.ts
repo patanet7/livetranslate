@@ -59,16 +59,16 @@ export async function waitForTeamsMeetingAdmission(
 ): Promise<boolean> {
   try {
     log("Waiting for Teams meeting admission...");
-    
+
     // FIRST: Check if bot is already admitted (no waiting room needed)
     log("Checking if bot is already admitted to the Teams meeting...");
-    
+
     // Check for any visible Leave button (multiple selectors for robustness)
     const initialLeaveButtonFound = await checkForAdmissionIndicators(page);
-    
+
     // Negative check: ensure we're not still in lobby/pre-join
     const initialLobbyTextVisible = await page.locator(teamsWaitingRoomIndicators[0]).isVisible();
-    
+
     // Use selector-based approach instead of getByRole for consistency
     const joinNowButtons = teamsJoinButtonSelectors.filter(sel => sel.includes('Join now'));
     let initialJoinNowButtonVisible = false;
@@ -81,29 +81,29 @@ export async function waitForTeamsMeetingAdmission(
         }
       } catch {}
     }
-    
+
     if (initialLeaveButtonFound && !initialLobbyTextVisible && !initialJoinNowButtonVisible) {
       log(`Found Teams admission indicator: visible Leave button - Bot is already admitted to the meeting!`);
-      
+
       try {
         await callAwaitingAdmissionCallback(botConfig);
         log("Awaiting admission callback sent successfully (immediate admission)");
       } catch (callbackError: any) {
         log(`Warning: Failed to send awaiting admission callback: ${callbackError.message}. Continuing...`);
       }
-      
+
       log("Successfully admitted to the Teams meeting - no waiting room required");
       return true;
     }
-    
+
     log("Bot not yet admitted - checking for Teams waiting room indicators...");
-    
+
     // Check for waiting room indicators using visibility checks
     let stillInWaitingRoom = false;
-    
+
     // Check for lobby text visibility
     const waitingLobbyTextVisible = await page.locator(teamsWaitingRoomIndicators[0]).isVisible();
-    
+
     // Use selector-based approach for join now button check
     let waitingJoinNowButtonVisible = false;
     for (const selector of joinNowButtons) {
@@ -115,10 +115,10 @@ export async function waitForTeamsMeetingAdmission(
         }
       } catch {}
     }
-    
+
     if (waitingLobbyTextVisible || waitingJoinNowButtonVisible) {
       log(`Found Teams waiting room indicator: lobby text or Join now button visible - Bot is still in waiting room`);
-      
+
       // --- Call awaiting admission callback to notify bot-manager that bot is waiting ---
       try {
         await callAwaitingAdmissionCallback(botConfig);
@@ -126,21 +126,21 @@ export async function waitForTeamsMeetingAdmission(
       } catch (callbackError: any) {
         log(`Warning: Failed to send awaiting admission callback: ${callbackError.message}. Continuing with admission wait...`);
       }
-      
+
       stillInWaitingRoom = true;
     }
-    
+
     // If we're in waiting room, wait for the full timeout period for admission
     if (stillInWaitingRoom) {
       log(`Bot is in Teams waiting room. Waiting for ${timeout}ms for admission...`);
-      
+
       const checkInterval = 2000; // Check every 2 seconds for faster detection
       const startTime = Date.now();
-      
+
       while (Date.now() - startTime < timeout) {
         // Check if we're still in waiting room using visibility
         const lobbyTextStillVisible = await page.locator(teamsWaitingRoomIndicators[0]).isVisible();
-        
+
         let joinNowButtonStillVisible = false;
         for (const selector of joinNowButtons) {
           try {
@@ -151,22 +151,22 @@ export async function waitForTeamsMeetingAdmission(
             }
           } catch {}
         }
-        
+
         const stillWaiting = lobbyTextStillVisible || joinNowButtonStillVisible;
-        
+
         if (!stillWaiting) {
           log("Teams waiting room indicator disappeared - checking if bot was admitted or rejected...");
-          
+
           // CRITICAL: Check for rejection first since that's a definitive outcome
           const isRejected = await checkForTeamsRejection(page);
           if (isRejected) {
             log("🚨 Bot was rejected from the Teams meeting by admin");
             throw new Error("Bot admission was rejected by meeting admin");
           }
-          
+
           // Check for admission indicators since waiting room disappeared and no rejection found
           const leaveButtonNowFound = await checkForAdmissionIndicators(page);
-          
+
           if (leaveButtonNowFound) {
             log(`✅ Bot was admitted to the Teams meeting: Leave button confirmed`);
             return true;
@@ -175,15 +175,15 @@ export async function waitForTeamsMeetingAdmission(
             return true; // Fallback: if waiting room disappeared and no rejection, assume admitted
           }
         }
-        
+
         // Wait before next check
         await page.waitForTimeout(checkInterval);
         log(`Still in Teams waiting room... ${Math.round((Date.now() - startTime) / 1000)}s elapsed`);
       }
-      
+
       // After waiting, check if we're still in waiting room using visibility
       const finalLobbyTextVisible = await page.locator(teamsWaitingRoomIndicators[0]).isVisible();
-      
+
       let finalJoinNowButtonVisible = false;
       for (const selector of joinNowButtons) {
         try {
@@ -194,25 +194,25 @@ export async function waitForTeamsMeetingAdmission(
           }
         } catch {}
       }
-      
+
       const finalWaitingCheck = finalLobbyTextVisible || finalJoinNowButtonVisible;
-      
+
       if (finalWaitingCheck) {
         throw new Error("Bot is still in the Teams waiting room after timeout - not admitted to the meeting");
       }
     }
-    
+
     // PRIORITY: Check for Teams meeting controls/toolbar (most reliable indicator)
     log("Checking for Teams meeting controls as primary admission indicator...");
-    
+
     // Check for any visible Leave button (multiple selectors for robustness)
     log("Checking for visible Leave button in meeting toolbar...");
-    
+
     const finalLeaveButtonFound = await checkForAdmissionIndicators(page);
-    
+
     // Negative check: ensure we're not still in lobby/pre-join
     const finalLobbyTextVisible = await page.locator(teamsWaitingRoomIndicators[0]).isVisible();
-    
+
     let finalJoinNowButtonVisible = false;
     for (const selector of joinNowButtons) {
       try {
@@ -223,35 +223,35 @@ export async function waitForTeamsMeetingAdmission(
         }
       } catch {}
     }
-    
+
     const admitted = finalLeaveButtonFound && !finalLobbyTextVisible && !finalJoinNowButtonVisible;
-    
+
     if (admitted) {
       log(`Found Teams admission indicator: visible Leave button - Bot is admitted to the meeting`);
     }
-    
+
     if (!admitted) {
       // CRITICAL: Before concluding failure, check if bot was actually rejected
       log("No Teams meeting indicators found - checking if bot was rejected before concluding failure...");
-      
+
       const isRejected = await checkForTeamsRejection(page);
       if (isRejected) {
         log("🚨 Bot was rejected from the Teams meeting by admin (final check)");
         throw new Error("Bot admission was rejected by meeting admin");
       }
-      
+
       // If no rejection found, then it's likely a join failure or unknown state
       log("No rejection indicators found - bot likely failed to join or is in unknown state");
       throw new Error("Bot failed to join the Teams meeting - no meeting indicators found");
     }
-    
+
     if (admitted) {
       log("Successfully admitted to the Teams meeting");
       return true;
     } else {
       throw new Error("Could not determine Teams admission status");
     }
-    
+
   } catch (error: any) {
     throw new Error(
       `Bot was not admitted into the Teams meeting within the timeout period: ${error.message}`

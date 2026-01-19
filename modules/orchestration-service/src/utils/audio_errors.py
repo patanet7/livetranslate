@@ -8,12 +8,12 @@ circuit breaker patterns, retry mechanisms, and error recovery strategies.
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Dict, Any, Optional, List, Callable
-from dataclasses import dataclass
+from collections.abc import Callable
 from contextlib import asynccontextmanager
-
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +49,11 @@ class AudioProcessingBaseError(Exception):
     def __init__(
         self,
         message: str,
-        error_code: str = None,
+        error_code: str | None = None,
         category: ErrorCategory = None,
         severity: ErrorSeverity = ErrorSeverity.MEDIUM,
-        correlation_id: str = None,
-        details: Dict[str, Any] = None,
+        correlation_id: str | None = None,
+        details: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.message = message
@@ -62,13 +62,13 @@ class AudioProcessingBaseError(Exception):
         self.severity = severity
         self.correlation_id = correlation_id or str(uuid.uuid4())
         self.details = details or {}
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = datetime.now(UTC)
 
 
 class AudioFormatError(AudioProcessingBaseError):
     """Invalid or unsupported audio format"""
 
-    def __init__(self, message: str, format_details: Dict[str, Any] = None, **kwargs):
+    def __init__(self, message: str, format_details: dict[str, Any] | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.AUDIO_FORMAT,
@@ -81,9 +81,7 @@ class AudioFormatError(AudioProcessingBaseError):
 class AudioCorruptionError(AudioProcessingBaseError):
     """Corrupted audio data detected"""
 
-    def __init__(
-        self, message: str, corruption_details: Dict[str, Any] = None, **kwargs
-    ):
+    def __init__(self, message: str, corruption_details: dict[str, Any] | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.AUDIO_CORRUPTION,
@@ -96,7 +94,7 @@ class AudioCorruptionError(AudioProcessingBaseError):
 class AudioProcessingError(AudioProcessingBaseError):
     """Processing pipeline failures"""
 
-    def __init__(self, message: str, processing_stage: str = None, **kwargs):
+    def __init__(self, message: str, processing_stage: str | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.AUDIO_PROCESSING,
@@ -110,7 +108,7 @@ class AudioProcessingError(AudioProcessingBaseError):
 class ServiceUnavailableError(AudioProcessingBaseError):
     """External service failures"""
 
-    def __init__(self, message: str, service_name: str = None, **kwargs):
+    def __init__(self, message: str, service_name: str | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.SERVICE_UNAVAILABLE,
@@ -124,9 +122,7 @@ class ServiceUnavailableError(AudioProcessingBaseError):
 class ValidationError(AudioProcessingBaseError):
     """Input validation failures"""
 
-    def __init__(
-        self, message: str, validation_details: Dict[str, Any] = None, **kwargs
-    ):
+    def __init__(self, message: str, validation_details: dict[str, Any] | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.VALIDATION,
@@ -139,7 +135,7 @@ class ValidationError(AudioProcessingBaseError):
 class ConfigurationError(AudioProcessingBaseError):
     """Configuration issues"""
 
-    def __init__(self, message: str, config_details: Dict[str, Any] = None, **kwargs):
+    def __init__(self, message: str, config_details: dict[str, Any] | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.CONFIGURATION,
@@ -152,7 +148,7 @@ class ConfigurationError(AudioProcessingBaseError):
 class NetworkError(AudioProcessingBaseError):
     """Network-related errors"""
 
-    def __init__(self, message: str, network_details: Dict[str, Any] = None, **kwargs):
+    def __init__(self, message: str, network_details: dict[str, Any] | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.NETWORK,
@@ -165,7 +161,7 @@ class NetworkError(AudioProcessingBaseError):
 class TimeoutError(AudioProcessingBaseError):
     """Timeout errors"""
 
-    def __init__(self, message: str, timeout_details: Dict[str, Any] = None, **kwargs):
+    def __init__(self, message: str, timeout_details: dict[str, Any] | None = None, **kwargs):
         super().__init__(
             message,
             category=ErrorCategory.TIMEOUT,
@@ -181,7 +177,7 @@ class CircuitBreakerState:
     """Circuit breaker state tracking"""
 
     failure_count: int = 0
-    last_failure_time: Optional[datetime] = None
+    last_failure_time: datetime | None = None
     is_open: bool = False
     is_half_open: bool = False
     success_count: int = 0
@@ -233,7 +229,7 @@ class CircuitBreaker:
             return True
 
         if self.state.last_failure_time:
-            time_since_failure = datetime.now(timezone.utc) - self.state.last_failure_time
+            time_since_failure = datetime.now(UTC) - self.state.last_failure_time
             if time_since_failure.total_seconds() >= self.recovery_timeout:
                 self.state.is_half_open = True
                 self.state.is_open = False
@@ -255,7 +251,7 @@ class CircuitBreaker:
     async def _on_failure(self, exception: Exception):
         """Handle failed call"""
         self.state.failure_count += 1
-        self.state.last_failure_time = datetime.now(timezone.utc)
+        self.state.last_failure_time = datetime.now(UTC)
         self.state.success_count = 0
 
         if self.state.failure_count >= self.failure_threshold:
@@ -293,7 +289,7 @@ class RetryManager:
             TimeoutError,
             ServiceUnavailableError,
         ),
-        correlation_id: str = None,
+        correlation_id: str | None = None,
         **kwargs,
     ):
         """Execute function with retry mechanism"""
@@ -307,9 +303,7 @@ class RetryManager:
                 )
                 result = await func(*args, **kwargs)
                 if attempt > 0:
-                    logger.info(
-                        f"[{correlation_id}] Retry successful after {attempt + 1} attempts"
-                    )
+                    logger.info(f"[{correlation_id}] Retry successful after {attempt + 1} attempts")
                 return result
 
             except retryable_exceptions as e:
@@ -317,7 +311,7 @@ class RetryManager:
                 if attempt < self.config.max_attempts - 1:
                     delay = self._calculate_delay(attempt)
                     logger.warning(
-                        f"[{correlation_id}] Attempt {attempt + 1} failed: {str(e)}. "
+                        f"[{correlation_id}] Attempt {attempt + 1} failed: {e!s}. "
                         f"Retrying in {delay:.2f}s"
                     )
                     await asyncio.sleep(delay)
@@ -327,7 +321,7 @@ class RetryManager:
                     )
             except Exception as e:
                 # Non-retryable exception
-                logger.error(f"[{correlation_id}] Non-retryable error: {str(e)}")
+                logger.error(f"[{correlation_id}] Non-retryable error: {e!s}")
                 raise
 
         # All retries exhausted
@@ -354,9 +348,7 @@ class ErrorRecoveryStrategy:
         """Check if error can be recovered"""
         raise NotImplementedError
 
-    async def recover(
-        self, error: AudioProcessingBaseError, context: Dict[str, Any]
-    ) -> Any:
+    async def recover(self, error: AudioProcessingBaseError, context: dict[str, Any]) -> Any:
         """Attempt to recover from error"""
         raise NotImplementedError
 
@@ -367,9 +359,7 @@ class FormatRecoveryStrategy(ErrorRecoveryStrategy):
     async def can_recover(self, error: AudioProcessingBaseError) -> bool:
         return isinstance(error, AudioFormatError)
 
-    async def recover(
-        self, error: AudioFormatError, context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def recover(self, error: AudioFormatError, context: dict[str, Any]) -> dict[str, Any]:
         """Attempt format conversion"""
         logger.info(f"[{error.correlation_id}] Attempting audio format recovery")
 
@@ -394,8 +384,8 @@ class ServiceRecoveryStrategy(ErrorRecoveryStrategy):
         return isinstance(error, ServiceUnavailableError)
 
     async def recover(
-        self, error: ServiceUnavailableError, context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, error: ServiceUnavailableError, context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Attempt service fallback"""
         logger.info(f"[{error.correlation_id}] Attempting service recovery")
 
@@ -418,8 +408,8 @@ class ErrorLogger:
     def log_error(
         self,
         error: AudioProcessingBaseError,
-        context: Dict[str, Any] = None,
-        request_info: Dict[str, Any] = None,
+        context: dict[str, Any] | None = None,
+        request_info: dict[str, Any] | None = None,
     ):
         """Log error with full context"""
         log_data = {
@@ -434,9 +424,7 @@ class ErrorLogger:
             "request_info": request_info or {},
         }
 
-        log_message = (
-            f"[{error.correlation_id}] {error.category.value.upper()}: {error.message}"
-        )
+        log_message = f"[{error.correlation_id}] {error.category.value.upper()}: {error.message}"
 
         if error.severity == ErrorSeverity.CRITICAL:
             self.logger.critical(log_message, extra={"error_data": log_data})
@@ -448,14 +436,14 @@ class ErrorLogger:
             self.logger.info(log_message, extra={"error_data": log_data})
 
     def log_recovery_attempt(
-        self, error: AudioProcessingBaseError, recovery_result: Dict[str, Any]
+        self, error: AudioProcessingBaseError, recovery_result: dict[str, Any]
     ):
         """Log error recovery attempt"""
         log_data = {
             "correlation_id": error.correlation_id,
             "error_code": error.error_code,
             "recovery_result": recovery_result,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
         self.logger.info(
@@ -467,9 +455,9 @@ class ErrorLogger:
 # Error Context Manager
 @asynccontextmanager
 async def error_boundary(
-    correlation_id: str = None,
-    context: Dict[str, Any] = None,
-    recovery_strategies: List[ErrorRecoveryStrategy] = None,
+    correlation_id: str | None = None,
+    context: dict[str, Any] | None = None,
+    recovery_strategies: list[ErrorRecoveryStrategy] | None = None,
     circuit_breaker: CircuitBreaker = None,
     retry_manager: RetryManager = None,
 ):
@@ -498,9 +486,7 @@ async def error_boundary(
                             raise
                         break
                 except Exception as recovery_error:
-                    logger.error(
-                        f"[{correlation_id}] Recovery failed: {str(recovery_error)}"
-                    )
+                    logger.error(f"[{correlation_id}] Recovery failed: {recovery_error!s}")
 
         raise
     except Exception as e:
@@ -512,7 +498,7 @@ async def error_boundary(
             details={"original_exception": str(type(e).__name__)},
         )
         error_logger.log_error(audio_error, context)
-        raise audio_error
+        raise audio_error from e
 
 
 # Global instances

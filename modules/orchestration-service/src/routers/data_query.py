@@ -19,10 +19,11 @@ Version: 1.0
 """
 
 import logging
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Query, Depends, Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -48,13 +49,13 @@ class TranscriptResponse(BaseModel):
     start_timestamp: float
     end_timestamp: float
     duration: float
-    speaker_id: Optional[str] = None
-    speaker_name: Optional[str] = None
-    confidence_score: Optional[float] = None
+    speaker_id: str | None = None
+    speaker_name: str | None = None
+    confidence_score: float | None = None
     segment_index: int
-    audio_file_id: Optional[str] = None
+    audio_file_id: str | None = None
     created_at: datetime
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
 
 
 class TranslationResponse(BaseModel):
@@ -66,15 +67,15 @@ class TranslationResponse(BaseModel):
     translated_text: str
     source_language: str
     target_language: str
-    translation_confidence: Optional[float] = None
+    translation_confidence: float | None = None
     translation_service: str
-    speaker_id: Optional[str] = None
-    speaker_name: Optional[str] = None
+    speaker_id: str | None = None
+    speaker_name: str | None = None
     start_timestamp: float
     end_timestamp: float
     duration: float
     created_at: datetime
-    metadata: Dict[str, Any] = {}
+    metadata: dict[str, Any] = {}
 
 
 class TimelineEntryResponse(BaseModel):
@@ -85,10 +86,10 @@ class TimelineEntryResponse(BaseModel):
     entry_type: str  # 'transcript', 'translation'
     content: str
     language: str
-    speaker_id: Optional[str] = None
-    speaker_name: Optional[str] = None
-    confidence: Optional[float] = None
-    metadata: Dict[str, Any] = {}
+    speaker_id: str | None = None
+    speaker_name: str | None = None
+    confidence: float | None = None
+    metadata: dict[str, Any] = {}
 
 
 class TimelineResponse(BaseModel):
@@ -96,9 +97,9 @@ class TimelineResponse(BaseModel):
 
     session_id: str
     total_entries: int
-    start_time: Optional[float] = None
-    end_time: Optional[float] = None
-    entries: List[TimelineEntryResponse]
+    start_time: float | None = None
+    end_time: float | None = None
+    entries: list[TimelineEntryResponse]
 
 
 class SpeakerStatisticsResponse(BaseModel):
@@ -106,9 +107,9 @@ class SpeakerStatisticsResponse(BaseModel):
 
     session_id: str
     speaker_id: str
-    speaker_name: Optional[str] = None
-    identification_method: Optional[str] = None
-    identification_confidence: Optional[float] = None
+    speaker_name: str | None = None
+    identification_method: str | None = None
+    identification_confidence: float | None = None
     total_segments: int
     total_speaking_time: float
     average_confidence: float
@@ -121,16 +122,16 @@ class SpeakersResponse(BaseModel):
 
     session_id: str
     total_speakers: int
-    speakers: List[SpeakerStatisticsResponse]
+    speakers: list[SpeakerStatisticsResponse]
 
 
 class SpeakerDetailResponse(BaseModel):
     """Detailed speaker information."""
 
     statistics: SpeakerStatisticsResponse
-    timeline: List[TimelineEntryResponse]
-    recent_transcripts: List[TranscriptResponse]
-    recent_translations: List[TranslationResponse]
+    timeline: list[TimelineEntryResponse]
+    recent_transcripts: list[TranscriptResponse]
+    recent_translations: list[TranslationResponse]
 
 
 class SearchResponse(BaseModel):
@@ -139,14 +140,14 @@ class SearchResponse(BaseModel):
     session_id: str
     query: str
     total_results: int
-    results: List[TranscriptResponse]
+    results: list[TranscriptResponse]
 
 
 class ErrorResponse(BaseModel):
     """Error response model."""
 
     error: str
-    detail: Optional[str] = None
+    detail: str | None = None
 
 
 # ============================================================================
@@ -156,14 +157,18 @@ class ErrorResponse(BaseModel):
 
 _pipeline_instance = None
 
+# Background task tracking (prevents fire-and-forget)
+_background_tasks: set = set()
+
 
 def get_pipeline():
     """Get or create data pipeline instance."""
     global _pipeline_instance
 
     if _pipeline_instance is None:
-        from pipeline.data_pipeline import create_data_pipeline
         import os
+
+        from pipeline.data_pipeline import create_data_pipeline
 
         # Load configuration from environment
         db_config = {
@@ -190,8 +195,10 @@ def get_pipeline():
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # Schedule initialization
-                asyncio.create_task(_pipeline_instance.db_manager.initialize())
+                # Schedule initialization with proper task tracking
+                task = asyncio.create_task(_pipeline_instance.db_manager.initialize())
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
             else:
                 # Initialize synchronously
                 loop.run_until_complete(_pipeline_instance.db_manager.initialize())
@@ -206,25 +213,140 @@ def get_pipeline():
 # ============================================================================
 
 
+class SessionSummary(BaseModel):
+    """Summary information for a transcript session."""
+
+    session_id: str
+    source_type: str
+    title: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+    transcript_count: int = 0
+    translation_count: int = 0
+    speaker_count: int = 0
+    total_duration: float = 0.0
+    languages: list[str] = []
+    metadata: dict[str, Any] = {}
+
+
+class SessionsListResponse(BaseModel):
+    """Response containing list of sessions."""
+
+    total: int
+    sessions: list[SessionSummary]
+
+
+@router.get(
+    "/sessions",
+    response_model=SessionsListResponse,
+    summary="List all transcript sessions",
+    description="Retrieve a list of all transcript sessions from the database with optional filtering",
+)
+async def list_sessions(
+    source_type: str | None = Query(
+        None, description="Filter by source type (fireflies, audio_upload, google_meet)"
+    ),
+    limit: int = Query(50, description="Maximum sessions to return", ge=1, le=500),
+    offset: int = Query(0, description="Offset for pagination", ge=0),
+    pipeline=Depends(get_pipeline),
+):
+    """
+    List all transcript sessions from database.
+
+    Returns a list of session summaries with:
+    - Session ID and source type
+    - Transcript and translation counts
+    - Speaker counts
+    - Total duration
+    - Languages used
+
+    Supports filtering by source type and pagination.
+    """
+    try:
+        # Ensure database is initialized
+        if not pipeline.db_manager.db_pool:
+            await pipeline.db_manager.initialize()
+
+        # Query for unique sessions with aggregated stats
+        # This uses the transcript table to get distinct sessions
+        query = """
+            SELECT
+                t.session_id,
+                t.source_type,
+                MIN(t.created_at) as created_at,
+                MAX(t.created_at) as updated_at,
+                COUNT(DISTINCT t.transcript_id) as transcript_count,
+                COUNT(DISTINCT tr.translation_id) as translation_count,
+                COUNT(DISTINCT t.speaker_id) FILTER (WHERE t.speaker_id IS NOT NULL) as speaker_count,
+                COALESCE(SUM(t.end_timestamp - t.start_timestamp), 0) as total_duration,
+                ARRAY_AGG(DISTINCT t.language_code) FILTER (WHERE t.language_code IS NOT NULL) as languages,
+                MAX(t.processing_metadata) as metadata
+            FROM transcripts t
+            LEFT JOIN translations tr ON t.session_id = tr.session_id
+            WHERE ($1::text IS NULL OR t.source_type = $1)
+            GROUP BY t.session_id, t.source_type
+            ORDER BY MAX(t.created_at) DESC
+            LIMIT $2 OFFSET $3
+        """
+
+        async with pipeline.db_manager.db_pool.acquire() as conn:
+            rows = await conn.fetch(query, source_type, limit, offset)
+
+            # Get total count for pagination
+            count_query = """
+                SELECT COUNT(DISTINCT session_id) as total
+                FROM transcripts
+                WHERE ($1::text IS NULL OR source_type = $1)
+            """
+            count_row = await conn.fetchrow(count_query, source_type)
+            total = count_row["total"] if count_row else 0
+
+        # Convert to response models
+        sessions = []
+        for row in rows:
+            # Extract title from metadata if available
+            metadata = row["metadata"] if isinstance(row["metadata"], dict) else {}
+            title = metadata.get("title") or metadata.get("source_metadata", {}).get("title")
+
+            sessions.append(
+                SessionSummary(
+                    session_id=row["session_id"],
+                    source_type=row["source_type"],
+                    title=title,
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                    transcript_count=row["transcript_count"],
+                    translation_count=row["translation_count"],
+                    speaker_count=row["speaker_count"],
+                    total_duration=float(row["total_duration"]) if row["total_duration"] else 0.0,
+                    languages=row["languages"] or [],
+                    metadata=metadata,
+                )
+            )
+
+        logger.info(f"Retrieved {len(sessions)} sessions (total: {total})")
+        return SessionsListResponse(total=total, sessions=sessions)
+
+    except Exception as e:
+        logger.error(f"Error listing sessions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get(
     "/sessions/{session_id}/transcripts",
-    response_model=List[TranscriptResponse],
+    response_model=list[TranscriptResponse],
     summary="Get session transcripts",
     description="Retrieve all transcripts for a session with optional filters",
 )
 async def get_transcripts(
     session_id: str = Path(..., description="Session identifier"),
-    source_type: Optional[str] = Query(
+    source_type: str | None = Query(
         None, description="Filter by source type (whisper_service, google_meet)"
     ),
-    language: Optional[str] = Query(None, description="Filter by language code"),
-    speaker_id: Optional[str] = Query(None, description="Filter by speaker ID"),
-    start_time: Optional[float] = Query(
-        None, description="Filter by start timestamp (seconds)"
-    ),
-    end_time: Optional[float] = Query(
-        None, description="Filter by end timestamp (seconds)"
-    ),
+    language: str | None = Query(None, description="Filter by language code"),
+    speaker_id: str | None = Query(None, description="Filter by speaker ID"),
+    start_time: float | None = Query(None, description="Filter by start timestamp (seconds)"),
+    end_time: float | None = Query(None, description="Filter by end timestamp (seconds)"),
     limit: int = Query(100, description="Maximum results to return", ge=1, le=1000),
     pipeline=Depends(get_pipeline),
 ):
@@ -250,10 +372,8 @@ async def get_transcripts(
                 session_id, start_time, end_time
             )
         else:
-            transcripts = (
-                await pipeline.db_manager.transcript_manager.get_session_transcripts(
-                    session_id, source_type=source_type
-                )
+            transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(
+                session_id, source_type=source_type
             )
 
         # Apply additional filters
@@ -296,21 +416,19 @@ async def get_transcripts(
 
     except Exception as e:
         logger.error(f"Error getting transcripts: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(
     "/sessions/{session_id}/translations",
-    response_model=List[TranslationResponse],
+    response_model=list[TranslationResponse],
     summary="Get session translations",
     description="Retrieve all translations for a session with optional filters",
 )
 async def get_translations(
     session_id: str = Path(..., description="Session identifier"),
-    target_language: Optional[str] = Query(
-        None, description="Filter by target language"
-    ),
-    speaker_id: Optional[str] = Query(None, description="Filter by speaker ID"),
+    target_language: str | None = Query(None, description="Filter by target language"),
+    speaker_id: str | None = Query(None, description="Filter by speaker ID"),
     limit: int = Query(100, description="Maximum results to return", ge=1, le=1000),
     pipeline=Depends(get_pipeline),
 ):
@@ -329,10 +447,8 @@ async def get_translations(
             await pipeline.db_manager.initialize()
 
         # Get translations
-        translations = (
-            await pipeline.db_manager.translation_manager.get_session_translations(
-                session_id, target_language=target_language
-            )
+        translations = await pipeline.db_manager.translation_manager.get_session_translations(
+            session_id, target_language=target_language
         )
 
         # Apply speaker filter
@@ -370,7 +486,7 @@ async def get_translations(
 
     except Exception as e:
         logger.error(f"Error getting translations: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(
@@ -381,17 +497,11 @@ async def get_translations(
 )
 async def get_timeline(
     session_id: str = Path(..., description="Session identifier"),
-    start_time: Optional[float] = Query(
-        None, description="Filter by start timestamp (seconds)"
-    ),
-    end_time: Optional[float] = Query(
-        None, description="Filter by end timestamp (seconds)"
-    ),
-    include_translations: bool = Query(
-        True, description="Include translations in timeline"
-    ),
-    language: Optional[str] = Query(None, description="Filter by language code"),
-    speaker_id: Optional[str] = Query(None, description="Filter by speaker ID"),
+    start_time: float | None = Query(None, description="Filter by start timestamp (seconds)"),
+    end_time: float | None = Query(None, description="Filter by end timestamp (seconds)"),
+    include_translations: bool = Query(True, description="Include translations in timeline"),
+    language: str | None = Query(None, description="Filter by language code"),
+    speaker_id: str | None = Query(None, description="Filter by speaker ID"),
     limit: int = Query(500, description="Maximum entries to return", ge=1, le=2000),
     pipeline=Depends(get_pipeline),
 ):
@@ -450,14 +560,12 @@ async def get_timeline(
             entries=entries,
         )
 
-        logger.info(
-            f"Retrieved timeline for session {session_id}: {len(entries)} entries"
-        )
+        logger.info(f"Retrieved timeline for session {session_id}: {len(entries)} entries")
         return response
 
     except Exception as e:
         logger.error(f"Error getting timeline: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(
@@ -510,14 +618,12 @@ async def get_speakers(
             session_id=session_id, total_speakers=len(speakers), speakers=speakers
         )
 
-        logger.info(
-            f"Retrieved statistics for {len(speakers)} speakers in session {session_id}"
-        )
+        logger.info(f"Retrieved statistics for {len(speakers)} speakers in session {session_id}")
         return response
 
     except Exception as e:
         logger.error(f"Error getting speaker statistics: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(
@@ -530,12 +636,8 @@ async def get_speaker_detail(
     session_id: str = Path(..., description="Session identifier"),
     speaker_id: str = Path(..., description="Speaker identifier"),
     include_timeline: bool = Query(True, description="Include speaker timeline"),
-    limit_transcripts: int = Query(
-        10, description="Number of recent transcripts", ge=0, le=100
-    ),
-    limit_translations: int = Query(
-        10, description="Number of recent translations", ge=0, le=100
-    ),
+    limit_transcripts: int = Query(10, description="Number of recent transcripts", ge=0, le=100),
+    limit_translations: int = Query(10, description="Number of recent translations", ge=0, le=100),
     pipeline=Depends(get_pipeline),
 ):
     """
@@ -584,15 +686,13 @@ async def get_speaker_detail(
                 )
 
         # Get recent transcripts
-        transcripts = (
-            await pipeline.db_manager.transcript_manager.get_session_transcripts(
-                session_id
-            )
+        transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(
+            session_id
         )
         speaker_transcripts = [t for t in transcripts if t.speaker_id == speaker_id]
-        speaker_transcripts = sorted(
-            speaker_transcripts, key=lambda x: x.created_at, reverse=True
-        )[:limit_transcripts]
+        speaker_transcripts = sorted(speaker_transcripts, key=lambda x: x.created_at, reverse=True)[
+            :limit_transcripts
+        ]
 
         recent_transcripts = []
         for t in speaker_transcripts:
@@ -617,10 +717,8 @@ async def get_speaker_detail(
             )
 
         # Get recent translations
-        translations = (
-            await pipeline.db_manager.translation_manager.get_session_translations(
-                session_id
-            )
+        translations = await pipeline.db_manager.translation_manager.get_session_translations(
+            session_id
         )
         speaker_translations = [t for t in translations if t.speaker_id == speaker_id]
         speaker_translations = sorted(
@@ -668,16 +766,14 @@ async def get_speaker_detail(
             recent_translations=recent_translations,
         )
 
-        logger.info(
-            f"Retrieved details for speaker {speaker_id} in session {session_id}"
-        )
+        logger.info(f"Retrieved details for speaker {speaker_id} in session {session_id}")
         return response
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error getting speaker detail: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get(
@@ -689,7 +785,7 @@ async def get_speaker_detail(
 async def search_transcripts(
     session_id: str = Path(..., description="Session identifier"),
     query: str = Query(..., description="Search query", min_length=1),
-    language: Optional[str] = Query(None, description="Filter by language code"),
+    language: str | None = Query(None, description="Filter by language code"),
     use_fuzzy: bool = Query(True, description="Use fuzzy matching (similarity search)"),
     limit: int = Query(50, description="Maximum results to return", ge=1, le=200),
     pipeline=Depends(get_pipeline),
@@ -755,7 +851,7 @@ async def search_transcripts(
 
     except Exception as e:
         logger.error(f"Error searching transcripts: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ============================================================================

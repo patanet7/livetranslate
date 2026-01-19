@@ -5,8 +5,8 @@ Tests that we're no longer getting placeholder responses.
 """
 
 import asyncio
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add src to path
@@ -15,10 +15,11 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 async def test_audio_upload():
     """Test the audio upload endpoint with a real audio file."""
+    import tempfile
+
     import httpx
     import numpy as np
     import soundfile as sf
-    import tempfile
 
     print("🧪 Testing Audio Upload Endpoint - Real Processing Verification")
     print("=" * 70)
@@ -73,9 +74,7 @@ async def test_audio_upload():
             print(f"   Transcription: {processing_result.get('transcription', 'N/A')}")
             print(f"   Language: {processing_result.get('language', 'N/A')}")
             print(f"   Confidence: {processing_result.get('confidence', 'N/A')}")
-            print(
-                f"   Processing Time: {processing_result.get('processing_time', 'N/A')}s"
-            )
+            print(f"   Processing Time: {processing_result.get('processing_time', 'N/A')}s")
 
             # Check if we got a placeholder response (old behavior)
             transcription = processing_result.get("transcription", "")

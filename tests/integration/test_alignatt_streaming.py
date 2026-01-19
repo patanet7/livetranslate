@@ -4,10 +4,11 @@ Tests written BEFORE implementation
 
 Status: 🔴 Expected to FAIL (not implemented yet)
 """
+
+import time
+
 import pytest
 import torch
-import numpy as np
-import time
 
 
 class TestAlignAttPolicy:
@@ -25,6 +26,8 @@ class TestAlignAttPolicy:
 
         try:
             from modules.whisper_service.src.alignatt_decoder import AlignAttDecoder
+
+            assert isinstance(AlignAttDecoder, type), "AlignAttDecoder must be a class"
         except ImportError:
             pytest.skip("AlignAttDecoder not implemented yet")
 
@@ -42,6 +45,8 @@ class TestAlignAttPolicy:
 
         try:
             from modules.whisper_service.src.alignatt_decoder import AlignAttDecoder
+
+            assert isinstance(AlignAttDecoder, type), "AlignAttDecoder must be a class"
         except ImportError:
             pytest.skip("AlignAttDecoder not implemented yet")
 
@@ -67,17 +72,19 @@ class TestAlignAttPolicy:
 
         try:
             from modules.whisper_service.src.alignatt_decoder import AlignAttDecoder
+
+            assert isinstance(AlignAttDecoder, type), "AlignAttDecoder must be a class"
         except ImportError:
             pytest.skip("AlignAttDecoder not implemented yet")
 
         # Generate 3-second audio chunk
-        audio_chunk = generate_test_audio(duration=3.0)
+        generate_test_audio(duration=3.0)
 
         # Simulate processing with AlignAtt
         start = time.time()
         # result = await process_with_alignatt(audio_chunk)
         # For now, just measure setup time
-        decoder = AlignAttDecoder()
+        AlignAttDecoder()
         latency = (time.time() - start) * 1000  # Convert to ms
 
         # This will fail until implemented
@@ -91,6 +98,8 @@ class TestAlignAttPolicy:
 
         try:
             from modules.whisper_service.src.alignatt_decoder import AlignAttDecoder
+
+            assert isinstance(AlignAttDecoder, type), "AlignAttDecoder must be a class"
         except ImportError:
             pytest.skip("AlignAttDecoder not implemented yet")
 
@@ -105,7 +114,7 @@ class TestAlignAttPolicy:
         state2 = decoder.decode_incremental(chunk2, previous_state=state1)
 
         # Verify continuity
-        assert hasattr(state2, 'previous_state')
+        assert hasattr(state2, "previous_state")
         assert state2.previous_state == state1
 
     @pytest.mark.integration
@@ -119,10 +128,12 @@ class TestAlignAttPolicy:
 
         try:
             from modules.whisper_service.src.alignatt_decoder import AlignAttDecoder
+
+            assert isinstance(AlignAttDecoder, type), "AlignAttDecoder must be a class"
         except ImportError:
             pytest.skip("AlignAttDecoder not implemented yet")
 
-        audio = generate_test_audio(duration=3.0)
+        generate_test_audio(duration=3.0)
 
         # Measure baseline (fixed chunking)
         baseline_latency = 400  # ms (assumed baseline from analysis)

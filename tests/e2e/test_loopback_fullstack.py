@@ -10,18 +10,18 @@ This mimics exactly what the frontend does - uses the REAL orchestration API.
 """
 
 import asyncio
+import io
+import json
 import logging
 import sys
 import time
-from pathlib import Path
-import pyaudio
 import wave
-import io
-import httpx
-import json
 from datetime import datetime
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import httpx
+import pyaudio
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # URLs
@@ -53,10 +53,10 @@ class LoopbackCapture:
 
         for i in range(self.audio.get_device_count()):
             info = self.audio.get_device_info_by_index(i)
-            name = info['name'].lower()
+            name = info["name"].lower()
 
-            if any(kw in name for kw in ['blackhole', 'soundflower', 'loopback']):
-                if info['maxInputChannels'] > 0:
+            if any(kw in name for kw in ["blackhole", "soundflower", "loopback"]):
+                if info["maxInputChannels"] > 0:
                     logger.info(f"✅ Found: {info['name']} (index {i})")
                     self.device_index = i
                     return True
@@ -77,7 +77,7 @@ class LoopbackCapture:
             input=True,
             input_device_index=self.device_index,
             frames_per_buffer=int(SAMPLE_RATE * CHUNK_DURATION),
-            stream_callback=callback
+            stream_callback=callback,
         )
         self.stream.start_stream()
 
@@ -133,7 +133,9 @@ class FullStackPipeline:
                 resp = await client.get(f"{TRANSLATION_URL}/api/health")
                 if resp.status_code == 200:
                     data = resp.json()
-                    logger.info(f"✅ Translation: READY (backend: {data.get('backend', 'unknown')})")
+                    logger.info(
+                        f"✅ Translation: READY (backend: {data.get('backend', 'unknown')})"
+                    )
                 else:
                     logger.error(f"❌ Translation: HTTP {resp.status_code}")
                     all_ready = False
@@ -150,58 +152,58 @@ class FullStackPipeline:
 
         # Convert to WAV
         wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wf:
+        with wave.open(wav_buffer, "wb") as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(2)
             wf.setframerate(SAMPLE_RATE)
             wf.writeframes(audio_data)
         wav_buffer.seek(0)
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print(f"🎵 CHUNK {self.chunk_count} | {datetime.now().strftime('%H:%M:%S')}")
-        print("="*80)
+        print("=" * 80)
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 # Send via orchestration API (like frontend does)
-                files = {'file': ('audio.wav', wav_buffer.read(), 'audio/wav')}
+                files = {"file": ("audio.wav", wav_buffer.read(), "audio/wav")}
                 data = {
-                    'chunk_id': chunk_id,
-                    'session_id': self.session_id,
-                    'target_languages': json.dumps(TARGET_LANGUAGES),
-                    'enable_transcription': 'true',
-                    'enable_translation': 'true',
-                    'enable_diarization': 'false',
-                    'whisper_model': 'whisper-base'
+                    "chunk_id": chunk_id,
+                    "session_id": self.session_id,
+                    "target_languages": json.dumps(TARGET_LANGUAGES),
+                    "enable_transcription": "true",
+                    "enable_translation": "true",
+                    "enable_diarization": "false",
+                    "whisper_model": "whisper-base",
                 }
 
-                print(f"📤 Sending to orchestration: /api/audio/upload")
+                print("📤 Sending to orchestration: /api/audio/upload")
                 resp = await client.post(
-                    f"{ORCHESTRATION_URL}/api/audio/upload",
-                    files=files,
-                    data=data
+                    f"{ORCHESTRATION_URL}/api/audio/upload", files=files, data=data
                 )
 
                 if resp.status_code == 200:
                     result = resp.json()
 
                     # Display transcription
-                    transcription = result.get('transcription', {})
-                    text = transcription.get('text', '').strip()
-                    lang = transcription.get('language', 'unknown')
+                    transcription = result.get("transcription", {})
+                    text = transcription.get("text", "").strip()
+                    lang = transcription.get("language", "unknown")
 
                     if text:
-                        print(f"✅ Transcribed ({lang}): \"{text}\"")
+                        print(f'✅ Transcribed ({lang}): "{text}"')
 
                         # Display translations
-                        translations = result.get('translations', {})
+                        translations = result.get("translations", {})
                         if translations:
-                            print(f"\n🌐 Translations:")
+                            print("\n🌐 Translations:")
                             for target_lang, trans_data in translations.items():
                                 if isinstance(trans_data, dict):
-                                    trans_text = trans_data.get('translated_text', trans_data.get('text', ''))
-                                    confidence = trans_data.get('confidence', 0.0)
-                                    print(f"   [{target_lang}] \"{trans_text}\"")
+                                    trans_text = trans_data.get(
+                                        "translated_text", trans_data.get("text", "")
+                                    )
+                                    confidence = trans_data.get("confidence", 0.0)
+                                    print(f'   [{target_lang}] "{trans_text}"')
                                     print(f"           (confidence: {confidence:.2f})")
                                     self.total_translations += 1
                                 else:
@@ -218,18 +220,21 @@ class FullStackPipeline:
         except Exception as e:
             print(f"❌ Error: {e}")
             import traceback
+
             traceback.print_exc()
 
         # Stats
         elapsed = time.time() - self.start_time
-        print(f"\n📊 Stats: {self.chunk_count} chunks, {self.total_translations} translations, {elapsed:.1f}s")
+        print(
+            f"\n📊 Stats: {self.chunk_count} chunks, {self.total_translations} translations, {elapsed:.1f}s"
+        )
 
 
 async def main():
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("  🎤 FULL-STACK LOOPBACK TRANSLATION TEST")
     print("  Loopback → Orchestration → Whisper → Translation")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Setup
     pipeline = FullStackPipeline()
@@ -246,9 +251,12 @@ async def main():
     # Audio capture
     capture = LoopbackCapture()
     audio_queue = asyncio.Queue()
+    background_tasks: set = set()
 
-    def audio_callback(in_data, frame_count, time_info, status):
-        asyncio.create_task(audio_queue.put(in_data))
+    def audio_callback(in_data, _frame_count, _time_info, _status):
+        task = asyncio.create_task(audio_queue.put(in_data))
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
         return (in_data, pyaudio.paContinue)
 
     try:
@@ -269,16 +277,17 @@ async def main():
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         capture.stop()
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("  📊 FINAL STATS")
         print(f"     Chunks: {pipeline.chunk_count}")
         print(f"     Translations: {pipeline.total_translations}")
         print(f"     Duration: {time.time() - pipeline.start_time:.1f}s")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
     return 0
 

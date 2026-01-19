@@ -12,13 +12,14 @@ Implements behaviors for:
 Run with: pytest tests/fireflies/unit/test_fireflies_dashboard.py -v
 """
 
-import pytest
 import json
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
 import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock
+
+import pytest
 
 # Add src path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
@@ -33,10 +34,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
 def mock_fireflies_client():
     """Mock Fireflies client for testing."""
     client = AsyncMock()
-    client.get_active_meetings = AsyncMock(return_value=[
-        {"id": "meeting1", "title": "Test Meeting", "state": "active"},
-        {"id": "meeting2", "title": "Another Meeting", "state": "active"},
-    ])
+    client.get_active_meetings = AsyncMock(
+        return_value=[
+            {"id": "meeting1", "title": "Test Meeting", "state": "active"},
+            {"id": "meeting2", "title": "Another Meeting", "state": "active"},
+        ]
+    )
     client.close = AsyncMock()
     return client
 
@@ -81,7 +84,7 @@ Translation:""",
 {current_sentence}
 
 Translation:""",
-        "minimal": """Translate to {target_language}: {current_sentence}"""
+        "minimal": """Translate to {target_language}: {current_sentence}""",
     }
 
 
@@ -130,9 +133,9 @@ class TestAPIKeyValidation:
         """
         # Arrange
         from clients.fireflies_client import FirefliesAPIError
+
         mock_fireflies_client.get_active_meetings.side_effect = FirefliesAPIError(
-            "Invalid API key",
-            status_code=401
+            "Invalid API key", status_code=401
         )
 
         # Act & Assert
@@ -151,9 +154,9 @@ class TestAPIKeyValidation:
         """
         # Arrange
         from clients.fireflies_client import FirefliesAPIError
+
         mock_fireflies_client.get_active_meetings.side_effect = FirefliesAPIError(
-            "API key expired",
-            status_code=401
+            "API key expired", status_code=401
         )
 
         # Act & Assert
@@ -174,8 +177,8 @@ class TestAPIKeyValidation:
         # Act
         def mask_api_key(key: str) -> str:
             if not key or len(key) < 8:
-                return '••••••••'
-            return key[:4] + '••••••••' + key[-4:]
+                return "••••••••"
+            return key[:4] + "••••••••" + key[-4:]
 
         masked = mask_api_key(full_key)
 
@@ -189,11 +192,12 @@ class TestAPIKeyValidation:
         WHEN: Masking it for display
         THEN: Should return placeholder dots
         """
+
         # Arrange
         def mask_api_key(key: str) -> str:
             if not key or len(key) < 8:
-                return '••••••••'
-            return key[:4] + '••••••••' + key[-4:]
+                return "••••••••"
+            return key[:4] + "••••••••" + key[-4:]
 
         # Act & Assert
         assert mask_api_key("") == "••••••••"
@@ -221,8 +225,9 @@ class TestModelValidation:
         WHEN: Validating the model
         THEN: Should return the same model ID
         """
+
         # Arrange
-        def validate_model(model_id: str, available: List[Dict]) -> str:
+        def validate_model(model_id: str, available: list[dict]) -> str:
             valid_ids = [m["id"] for m in available]
             if model_id in valid_ids:
                 return model_id
@@ -240,8 +245,9 @@ class TestModelValidation:
         WHEN: Validating the model
         THEN: Should fallback to the first available model
         """
+
         # Arrange
-        def validate_model(model_id: str, available: List[Dict]) -> str:
+        def validate_model(model_id: str, available: list[dict]) -> str:
             valid_ids = [m["id"] for m in available]
             if model_id in valid_ids:
                 return model_id
@@ -259,8 +265,9 @@ class TestModelValidation:
         WHEN: Validating any model
         THEN: Should return 'default'
         """
+
         # Arrange
-        def validate_model(model_id: str, available: List[Dict]) -> str:
+        def validate_model(model_id: str, available: list[dict]) -> str:
             valid_ids = [m["id"] for m in available]
             if model_id in valid_ids:
                 return model_id
@@ -278,8 +285,9 @@ class TestModelValidation:
         WHEN: Validating the model
         THEN: Should not match (case-sensitive)
         """
+
         # Arrange
-        def validate_model(model_id: str, available: List[Dict]) -> str:
+        def validate_model(model_id: str, available: list[dict]) -> str:
             valid_ids = [m["id"] for m in available]
             if model_id in valid_ids:
                 return model_id
@@ -367,9 +375,11 @@ class TestPromptTemplateManagement:
             # {text} is deprecated - should use {current_sentence}
             # We check that {text} doesn't appear ALONE (not as part of other words)
             import re
-            text_var_pattern = r'\{text\}'
-            assert not re.search(text_var_pattern, template), \
-                f"Template '{name}' uses deprecated {{text}} variable"
+
+            text_var_pattern = r"\{text\}"
+            assert not re.search(
+                text_var_pattern, template
+            ), f"Template '{name}' uses deprecated {{text}} variable"
 
     def test_get_template_returns_correct_type(self, prompt_templates):
         """
@@ -377,8 +387,9 @@ class TestPromptTemplateManagement:
         WHEN: Getting the template
         THEN: Should return correct template or default for unknown
         """
+
         # Arrange
-        def get_prompt_template(template_name: str, templates: Dict[str, str]) -> str:
+        def get_prompt_template(template_name: str, templates: dict[str, str]) -> str:
             return templates.get(template_name, templates.get("simple", ""))
 
         # Act & Assert
@@ -411,7 +422,7 @@ class TestErrorMessageExtraction:
         error_response = {"detail": "Invalid API key: authentication failed"}
 
         # Act
-        def extract_error(response: Dict[str, Any]) -> str:
+        def extract_error(response: dict[str, Any]) -> str:
             if isinstance(response, dict):
                 return response.get("detail") or response.get("message") or str(response)
             return str(response)
@@ -431,7 +442,7 @@ class TestErrorMessageExtraction:
         error_response = {"message": "Service temporarily unavailable"}
 
         # Act
-        def extract_error(response: Dict[str, Any]) -> str:
+        def extract_error(response: dict[str, Any]) -> str:
             if isinstance(response, dict):
                 return response.get("detail") or response.get("message") or str(response)
             return str(response)
@@ -448,13 +459,10 @@ class TestErrorMessageExtraction:
         THEN: Should prefer 'detail' (FastAPI convention)
         """
         # Arrange
-        error_response = {
-            "detail": "Specific validation error",
-            "message": "Generic error"
-        }
+        error_response = {"detail": "Specific validation error", "message": "Generic error"}
 
         # Act
-        def extract_error(response: Dict[str, Any]) -> str:
+        def extract_error(response: dict[str, Any]) -> str:
             if isinstance(response, dict):
                 return response.get("detail") or response.get("message") or str(response)
             return str(response)
@@ -470,6 +478,7 @@ class TestErrorMessageExtraction:
         WHEN: Extracting error message
         THEN: Should return the exception string
         """
+
         # Arrange
         class MockException(Exception):
             pass
@@ -488,6 +497,7 @@ class TestErrorMessageExtraction:
         WHEN: Formatting error for display
         THEN: Should include both status code and message
         """
+
         # Arrange
         def format_http_error(status_code: int, detail: str) -> str:
             status_messages = {
@@ -532,7 +542,7 @@ class TestSessionDataManagement:
         """
         # Arrange
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "speaker": "John Doe",
             "original": "Hello, how are you?",
             "translated": "Hola, como estas?",
@@ -563,15 +573,25 @@ class TestSessionDataManagement:
         """
         # Arrange
         entries = [
-            {"timestamp": "2024-01-15T10:00:00Z", "speaker": "Alice", "original": "Hello", "translated": "Hola"},
-            {"timestamp": "2024-01-15T10:00:05Z", "speaker": "Bob", "original": "Hi there", "translated": "Hola ahi"},
+            {
+                "timestamp": "2024-01-15T10:00:00Z",
+                "speaker": "Alice",
+                "original": "Hello",
+                "translated": "Hola",
+            },
+            {
+                "timestamp": "2024-01-15T10:00:05Z",
+                "speaker": "Bob",
+                "original": "Hi there",
+                "translated": "Hola ahi",
+            },
         ]
         session_id = "ff_session_abc123"
 
         # Act
         export_data = {
             "session_id": session_id,
-            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "saved_at": datetime.now(UTC).isoformat(),
             "entry_count": len(entries),
             "entries": entries,
         }
@@ -590,15 +610,17 @@ class TestSessionDataManagement:
         THEN: Should parse correctly with all entries
         """
         # Arrange
-        saved_json = json.dumps({
-            "session_id": "ff_session_xyz789",
-            "saved_at": "2024-01-15T12:00:00Z",
-            "entry_count": 2,
-            "entries": [
-                {"speaker": "Alice", "original": "Test 1", "translated": "Prueba 1"},
-                {"speaker": "Bob", "original": "Test 2", "translated": "Prueba 2"},
-            ]
-        })
+        saved_json = json.dumps(
+            {
+                "session_id": "ff_session_xyz789",
+                "saved_at": "2024-01-15T12:00:00Z",
+                "entry_count": 2,
+                "entries": [
+                    {"speaker": "Alice", "original": "Test 1", "translated": "Prueba 1"},
+                    {"speaker": "Bob", "original": "Test 2", "translated": "Prueba 2"},
+                ],
+            }
+        )
 
         # Act
         loaded = json.loads(saved_json)
@@ -643,10 +665,12 @@ class TestSessionDataManagement:
         ]
 
         # Act
-        def calculate_stats(entries: List[Dict]) -> Dict:
+        def calculate_stats(entries: list[dict]) -> dict:
             total = len(entries)
-            speakers = list(set(e["speaker"] for e in entries))
-            avg_confidence = sum(e.get("confidence", 0) for e in entries) / total if total > 0 else 0
+            speakers = list({e["speaker"] for e in entries})
+            avg_confidence = (
+                sum(e.get("confidence", 0) for e in entries) / total if total > 0 else 0
+            )
             return {
                 "total_entries": total,
                 "unique_speakers": len(speakers),
@@ -729,8 +753,9 @@ class TestTranslationRequestBuilding:
         WHEN: Validating request
         THEN: Should reject with validation error
         """
+
         # Arrange
-        def validate_request(text: str, target_language: str) -> List[str]:
+        def validate_request(text: str, target_language: str) -> list[str]:
             errors = []
             if not text or not text.strip():
                 errors.append("Text cannot be empty")
@@ -801,6 +826,7 @@ class TestWebSocketConnectionState:
         WHEN: Getting CSS class for badge
         THEN: Should return appropriate class
         """
+
         # Arrange
         def get_status_class(status: str) -> str:
             mapping = {

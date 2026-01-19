@@ -38,46 +38,46 @@ log_error() {
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
-    
+
     # Check Docker
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed or not in PATH"
         exit 1
     fi
-    
+
     # Check Docker Compose
     if ! command -v docker-compose &> /dev/null; then
         log_error "Docker Compose is not installed or not in PATH"
         exit 1
     fi
-    
+
     # Check if Docker daemon is running
     if ! docker info &> /dev/null; then
         log_error "Docker daemon is not running"
         exit 1
     fi
-    
+
     log_success "Prerequisites check passed"
 }
 
 # Create required directories
 create_directories() {
     log_info "Creating required directories..."
-    
+
     # Create log directory
     mkdir -p "$PROJECT_ROOT/logs"
     chmod 755 "$PROJECT_ROOT/logs"
-    
+
     # Create config directory
     mkdir -p "$PROJECT_ROOT/config"
-    
+
     log_success "Directories created"
 }
 
 # Check configuration files
 check_configuration() {
     log_info "Checking monitoring configuration..."
-    
+
     local config_files=(
         "$MONITORING_DIR/prometheus/prometheus.yml"
         "$MONITORING_DIR/prometheus/rules/livetranslate-alerts.yml"
@@ -86,21 +86,21 @@ check_configuration() {
         "$MONITORING_DIR/loki/loki.yml"
         "$MONITORING_DIR/loki/promtail.yml"
     )
-    
+
     for config_file in "${config_files[@]}"; do
         if [[ ! -f "$config_file" ]]; then
             log_error "Missing configuration file: $config_file"
             exit 1
         fi
     done
-    
+
     log_success "Configuration files verified"
 }
 
 # Create Docker networks
 create_networks() {
     log_info "Creating Docker networks..."
-    
+
     # Create livetranslate network if it doesn't exist
     if ! docker network ls | grep -q "livetranslate"; then
         docker network create livetranslate
@@ -108,7 +108,7 @@ create_networks() {
     else
         log_info "livetranslate network already exists"
     fi
-    
+
     # Create monitoring network if it doesn't exist
     if ! docker network ls | grep -q "monitoring"; then
         docker network create monitoring
@@ -121,42 +121,42 @@ create_networks() {
 # Pull Docker images
 pull_images() {
     log_info "Pulling Docker images..."
-    
+
     docker-compose -f "$COMPOSE_FILE" pull
-    
+
     log_success "Docker images pulled"
 }
 
 # Deploy monitoring stack
 deploy_monitoring() {
     log_info "Deploying monitoring stack..."
-    
+
     # Start services
     docker-compose -f "$COMPOSE_FILE" up -d
-    
+
     log_success "Monitoring stack deployed"
 }
 
 # Wait for services to be healthy
 wait_for_services() {
     log_info "Waiting for services to become healthy..."
-    
+
     local services=("prometheus" "grafana" "loki" "alertmanager")
     local max_wait=120
     local wait_time=0
-    
+
     for service in "${services[@]}"; do
         log_info "Waiting for $service to be ready..."
-        
+
         while [[ $wait_time -lt $max_wait ]]; do
             if docker-compose -f "$COMPOSE_FILE" ps | grep -q "$service.*healthy\|Up"; then
                 log_success "$service is ready"
                 break
             fi
-            
+
             sleep 5
             wait_time=$((wait_time + 5))
-            
+
             if [[ $wait_time -ge $max_wait ]]; then
                 log_warning "$service is taking longer than expected to start"
                 break
@@ -168,7 +168,7 @@ wait_for_services() {
 # Verify deployment
 verify_deployment() {
     log_info "Verifying deployment..."
-    
+
     # Check service endpoints
     local endpoints=(
         "http://localhost:9090/-/healthy:Prometheus"
@@ -176,10 +176,10 @@ verify_deployment() {
         "http://localhost:3100/ready:Loki"
         "http://localhost:9093/-/healthy:AlertManager"
     )
-    
+
     for endpoint in "${endpoints[@]}"; do
         IFS=':' read -r url name <<< "$endpoint"
-        
+
         if curl -sf "$url" > /dev/null 2>&1; then
             log_success "$name is responding"
         else
@@ -212,7 +212,7 @@ cleanup() {
 # Main deployment function
 main() {
     local action="${1:-deploy}"
-    
+
     case "$action" in
         "deploy")
             log_info "Starting LiveTranslate Orchestration Service monitoring deployment..."

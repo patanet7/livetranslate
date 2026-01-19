@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Quick verification: What's actually in test_clean_mixed_en_zh.wav?"""
-import soundfile as sf
-import numpy as np
+
 from pathlib import Path
+
+import numpy as np
+import soundfile as sf
 
 # Load the mixed audio file
 audio_path = Path("tests/fixtures/audio/test_clean_mixed_en_zh.wav")
@@ -10,6 +12,7 @@ audio, sr = sf.read(str(audio_path))
 
 print(f"Total duration: {len(audio)/sr:.2f}s @ {sr}Hz")
 print(f"Total samples: {len(audio):,}")
+
 
 # Check RMS levels in different sections
 def check_section(start_sec, end_sec, label):
@@ -20,6 +23,7 @@ def check_section(start_sec, end_sec, label):
     max_amp = np.max(np.abs(section))
     print(f"{label:20s} ({start_sec:5.1f}s-{end_sec:5.1f}s): RMS={rms:.4f}, Max={max_amp:.4f}")
     return rms, max_amp
+
 
 print("\nSection analysis:")
 check_section(0, 11, "JFK (English)")

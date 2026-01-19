@@ -19,27 +19,24 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Deque, Dict, List, Optional, Tuple
-from uuid import UUID, uuid4
+from datetime import UTC, datetime
+from uuid import UUID
 
+from clients.simple_translation_client import (
+    SimpleTranslationClient,
+)
+from clients.translation_service_client import (
+    TranslationRequest,
+    TranslationServiceClient,
+)
 from models.fireflies import (
     TranslationContext,
     TranslationResult,
     TranslationUnit,
 )
-from clients.translation_service_client import (
-    TranslationServiceClient,
-    TranslationRequest,
-    TranslationResponse,
-)
-from clients.simple_translation_client import (
-    SimpleTranslationClient,
-    PromptTranslationResult,
-)
 from services.translation_prompt_builder import (
-    TranslationPromptBuilder,
     PromptContext,
+    TranslationPromptBuilder,
     create_prompt_builder,
 )
 
@@ -56,17 +53,17 @@ class SpeakerContext:
     """Context window for a single speaker."""
 
     speaker_name: str
-    sentences: Deque[str] = field(default_factory=lambda: deque(maxlen=5))
+    sentences: deque[str] = field(default_factory=lambda: deque(maxlen=5))
     translation_count: int = 0
-    last_translation_time: Optional[datetime] = None
+    last_translation_time: datetime | None = None
 
     def add(self, sentence: str) -> None:
         """Add a sentence to this speaker's context."""
         self.sentences.append(sentence)
         self.translation_count += 1
-        self.last_translation_time = datetime.now(timezone.utc)
+        self.last_translation_time = datetime.now(UTC)
 
-    def get_context(self, max_sentences: int = 3) -> List[str]:
+    def get_context(self, max_sentences: int = 3) -> list[str]:
         """Get recent context sentences."""
         return list(self.sentences)[-max_sentences:]
 
@@ -80,30 +77,26 @@ class SessionTranslationState:
     """Translation state for a Fireflies session."""
 
     session_id: str
-    speaker_contexts: Dict[str, SpeakerContext] = field(default_factory=dict)
-    global_context: Deque[Tuple[str, str]] = field(
+    speaker_contexts: dict[str, SpeakerContext] = field(default_factory=dict)
+    global_context: deque[tuple[str, str]] = field(
         default_factory=lambda: deque(maxlen=10)
     )  # (speaker, sentence)
     total_translations: int = 0
     total_errors: int = 0
     average_translation_time_ms: float = 0.0
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def get_speaker_context(self, speaker_name: str) -> SpeakerContext:
         """Get or create context for a speaker."""
         if speaker_name not in self.speaker_contexts:
-            self.speaker_contexts[speaker_name] = SpeakerContext(
-                speaker_name=speaker_name
-            )
+            self.speaker_contexts[speaker_name] = SpeakerContext(speaker_name=speaker_name)
         return self.speaker_contexts[speaker_name]
 
     def add_to_global_context(self, speaker: str, sentence: str) -> None:
         """Add to the global cross-speaker context."""
         self.global_context.append((speaker, sentence))
 
-    def get_cross_speaker_context(
-        self, exclude_speaker: str, max_sentences: int = 3
-    ) -> List[str]:
+    def get_cross_speaker_context(self, exclude_speaker: str, max_sentences: int = 3) -> list[str]:
         """Get recent sentences from other speakers."""
         other_sentences = [
             f"[{speaker}] {sentence}"
@@ -117,8 +110,8 @@ class SessionTranslationState:
         if success:
             n = self.total_translations
             self.average_translation_time_ms = (
-                (self.average_translation_time_ms * n + translation_time_ms) / (n + 1)
-            )
+                self.average_translation_time_ms * n + translation_time_ms
+            ) / (n + 1)
             self.total_translations += 1
         else:
             self.total_errors += 1
@@ -159,8 +152,8 @@ class RollingWindowTranslator:
         include_cross_speaker_context: bool = True,
         max_cross_speaker_sentences: int = 2,
         use_prompt_based_translation: bool = True,
-        simple_client: Optional[SimpleTranslationClient] = None,
-        prompt_builder: Optional[TranslationPromptBuilder] = None,
+        simple_client: SimpleTranslationClient | None = None,
+        prompt_builder: TranslationPromptBuilder | None = None,
     ):
         """
         Initialize the rolling window translator.
@@ -187,7 +180,7 @@ class RollingWindowTranslator:
         self.prompt_builder = prompt_builder or create_prompt_builder()
 
         # Session state tracking
-        self._sessions: Dict[str, SessionTranslationState] = {}
+        self._sessions: dict[str, SessionTranslationState] = {}
 
         logger.info(
             f"RollingWindowTranslator initialized: "
@@ -204,8 +197,8 @@ class RollingWindowTranslator:
         self,
         unit: TranslationUnit,
         target_language: str,
-        glossary_id: Optional[UUID] = None,
-        domain: Optional[str] = None,
+        glossary_id: UUID | None = None,
+        domain: str | None = None,
         source_language: str = "en",
     ) -> TranslationResult:
         """
@@ -310,13 +303,13 @@ class RollingWindowTranslator:
 
     async def translate_batch(
         self,
-        units: List[TranslationUnit],
+        units: list[TranslationUnit],
         target_language: str,
-        glossary_id: Optional[UUID] = None,
-        domain: Optional[str] = None,
+        glossary_id: UUID | None = None,
+        domain: str | None = None,
         source_language: str = "en",
         max_concurrency: int = 5,
-    ) -> List[TranslationResult]:
+    ) -> list[TranslationResult]:
         """
         Translate multiple units, maintaining order for context.
 
@@ -349,11 +342,11 @@ class RollingWindowTranslator:
     async def translate_to_multiple_languages(
         self,
         unit: TranslationUnit,
-        target_languages: List[str],
-        glossary_id: Optional[UUID] = None,
-        domain: Optional[str] = None,
+        target_languages: list[str],
+        glossary_id: UUID | None = None,
+        domain: str | None = None,
         source_language: str = "en",
-    ) -> Dict[str, TranslationResult]:
+    ) -> dict[str, TranslationResult]:
         """
         Translate a single sentence to multiple target languages.
 
@@ -367,7 +360,7 @@ class RollingWindowTranslator:
         Returns:
             Dict mapping language code to TranslationResult
         """
-        results: Dict[str, TranslationResult] = {}
+        results: dict[str, TranslationResult] = {}
 
         # Translate to each language (can be parallelized since context
         # is only updated once per source sentence)
@@ -384,7 +377,7 @@ class RollingWindowTranslator:
 
         completed = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for lang, result in zip(target_languages, completed):
+        for lang, result in zip(target_languages, completed, strict=False):
             if isinstance(result, Exception):
                 logger.error(f"Translation to {lang} failed: {result}")
                 results[lang] = TranslationResult(
@@ -401,7 +394,7 @@ class RollingWindowTranslator:
 
         return results
 
-    def get_session_stats(self, session_id: str) -> Optional[Dict]:
+    def get_session_stats(self, session_id: str) -> dict | None:
         """
         Get translation statistics for a session.
 
@@ -425,8 +418,7 @@ class RollingWindowTranslator:
             "average_translation_time_ms": state.average_translation_time_ms,
             "speakers": list(state.speaker_contexts.keys()),
             "speaker_translation_counts": {
-                name: ctx.translation_count
-                for name, ctx in state.speaker_contexts.items()
+                name: ctx.translation_count for name, ctx in state.speaker_contexts.items()
             },
             "created_at": state.created_at.isoformat(),
         }
@@ -464,9 +456,7 @@ class RollingWindowTranslator:
         state = self._sessions[session_id]
         if speaker_name in state.speaker_contexts:
             state.speaker_contexts[speaker_name].clear()
-            logger.info(
-                f"Cleared speaker context: session={session_id}, speaker={speaker_name}"
-            )
+            logger.info(f"Cleared speaker context: session={session_id}, speaker={speaker_name}")
             return True
         return False
 
@@ -477,9 +467,7 @@ class RollingWindowTranslator:
     def _get_session_state(self, session_id: str) -> SessionTranslationState:
         """Get or create session translation state."""
         if session_id not in self._sessions:
-            self._sessions[session_id] = SessionTranslationState(
-                session_id=session_id
-            )
+            self._sessions[session_id] = SessionTranslationState(session_id=session_id)
         return self._sessions[session_id]
 
     async def _build_context(
@@ -488,8 +476,8 @@ class RollingWindowTranslator:
         session_state: SessionTranslationState,
         speaker_context: SpeakerContext,
         target_language: str,
-        glossary_id: Optional[UUID],
-        domain: Optional[str],
+        glossary_id: UUID | None,
+        domain: str | None,
         source_language: str,
     ) -> TranslationContext:
         """Build translation context with previous sentences and glossary."""
@@ -506,7 +494,7 @@ class RollingWindowTranslator:
             previous_sentences = cross_speaker + previous_sentences
 
         # Get glossary terms
-        glossary_terms: Dict[str, str] = {}
+        glossary_terms: dict[str, str] = {}
         if self.glossary_service and glossary_id:
             try:
                 glossary_terms = self.glossary_service.get_glossary_terms(
@@ -529,7 +517,7 @@ class RollingWindowTranslator:
         self,
         text: str,
         context: TranslationContext,
-    ) -> Tuple[str, float]:
+    ) -> tuple[str, float]:
         """
         Translate using LLM prompt with context.
 
@@ -593,7 +581,7 @@ class RollingWindowTranslator:
         text: str,
         target_language: str,
         source_language: str,
-    ) -> Tuple[str, float]:
+    ) -> tuple[str, float]:
         """
         Translate directly without context injection.
 
@@ -615,8 +603,8 @@ class RollingWindowTranslator:
         self,
         original: str,
         translated: str,
-        glossary_terms: Dict[str, str],
-    ) -> List[str]:
+        glossary_terms: dict[str, str],
+    ) -> list[str]:
         """
         Find which glossary terms were likely applied.
 
@@ -653,9 +641,9 @@ class RollingWindowTranslator:
 def create_rolling_window_translator(
     translation_client: TranslationServiceClient,
     glossary_service=None,
-    config: Optional[Dict] = None,
-    simple_client: Optional[SimpleTranslationClient] = None,
-    prompt_builder: Optional[TranslationPromptBuilder] = None,
+    config: dict | None = None,
+    simple_client: SimpleTranslationClient | None = None,
+    prompt_builder: TranslationPromptBuilder | None = None,
 ) -> RollingWindowTranslator:
     """
     Factory function to create a RollingWindowTranslator with configuration.

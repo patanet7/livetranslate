@@ -1,5 +1,5 @@
-import '@testing-library/jest-dom';
-import { vi, afterEach } from 'vitest';
+import "@testing-library/jest-dom";
+import { vi, afterEach } from "vitest";
 
 // Mock IntersectionObserver
 global.IntersectionObserver = vi.fn().mockImplementation(() => ({
@@ -16,9 +16,9 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock window.matchMedia
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -31,41 +31,43 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // Mock URL.createObjectURL
-global.URL.createObjectURL = vi.fn(() => 'mocked-url');
+global.URL.createObjectURL = vi.fn(() => "mocked-url");
 global.URL.revokeObjectURL = vi.fn();
 
 // Mock HTMLCanvasElement.getContext
-HTMLCanvasElement.prototype.getContext = vi.fn().mockImplementation((contextType) => {
-  if (contextType === '2d') {
-    return {
-      clearRect: vi.fn(),
-      fillRect: vi.fn(),
-      strokeRect: vi.fn(),
-      beginPath: vi.fn(),
-      moveTo: vi.fn(),
-      lineTo: vi.fn(),
-      closePath: vi.fn(),
-      stroke: vi.fn(),
-      fill: vi.fn(),
-      fillText: vi.fn(),
-      measureText: vi.fn(() => ({ width: 0 })),
-      save: vi.fn(),
-      restore: vi.fn(),
-      scale: vi.fn(),
-      translate: vi.fn(),
-      rotate: vi.fn(),
-      drawImage: vi.fn(),
-      createImageData: vi.fn(),
-      getImageData: vi.fn(),
-      putImageData: vi.fn(),
-      canvas: {
-        width: 800,
-        height: 600,
-      },
-    };
-  }
-  return null;
-});
+HTMLCanvasElement.prototype.getContext = vi
+  .fn()
+  .mockImplementation((contextType) => {
+    if (contextType === "2d") {
+      return {
+        clearRect: vi.fn(),
+        fillRect: vi.fn(),
+        strokeRect: vi.fn(),
+        beginPath: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        closePath: vi.fn(),
+        stroke: vi.fn(),
+        fill: vi.fn(),
+        fillText: vi.fn(),
+        measureText: vi.fn(() => ({ width: 0 })),
+        save: vi.fn(),
+        restore: vi.fn(),
+        scale: vi.fn(),
+        translate: vi.fn(),
+        rotate: vi.fn(),
+        drawImage: vi.fn(),
+        createImageData: vi.fn(),
+        getImageData: vi.fn(),
+        putImageData: vi.fn(),
+        canvas: {
+          width: 800,
+          height: 600,
+        },
+      };
+    }
+    return null;
+  });
 
 // Mock Audio API
 global.Audio = vi.fn().mockImplementation(() => ({
@@ -90,16 +92,16 @@ global.MediaRecorder = vi.fn().mockImplementation(() => ({
   resume: vi.fn(),
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
-  state: 'inactive',
+  state: "inactive",
   stream: null,
-  mimeType: 'audio/webm',
+  mimeType: "audio/webm",
 })) as any;
 
 // Add static method to MediaRecorder
 (global.MediaRecorder as any).isTypeSupported = vi.fn(() => true);
 
 // Mock getUserMedia
-Object.defineProperty(navigator, 'mediaDevices', {
+Object.defineProperty(navigator, "mediaDevices", {
   writable: true,
   value: {
     getUserMedia: vi.fn().mockResolvedValue({
@@ -109,10 +111,10 @@ Object.defineProperty(navigator, 'mediaDevices', {
     }),
     enumerateDevices: vi.fn().mockResolvedValue([
       {
-        deviceId: 'default',
-        kind: 'audioinput',
-        label: 'Default Microphone',
-        groupId: 'default',
+        deviceId: "default",
+        kind: "audioinput",
+        label: "Default Microphone",
+        groupId: "default",
       },
     ]),
   },
@@ -144,10 +146,10 @@ console.warn = (...args: any[]) => {
   // Suppress specific warnings that are expected in tests
   const message = args[0];
   if (
-    typeof message === 'string' &&
-    (message.includes('ReactDOM.render is no longer supported') ||
-     message.includes('Warning: validateDOMNesting') ||
-     message.includes('Warning: Function components cannot be given refs'))
+    typeof message === "string" &&
+    (message.includes("ReactDOM.render is no longer supported") ||
+      message.includes("Warning: validateDOMNesting") ||
+      message.includes("Warning: Function components cannot be given refs"))
   ) {
     return;
   }

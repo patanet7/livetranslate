@@ -6,14 +6,14 @@ Verifies that the use_enhanced_stages config flag correctly switches
 between original and enhanced implementations at runtime.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import numpy as np
-from audio.config import AudioProcessingConfig
 from audio.audio_processor import AudioPipelineProcessor
+from audio.config import AudioProcessingConfig
 
 
 def test_original_stages():
@@ -29,9 +29,7 @@ def test_original_stages():
     processor = AudioPipelineProcessor(config, sample_rate=16000)
 
     # Generate test audio
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(
-        np.float32
-    )
+    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(np.float32)
 
     # Process
     processed, metadata = processor.process_audio_chunk(audio)
@@ -63,9 +61,7 @@ def test_enhanced_stages():
     processor = AudioPipelineProcessor(config, sample_rate=16000)
 
     # Generate test audio
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(
-        np.float32
-    )
+    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(np.float32)
 
     # Process
     processed, metadata = processor.process_audio_chunk(audio)
@@ -85,9 +81,7 @@ def test_enhanced_stages():
             if "Enhanced" in class_name:
                 print("      ✓ Using enhanced implementation")
             else:
-                print(
-                    "      ⚠ Using original implementation (enhanced not available?)"
-                )
+                print("      ⚠ Using original implementation (enhanced not available?)")
 
     print()
     return True
@@ -105,19 +99,17 @@ def test_runtime_switching():
     config.enabled_stages = ["lufs_normalization", "compression", "limiter"]
 
     processor = AudioPipelineProcessor(config, sample_rate=16000)
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(
-        np.float32
-    )
+    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(np.float32)
 
     # Process with original
-    processed1, metadata1 = processor.process_audio_chunk(audio)
+    _processed1, _metadata1 = processor.process_audio_chunk(audio)
     stage1 = processor.pipeline.get_stage("lufs_normalization")
     print(f"Initial: {stage1.__class__.__name__}")
 
     # Switch to enhanced
     config.use_enhanced_stages = True
     processor2 = AudioPipelineProcessor(config, sample_rate=16000)
-    processed2, metadata2 = processor2.process_audio_chunk(audio)
+    _processed2, _metadata2 = processor2.process_audio_chunk(audio)
     stage2 = processor2.pipeline.get_stage("lufs_normalization")
     print(f"After switch: {stage2.__class__.__name__}")
 

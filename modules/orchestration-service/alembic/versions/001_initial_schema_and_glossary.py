@@ -17,16 +17,17 @@ Creates all base tables for the orchestration service including:
 - glossary_entries: Individual glossary term mappings
 """
 
-from typing import Sequence, Union
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "001_initial"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -42,33 +43,23 @@ def upgrade() -> None:
         sa.Column("meeting_id", sa.String(255), nullable=False, index=True),
         sa.Column("meeting_title", sa.String(500), nullable=True),
         sa.Column("meeting_uri", sa.Text(), nullable=True),
-        sa.Column(
-            "bot_type", sa.String(50), nullable=False, server_default="google_meet"
-        ),
+        sa.Column("bot_type", sa.String(50), nullable=False, server_default="google_meet"),
         # Session lifecycle
         sa.Column("status", sa.String(50), nullable=False, server_default="pending"),
-        sa.Column(
-            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("started_at", sa.DateTime(), nullable=True),
         sa.Column("ended_at", sa.DateTime(), nullable=True),
         # Configuration
         sa.Column("target_languages", postgresql.JSON(), nullable=True),
-        sa.Column(
-            "enable_translation", sa.Boolean(), nullable=False, server_default="true"
-        ),
-        sa.Column(
-            "enable_transcription", sa.Boolean(), nullable=False, server_default="true"
-        ),
+        sa.Column("enable_translation", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column("enable_transcription", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column(
             "enable_virtual_webcam",
             sa.Boolean(),
             nullable=False,
             server_default="false",
         ),
-        sa.Column(
-            "audio_storage_enabled", sa.Boolean(), nullable=False, server_default="true"
-        ),
+        sa.Column("audio_storage_enabled", sa.Boolean(), nullable=False, server_default="true"),
         # Metadata
         sa.Column("session_metadata", postgresql.JSON(), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
@@ -98,9 +89,7 @@ def upgrade() -> None:
         sa.Column("channels", sa.Integer(), nullable=True),
         sa.Column("bit_depth", sa.Integer(), nullable=True),
         # Timestamps
-        sa.Column(
-            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("start_time", sa.DateTime(), nullable=True),
         sa.Column("end_time", sa.DateTime(), nullable=True),
         # Metadata
@@ -188,12 +177,8 @@ def upgrade() -> None:
     op.create_index("idx_translations_session_id", "translations", ["session_id"])
     op.create_index("idx_translations_start_time", "translations", ["start_time"])
     op.create_index("idx_translations_speaker_id", "translations", ["speaker_id"])
-    op.create_index(
-        "idx_translations_source_language", "translations", ["source_language"]
-    )
-    op.create_index(
-        "idx_translations_target_language", "translations", ["target_language"]
-    )
+    op.create_index("idx_translations_source_language", "translations", ["source_language"])
+    op.create_index("idx_translations_target_language", "translations", ["target_language"])
 
     # correlations - Time synchronization between sources
     op.create_table(
@@ -221,15 +206,9 @@ def upgrade() -> None:
         sa.Column("session_metadata", postgresql.JSON(), nullable=True),
     )
     op.create_index("idx_correlations_session_id", "correlations", ["session_id"])
-    op.create_index(
-        "idx_correlations_external_timestamp", "correlations", ["external_timestamp"]
-    )
-    op.create_index(
-        "idx_correlations_internal_timestamp", "correlations", ["internal_timestamp"]
-    )
-    op.create_index(
-        "idx_correlations_similarity_score", "correlations", ["similarity_score"]
-    )
+    op.create_index("idx_correlations_external_timestamp", "correlations", ["external_timestamp"])
+    op.create_index("idx_correlations_internal_timestamp", "correlations", ["internal_timestamp"])
+    op.create_index("idx_correlations_similarity_score", "correlations", ["similarity_score"])
 
     # participants - Meeting participant tracking
     op.create_table(
@@ -275,9 +254,7 @@ def upgrade() -> None:
         sa.Column("event_name", sa.String(255), nullable=False),
         sa.Column("event_data", postgresql.JSON(), nullable=True),
         # Timing
-        sa.Column(
-            "timestamp", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
+        sa.Column("timestamp", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         # Severity
         sa.Column("severity", sa.String(20), nullable=False, server_default="info"),
         # Source
@@ -301,21 +278,11 @@ def upgrade() -> None:
         ),
         # Basic metrics
         sa.Column("duration", sa.Float(), nullable=True),
-        sa.Column(
-            "total_participants", sa.Integer(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "total_audio_files", sa.Integer(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "total_transcripts", sa.Integer(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "total_translations", sa.Integer(), nullable=False, server_default="0"
-        ),
-        sa.Column(
-            "total_correlations", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("total_participants", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("total_audio_files", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("total_transcripts", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("total_translations", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("total_correlations", sa.Integer(), nullable=False, server_default="0"),
         # Audio metrics
         sa.Column("total_audio_duration", sa.Float(), nullable=True),
         sa.Column("total_audio_size", sa.Integer(), nullable=True),
@@ -335,16 +302,10 @@ def upgrade() -> None:
         sa.Column("processing_time", sa.Float(), nullable=True),
         sa.Column("correlation_accuracy", sa.Float(), nullable=True),
         # Timestamps
-        sa.Column(
-            "calculated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
+        sa.Column("calculated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
-    op.create_index(
-        "idx_session_statistics_session_id", "session_statistics", ["session_id"]
-    )
-    op.create_index(
-        "idx_session_statistics_calculated_at", "session_statistics", ["calculated_at"]
-    )
+    op.create_index("idx_session_statistics_session_id", "session_statistics", ["session_id"])
+    op.create_index("idx_session_statistics_calculated_at", "session_statistics", ["calculated_at"])
 
     # ===========================================================================
     # Glossary Tables (for Fireflies Integration)
@@ -360,20 +321,14 @@ def upgrade() -> None:
         # Domain categorization
         sa.Column("domain", sa.String(100), nullable=True),
         # Language settings
-        sa.Column(
-            "source_language", sa.String(10), nullable=False, server_default="en"
-        ),
+        sa.Column("source_language", sa.String(10), nullable=False, server_default="en"),
         sa.Column("target_languages", postgresql.JSON(), nullable=False),
         # Status
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("is_default", sa.Boolean(), nullable=False, server_default="false"),
         # Metadata
-        sa.Column(
-            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("created_by", sa.String(255), nullable=True),
         # Entry count (denormalized)
         sa.Column("entry_count", sa.Integer(), nullable=False, server_default="0"),
@@ -402,25 +357,15 @@ def upgrade() -> None:
         sa.Column("context", sa.Text(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         # Matching settings
-        sa.Column(
-            "case_sensitive", sa.Boolean(), nullable=False, server_default="false"
-        ),
-        sa.Column(
-            "match_whole_word", sa.Boolean(), nullable=False, server_default="true"
-        ),
+        sa.Column("case_sensitive", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("match_whole_word", sa.Boolean(), nullable=False, server_default="true"),
         # Priority
         sa.Column("priority", sa.Integer(), nullable=False, server_default="0"),
         # Timestamps
-        sa.Column(
-            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
-    op.create_index(
-        "idx_glossary_entries_glossary_id", "glossary_entries", ["glossary_id"]
-    )
+    op.create_index("idx_glossary_entries_glossary_id", "glossary_entries", ["glossary_id"])
     op.create_index(
         "idx_glossary_entries_source_term",
         "glossary_entries",

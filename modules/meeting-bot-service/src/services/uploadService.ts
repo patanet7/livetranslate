@@ -93,7 +93,7 @@ export const finalizeUpload = async ({
 }: FinalizeUploadOptions, logger: Logger) => {
   const apiV2 = createApiV2(token);
   const time = getTimeString(timezone, logger);
-  
+
   const response = await apiV2.put<IVFSResponse<FinalizeUploadResponseBody>>(
     `/files/upload/multipart/finalize/${teamId}/${folderId}/${fileId}/${uploadId}`,
     {

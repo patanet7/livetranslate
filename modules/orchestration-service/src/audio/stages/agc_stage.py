@@ -6,10 +6,12 @@ Modular AGC implementation that can be used independently
 or as part of the complete audio processing pipeline.
 """
 
+from typing import Any
+
 import numpy as np
-from typing import Dict, Any, Tuple
-from ..stage_components import BaseAudioStage
+
 from ..config import AGCConfig, AGCMode
+from ..stage_components import BaseAudioStage
 
 
 class AGCStage(BaseAudioStage):
@@ -50,9 +52,7 @@ class AGCStage(BaseAudioStage):
 
         self.is_initialized = True
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through AGC."""
         if self.config.mode == AGCMode.DISABLED:
             return audio_data, {"mode": "disabled", "gain_applied": 1.0}
@@ -74,9 +74,7 @@ class AGCStage(BaseAudioStage):
                 # Noise gate
                 if current_level > self.noise_gate_threshold_linear:
                     self.noise_gate_open = True
-                elif (
-                    current_level < self.noise_gate_threshold_linear * 0.5
-                ):  # Hysteresis
+                elif current_level < self.noise_gate_threshold_linear * 0.5:  # Hysteresis
                     self.noise_gate_open = False
 
                 if not self.noise_gate_open:
@@ -97,9 +95,7 @@ class AGCStage(BaseAudioStage):
                     desired_gain = self.current_gain
 
                 # Apply gain limits
-                desired_gain = max(
-                    self.min_gain_linear, min(self.max_gain_linear, desired_gain)
-                )
+                desired_gain = max(self.min_gain_linear, min(self.max_gain_linear, desired_gain))
 
                 # Apply attack/release with hold
                 if desired_gain < self.current_gain:
@@ -118,9 +114,7 @@ class AGCStage(BaseAudioStage):
                 if self.lookahead_buffer is not None:
                     delayed_sample = self.lookahead_buffer[self.buffer_index]
                     self.lookahead_buffer[self.buffer_index] = sample
-                    self.buffer_index = (self.buffer_index + 1) % len(
-                        self.lookahead_buffer
-                    )
+                    self.buffer_index = (self.buffer_index + 1) % len(self.lookahead_buffer)
                     processed[i] = delayed_sample * self.current_gain
                 else:
                     processed[i] = sample * self.current_gain
@@ -150,7 +144,7 @@ class AGCStage(BaseAudioStage):
             return processed, metadata
 
         except Exception as e:
-            raise Exception(f"AGC processing failed: {e}")
+            raise Exception(f"AGC processing failed: {e}") from e
 
     def _calculate_gain_fast(self, level: float) -> float:
         """Calculate gain for fast mode."""
@@ -192,9 +186,7 @@ class AGCStage(BaseAudioStage):
             return self.current_gain
 
         # Analyze signal characteristics
-        level_variance = (
-            np.var(self.level_history) if len(self.level_history) > 10 else 0
-        )
+        level_variance = np.var(self.level_history) if len(self.level_history) > 10 else 0
 
         # Adaptive adjustment rate based on signal stability
         if level_variance < 0.01:
@@ -223,7 +215,7 @@ class AGCStage(BaseAudioStage):
         release_coeff = 1.0 / self.release_samples
         return self.current_gain + (desired_gain - self.current_gain) * release_coeff
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -240,13 +232,11 @@ class AGCStage(BaseAudioStage):
             "noise_gate_threshold": self.config.noise_gate_threshold,
         }
 
-    def get_gain_state(self) -> Dict[str, Any]:
+    def get_gain_state(self) -> dict[str, Any]:
         """Get current AGC gain state."""
         return {
             "current_gain": self.current_gain,
-            "current_gain_db": 20 * np.log10(self.current_gain)
-            if self.current_gain > 0
-            else -80,
+            "current_gain_db": 20 * np.log10(self.current_gain) if self.current_gain > 0 else -80,
             "target_level_linear": self.target_level_linear,
             "noise_gate_open": self.noise_gate_open,
             "hold_counter": self.hold_counter,

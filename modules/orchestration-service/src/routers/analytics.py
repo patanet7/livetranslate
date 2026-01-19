@@ -12,23 +12,23 @@ FastAPI router for comprehensive system analytics and monitoring including:
 - Custom dashboard APIs
 """
 
-import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
-import io
 import csv
+import io
+import logging
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import Any
 
 from dependencies import (
-    get_health_monitor,
-    get_websocket_manager,
     get_audio_service_client,
-    get_translation_service_client,
     get_bot_manager,
+    get_health_monitor,
+    get_translation_service_client,
+    get_websocket_manager,
 )
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class ServiceMetrics(BaseModel):
     cpu_usage: float
     memory_usage: float
     uptime_seconds: float
-    last_error: Optional[str] = None
+    last_error: str | None = None
     timestamp: datetime
 
 
@@ -107,11 +107,11 @@ class TranslationMetrics(BaseModel):
     total_translations: int
     average_translation_time_ms: float
     character_count: int
-    language_pairs_active: List[str]
+    language_pairs_active: list[str]
     accuracy_score: float
     cache_hit_rate: float
     failed_translations: int
-    model_performance: Dict[str, float]
+    model_performance: dict[str, float]
     timestamp: datetime
 
 
@@ -136,7 +136,7 @@ class BotSessionMetrics(BaseModel):
     active_sessions: int
     average_session_duration_minutes: float
     success_rate: float
-    meeting_platforms: Dict[str, int]
+    meeting_platforms: dict[str, int]
     audio_quality_score: float
     translation_coverage: float
     failed_sessions: int
@@ -147,14 +147,14 @@ class BotSessionMetrics(BaseModel):
 class SystemAnalytics(BaseModel):
     """Comprehensive system analytics response"""
 
-    overview: Dict[str, Any]
-    services: List[ServiceMetrics]
+    overview: dict[str, Any]
+    services: list[ServiceMetrics]
     audio: AudioProcessingMetrics
     translation: TranslationMetrics
     websocket: WebSocketMetrics
     bots: BotSessionMetrics
-    trends: Dict[str, List[float]]
-    alerts: List[Dict[str, Any]]
+    trends: dict[str, list[float]]
+    alerts: list[dict[str, Any]]
     timestamp: datetime
 
 
@@ -162,21 +162,21 @@ class CustomDashboardRequest(BaseModel):
     """Request for custom dashboard creation"""
 
     dashboard_name: str
-    metrics: List[str]
+    metrics: list[str]
     time_range: TimeRange
     aggregation: AggregationType
-    filters: Optional[Dict[str, Any]] = {}
-    refresh_interval: Optional[int] = 30  # seconds
+    filters: dict[str, Any] | None = {}
+    refresh_interval: int | None = 30  # seconds
 
 
 class ExportRequest(BaseModel):
     """Analytics export request"""
 
     format: str = Field(..., pattern="^(json|csv|pdf)$")
-    metrics: List[str]
+    metrics: list[str]
     time_range: TimeRange
-    start_time: Optional[datetime] = None
-    end_time: Optional[datetime] = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
     aggregation: AggregationType = AggregationType.AVERAGE
 
 
@@ -206,16 +206,12 @@ async def get_analytics_overview(
         start_time = _get_start_time(time_range, end_time)
 
         # Collect metrics from all services
-        services_data = await _collect_service_metrics(
-            health_monitor, start_time, end_time
-        )
+        services_data = await _collect_service_metrics(health_monitor, start_time, end_time)
         audio_data = await _collect_audio_metrics(audio_client, start_time, end_time)
         translation_data = await _collect_translation_metrics(
             translation_client, start_time, end_time
         )
-        websocket_data = await _collect_websocket_metrics(
-            websocket_manager, start_time, end_time
-        )
+        websocket_data = await _collect_websocket_metrics(websocket_manager, start_time, end_time)
         bot_data = await _collect_bot_metrics(bot_manager, start_time, end_time)
 
         # Generate trends and alerts
@@ -232,9 +228,7 @@ async def get_analytics_overview(
             "system_health_score": _calculate_health_score(services_data),
             "active_services": len([s for s in services_data if s.success_rate > 0.95]),
             "total_errors": sum(s.request_count * s.error_rate for s in services_data),
-            "uptime_percentage": min(s.uptime_seconds for s in services_data)
-            / (24 * 3600)
-            * 100
+            "uptime_percentage": min(s.uptime_seconds for s in services_data) / (24 * 3600) * 100
             if services_data
             else 100,
         }
@@ -255,15 +249,15 @@ async def get_analytics_overview(
         logger.error(f"Failed to get analytics overview: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get analytics overview: {str(e)}",
-        )
+            detail=f"Failed to get analytics overview: {e!s}",
+        ) from e
 
 
 @router.get("/metrics/{metric_type}")
 async def get_specific_metrics(
     metric_type: MetricType,
     time_range: TimeRange = Query(TimeRange.LAST_HOUR),
-    service: Optional[str] = Query(None),
+    service: str | None = Query(None),
     aggregation: AggregationType = Query(AggregationType.AVERAGE),
     health_monitor=Depends(get_health_monitor),
 ):
@@ -299,9 +293,7 @@ async def get_specific_metrics(
                 health_monitor, start_time, end_time, service, aggregation
             )
         else:
-            raise HTTPException(
-                status_code=400, detail=f"Unknown metric type: {metric_type}"
-            )
+            raise HTTPException(status_code=400, detail=f"Unknown metric type: {metric_type}")
 
         return {
             "metric_type": metric_type,
@@ -318,13 +310,13 @@ async def get_specific_metrics(
         logger.error(f"Failed to get {metric_type} metrics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get {metric_type} metrics: {str(e)}",
-        )
+            detail=f"Failed to get {metric_type} metrics: {e!s}",
+        ) from e
 
 
 @router.get("/trends")
 async def get_trend_analysis(
-    metrics: List[str] = Query(...),
+    metrics: list[str] = Query(...),
     time_range: TimeRange = Query(TimeRange.LAST_24_HOURS),
     resolution: int = Query(60, description="Data point interval in seconds"),
     health_monitor=Depends(get_health_monitor),
@@ -352,9 +344,7 @@ async def get_trend_analysis(
 
             trend_data[metric] = {
                 "time_series": time_series,
-                "trend_direction": trend_analysis[
-                    "direction"
-                ],  # "up", "down", "stable"
+                "trend_direction": trend_analysis["direction"],  # "up", "down", "stable"
                 "trend_strength": trend_analysis["strength"],  # 0.0 to 1.0
                 "forecast": trend_analysis["forecast"],  # Next 3 data points
                 "anomalies": trend_analysis["anomalies"],  # Detected anomalies
@@ -377,8 +367,8 @@ async def get_trend_analysis(
         logger.error(f"Failed to get trend analysis: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get trend analysis: {str(e)}",
-        )
+            detail=f"Failed to get trend analysis: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -408,17 +398,13 @@ async def get_audio_processing_analytics(
         analytics = {
             "summary": {
                 "total_processed_chunks": processing_stats.get("total_chunks", 0),
-                "average_processing_time": processing_stats.get(
-                    "avg_processing_time_ms", 0
-                ),
+                "average_processing_time": processing_stats.get("avg_processing_time_ms", 0),
                 "success_rate": processing_stats.get("success_rate", 0),
                 "quality_score_average": processing_stats.get("avg_quality_score", 0),
             },
             "pipeline_performance": {
                 "vad_effectiveness": processing_stats.get("vad_effectiveness", 0),
-                "noise_reduction_quality": processing_stats.get(
-                    "noise_reduction_quality", 0
-                ),
+                "noise_reduction_quality": processing_stats.get("noise_reduction_quality", 0),
                 "voice_enhancement_improvement": processing_stats.get(
                     "voice_enhancement_improvement", 0
                 ),
@@ -428,23 +414,13 @@ async def get_audio_processing_analytics(
                 "npu_usage_percentage": processing_stats.get("npu_usage", 0),
                 "gpu_fallback_rate": processing_stats.get("gpu_fallback_rate", 0),
                 "cpu_fallback_rate": processing_stats.get("cpu_fallback_rate", 0),
-                "acceleration_effectiveness": processing_stats.get(
-                    "acceleration_effectiveness", 0
-                ),
+                "acceleration_effectiveness": processing_stats.get("acceleration_effectiveness", 0),
             },
             "quality_metrics": {
-                "transcription_accuracy": processing_stats.get(
-                    "transcription_accuracy", 0
-                ),
-                "speaker_diarization_accuracy": processing_stats.get(
-                    "diarization_accuracy", 0
-                ),
-                "audio_quality_improvement": processing_stats.get(
-                    "quality_improvement_db", 0
-                ),
-                "noise_reduction_effectiveness": processing_stats.get(
-                    "noise_reduction_db", 0
-                ),
+                "transcription_accuracy": processing_stats.get("transcription_accuracy", 0),
+                "speaker_diarization_accuracy": processing_stats.get("diarization_accuracy", 0),
+                "audio_quality_improvement": processing_stats.get("quality_improvement_db", 0),
+                "noise_reduction_effectiveness": processing_stats.get("noise_reduction_db", 0),
             },
         }
 
@@ -459,14 +435,14 @@ async def get_audio_processing_analytics(
         logger.error(f"Failed to get audio processing analytics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get audio processing analytics: {str(e)}",
-        )
+            detail=f"Failed to get audio processing analytics: {e!s}",
+        ) from e
 
 
 @router.get("/translation/performance")
 async def get_translation_analytics(
     time_range: TimeRange = Query(TimeRange.LAST_HOUR),
-    language_pair: Optional[str] = Query(None),
+    language_pair: str | None = Query(None),
     translation_client=Depends(get_translation_service_client),
 ):
     """
@@ -485,12 +461,8 @@ async def get_translation_analytics(
         analytics = {
             "summary": {
                 "total_translations": translation_stats.get("total_translations", 0),
-                "average_translation_time": translation_stats.get(
-                    "avg_translation_time_ms", 0
-                ),
-                "character_throughput": translation_stats.get(
-                    "characters_per_second", 0
-                ),
+                "average_translation_time": translation_stats.get("avg_translation_time_ms", 0),
+                "character_throughput": translation_stats.get("characters_per_second", 0),
                 "overall_accuracy": translation_stats.get("accuracy_score", 0),
             },
             "language_performance": translation_stats.get("language_breakdown", {}),
@@ -519,8 +491,8 @@ async def get_translation_analytics(
         logger.error(f"Failed to get translation analytics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get translation analytics: {str(e)}",
-        )
+            detail=f"Failed to get translation analytics: {e!s}",
+        ) from e
 
 
 @router.get("/websocket/connections")
@@ -546,9 +518,7 @@ async def get_websocket_analytics(
             "summary": {
                 "peak_concurrent_connections": ws_stats.get("peak_connections", 0),
                 "total_connections_established": ws_stats.get("total_connections", 0),
-                "average_connection_duration": ws_stats.get(
-                    "avg_connection_duration_seconds", 0
-                ),
+                "average_connection_duration": ws_stats.get("avg_connection_duration_seconds", 0),
                 "message_throughput": ws_stats.get("messages_per_second", 0),
             },
             "connection_patterns": {
@@ -582,14 +552,14 @@ async def get_websocket_analytics(
         logger.error(f"Failed to get WebSocket analytics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get WebSocket analytics: {str(e)}",
-        )
+            detail=f"Failed to get WebSocket analytics: {e!s}",
+        ) from e
 
 
 @router.get("/bots/sessions")
 async def get_bot_session_analytics(
     time_range: TimeRange = Query(TimeRange.LAST_HOUR),
-    platform: Optional[str] = Query(None),
+    platform: str | None = Query(None),
     bot_manager=Depends(get_bot_manager),
 ):
     """
@@ -614,18 +584,14 @@ async def get_bot_session_analytics(
             "summary": {
                 "total_sessions": bot_stats.get("total_sessions", 0),
                 "successful_sessions": bot_stats.get("successful_sessions", 0),
-                "average_session_duration": bot_stats.get(
-                    "avg_session_duration_minutes", 0
-                ),
+                "average_session_duration": bot_stats.get("avg_session_duration_minutes", 0),
                 "success_rate": bot_stats.get("success_rate", 0),
             },
             "platform_breakdown": bot_stats.get("platform_stats", {}),
             "performance_metrics": {
                 "audio_capture_quality": bot_stats.get("audio_quality_score", 0),
                 "caption_extraction_accuracy": bot_stats.get("caption_accuracy", 0),
-                "time_correlation_accuracy": bot_stats.get(
-                    "time_correlation_accuracy", 0
-                ),
+                "time_correlation_accuracy": bot_stats.get("time_correlation_accuracy", 0),
                 "virtual_webcam_performance": bot_stats.get("webcam_performance", 0),
             },
             "error_analysis": {
@@ -649,8 +615,8 @@ async def get_bot_session_analytics(
         logger.error(f"Failed to get bot session analytics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get bot session analytics: {str(e)}",
-        )
+            detail=f"Failed to get bot session analytics: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -672,14 +638,10 @@ async def create_custom_dashboard(
     try:
         # Validate metrics
         available_metrics = await _get_available_metrics()
-        invalid_metrics = [
-            m for m in dashboard_request.metrics if m not in available_metrics
-        ]
+        invalid_metrics = [m for m in dashboard_request.metrics if m not in available_metrics]
 
         if invalid_metrics:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid metrics: {invalid_metrics}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid metrics: {invalid_metrics}")
 
         # Create dashboard configuration
         dashboard_config = {
@@ -696,9 +658,7 @@ async def create_custom_dashboard(
         dashboard_id = await _save_dashboard_config(dashboard_config)
 
         # Generate initial dashboard data
-        dashboard_data = await _generate_dashboard_data(
-            dashboard_config, health_monitor
-        )
+        dashboard_data = await _generate_dashboard_data(dashboard_config, health_monitor)
 
         return {
             "dashboard_id": dashboard_id,
@@ -717,8 +677,8 @@ async def create_custom_dashboard(
         logger.error(f"Failed to create custom dashboard: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create dashboard: {str(e)}",
-        )
+            detail=f"Failed to create dashboard: {e!s}",
+        ) from e
 
 
 @router.get("/dashboard/{dashboard_id}/data")
@@ -736,14 +696,10 @@ async def get_dashboard_data(
         dashboard_config = await _load_dashboard_config(dashboard_id)
 
         if not dashboard_config:
-            raise HTTPException(
-                status_code=404, detail=f"Dashboard {dashboard_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Dashboard {dashboard_id} not found")
 
         # Generate current dashboard data
-        dashboard_data = await _generate_dashboard_data(
-            dashboard_config, health_monitor
-        )
+        dashboard_data = await _generate_dashboard_data(dashboard_config, health_monitor)
 
         return {
             "dashboard_id": dashboard_id,
@@ -760,8 +716,8 @@ async def get_dashboard_data(
         logger.error(f"Failed to get dashboard data: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get dashboard data: {str(e)}",
-        )
+            detail=f"Failed to get dashboard data: {e!s}",
+        ) from e
 
 
 @router.post("/export")
@@ -806,13 +762,13 @@ async def export_analytics(
         logger.error(f"Failed to export analytics: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to export analytics: {str(e)}",
-        )
+            detail=f"Failed to export analytics: {e!s}",
+        ) from e
 
 
 @router.get("/alerts")
 async def get_active_alerts(
-    severity: Optional[str] = Query(None, pattern="^(low|medium|high|critical)$"),
+    severity: str | None = Query(None, pattern="^(low|medium|high|critical)$"),
     health_monitor=Depends(get_health_monitor),
 ):
     """
@@ -849,8 +805,8 @@ async def get_active_alerts(
         logger.error(f"Failed to get active alerts: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get active alerts: {str(e)}",
-        )
+            detail=f"Failed to get active alerts: {e!s}",
+        ) from e
 
 
 # ============================================================================
@@ -876,7 +832,7 @@ def _get_start_time(time_range: TimeRange, end_time: datetime) -> datetime:
 
 async def _collect_service_metrics(
     health_monitor, start_time: datetime, end_time: datetime
-) -> List[ServiceMetrics]:
+) -> list[ServiceMetrics]:
     """Collect metrics from all services"""
     try:
         services_status = await health_monitor.get_all_services_status()
@@ -1027,9 +983,7 @@ async def _collect_bot_metrics(
         return BotSessionMetrics(
             total_sessions=stats.get("total_sessions", 0),
             active_sessions=stats.get("active_sessions", 0),
-            average_session_duration_minutes=stats.get(
-                "avg_session_duration_minutes", 0
-            ),
+            average_session_duration_minutes=stats.get("avg_session_duration_minutes", 0),
             success_rate=stats.get("success_rate", 0),
             meeting_platforms=stats.get("platform_breakdown", {}),
             audio_quality_score=stats.get("audio_quality_score", 0),
@@ -1054,7 +1008,7 @@ async def _collect_bot_metrics(
         )
 
 
-def _calculate_health_score(services: List[ServiceMetrics]) -> float:
+def _calculate_health_score(services: list[ServiceMetrics]) -> float:
     """Calculate overall system health score"""
     if not services:
         return 0.0
@@ -1064,8 +1018,7 @@ def _calculate_health_score(services: List[ServiceMetrics]) -> float:
     for service in services:
         service_score = (
             service.success_rate * 0.4  # 40% weight on success rate
-            + (1 - min(service.response_time_ms / 1000, 1.0))
-            * 0.3  # 30% weight on response time
+            + (1 - min(service.response_time_ms / 1000, 1.0)) * 0.3  # 30% weight on response time
             + (1 - service.cpu_usage / 100) * 0.15  # 15% weight on CPU usage
             + (1 - service.memory_usage / 100) * 0.15  # 15% weight on memory usage
         )
@@ -1075,8 +1028,8 @@ def _calculate_health_score(services: List[ServiceMetrics]) -> float:
 
 
 async def _calculate_trends(
-    services: List[ServiceMetrics], start_time: datetime, end_time: datetime
-) -> Dict[str, List[float]]:
+    services: list[ServiceMetrics], start_time: datetime, end_time: datetime
+) -> dict[str, list[float]]:
     """Calculate trend data for key metrics"""
     # Simplified trend calculation - in production, use time-series database
     trends = {
@@ -1089,10 +1042,10 @@ async def _calculate_trends(
 
 
 async def _check_system_alerts(
-    services: List[ServiceMetrics],
+    services: list[ServiceMetrics],
     audio_metrics: AudioProcessingMetrics,
     translation_metrics: TranslationMetrics,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Generate system alerts based on current metrics"""
     alerts = []
 
@@ -1138,9 +1091,7 @@ async def _check_system_alerts(
     return alerts
 
 
-def _export_json(
-    data: Dict[str, Any], start_time: datetime, end_time: datetime
-) -> JSONResponse:
+def _export_json(data: dict[str, Any], start_time: datetime, end_time: datetime) -> JSONResponse:
     """Export data as JSON"""
     export_data = {
         "export_timestamp": datetime.now().isoformat(),
@@ -1152,7 +1103,7 @@ def _export_json(
 
 
 def _export_csv(
-    data: Dict[str, Any], start_time: datetime, end_time: datetime
+    data: dict[str, Any], start_time: datetime, end_time: datetime
 ) -> StreamingResponse:
     """Export data as CSV"""
     output = io.StringIO()
@@ -1165,9 +1116,7 @@ def _export_csv(
     for metric_name, metric_data in data.items():
         if isinstance(metric_data, list):
             for i, value in enumerate(metric_data):
-                timestamp = start_time + timedelta(
-                    seconds=i * 60
-                )  # Assume 1-minute intervals
+                timestamp = start_time + timedelta(seconds=i * 60)  # Assume 1-minute intervals
                 writer.writerow([timestamp.isoformat(), metric_name, value])
 
     output.seek(0)
@@ -1180,7 +1129,7 @@ def _export_csv(
 
 
 def _export_pdf(
-    data: Dict[str, Any], start_time: datetime, end_time: datetime
+    data: dict[str, Any], start_time: datetime, end_time: datetime
 ) -> StreamingResponse:
     """Export data as PDF"""
     # Simplified PDF export - in production, use proper PDF library
@@ -1198,28 +1147,26 @@ def _export_pdf(
 
 
 # Placeholder functions for dashboard management (implement with database in production)
-async def _save_dashboard_config(config: Dict[str, Any]) -> str:
+async def _save_dashboard_config(config: dict[str, Any]) -> str:
     """Save dashboard configuration and return ID"""
     import uuid
 
     return str(uuid.uuid4())
 
 
-async def _load_dashboard_config(dashboard_id: str) -> Optional[Dict[str, Any]]:
+async def _load_dashboard_config(dashboard_id: str) -> dict[str, Any] | None:
     """Load dashboard configuration by ID"""
     # In production, load from database
     return None
 
 
-async def _generate_dashboard_data(
-    config: Dict[str, Any], health_monitor
-) -> Dict[str, Any]:
+async def _generate_dashboard_data(config: dict[str, Any], health_monitor) -> dict[str, Any]:
     """Generate dashboard data based on configuration"""
     # Simplified dashboard data generation
     return {"message": "Dashboard data would be generated here"}
 
 
-async def _get_available_metrics() -> List[str]:
+async def _get_available_metrics() -> list[str]:
     """Get list of available metrics"""
     return [
         "response_time",
@@ -1232,7 +1179,7 @@ async def _get_available_metrics() -> List[str]:
     ]
 
 
-def _count_by_severity(alerts: List[Dict[str, Any]]) -> Dict[str, int]:
+def _count_by_severity(alerts: list[dict[str, Any]]) -> dict[str, int]:
     """Count alerts by severity"""
     severity_counts = {"low": 0, "medium": 0, "high": 0, "critical": 0}
     for alert in alerts:
@@ -1242,44 +1189,32 @@ def _count_by_severity(alerts: List[Dict[str, Any]]) -> Dict[str, int]:
 
 
 # Additional placeholder functions for comprehensive analytics
-async def _get_performance_metrics(
-    health_monitor, start_time, end_time, service, aggregation
-):
+async def _get_performance_metrics(health_monitor, start_time, end_time, service, aggregation):
     """Get performance-specific metrics"""
     return {"placeholder": "performance metrics"}
 
 
-async def _get_usage_metrics(
-    health_monitor, start_time, end_time, service, aggregation
-):
+async def _get_usage_metrics(health_monitor, start_time, end_time, service, aggregation):
     """Get usage-specific metrics"""
     return {"placeholder": "usage metrics"}
 
 
-async def _get_quality_metrics(
-    health_monitor, start_time, end_time, service, aggregation
-):
+async def _get_quality_metrics(health_monitor, start_time, end_time, service, aggregation):
     """Get quality-specific metrics"""
     return {"placeholder": "quality metrics"}
 
 
-async def _get_error_metrics(
-    health_monitor, start_time, end_time, service, aggregation
-):
+async def _get_error_metrics(health_monitor, start_time, end_time, service, aggregation):
     """Get error-specific metrics"""
     return {"placeholder": "error metrics"}
 
 
-async def _get_capacity_metrics(
-    health_monitor, start_time, end_time, service, aggregation
-):
+async def _get_capacity_metrics(health_monitor, start_time, end_time, service, aggregation):
     """Get capacity-specific metrics"""
     return {"placeholder": "capacity metrics"}
 
 
-async def _get_metric_time_series(
-    health_monitor, metric, start_time, end_time, resolution
-):
+async def _get_metric_time_series(health_monitor, metric, start_time, end_time, resolution):
     """Get time series data for a metric"""
     return []
 

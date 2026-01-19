@@ -7,13 +7,13 @@ for the orchestration service dashboard. Built upon the extracted frontend-servi
 functionality from the legacy whisper-npu-server.
 """
 
+import logging
 import os
 import time
-import logging
-from typing import Dict, Any
 from pathlib import Path
+from typing import Any
 
-from flask import Flask, render_template, send_from_directory, jsonify, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.exceptions import NotFound
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class WebServer:
     """Web server component for frontend interface"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize web server with configuration"""
         self.config = config
         self.host = config.get("host", "0.0.0.0")
@@ -100,33 +100,21 @@ class WebServer:
                 "app_settings": self.app_settings,
                 "service_config": {
                     "whisper": {
-                        "url": os.getenv(
-                            "WHISPER_SERVICE_URL", "http://localhost:5001"
-                        ),
+                        "url": os.getenv("WHISPER_SERVICE_URL", "http://localhost:5001"),
                         "health_endpoint": "/health",
-                        "websocket_url": os.getenv(
-                            "WHISPER_WS_URL", "ws://localhost:5001"
-                        ),
+                        "websocket_url": os.getenv("WHISPER_WS_URL", "ws://localhost:5001"),
                         "status": "unknown",
                     },
                     "translation": {
-                        "url": os.getenv(
-                            "TRANSLATION_SERVICE_URL", "http://localhost:5003"
-                        ),
+                        "url": os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003"),
                         "health_endpoint": "/api/health",
-                        "websocket_url": os.getenv(
-                            "TRANSLATION_WS_URL", "ws://localhost:5003"
-                        ),
+                        "websocket_url": os.getenv("TRANSLATION_WS_URL", "ws://localhost:5003"),
                         "status": "unknown",
                     },
                     "speaker": {
-                        "url": os.getenv(
-                            "SPEAKER_SERVICE_URL", "http://localhost:5002"
-                        ),
+                        "url": os.getenv("SPEAKER_SERVICE_URL", "http://localhost:5002"),
                         "health_endpoint": "/health",
-                        "websocket_url": os.getenv(
-                            "SPEAKER_WS_URL", "ws://localhost:5002"
-                        ),
+                        "websocket_url": os.getenv("SPEAKER_WS_URL", "ws://localhost:5002"),
                         "status": "unknown",
                     },
                 },
@@ -163,9 +151,7 @@ class WebServer:
     def render_websocket_test(self) -> str:
         """Render WebSocket test page"""
         try:
-            return render_template(
-                "websocket-test.html", app_settings=self.app_settings
-            )
+            return render_template("websocket-test.html", app_settings=self.app_settings)
         except Exception as e:
             logger.error(f"WebSocket test rendering failed: {e}")
             return self._render_error_page("WebSocket Test Error", str(e))
@@ -181,9 +167,7 @@ class WebServer:
     def render_audio_test(self) -> str:
         """Render audio test page"""
         try:
-            return render_template(
-                "audio-test-consolidated.html", app_settings=self.app_settings
-            )
+            return render_template("audio-test-consolidated.html", app_settings=self.app_settings)
         except Exception as e:
             logger.error(f"Audio test rendering failed: {e}")
             return self._render_error_page("Audio Test Error", str(e))
@@ -217,7 +201,7 @@ class WebServer:
             logger.error(f"Static file serving error: {e}")
             raise
 
-    def get_frontend_config(self) -> Dict[str, Any]:
+    def get_frontend_config(self) -> dict[str, Any]:
         """Get frontend configuration for API"""
         return {
             "services": {
@@ -230,9 +214,7 @@ class WebServer:
                     "features": ["diarization", "clustering", "continuity"],
                 },
                 "translation": {
-                    "url": os.getenv(
-                        "TRANSLATION_SERVICE_URL", "http://localhost:5003"
-                    ),
+                    "url": os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003"),
                     "features": [
                         "translation",
                         "language_detection",
@@ -250,12 +232,8 @@ class WebServer:
                 },
             },
             "ui": {
-                "theme": os.getenv(
-                    "UI_THEME", self.app_settings["ui_settings"]["theme"]
-                ),
-                "language": os.getenv(
-                    "UI_LANGUAGE", self.app_settings["default_language"]
-                ),
+                "theme": os.getenv("UI_THEME", self.app_settings["ui_settings"]["theme"]),
+                "language": os.getenv("UI_LANGUAGE", self.app_settings["default_language"]),
                 "audio_visualization": True,
                 "speaker_colors": [
                     "#FF6B6B",
@@ -274,7 +252,7 @@ class WebServer:
             "audio_settings": self.app_settings["audio_settings"],
         }
 
-    def update_app_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
+    def update_app_settings(self, new_settings: dict[str, Any]) -> dict[str, Any]:
         """Update application settings"""
         updated = {}
 
@@ -299,17 +277,17 @@ class WebServer:
             <head>
                 <title>{title}</title>
                 <style>
-                    body {{ 
-                        font-family: 'Inter', Arial, sans-serif; 
-                        margin: 40px; 
-                        background: #1a1a1a; 
-                        color: #e0e0e0; 
+                    body {{
+                        font-family: 'Inter', Arial, sans-serif;
+                        margin: 40px;
+                        background: #1a1a1a;
+                        color: #e0e0e0;
                     }}
-                    .error {{ 
-                        color: #ff6b6b; 
-                        background: #2d1b1b; 
-                        padding: 20px; 
-                        border-radius: 8px; 
+                    .error {{
+                        color: #ff6b6b;
+                        background: #2d1b1b;
+                        padding: 20px;
+                        border-radius: 8px;
                         border-left: 4px solid #ff6b6b;
                     }}
                     h1 {{ color: #4ECDC4; }}
@@ -325,7 +303,7 @@ class WebServer:
             </html>
             """
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get web server status"""
         return {
             "component": "web_server",
@@ -413,15 +391,9 @@ def add_web_routes(app: Flask, web_server: WebServer):
             logger.info("[DEBUG] Multipart debug endpoint called")
             logger.info(f"[DEBUG] Content-Type: {request.content_type}")
             logger.info(f"[DEBUG] Method: {request.method}")
-            logger.info(
-                f"[DEBUG] Files: {list(request.files.keys()) if request.files else 'None'}"
-            )
-            logger.info(
-                f"[DEBUG] Form: {list(request.form.keys()) if request.form else 'None'}"
-            )
-            logger.info(
-                f"[DEBUG] Data length: {len(request.data) if request.data else 0}"
-            )
+            logger.info(f"[DEBUG] Files: {list(request.files.keys()) if request.files else 'None'}")
+            logger.info(f"[DEBUG] Form: {list(request.form.keys()) if request.form else 'None'}")
+            logger.info(f"[DEBUG] Data length: {len(request.data) if request.data else 0}")
 
             result = {
                 "status": "success",
@@ -480,9 +452,7 @@ def add_web_routes(app: Flask, web_server: WebServer):
             {
                 **web_server.app_settings,
                 "runtime_info": {
-                    "uptime": time.time() - web_server.start_time
-                    if web_server.running
-                    else 0,
+                    "uptime": time.time() - web_server.start_time if web_server.running else 0,
                     "status": "running" if web_server.running else "stopped",
                 },
             }
@@ -498,9 +468,7 @@ def add_web_routes(app: Flask, web_server: WebServer):
 
             updated = web_server.update_app_settings(new_settings)
 
-            return jsonify(
-                {"message": "Settings updated successfully", "updated": updated}
-            )
+            return jsonify({"message": "Settings updated successfully", "updated": updated})
 
         except Exception as e:
             logger.error(f"Settings update error: {e}")

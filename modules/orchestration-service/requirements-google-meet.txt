@@ -1,15 +1,15 @@
 # Google Meet API Integration Requirements
 # Additional dependencies for Google Meet bot functionality
 
+
+# Async support
+aiofiles>=24.1.0
+cryptography>=3.0.0
 # Google API client libraries
 google-api-python-client>=2.0.0
+google-auth>=2.0.0
 google-auth-httplib2>=0.1.0
 google-auth-oauthlib>=1.0.0
-google-auth>=2.0.0
-
-# OAuth 2.0 and JWT handling
-PyJWT>=2.0.0
-cryptography>=3.0.0
 
 # HTTP client for API calls
 httpx>=0.28.1
@@ -17,5 +17,5 @@ httpx>=0.28.1
 # Data processing
 numpy>=2.3.4
 
-# Async support
-aiofiles>=24.1.0
+# OAuth 2.0 and JWT handling
+PyJWT>=2.0.0

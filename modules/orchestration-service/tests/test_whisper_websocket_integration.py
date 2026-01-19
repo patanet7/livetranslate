@@ -15,15 +15,16 @@ Architecture:
     Orchestration (WebSocket Client) ↔ Whisper (WebSocket Server)
 """
 
-import pytest
 import asyncio
-import websockets
-import json
 import base64
-import numpy as np
-from datetime import datetime, timezone
+import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
+
+import numpy as np
+import pytest
+import websockets
 
 # Add src directories to path
 ORCH_SRC = Path(__file__).parent.parent / "src"
@@ -165,9 +166,7 @@ class TestOrchestrationWhisperIntegration:
                     "type": "audio_chunk",
                     "session_id": "audio-test-session",
                     "audio": audio_base64,
-                    "timestamp": datetime.now(timezone.utc)
-                    .isoformat()
-                    .replace("+00:00", "Z"),
+                    "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 }
 
                 await ws.send(json.dumps(audio_message))
@@ -237,9 +236,7 @@ class TestOrchestrationWhisperIntegration:
                             "type": "audio_chunk",
                             "session_id": "segment-test",
                             "audio": audio_base64,
-                            "timestamp": datetime.now(timezone.utc)
-                            .isoformat()
-                            .replace("+00:00", "Z"),
+                            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                         }
                     )
                 )

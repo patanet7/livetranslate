@@ -17,32 +17,43 @@ Features:
 - Database integration for persistent storage
 """
 
-import time
-import logging
 import asyncio
-import threading
-from typing import Dict, List, Optional, Callable, Any
-from dataclasses import dataclass, asdict
 import json
-import httpx
+import logging
+import threading
+import time
 import uuid
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
+from typing import Any
+
+import httpx
+from clients.simple_translation_client import SimpleTranslationClient
+from services.caption_buffer import CaptionBuffer
+
+# Import pipeline components for DRY processing
+from services.pipeline import (
+    GoogleMeetChunkAdapter,
+    PipelineConfig,
+    TranscriptionPipelineCoordinator,
+)
 
 # Import bot components (now integrated in orchestration service)
-from .audio_capture import GoogleMeetAudioCapture, AudioConfig, MeetingInfo
+from .audio_capture import AudioConfig, GoogleMeetAudioCapture, MeetingInfo
 from .browser_audio_capture import BrowserAudioConfig, create_browser_audio_capture
 from .caption_processor import GoogleMeetCaptionProcessor
-from .time_correlation import (
-    TimeCorrelationEngine,
-    CorrelationConfig,
-    ExternalSpeakerEvent,
-    InternalTranscriptionResult,
-)
-from .virtual_webcam import VirtualWebcamManager, WebcamConfig
 from .google_meet_automation import (
     GoogleMeetConfig,
     MeetingState,
     create_google_meet_automation,
 )
+from .time_correlation import (
+    CorrelationConfig,
+    ExternalSpeakerEvent,
+    InternalTranscriptionResult,
+    TimeCorrelationEngine,
+)
+from .virtual_webcam import VirtualWebcamManager, WebcamConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -64,7 +75,7 @@ class BotConfig:
 
     bot_id: str
     bot_name: str = "LiveTranslate Bot"
-    target_languages: List[str] = None
+    target_languages: list[str] = None
     audio_config: AudioConfig = None
     correlation_config: CorrelationConfig = None
     webcam_config: WebcamConfig = None
@@ -95,7 +106,7 @@ class BotSession:
     meeting_info: MeetingInfo
     bot_config: BotConfig
     start_time: float
-    end_time: Optional[float] = None
+    end_time: float | None = None
     status: str = "active"  # 'active', 'paused', 'ended', 'error'
     participants_count: int = 0
     messages_processed: int = 0
@@ -107,11 +118,9 @@ class ServiceClient:
 
     def __init__(self, endpoints: ServiceEndpoints):
         self.endpoints = endpoints
-        self.session_cache: Dict[str, Dict] = {}
+        self.session_cache: dict[str, dict] = {}
 
-    async def create_whisper_session(
-        self, session_id: str, meeting_info: MeetingInfo
-    ) -> bool:
+    async def create_whisper_session(self, session_id: str, meeting_info: MeetingInfo) -> bool:
         """Create a session with the whisper service."""
         try:
             session_data = {
@@ -138,9 +147,7 @@ class ServiceClient:
                     logger.info(f"Created whisper session: {session_id}")
                     return True
                 else:
-                    logger.error(
-                        f"Failed to create whisper session: {response.status_code}"
-                    )
+                    logger.error(f"Failed to create whisper session: {response.status_code}")
                     return False
 
         except Exception as e:
@@ -148,7 +155,7 @@ class ServiceClient:
             return False
 
     async def create_translation_session(
-        self, session_id: str, target_languages: List[str]
+        self, session_id: str, target_languages: list[str]
     ) -> bool:
         """Create a session with the translation service."""
         try:
@@ -175,9 +182,7 @@ class ServiceClient:
                     logger.info(f"Created translation session: {session_id}")
                     return True
                 else:
-                    logger.error(
-                        f"Failed to create translation session: {response.status_code}"
-                    )
+                    logger.error(f"Failed to create translation session: {response.status_code}")
                     return False
 
         except Exception as e:
@@ -186,7 +191,7 @@ class ServiceClient:
 
     async def request_translation(
         self, session_id: str, text: str, speaker_id: str, target_language: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """Request translation for speaker-attributed text."""
         try:
             translation_data = {
@@ -208,9 +213,7 @@ class ServiceClient:
                 if response.status_code == 200:
                     return response.json()
                 else:
-                    logger.warning(
-                        f"Translation request failed: {response.status_code}"
-                    )
+                    logger.warning(f"Translation request failed: {response.status_code}")
                     return None
 
         except Exception as e:
@@ -230,9 +233,7 @@ class ServiceClient:
                 )
                 if response.status_code != 200:
                     success = False
-                    logger.warning(
-                        f"Failed to close whisper session: {response.status_code}"
-                    )
+                    logger.warning(f"Failed to close whisper session: {response.status_code}")
         except Exception as e:
             logger.error(f"Error closing whisper session: {e}")
             success = False
@@ -246,9 +247,7 @@ class ServiceClient:
                 )
                 if response.status_code != 200:
                     success = False
-                    logger.warning(
-                        f"Failed to close translation session: {response.status_code}"
-                    )
+                    logger.warning(f"Failed to close translation session: {response.status_code}")
         except Exception as e:
             logger.error(f"Error closing translation session: {e}")
             success = False
@@ -277,9 +276,11 @@ class GoogleMeetBotIntegration:
         self.correlation_engine = None
         self.virtual_webcam = None
         self.meet_automation = None
+        self.pipeline_coordinator = None  # DRY pipeline for translation
+        self.caption_buffer = None  # Shared caption buffer
 
         # Session management
-        self.active_sessions: Dict[str, BotSession] = {}
+        self.active_sessions: dict[str, BotSession] = {}
         self.current_session_id = None
 
         # Performance tracking
@@ -297,25 +298,28 @@ class GoogleMeetBotIntegration:
         # Thread safety
         self.lock = threading.RLock()
 
+        # Background task tracking (prevents garbage collection and enables cleanup)
+        self._background_tasks: set[asyncio.Task] = set()
+
         logger.info("GoogleMeetBotIntegration initialized")
         logger.info(f"  Bot ID: {bot_config.bot_id}")
         logger.info(f"  Target languages: {bot_config.target_languages}")
         logger.info(f"  Virtual webcam enabled: {bot_config.virtual_webcam_enabled}")
         logger.info(f"  Services: {asdict(bot_config.service_endpoints)}")
 
-    def set_transcription_callback(self, callback: Callable[[Dict], None]):
+    def set_transcription_callback(self, callback: Callable[[dict], None]):
         """Set callback for transcription results."""
         self.on_transcription_ready = callback
 
-    def set_translation_callback(self, callback: Callable[[Dict], None]):
+    def set_translation_callback(self, callback: Callable[[dict], None]):
         """Set callback for translation results."""
         self.on_translation_ready = callback
 
-    def set_speaker_event_callback(self, callback: Callable[[Dict], None]):
+    def set_speaker_event_callback(self, callback: Callable[[dict], None]):
         """Set callback for speaker events."""
         self.on_speaker_event = callback
 
-    def set_session_event_callback(self, callback: Callable[[str, Dict], None]):
+    def set_session_event_callback(self, callback: Callable[[str, dict], None]):
         """Set callback for session events."""
         self.on_session_event = callback
 
@@ -333,9 +337,7 @@ class GoogleMeetBotIntegration:
         Returns:
             Session ID if successful, None if failed
         """
-        session_id = (
-            f"bot_{self.config.bot_id}_{meeting_info.meeting_id}_{int(time.time())}"
-        )
+        session_id = f"bot_{self.config.bot_id}_{meeting_info.meeting_id}_{int(time.time())}"
 
         try:
             with self.lock:
@@ -393,7 +395,7 @@ class GoogleMeetBotIntegration:
             await self._cleanup_session(session_id)
             return None
 
-    async def leave_meeting(self, session_id: str = None) -> bool:
+    async def leave_meeting(self, session_id: str | None = None) -> bool:
         """Leave a meeting and stop processing."""
         session_id = session_id or self.current_session_id
         if not session_id or session_id not in self.active_sessions:
@@ -450,9 +452,7 @@ class GoogleMeetBotIntegration:
         """Initialize sessions with all services."""
         try:
             # Create whisper session
-            success = await self.service_client.create_whisper_session(
-                session_id, meeting_info
-            )
+            success = await self.service_client.create_whisper_session(session_id, meeting_info)
             if not success:
                 return False
 
@@ -460,18 +460,13 @@ class GoogleMeetBotIntegration:
             success = await self.service_client.create_translation_session(
                 session_id, self.config.target_languages
             )
-            if not success:
-                return False
-
-            return True
+            return success
 
         except Exception as e:
             logger.error(f"Error initializing service sessions: {e}")
             return False
 
-    async def _initialize_bot_components(
-        self, session_id: str, meeting_info: MeetingInfo
-    ) -> bool:
+    async def _initialize_bot_components(self, session_id: str, meeting_info: MeetingInfo) -> bool:
         """Initialize bot components for the session."""
         try:
             # Initialize browser-specific audio capture for Google Meet
@@ -499,9 +494,7 @@ class GoogleMeetBotIntegration:
             )
 
             # Set audio capture callbacks
-            self.audio_capture.set_transcription_callback(
-                self._handle_transcription_result
-            )
+            self.audio_capture.set_transcription_callback(self._handle_transcription_result)
             self.audio_capture.set_error_callback(self._handle_audio_error)
 
             # Initialize caption processor
@@ -513,9 +506,7 @@ class GoogleMeetBotIntegration:
 
             # Set caption processor callbacks
             self.caption_processor.set_caption_callback(self._handle_caption_segment)
-            self.caption_processor.set_speaker_event_callback(
-                self._handle_speaker_event
-            )
+            self.caption_processor.set_speaker_event_callback(self._handle_speaker_event)
             self.caption_processor.set_error_callback(self._handle_caption_error)
 
             # Initialize correlation engine
@@ -534,6 +525,51 @@ class GoogleMeetBotIntegration:
 
                 # Set webcam callbacks
                 self.virtual_webcam.on_error = self._handle_webcam_error
+
+            # Initialize DRY pipeline for translation
+            # Creates caption buffer and pipeline coordinator for unified processing
+            self.caption_buffer = CaptionBuffer(
+                max_captions=50,
+                default_duration_seconds=8.0,
+            )
+
+            # Configure pipeline
+            import os
+
+            pipeline_config = PipelineConfig(
+                session_id=session_id,
+                transcript_id=meeting_info.meeting_id,
+                target_languages=self.config.target_languages,
+                source_language="auto",
+                domain="meeting",
+            )
+
+            # Create translation client for pipeline
+            translation_base_url = os.getenv(
+                "TRANSLATION_SERVICE_URL", self.config.service_endpoints.translation_service
+            )
+            simple_translation_client = SimpleTranslationClient(base_url=translation_base_url)
+
+            # Create adapter for Google Meet transcripts
+            adapter = GoogleMeetChunkAdapter()
+
+            # Create pipeline coordinator
+            self.pipeline_coordinator = TranscriptionPipelineCoordinator(
+                config=pipeline_config,
+                adapter=adapter,
+                simple_translation_client=simple_translation_client,
+                caption_buffer=self.caption_buffer,
+                db_manager=self.database_manager,
+            )
+
+            # Initialize pipeline
+            await self.pipeline_coordinator.initialize()
+
+            # Set pipeline callbacks to update virtual webcam
+            self.pipeline_coordinator.on_translation_ready(self._handle_pipeline_translation)
+            self.pipeline_coordinator.on_error(self._handle_pipeline_error)
+
+            logger.info(f"Pipeline coordinator initialized for session {session_id}")
 
             # Initialize Google Meet automation
             meet_config = GoogleMeetConfig(
@@ -631,7 +667,7 @@ class GoogleMeetBotIntegration:
         except Exception as e:
             logger.error(f"Error handling live caption: {e}")
 
-    async def _handle_participant_change(self, participants: Dict[str, Any]):
+    async def _handle_participant_change(self, participants: dict[str, Any]):
         """Handle participant changes in Google Meet"""
         try:
             logger.info(f"Participants changed: {len(participants)} participants")
@@ -657,14 +693,10 @@ class GoogleMeetBotIntegration:
         except Exception as e:
             logger.error(f"Error handling participant change: {e}")
 
-    async def _handle_browser_audio_chunk(
-        self, audio_bytes: bytes, metadata: Dict[str, Any]
-    ):
+    async def _handle_browser_audio_chunk(self, audio_bytes: bytes, metadata: dict[str, Any]):
         """Handle audio chunk from browser audio capture"""
         try:
-            logger.debug(
-                f"Browser audio chunk received: {metadata.get('chunk_id', 'unknown')}"
-            )
+            logger.debug(f"Browser audio chunk received: {metadata.get('chunk_id', 'unknown')}")
 
             # The browser audio capture already sends to orchestration service
             # This callback is mainly for monitoring and statistics
@@ -718,13 +750,9 @@ class GoogleMeetBotIntegration:
             if self.browser_audio_capture:
                 success = await self.browser_audio_capture.start_capture()
                 if not success:
-                    logger.warning(
-                        "Browser audio capture failed, falling back to system audio"
-                    )
+                    logger.warning("Browser audio capture failed, falling back to system audio")
                     # Fall back to system audio capture
-                    success = await self.audio_capture.start_capture(
-                        session.meeting_info
-                    )
+                    success = await self.audio_capture.start_capture(session.meeting_info)
                     if not success:
                         return False
             else:
@@ -742,9 +770,7 @@ class GoogleMeetBotIntegration:
             if self.virtual_webcam:
                 success = await self.virtual_webcam.start_stream(session_id)
                 if not success:
-                    logger.warning(
-                        "Failed to start virtual webcam, continuing without it"
-                    )
+                    logger.warning("Failed to start virtual webcam, continuing without it")
                     # Don't fail the whole process if webcam fails
 
             # Update session status
@@ -802,11 +828,17 @@ class GoogleMeetBotIntegration:
                 await self.browser_audio_capture.shutdown()
                 self.browser_audio_capture = None
 
+            # Flush and clean up pipeline
+            if self.pipeline_coordinator:
+                await self.pipeline_coordinator.flush()
+                self.pipeline_coordinator = None
+
             # Clean up components
             self.audio_capture = None
             self.caption_processor = None
             self.correlation_engine = None
             self.virtual_webcam = None
+            self.caption_buffer = None
 
             # Remove from active sessions
             with self.lock:
@@ -816,13 +848,24 @@ class GoogleMeetBotIntegration:
         except Exception as e:
             logger.error(f"Error cleaning up session: {e}")
 
-    def _handle_transcription_result(self, result: Dict):
-        """Handle transcription result from audio capture."""
+    def _handle_transcription_result(self, result: dict):
+        """
+        Handle transcription result from audio capture.
+
+        Routes through DRY pipeline for aggregation, translation, and storage.
+        The pipeline handles:
+        - Sentence aggregation
+        - Translation via RollingWindowTranslator
+        - Database storage
+        - Caption buffer updates
+
+        Virtual webcam is updated via pipeline callback.
+        """
         try:
             if not result.get("clean_text"):
                 return
 
-            # Create internal transcription result
+            # Create internal transcription result for correlation engine
             internal_result = InternalTranscriptionResult(
                 segment_id=result.get("segment_id", str(uuid.uuid4())),
                 text=result["clean_text"],
@@ -834,30 +877,23 @@ class GoogleMeetBotIntegration:
                 processing_metadata=result,
             )
 
-            # Store in database if manager available
-            if self.database_manager and self.current_session_id:
-                asyncio.create_task(
-                    self._store_transcription_to_database(internal_result, result)
-                )
-
-            # Add to correlation engine for speaker attribution
+            # Add to correlation engine for speaker attribution (keeps timeline correlation)
             if self.correlation_engine:
                 self.correlation_engine.add_internal_result(internal_result)
 
-            # Also display transcription directly in virtual webcam with fallback speaker info
+            # Extract speaker info for pipeline chunk
+            speaker_id = result.get("speaker_id", "unknown_speaker")
+            speaker_name = result.get("speaker_name", "Unknown Speaker")
+
+            if result.get("diarization"):
+                diarization_info = result["diarization"]
+                if "speaker_id" in diarization_info:
+                    speaker_id = diarization_info["speaker_id"]
+                if "speaker_label" in diarization_info:
+                    speaker_name = diarization_info["speaker_label"]
+
+            # Display original transcription in virtual webcam immediately
             if self.virtual_webcam:
-                # Extract speaker info from result or use fallback
-                speaker_id = result.get("speaker_id", "unknown_speaker")
-                speaker_name = result.get("speaker_name", "Unknown Speaker")
-
-                # Check for diarization info in result
-                if "diarization" in result and result["diarization"]:
-                    diarization_info = result["diarization"]
-                    if "speaker_id" in diarization_info:
-                        speaker_id = diarization_info["speaker_id"]
-                    if "speaker_label" in diarization_info:
-                        speaker_name = diarization_info["speaker_label"]
-
                 transcription_data = {
                     "session_id": self.current_session_id,
                     "correlation_id": f"direct_{internal_result.segment_id}",
@@ -870,15 +906,39 @@ class GoogleMeetBotIntegration:
                     "start_timestamp": internal_result.start_timestamp,
                     "end_timestamp": internal_result.end_timestamp,
                     "correlation_confidence": internal_result.confidence,
-                    "translation_confidence": internal_result.confidence,  # Use actual Whisper confidence
+                    "translation_confidence": internal_result.confidence,
                     "timestamp": time.time(),
                     "is_original_transcription": True,
                 }
-
                 self.virtual_webcam.add_translation(transcription_data)
 
-            # Try to get correlations and process them for translation
-            asyncio.create_task(self._process_correlations())
+            # Route through DRY pipeline for aggregation + translation
+            # Pipeline handles: aggregation → translation → DB storage → caption buffer
+            if self.pipeline_coordinator:
+                # Build chunk in Google Meet format for the adapter
+                pipeline_chunk = {
+                    "transcript": internal_result.text,  # GoogleMeetChunkAdapter expects "transcript"
+                    "text": internal_result.text,
+                    "speaker_id": speaker_id,
+                    "speaker_name": speaker_name,
+                    "timestamp": int(internal_result.start_timestamp * 1000),
+                    "duration_ms": int(
+                        (internal_result.end_timestamp - internal_result.start_timestamp) * 1000
+                    ),
+                    "confidence": internal_result.confidence,
+                    "meeting_id": self.current_session_id,
+                    "chunk_id": internal_result.segment_id,
+                }
+
+                # Process through pipeline asynchronously
+                task = asyncio.create_task(self._process_through_pipeline(pipeline_chunk))
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+            else:
+                # Fallback: use legacy correlation-based translation
+                task = asyncio.create_task(self._process_correlations())
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
 
             # Notify transcription callback
             if self.on_transcription_ready:
@@ -898,6 +958,16 @@ class GoogleMeetBotIntegration:
             if self.on_error:
                 self.on_error(f"Transcription handling error: {e}")
 
+    async def _process_through_pipeline(self, chunk: dict):
+        """Process a chunk through the DRY pipeline."""
+        try:
+            if self.pipeline_coordinator:
+                await self.pipeline_coordinator.process_raw_chunk(chunk)
+        except Exception as e:
+            logger.error(f"Error processing chunk through pipeline: {e}")
+            # Fallback to legacy processing
+            await self._process_correlations()
+
     def _handle_caption_segment(self, caption):
         """Handle caption segment from Google Meet."""
         try:
@@ -916,7 +986,9 @@ class GoogleMeetBotIntegration:
                 self.correlation_engine.add_external_event(external_event)
 
             # Try to get correlations and process them
-            asyncio.create_task(self._process_correlations())
+            task = asyncio.create_task(self._process_correlations())
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
         except Exception as e:
             logger.error(f"Error handling caption segment: {e}")
@@ -996,19 +1068,13 @@ class GoogleMeetBotIntegration:
                             "speaker_name": correlation["speaker_name"],
                             "original_text": correlation["text"],
                             "original_language": correlation["language"],
-                            "translated_text": translation_result.get(
-                                "translated_text"
-                            ),
+                            "translated_text": translation_result.get("translated_text"),
                             "source_language": correlation["language"],
                             "target_language": target_lang,
                             "start_timestamp": correlation["start_timestamp"],
                             "end_timestamp": correlation["end_timestamp"],
-                            "correlation_confidence": correlation[
-                                "correlation_confidence"
-                            ],
-                            "translation_confidence": translation_result.get(
-                                "confidence", 0.0
-                            ),
+                            "correlation_confidence": correlation["correlation_confidence"],
+                            "translation_confidence": translation_result.get("confidence", 0.0),
                             "timestamp": time.time(),
                             "is_original_transcription": False,
                         }
@@ -1023,9 +1089,11 @@ class GoogleMeetBotIntegration:
 
                         # Store translation to database
                         if self.database_manager and self.current_session_id:
-                            asyncio.create_task(
+                            task = asyncio.create_task(
                                 self._store_translation_to_database(correlated_data)
                             )
+                            self._background_tasks.add(task)
+                            task.add_done_callback(self._background_tasks.discard)
 
                         # Update session statistics
                         with self.lock:
@@ -1041,7 +1109,7 @@ class GoogleMeetBotIntegration:
                 self.on_error(f"Correlation processing error: {e}")
 
     async def _store_transcription_to_database(
-        self, internal_result: InternalTranscriptionResult, result: Dict
+        self, internal_result: InternalTranscriptionResult, result: dict
     ):
         """Store transcription result to database."""
         try:
@@ -1052,7 +1120,7 @@ class GoogleMeetBotIntegration:
             }
 
             # Check for diarization info
-            if "diarization" in result and result["diarization"]:
+            if result.get("diarization"):
                 diarization_info = result["diarization"]
                 if "speaker_id" in diarization_info:
                     speaker_info["speaker_id"] = diarization_info["speaker_id"]
@@ -1076,14 +1144,12 @@ class GoogleMeetBotIntegration:
                 },
             )
 
-            logger.debug(
-                f"Stored transcription to database: {internal_result.segment_id}"
-            )
+            logger.debug(f"Stored transcription to database: {internal_result.segment_id}")
 
         except Exception as e:
             logger.error(f"Error storing transcription to database: {e}")
 
-    async def _store_translation_to_database(self, translation_data: Dict):
+    async def _store_translation_to_database(self, translation_data: dict):
         """Store translation result to database."""
         try:
             # Extract speaker information
@@ -1111,12 +1177,8 @@ class GoogleMeetBotIntegration:
                 speaker_info=speaker_info,
                 timing_info=timing_info,
                 processing_metadata={
-                    "translation_confidence": translation_data.get(
-                        "translation_confidence"
-                    ),
-                    "correlation_confidence": translation_data.get(
-                        "correlation_confidence"
-                    ),
+                    "translation_confidence": translation_data.get("translation_confidence"),
+                    "correlation_confidence": translation_data.get("correlation_confidence"),
                     "original_text": translation_data.get("original_text"),
                     "is_original_transcription": translation_data.get(
                         "is_original_transcription", False
@@ -1131,7 +1193,7 @@ class GoogleMeetBotIntegration:
         except Exception as e:
             logger.error(f"Error storing translation to database: {e}")
 
-    async def _store_audio_chunk_to_database(self, audio_bytes: bytes, metadata: Dict):
+    async def _store_audio_chunk_to_database(self, audio_bytes: bytes, metadata: dict):
         """Store audio chunk to database."""
         try:
             if self.database_manager and self.current_session_id:
@@ -1180,7 +1242,65 @@ class GoogleMeetBotIntegration:
         if self.on_error:
             self.on_error(f"Webcam error: {error}")
 
-    def get_session_status(self, session_id: str = None) -> Optional[Dict]:
+    async def _handle_pipeline_translation(self, unit, translation_result):
+        """Handle translation result from DRY pipeline - update virtual webcam."""
+        try:
+            if not translation_result:
+                return
+
+            # Build translation data for virtual webcam
+            translation_data = {
+                "session_id": self.current_session_id,
+                "correlation_id": f"pipeline_{unit.unit_id if hasattr(unit, 'unit_id') else uuid.uuid4().hex[:8]}",
+                "speaker_id": unit.speaker_name if hasattr(unit, "speaker_name") else "unknown",
+                "speaker_name": unit.speaker_name
+                if hasattr(unit, "speaker_name")
+                else "Unknown Speaker",
+                "original_text": unit.text if hasattr(unit, "text") else "",
+                "translated_text": translation_result.translated,
+                "source_language": translation_result.source_language,
+                "target_language": translation_result.target_language,
+                "start_timestamp": unit.start_time if hasattr(unit, "start_time") else time.time(),
+                "end_timestamp": unit.end_time if hasattr(unit, "end_time") else time.time(),
+                "correlation_confidence": translation_result.confidence or 0.9,
+                "translation_confidence": translation_result.confidence or 0.9,
+                "timestamp": time.time(),
+                "is_original_transcription": False,
+            }
+
+            # Add to virtual webcam if enabled
+            if self.virtual_webcam:
+                self.virtual_webcam.add_translation(translation_data)
+
+            # Notify external callback
+            if self.on_translation_ready:
+                self.on_translation_ready(translation_data)
+
+            # Update session statistics
+            with self.lock:
+                if self.current_session_id in self.active_sessions:
+                    self.active_sessions[self.current_session_id].messages_processed += 1
+                    self.total_messages_processed += 1
+
+            logger.debug(
+                f"Pipeline translation delivered: {translation_result.target_language} - "
+                f"{len(translation_result.translated)} chars"
+            )
+
+        except Exception as e:
+            logger.error(f"Error handling pipeline translation: {e}")
+
+    async def _handle_pipeline_error(self, error: str):
+        """Handle error from DRY pipeline."""
+        logger.error(f"Pipeline error: {error}")
+        if self.current_session_id and self.current_session_id in self.active_sessions:
+            with self.lock:
+                self.active_sessions[self.current_session_id].errors_count += 1
+
+        if self.on_error:
+            self.on_error(f"Pipeline error: {error}")
+
+    def get_session_status(self, session_id: str | None = None) -> dict | None:
         """Get status of a bot session."""
         session_id = session_id or self.current_session_id
         if not session_id or session_id not in self.active_sessions:
@@ -1215,7 +1335,7 @@ class GoogleMeetBotIntegration:
 
             return status
 
-    def get_bot_statistics(self) -> Dict[str, Any]:
+    def get_bot_statistics(self) -> dict[str, Any]:
         """Get comprehensive bot statistics."""
         with self.lock:
             return {

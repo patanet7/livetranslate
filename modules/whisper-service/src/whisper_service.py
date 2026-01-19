@@ -24,57 +24,42 @@ Key Features:
 - Threading safety for concurrent requests
 """
 
-import os
 import asyncio
 import logging
 import threading
 import time
-import json
-import tempfile
-from typing import Dict, List, Optional, AsyncGenerator, Union, Tuple, Any
-from dataclasses import asdict
-from datetime import datetime
-from pathlib import Path
-from queue import Queue, Empty
-from collections import deque
+from collections.abc import AsyncGenerator
+from typing import Any
 
-import numpy as np
-import soundfile as sf
 import librosa
-import webrtcvad
-from scipy import signal
+import numpy as np
 
 # PyTorch and Whisper imports
 import torch
 import whisper
-from whisper.decoding import DecodingOptions, DecodingResult
-import torch.nn.functional as F
 
 # Phase 2: SimulStreaming components
-from beam_decoder import BeamSearchDecoder, BeamSearchConfig
-from alignatt_decoder import AlignAttDecoder, AlignAttConfig, AlignAttState
-from domain_prompt_manager import DomainPromptManager, create_domain_prompt
-from vad_detector import SileroVAD, get_vad
-from stability_tracker import StabilityTracker, StabilityConfig, TokenState
+from audio import VADProcessor, ensure_sample_rate, load_audio_from_bytes
+from config import load_whisper_config
 
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
+from orchestration import format_error_response, format_success_response
+from session import SessionManager
+from stability_tracker import StabilityConfig, StabilityTracker
 
 # Phase 2 Day 7-14: Import extracted components
 # CLEANUP: Removed SimpleAudioBufferManager (unused - VACOnlineASRProcessor handles buffering)
 from transcription import (
     TranscriptionRequest,
     TranscriptionResult,
+    calculate_text_stability_score,
     detect_hallucination,
     find_stable_word_prefix,
-    calculate_text_stability_score,
     parse_whisper_result,
-    prepare_domain_prompt
+    prepare_domain_prompt,
 )
-from session import SessionManager
-from config import load_whisper_config
-from audio import load_audio_from_bytes, ensure_sample_rate, VADProcessor
-from orchestration import format_success_response, format_error_response
+from vad_detector import get_vad
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -97,6 +82,7 @@ except Exception as e:
 # This alias maintains backwards compatibility
 ModelManager = PyTorchModelManager
 
+
 # Phase 2 Day 7: SimpleAudioBufferManager extracted to transcription/buffer_manager.py
 # Phase 2 Day 7: SessionManager extracted to session/session_manager.py
 # Both classes are now imported above
@@ -104,14 +90,14 @@ class WhisperService:
     """
     Main Whisper Service class providing NPU-optimized transcription
     """
-    
-    def __init__(self, config: Optional[Dict] = None):
+
+    def __init__(self, config: dict | None = None):
         """Initialize Whisper service with configuration"""
         self.config = config or load_whisper_config()
-        
+
         # Check if running in orchestration mode (disable internal chunking)
         self.orchestration_mode = self.config.get("orchestration_mode", False)
-        
+
         # Initialize components
         self.model_manager = ModelManager(self.config.get("models_dir"))
 
@@ -125,7 +111,9 @@ class WhisperService:
         try:
             vad = get_vad(threshold=0.5)
             self.vad_processor = VADProcessor(vad)
-            logger.info("🎤 Silero VAD initialized (VACOnlineProcessor pattern - pre-filters silence)")
+            logger.info(
+                "🎤 Silero VAD initialized (VACOnlineProcessor pattern - pre-filters silence)"
+            )
         except Exception as e:
             logger.warning(f"⚠️ VAD initialization failed: {e}, continuing without VAD")
             self.vad_processor = VADProcessor(None)
@@ -137,23 +125,25 @@ class WhisperService:
             stability_threshold=self.config.get("stability_threshold", 0.85),
             min_stable_words=self.config.get("min_stable_words", 2),
             min_hold_time=self.config.get("min_hold_time", 0.3),
-            max_latency=self.config.get("max_latency", 2.0)
+            max_latency=self.config.get("max_latency", 2.0),
         )
 
         if not self.orchestration_mode:
             logger.info("🎤 Per-session audio buffering enabled (SimulStreaming-style)")
-            logger.info(f"📊 Stability tracking enabled (threshold={self.stability_config.stability_threshold}, "
-                       f"max_latency={self.stability_config.max_latency}s)")
+            logger.info(
+                f"📊 Stability tracking enabled (threshold={self.stability_config.stability_threshold}, "
+                f"max_latency={self.stability_config.max_latency}s)"
+            )
         else:
             logger.info("🎯 Orchestration mode enabled - internal chunking disabled")
 
         self.session_manager = SessionManager(self.config.get("session_dir"))
-        
+
         # Streaming settings
         self.streaming_active = False
         self.streaming_thread = None
         self.inference_interval = self.config.get("inference_interval", 3.0)
-        
+
         # Enhanced statistics for orchestration mode
         self.stats = {
             "requests_processed": 0,
@@ -161,10 +151,12 @@ class WhisperService:
             "total_processing_time": 0.0,
             "average_processing_time": 0.0,
             "errors": 0,
-            "active_sessions": 0
+            "active_sessions": 0,
         }
-        
-        logger.info(f"WhisperService initialized successfully (orchestration_mode: {self.orchestration_mode})")
+
+        logger.info(
+            f"WhisperService initialized successfully (orchestration_mode: {self.orchestration_mode})"
+        )
 
     def _segments_len(self, session_id: str) -> float:
         """
@@ -190,15 +182,15 @@ class WhisperService:
     async def transcribe(self, request: TranscriptionRequest) -> TranscriptionResult:
         """
         Transcribe audio using the specified model
-        
+
         Args:
             request: Transcription request with audio and parameters
-            
+
         Returns:
             Transcription result with text and metadata
         """
         start_time = time.time()
-        
+
         try:
             # Process audio data
             if isinstance(request.audio_data, bytes):
@@ -219,7 +211,7 @@ class WhisperService:
                 domain=request.domain,
                 custom_terms=request.custom_terms,
                 previous_context=request.previous_context,
-                initial_prompt=request.initial_prompt
+                initial_prompt=request.initial_prompt,
             )
 
             # Perform inference with beam search, domain prompts, and streaming policy
@@ -236,17 +228,21 @@ class WhisperService:
                 request.task,
                 request.target_language,
                 request.session_id,  # Pass session_id for per-session rolling context
-                request.enable_code_switching  # Pass code-switching flag
+                request.enable_code_switching,  # Pass code-switching flag
             )
 
-            logger.info(f"[INFERENCE] Complete: model={request.model_name}, beam_size={request.beam_size}, "
-                       f"domain={request.domain}, streaming={request.streaming_policy}")
+            logger.info(
+                f"[INFERENCE] Complete: model={request.model_name}, beam_size={request.beam_size}, "
+                f"domain={request.domain}, streaming={request.streaming_policy}"
+            )
 
             processing_time = time.time() - start_time
 
             # Parse result using extracted parser (handles dict, OpenVINO, fallback formats)
             logger.info(f"[WHISPER] 🔍 Result type: {type(result)}")
-            logger.info(f"[WHISPER] 🔍 Result attributes: {[attr for attr in dir(result) if not attr.startswith('_')]}")
+            logger.info(
+                f"[WHISPER] 🔍 Result attributes: {[attr for attr in dir(result) if not attr.startswith('_')]}"
+            )
 
             text, segments, language, confidence_score = parse_whisper_result(result)
 
@@ -256,8 +252,10 @@ class WhisperService:
             if is_likely_hallucination:
                 # Reduce confidence but don't make it too low if the model was confident
                 confidence_score = max(0.3, confidence_score * 0.7)
-                logger.info(f"[WHISPER] ⚠️ Possible hallucination detected: '{text[:50]}...' - adjusted confidence to {confidence_score:.3f}")
-            
+                logger.info(
+                    f"[WHISPER] ⚠️ Possible hallucination detected: '{text[:50]}...' - adjusted confidence to {confidence_score:.3f}"
+                )
+
             transcription_result = TranscriptionResult(
                 text=text,
                 segments=segments,
@@ -266,20 +264,22 @@ class WhisperService:
                 processing_time=processing_time,
                 model_used=request.model_name,
                 device_used=self.model_manager.device,
-                session_id=request.session_id
+                session_id=request.session_id,
             )
-            
+
             # Add to session if provided
             if request.session_id:
                 self.session_manager.add_transcription(request.session_id, transcription_result)
-            
+
             return transcription_result
-            
+
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
             raise
-    
-    async def transcribe_stream(self, request: TranscriptionRequest) -> AsyncGenerator[TranscriptionResult, None]:
+
+    async def transcribe_stream(
+        self, request: TranscriptionRequest
+    ) -> AsyncGenerator[TranscriptionResult, None]:
         """
         Stream transcription results in real-time using SimulStreaming pattern
 
@@ -312,7 +312,7 @@ class WhisperService:
 
         # Audio buffer configuration (SimulStreaming-style)
         audio_max_len = 30.0  # Maximum buffer duration in seconds
-        audio_min_len = 1.0   # Minimum audio before processing
+        audio_min_len = 1.0  # Minimum audio before processing
 
         # Start streaming transcription
         try:
@@ -323,7 +323,9 @@ class WhisperService:
                     with self.session_buffers_lock:
                         self.session_audio_buffers[session_id].append(audio_tensor)
                         buffer_count = len(self.session_audio_buffers[session_id])
-                    logger.debug(f"[STREAM] Session {session_id}: Added audio chunk, buffer has {buffer_count} segments")
+                    logger.debug(
+                        f"[STREAM] Session {session_id}: Added audio chunk, buffer has {buffer_count} segments"
+                    )
 
             # Start periodic inference
             if not self.streaming_active:
@@ -338,17 +340,20 @@ class WhisperService:
             if session_id not in self.session_stability_trackers:
                 # Create tokenizer from model (if available)
                 try:
-                    tokenizer = self.model_manager.current_model.tokenizer if hasattr(self.model_manager.current_model, 'tokenizer') else None
-                except:
+                    tokenizer = (
+                        self.model_manager.current_model.tokenizer
+                        if hasattr(self.model_manager.current_model, "tokenizer")
+                        else None
+                    )
+                except Exception:
                     tokenizer = None
 
                 self.session_stability_trackers[session_id] = StabilityTracker(
-                    config=self.stability_config,
-                    tokenizer=tokenizer
+                    config=self.stability_config, tokenizer=tokenizer
                 )
                 logger.info(f"[STABILITY] Created tracker for session {session_id}")
 
-            tracker = self.session_stability_trackers[session_id]
+            self.session_stability_trackers[session_id]
 
             # Track text history for word-based stability detection
             text_history = []  # List of (text, timestamp) tuples
@@ -364,23 +369,34 @@ class WhisperService:
 
                     # Maintain rolling window (remove old segments when buffer full)
                     with self.session_buffers_lock:
-                        while segments_len > audio_max_len and len(self.session_audio_buffers[session_id]) > 1:
+                        while (
+                            segments_len > audio_max_len
+                            and len(self.session_audio_buffers[session_id]) > 1
+                        ):
                             self.session_audio_buffers[session_id].pop(0)
                             segments_len = self._segments_len(session_id)
-                            logger.debug(f"[STREAM] Session {session_id}: Removed old segment, buffer now {segments_len:.2f}s")
+                            logger.debug(
+                                f"[STREAM] Session {session_id}: Removed old segment, buffer now {segments_len:.2f}s"
+                            )
 
                     # Process if we have enough audio
                     if segments_len >= audio_min_len:
                         try:
-                            logger.info(f"[STREAM] Session {session_id}: Processing buffer with {segments_len:.2f}s audio")
+                            logger.info(
+                                f"[STREAM] Session {session_id}: Processing buffer with {segments_len:.2f}s audio"
+                            )
 
                             # Concatenate ENTIRE buffer for THIS SESSION (SimulStreaming pattern)
                             with self.session_buffers_lock:
-                                full_audio = torch.cat(self.session_audio_buffers[session_id], dim=0).numpy()
+                                full_audio = torch.cat(
+                                    self.session_audio_buffers[session_id], dim=0
+                                ).numpy()
 
                             # NOTE: VAD filtering is now done at ingestion time (add_audio_chunk)
                             # using VACOnlineProcessor pattern - only speech chunks reach this buffer
-                            logger.debug(f"[STREAM] Session {session_id}: Processing {len(full_audio)} audio samples (all pre-filtered by VAD)")
+                            logger.debug(
+                                f"[STREAM] Session {session_id}: Processing {len(full_audio)} audio samples (all pre-filtered by VAD)"
+                            )
 
                             # Create request with full buffer
                             # AlignAtt will track internally what's already been decoded
@@ -396,7 +412,7 @@ class WhisperService:
                                 streaming_policy=request.streaming_policy,
                                 frame_threshold_offset=request.frame_threshold_offset,
                                 task=request.task,
-                                target_language=request.target_language
+                                target_language=request.target_language,
                             )
 
                             # Transcribe full buffer
@@ -412,17 +428,26 @@ class WhisperService:
 
                             # Keep only recent history (last max_latency window)
                             cutoff_time = current_time - self.stability_config.max_latency
-                            text_history = [(txt, ts) for txt, ts in text_history if ts >= cutoff_time]
+                            text_history = [
+                                (txt, ts) for txt, ts in text_history if ts >= cutoff_time
+                            ]
 
                             # Find stable word prefix (words that appear consistently across recent history)
                             stable_prefix = find_stable_word_prefix(text_history, current_text)
-                            unstable_tail = current_text[len(stable_prefix):].strip()
+                            unstable_tail = current_text[len(stable_prefix) :].strip()
 
                             # Determine emission type
                             is_draft = len(stable_prefix) > len(last_stable_prefix)
                             is_final = False  # Will be set to True on segment boundaries
-                            is_forced = (current_time - text_history[0][1]) >= self.stability_config.max_latency if text_history else False
-                            should_translate = len(stable_prefix.split()) >= self.stability_config.min_stable_words
+                            is_forced = (
+                                (current_time - text_history[0][1])
+                                >= self.stability_config.max_latency
+                                if text_history
+                                else False
+                            )
+                            should_translate = (
+                                len(stable_prefix.split()) >= self.stability_config.min_stable_words
+                            )
 
                             # Update result with stability information
                             result.stable_text = stable_prefix
@@ -431,16 +456,24 @@ class WhisperService:
                             result.is_final = is_final
                             result.is_forced = is_forced
                             result.should_translate = should_translate
-                            result.translation_mode = "draft" if (is_draft and should_translate) else ("final" if is_final else "none")
+                            result.translation_mode = (
+                                "draft"
+                                if (is_draft and should_translate)
+                                else ("final" if is_final else "none")
+                            )
                             result.stable_end_time = current_time
 
                             # Calculate stability score (based on text consistency)
-                            result.stability_score = calculate_text_stability_score(text_history, stable_prefix)
+                            result.stability_score = calculate_text_stability_score(
+                                text_history, stable_prefix
+                            )
 
                             last_stable_prefix = stable_prefix
 
-                            logger.info(f"[STABILITY] Session {session_id}: stable='{stable_prefix[:30]}...' unstable='{unstable_tail[:20]}...' "
-                                       f"(draft={is_draft}, should_translate={should_translate}, score={result.stability_score:.2f})")
+                            logger.info(
+                                f"[STABILITY] Session {session_id}: stable='{stable_prefix[:30]}...' unstable='{unstable_tail[:20]}...' "
+                                f"(draft={is_draft}, should_translate={should_translate}, score={result.stability_score:.2f})"
+                            )
 
                             # DEDUPLICATION: Only emit if content changed (SimulStreaming pattern)
                             # SimulStreaming returns {} when no update - we check text/segments instead
@@ -449,18 +482,30 @@ class WhisperService:
                             # Check if text changed
                             if result.text != last_emitted_text:
                                 content_changed = True
-                                logger.info(f"[STREAM] Session {session_id}: 📝 Text changed: '{last_emitted_text}' → '{result.text[:50]}...'")
+                                logger.info(
+                                    f"[STREAM] Session {session_id}: 📝 Text changed: '{last_emitted_text}' → '{result.text[:50]}...'"
+                                )
 
                             # Check if segments changed (important for preserving semantic boundaries)
                             # Convert segments to comparable format (list of dicts with timing)
-                            current_segments_comparable = [
-                                {'start': seg.get('start'), 'end': seg.get('end'), 'text': seg.get('text')}
-                                for seg in result.segments
-                            ] if result.segments else []
+                            current_segments_comparable = (
+                                [
+                                    {
+                                        "start": seg.get("start"),
+                                        "end": seg.get("end"),
+                                        "text": seg.get("text"),
+                                    }
+                                    for seg in result.segments
+                                ]
+                                if result.segments
+                                else []
+                            )
 
                             if current_segments_comparable != last_emitted_segments:
                                 content_changed = True
-                                logger.info(f"[STREAM] Session {session_id}: 🎯 Segments changed: {len(last_emitted_segments or [])} → {len(current_segments_comparable)} segments")
+                                logger.info(
+                                    f"[STREAM] Session {session_id}: 🎯 Segments changed: {len(last_emitted_segments or [])} → {len(current_segments_comparable)} segments"
+                                )
 
                             # Only emit if content changed
                             if content_changed:
@@ -471,13 +516,19 @@ class WhisperService:
                                 # Yield result with segment boundary information preserved
                                 yield result
 
-                                logger.info(f"[STREAM] Session {session_id}: ✅ Emitted update: '{result.text[:50]}...' (Lang: {result.language}, Segments: {len(result.segments)})")
+                                logger.info(
+                                    f"[STREAM] Session {session_id}: ✅ Emitted update: '{result.text[:50]}...' (Lang: {result.language}, Segments: {len(result.segments)})"
+                                )
                             else:
                                 # No change - skip emission (like SimulStreaming returning {})
-                                logger.info(f"[STREAM] Session {session_id}: ⏸️  No change detected, skipping emission")
+                                logger.info(
+                                    f"[STREAM] Session {session_id}: ⏸️  No change detected, skipping emission"
+                                )
 
                         except Exception as e:
-                            logger.warning(f"Streaming transcription error for session {session_id}: {e}")
+                            logger.warning(
+                                f"Streaming transcription error for session {session_id}: {e}"
+                            )
                             continue
 
         except Exception as e:
@@ -496,24 +547,29 @@ class WhisperService:
                 logger.info(f"[STABILITY] Cleaned up tracker for session {session_id}")
 
             await self.stop_streaming()
-    
+
     async def start_streaming(self, request: TranscriptionRequest):
         """Start streaming transcription"""
         if self.streaming_active:
             return
-        
+
         self.streaming_active = True
         logger.info(f"Started streaming transcription with model {request.model_name}")
-    
+
     async def stop_streaming(self):
         """Stop streaming transcription"""
         if not self.streaming_active:
             return
-        
+
         self.streaming_active = False
         logger.info("Stopped streaming transcription")
-    
-    def add_audio_chunk(self, audio_chunk: np.ndarray, session_id: str = "default", enable_vad_prefilter: bool = False) -> int:
+
+    def add_audio_chunk(
+        self,
+        audio_chunk: np.ndarray,
+        session_id: str = "default",
+        enable_vad_prefilter: bool = False,
+    ) -> int:
         """
         Add audio chunk to the session-specific streaming buffer.
 
@@ -535,7 +591,9 @@ class WhisperService:
             Number of chunks in the session buffer
         """
         if self.orchestration_mode:
-            logger.warning("add_audio_chunk called in orchestration mode - use process_orchestration_chunk instead")
+            logger.warning(
+                "add_audio_chunk called in orchestration mode - use process_orchestration_chunk instead"
+            )
             return 0
 
         # VAD PRE-FILTER (OPTIONAL - controlled by enable_vad_prefilter flag)
@@ -559,40 +617,44 @@ class WhisperService:
             self.session_audio_buffers[session_id].append(audio_tensor)
             buffer_size = len(self.session_audio_buffers[session_id])
 
-        logger.debug(f"[BUFFER] Session {session_id}: Added speech chunk, total {buffer_size} chunks")
+        logger.debug(
+            f"[BUFFER] Session {session_id}: Added speech chunk, total {buffer_size} chunks"
+        )
         return buffer_size
-    
-    async def process_orchestration_chunk(self, 
-                                        chunk_id: str,
-                                        session_id: str,
-                                        audio_data: bytes,
-                                        chunk_metadata: Dict[str, Any],
-                                        model_name: Optional[str] = None) -> Dict[str, Any]:
+
+    async def process_orchestration_chunk(
+        self,
+        chunk_id: str,
+        session_id: str,
+        audio_data: bytes,
+        chunk_metadata: dict[str, Any],
+        model_name: str | None = None,
+    ) -> dict[str, Any]:
         """
         Process a single audio chunk from orchestration service.
         This bypasses internal buffering and processes chunks directly.
         """
         if not self.orchestration_mode:
             logger.warning("process_orchestration_chunk called in legacy mode")
-        
+
         start_time = time.time()
-        
+
         try:
             logger.info(f"[ORCHESTRATION] 🎯 Processing chunk {chunk_id} for session {session_id}")
             logger.debug(f"[ORCHESTRATION] Chunk metadata: {chunk_metadata}")
-            
+
             # Create transcription request for the chunk
             transcription_request = TranscriptionRequest(
                 audio_data=audio_data,
                 model_name=model_name or self.config.get("default_model", "whisper-tiny"),
                 session_id=session_id,
                 streaming=False,  # Single chunk processing
-                enhanced=chunk_metadata.get('enable_enhancement', False),
-                sample_rate=chunk_metadata.get('sample_rate', 16000),
+                enhanced=chunk_metadata.get("enable_enhancement", False),
+                sample_rate=chunk_metadata.get("sample_rate", 16000),
                 enable_vad=False,  # VAD already applied by orchestration
-                timestamp_mode=chunk_metadata.get('timestamp_mode', 'word')
+                timestamp_mode=chunk_metadata.get("timestamp_mode", "word"),
             )
-            
+
             # Process the chunk directly (bypass buffering)
             result = await self.transcribe(transcription_request)
             processing_time = time.time() - start_time
@@ -602,11 +664,15 @@ class WhisperService:
             self.stats["total_processing_time"] += processing_time
 
             # Format success response using orchestration formatter
-            response = format_success_response(chunk_id, session_id, result, processing_time, chunk_metadata)
+            response = format_success_response(
+                chunk_id, session_id, result, processing_time, chunk_metadata
+            )
 
-            logger.info(f"[ORCHESTRATION] ✅ Chunk {chunk_id} processed successfully in {processing_time:.2f}s")
+            logger.info(
+                f"[ORCHESTRATION] ✅ Chunk {chunk_id} processed successfully in {processing_time:.2f}s"
+            )
             return response
-            
+
         except Exception as e:
             processing_time = time.time() - start_time
             self.stats["errors"] += 1
@@ -615,12 +681,12 @@ class WhisperService:
 
             # Format error response using orchestration formatter
             return format_error_response(chunk_id, session_id, e, processing_time, chunk_metadata)
-    
-    def get_available_models(self) -> List[str]:
+
+    def get_available_models(self) -> list[str]:
         """Get list of available models"""
         return self.model_manager.list_models()
-    
-    def get_service_status(self) -> Dict:
+
+    def get_service_status(self) -> dict:
         """Get service status information"""
         # Calculate total buffer info across all sessions
         with self.session_buffers_lock:
@@ -635,18 +701,18 @@ class WhisperService:
             "active_stream_sessions": total_buffers,
             "total_buffer_segments": total_segments,
             "orchestration_mode": self.orchestration_mode,
-            "sessions": len(self.session_manager.sessions)
+            "sessions": len(self.session_manager.sessions),
         }
-    
-    def create_session(self, session_id: str, config: Optional[Dict] = None) -> Dict:
+
+    def create_session(self, session_id: str, config: dict | None = None) -> dict:
         """Create a new transcription session"""
         return self.session_manager.create_session(session_id, config)
-    
-    def get_session(self, session_id: str) -> Optional[Dict]:
+
+    def get_session(self, session_id: str) -> dict | None:
         """Get session information"""
         return self.session_manager.get_session(session_id)
-    
-    def close_session(self, session_id: str) -> Optional[Dict]:
+
+    def close_session(self, session_id: str) -> dict | None:
         """Close a transcription session and clean up per-session resources"""
         # Clean up per-session rolling context and tokenizer
         self.model_manager.cleanup_session_context(session_id)
@@ -665,11 +731,11 @@ class WhisperService:
         self.vad_processor.clear_session(session_id)
 
         return self.session_manager.close_session(session_id)
-    
-    def get_transcription_history(self, limit: int = 50) -> List[Dict]:
+
+    def get_transcription_history(self, limit: int = 50) -> list[dict]:
         """Get recent transcription history"""
         return self.session_manager.get_transcription_history(limit)
-    
+
     def clear_cache(self):
         """Clear model cache"""
         self.model_manager.clear_cache()
@@ -697,48 +763,50 @@ class WhisperService:
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
 
+
 # Factory function for easy service creation
-async def create_whisper_service(config: Optional[Dict] = None) -> WhisperService:
+async def create_whisper_service(config: dict | None = None) -> WhisperService:
     """
     Factory function to create and initialize a whisper service
-    
+
     Args:
         config: Optional configuration dict
-        
+
     Returns:
         Initialized WhisperService instance
     """
     service = WhisperService(config)
     return service
 
+
 # CLI interface for testing
 if __name__ == "__main__":
     import argparse
-    
+
     async def main():
         parser = argparse.ArgumentParser(description="Whisper Service")
         parser.add_argument("--audio", required=True, help="Audio file to transcribe")
         parser.add_argument("--model", default="whisper-tiny", help="Model to use")
         parser.add_argument("--language", help="Language hint")
         parser.add_argument("--streaming", action="store_true", help="Use streaming")
-        
+
         args = parser.parse_args()
-        
+
         # Create service
         service = await create_whisper_service()
-        
+
         try:
             # Load audio file
-            audio_data, sr = librosa.load(args.audio, sr=16000)
-            
+            audio_data, _sr = librosa.load(args.audio, sr=16000)
+
             # Create request
             request = TranscriptionRequest(
                 audio_data=audio_data,
                 model_name=args.model,
                 language=args.language,
-                streaming=args.streaming
+                streaming=args.streaming,
             )
-            
+
             if args.streaming:
                 print("Streaming transcription:")
                 async for result in service.transcribe_stream(request):
@@ -750,8 +818,8 @@ if __name__ == "__main__":
                 print(f"Confidence: {result.confidence_score:.2f}")
                 print(f"Device: {result.device_used}")
                 print(f"Time: {result.processing_time:.2f}s")
-        
+
         finally:
             await service.shutdown()
-    
-    asyncio.run(main()) 
+
+    asyncio.run(main())

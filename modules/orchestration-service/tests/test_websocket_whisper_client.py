@@ -6,11 +6,12 @@ Tests the orchestration service's client for connecting to Whisper's
 WebSocket server.
 """
 
-import pytest
 import asyncio
-import numpy as np
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
 
 # Add src to path
 ORCH_SRC = Path(__file__).parent.parent / "src"
@@ -69,9 +70,7 @@ class TestWebSocketWhisperClient:
 
     def test_whisper_url_property(self):
         """Test Whisper URL is correctly formatted"""
-        client = WebSocketWhisperClient(
-            whisper_host="whisper.example.com", whisper_port=8080
-        )
+        client = WebSocketWhisperClient(whisper_host="whisper.example.com", whisper_port=8080)
 
         assert client.whisper_url == "ws://whisper.example.com:8080/stream"
 
@@ -102,9 +101,7 @@ class TestWebSocketWhisperClient:
         client = WebSocketWhisperClient()
 
         # Manually create session (without actual connection)
-        session = WhisperSessionState(
-            session_id="test-session", config={"model": "base"}
-        )
+        session = WhisperSessionState(session_id="test-session", config={"model": "base"})
         client.sessions["test-session"] = session
 
         # Test get_session_info
@@ -126,15 +123,11 @@ class TestWebSocketWhisperClient:
         client = WebSocketWhisperClient()
 
         # Add test sessions
-        client.sessions["session1"] = WhisperSessionState(
-            session_id="session1", config={}
-        )
+        client.sessions["session1"] = WhisperSessionState(session_id="session1", config={})
         client.sessions["session1"].chunks_sent = 5
         client.sessions["session1"].segments_received = 3
 
-        client.sessions["session2"] = WhisperSessionState(
-            session_id="session2", config={}
-        )
+        client.sessions["session2"] = WhisperSessionState(session_id="session2", config={})
         client.sessions["session2"].chunks_sent = 10
         client.sessions["session2"].is_active = False
 
@@ -160,10 +153,8 @@ class TestWebSocketWhisperClientIntegration:
         """Test client can connect to Whisper WebSocket server"""
         # Import here to avoid import errors if websocket_stream_server doesn't exist
         try:
-            WHISPER_SRC = (
-                Path(__file__).parent.parent.parent / "whisper-service" / "src"
-            )
-            sys.path.insert(0, str(WHISPER_SRC))
+            whisper_src = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            sys.path.insert(0, str(whisper_src))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
             pytest.skip("Whisper WebSocket server not available")
@@ -196,10 +187,8 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_start_stream(self):
         """Test client can start a streaming session"""
         try:
-            WHISPER_SRC = (
-                Path(__file__).parent.parent.parent / "whisper-service" / "src"
-            )
-            sys.path.insert(0, str(WHISPER_SRC))
+            whisper_src = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            sys.path.insert(0, str(whisper_src))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
             pytest.skip("Whisper WebSocket server not available")
@@ -238,10 +227,8 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_send_audio(self):
         """Test client can send audio chunks"""
         try:
-            WHISPER_SRC = (
-                Path(__file__).parent.parent.parent / "whisper-service" / "src"
-            )
-            sys.path.insert(0, str(WHISPER_SRC))
+            whisper_src = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            sys.path.insert(0, str(whisper_src))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
             pytest.skip("Whisper WebSocket server not available")
@@ -261,18 +248,14 @@ class TestWebSocketWhisperClientIntegration:
 
             # Send audio chunk
             test_audio = np.random.randn(16000).astype(np.float32)
-            await client.send_audio_chunk(
-                session_id=session_id, audio_data=test_audio.tobytes()
-            )
+            await client.send_audio_chunk(session_id=session_id, audio_data=test_audio.tobytes())
 
             # Verify session stats
             session_info = client.get_session_info(session_id)
             assert session_info["chunks_sent"] == 1
 
             # Send another chunk
-            await client.send_audio_chunk(
-                session_id=session_id, audio_data=test_audio.tobytes()
-            )
+            await client.send_audio_chunk(session_id=session_id, audio_data=test_audio.tobytes())
 
             session_info = client.get_session_info(session_id)
             assert session_info["chunks_sent"] == 2
@@ -288,10 +271,8 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_receive_segments(self):
         """Test client can receive segments from Whisper"""
         try:
-            WHISPER_SRC = (
-                Path(__file__).parent.parent.parent / "whisper-service" / "src"
-            )
-            sys.path.insert(0, str(WHISPER_SRC))
+            whisper_src = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            sys.path.insert(0, str(whisper_src))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
             pytest.skip("Whisper WebSocket server not available")
@@ -319,9 +300,7 @@ class TestWebSocketWhisperClientIntegration:
 
             # Send audio that should produce segments
             test_audio = np.random.randn(16000).astype(np.float32)
-            await client.send_audio_chunk(
-                session_id=session_id, audio_data=test_audio.tobytes()
-            )
+            await client.send_audio_chunk(session_id=session_id, audio_data=test_audio.tobytes())
 
             # Wait for potential segments
             await asyncio.sleep(0.5)
@@ -341,10 +320,8 @@ class TestWebSocketWhisperClientIntegration:
     async def test_client_connection_callbacks(self):
         """Test connection state change callbacks"""
         try:
-            WHISPER_SRC = (
-                Path(__file__).parent.parent.parent / "whisper-service" / "src"
-            )
-            sys.path.insert(0, str(WHISPER_SRC))
+            whisper_src = Path(__file__).parent.parent.parent / "whisper-service" / "src"
+            sys.path.insert(0, str(whisper_src))
             from websocket_stream_server import WebSocketStreamServer
         except ImportError:
             pytest.skip("Whisper WebSocket server not available")

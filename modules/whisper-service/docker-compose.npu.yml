@@ -56,7 +56,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    
+
   # Enhanced fallback service for testing without NPU
   whisper-npu-server-cpu:
     build:
@@ -177,4 +177,4 @@ volumes:
   whisper-uploads:
     driver: local
   redis-data:
-    driver: local 
+    driver: local

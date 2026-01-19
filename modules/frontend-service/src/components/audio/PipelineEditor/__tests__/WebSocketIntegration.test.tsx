@@ -9,11 +9,11 @@
  * - Reconnection logic
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { ReactFlowProvider } from 'reactflow';
-import AudioStageNode from '../AudioStageNode';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { ReactFlowProvider } from "reactflow";
+import AudioStageNode from "../AudioStageNode";
 
 // Mock WebSocket with message handling
 class MockWebSocket {
@@ -34,7 +34,7 @@ class MockWebSocket {
     // Simulate backend response
     setTimeout(() => {
       this.simulateMessage({
-        type: 'config_updated',
+        type: "config_updated",
         stage_id: message.stage_id,
         success: true,
         parameters: message.parameters,
@@ -43,13 +43,13 @@ class MockWebSocket {
   });
 
   addEventListener = vi.fn((event: string, handler: any) => {
-    if (event === 'message') {
+    if (event === "message") {
       this.messageHandlers.push(handler);
-    } else if (event === 'open') {
+    } else if (event === "open") {
       this.openHandlers.push(handler);
-    } else if (event === 'error') {
+    } else if (event === "error") {
       this.errorHandlers.push(handler);
-    } else if (event === 'close') {
+    } else if (event === "close") {
       this.closeHandlers.push(handler);
     }
   });
@@ -58,39 +58,39 @@ class MockWebSocket {
 
   close = vi.fn(() => {
     this.readyState = 3; // CLOSED
-    this.closeHandlers.forEach(handler => handler());
+    this.closeHandlers.forEach((handler) => handler());
   });
 
   simulateMessage(data: any) {
-    const event = new MessageEvent('message', {
+    const event = new MessageEvent("message", {
       data: JSON.stringify(data),
     });
-    this.messageHandlers.forEach(handler => handler(event));
+    this.messageHandlers.forEach((handler) => handler(event));
   }
 
   simulateOpen() {
     this.readyState = 1; // OPEN
-    this.openHandlers.forEach(handler => handler());
+    this.openHandlers.forEach((handler) => handler());
   }
 
   simulateError() {
-    const event = new Event('error');
-    this.errorHandlers.forEach(handler => handler(event));
+    const event = new Event("error");
+    this.errorHandlers.forEach((handler) => handler(event));
   }
 
   simulateClose() {
     this.readyState = 3; // CLOSED
-    this.closeHandlers.forEach(handler => handler());
+    this.closeHandlers.forEach((handler) => handler());
   }
 }
 
-describe('WebSocket Parameter Sync Integration', () => {
+describe("WebSocket Parameter Sync Integration", () => {
   let mockWebSocket: MockWebSocket;
 
   const defaultNodeData = {
-    label: 'Test Node',
-    description: 'Test Description',
-    stageType: 'processing' as const,
+    label: "Test Node",
+    description: "Test Description",
+    stageType: "processing" as const,
     icon: () => <div>Icon</div>,
     enabled: true,
     gainIn: 0,
@@ -101,22 +101,22 @@ describe('WebSocket Parameter Sync Integration', () => {
     },
     parameters: [
       {
-        name: 'strength',
+        name: "strength",
         value: 0.7,
         min: 0.0,
         max: 1.0,
         step: 0.1,
-        unit: '',
-        description: 'Processing strength',
+        unit: "",
+        description: "Processing strength",
       },
       {
-        name: 'threshold',
+        name: "threshold",
         value: 0.5,
         min: 0.0,
         max: 1.0,
         step: 0.05,
-        unit: '',
-        description: 'Threshold level',
+        unit: "",
+        description: "Threshold level",
       },
     ],
     metrics: {
@@ -128,11 +128,11 @@ describe('WebSocket Parameter Sync Integration', () => {
       cpuUsage: 15.3,
     },
     isProcessing: false,
-    status: 'idle' as const,
+    status: "idle" as const,
   };
 
   const defaultProps = {
-    id: 'node-1',
+    id: "node-1",
     data: defaultNodeData,
     selected: false,
     onSettingsOpen: vi.fn(),
@@ -140,7 +140,7 @@ describe('WebSocket Parameter Sync Integration', () => {
     onParameterChange: vi.fn(),
     onToggleEnabled: vi.fn(),
     isConnectable: true,
-    type: 'audioStage',
+    type: "audioStage",
     position: { x: 0, y: 0 },
     dragging: false,
     zIndex: 0,
@@ -163,23 +163,23 @@ describe('WebSocket Parameter Sync Integration', () => {
         <div style={{ width: 400, height: 600 }}>
           <AudioStageNode {...defaultProps} {...props} />
         </div>
-      </ReactFlowProvider>
+      </ReactFlowProvider>,
     );
   };
 
-  describe('Parameter Update Message Format', () => {
-    it('should send parameter update via WebSocket when slider changes', async () => {
+  describe("Parameter Update Message Format", () => {
+    it("should send parameter update via WebSocket when slider changes", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const strengthSlider = sliders[2]; // After gain sliders
 
       // Change parameter
-      await user.type(strengthSlider, '{ArrowRight}');
+      await user.type(strengthSlider, "{ArrowRight}");
 
       // Wait for debounce
       vi.advanceTimersByTime(300);
@@ -190,25 +190,25 @@ describe('WebSocket Parameter Sync Integration', () => {
 
       const sentMessage = JSON.parse(mockWebSocket.send.mock.calls[0][0]);
       expect(sentMessage).toEqual({
-        type: 'update_stage',
-        stage_id: 'node-1',
+        type: "update_stage",
+        stage_id: "node-1",
         parameters: expect.objectContaining({
           strength: expect.any(Number),
         }),
       });
     });
 
-    it('should send correct parameter name and value', async () => {
+    it("should send correct parameter name and value", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const thresholdSlider = sliders[3]; // Threshold parameter
 
-      await user.type(thresholdSlider, '{ArrowRight}{ArrowRight}');
+      await user.type(thresholdSlider, "{ArrowRight}{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       await waitFor(() => {
@@ -216,19 +216,19 @@ describe('WebSocket Parameter Sync Integration', () => {
       });
 
       const sentMessage = JSON.parse(mockWebSocket.send.mock.calls[0][0]);
-      expect(sentMessage.parameters).toHaveProperty('threshold');
+      expect(sentMessage.parameters).toHaveProperty("threshold");
     });
 
-    it('should include stage_id in message', async () => {
+    it("should include stage_id in message", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
-        id: 'custom-stage-123',
+        id: "custom-stage-123",
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await user.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       await waitFor(() => {
@@ -236,23 +236,26 @@ describe('WebSocket Parameter Sync Integration', () => {
       });
 
       const sentMessage = JSON.parse(mockWebSocket.send.mock.calls[0][0]);
-      expect(sentMessage.stage_id).toBe('custom-stage-123');
+      expect(sentMessage.stage_id).toBe("custom-stage-123");
     });
   });
 
-  describe('Batch Parameter Changes', () => {
-    it('should batch multiple parameter changes', async () => {
+  describe("Batch Parameter Changes", () => {
+    it("should batch multiple parameter changes", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const strengthSlider = sliders[2];
 
       // Change parameter multiple times rapidly
-      await user.type(strengthSlider, '{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}');
+      await user.type(
+        strengthSlider,
+        "{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}",
+      );
 
       // Should not send immediately
       expect(mockWebSocket.send).not.toHaveBeenCalled();
@@ -266,7 +269,7 @@ describe('WebSocket Parameter Sync Integration', () => {
       });
     });
 
-    it('should send latest parameter value when batching', async () => {
+    it("should send latest parameter value when batching", async () => {
       const user = userEvent.setup({ delay: null });
       const onParameterChange = vi.fn();
 
@@ -276,11 +279,11 @@ describe('WebSocket Parameter Sync Integration', () => {
         onParameterChange,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const strengthSlider = sliders[2];
 
       // Make multiple rapid changes
-      await user.type(strengthSlider, '{ArrowRight}{ArrowRight}{ArrowRight}');
+      await user.type(strengthSlider, "{ArrowRight}{ArrowRight}{ArrowRight}");
 
       // onParameterChange should be called multiple times (local state)
       expect(onParameterChange.mock.calls.length).toBeGreaterThan(1);
@@ -293,21 +296,21 @@ describe('WebSocket Parameter Sync Integration', () => {
       });
     });
 
-    it('should reset debounce timer on each change', async () => {
+    it("should reset debounce timer on each change", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
 
       // First change
-      await user.type(sliders[2], '{ArrowRight}');
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(200); // Not enough time
 
       // Second change (should reset timer)
-      await user.type(sliders[2], '{ArrowRight}');
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(200); // Still not enough
 
       // Should not have sent yet
@@ -322,16 +325,16 @@ describe('WebSocket Parameter Sync Integration', () => {
     });
   });
 
-  describe('Backend Confirmation Handling', () => {
-    it('should receive config_updated confirmation from backend', async () => {
+  describe("Backend Confirmation Handling", () => {
+    it("should receive config_updated confirmation from backend", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await user.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       // Wait for send
@@ -350,15 +353,15 @@ describe('WebSocket Parameter Sync Integration', () => {
       });
     });
 
-    it('should handle successful config update', async () => {
+    it("should handle successful config update", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await user.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       await waitFor(() => {
@@ -367,26 +370,28 @@ describe('WebSocket Parameter Sync Integration', () => {
 
       // Simulate backend success response
       mockWebSocket.simulateMessage({
-        type: 'config_updated',
-        stage_id: 'node-1',
+        type: "config_updated",
+        stage_id: "node-1",
         success: true,
       });
 
       // Node should show connected status
-      expect(screen.getByTitle('Connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Connected to backend")).toBeInTheDocument();
     });
 
-    it('should handle failed config update', async () => {
+    it("should handle failed config update", async () => {
       const user = userEvent.setup({ delay: null });
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await user.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       await waitFor(() => {
@@ -395,10 +400,10 @@ describe('WebSocket Parameter Sync Integration', () => {
 
       // Simulate backend error response
       mockWebSocket.simulateMessage({
-        type: 'config_updated',
-        stage_id: 'node-1',
+        type: "config_updated",
+        stage_id: "node-1",
         success: false,
-        error: 'Invalid parameter value',
+        error: "Invalid parameter value",
       });
 
       // Could log error or show error state
@@ -408,15 +413,17 @@ describe('WebSocket Parameter Sync Integration', () => {
     });
   });
 
-  describe('Error Recovery', () => {
-    it('should handle WebSocket errors gracefully', async () => {
+  describe("Error Recovery", () => {
+    it("should handle WebSocket errors gracefully", async () => {
       const user = userEvent.setup({ delay: null });
-      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       const errorWebSocket = {
         ...mockWebSocket,
         send: vi.fn().mockImplementation(() => {
-          throw new Error('WebSocket send failed');
+          throw new Error("WebSocket send failed");
         }),
       };
 
@@ -425,40 +432,40 @@ describe('WebSocket Parameter Sync Integration', () => {
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await user.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
-          'Failed to send parameter update:',
-          expect.any(Error)
+          "Failed to send parameter update:",
+          expect.any(Error),
         );
       });
 
       // UI should still be functional
-      expect(screen.getByText('Test Node')).toBeInTheDocument();
+      expect(screen.getByText("Test Node")).toBeInTheDocument();
 
       consoleError.mockRestore();
     });
 
-    it('should not crash when WebSocket is null', async () => {
+    it("should not crash when WebSocket is null", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: null as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
 
       // Should not throw error
       await expect(async () => {
-        await user.type(sliders[2], '{ArrowRight}');
+        await user.type(sliders[2], "{ArrowRight}");
         vi.advanceTimersByTime(300);
       }).not.toThrow();
     });
 
-    it('should not send when WebSocket is closed', async () => {
+    it("should not send when WebSocket is closed", async () => {
       const user = userEvent.setup({ delay: null });
       const closedWebSocket = new MockWebSocket();
       closedWebSocket.readyState = 3; // CLOSED
@@ -468,26 +475,26 @@ describe('WebSocket Parameter Sync Integration', () => {
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await user.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       expect(closedWebSocket.send).not.toHaveBeenCalled();
     });
   });
 
-  describe('Reconnection Logic', () => {
-    it('should reconnect and resync parameters after disconnect', async () => {
+  describe("Reconnection Logic", () => {
+    it("should reconnect and resync parameters after disconnect", async () => {
       const user = userEvent.setup({ delay: null });
       const { rerender } = renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
 
       // Make change while connected
-      await user.type(sliders[2], '{ArrowRight}');
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       await waitFor(() => {
@@ -506,14 +513,14 @@ describe('WebSocket Parameter Sync Integration', () => {
               isRealtimeActive={false}
             />
           </div>
-        </ReactFlowProvider>
+        </ReactFlowProvider>,
       );
 
       // Should show disconnected
-      expect(screen.getByTitle('Not connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Not connected to backend")).toBeInTheDocument();
 
       // Make change while disconnected
-      await user.type(sliders[2], '{ArrowRight}');
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       // Should not send
@@ -530,14 +537,14 @@ describe('WebSocket Parameter Sync Integration', () => {
               isRealtimeActive={true}
             />
           </div>
-        </ReactFlowProvider>
+        </ReactFlowProvider>,
       );
 
       // Should show connected
-      expect(screen.getByTitle('Connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Connected to backend")).toBeInTheDocument();
 
       // Make new change after reconnect
-      await user.type(sliders[2], '{ArrowRight}');
+      await user.type(sliders[2], "{ArrowRight}");
       vi.advanceTimersByTime(300);
 
       // Should send with new WebSocket
@@ -546,14 +553,14 @@ describe('WebSocket Parameter Sync Integration', () => {
       });
     });
 
-    it('should handle rapid connection state changes', async () => {
+    it("should handle rapid connection state changes", async () => {
       const { rerender } = renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
       // Connect
-      expect(screen.getByTitle('Connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Connected to backend")).toBeInTheDocument();
 
       // Disconnect
       rerender(
@@ -565,10 +572,10 @@ describe('WebSocket Parameter Sync Integration', () => {
               isRealtimeActive={false}
             />
           </div>
-        </ReactFlowProvider>
+        </ReactFlowProvider>,
       );
 
-      expect(screen.getByTitle('Not connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Not connected to backend")).toBeInTheDocument();
 
       // Reconnect
       rerender(
@@ -580,32 +587,32 @@ describe('WebSocket Parameter Sync Integration', () => {
               isRealtimeActive={true}
             />
           </div>
-        </ReactFlowProvider>
+        </ReactFlowProvider>,
       );
 
       // Should be stable
-      expect(screen.getByTitle('Connected to backend')).toBeInTheDocument();
+      expect(screen.getByTitle("Connected to backend")).toBeInTheDocument();
     });
   });
 
-  describe('Multi-Parameter Updates', () => {
-    it('should handle multiple different parameters changing', async () => {
+  describe("Multi-Parameter Updates", () => {
+    it("should handle multiple different parameters changing", async () => {
       const user = userEvent.setup({ delay: null });
       renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
+      const sliders = screen.getAllByRole("slider");
       const strengthSlider = sliders[2];
       const thresholdSlider = sliders[3];
 
       // Change first parameter
-      await user.type(strengthSlider, '{ArrowRight}');
+      await user.type(strengthSlider, "{ArrowRight}");
       vi.advanceTimersByTime(200);
 
       // Change second parameter before first debounce finishes
-      await user.type(thresholdSlider, '{ArrowRight}');
+      await user.type(thresholdSlider, "{ArrowRight}");
       vi.advanceTimersByTime(200);
 
       // Should not have sent yet
@@ -619,24 +626,26 @@ describe('WebSocket Parameter Sync Integration', () => {
         expect(mockWebSocket.send).toHaveBeenCalledTimes(2);
       });
 
-      const messages = mockWebSocket.send.mock.calls.map(call => JSON.parse(call[0]));
-      const paramNames = messages.map(msg => Object.keys(msg.parameters)[0]);
+      const messages = mockWebSocket.send.mock.calls.map((call) =>
+        JSON.parse(call[0]),
+      );
+      const paramNames = messages.map((msg) => Object.keys(msg.parameters)[0]);
 
-      expect(paramNames).toContain('strength');
-      expect(paramNames).toContain('threshold');
+      expect(paramNames).toContain("strength");
+      expect(paramNames).toContain("threshold");
     });
   });
 
-  describe('Cleanup on Unmount', () => {
-    it('should clear pending parameter updates on unmount', async () => {
+  describe("Cleanup on Unmount", () => {
+    it("should clear pending parameter updates on unmount", async () => {
       const user = userEvent.setup({ delay: null });
       const { unmount } = renderNode({
         websocket: mockWebSocket as any,
         isRealtimeActive: true,
       });
 
-      const sliders = screen.getAllByRole('slider');
-      await user.type(sliders[2], '{ArrowRight}');
+      const sliders = screen.getAllByRole("slider");
+      await user.type(sliders[2], "{ArrowRight}");
 
       // Unmount before debounce fires
       unmount();
@@ -646,7 +655,7 @@ describe('WebSocket Parameter Sync Integration', () => {
       expect(mockWebSocket.send).not.toHaveBeenCalled();
     });
 
-    it('should not cause memory leaks with multiple mount/unmount cycles', () => {
+    it("should not cause memory leaks with multiple mount/unmount cycles", () => {
       for (let i = 0; i < 10; i++) {
         const { unmount } = renderNode({
           websocket: mockWebSocket as any,

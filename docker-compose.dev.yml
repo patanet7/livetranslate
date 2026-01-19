@@ -8,7 +8,7 @@ version: '3.8'
 
 services:
   # === CORE SERVICES ===
-  
+
   # Frontend Service
   frontend:
     build:
@@ -128,35 +128,35 @@ services:
       # Development environment
       - FLASK_ENV=development
       - FLASK_DEBUG=1
-      
+
       # Model configuration
       - MODEL_NAME=meta-llama/Llama-3.1-8B-Instruct
       - TENSOR_PARALLEL_SIZE=1
       - MAX_MODEL_LEN=4096
       - GPU_MEMORY_UTILIZATION=0.9
-      
+
       # Triton configuration
       - TRITON_MODEL_REPOSITORY=/app/model_repository
       - TRITON_HTTP_PORT=8000
       - TRITON_GRPC_PORT=8001
       - TRITON_METRICS_PORT=8002
-      
+
       # Translation service configuration
       - TRANSLATION_SERVICE_PORT=5003
       - TRITON_BASE_URL=http://localhost:8000
       - INFERENCE_BACKEND=triton
-      
+
       # Integration with other services
       - REDIS_URL=redis://translation-redis:6379
       - WHISPER_SERVICE_URL=http://whisper:5001
       - SPEAKER_SERVICE_URL=http://speaker:5002
       - FRONTEND_SERVICE_URL=http://frontend:3000
-      
+
       # CUDA configuration
       - CUDA_VISIBLE_DEVICES=0
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      
+
       # Cache directories
       - HF_HOME=/app/cache/huggingface
       - TRANSFORMERS_CACHE=/app/cache/transformers
@@ -185,7 +185,7 @@ services:
       start_period: 120s
 
   # === DATA SERVICES ===
-  
+
   # Redis for Whisper Service
   whisper-redis:
     image: redis:7-alpine
@@ -223,7 +223,7 @@ services:
       retries: 3
 
   # === OPTIONAL MONITORING (Lightweight for dev) ===
-  
+
   # Prometheus (simplified for dev)
   prometheus:
     image: prom/prometheus:latest
@@ -256,7 +256,7 @@ volumes:
   # Data persistence (dev versions)
   redis-data-dev:
   redis-translation-data-dev:
-  
+
   # AI models (shared with production)
   livetranslate-models-whisper:
     external: true
@@ -266,12 +266,12 @@ volumes:
     external: true
   livetranslate-triton-logs:
     external: true
-  
+
   # Sessions and uploads
   livetranslate-sessions:
     external: true
   livetranslate-audio-uploads:
     external: true
-  
+
   # Monitoring data (dev)
-  prometheus-data-dev: 
+  prometheus-data-dev:

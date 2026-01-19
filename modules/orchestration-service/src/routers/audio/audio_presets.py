@@ -10,18 +10,35 @@ Preset management endpoints including:
 - Preset comparison (/presets/compare/{preset1}/{preset2})
 """
 
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from ._shared import *  # noqa: F403,F401
+import numpy as np
+from dependencies import get_audio_coordinator, get_config_manager
+from fastapi import Depends, HTTPException, status
+from models.audio import AudioConfiguration
+from utils.audio_errors import (
+    AudioProcessingBaseError,
+    AudioProcessingError,
+    ValidationError,
+)
+
+from ._shared import (
+    create_audio_router,
+    error_boundary,
+    format_recovery,
+    logger,
+    service_recovery,
+)
 
 # Create router for audio presets
 router = create_audio_router()
 
 
-@router.get("/presets", response_model=Dict[str, AudioConfiguration])
+@router.get("/presets", response_model=dict[str, AudioConfiguration])
 async def get_audio_presets(
-    category: Optional[str] = None, config_manager=Depends(get_config_manager)
-) -> Dict[str, AudioConfiguration]:
+    category: str | None = None, config_manager=Depends(get_config_manager)
+) -> dict[str, AudioConfiguration]:
     """
     Get all available audio configuration presets
 
@@ -46,11 +63,11 @@ async def get_audio_presets(
         logger.error(f"Failed to get presets: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve presets: {str(e)}",
-        )
+            detail=f"Failed to retrieve presets: {e!s}",
+        ) from e
 
 
-async def _get_all_presets() -> Dict[str, Dict[str, Any]]:
+async def _get_all_presets() -> dict[str, dict[str, Any]]:
     """Get all available audio configuration presets"""
     return {
         "broadcast_standard": {
@@ -187,7 +204,7 @@ async def _get_all_presets() -> Dict[str, Dict[str, Any]]:
 @router.get("/presets/{preset_name}")
 async def get_preset_details(
     preset_name: str, config_manager=Depends(get_config_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get detailed information about a specific preset
     """
@@ -205,9 +222,7 @@ async def get_preset_details(
         # Add usage statistics (placeholder)
         preset["usage_stats"] = {
             "times_used": np.random.randint(10, 1000),
-            "last_used": (
-                datetime.now(timezone.utc) - timedelta(days=np.random.randint(1, 30))
-            ).isoformat(),
+            "last_used": (datetime.now(UTC) - timedelta(days=np.random.randint(1, 30))).isoformat(),
             "average_rating": round(4.0 + np.random.random(), 1),
         }
 
@@ -219,26 +234,24 @@ async def get_preset_details(
         logger.error(f"Failed to get preset {preset_name}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve preset: {str(e)}",
-        )
+            detail=f"Failed to retrieve preset: {e!s}",
+        ) from e
 
 
 @router.post("/presets/{preset_name}/apply")
 async def apply_preset_to_audio(
     preset_name: str,
-    request: Dict[str, Any],
+    request: dict[str, Any],
     audio_coordinator=Depends(get_audio_coordinator),
     config_manager=Depends(get_config_manager),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Apply a preset configuration to audio data
 
     - **audio_data**: Base64 encoded audio data
     - **override_config**: Optional config overrides for the preset
     """
-    correlation_id = (
-        f"preset_apply_{preset_name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
-    )
+    correlation_id = f"preset_apply_{preset_name}_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -292,23 +305,21 @@ async def apply_preset_to_audio(
                 "preset_config": preset_config,
                 "override_applied": bool(override_config),
                 "result": result,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
         except AudioProcessingBaseError:
             raise
         except Exception as e:
             raise AudioProcessingError(
-                f"Preset application failed for {preset_name}: {str(e)}",
+                f"Preset application failed for {preset_name}: {e!s}",
                 correlation_id=apply_correlation_id,
                 processing_stage="preset_application",
                 details={"preset": preset_name, "error": str(e)},
-            )
+            ) from e
 
 
-def _merge_configs(
-    base_config: Dict[str, Any], override_config: Dict[str, Any]
-) -> Dict[str, Any]:
+def _merge_configs(base_config: dict[str, Any], override_config: dict[str, Any]) -> dict[str, Any]:
     """Recursively merge configuration dictionaries"""
     result = base_config.copy()
 
@@ -323,10 +334,10 @@ def _merge_configs(
 
 async def _apply_preset_processing(
     audio_data: str,
-    preset_config: Dict[str, Any],
+    preset_config: dict[str, Any],
     correlation_id: str,
     audio_coordinator,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Apply preset processing to audio data"""
     try:
         # Simulate preset processing
@@ -360,17 +371,17 @@ async def _apply_preset_processing(
 
     except Exception as e:
         raise AudioProcessingError(
-            f"Preset processing failed: {str(e)}",
+            f"Preset processing failed: {e!s}",
             correlation_id=correlation_id,
             processing_stage="preset_processing",
             details={"error": str(e)},
-        )
+        ) from e
 
 
 @router.post("/presets/save")
 async def save_custom_preset(
-    request: Dict[str, Any], config_manager=Depends(get_config_manager)
-) -> Dict[str, Any]:
+    request: dict[str, Any], config_manager=Depends(get_config_manager)
+) -> dict[str, Any]:
     """
     Save a custom audio processing preset
 
@@ -421,18 +432,18 @@ async def save_custom_preset(
             "characteristics": _analyze_preset_characteristics(config),
             "optimized_for": _determine_optimization_targets(config),
             "created_by": "user",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         # Save preset (placeholder - in real implementation, save to database)
-        preset_id = f"custom_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        preset_id = f"custom_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
 
         return {
             "preset_id": preset_id,
             "preset_name": preset_name,
             "status": "saved",
             "preset_details": new_preset,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except HTTPException:
@@ -441,11 +452,11 @@ async def save_custom_preset(
         logger.error(f"Failed to save preset: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to save preset: {str(e)}",
-        )
+            detail=f"Failed to save preset: {e!s}",
+        ) from e
 
 
-def _analyze_preset_characteristics(config: Dict[str, Any]) -> Dict[str, str]:
+def _analyze_preset_characteristics(config: dict[str, Any]) -> dict[str, str]:
     """Analyze preset configuration to determine characteristics"""
     stage_count = len([k for k, v in config.items() if v.get("enabled", False)])
 
@@ -465,9 +476,7 @@ def _analyze_preset_characteristics(config: Dict[str, Any]) -> Dict[str, str]:
 
     # Determine quality based on stage complexity
     complex_stages = ["spectral_denoising", "voice_enhancement", "lufs_normalization"]
-    has_complex = any(
-        config.get(stage, {}).get("enabled", False) for stage in complex_stages
-    )
+    has_complex = any(config.get(stage, {}).get("enabled", False) for stage in complex_stages)
 
     quality = "excellent" if has_complex else "good"
     latency = "minimal" if stage_count <= 2 else "low" if stage_count <= 4 else "medium"
@@ -480,7 +489,7 @@ def _analyze_preset_characteristics(config: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
-def _determine_optimization_targets(config: Dict[str, Any]) -> List[str]:
+def _determine_optimization_targets(config: dict[str, Any]) -> list[str]:
     """Determine what the preset is optimized for"""
     targets = []
 
@@ -514,7 +523,7 @@ def _determine_optimization_targets(config: Dict[str, Any]) -> List[str]:
 @router.delete("/presets/{preset_name}")
 async def delete_preset(
     preset_name: str, config_manager=Depends(get_config_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Delete a custom preset (system presets cannot be deleted)
     """
@@ -542,7 +551,7 @@ async def delete_preset(
         return {
             "preset_name": preset_name,
             "status": "deleted",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except HTTPException:
@@ -551,14 +560,14 @@ async def delete_preset(
         logger.error(f"Failed to delete preset {preset_name}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete preset: {str(e)}",
-        )
+            detail=f"Failed to delete preset: {e!s}",
+        ) from e
 
 
 @router.get("/presets/compare/{preset1}/{preset2}")
 async def compare_presets(
     preset1: str, preset2: str, config_manager=Depends(get_config_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Compare two presets and provide analysis and recommendations
     """
@@ -588,10 +597,8 @@ async def compare_presets(
             "preset1": preset1,
             "preset2": preset2,
             "comparison": comparison,
-            "recommendation": _generate_preset_recommendation(
-                preset1_data, preset2_data
-            ),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "recommendation": _generate_preset_recommendation(preset1_data, preset2_data),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except HTTPException:
@@ -600,20 +607,18 @@ async def compare_presets(
         logger.error(f"Failed to compare presets {preset1} and {preset2}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to compare presets: {str(e)}",
-        )
+            detail=f"Failed to compare presets: {e!s}",
+        ) from e
 
 
-async def _compare_preset_configurations(
-    preset1_data: Dict, preset2_data: Dict
-) -> Dict[str, Any]:
+async def _compare_preset_configurations(preset1_data: dict, preset2_data: dict) -> dict[str, Any]:
     """Compare two preset configurations"""
     config1 = preset1_data["config"]
     config2 = preset2_data["config"]
 
     # Compare stage enablement
-    stages1 = set(k for k, v in config1.items() if v.get("enabled", False))
-    stages2 = set(k for k, v in config2.items() if v.get("enabled", False))
+    stages1 = {k for k, v in config1.items() if v.get("enabled", False)}
+    stages2 = {k for k, v in config2.items() if v.get("enabled", False)}
 
     common_stages = stages1.intersection(stages2)
     unique_to_1 = stages1 - stages2
@@ -628,9 +633,7 @@ async def _compare_preset_configurations(
         characteristics_comparison[key] = {
             "preset1": char1.get(key, "unknown"),
             "preset2": char2.get(key, "unknown"),
-            "advantage": _determine_characteristic_advantage(
-                char1.get(key), char2.get(key), key
-            ),
+            "advantage": _determine_characteristic_advantage(char1.get(key), char2.get(key), key),
         }
 
     return {
@@ -653,9 +656,7 @@ async def _compare_preset_configurations(
     }
 
 
-def _determine_characteristic_advantage(
-    value1: str, value2: str, characteristic: str
-) -> str:
+def _determine_characteristic_advantage(value1: str, value2: str, characteristic: str) -> str:
     """Determine which preset has advantage for a characteristic"""
     if value1 == value2:
         return "equal"
@@ -686,7 +687,7 @@ def _determine_characteristic_advantage(
     return "equal"
 
 
-def _generate_preset_recommendation(preset1_data: Dict, preset2_data: Dict) -> str:
+def _generate_preset_recommendation(preset1_data: dict, preset2_data: dict) -> str:
     """Generate recommendation based on preset comparison"""
     char1 = preset1_data.get("characteristics", {})
     char2 = preset2_data.get("characteristics", {})

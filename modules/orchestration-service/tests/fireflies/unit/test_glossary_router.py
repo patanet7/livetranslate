@@ -6,8 +6,8 @@ Tests for the glossary API endpoints using real database.
 
 import sys
 from pathlib import Path
-from datetime import datetime, timezone
 from uuid import uuid4
+
 import pytest
 
 # Add src to path
@@ -17,16 +17,12 @@ sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(orchestration_root))
 
 from fastapi.testclient import TestClient
-from httpx import AsyncClient, ASGITransport
-
+from httpx import ASGITransport, AsyncClient
 from routers.glossary import (
-    CreateGlossaryRequest,
-    UpdateGlossaryRequest,
-    CreateEntryRequest,
     BulkImportRequest,
-    TermLookupRequest,
+    CreateEntryRequest,
+    CreateGlossaryRequest,
 )
-
 
 # =============================================================================
 # Request Model Tests (No database needed)
@@ -100,6 +96,7 @@ class TestRequestModels:
 def test_app():
     """Create test app with real database connection."""
     from main_fastapi import app
+
     return app
 
 

@@ -24,37 +24,37 @@ Usage:
 """
 
 from .model_registry import (
+    TRANSLATION_MODELS,
+    WHISPER_MODELS,
     # Main registry class
     ModelRegistry,
-    # Whisper types
-    WhisperModelSize,
-    WhisperModelInfo,
-    WHISPER_MODELS,
     # Translation types
     TranslationBackend,
     TranslationModelInfo,
-    TRANSLATION_MODELS,
+    WhisperModelInfo,
+    # Whisper types
+    WhisperModelSize,
+    get_translation_fallback_chain,
+    get_whisper_fallback_chain,
+    is_valid_whisper_model,
     # Convenience functions
     normalize_whisper_model,
-    is_valid_whisper_model,
-    get_whisper_fallback_chain,
-    get_translation_fallback_chain,
 )
 
 __all__ = [
+    "TRANSLATION_MODELS",
+    "WHISPER_MODELS",
     # Main registry
     "ModelRegistry",
-    # Whisper
-    "WhisperModelSize",
-    "WhisperModelInfo",
-    "WHISPER_MODELS",
     # Translation
     "TranslationBackend",
     "TranslationModelInfo",
-    "TRANSLATION_MODELS",
+    "WhisperModelInfo",
+    # Whisper
+    "WhisperModelSize",
+    "get_translation_fallback_chain",
+    "get_whisper_fallback_chain",
+    "is_valid_whisper_model",
     # Convenience functions
     "normalize_whisper_model",
-    "is_valid_whisper_model",
-    "get_whisper_fallback_chain",
-    "get_translation_fallback_chain",
 ]

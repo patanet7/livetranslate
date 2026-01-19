@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Box,
   Chip,
@@ -9,7 +9,7 @@ import {
   AlertTitle,
   Collapse,
   IconButton,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Wifi as WifiIcon,
   WifiOff as WifiOffIcon,
@@ -18,9 +18,9 @@ import {
   Api as ApiIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
-} from '@mui/icons-material';
-import { useWebSocket } from '@/hooks/useWebSocket';
-import { useAppSelector } from '@/store';
+} from "@mui/icons-material";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { useAppSelector } from "@/store";
 
 export const ConnectionStatus: React.FC = () => {
   const {
@@ -31,38 +31,38 @@ export const ConnectionStatus: React.FC = () => {
     wsFailureCount,
     canRetryWebSocket,
   } = useWebSocket();
-  
-  const { connection, errors } = useAppSelector(state => state.websocket);
+
+  const { connection, errors } = useAppSelector((state) => state.websocket);
   const [showDetails, setShowDetails] = React.useState(false);
 
   const getConnectionStatus = () => {
     if (useApiMode) {
       return {
-        label: 'API Mode',
-        color: 'warning' as const,
+        label: "API Mode",
+        color: "warning" as const,
         icon: <ApiIcon />,
-        description: 'Using REST API fallback for stability'
+        description: "Using REST API fallback for stability",
       };
     } else if (isConnected) {
       return {
-        label: 'Connected',
-        color: 'success' as const,
+        label: "Connected",
+        color: "success" as const,
         icon: <WifiIcon />,
-        description: 'Real-time WebSocket connection active'
+        description: "Real-time WebSocket connection active",
       };
     } else if (reconnectAttempts > 0) {
       return {
         label: `Reconnecting (${reconnectAttempts}/3)`,
-        color: 'warning' as const,
+        color: "warning" as const,
         icon: <RefreshIcon />,
-        description: 'Attempting to restore WebSocket connection'
+        description: "Attempting to restore WebSocket connection",
       };
     } else {
       return {
-        label: 'Disconnected',
-        color: 'error' as const,
+        label: "Disconnected",
+        color: "error" as const,
         icon: <WifiOffIcon />,
-        description: 'WebSocket connection not available'
+        description: "WebSocket connection not available",
       };
     }
   };
@@ -71,13 +71,13 @@ export const ConnectionStatus: React.FC = () => {
   const recentErrors = errors.slice(-3);
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
       <Tooltip title={status.description}>
         <Chip
           icon={status.icon}
           label={status.label}
           color={status.color}
-          variant={isConnected ? 'filled' : 'outlined'}
+          variant={isConnected ? "filled" : "outlined"}
           size="small"
         />
       </Tooltip>
@@ -109,55 +109,79 @@ export const ConnectionStatus: React.FC = () => {
       )}
 
       {/* Connection details panel */}
-      <Collapse in={showDetails} sx={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000 }}>
-        <Box sx={{ mt: 1, p: 2, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 1 }}>
+      <Collapse
+        in={showDetails}
+        sx={{
+          position: "absolute",
+          top: "100%",
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+        }}
+      >
+        <Box
+          sx={{
+            mt: 1,
+            p: 2,
+            bgcolor: "background.paper",
+            border: 1,
+            borderColor: "divider",
+            borderRadius: 1,
+          }}
+        >
           <Typography variant="subtitle2" gutterBottom>
             Connection Details
           </Typography>
-          
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2 }}>
+
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 2,
+              mb: 2,
+            }}
+          >
             <Box>
               <Typography variant="caption" color="text.secondary">
                 Status
               </Typography>
               <Typography variant="body2">
-                {isConnected ? 'Connected' : 'Disconnected'}
+                {isConnected ? "Connected" : "Disconnected"}
               </Typography>
             </Box>
-            
+
             <Box>
               <Typography variant="caption" color="text.secondary">
                 Mode
               </Typography>
               <Typography variant="body2">
-                {useApiMode ? 'REST API' : 'WebSocket'}
+                {useApiMode ? "REST API" : "WebSocket"}
               </Typography>
             </Box>
-            
+
             <Box>
               <Typography variant="caption" color="text.secondary">
                 Reconnect Attempts
               </Typography>
-              <Typography variant="body2">
-                {reconnectAttempts}/3
-              </Typography>
+              <Typography variant="body2">{reconnectAttempts}/3</Typography>
             </Box>
-            
+
             <Box>
               <Typography variant="caption" color="text.secondary">
                 Failure Count
               </Typography>
-              <Typography variant="body2">
-                {wsFailureCount}
-              </Typography>
+              <Typography variant="body2">{wsFailureCount}</Typography>
             </Box>
-            
+
             {connection.connectionId && (
-              <Box sx={{ gridColumn: '1 / -1' }}>
+              <Box sx={{ gridColumn: "1 / -1" }}>
                 <Typography variant="caption" color="text.secondary">
                   Connection ID
                 </Typography>
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                <Typography
+                  variant="body2"
+                  sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}
+                >
                   {connection.connectionId}
                 </Typography>
               </Box>
@@ -168,10 +192,11 @@ export const ConnectionStatus: React.FC = () => {
           {useApiMode && (
             <Alert severity="info" sx={{ mb: 2 }}>
               <AlertTitle>API Mode Active</AlertTitle>
-              WebSocket failed {wsFailureCount} times. Using REST API for better stability.
+              WebSocket failed {wsFailureCount} times. Using REST API for better
+              stability.
               {canRetryWebSocket && (
                 <>
-                  {' '}
+                  {" "}
                   <Button size="small" onClick={retryConnection} sx={{ ml: 1 }}>
                     Try WebSocket Again
                   </Button>
@@ -183,36 +208,41 @@ export const ConnectionStatus: React.FC = () => {
           {/* Recent errors */}
           {recentErrors.length > 0 && (
             <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+              >
                 <WarningIcon fontSize="small" />
                 Recent Errors
               </Typography>
               {recentErrors.map((error, index) => (
-                <Typography 
-                  key={index} 
-                  variant="caption" 
-                  display="block" 
-                  sx={{ 
-                    fontFamily: 'monospace', 
-                    fontSize: '0.7rem',
-                    color: 'error.main',
-                    mt: 0.5 
+                <Typography
+                  key={index}
+                  variant="caption"
+                  display="block"
+                  sx={{
+                    fontFamily: "monospace",
+                    fontSize: "0.7rem",
+                    color: "error.main",
+                    mt: 0.5,
                   }}
                 >
-                  {new Date(error.timestamp).toLocaleTimeString()}: {error.error}
+                  {new Date(error.timestamp).toLocaleTimeString()}:{" "}
+                  {error.error}
                 </Typography>
               ))}
             </Box>
           )}
 
           {/* Manual controls */}
-          <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+          <Box sx={{ mt: 2, display: "flex", gap: 1 }}>
             {!isConnected && canRetryWebSocket && (
               <Button size="small" variant="outlined" onClick={retryConnection}>
                 Retry Connection
               </Button>
             )}
-            
+
             {useApiMode && (
               <Button size="small" variant="outlined" color="warning">
                 Continue with API

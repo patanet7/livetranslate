@@ -6,9 +6,9 @@ Tests focused on timestamp alignment, drift detection, and database correlation
 across all bot_sessions tables. Validates precise timing coordination.
 """
 
-import unittest
 import asyncio
 import sys
+import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,11 +19,11 @@ sys.path.insert(0, str(orchestration_root))
 sys.path.insert(0, str(src_path))
 
 from src.audio.timing_coordinator import (
-    TimingCoordinator,
-    TimeWindow,
-    TimingCorrelation,
     SynchronizationQuality,
+    TimeWindow,
     TimingAccuracy,
+    TimingCoordinator,
+    TimingCorrelation,
     create_timing_coordinator,
 )
 
@@ -287,7 +287,7 @@ class TestTimeDriftDetection(unittest.TestCase):
         self.assertIn("translations", drift_measurements)
 
         # Verify drift values are reasonable
-        for source, drift in drift_measurements.items():
+        for _source, drift in drift_measurements.items():
             self.assertIsInstance(drift, float)
 
     def test_drift_correction_application(self):
@@ -310,30 +310,20 @@ class TestTimeDriftDetection(unittest.TestCase):
         # Verify correction was stored
         correction_key = f"{session_id}_transcripts"
         self.assertIn(correction_key, self.coordinator.correction_offsets)
-        self.assertEqual(
-            self.coordinator.correction_offsets[correction_key], 0.15
-        )  # 150ms = 0.15s
+        self.assertEqual(self.coordinator.correction_offsets[correction_key], 0.15)  # 150ms = 0.15s
 
     def test_drift_statistics_tracking(self):
         """Test drift statistics tracking."""
-        initial_corrections = self.coordinator.correlation_stats[
-            "drift_corrections_applied"
-        ]
+        initial_corrections = self.coordinator.correlation_stats["drift_corrections_applied"]
 
         async def run_test():
-            await self.coordinator._apply_drift_correction(
-                "session_1", "transcripts", 200.0
-            )
-            await self.coordinator._apply_drift_correction(
-                "session_2", "translations", 150.0
-            )
+            await self.coordinator._apply_drift_correction("session_1", "transcripts", 200.0)
+            await self.coordinator._apply_drift_correction("session_2", "translations", 150.0)
 
         asyncio.run(run_test())
 
         # Verify statistics were updated
-        final_corrections = self.coordinator.correlation_stats[
-            "drift_corrections_applied"
-        ]
+        final_corrections = self.coordinator.correlation_stats["drift_corrections_applied"]
         self.assertEqual(final_corrections, initial_corrections + 2)
 
 
@@ -379,9 +369,7 @@ class TestTimestampAlignment(unittest.TestCase):
             poor_quality,
             good_quality,
         ]
-        self.coordinator._get_complete_session_data = AsyncMock(
-            return_value={"mock": "data"}
-        )
+        self.coordinator._get_complete_session_data = AsyncMock(return_value={"mock": "data"})
         self.coordinator._calculate_optimal_baseline = AsyncMock(return_value=0.0)
         self.coordinator._apply_timestamp_alignment = AsyncMock(return_value=True)
 
@@ -415,9 +403,7 @@ class TestTimestampAlignment(unittest.TestCase):
             alignment_consistency=0.98,
         )
 
-        self.coordinator._assess_synchronization_quality = AsyncMock(
-            return_value=high_quality
-        )
+        self.coordinator._assess_synchronization_quality = AsyncMock(return_value=high_quality)
 
         async def run_test():
             result = await self.coordinator.align_session_timestamps(
@@ -602,16 +588,14 @@ class TestSessionManagement(unittest.TestCase):
             )
         ]
 
-        self.coordinator.synchronization_quality["test_session"] = (
-            SynchronizationQuality(
-                session_id="test_session",
-                overall_score=0.85,
-                timing_accuracy=TimingAccuracy.HIGH,
-                correlation_count=1,
-                drift_detected=False,
-                max_drift_ms=50.0,
-                alignment_consistency=0.9,
-            )
+        self.coordinator.synchronization_quality["test_session"] = SynchronizationQuality(
+            session_id="test_session",
+            overall_score=0.85,
+            timing_accuracy=TimingAccuracy.HIGH,
+            correlation_count=1,
+            drift_detected=False,
+            max_drift_ms=50.0,
+            alignment_consistency=0.9,
         )
 
         self.coordinator.detected_drifts["test_session"] = [25.0, 30.0]
@@ -639,9 +623,7 @@ class TestSessionManagement(unittest.TestCase):
         self.assertNotIn(session_id, self.coordinator.timing_correlations)
         self.assertNotIn(session_id, self.coordinator.synchronization_quality)
         self.assertNotIn(session_id, self.coordinator.detected_drifts)
-        self.assertNotIn(
-            f"{session_id}_transcripts", self.coordinator.correction_offsets
-        )
+        self.assertNotIn(f"{session_id}_transcripts", self.coordinator.correction_offsets)
 
 
 class TestTimingCoordinatorIntegration(unittest.TestCase):

@@ -243,3 +243,17 @@ dev-debug.log
 *.p12
 .env.local
 .env.production
+
+# ==============================================================================
+# Test Outputs
+# ==============================================================================
+
+# Test outputs (keep directory, ignore contents)
+**/tests/output/*
+!**/tests/output/.gitkeep
+
+# Coverage reports
+.coverage
+htmlcov/
+coverage.xml
+*.cover

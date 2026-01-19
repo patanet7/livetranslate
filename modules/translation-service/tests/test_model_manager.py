@@ -5,21 +5,20 @@ Unit tests for RuntimeModelManager - Dynamic Model Switching
 Tests the ability to switch translation models at runtime without service restart.
 """
 
-import pytest
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime
-import sys
 import os
+import sys
+from datetime import datetime
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from model_manager import (
-    RuntimeModelManager,
     ModelInfo,
+    RuntimeModelManager,
     get_model_manager,
-    initialize_model_manager,
 )
 
 
@@ -87,7 +86,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_switch_model_success(self, model_manager, mock_translator):
         """Test successful model switch"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             success = await model_manager.switch_model("llama2:7b", "ollama")
 
         assert success is True
@@ -100,7 +99,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_switch_model_same_model(self, model_manager, mock_translator):
         """Test switching to the same model returns True immediately"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             # First switch
             await model_manager.switch_model("llama2:7b", "ollama")
 
@@ -114,7 +113,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_switch_model_cached(self, model_manager, mock_translator):
         """Test switching to a cached model is instant"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             # Load first model
             await model_manager.switch_model("llama2:7b", "ollama")
 
@@ -123,7 +122,7 @@ class TestRuntimeModelManager:
             mock_translator2.is_ready = True
             mock_translator2.initialize = AsyncMock(return_value=True)
 
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator2):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator2):
             # Load second model
             await model_manager.switch_model("mistral:latest", "ollama")
 
@@ -141,7 +140,7 @@ class TestRuntimeModelManager:
         mock_translator = AsyncMock()
         mock_translator.initialize = AsyncMock(return_value=False)
 
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             success = await model_manager.switch_model("nonexistent", "ollama")
 
         assert success is False
@@ -151,7 +150,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_preload_model(self, model_manager, mock_translator):
         """Test preloading a model without switching to it"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             success = await model_manager.preload_model("llama2:7b", "ollama")
 
         assert success is True
@@ -162,7 +161,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_preload_model_already_cached(self, model_manager, mock_translator):
         """Test preloading an already cached model"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             await model_manager.preload_model("llama2:7b", "ollama")
             success = await model_manager.preload_model("llama2:7b", "ollama")
 
@@ -173,7 +172,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_get_current_translator(self, model_manager, mock_translator):
         """Test getting current translator"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             await model_manager.switch_model("llama2:7b", "ollama")
             translator = await model_manager.get_current_translator()
 
@@ -193,10 +192,10 @@ class TestRuntimeModelManager:
         mock_translator2.initialize = AsyncMock(return_value=True)
         mock_translator2.close = AsyncMock()
 
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             await model_manager.switch_model("llama2:7b", "ollama")
 
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator2):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator2):
             await model_manager.preload_model("mistral:latest", "ollama")
 
         # Unload non-current model
@@ -207,7 +206,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_unload_current_model_fails(self, model_manager, mock_translator):
         """Test that unloading current model fails"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             await model_manager.switch_model("llama2:7b", "ollama")
 
         success = await model_manager.unload_model("llama2:7b", "ollama")
@@ -218,7 +217,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_get_status(self, model_manager, mock_translator):
         """Test getting model manager status"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             await model_manager.switch_model("llama2:7b", "ollama")
 
         status = model_manager.get_status()
@@ -238,7 +237,7 @@ class TestRuntimeModelManager:
     @pytest.mark.asyncio
     async def test_close(self, model_manager, mock_translator):
         """Test closing model manager"""
-        with patch('model_manager.OpenAICompatibleTranslator', return_value=mock_translator):
+        with patch("model_manager.OpenAICompatibleTranslator", return_value=mock_translator):
             await model_manager.switch_model("llama2:7b", "ollama")
 
         await model_manager.close()
