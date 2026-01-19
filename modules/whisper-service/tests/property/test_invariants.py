@@ -39,6 +39,58 @@ except ImportError:
     logger.warning("⚠️ hypothesis not installed - property tests will be skipped")
     logger.warning("   Install with: pip install hypothesis")
 
+    # Create stub decorators when hypothesis is not available
+    def given(*args, **kwargs):
+        """Stub given decorator when hypothesis is not installed."""
+
+        def decorator(func):
+            return func
+
+        return decorator
+
+    def settings(**kwargs):
+        """Stub settings decorator when hypothesis is not installed."""
+
+        def decorator(func):
+            return func
+
+        return decorator
+
+    def assume(condition):
+        """Stub assume function when hypothesis is not installed."""
+        pass
+
+    # Create a stub st module
+    class _StubStrategies:
+        """Stub strategies when hypothesis is not installed."""
+
+        @staticmethod
+        def composite(func):
+            return func
+
+        @staticmethod
+        def integers(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def floats(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def lists(*args, **kwargs):
+            return None
+
+    st = _StubStrategies()
+
+    # Define stub strategy functions that match the real ones
+    def audio_strategy(*args, **kwargs):
+        """Stub audio strategy when hypothesis is not installed."""
+        return None
+
+    def lid_probabilities_strategy(*args, **kwargs):
+        """Stub LID probabilities strategy when hypothesis is not installed."""
+        return None
+
 
 # Hypothesis strategies for audio generation
 if HYPOTHESIS_AVAILABLE:

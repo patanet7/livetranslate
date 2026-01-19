@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 # Add src to path
 orchestration_root = Path(__file__).parent.parent.parent.parent
@@ -295,7 +296,7 @@ class TestCaptionContracts:
 
     def test_caption_entry_requires_id(self):
         """Test CaptionEntry requires id field."""
-        with pytest.raises(TypeError):
+        with pytest.raises(ValidationError):
             CaptionEntry(
                 # Missing id
                 translated_text="Hola",
@@ -305,7 +306,7 @@ class TestCaptionContracts:
 
     def test_caption_entry_requires_translated_text(self):
         """Test CaptionEntry requires translated_text field."""
-        with pytest.raises(TypeError):
+        with pytest.raises(ValidationError):
             CaptionEntry(
                 id="caption-001",
                 # Missing translated_text
@@ -315,7 +316,7 @@ class TestCaptionContracts:
 
     def test_caption_broadcast_requires_session_id(self):
         """Test CaptionBroadcast requires session_id field."""
-        with pytest.raises(TypeError):
+        with pytest.raises(ValidationError):
             CaptionBroadcast(
                 # Missing session_id
                 captions=[],

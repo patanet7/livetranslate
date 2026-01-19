@@ -23,7 +23,11 @@
       "Bash(PYTHONPATH=src SKIP_MAIN_FASTAPI_IMPORT=1 python -m pytest:*)",
       "Bash(poetry install:*)",
       "Bash(python3:*)",
-      "Bash(ruff check:*)"
+      "Bash(ruff check:*)",
+      "Bash(pdm run pytest:*)",
+      "Bash(tee:*)",
+      "Bash(pnpm test:*)",
+      "Bash(pdm lock:*)"
     ],
     "deny": []
   }
