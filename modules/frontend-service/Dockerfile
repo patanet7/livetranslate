@@ -4,7 +4,7 @@
 # Stage 1: Dependencies
 # Install and cache node dependencies
 # =============================================================================
-FROM node:20-alpine AS deps
+FROM node:25-alpine AS deps
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Frontend Service - Dependencies" \
