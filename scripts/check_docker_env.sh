@@ -206,7 +206,6 @@ check_docker_resources() {
     # Get Docker system info
     local memory_bytes
     local cpus
-    local disk_available
 
     # Try to get memory from docker info
     memory_bytes=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo "0")

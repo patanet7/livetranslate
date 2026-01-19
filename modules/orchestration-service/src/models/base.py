@@ -5,7 +5,13 @@ Base Pydantic models with common functionality
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel as PydanticBaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel as PydanticBaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+)
 
 
 class BaseModel(PydanticBaseModel):
@@ -28,7 +34,7 @@ class TimestampMixin(BaseModel):
     )
     updated_at: datetime | None = Field(default=None, description="Last update timestamp")
 
-    def update_timestamp(self):
+    def update_timestamp(self) -> None:
         """Update the updated_at timestamp"""
         self.updated_at = datetime.now(UTC)
 
@@ -61,11 +67,11 @@ class PaginationMixin(BaseModel):
 
     @field_validator("total_pages")
     @classmethod
-    def calculate_total_pages(cls, v, info):
+    def calculate_total_pages(cls, v: int, info: ValidationInfo) -> int:
         """Calculate total pages based on total items and page size"""
         data = info.data if info else {}
-        total_items = data.get("total_items", 0)
-        page_size = data.get("page_size", 20)
+        total_items: int = data.get("total_items", 0)
+        page_size: int = data.get("page_size", 20)
         if page_size > 0:
             return (total_items + page_size - 1) // page_size
         return 0
@@ -113,7 +119,7 @@ class HealthStatus(BaseModel):
 
     @field_validator("status")
     @classmethod
-    def validate_status(cls, v, info=None):
+    def validate_status(cls, v: str, info: ValidationInfo | None = None) -> str:
         """Validate status values"""
         valid_statuses = ["healthy", "degraded", "unhealthy", "unknown"]
         if v not in valid_statuses:
@@ -167,7 +173,7 @@ class LogEntry(BaseModel):
 
     @field_validator("level")
     @classmethod
-    def validate_log_level(cls, v, info=None):
+    def validate_log_level(cls, v: str, info: ValidationInfo | None = None) -> str:
         """Validate log level"""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in valid_levels:

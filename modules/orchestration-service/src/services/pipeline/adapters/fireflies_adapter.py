@@ -87,9 +87,11 @@ class FirefliesChunkAdapter(ChunkAdapter):
     def extract_speaker(self, raw_chunk: Any) -> str | None:
         """Extract speaker from Fireflies chunk."""
         if hasattr(raw_chunk, "speaker_name"):
-            return raw_chunk.speaker_name
+            speaker: str | None = raw_chunk.speaker_name
+            return speaker
         if isinstance(raw_chunk, dict):
-            return raw_chunk.get("speaker_name") or raw_chunk.get("speaker")
+            result: str | None = raw_chunk.get("speaker_name") or raw_chunk.get("speaker")
+            return result
         return None
 
     def validate(self, raw_chunk: Any) -> bool:
@@ -100,7 +102,7 @@ class FirefliesChunkAdapter(ChunkAdapter):
             )
         return hasattr(raw_chunk, "text") and hasattr(raw_chunk, "speaker_name")
 
-    def adapt_from_model(self, chunk) -> TranscriptChunk:
+    def adapt_from_model(self, chunk: Any) -> TranscriptChunk:
         """
         Adapt directly from FirefliesChunk model.
 

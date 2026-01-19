@@ -1,9 +1,17 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import torch
 from transformers import AutoProcessor, SeamlessM4TForSpeechToText
+
+
+def _get_default_device() -> str:
+    return os.getenv("DEVICE", "cpu")
+
+
+def _get_default_model() -> str:
+    return os.getenv("SEAMLESS_MODEL", "facebook/seamless-m4t-v2-large")
 
 
 @dataclass
@@ -11,8 +19,8 @@ class StreamingConfig:
     source_lang: str = "cmn"  # Mandarin Chinese
     target_lang: str = "eng"  # English
     sample_rate: int = 16000
-    device: str = os.getenv("DEVICE", "cpu")
-    model_name: str = os.getenv("SEAMLESS_MODEL", "facebook/seamless-m4t-v2-large")
+    device: str = field(default_factory=_get_default_device)
+    model_name: str = field(default_factory=_get_default_model)
     max_seconds_per_inference: float = 3.0  # window size for partial inference
 
 

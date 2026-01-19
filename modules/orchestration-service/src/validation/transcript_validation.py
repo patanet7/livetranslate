@@ -158,7 +158,7 @@ class TranscriptValidator:
             ValidationResult with validation status and any errors
         """
         result = ValidationResult(is_valid=True)
-        sanitized = {}
+        sanitized: dict[str, Any] = {}
 
         # Rule 1: Text cannot be empty
         if not text or not text.strip():
@@ -269,7 +269,7 @@ class TranslationValidator:
             ValidationResult with validation status and any errors
         """
         result = ValidationResult(is_valid=True)
-        sanitized = {}
+        sanitized: dict[str, Any] = {}
 
         # Rule 1: Translation text cannot be empty
         if not translated_text or not translated_text.strip():
@@ -383,4 +383,4 @@ def validate_translation(
 
 def is_valid_language_code(code: str) -> bool:
     """Check if a language code is valid."""
-    return code and code.lower() in VALID_LANGUAGE_CODES
+    return bool(code) and code.lower() in VALID_LANGUAGE_CODES

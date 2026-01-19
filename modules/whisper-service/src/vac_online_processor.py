@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 VAC Online ASR Processor - Computationally Aware Chunking
 
@@ -185,7 +184,7 @@ class VACOnlineASRProcessor:
 
         # Load Silero VAD
         try:
-            vad_model, _ = torch.hub.load(
+            vad_model, _ = torch.hub.load(  # nosec B614
                 repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
             )
             self.vad = FixedVADIterator(

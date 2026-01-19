@@ -3,9 +3,9 @@ Audio processing-related Pydantic models
 """
 
 from enum import Enum
-from typing import Any
+from typing import Any, Self
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from .base import BaseModel, ResponseMixin, TimestampMixin
 
@@ -118,7 +118,9 @@ class AudioConfiguration(BaseModel):
 
     @field_validator("enabled_stages")
     @classmethod
-    def validate_stages_order(cls, v, info=None):
+    def validate_stages_order(
+        cls, v: list[ProcessingStage], info: ValidationInfo | None = None
+    ) -> list[ProcessingStage]:
         """Validate processing stages are in correct order"""
         stage_order = [
             ProcessingStage.VAD,
@@ -203,7 +205,7 @@ class AudioProcessingRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     @model_validator(mode="after")
-    def validate_audio_source(self):
+    def validate_audio_source(self) -> Self:
         """Ensure at least one audio source is provided"""
         audio_sources = [
             self.audio_data,

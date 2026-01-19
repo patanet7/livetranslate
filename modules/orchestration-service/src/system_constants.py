@@ -213,6 +213,8 @@ def get_language_display_name(code: str, include_native: bool = True) -> str:
     lang = get_language_by_code(code)
     if not lang:
         return code.upper()
+    name: str = lang["name"]
     if include_native and lang.get("native"):
-        return f"{lang['name']} ({lang['native']})"
-    return lang["name"]
+        native: str = lang["native"]
+        return f"{name} ({native})"
+    return name

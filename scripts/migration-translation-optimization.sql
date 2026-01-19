@@ -10,7 +10,7 @@
 -- Tracks cache performance for translation results
 CREATE TABLE IF NOT EXISTS bot_sessions.translation_cache_stats (
     cache_stat_id BIGSERIAL PRIMARY KEY,
-    session_id VARCHAR(100) REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
 
     -- Cache operation details
     cache_key_hash VARCHAR(128) NOT NULL,  -- MD5 hash of text + language pair
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.translation_cache_stats (
     target_language VARCHAR(10) NOT NULL,
 
     -- Cache performance
-    was_cache_hit BOOLEAN NOT NULL DEFAULT false,
+    was_cache_hit BOOLEAN NOT NULL DEFAULT FALSE,
     cache_latency_ms REAL,                 -- Latency for cache lookup
     translation_latency_ms REAL,           -- Latency for actual translation (if miss)
 
@@ -35,19 +35,19 @@ CREATE TABLE IF NOT EXISTS bot_sessions.translation_cache_stats (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
     -- Metadata
-    metadata JSONB DEFAULT '{}'::jsonb
+    metadata JSONB DEFAULT '{}'::JSONB
 );
 
 -- Translation Batch Metadata Table
 -- Tracks multi-language translation batches for performance analysis
 CREATE TABLE IF NOT EXISTS bot_sessions.translation_batches (
     batch_id VARCHAR(100) PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
 
     -- Batch details
     source_text TEXT NOT NULL,
     source_language VARCHAR(10) NOT NULL,
-    target_languages TEXT[] NOT NULL,      -- Array of target languages
+    target_languages TEXT [] NOT NULL,      -- Array of target languages
     num_languages INTEGER NOT NULL,
 
     -- Performance metrics
@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.translation_batches (
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
     -- Metadata
-    metadata JSONB DEFAULT '{}'::jsonb
+    metadata JSONB DEFAULT '{}'::JSONB
 );
 
 -- Model Performance Tracking Table
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.model_performance (
     last_updated TIMESTAMP NOT NULL DEFAULT NOW(),
 
     -- Metadata
-    metadata JSONB DEFAULT '{}'::jsonb,
+    metadata JSONB DEFAULT '{}'::JSONB,
 
     -- Unique constraint on model + language pair + time window
     CONSTRAINT unique_model_lang_window UNIQUE (model_name, source_language, target_language, window_start)
@@ -128,26 +128,26 @@ CREATE TABLE IF NOT EXISTS bot_sessions.model_performance (
 -- Stores context history for context-aware translations
 CREATE TABLE IF NOT EXISTS bot_sessions.translation_context (
     context_id BIGSERIAL PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
 
     -- Context window
     target_language VARCHAR(10) NOT NULL,
     context_window_size INTEGER DEFAULT 5,
 
     -- Recent translations (FIFO queue)
-    recent_translations JSONB DEFAULT '[]'::jsonb,  -- Array of {source, translation, timestamp}
+    recent_translations JSONB DEFAULT '[]'::JSONB,  -- Array of {source, translation, timestamp}
 
     -- Terminology tracking
-    custom_terminology JSONB DEFAULT '{}'::jsonb,   -- {source_term: target_term}
+    custom_terminology JSONB DEFAULT '{}'::JSONB,   -- {source_term: target_term}
 
     -- Style preferences
-    style_preferences JSONB DEFAULT '{}'::jsonb,    -- {formality, gender, etc.}
+    style_preferences JSONB DEFAULT '{}'::JSONB,    -- {formality, gender, etc.}
 
     -- Last activity
     last_activity TIMESTAMP NOT NULL DEFAULT NOW(),
 
     -- Metadata
-    metadata JSONB DEFAULT '{}'::jsonb
+    metadata JSONB DEFAULT '{}'::JSONB
 );
 
 -- ============================================================================
@@ -156,52 +156,60 @@ CREATE TABLE IF NOT EXISTS bot_sessions.translation_context (
 
 -- Add new columns to translations table for optimization tracking
 ALTER TABLE bot_sessions.translations
-    ADD COLUMN IF NOT EXISTS model_name VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS model_backend VARCHAR(100),
-    ADD COLUMN IF NOT EXISTS batch_id VARCHAR(100) REFERENCES bot_sessions.translation_batches(batch_id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS was_cached BOOLEAN DEFAULT false,
-    ADD COLUMN IF NOT EXISTS cache_latency_ms REAL,
-    ADD COLUMN IF NOT EXISTS translation_latency_ms REAL,
-    ADD COLUMN IF NOT EXISTS optimization_metadata JSONB DEFAULT '{}'::jsonb;
+ADD COLUMN IF NOT EXISTS model_name VARCHAR(100),
+ADD COLUMN IF NOT EXISTS model_backend VARCHAR(100),
+ADD COLUMN IF NOT EXISTS batch_id VARCHAR(100) REFERENCES bot_sessions.translation_batches (
+    batch_id
+) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS was_cached BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS cache_latency_ms REAL,
+ADD COLUMN IF NOT EXISTS translation_latency_ms REAL,
+ADD COLUMN IF NOT EXISTS optimization_metadata JSONB DEFAULT '{}'::JSONB;
 
 -- Add comment to new column
-COMMENT ON COLUMN bot_sessions.translations.optimization_metadata IS 'Stores cache hits, model selection, batch info, etc.';
+COMMENT ON COLUMN bot_sessions.translations.optimization_metadata IS 'Stores cache info and model selection';
 
 -- ============================================================================
 -- INDEXES FOR PERFORMANCE
 -- ============================================================================
 
 -- Cache statistics indexes
-CREATE INDEX IF NOT EXISTS idx_cache_stats_session_id ON bot_sessions.translation_cache_stats(session_id);
-CREATE INDEX IF NOT EXISTS idx_cache_stats_cache_key ON bot_sessions.translation_cache_stats(cache_key_hash);
-CREATE INDEX IF NOT EXISTS idx_cache_stats_hit ON bot_sessions.translation_cache_stats(was_cache_hit);
-CREATE INDEX IF NOT EXISTS idx_cache_stats_languages ON bot_sessions.translation_cache_stats(source_language, target_language);
-CREATE INDEX IF NOT EXISTS idx_cache_stats_created_at ON bot_sessions.translation_cache_stats(created_at);
+CREATE INDEX IF NOT EXISTS idx_cache_stats_session_id ON bot_sessions.translation_cache_stats (session_id);
+CREATE INDEX IF NOT EXISTS idx_cache_stats_cache_key ON bot_sessions.translation_cache_stats (cache_key_hash);
+CREATE INDEX IF NOT EXISTS idx_cache_stats_hit ON bot_sessions.translation_cache_stats (was_cache_hit);
+CREATE INDEX IF NOT EXISTS idx_cache_stats_languages ON bot_sessions.translation_cache_stats (
+    source_language, target_language
+);
+CREATE INDEX IF NOT EXISTS idx_cache_stats_created_at ON bot_sessions.translation_cache_stats (created_at);
 
 -- Batch metadata indexes
-CREATE INDEX IF NOT EXISTS idx_batches_session_id ON bot_sessions.translation_batches(session_id);
-CREATE INDEX IF NOT EXISTS idx_batches_model ON bot_sessions.translation_batches(model_requested);
-CREATE INDEX IF NOT EXISTS idx_batches_hit_rate ON bot_sessions.translation_batches(cache_hit_rate);
-CREATE INDEX IF NOT EXISTS idx_batches_created_at ON bot_sessions.translation_batches(created_at);
+CREATE INDEX IF NOT EXISTS idx_batches_session_id ON bot_sessions.translation_batches (session_id);
+CREATE INDEX IF NOT EXISTS idx_batches_model ON bot_sessions.translation_batches (model_requested);
+CREATE INDEX IF NOT EXISTS idx_batches_hit_rate ON bot_sessions.translation_batches (cache_hit_rate);
+CREATE INDEX IF NOT EXISTS idx_batches_created_at ON bot_sessions.translation_batches (created_at);
 
 -- Model performance indexes
-CREATE INDEX IF NOT EXISTS idx_model_perf_model ON bot_sessions.model_performance(model_name);
-CREATE INDEX IF NOT EXISTS idx_model_perf_languages ON bot_sessions.model_performance(source_language, target_language);
-CREATE INDEX IF NOT EXISTS idx_model_perf_window ON bot_sessions.model_performance(window_start, window_end);
-CREATE INDEX IF NOT EXISTS idx_model_perf_updated ON bot_sessions.model_performance(last_updated);
+CREATE INDEX IF NOT EXISTS idx_model_perf_model ON bot_sessions.model_performance (model_name);
+CREATE INDEX IF NOT EXISTS idx_model_perf_languages ON bot_sessions.model_performance (
+    source_language, target_language
+);
+CREATE INDEX IF NOT EXISTS idx_model_perf_window ON bot_sessions.model_performance (window_start, window_end);
+CREATE INDEX IF NOT EXISTS idx_model_perf_updated ON bot_sessions.model_performance (last_updated);
 
 -- Context indexes
-CREATE INDEX IF NOT EXISTS idx_context_session_id ON bot_sessions.translation_context(session_id);
-CREATE INDEX IF NOT EXISTS idx_context_target_lang ON bot_sessions.translation_context(target_language);
-CREATE INDEX IF NOT EXISTS idx_context_activity ON bot_sessions.translation_context(last_activity);
+CREATE INDEX IF NOT EXISTS idx_context_session_id ON bot_sessions.translation_context (session_id);
+CREATE INDEX IF NOT EXISTS idx_context_target_lang ON bot_sessions.translation_context (target_language);
+CREATE INDEX IF NOT EXISTS idx_context_activity ON bot_sessions.translation_context (last_activity);
 
 -- New indexes on translations table
-CREATE INDEX IF NOT EXISTS idx_translations_model ON bot_sessions.translations(model_name);
-CREATE INDEX IF NOT EXISTS idx_translations_cached ON bot_sessions.translations(was_cached);
-CREATE INDEX IF NOT EXISTS idx_translations_batch_id ON bot_sessions.translations(batch_id);
+CREATE INDEX IF NOT EXISTS idx_translations_model ON bot_sessions.translations (model_name);
+CREATE INDEX IF NOT EXISTS idx_translations_cached ON bot_sessions.translations (was_cached);
+CREATE INDEX IF NOT EXISTS idx_translations_batch_id ON bot_sessions.translations (batch_id);
 
 -- JSONB indexes for optimization metadata
-CREATE INDEX IF NOT EXISTS idx_translations_opt_metadata_gin ON bot_sessions.translations USING GIN (optimization_metadata);
+CREATE INDEX IF NOT EXISTS idx_translations_opt_metadata_gin ON bot_sessions.translations USING gin (
+    optimization_metadata
+);
 
 -- ============================================================================
 -- VIEWS FOR ANALYTICS
@@ -214,13 +222,13 @@ SELECT
     source_language,
     target_language,
     model_used,
-    COUNT(*) as total_lookups,
-    SUM(CASE WHEN was_cache_hit THEN 1 ELSE 0 END) as cache_hits,
-    SUM(CASE WHEN NOT was_cache_hit THEN 1 ELSE 0 END) as cache_misses,
-    ROUND((SUM(CASE WHEN was_cache_hit THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100), 2) as hit_rate_percent,
-    ROUND(AVG(CASE WHEN was_cache_hit THEN cache_latency_ms ELSE NULL END), 2) as avg_cache_hit_latency_ms,
-    ROUND(AVG(CASE WHEN NOT was_cache_hit THEN translation_latency_ms ELSE NULL END), 2) as avg_translation_latency_ms,
-    ROUND(AVG(confidence_score), 3) as avg_confidence
+    COUNT(*) AS total_lookups,
+    SUM(CASE WHEN was_cache_hit THEN 1 ELSE 0 END) AS cache_hits,
+    SUM(CASE WHEN NOT was_cache_hit THEN 1 ELSE 0 END) AS cache_misses,
+    ROUND((SUM(CASE WHEN was_cache_hit THEN 1 ELSE 0 END)::NUMERIC / NULLIF(COUNT(*), 0) * 100), 2) AS hit_rate_percent,
+    ROUND(AVG(CASE WHEN was_cache_hit THEN cache_latency_ms END), 2) AS avg_cache_hit_latency_ms,
+    ROUND(AVG(CASE WHEN NOT was_cache_hit THEN translation_latency_ms END), 2) AS avg_translation_latency_ms,
+    ROUND(AVG(confidence_score), 3) AS avg_confidence
 FROM bot_sessions.translation_cache_stats
 GROUP BY session_id, source_language, target_language, model_used;
 
@@ -229,14 +237,14 @@ CREATE OR REPLACE VIEW bot_sessions.batch_efficiency AS
 SELECT
     session_id,
     model_requested,
-    COUNT(*) as total_batches,
-    ROUND(AVG(num_languages), 1) as avg_languages_per_batch,
-    ROUND(AVG(total_processing_time_ms), 2) as avg_total_time_ms,
-    ROUND(AVG(avg_translation_time_ms), 2) as avg_per_language_ms,
-    ROUND(AVG(cache_hit_rate) * 100, 2) as avg_cache_hit_rate_percent,
-    SUM(cache_hit_count) as total_cache_hits,
-    SUM(cache_miss_count) as total_cache_misses,
-    ROUND(SUM(success_count)::numeric / NULLIF(SUM(success_count + error_count), 0) * 100, 2) as success_rate_percent
+    COUNT(*) AS total_batches,
+    ROUND(AVG(num_languages), 1) AS avg_languages_per_batch,
+    ROUND(AVG(total_processing_time_ms), 2) AS avg_total_time_ms,
+    ROUND(AVG(avg_translation_time_ms), 2) AS avg_per_language_ms,
+    ROUND(AVG(cache_hit_rate) * 100, 2) AS avg_cache_hit_rate_percent,
+    SUM(cache_hit_count) AS total_cache_hits,
+    SUM(cache_miss_count) AS total_cache_misses,
+    ROUND(SUM(success_count)::NUMERIC / NULLIF(SUM(success_count + error_count), 0) * 100, 2) AS success_rate_percent
 FROM bot_sessions.translation_batches
 GROUP BY session_id, model_requested;
 
@@ -246,12 +254,12 @@ SELECT
     model_name,
     source_language,
     target_language,
-    SUM(total_translations) as total_translations,
-    ROUND(AVG(avg_latency_ms), 2) as avg_latency_ms,
-    ROUND(AVG(p95_latency_ms), 2) as p95_latency_ms,
-    ROUND(AVG(avg_confidence), 3) as avg_confidence,
-    ROUND(AVG(cache_hit_rate) * 100, 2) as cache_hit_rate_percent,
-    ROUND(SUM(successful_translations)::numeric / NULLIF(SUM(total_translations), 0) * 100, 2) as success_rate_percent
+    SUM(total_translations) AS total_translations,
+    ROUND(AVG(avg_latency_ms), 2) AS avg_latency_ms,
+    ROUND(AVG(p95_latency_ms), 2) AS p95_latency_ms,
+    ROUND(AVG(avg_confidence), 3) AS avg_confidence,
+    ROUND(AVG(cache_hit_rate) * 100, 2) AS cache_hit_rate_percent,
+    ROUND(SUM(successful_translations)::NUMERIC / NULLIF(SUM(total_translations), 0) * 100, 2) AS success_rate_percent
 FROM bot_sessions.model_performance
 WHERE window_end > NOW() - INTERVAL '7 days'  -- Last 7 days
 GROUP BY model_name, source_language, target_language;
@@ -260,16 +268,19 @@ GROUP BY model_name, source_language, target_language;
 CREATE OR REPLACE VIEW bot_sessions.session_translation_summary AS
 SELECT
     t.session_id,
-    COUNT(DISTINCT t.translation_id) as total_translations,
-    COUNT(DISTINCT t.target_language) as unique_target_languages,
-    COUNT(DISTINCT t.model_name) as models_used,
-    SUM(CASE WHEN t.was_cached THEN 1 ELSE 0 END) as cached_translations,
-    ROUND((SUM(CASE WHEN t.was_cached THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(*), 0) * 100), 2) as cache_hit_rate_percent,
-    ROUND(AVG(t.translation_confidence), 3) as avg_confidence,
-    ROUND(AVG(CASE WHEN t.was_cached THEN t.cache_latency_ms ELSE t.translation_latency_ms END), 2) as avg_latency_ms,
-    COUNT(DISTINCT t.batch_id) as batches_used,
-    ARRAY_AGG(DISTINCT t.model_name) FILTER (WHERE t.model_name IS NOT NULL) as models_list
-FROM bot_sessions.translations t
+    COUNT(DISTINCT t.translation_id) AS total_translations,
+    COUNT(DISTINCT t.target_language) AS unique_target_languages,
+    COUNT(DISTINCT t.model_name) AS models_used,
+    SUM(CASE WHEN t.was_cached THEN 1 ELSE 0 END) AS cached_translations,
+    ROUND(
+        (SUM(CASE WHEN t.was_cached THEN 1 ELSE 0 END)::NUMERIC / NULLIF(COUNT(*), 0) * 100),
+        2
+    ) AS cache_hit_rate_percent,
+    ROUND(AVG(t.translation_confidence), 3) AS avg_confidence,
+    ROUND(AVG(CASE WHEN t.was_cached THEN t.cache_latency_ms ELSE t.translation_latency_ms END), 2) AS avg_latency_ms,
+    COUNT(DISTINCT t.batch_id) AS batches_used,
+    ARRAY_AGG(DISTINCT t.model_name) FILTER (WHERE t.model_name IS NOT NULL) AS models_list
+FROM bot_sessions.translations AS t
 GROUP BY t.session_id;
 
 -- ============================================================================
@@ -316,14 +327,14 @@ CREATE OR REPLACE FUNCTION bot_sessions.record_translation_batch(
     p_session_id VARCHAR,
     p_source_text TEXT,
     p_source_language VARCHAR,
-    p_target_languages TEXT[],
+    p_target_languages TEXT [],
     p_total_time_ms REAL,
     p_cache_hits INTEGER,
     p_cache_misses INTEGER,
     p_model_requested VARCHAR DEFAULT NULL,
     p_success_count INTEGER DEFAULT 0,
     p_error_count INTEGER DEFAULT 0,
-    p_results JSONB DEFAULT '{}'::jsonb
+    p_results JSONB DEFAULT '{}'::JSONB
 )
 RETURNS VARCHAR AS $$
 DECLARE
@@ -362,7 +373,7 @@ CREATE OR REPLACE FUNCTION bot_sessions.update_model_performance(
     p_latency_ms REAL,
     p_success BOOLEAN,
     p_confidence REAL DEFAULT NULL,
-    p_was_cached BOOLEAN DEFAULT false
+    p_was_cached BOOLEAN DEFAULT FALSE
 )
 RETURNS BOOLEAN AS $$
 DECLARE

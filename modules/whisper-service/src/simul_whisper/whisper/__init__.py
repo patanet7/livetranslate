@@ -72,7 +72,7 @@ def _download(url: str, root: str, in_memory: bool) -> bytes | str:
             )
 
     with (
-        urllib.request.urlopen(url) as source,
+        urllib.request.urlopen(url) as source,  # nosec B310
         open(download_target, "wb") as output,
         tqdm(
             total=int(source.info().get("Content-Length")),
@@ -147,7 +147,7 @@ def load_model(
         raise RuntimeError(f"Model {name} not found; available models = {available_models()}")
 
     with io.BytesIO(checkpoint_file) if in_memory else open(checkpoint_file, "rb") as fp:
-        checkpoint = torch.load(fp, map_location=device)
+        checkpoint = torch.load(fp, map_location=device)  # nosec B614
     del checkpoint_file
 
     dims = ModelDimensions(**checkpoint["dims"])

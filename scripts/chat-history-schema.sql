@@ -12,7 +12,7 @@
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";  -- For full-text search
+CREATE EXTENSION IF NOT EXISTS pg_trgm;  -- For full-text search
 
 -- ============================================================================
 -- USERS TABLE
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS users (
     preferred_language VARCHAR(10) DEFAULT 'en',
 
     -- User preferences (flexible JSONB storage)
-    preferences JSONB NOT NULL DEFAULT '{}'::jsonb,
+    preferences JSONB NOT NULL DEFAULT '{}'::JSONB,
 
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -44,13 +44,15 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Indexes for users table
-CREATE INDEX IF NOT EXISTS ix_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS ix_users_created_at ON users(created_at);
-CREATE INDEX IF NOT EXISTS ix_users_last_active ON users(last_active_at);
-CREATE INDEX IF NOT EXISTS ix_users_preferences_gin ON users USING gin(preferences);
+CREATE INDEX IF NOT EXISTS ix_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS ix_users_created_at ON users (created_at);
+CREATE INDEX IF NOT EXISTS ix_users_last_active ON users (last_active_at);
+CREATE INDEX IF NOT EXISTS ix_users_preferences_gin ON users USING gin (
+    preferences
+);
 
 -- Auto-update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_users_updated_at()
+CREATE OR REPLACE FUNCTION UPDATE_USERS_UPDATED_AT()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
@@ -59,9 +61,9 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_users_updated_at
-    BEFORE UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION update_users_updated_at();
+BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION UPDATE_USERS_UPDATED_AT();
 
 -- ============================================================================
 -- API TOKENS TABLE
@@ -69,15 +71,15 @@ CREATE TRIGGER trigger_users_updated_at
 
 CREATE TABLE IF NOT EXISTS api_tokens (
     -- Primary key
-    token_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    token_id UUID PRIMARY KEY DEFAULT UUID_GENERATE_V4(),
 
     -- Token information
     token VARCHAR(255) NOT NULL UNIQUE,
-    user_id VARCHAR(255) NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
 
     -- Token metadata
     name VARCHAR(100),
-    scopes JSONB NOT NULL DEFAULT '["read", "write"]'::jsonb,
+    scopes JSONB NOT NULL DEFAULT '["read", "write"]'::JSONB,
 
     -- Timestamps
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -89,9 +91,9 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 );
 
 -- Indexes for api_tokens table
-CREATE INDEX IF NOT EXISTS ix_api_tokens_token ON api_tokens(token);
-CREATE INDEX IF NOT EXISTS ix_api_tokens_user_id ON api_tokens(user_id);
-CREATE INDEX IF NOT EXISTS ix_api_tokens_expires_at ON api_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS ix_api_tokens_token ON api_tokens (token);
+CREATE INDEX IF NOT EXISTS ix_api_tokens_user_id ON api_tokens (user_id);
+CREATE INDEX IF NOT EXISTS ix_api_tokens_expires_at ON api_tokens (expires_at);
 
 -- ============================================================================
 -- CONVERSATION SESSIONS TABLE
@@ -99,10 +101,10 @@ CREATE INDEX IF NOT EXISTS ix_api_tokens_expires_at ON api_tokens(expires_at);
 
 CREATE TABLE IF NOT EXISTS conversation_sessions (
     -- Primary key
-    session_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    session_id UUID PRIMARY KEY DEFAULT UUID_GENERATE_V4(),
 
     -- User scoping (CRITICAL for multi-tenant isolation)
-    user_id VARCHAR(255) NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id VARCHAR(255) NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
 
     -- Session metadata
     session_type VARCHAR(50) NOT NULL DEFAULT 'user_chat',
@@ -126,12 +128,24 @@ CREATE TABLE IF NOT EXISTS conversation_sessions (
 );
 
 -- Indexes for conversation_sessions table
-CREATE INDEX IF NOT EXISTS ix_conv_sessions_user_id ON conversation_sessions(user_id);
-CREATE INDEX IF NOT EXISTS ix_conv_sessions_started_at ON conversation_sessions(started_at);
-CREATE INDEX IF NOT EXISTS ix_conv_sessions_last_message_at ON conversation_sessions(last_message_at);
-CREATE INDEX IF NOT EXISTS ix_conv_sessions_session_type ON conversation_sessions(session_type);
-CREATE INDEX IF NOT EXISTS ix_conv_sessions_user_started ON conversation_sessions(user_id, started_at);
-CREATE INDEX IF NOT EXISTS ix_conv_sessions_metadata_gin ON conversation_sessions USING gin(session_metadata);
+CREATE INDEX IF NOT EXISTS ix_conv_sessions_user_id ON conversation_sessions (
+    user_id
+);
+CREATE INDEX IF NOT EXISTS ix_conv_sessions_started_at ON conversation_sessions (
+    started_at
+);
+CREATE INDEX IF NOT EXISTS ix_conv_sessions_last_message_at ON conversation_sessions (
+    last_message_at
+);
+CREATE INDEX IF NOT EXISTS ix_conv_sessions_session_type ON conversation_sessions (
+    session_type
+);
+CREATE INDEX IF NOT EXISTS ix_conv_sessions_user_started ON conversation_sessions (
+    user_id, started_at
+);
+CREATE INDEX IF NOT EXISTS ix_conv_sessions_metadata_gin ON conversation_sessions USING gin (
+    session_metadata
+);
 
 -- ============================================================================
 -- CHAT MESSAGES TABLE
@@ -139,10 +153,12 @@ CREATE INDEX IF NOT EXISTS ix_conv_sessions_metadata_gin ON conversation_session
 
 CREATE TABLE IF NOT EXISTS chat_messages (
     -- Primary key
-    message_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID PRIMARY KEY DEFAULT UUID_GENERATE_V4(),
 
     -- Session scoping
-    session_id UUID NOT NULL REFERENCES conversation_sessions(session_id) ON DELETE CASCADE,
+    session_id UUID NOT NULL REFERENCES conversation_sessions (
+        session_id
+    ) ON DELETE CASCADE,
 
     -- Message ordering (auto-incrementing within session)
     sequence_number INTEGER NOT NULL,
@@ -174,15 +190,25 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 
 -- Indexes for chat_messages table
-CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id ON chat_messages(session_id);
-CREATE INDEX IF NOT EXISTS ix_chat_messages_timestamp ON chat_messages(timestamp);
-CREATE INDEX IF NOT EXISTS ix_chat_messages_role ON chat_messages(role);
-CREATE INDEX IF NOT EXISTS ix_chat_messages_sequence ON chat_messages(session_id, sequence_number);
-CREATE INDEX IF NOT EXISTS ix_chat_messages_content_fulltext ON chat_messages USING gin(content gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS ix_chat_messages_translated_gin ON chat_messages USING gin(translated_content);
+CREATE INDEX IF NOT EXISTS ix_chat_messages_session_id ON chat_messages (
+    session_id
+);
+CREATE INDEX IF NOT EXISTS ix_chat_messages_timestamp ON chat_messages (
+    timestamp
+);
+CREATE INDEX IF NOT EXISTS ix_chat_messages_role ON chat_messages (role);
+CREATE INDEX IF NOT EXISTS ix_chat_messages_sequence ON chat_messages (
+    session_id, sequence_number
+);
+CREATE INDEX IF NOT EXISTS ix_chat_messages_content_fulltext ON chat_messages USING gin (
+    content gin_trgm_ops
+);
+CREATE INDEX IF NOT EXISTS ix_chat_messages_translated_gin ON chat_messages USING gin (
+    translated_content
+);
 
 -- Trigger to auto-increment sequence_number
-CREATE OR REPLACE FUNCTION set_message_sequence_number()
+CREATE OR REPLACE FUNCTION SET_MESSAGE_SEQUENCE_NUMBER()
 RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.sequence_number IS NULL THEN
@@ -196,12 +222,12 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_set_message_sequence
-    BEFORE INSERT ON chat_messages
-    FOR EACH ROW
-    EXECUTE FUNCTION set_message_sequence_number();
+BEFORE INSERT ON chat_messages
+FOR EACH ROW
+EXECUTE FUNCTION SET_MESSAGE_SEQUENCE_NUMBER();
 
 -- Trigger to update session statistics on message insert
-CREATE OR REPLACE FUNCTION update_session_on_message_insert()
+CREATE OR REPLACE FUNCTION UPDATE_SESSION_ON_MESSAGE_INSERT()
 RETURNS TRIGGER AS $$
 BEGIN
     UPDATE conversation_sessions
@@ -215,9 +241,9 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_update_session_on_message
-    AFTER INSERT ON chat_messages
-    FOR EACH ROW
-    EXECUTE FUNCTION update_session_on_message_insert();
+AFTER INSERT ON chat_messages
+FOR EACH ROW
+EXECUTE FUNCTION UPDATE_SESSION_ON_MESSAGE_INSERT();
 
 -- ============================================================================
 -- CONVERSATION STATISTICS TABLE
@@ -225,8 +251,10 @@ CREATE TRIGGER trigger_update_session_on_message
 
 CREATE TABLE IF NOT EXISTS conversation_statistics (
     -- Primary key
-    statistics_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    session_id UUID NOT NULL UNIQUE REFERENCES conversation_sessions(session_id) ON DELETE CASCADE,
+    statistics_id UUID PRIMARY KEY DEFAULT UUID_GENERATE_V4(),
+    session_id UUID NOT NULL UNIQUE REFERENCES conversation_sessions (
+        session_id
+    ) ON DELETE CASCADE,
 
     -- Message statistics
     total_messages INTEGER NOT NULL DEFAULT 0,
@@ -247,15 +275,21 @@ CREATE TABLE IF NOT EXISTS conversation_statistics (
     avg_response_time INTEGER,
 
     -- Quality metrics
-    average_confidence INTEGER CHECK (average_confidence >= 0 AND average_confidence <= 100),
+    average_confidence INTEGER CHECK (
+        average_confidence >= 0 AND average_confidence <= 100
+    ),
 
     -- Timestamps
     calculated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 -- Indexes for conversation_statistics table
-CREATE INDEX IF NOT EXISTS ix_conv_stats_session_id ON conversation_statistics(session_id);
-CREATE INDEX IF NOT EXISTS ix_conv_stats_calculated_at ON conversation_statistics(calculated_at);
+CREATE INDEX IF NOT EXISTS ix_conv_stats_session_id ON conversation_statistics (
+    session_id
+);
+CREATE INDEX IF NOT EXISTS ix_conv_stats_calculated_at ON conversation_statistics (
+    calculated_at
+);
 
 -- ============================================================================
 -- HELPER VIEWS
@@ -272,8 +306,8 @@ SELECT
     cs.started_at,
     cs.last_message_at,
     cs.message_count
-FROM users u
-JOIN conversation_sessions cs ON u.user_id = cs.user_id
+FROM users AS u
+INNER JOIN conversation_sessions AS cs ON u.user_id = cs.user_id
 WHERE cs.ended_at IS NULL
 ORDER BY cs.last_message_at DESC;
 
@@ -286,10 +320,10 @@ SELECT
     cs.started_at,
     cs.ended_at,
     cs.message_count,
-    COUNT(cm.message_id) as actual_message_count,
-    MAX(cm.timestamp) as last_message_time
-FROM conversation_sessions cs
-LEFT JOIN chat_messages cm ON cs.session_id = cm.session_id
+    COUNT(cm.message_id) AS actual_message_count,
+    MAX(cm.timestamp) AS last_message_time
+FROM conversation_sessions AS cs
+LEFT JOIN chat_messages AS cm ON cs.session_id = cm.session_id
 WHERE cs.started_at >= NOW() - INTERVAL '30 days'
 GROUP BY cs.session_id
 ORDER BY cs.started_at DESC;
@@ -300,13 +334,13 @@ SELECT
     u.user_id,
     u.email,
     u.name,
-    COUNT(DISTINCT cs.session_id) as total_sessions,
-    COUNT(cm.message_id) as total_messages,
-    MAX(cs.last_message_at) as last_active,
-    SUM(cs.message_count) as total_message_count
-FROM users u
-LEFT JOIN conversation_sessions cs ON u.user_id = cs.user_id
-LEFT JOIN chat_messages cm ON cs.session_id = cm.session_id
+    COUNT(DISTINCT cs.session_id) AS total_sessions,
+    COUNT(cm.message_id) AS total_messages,
+    MAX(cs.last_message_at) AS last_active,
+    SUM(cs.message_count) AS total_message_count
+FROM users AS u
+LEFT JOIN conversation_sessions AS cs ON u.user_id = cs.user_id
+LEFT JOIN chat_messages AS cm ON cs.session_id = cm.session_id
 GROUP BY u.user_id, u.email, u.name
 ORDER BY last_active DESC;
 
@@ -315,8 +349,8 @@ ORDER BY last_active DESC;
 -- ============================================================================
 
 -- Function to calculate conversation statistics
-CREATE OR REPLACE FUNCTION calculate_conversation_statistics(p_session_id UUID)
-RETURNS void AS $$
+CREATE OR REPLACE FUNCTION CALCULATE_CONVERSATION_STATISTICS(p_session_id UUID)
+RETURNS VOID AS $$
 DECLARE
     v_total_messages INTEGER;
     v_user_messages INTEGER;
@@ -401,7 +435,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function to search messages by content (full-text search)
-CREATE OR REPLACE FUNCTION search_messages(
+CREATE OR REPLACE FUNCTION SEARCH_MESSAGES(
     p_user_id VARCHAR(255),
     p_search_term TEXT,
     p_limit INTEGER DEFAULT 50
@@ -473,18 +507,30 @@ END $$;
 -- ============================================================================
 
 -- Verify installation
-SELECT 'Chat history schema installed successfully!' as status;
+SELECT 'Chat history schema installed successfully!' AS status;
 
 -- Show table counts
 SELECT
-    'users' as table_name,
-    COUNT(*) as row_count
+    'users' AS table_name,
+    COUNT(*) AS row_count
 FROM users
 UNION ALL
-SELECT 'conversation_sessions', COUNT(*) FROM conversation_sessions
+SELECT
+    'conversation_sessions' AS table_name,
+    COUNT(*) AS row_count
+FROM conversation_sessions
 UNION ALL
-SELECT 'chat_messages', COUNT(*) FROM chat_messages
+SELECT
+    'chat_messages' AS table_name,
+    COUNT(*) AS row_count
+FROM chat_messages
 UNION ALL
-SELECT 'api_tokens', COUNT(*) FROM api_tokens
+SELECT
+    'api_tokens' AS table_name,
+    COUNT(*) AS row_count
+FROM api_tokens
 UNION ALL
-SELECT 'conversation_statistics', COUNT(*) FROM conversation_statistics;
+SELECT
+    'conversation_statistics' AS table_name,
+    COUNT(*) AS row_count
+FROM conversation_statistics;

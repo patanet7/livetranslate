@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # STEP 2: ADD TO AudioCoordinator.__init__()
 # =============================================================================
-#  Example:
+_INIT_EXAMPLE = """
+# Example code to add to AudioCoordinator.__init__():
+
 def __init__(self, ...):
     # ... existing initialization ...
 
@@ -65,7 +67,7 @@ def __init__(self, ...):
             self.translation_cache = None
     else:
         logger.info("Translation cache disabled by configuration")
-# End Example
+"""
 
 # =============================================================================
 # STEP 3: REPLACE _request_translations METHOD

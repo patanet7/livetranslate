@@ -97,7 +97,7 @@ fi
 
 # Wait for ready
 echo "Checking PostgreSQL is ready..."
-for i in {1..30}; do
+for _ in {1..30}; do
     if docker exec "$CONTAINER_NAME" pg_isready -U "$POSTGRES_USER" &>/dev/null; then
         echo -e "${GREEN}PostgreSQL is ready${NC}"
         break

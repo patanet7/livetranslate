@@ -153,7 +153,7 @@ def transcribe(
         warnings.warn("Word-level timestamps on translations may not be reliable.", stacklevel=2)
 
     def decode_with_fallback(segment: torch.Tensor) -> DecodingResult:
-        temperatures = [temperature] if isinstance(temperature, (int, float)) else temperature
+        temperatures = [temperature] if isinstance(temperature, int | float) else temperature
         decode_result = None
 
         for t in temperatures:

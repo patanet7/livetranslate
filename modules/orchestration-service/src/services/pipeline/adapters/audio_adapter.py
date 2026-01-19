@@ -146,23 +146,29 @@ class AudioUploadChunkAdapter(ChunkAdapter):
         """
         # Check direct speaker fields
         if data.get("speaker_name"):
-            return data["speaker_name"]
+            result: str = data["speaker_name"]
+            return result
         if data.get("speaker"):
-            return data["speaker"]
+            result = data["speaker"]
+            return result
 
         # Check diarization info
         diarization = data.get("diarization", {})
         if isinstance(diarization, dict):
             if diarization.get("speaker_label"):
-                return diarization["speaker_label"]
+                result = diarization["speaker_label"]
+                return result
             if diarization.get("speaker_id"):
-                return diarization["speaker_id"]
+                result = diarization["speaker_id"]
+                return result
             if diarization.get("speaker"):
-                return diarization["speaker"]
+                result = diarization["speaker"]
+                return result
 
         # Check speaker_id field
         if data.get("speaker_id"):
-            return data["speaker_id"]
+            result = data["speaker_id"]
+            return result
 
         return "Unknown"
 
@@ -202,9 +208,11 @@ class AudioUploadChunkAdapter(ChunkAdapter):
         if isinstance(raw_chunk, dict):
             return self._extract_speaker_info(raw_chunk)
         if hasattr(raw_chunk, "speaker_name"):
-            return raw_chunk.speaker_name
+            speaker: str | None = raw_chunk.speaker_name
+            return speaker
         if hasattr(raw_chunk, "speaker"):
-            return raw_chunk.speaker
+            speaker = raw_chunk.speaker
+            return speaker
         return None
 
     def validate(self, raw_chunk: Any) -> bool:

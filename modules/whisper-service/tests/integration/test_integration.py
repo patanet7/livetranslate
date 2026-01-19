@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Integration Tests for WebSocket Server
 
@@ -157,7 +156,7 @@ class TestHTTPEndpoints:
                 assert field in data
 
             assert data["status"] in ["healthy", "ok"]
-            assert isinstance(data["timestamp"], (int, float))
+            assert isinstance(data["timestamp"], int | float)
 
     @pytest.mark.asyncio
     async def test_models_endpoint(self, http_client, sample_api_endpoints):

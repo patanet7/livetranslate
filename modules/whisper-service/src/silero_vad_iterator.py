@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Silero VAD Iterator for Voice Activity Detection
 
@@ -222,7 +221,7 @@ class FixedVADIterator(VADIterator):
 # Example usage and testing
 if __name__ == "__main__":
     # Load Silero VAD model
-    model, utils = torch.hub.load(
+    model, utils = torch.hub.load(  # nosec B614
         repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
     )
 

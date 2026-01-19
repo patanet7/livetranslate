@@ -1,0 +1,54 @@
+[sqlfluff]
+dialect = postgres
+max_line_length = 120
+large_file_skip_byte_limit = 50000
+
+[sqlfluff:rules]
+# Enable capitalisation rules for best practices
+# All keywords, types, functions should be UPPER CASE
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.functions]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.types]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = upper
+
+[sqlfluff:rules:aliasing.table]
+# Allow both explicit and implicit aliasing
+enabled = false
+
+[sqlfluff:rules:aliasing.expression]
+# Require AS for expression aliases (good practice)
+enabled = true
+
+[sqlfluff:rules:ambiguous.join]
+# Disable - JOIN without ON is sometimes intentional (CROSS JOIN)
+enabled = false
+
+[sqlfluff:rules:layout.indent]
+# Enable indentation rules
+enabled = true
+indent_unit = space
+tab_space_size = 4
+
+[sqlfluff:rules:layout.select_targets]
+# Disable - allow compact single-line selects for simple queries
+enabled = false
+
+[sqlfluff:rules:layout.spacing]
+# Enable spacing rules (best practice)
+enabled = true
+
+[sqlfluff:rules:structure.column_order]
+# Disable - column order is subjective
+enabled = false
+
+[sqlfluff:rules:references.keywords]
+# Disable - allow keywords as identifiers (common in existing schemas)
+enabled = false

@@ -5,6 +5,7 @@ Common imports, utilities, and configurations used across all audio router compo
 """
 
 import logging
+from typing import Any
 
 __all__ = [
     "APIRouter",
@@ -85,7 +86,7 @@ service_recovery = ServiceRecoveryStrategy()
 
 
 # Shared utility functions
-def get_common_dependencies():
+def get_common_dependencies() -> dict[str, Any]:
     """Get common dependencies used across audio endpoints."""
     return {
         "rate_limiter": rate_limiter,

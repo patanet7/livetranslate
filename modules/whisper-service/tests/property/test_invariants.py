@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Property-Based Tests: System Invariants
 
@@ -212,7 +211,7 @@ class TestVADRobustnessInvariants:
                 for key in result:
                     assert key in ["start", "end"], f"Invalid key in VAD result: {key}"
                     assert isinstance(
-                        result[key], (int, float)
+                        result[key], int | float
                     ), f"Invalid value type for {key}: {type(result[key])}"
                     assert result[key] >= 0, f"Negative timestamp: {result[key]}"
 

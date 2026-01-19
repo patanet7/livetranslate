@@ -16,7 +16,7 @@ class AudioProcessor:
     Audio processing utilities
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.supported_formats = {
             "wav": {"mime": "audio/wav", "extension": ".wav"},
             "mp3": {"mime": "audio/mpeg", "extension": ".mp3"},

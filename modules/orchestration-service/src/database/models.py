@@ -27,7 +27,7 @@ from sqlalchemy.orm import relationship
 from .base import Base
 
 
-def utc_now():
+def utc_now() -> datetime:
     """Return current UTC time (timezone-naive for TIMESTAMP WITHOUT TIME ZONE columns)."""
     return datetime.now(UTC).replace(tzinfo=None)
 
@@ -547,5 +547,6 @@ class GlossaryEntry(Base):
     def get_translation(self, target_language: str) -> str | None:
         """Get translation for a specific target language"""
         if self.translations and target_language in self.translations:
-            return self.translations[target_language]
+            translation: str = self.translations[target_language]
+            return translation
         return None

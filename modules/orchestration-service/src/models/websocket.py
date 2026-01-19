@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
 from .base import BaseModel, ResponseMixin, TimestampMixin
 
@@ -406,7 +406,7 @@ class BroadcastMessage(BaseModel):
 
     @field_validator("target_type")
     @classmethod
-    def validate_target_type(cls, v, info=None):
+    def validate_target_type(cls, v: str, info: ValidationInfo | None = None) -> str:
         """Validate target type"""
         valid_types = ["all", "session", "user", "role", "connection"]
         if v not in valid_types:
@@ -415,7 +415,7 @@ class BroadcastMessage(BaseModel):
 
     @field_validator("delivery_method")
     @classmethod
-    def validate_delivery_method(cls, v, info=None):
+    def validate_delivery_method(cls, v: str, info: ValidationInfo | None = None) -> str:
         """Validate delivery method"""
         valid_methods = ["best_effort", "guaranteed", "priority"]
         if v not in valid_methods:

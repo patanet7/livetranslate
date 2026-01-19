@@ -5,7 +5,7 @@ Configuration-related Pydantic models
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
 from .base import BaseModel, ResponseMixin, TimestampMixin
 
@@ -37,7 +37,7 @@ class ConfigUpdate(BaseModel):
 
     @field_validator("merge_strategy")
     @classmethod
-    def validate_merge_strategy(cls, v, info=None):
+    def validate_merge_strategy(cls, v: str, info: ValidationInfo | None = None) -> str:
         """Validate merge strategy"""
         valid_strategies = ["deep_merge", "shallow_merge", "replace"]
         if v not in valid_strategies:
@@ -46,7 +46,9 @@ class ConfigUpdate(BaseModel):
 
     @field_validator("updates")
     @classmethod
-    def validate_updates_not_empty(cls, v, info=None):
+    def validate_updates_not_empty(
+        cls, v: dict[str, Any], info: ValidationInfo | None = None
+    ) -> dict[str, Any]:
         """Ensure updates dict is not empty"""
         if not v:
             raise ValueError("Updates cannot be empty")
