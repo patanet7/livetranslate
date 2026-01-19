@@ -6,6 +6,8 @@ Flask-based REST API with WebSocket support for real-time translation streaming.
 Provides endpoints for translation, language detection, and service management.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging

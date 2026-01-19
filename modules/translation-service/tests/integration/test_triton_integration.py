@@ -1,14 +1,31 @@
 #!/usr/bin/env python3
 """
 Simple test script for Triton-based Translation Service
+
+Configuration:
+    Set environment variables or create tests/.env.test:
+    - TRITON_BASE_URL (default: http://localhost:8000)
+    - TRANSLATION_SERVICE_URL (default: http://localhost:5003)
 """
 
 import asyncio
+import os
+import sys
+from pathlib import Path
 
 import aiohttp
 
-TRITON_BASE_URL = "http://localhost:8000"
-TRANSLATION_SERVICE_URL = "http://localhost:5003"
+# Load config from conftest if available
+try:
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from conftest import test_config
+
+    TRANSLATION_SERVICE_URL = test_config.translation_service_url
+except ImportError:
+    TRANSLATION_SERVICE_URL = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+
+# Triton URL (not in standard conftest, use env var)
+TRITON_BASE_URL = os.getenv("TRITON_BASE_URL", "http://localhost:8000")
 
 
 async def test_triton_health():

@@ -95,21 +95,34 @@ just dev                      # Start development environment
 ```
 
 ### Service-Specific Commands
+
+> **IMPORTANT**: Always use `pdm install -G dev` (not just `pdm install`) to install dev dependencies including pytest, pytest-timeout, and code quality tools.
+> **Python Version**: Services require Python >=3.12,<3.14. Python 3.14+ is not supported due to ML package compatibility (grpcio, onnxruntime).
+
 ```bash
 # Whisper Service (NPU/GPU optimized)
 cd modules/whisper-service
-pdm install
+pdm install -G dev  # Includes pytest, pytest-timeout, code quality tools
 pdm run python src/main.py --device=npu
+pdm run pytest tests/ -v  # Run tests
 
 # Translation Service (GPU optimized)
 cd modules/translation-service
-pdm install
+pdm install -G dev  # Includes pytest, pytest-timeout, code quality tools
 pdm run python src/api_server.py
+pdm run pytest tests/ -v  # Run tests
 
 # Orchestration Service with bot management
 cd modules/orchestration-service
-pdm install
+pdm install -G dev  # Includes pytest, pytest-timeout, code quality tools
 pdm run python src/main_fastapi.py
+pdm run pytest tests/ -v  # Run tests
+
+# Frontend Service (React/TypeScript)
+cd modules/frontend-service
+npm install
+npm run dev  # Start development server
+npm test     # Run tests
 ```
 
 ### Justfile Commands

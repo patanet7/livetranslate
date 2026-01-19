@@ -10,6 +10,9 @@ Usage:
     # Then run this test:
     python tests/quick_model_switch_test.py
 
+    # Or with custom URL:
+    TRANSLATION_SERVICE_URL=http://myserver:5003 python tests/quick_model_switch_test.py
+
 This tests:
 1. Translation with initial model
 2. Get model status
@@ -19,11 +22,21 @@ This tests:
 """
 
 import asyncio
+import os
+import sys
 import time
+from pathlib import Path
 
 import aiohttp
 
-BASE_URL = "http://localhost:5003"
+# Load config from conftest if available, otherwise use env vars
+try:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from conftest import test_config
+
+    BASE_URL = test_config.translation_service_url
+except ImportError:
+    BASE_URL = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
 
 
 async def main():

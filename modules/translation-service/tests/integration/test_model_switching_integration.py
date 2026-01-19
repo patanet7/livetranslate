@@ -11,30 +11,34 @@ These tests verify ACTUAL model switching with the translation service:
 6. Model status verification
 
 Requirements:
-- Translation service running on localhost:5003
-- Ollama server accessible with at least 2 models available
+- Translation service running (configure via TRANSLATION_SERVICE_URL env var)
+- Ollama server accessible (configure via OLLAMA_BASE_URL env var)
 - Run: python -m pytest tests/integration/test_model_switching_integration.py -v
+
+Configuration:
+- Set environment variables or create tests/.env.test file
+- See tests/.env.test.example for available options
 
 Author: Claude Code
 Date: 2026-01-11
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
-import os
 import time
 from typing import Any
 
 import aiohttp
 import pytest
 
+# Import config from conftest (automatically loaded by pytest)
+from conftest import test_config
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Service configuration
-TRANSLATION_SERVICE_URL = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://192.168.1.239:11434")
 
 # Test texts for translation
 TEST_TEXTS = {
@@ -48,8 +52,8 @@ TEST_TEXTS = {
 class TranslationServiceClient:
     """Client for testing the translation service"""
 
-    def __init__(self, base_url: str = TRANSLATION_SERVICE_URL):
-        self.base_url = base_url
+    def __init__(self, base_url: str | None = None):
+        self.base_url = base_url or test_config.translation_service_url
         self.session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self):
@@ -141,7 +145,7 @@ async def get_available_ollama_models() -> list[str]:
     """Get list of available Ollama models"""
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(f"{OLLAMA_BASE_URL}/api/tags") as response:
+            async with session.get(f"{test_config.ollama_base_url}/api/tags") as response:
                 if response.status == 200:
                     data = await response.json()
                     return [m["name"] for m in data.get("models", [])]
@@ -502,8 +506,8 @@ async def run_all_tests():
     """Run all integration tests manually (without pytest)"""
     logger.info("=" * 70)
     logger.info("MODEL SWITCHING INTEGRATION TESTS")
-    logger.info(f"Translation Service: {TRANSLATION_SERVICE_URL}")
-    logger.info(f"Ollama Server: {OLLAMA_BASE_URL}")
+    logger.info(f"Translation Service: {test_config.translation_service_url}")
+    logger.info(f"Ollama Server: {test_config.ollama_base_url}")
     logger.info("=" * 70)
 
     async with TranslationServiceClient() as client:

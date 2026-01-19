@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-01-18T22:27:39.903106",
+  "tests": {
+    "jfk_english": {
+      "best_accuracy": 100.0,
+      "best_timestamp": "2026-01-18T22:17:56.509250",
+      "history_length": 1
+    },
+    "chinese": {
+      "best_accuracy": 48.21428571428571,
+      "best_timestamp": "2026-01-18T22:19:56.296066",
+      "history_length": 1
+    },
+    "mixed_en_zh": {
+      "best_accuracy": -137.5,
+      "best_timestamp": "2026-01-18T22:27:39.807871",
+      "history_length": 1
+    },
+    "test_regression_detection": {
+      "best_accuracy": 80.0,
+      "best_timestamp": "2026-01-18T22:27:39.900112",
+      "history_length": 1
+    },
+    "test_history_tracking": {
+      "best_accuracy": 74.0,
+      "best_timestamp": "2026-01-18T22:27:39.902365",
+      "history_length": 5
+    }
+  }
+}
