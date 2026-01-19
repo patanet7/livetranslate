@@ -20,11 +20,11 @@
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^22.1.0",
-    "@types/ws": "^8.5.13",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
     "eslint": "^8.36.0",
-    "nodemon": "^3.1.4"
+    "nodemon": "^3.1.11"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",
@@ -33,20 +33,20 @@
     "axios": "^1.7.7",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
-    "fs-extra": "^11.2.0",
+    "fs-extra": "^11.3.3",
     "moment": "^2.30.1",
-    "moment-timezone": "^0.5.46",
-    "playwright": "^1.45.3",
+    "moment-timezone": "^0.6.0",
+    "playwright": "^1.57.0",
     "playwright-extra": "^4.3.6",
     "playwright-extra-plugin-stealth": "^0.0.1",
     "prom-client": "^15.1.3",
     "puppeteer": "^22.15.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "redis": "^5.8.1",
+    "redis": "^5.10.0",
     "serialize-error": "^12.0.0",
     "ts-node": "^10.9.2",
     "uuid": "^11.1.0",
-    "winston": "^3.17.0"
+    "winston": "^3.19.0"
   }
 }
