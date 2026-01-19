@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
 from .base import BaseModel, ResponseMixin, TimestampMixin
 
@@ -133,7 +133,7 @@ class SystemStatus(ResponseMixin, TimestampMixin):
 
     @field_validator("status")
     @classmethod
-    def determine_overall_status(cls, v, info):
+    def determine_overall_status(cls, v: ServiceStatus, info: ValidationInfo) -> ServiceStatus:
         """Determine overall status based on service statuses"""
         services = (info.data if info else {}).get("services", {})
 

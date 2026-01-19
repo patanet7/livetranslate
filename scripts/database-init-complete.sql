@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS bot_sessions.sessions (
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP,
     participant_count INTEGER DEFAULT 0,
-    target_languages JSONB DEFAULT '[]'::jsonb,
-    session_metadata JSONB DEFAULT '{}'::jsonb,
-    performance_stats JSONB DEFAULT '{}'::jsonb,
+    target_languages JSONB DEFAULT '[]'::JSONB,
+    session_metadata JSONB DEFAULT '{}'::JSONB,
+    performance_stats JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.sessions (
 -- Storage metadata for all audio files captured during sessions
 CREATE TABLE IF NOT EXISTS bot_sessions.audio_files (
     file_id VARCHAR(100) PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
     file_path TEXT NOT NULL,
     file_name VARCHAR(500) NOT NULL,
     file_size BIGINT NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.audio_files (
     audio_quality_score REAL,
     processing_status VARCHAR(50) NOT NULL DEFAULT 'pending',
     file_hash VARCHAR(128),
-    metadata JSONB DEFAULT '{}'::jsonb,
+    metadata JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.audio_files (
 -- Both Google Meet and in-house transcription results with search capabilities
 CREATE TABLE IF NOT EXISTS bot_sessions.transcripts (
     transcript_id VARCHAR(100) PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
     source_type VARCHAR(50) NOT NULL, -- 'google_meet', 'whisper_service', 'manual'
     transcript_text TEXT NOT NULL,
     language_code VARCHAR(10) NOT NULL,
@@ -83,9 +83,9 @@ CREATE TABLE IF NOT EXISTS bot_sessions.transcripts (
     speaker_name VARCHAR(255),
     confidence_score REAL,
     segment_index INTEGER DEFAULT 0,
-    audio_file_id VARCHAR(100) REFERENCES bot_sessions.audio_files(file_id) ON DELETE SET NULL,
+    audio_file_id VARCHAR(100) REFERENCES bot_sessions.audio_files (file_id) ON DELETE SET NULL,
     google_transcript_entry_id VARCHAR(255),
-    processing_metadata JSONB DEFAULT '{}'::jsonb,
+    processing_metadata JSONB DEFAULT '{}'::JSONB,
 
     -- ENHANCEMENT: Full-text search support
     search_vector TSVECTOR,
@@ -107,27 +107,27 @@ CREATE TABLE IF NOT EXISTS bot_sessions.transcripts (
 -- Maps anonymous speaker IDs (SPEAKER_00) to identified participants
 CREATE TABLE IF NOT EXISTS bot_sessions.speaker_identities (
     identity_id VARCHAR(100) PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
     speaker_label VARCHAR(100) NOT NULL,  -- 'SPEAKER_00', 'SPEAKER_01', etc.
-    participant_id VARCHAR(100) REFERENCES bot_sessions.participants(participant_id),
+    participant_id VARCHAR(100) REFERENCES bot_sessions.participants (participant_id),
     identified_name VARCHAR(255),
     identification_method VARCHAR(50) NOT NULL,  -- 'manual', 'voice_print', 'correlation', 'google_meet'
     identification_confidence REAL DEFAULT 0.0,
     identification_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
-    metadata JSONB DEFAULT '{}'::jsonb,
+    metadata JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
     -- Ensure unique speaker labels per session
-    UNIQUE(session_id, speaker_label)
+    UNIQUE (session_id, speaker_label)
 );
 
 -- Translations Table
 -- Translation results for all transcribed content
 CREATE TABLE IF NOT EXISTS bot_sessions.translations (
     translation_id VARCHAR(100) PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
-    source_transcript_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.transcripts(transcript_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
+    source_transcript_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.transcripts (transcript_id) ON DELETE CASCADE,
     translated_text TEXT NOT NULL,
     source_language VARCHAR(10) NOT NULL,
     target_language VARCHAR(10) NOT NULL,
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.translations (
     speaker_name VARCHAR(255),
     start_timestamp REAL NOT NULL,
     end_timestamp REAL NOT NULL,
-    processing_metadata JSONB DEFAULT '{}'::jsonb,
+    processing_metadata JSONB DEFAULT '{}'::JSONB,
 
     -- ENHANCEMENT: Full-text search support
     search_vector TSVECTOR,
@@ -150,9 +150,9 @@ CREATE TABLE IF NOT EXISTS bot_sessions.translations (
 -- Time correlation between Google Meet captions and in-house transcriptions
 CREATE TABLE IF NOT EXISTS bot_sessions.correlations (
     correlation_id VARCHAR(100) PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
-    google_transcript_id VARCHAR(100) REFERENCES bot_sessions.transcripts(transcript_id) ON DELETE SET NULL,
-    inhouse_transcript_id VARCHAR(100) REFERENCES bot_sessions.transcripts(transcript_id) ON DELETE SET NULL,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
+    google_transcript_id VARCHAR(100) REFERENCES bot_sessions.transcripts (transcript_id) ON DELETE SET NULL,
+    inhouse_transcript_id VARCHAR(100) REFERENCES bot_sessions.transcripts (transcript_id) ON DELETE SET NULL,
     correlation_confidence REAL NOT NULL DEFAULT 0.0,
     timing_offset REAL NOT NULL DEFAULT 0.0,
     correlation_type VARCHAR(50) NOT NULL, -- 'exact', 'interpolated', 'inferred'
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.correlations (
     speaker_id VARCHAR(100),
     start_timestamp REAL NOT NULL,
     end_timestamp REAL NOT NULL,
-    correlation_metadata JSONB DEFAULT '{}'::jsonb,
+    correlation_metadata JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -168,14 +168,14 @@ CREATE TABLE IF NOT EXISTS bot_sessions.correlations (
 -- Track participants throughout the meeting
 CREATE TABLE IF NOT EXISTS bot_sessions.participants (
     participant_id VARCHAR(100) PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
     google_participant_id VARCHAR(255),
     display_name VARCHAR(255),
     email VARCHAR(255),
     join_time TIMESTAMP,
     leave_time TIMESTAMP,
     total_speaking_time REAL DEFAULT 0.0,
-    participant_metadata JSONB DEFAULT '{}'::jsonb,
+    participant_metadata JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -184,10 +184,10 @@ CREATE TABLE IF NOT EXISTS bot_sessions.participants (
 -- Log of all significant events during bot sessions
 CREATE TABLE IF NOT EXISTS bot_sessions.events (
     event_id BIGSERIAL PRIMARY KEY,
-    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) NOT NULL REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
     event_type VARCHAR(100) NOT NULL,
     event_subtype VARCHAR(100),
-    event_data JSONB DEFAULT '{}'::jsonb,
+    event_data JSONB DEFAULT '{}'::JSONB,
     timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
     source_component VARCHAR(100), -- 'bot_manager', 'google_meet_api', 'whisper_service', etc.
     severity VARCHAR(20) DEFAULT 'info' -- 'debug', 'info', 'warning', 'error', 'critical'
@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS bot_sessions.events (
 -- Session Statistics Table
 -- Aggregated statistics for completed sessions
 CREATE TABLE IF NOT EXISTS bot_sessions.session_statistics (
-    session_id VARCHAR(100) PRIMARY KEY REFERENCES bot_sessions.sessions(session_id) ON DELETE CASCADE,
+    session_id VARCHAR(100) PRIMARY KEY REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
     total_duration REAL,
     total_participants INTEGER,
     unique_speakers INTEGER,
@@ -206,10 +206,10 @@ CREATE TABLE IF NOT EXISTS bot_sessions.session_statistics (
     total_transcripts INTEGER,
     total_transcript_words INTEGER,
     total_translations INTEGER,
-    translation_languages TEXT[],
+    translation_languages TEXT [],
     correlation_success_rate REAL,
     average_correlation_confidence REAL,
-    quality_metrics JSONB DEFAULT '{}'::jsonb,
+    quality_metrics JSONB DEFAULT '{}'::JSONB,
     computed_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -218,79 +218,85 @@ CREATE TABLE IF NOT EXISTS bot_sessions.session_statistics (
 -- ============================================================================
 
 -- Session-based queries
-CREATE INDEX IF NOT EXISTS idx_sessions_bot_id ON bot_sessions.sessions(bot_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_meeting_id ON bot_sessions.sessions(meeting_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_status ON bot_sessions.sessions(status);
-CREATE INDEX IF NOT EXISTS idx_sessions_start_time ON bot_sessions.sessions(start_time);
-CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON bot_sessions.sessions(created_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_bot_id ON bot_sessions.sessions (bot_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_meeting_id ON bot_sessions.sessions (meeting_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_status ON bot_sessions.sessions (status);
+CREATE INDEX IF NOT EXISTS idx_sessions_start_time ON bot_sessions.sessions (start_time);
+CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON bot_sessions.sessions (created_at);
 
 -- Audio file queries
-CREATE INDEX IF NOT EXISTS idx_audio_files_session_id ON bot_sessions.audio_files(session_id);
-CREATE INDEX IF NOT EXISTS idx_audio_files_processing_status ON bot_sessions.audio_files(processing_status);
-CREATE INDEX IF NOT EXISTS idx_audio_files_created_at ON bot_sessions.audio_files(created_at);
-CREATE INDEX IF NOT EXISTS idx_audio_files_chunk_times ON bot_sessions.audio_files(chunk_start_time, chunk_end_time);
+CREATE INDEX IF NOT EXISTS idx_audio_files_session_id ON bot_sessions.audio_files (session_id);
+CREATE INDEX IF NOT EXISTS idx_audio_files_processing_status ON bot_sessions.audio_files (processing_status);
+CREATE INDEX IF NOT EXISTS idx_audio_files_created_at ON bot_sessions.audio_files (created_at);
+CREATE INDEX IF NOT EXISTS idx_audio_files_chunk_times ON bot_sessions.audio_files (chunk_start_time, chunk_end_time);
 
 -- Transcript queries
-CREATE INDEX IF NOT EXISTS idx_transcripts_session_id ON bot_sessions.transcripts(session_id);
-CREATE INDEX IF NOT EXISTS idx_transcripts_source_type ON bot_sessions.transcripts(source_type);
-CREATE INDEX IF NOT EXISTS idx_transcripts_speaker_id ON bot_sessions.transcripts(speaker_id);
-CREATE INDEX IF NOT EXISTS idx_transcripts_timestamps ON bot_sessions.transcripts(start_timestamp, end_timestamp);
-CREATE INDEX IF NOT EXISTS idx_transcripts_language ON bot_sessions.transcripts(language_code);
-CREATE INDEX IF NOT EXISTS idx_transcripts_segment_index ON bot_sessions.transcripts(session_id, segment_index);
+CREATE INDEX IF NOT EXISTS idx_transcripts_session_id ON bot_sessions.transcripts (session_id);
+CREATE INDEX IF NOT EXISTS idx_transcripts_source_type ON bot_sessions.transcripts (source_type);
+CREATE INDEX IF NOT EXISTS idx_transcripts_speaker_id ON bot_sessions.transcripts (speaker_id);
+CREATE INDEX IF NOT EXISTS idx_transcripts_timestamps ON bot_sessions.transcripts (start_timestamp, end_timestamp);
+CREATE INDEX IF NOT EXISTS idx_transcripts_language ON bot_sessions.transcripts (language_code);
+CREATE INDEX IF NOT EXISTS idx_transcripts_segment_index ON bot_sessions.transcripts (session_id, segment_index);
 
 -- ENHANCEMENT: Full-text search indexes
-CREATE INDEX IF NOT EXISTS idx_transcripts_search_vector ON bot_sessions.transcripts USING GIN(search_vector);
-CREATE INDEX IF NOT EXISTS idx_transcripts_text_trgm ON bot_sessions.transcripts USING GIN(transcript_text gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_transcripts_search_vector ON bot_sessions.transcripts USING gin (search_vector);
+CREATE INDEX IF NOT EXISTS idx_transcripts_text_trgm ON bot_sessions.transcripts USING gin (
+    transcript_text gin_trgm_ops
+);
 
 -- ENHANCEMENT: Segment continuity indexes
-CREATE INDEX IF NOT EXISTS idx_transcripts_previous_segment ON bot_sessions.transcripts(previous_segment_id);
-CREATE INDEX IF NOT EXISTS idx_transcripts_next_segment ON bot_sessions.transcripts(next_segment_id);
+CREATE INDEX IF NOT EXISTS idx_transcripts_previous_segment ON bot_sessions.transcripts (previous_segment_id);
+CREATE INDEX IF NOT EXISTS idx_transcripts_next_segment ON bot_sessions.transcripts (next_segment_id);
 
 -- ENHANCEMENT: Speaker identity indexes
-CREATE INDEX IF NOT EXISTS idx_speaker_identities_session ON bot_sessions.speaker_identities(session_id);
-CREATE INDEX IF NOT EXISTS idx_speaker_identities_label ON bot_sessions.speaker_identities(speaker_label);
-CREATE INDEX IF NOT EXISTS idx_speaker_identities_participant ON bot_sessions.speaker_identities(participant_id);
-CREATE INDEX IF NOT EXISTS idx_speaker_identities_session_label ON bot_sessions.speaker_identities(session_id, speaker_label);
+CREATE INDEX IF NOT EXISTS idx_speaker_identities_session ON bot_sessions.speaker_identities (session_id);
+CREATE INDEX IF NOT EXISTS idx_speaker_identities_label ON bot_sessions.speaker_identities (speaker_label);
+CREATE INDEX IF NOT EXISTS idx_speaker_identities_participant ON bot_sessions.speaker_identities (participant_id);
+CREATE INDEX IF NOT EXISTS idx_speaker_identities_session_label ON bot_sessions.speaker_identities (
+    session_id, speaker_label
+);
 
 -- Translation queries
-CREATE INDEX IF NOT EXISTS idx_translations_session_id ON bot_sessions.translations(session_id);
-CREATE INDEX IF NOT EXISTS idx_translations_source_transcript ON bot_sessions.translations(source_transcript_id);
-CREATE INDEX IF NOT EXISTS idx_translations_languages ON bot_sessions.translations(source_language, target_language);
-CREATE INDEX IF NOT EXISTS idx_translations_speaker ON bot_sessions.translations(speaker_id);
-CREATE INDEX IF NOT EXISTS idx_translations_timestamps ON bot_sessions.translations(start_timestamp, end_timestamp);
+CREATE INDEX IF NOT EXISTS idx_translations_session_id ON bot_sessions.translations (session_id);
+CREATE INDEX IF NOT EXISTS idx_translations_source_transcript ON bot_sessions.translations (source_transcript_id);
+CREATE INDEX IF NOT EXISTS idx_translations_languages ON bot_sessions.translations (source_language, target_language);
+CREATE INDEX IF NOT EXISTS idx_translations_speaker ON bot_sessions.translations (speaker_id);
+CREATE INDEX IF NOT EXISTS idx_translations_timestamps ON bot_sessions.translations (start_timestamp, end_timestamp);
 
 -- ENHANCEMENT: Translation full-text search
-CREATE INDEX IF NOT EXISTS idx_translations_search_vector ON bot_sessions.translations USING GIN(search_vector);
+CREATE INDEX IF NOT EXISTS idx_translations_search_vector ON bot_sessions.translations USING gin (search_vector);
 
 -- Correlation queries
-CREATE INDEX IF NOT EXISTS idx_correlations_session_id ON bot_sessions.correlations(session_id);
-CREATE INDEX IF NOT EXISTS idx_correlations_google_transcript ON bot_sessions.correlations(google_transcript_id);
-CREATE INDEX IF NOT EXISTS idx_correlations_inhouse_transcript ON bot_sessions.correlations(inhouse_transcript_id);
-CREATE INDEX IF NOT EXISTS idx_correlations_type ON bot_sessions.correlations(correlation_type);
-CREATE INDEX IF NOT EXISTS idx_correlations_confidence ON bot_sessions.correlations(correlation_confidence);
+CREATE INDEX IF NOT EXISTS idx_correlations_session_id ON bot_sessions.correlations (session_id);
+CREATE INDEX IF NOT EXISTS idx_correlations_google_transcript ON bot_sessions.correlations (google_transcript_id);
+CREATE INDEX IF NOT EXISTS idx_correlations_inhouse_transcript ON bot_sessions.correlations (inhouse_transcript_id);
+CREATE INDEX IF NOT EXISTS idx_correlations_type ON bot_sessions.correlations (correlation_type);
+CREATE INDEX IF NOT EXISTS idx_correlations_confidence ON bot_sessions.correlations (correlation_confidence);
 
 -- Participant queries
-CREATE INDEX IF NOT EXISTS idx_participants_session_id ON bot_sessions.participants(session_id);
-CREATE INDEX IF NOT EXISTS idx_participants_google_id ON bot_sessions.participants(google_participant_id);
-CREATE INDEX IF NOT EXISTS idx_participants_join_time ON bot_sessions.participants(join_time);
+CREATE INDEX IF NOT EXISTS idx_participants_session_id ON bot_sessions.participants (session_id);
+CREATE INDEX IF NOT EXISTS idx_participants_google_id ON bot_sessions.participants (google_participant_id);
+CREATE INDEX IF NOT EXISTS idx_participants_join_time ON bot_sessions.participants (join_time);
 
 -- Event queries
-CREATE INDEX IF NOT EXISTS idx_events_session_id ON bot_sessions.events(session_id);
-CREATE INDEX IF NOT EXISTS idx_events_type ON bot_sessions.events(event_type);
-CREATE INDEX IF NOT EXISTS idx_events_timestamp ON bot_sessions.events(timestamp);
-CREATE INDEX IF NOT EXISTS idx_events_severity ON bot_sessions.events(severity);
+CREATE INDEX IF NOT EXISTS idx_events_session_id ON bot_sessions.events (session_id);
+CREATE INDEX IF NOT EXISTS idx_events_type ON bot_sessions.events (event_type);
+CREATE INDEX IF NOT EXISTS idx_events_timestamp ON bot_sessions.events (timestamp);
+CREATE INDEX IF NOT EXISTS idx_events_severity ON bot_sessions.events (severity);
 
 -- Composite indexes for common query patterns
-CREATE INDEX IF NOT EXISTS idx_transcripts_session_time ON bot_sessions.transcripts(session_id, start_timestamp);
-CREATE INDEX IF NOT EXISTS idx_translations_session_lang ON bot_sessions.translations(session_id, target_language);
-CREATE INDEX IF NOT EXISTS idx_correlations_session_confidence ON bot_sessions.correlations(session_id, correlation_confidence);
+CREATE INDEX IF NOT EXISTS idx_transcripts_session_time ON bot_sessions.transcripts (session_id, start_timestamp);
+CREATE INDEX IF NOT EXISTS idx_translations_session_lang ON bot_sessions.translations (session_id, target_language);
+CREATE INDEX IF NOT EXISTS idx_correlations_session_confidence ON bot_sessions.correlations (
+    session_id, correlation_confidence
+);
 
 -- JSONB indexes for metadata queries
-CREATE INDEX IF NOT EXISTS idx_sessions_metadata_gin ON bot_sessions.sessions USING GIN (session_metadata);
-CREATE INDEX IF NOT EXISTS idx_audio_metadata_gin ON bot_sessions.audio_files USING GIN (metadata);
-CREATE INDEX IF NOT EXISTS idx_transcripts_metadata_gin ON bot_sessions.transcripts USING GIN (processing_metadata);
-CREATE INDEX IF NOT EXISTS idx_translations_metadata_gin ON bot_sessions.translations USING GIN (processing_metadata);
-CREATE INDEX IF NOT EXISTS idx_correlations_metadata_gin ON bot_sessions.correlations USING GIN (correlation_metadata);
+CREATE INDEX IF NOT EXISTS idx_sessions_metadata_gin ON bot_sessions.sessions USING gin (session_metadata);
+CREATE INDEX IF NOT EXISTS idx_audio_metadata_gin ON bot_sessions.audio_files USING gin (metadata);
+CREATE INDEX IF NOT EXISTS idx_transcripts_metadata_gin ON bot_sessions.transcripts USING gin (processing_metadata);
+CREATE INDEX IF NOT EXISTS idx_translations_metadata_gin ON bot_sessions.translations USING gin (processing_metadata);
+CREATE INDEX IF NOT EXISTS idx_correlations_metadata_gin ON bot_sessions.correlations USING gin (correlation_metadata);
 
 -- ============================================================================
 -- FUNCTIONS AND TRIGGERS
@@ -308,8 +314,8 @@ $$ LANGUAGE plpgsql;
 -- Trigger to update transcript search vectors
 DROP TRIGGER IF EXISTS trigger_transcript_search_vector ON bot_sessions.transcripts;
 CREATE TRIGGER trigger_transcript_search_vector
-    BEFORE INSERT OR UPDATE OF transcript_text ON bot_sessions.transcripts
-    FOR EACH ROW EXECUTE FUNCTION bot_sessions.update_transcript_search_vector();
+BEFORE INSERT OR UPDATE OF transcript_text ON bot_sessions.transcripts
+FOR EACH ROW EXECUTE FUNCTION bot_sessions.update_transcript_search_vector();
 
 -- Function to update translation search vectors
 CREATE OR REPLACE FUNCTION bot_sessions.update_translation_search_vector()
@@ -323,8 +329,8 @@ $$ LANGUAGE plpgsql;
 -- Trigger to update translation search vectors
 DROP TRIGGER IF EXISTS trigger_translation_search_vector ON bot_sessions.translations;
 CREATE TRIGGER trigger_translation_search_vector
-    BEFORE INSERT OR UPDATE OF translated_text ON bot_sessions.translations
-    FOR EACH ROW EXECUTE FUNCTION bot_sessions.update_translation_search_vector();
+BEFORE INSERT OR UPDATE OF translated_text ON bot_sessions.translations
+FOR EACH ROW EXECUTE FUNCTION bot_sessions.update_translation_search_vector();
 
 -- Function to calculate session duration
 CREATE OR REPLACE FUNCTION bot_sessions.get_session_duration(session_id_param VARCHAR)
@@ -441,23 +447,23 @@ $$ LANGUAGE plpgsql;
 -- Apply triggers to relevant tables
 DROP TRIGGER IF EXISTS trigger_audio_files_stats ON bot_sessions.audio_files;
 CREATE TRIGGER trigger_audio_files_stats
-    AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.audio_files
-    FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
+AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.audio_files
+FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
 
 DROP TRIGGER IF EXISTS trigger_transcripts_stats ON bot_sessions.transcripts;
 CREATE TRIGGER trigger_transcripts_stats
-    AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.transcripts
-    FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
+AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.transcripts
+FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
 
 DROP TRIGGER IF EXISTS trigger_translations_stats ON bot_sessions.translations;
 CREATE TRIGGER trigger_translations_stats
-    AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.translations
-    FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
+AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.translations
+FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
 
 DROP TRIGGER IF EXISTS trigger_correlations_stats ON bot_sessions.correlations;
 CREATE TRIGGER trigger_correlations_stats
-    AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.correlations
-    FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
+AFTER INSERT OR UPDATE OR DELETE ON bot_sessions.correlations
+FOR EACH ROW EXECUTE FUNCTION bot_sessions.trigger_update_session_stats();
 
 -- ============================================================================
 -- VIEWS FOR COMMON QUERIES
@@ -475,40 +481,47 @@ SELECT
     s.end_time,
     s.participant_count,
     s.target_languages,
-    EXTRACT(EPOCH FROM (COALESCE(s.end_time, NOW()) - s.start_time)) as duration_seconds,
-    COUNT(DISTINCT af.file_id) as audio_files_count,
-    COALESCE(SUM(af.file_size), 0) as total_audio_size,
-    COUNT(DISTINCT t.transcript_id) as transcripts_count,
-    COUNT(DISTINCT tr.translation_id) as translations_count,
-    COUNT(DISTINCT c.correlation_id) as correlations_count,
-    COUNT(DISTINCT p.participant_id) as participants_count
-FROM bot_sessions.sessions s
-LEFT JOIN bot_sessions.audio_files af ON s.session_id = af.session_id
-LEFT JOIN bot_sessions.transcripts t ON s.session_id = t.session_id
-LEFT JOIN bot_sessions.translations tr ON s.session_id = tr.session_id
-LEFT JOIN bot_sessions.correlations c ON s.session_id = c.session_id
-LEFT JOIN bot_sessions.participants p ON s.session_id = p.session_id
-GROUP BY s.session_id, s.bot_id, s.meeting_id, s.meeting_title, s.status,
-         s.start_time, s.end_time, s.participant_count, s.target_languages;
+    EXTRACT(EPOCH FROM (COALESCE(s.end_time, NOW()) - s.start_time)) AS duration_seconds,
+    COUNT(DISTINCT af.file_id) AS audio_files_count,
+    COALESCE(SUM(af.file_size), 0) AS total_audio_size,
+    COUNT(DISTINCT t.transcript_id) AS transcripts_count,
+    COUNT(DISTINCT tr.translation_id) AS translations_count,
+    COUNT(DISTINCT c.correlation_id) AS correlations_count,
+    COUNT(DISTINCT p.participant_id) AS participants_count
+FROM bot_sessions.sessions AS s
+LEFT JOIN bot_sessions.audio_files AS af ON s.session_id = af.session_id
+LEFT JOIN bot_sessions.transcripts AS t ON s.session_id = t.session_id
+LEFT JOIN bot_sessions.translations AS tr ON s.session_id = tr.session_id
+LEFT JOIN bot_sessions.correlations AS c ON s.session_id = c.session_id
+LEFT JOIN bot_sessions.participants AS p ON s.session_id = p.session_id
+GROUP BY
+    s.session_id, s.bot_id, s.meeting_id, s.meeting_title, s.status,
+    s.start_time, s.end_time, s.participant_count, s.target_languages;
 
 -- Speaker statistics per session with identity resolution
 CREATE OR REPLACE VIEW bot_sessions.speaker_statistics AS
 SELECT
     t.session_id,
     t.speaker_id,
-    COALESCE(si.identified_name, t.speaker_name) as speaker_name,
     si.identification_method,
     si.identification_confidence,
-    COUNT(*) as transcript_segments,
-    SUM(t.end_timestamp - t.start_timestamp) as total_speaking_time,
-    AVG(t.confidence_score) as avg_confidence,
-    COUNT(DISTINCT tr.target_language) as languages_translated_to,
-    COUNT(DISTINCT tr.translation_id) as total_translations
-FROM bot_sessions.transcripts t
-LEFT JOIN bot_sessions.speaker_identities si ON t.session_id = si.session_id AND t.speaker_id = si.speaker_label
-LEFT JOIN bot_sessions.translations tr ON t.transcript_id = tr.source_transcript_id
+    COALESCE(si.identified_name, t.speaker_name) AS speaker_name,
+    COUNT(*) AS transcript_segments,
+    SUM(t.end_timestamp - t.start_timestamp) AS total_speaking_time,
+    AVG(t.confidence_score) AS avg_confidence,
+    COUNT(DISTINCT tr.target_language) AS languages_translated_to,
+    COUNT(DISTINCT tr.translation_id) AS total_translations
+FROM bot_sessions.transcripts AS t
+LEFT JOIN bot_sessions.speaker_identities AS si ON t.session_id = si.session_id AND t.speaker_id = si.speaker_label
+LEFT JOIN bot_sessions.translations AS tr ON t.transcript_id = tr.source_transcript_id
 WHERE t.speaker_id IS NOT NULL
-GROUP BY t.session_id, t.speaker_id, si.identified_name, t.speaker_name, si.identification_method, si.identification_confidence;
+GROUP BY
+    t.session_id,
+    t.speaker_id,
+    si.identified_name,
+    t.speaker_name,
+    si.identification_method,
+    si.identification_confidence;
 
 -- Translation quality metrics
 CREATE OR REPLACE VIEW bot_sessions.translation_quality AS
@@ -517,12 +530,12 @@ SELECT
     tr.source_language,
     tr.target_language,
     tr.translation_service,
-    COUNT(*) as translation_count,
-    AVG(tr.translation_confidence) as avg_confidence,
-    MIN(tr.translation_confidence) as min_confidence,
-    MAX(tr.translation_confidence) as max_confidence,
-    COUNT(DISTINCT tr.speaker_id) as speakers_translated
-FROM bot_sessions.translations tr
+    COUNT(*) AS translation_count,
+    AVG(tr.translation_confidence) AS avg_confidence,
+    MIN(tr.translation_confidence) AS min_confidence,
+    MAX(tr.translation_confidence) AS max_confidence,
+    COUNT(DISTINCT tr.speaker_id) AS speakers_translated
+FROM bot_sessions.translations AS tr
 GROUP BY tr.session_id, tr.source_language, tr.target_language, tr.translation_service;
 
 -- Correlation effectiveness
@@ -531,11 +544,11 @@ SELECT
     c.session_id,
     c.correlation_type,
     c.correlation_method,
-    COUNT(*) as correlation_count,
-    AVG(c.correlation_confidence) as avg_confidence,
-    COUNT(CASE WHEN c.correlation_confidence >= 0.8 THEN 1 END) as high_confidence_count,
-    AVG(ABS(c.timing_offset)) as avg_timing_offset
-FROM bot_sessions.correlations c
+    COUNT(*) AS correlation_count,
+    AVG(c.correlation_confidence) AS avg_confidence,
+    COUNT(CASE WHEN c.correlation_confidence >= 0.8 THEN 1 END) AS high_confidence_count,
+    AVG(ABS(c.timing_offset)) AS avg_timing_offset
+FROM bot_sessions.correlations AS c
 GROUP BY c.session_id, c.correlation_type, c.correlation_method;
 
 -- ============================================================================
@@ -575,7 +588,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA bot_sessions TO postgres;
 -- DOCUMENTATION
 -- ============================================================================
 
-COMMENT ON SCHEMA bot_sessions IS 'Complete schema for managing Google Meet bot sessions with enhanced search and speaker tracking';
+COMMENT ON SCHEMA bot_sessions IS 'Schema for Google Meet bot sessions, search, and speaker tracking';
 COMMENT ON TABLE bot_sessions.sessions IS 'Central table for bot session lifecycle management';
 COMMENT ON TABLE bot_sessions.audio_files IS 'Metadata for audio files captured during sessions';
 COMMENT ON TABLE bot_sessions.transcripts IS 'Transcription results from all sources with full-text search';
@@ -597,7 +610,7 @@ BEGIN
     RAISE NOTICE '  - Supporting tables: correlations, participants, events, statistics';
     RAISE NOTICE '  - Indexes, views, functions, and triggers configured';
     RAISE NOTICE '';
-    RAISE NOTICE '🔍 New features:';
+    RAISE NOTICE '�\x8d New features:';
     RAISE NOTICE '  - Speaker identity tracking (SPEAKER_00 → John Doe)';
     RAISE NOTICE '  - Full-text search on transcripts and translations';
     RAISE NOTICE '  - Segment continuity tracking';

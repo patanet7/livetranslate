@@ -130,7 +130,7 @@ class TranslationResultCache:
         """
         normalized_text = TranslationResultCache._normalize_text(text)
         content = f"{source_lang}:{target_lang}:{normalized_text}"
-        hash_val = hashlib.md5(content.encode()).hexdigest()
+        hash_val = hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
         return f"trans:v1:{hash_val}"
 
     # =========================================================================

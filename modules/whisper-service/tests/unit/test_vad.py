@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Unit Tests: Voice Activity Detection (VAD)
 
@@ -208,7 +207,7 @@ class TestVADEventDetection:
                 break
 
         if result is not None and "start" in result:
-            assert isinstance(result["start"], (int, float))
+            assert isinstance(result["start"], int | float)
             assert result["start"] >= 0
             logger.info(f"✅ START event format correct: {result}")
 
@@ -226,7 +225,7 @@ class TestVADEventDetection:
             result = vad.check_speech(chunk)
 
             if result is not None and "end" in result:
-                assert isinstance(result["end"], (int, float))
+                assert isinstance(result["end"], int | float)
                 assert result["end"] >= 0
                 end_detected = True
                 logger.info(f"✅ END event format correct: {result}")

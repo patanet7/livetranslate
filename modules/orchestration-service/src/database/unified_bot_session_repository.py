@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Unified Bot Session Repository - Orchestration Service
 
@@ -579,7 +578,7 @@ class UnifiedBotSessionRepository:
                     "speaker_correlations",
                 ]
                 for table in tables:
-                    await db_session.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")
+                    await db_session.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")  # nosec B608 - table names are hardcoded internal constants
 
                 health_status["tables_accessible"] = True
 

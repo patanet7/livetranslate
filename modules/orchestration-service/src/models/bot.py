@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, ValidationInfo, field_validator
 
 from .base import BaseModel, IDMixin, ResponseMixin, TimestampMixin
 
@@ -107,7 +107,7 @@ class MeetingInfo(BaseModel):
 
     @field_validator("meeting_id")
     @classmethod
-    def validate_meeting_id(cls, v, info=None):
+    def validate_meeting_id(cls, v: str, info: ValidationInfo | None = None) -> str:
         """Validate meeting ID format"""
         if not v or len(v.strip()) == 0:
             raise ValueError("Meeting ID cannot be empty")
@@ -205,7 +205,9 @@ class TranslationConfig(BaseModel):
 
     @field_validator("target_languages")
     @classmethod
-    def validate_target_languages(cls, v, info=None):
+    def validate_target_languages(
+        cls, v: list[str], info: ValidationInfo | None = None
+    ) -> list[str]:
         """Validate target languages list"""
         if not v:
             raise ValueError("At least one target language must be specified")
@@ -242,7 +244,7 @@ class TranslationConfig(BaseModel):
 
     @field_validator("translation_quality")
     @classmethod
-    def validate_quality(cls, v, info=None):
+    def validate_quality(cls, v: str, info: ValidationInfo | None = None) -> str:
         """Validate translation quality"""
         valid_qualities = ["fast", "balanced", "accurate"]
         if v not in valid_qualities:

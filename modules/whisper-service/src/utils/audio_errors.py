@@ -262,7 +262,7 @@ class ModelRecoveryStrategy(ErrorRecoveryStrategy):
     """Recovery strategy for model loading errors"""
 
     def can_recover(self, error: WhisperProcessingBaseError) -> bool:
-        return isinstance(error, (ModelLoadingError, ModelInferenceError))
+        return isinstance(error, ModelLoadingError | ModelInferenceError)
 
     def recover(self, error: WhisperProcessingBaseError, context: dict[str, Any]) -> dict[str, Any]:
         """Attempt model fallback"""

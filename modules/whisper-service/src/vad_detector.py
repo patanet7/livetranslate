@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Silero VAD Integration
 
@@ -225,7 +224,7 @@ class SileroVAD:
 
             logger.info(f"[VAD] Using cache directory: {cache_dir.parent}")
 
-            model, _ = torch.hub.load(
+            model, _ = torch.hub.load(  # nosec B614
                 repo_or_dir="snakers4/silero-vad",
                 model="silero_vad",
                 force_reload=False,

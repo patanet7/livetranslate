@@ -69,7 +69,7 @@ class TranslationOptimizationAdapter:
         # Normalize text (lowercase, strip whitespace)
         normalized_text = text.lower().strip()
         content = f"{source_lang}:{target_lang}:{normalized_text}"
-        return hashlib.md5(content.encode()).hexdigest()
+        return hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
 
     async def record_cache_stat(
         self,

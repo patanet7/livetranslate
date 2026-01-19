@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Logging Utility
 
@@ -64,7 +63,7 @@ class StructuredFormatter(logging.Formatter):
 class PlainFormatter(logging.Formatter):
     """Plain text formatter for development"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",

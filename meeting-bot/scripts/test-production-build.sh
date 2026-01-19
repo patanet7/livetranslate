@@ -14,7 +14,7 @@ echo "✅ Production image built successfully!"
 echo "🚀 Testing container startup..."
 
 # Run the container in the background
-CONTAINER_ID=$(docker run -d --name meeting-bot-test -p 3001:3000 meeting-bot:test)
+docker run -d --name meeting-bot-test -p 3001:3000 meeting-bot:test
 
 # Wait a moment for the container to start
 sleep 5

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Session-Restart Code-Switching Manager
 
@@ -44,7 +43,7 @@ from simul_whisper.simul_whisper import PaddedAlignAttWhisper
 from simul_whisper.whisper import load_model
 from simul_whisper.whisper.tokenizer import get_tokenizer
 
-# VAD for silence filtering (FEEBACK.md line 12: "Keep VAD-first processing")
+# VAD for silence filtering (FEEDBACK.md line 12: "Keep VAD-first processing")
 from vad_detector import SileroVAD
 
 utils_init_path = os.path.join(src_dir, "utils", "__init__.py")
@@ -179,7 +178,7 @@ class SessionRestartTranscriber:
             frame_hop_ms=lid_hop_ms,
         )
 
-        # VAD for filtering silence (FEEBACK.md line 12: "Keep VAD-first processing")
+        # VAD for filtering silence (FEEDBACK.md line 12: "Keep VAD-first processing")
         # Prevents hallucinations by NOT sending silence to Whisper
         self.vad = SileroVAD(
             threshold=vad_threshold,
@@ -302,7 +301,7 @@ class SessionRestartTranscriber:
 
         # Create PaddedAlignAttWhisper instance (SimulStreaming)
         # VAD filtering happens at session_manager level, NOT inside processor
-        # Per FEEBACK.md lines 12, 106, 272: "Keep VAD-first processing"
+        # Per FEEDBACK.md lines 12, 106, 272: "Keep VAD-first processing"
         whisper_processor = PaddedAlignAttWhisper(config)
 
         # Create session

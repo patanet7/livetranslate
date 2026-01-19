@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 REAL Integration Tests for OpenVINO ModelManager
 NO MOCKS - Tests actual OpenVINO model loading and inference!
@@ -103,7 +102,7 @@ class TestOpenVINOModelManagerREAL:
 
         # Verify we got actual results
         assert result is not None
-        assert isinstance(result, (str, dict))
+        assert isinstance(result, str | dict)
 
         text = result if isinstance(result, str) else result.get("text", "")
 

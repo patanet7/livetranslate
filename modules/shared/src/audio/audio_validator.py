@@ -305,7 +305,7 @@ class AudioValidator:
         """
         try:
             # Convert to numpy array if needed
-            if isinstance(audio_data, (bytes, str)):
+            if isinstance(audio_data, bytes | str):
                 if isinstance(audio_data, str):
                     audio_array, sr = librosa.load(audio_data, sr=None)
                 else:
@@ -445,7 +445,7 @@ class AudioValidator:
         """
         try:
             # Convert to numpy array if needed
-            if isinstance(audio_data, (bytes, str)):
+            if isinstance(audio_data, bytes | str):
                 if isinstance(audio_data, str):
                     audio_array, sr = librosa.load(audio_data, sr=None)
                 else:

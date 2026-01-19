@@ -19,7 +19,7 @@ def load_cif(cfg, n_audio_state, device):
         map_location = None
         if not torch.cuda.is_available():
             map_location = torch.device("cpu")
-        checkpoint = torch.load(cfg.cif_ckpt_path, map_location=map_location)
+        checkpoint = torch.load(cfg.cif_ckpt_path, map_location=map_location)  # nosec B614
         cif_linear.load_state_dict(checkpoint)
     cif_linear.to(device)
     return cif_linear, always_fire, never_fire

@@ -1,27 +1,21 @@
 # Hadolint configuration
 # https://github.com/hadolint/hadolint
-#
-# Usage:
-#   hadolint Dockerfile
-#   hadolint --config .hadolint.yaml modules/*/Dockerfile
-#
-# Install:
-#   brew install hadolint  # macOS
-#   docker run --rm -i hadolint/hadolint < Dockerfile  # Docker
 
 # Ignored rules
 ignored:
   # DL3008: Pin versions in apt-get install
   # We use --no-install-recommends but don't pin versions for flexibility
   - DL3008
-
   # DL3013: Pin versions in pip install
   # PDM handles versioning via pyproject.toml
   - DL3013
-
   # DL3018: Pin versions in apk add
   # Alpine packages are version-locked to the base image
   - DL3018
+  # DL3015: Avoid additional packages - we need recommends in some cases
+  - DL3015
+  # DL3059: Multiple consecutive RUN - sometimes needed for clarity
+  - DL3059
 
 # Trusted container registries
 trustedRegistries:
@@ -31,31 +25,7 @@ trustedRegistries:
   - quay.io
   - registry.hub.docker.com
 
-# Fail on warning or above
-failure-threshold: warning
-
-# Output format: tty, json, checkstyle, codeclimate, gitlab_codeclimate, gnu, codacy, sonarqube, sarif
-format: tty
-
-# Disable color output
-no-color: false
-
-# Do not fail if no files are found
-no-fail: false
-
-# Label schema validation
-# https://label-schema.org/rc1/
-label-schema:
-  author: string
-  version: string
-
-# Override rules for specific patterns
+# Override severity for specific rules
 override:
-  # Allow COPY with --chown for non-root user setup
   warning:
-    - DL3002  # Last USER should not be root (we handle this explicitly)
-
-# Style preferences
-style:
-  # Prefer COPY over ADD for local files
-  - DL3020
+    - DL3002

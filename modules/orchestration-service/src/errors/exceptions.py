@@ -60,7 +60,7 @@ class APIError(Exception):
         # Ensure code is a string (handles Enum values)
         code_value = str(self.code.value) if hasattr(self.code, "value") else str(self.code)
 
-        result = {
+        result: dict[str, Any] = {
             "code": code_value,
             "message": str(self.message),
         }
@@ -256,7 +256,7 @@ class ServiceUnavailableError(APIError):
         retry_after: int | None = None,
         details: dict[str, Any] | None = None,
     ):
-        error_details = {"service": service_name}
+        error_details: dict[str, Any] = {"service": service_name}
         if retry_after is not None:
             error_details["retry_after_seconds"] = retry_after
         if details:
@@ -319,7 +319,7 @@ class ExternalServiceError(APIError):
         upstream_status: int | None = None,
         details: dict[str, Any] | None = None,
     ):
-        error_details = {"service": service_name}
+        error_details: dict[str, Any] = {"service": service_name}
         if upstream_status is not None:
             error_details["upstream_status"] = upstream_status
         if details:

@@ -483,7 +483,7 @@ class APIGateway:
                 if (
                     isinstance(
                         e,
-                        (requests.exceptions.ConnectionError, requests.exceptions.Timeout),
+                        requests.exceptions.ConnectionError | requests.exceptions.Timeout,
                     )
                     and attempt < self.retries - 1
                 ):

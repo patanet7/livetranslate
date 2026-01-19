@@ -109,7 +109,7 @@ def _format_validation_errors(errors: list) -> dict[str, Any]:
     Into:
         {"fields": {"text": "field required"}, "count": 1}
     """
-    formatted_fields = {}
+    formatted_fields: dict[str, str] = {}
 
     for error in errors:
         # Get field path (skip 'body' prefix)

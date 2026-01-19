@@ -65,7 +65,7 @@ class EventPublisher:
         self.streams = streams or DEFAULT_STREAMS
         self.enabled = enabled and bool(redis_url) and redis is not None
         self.maxlen = maxlen or int(_env("EVENT_STREAM_MAXLEN", "1000"))
-        self._client: redis.Redis | None = None  # type: ignore[assignment]
+        self._client: Any = None
 
         if not self.enabled:
             logger.debug(
@@ -74,11 +74,13 @@ class EventPublisher:
                 redis is not None,
             )
 
-    async def _get_client(self) -> redis.Redis | None:
+    async def _get_client(self) -> Any:
         if not self.enabled:
             return None
         if self._client is None:
             assert redis is not None  # for type checkers
+            if self.redis_url is None:
+                return None
             try:
                 self._client = redis.from_url(
                     self.redis_url, encoding="utf-8", decode_responses=True

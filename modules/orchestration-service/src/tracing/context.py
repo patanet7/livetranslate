@@ -22,6 +22,7 @@ Usage:
 import logging
 import time
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -114,7 +115,7 @@ class TraceContext:
 
     @classmethod
     def create(
-        cls, session_id: str | None = None, transcript_id: str | None = None, **metadata
+        cls, session_id: str | None = None, transcript_id: str | None = None, **metadata: Any
     ) -> "TraceContext":
         """Create a new trace context."""
         ctx = cls(
@@ -169,7 +170,7 @@ class TraceContext:
         return span
 
     @contextmanager
-    def span(self, operation: str):
+    def span(self, operation: str) -> Generator["TraceSpan", None, None]:
         """
         Context manager for creating and automatically ending a span.
 

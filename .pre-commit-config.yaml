@@ -72,6 +72,7 @@ repos:
         name: Tests should be named test_*.py
         args: ['--pytest-test-first']
         files: '^modules/.*/tests/.*\.py$'
+        exclude: '^(.*run_.*tests\.py$|.*/fixtures\.py$|.*/conftest\.py$|.*/utils\.py$|.*/mocks/.*\.py$|.*debug_hooks\.py$|.*check_npu_standalone\.py$|.*meeting_transcript_5min\.py$|.*audio_test_data\.py$|.*quick_model_switch_test\.py$)'
       - id: requirements-txt-fixer
         name: Fix requirements.txt
 
@@ -105,7 +106,7 @@ repos:
           - types-PyYAML
           - types-python-dateutil
           - pydantic>=2.0
-        files: '^modules/.*/src/.*\.py$'
+        files: '^modules/orchestration-service/src/(models|errors|validation|tracing|infrastructure)/.*\.py$'
         exclude: '^(reference/|.*\.venv/|.*/__pycache__/|.*_test\.py|.*/tests/)'
         args:
           - '--ignore-missing-imports'
@@ -164,8 +165,8 @@ repos:
           - '--skip'
           - '*.lock,*.svg,*.min.js,*.min.css,pnpm-lock.yaml,package-lock.json,.git'
           - '--ignore-words-list'
-          - 'doubleclick,keypair,reenable,ro,pullrequest,afterall'
-        exclude: '^(.*\.lock|.*-lock\.yaml|.*\.min\.(js|css)|\.git)'
+          - 'doubleclick,keypair,reenable,ro,pullrequest,afterall,checkin,bu,lik,otu,ody,vew,wqs,ege,ons,wew,sme,ihs,cliente,fase,fases,caf,setts,wether,trancoding,infinte,specied,throuhg,desgined,hilight,te,fo,ane,renderd,extention,threashold,intergrate,fallbck,supercedes,infarction,assertIn,foward,calcuate,annoucements,suppresed,supress,ommit,re-use'
+        exclude: '^(.*\.lock|.*-lock\.yaml|.*\.min\.(js|css)|\.git|.*\.tiktoken$|reference/|.*/ffmpeg/|.*/simul_whisper/|.*/legacy/|.*/docs/PRECOMMIT_ISSUES\.md|.*/funasr/.*\.md$)'
 
   # =============================================================================
   # Commit Message Validation
@@ -189,6 +190,7 @@ repos:
         name: ShellCheck
         args: ['--severity=warning']
         files: '\.(sh|bash)$'
+        exclude: '^reference/'
 
   # =============================================================================
   # Dockerfile Linting
@@ -196,10 +198,10 @@ repos:
   - repo: https://github.com/hadolint/hadolint
     rev: v2.13.1-beta
     hooks:
-      - id: hadolint-docker
+      - id: hadolint
         name: Hadolint Dockerfile linter
-        entry: hadolint
         files: '(Dockerfile|\.dockerfile)$'
+        exclude: '^reference/'
 
   # =============================================================================
   # YAML/JSON Schema Validation

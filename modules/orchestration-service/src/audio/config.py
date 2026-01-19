@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Audio Processing Configuration System - Orchestration Service
 
@@ -800,20 +799,18 @@ class AudioProcessingConfig:
             if hasattr(self, key):
                 if isinstance(
                     getattr(self, key),
-                    (
-                        VADConfig,
-                        VoiceFilterConfig,
-                        NoiseReductionConfig,
-                        VoiceEnhancementConfig,
-                        EqualizerConfig,
-                        SpectralDenoisingConfig,
-                        ConventionalDenoisingConfig,
-                        LUFSNormalizationConfig,
-                        AGCConfig,
-                        CompressionConfig,
-                        LimiterConfig,
-                        QualityConfig,
-                    ),
+                    VADConfig
+                    | VoiceFilterConfig
+                    | NoiseReductionConfig
+                    | VoiceEnhancementConfig
+                    | EqualizerConfig
+                    | SpectralDenoisingConfig
+                    | ConventionalDenoisingConfig
+                    | LUFSNormalizationConfig
+                    | AGCConfig
+                    | CompressionConfig
+                    | LimiterConfig
+                    | QualityConfig,
                 ):
                     # Update nested config objects
                     current_config = getattr(self, key)
@@ -1049,7 +1046,7 @@ class AudioConfigurationManager:
             elif hasattr(value, "__dict__"):
                 # Handle nested objects
                 return {k: convert_value(v) for k, v in value.__dict__.items()}
-            elif isinstance(value, (list, tuple)):
+            elif isinstance(value, list | tuple):
                 return [convert_value(item) for item in value]
             elif isinstance(value, dict):
                 return {k: convert_value(v) for k, v in value.items()}

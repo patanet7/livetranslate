@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Configuration Synchronization System - Orchestration Service
 
@@ -177,14 +176,14 @@ class ConfigurationValidator:
         # Validate timing parameters
         if "inference_interval" in config:
             interval = config["inference_interval"]
-            if not isinstance(interval, (int, float)) or interval < 0.5 or interval > 30.0:
+            if not isinstance(interval, int | float) or interval < 0.5 or interval > 30.0:
                 result["errors"].append(
                     f"Invalid inference_interval: {interval}. Must be between 0.5 and 30.0 seconds"
                 )
 
         if "buffer_duration" in config:
             buffer = config["buffer_duration"]
-            if not isinstance(buffer, (int, float)) or buffer < 1.0 or buffer > 60.0:
+            if not isinstance(buffer, int | float) or buffer < 1.0 or buffer > 60.0:
                 result["errors"].append(
                     f"Invalid buffer_duration: {buffer}. Must be between 1.0 and 60.0 seconds"
                 )
@@ -205,7 +204,7 @@ class ConfigurationValidator:
         # Check chunk duration
         if "chunk_duration" in config:
             duration = config["chunk_duration"]
-            if not isinstance(duration, (int, float)) or duration < 1.0 or duration > 30.0:
+            if not isinstance(duration, int | float) or duration < 1.0 or duration > 30.0:
                 result["errors"].append(
                     f"Invalid chunk_duration: {duration}. Must be between 1.0 and 30.0 seconds"
                 )
@@ -213,7 +212,7 @@ class ConfigurationValidator:
         # Check overlap duration
         if "overlap_duration" in config:
             overlap = config["overlap_duration"]
-            if not isinstance(overlap, (int, float)) or overlap < 0.0 or overlap > 5.0:
+            if not isinstance(overlap, int | float) or overlap < 0.0 or overlap > 5.0:
                 result["errors"].append(
                     f"Invalid overlap_duration: {overlap}. Must be between 0.0 and 5.0 seconds"
                 )
@@ -242,7 +241,7 @@ class ConfigurationValidator:
         # Check model parameters
         if "temperature" in config:
             temp = config["temperature"]
-            if not isinstance(temp, (int, float)) or temp < 0.0 or temp > 2.0:
+            if not isinstance(temp, int | float) or temp < 0.0 or temp > 2.0:
                 result["errors"].append(f"Invalid temperature: {temp}. Must be between 0.0 and 2.0")
 
         if "max_tokens" in config:
@@ -421,7 +420,7 @@ class ConfigurationDriftDetector:
     def _calculate_config_hash(self, config: dict[str, Any]) -> str:
         """Calculate hash for configuration comparison"""
         config_str = json.dumps(config, sort_keys=True)
-        return hashlib.md5(config_str.encode()).hexdigest()
+        return hashlib.md5(config_str.encode(), usedforsecurity=False).hexdigest()
 
     def _find_config_differences(
         self, baseline: dict[str, Any], current: dict[str, Any]

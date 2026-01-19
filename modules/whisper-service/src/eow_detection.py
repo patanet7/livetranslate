@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 End-of-Word Detection with CIF (Continuous Integrate-and-Fire)
 
@@ -95,7 +94,7 @@ def load_cif(
         else:
             try:
                 map_location = None if torch.cuda.is_available() else torch.device("cpu")
-                checkpoint = torch.load(cif_ckpt_path, map_location=map_location)
+                checkpoint = torch.load(cif_ckpt_path, map_location=map_location)  # nosec B614
                 cif_linear.load_state_dict(checkpoint)
                 logger.info(f"✅ CIF checkpoint loaded: {cif_ckpt_path}")
                 logger.info("Word boundary detection enabled (-50% re-translations)")

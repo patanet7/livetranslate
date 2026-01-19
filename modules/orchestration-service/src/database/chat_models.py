@@ -354,7 +354,7 @@ _session_sequence_counters = {}
 
 
 @event.listens_for(ChatMessage, "before_insert")
-def set_message_sequence_number(mapper, connection, target):
+def set_message_sequence_number(mapper: Any, connection: Any, target: Any) -> None:
     """
     Auto-increment sequence_number for new messages within a session.
     This mimics the PostgreSQL trigger behavior for compatibility.
@@ -380,7 +380,7 @@ def set_message_sequence_number(mapper, connection, target):
 
 
 @event.listens_for(ChatMessage, "after_insert")
-def cleanup_sequence_counter(mapper, connection, target):
+def cleanup_sequence_counter(mapper: Any, connection: Any, target: Any) -> None:
     """Clean up sequence counter after successful insert"""
     # We keep the counter during the transaction, but this could be optimized
     pass
@@ -388,12 +388,12 @@ def cleanup_sequence_counter(mapper, connection, target):
 
 # Listen to session events to clear counters after commit/rollback
 @event.listens_for(SQLAlchemySession, "after_commit")
-def clear_sequence_counters_on_commit(session):
+def clear_sequence_counters_on_commit(session: SQLAlchemySession) -> None:
     """Clear sequence counters after successful commit"""
     _session_sequence_counters.clear()
 
 
 @event.listens_for(SQLAlchemySession, "after_rollback")
-def clear_sequence_counters_on_rollback(session):
+def clear_sequence_counters_on_rollback(session: SQLAlchemySession) -> None:
     """Clear sequence counters after rollback"""
     _session_sequence_counters.clear()

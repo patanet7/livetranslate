@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Dependency validation utility for orchestration service.
 
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 class DependencyChecker:
     """Validates dependencies and provides feature availability information."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.missing_required: list[str] = []
         self.missing_optional: dict[str, str] = {}
         self.available_features: dict[str, bool] = {}
@@ -97,7 +96,7 @@ class DependencyChecker:
 
         return commands
 
-    def print_summary(self):
+    def print_summary(self) -> None:
         """Print a comprehensive dependency summary."""
         logger.info("🔍 Dependency Validation Summary")
         logger.info("=" * 50)
