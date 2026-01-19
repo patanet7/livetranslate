@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Typography,
@@ -24,7 +24,7 @@ import {
   Divider,
   IconButton,
   Tooltip,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Send as SendIcon,
   Clear as ClearIcon,
@@ -33,16 +33,16 @@ import {
   Translate as TranslateIcon,
   VolumeUp as VolumeIcon,
   Speed as SpeedIcon,
-} from '@mui/icons-material';
-import { ConnectionIndicator } from '@/components/ui/ConnectionIndicator';
-import { useAppSelector } from '@/store';
+} from "@mui/icons-material";
+import { ConnectionIndicator } from "@/components/ui/ConnectionIndicator";
+import { useAppSelector } from "@/store";
 
 interface WebSocketMessage {
   id: string;
-  type: 'send' | 'receive' | 'error' | 'system';
+  type: "send" | "receive" | "error" | "system";
   timestamp: Date;
   data: any;
-  service?: 'translation' | 'whisper' | 'orchestration' | 'general' | 'system';
+  service?: "translation" | "whisper" | "orchestration" | "general" | "system";
 }
 
 interface TranslationTestMessage {
@@ -63,32 +63,35 @@ interface StreamingSession {
 }
 
 const WebSocketTest: React.FC = () => {
-  const { connection } = useAppSelector(state => state.websocket);
-  
+  const { connection } = useAppSelector((state) => state.websocket);
+
   // State management
   const [activeTab, setActiveTab] = useState(0);
   const [messages, setMessages] = useState<WebSocketMessage[]>([]);
-  const [messageInput, setMessageInput] = useState('');
-  const [selectedService, setSelectedService] = useState('translation');
+  const [messageInput, setMessageInput] = useState("");
+  const [selectedService, setSelectedService] = useState("translation");
   const [isAutoScroll, setIsAutoScroll] = useState(true);
-  const [streamingSessions, setStreamingSessions] = useState<StreamingSession[]>([]);
-  
+  const [streamingSessions, setStreamingSessions] = useState<
+    StreamingSession[]
+  >([]);
+
   // WebSocket refs
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   // Translation testing state
-  const [translationTest, setTranslationTest] = useState<TranslationTestMessage>({
-    text: 'Hello, how are you today?',
-    source_language: 'en',
-    target_language: 'es',
-    streaming: false,
-    quality_threshold: 0.8,
-  });
-  
+  const [translationTest, setTranslationTest] =
+    useState<TranslationTestMessage>({
+      text: "Hello, how are you today?",
+      source_language: "en",
+      target_language: "es",
+      streaming: false,
+      quality_threshold: 0.8,
+    });
+
   // Whisper testing state
   const [whisperTest, setWhisperTest] = useState({
-    audio_format: 'wav',
+    audio_format: "wav",
     sample_rate: 16000,
     channels: 1,
     streaming: true,
@@ -96,27 +99,27 @@ const WebSocketTest: React.FC = () => {
 
   // Available languages for testing
   const languages = [
-    { code: 'en', name: 'English' },
-    { code: 'es', name: 'Spanish' },
-    { code: 'fr', name: 'French' },
-    { code: 'de', name: 'German' },
-    { code: 'zh', name: 'Chinese' },
-    { code: 'ja', name: 'Japanese' },
-    { code: 'ko', name: 'Korean' },
-    { code: 'pt', name: 'Portuguese' },
-    { code: 'it', name: 'Italian' },
-    { code: 'ru', name: 'Russian' },
+    { code: "en", name: "English" },
+    { code: "es", name: "Spanish" },
+    { code: "fr", name: "French" },
+    { code: "de", name: "German" },
+    { code: "zh", name: "Chinese" },
+    { code: "ja", name: "Japanese" },
+    { code: "ko", name: "Korean" },
+    { code: "pt", name: "Portuguese" },
+    { code: "it", name: "Italian" },
+    { code: "ru", name: "Russian" },
   ];
 
   const services = [
-    { id: 'translation', name: 'Translation Service', port: 5003 },
-    { id: 'whisper', name: 'Whisper Service', port: 5001 },
-    { id: 'orchestration', name: 'Orchestration Service', port: 3000 },
+    { id: "translation", name: "Translation Service", port: 5003 },
+    { id: "whisper", name: "Whisper Service", port: 5001 },
+    { id: "orchestration", name: "Orchestration Service", port: 3000 },
   ];
 
   useEffect(() => {
     if (isAutoScroll) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isAutoScroll]);
 
@@ -125,38 +128,46 @@ const WebSocketTest: React.FC = () => {
       wsRef.current.close();
     }
 
-    const serviceConfig = services.find(s => s.id === service);
+    const serviceConfig = services.find((s) => s.id === service);
     const wsUrl = `ws://localhost:${serviceConfig?.port}/ws`;
-    
+
     try {
       wsRef.current = new WebSocket(wsUrl);
-      
+
       wsRef.current.onopen = () => {
-        addMessage('system', `Connected to ${serviceConfig?.name}`, 'system');
+        addMessage("system", `Connected to ${serviceConfig?.name}`, "system");
       };
-      
+
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          addMessage('receive', data, service as any);
+          addMessage("receive", data, service as any);
         } catch (error) {
-          addMessage('receive', event.data, service as any);
+          addMessage("receive", event.data, service as any);
         }
       };
-      
+
       wsRef.current.onclose = () => {
-        addMessage('system', `Disconnected from ${serviceConfig?.name}`, 'system');
+        addMessage(
+          "system",
+          `Disconnected from ${serviceConfig?.name}`,
+          "system",
+        );
       };
-      
+
       wsRef.current.onerror = (error) => {
-        addMessage('error', `WebSocket error: ${error}`, 'system');
+        addMessage("error", `WebSocket error: ${error}`, "system");
       };
     } catch (error) {
-      addMessage('error', `Failed to connect: ${error}`, 'system');
+      addMessage("error", `Failed to connect: ${error}`, "system");
     }
   };
 
-  const addMessage = (type: WebSocketMessage['type'], data: any, service?: WebSocketMessage['service']) => {
+  const addMessage = (
+    type: WebSocketMessage["type"],
+    data: any,
+    service?: WebSocketMessage["service"],
+  ) => {
     const message: WebSocketMessage = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type,
@@ -164,55 +175,56 @@ const WebSocketTest: React.FC = () => {
       data,
       service,
     };
-    setMessages(prev => [...prev, message]);
+    setMessages((prev) => [...prev, message]);
   };
 
   const sendMessage = (data: any) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const messageString = typeof data === 'string' ? data : JSON.stringify(data);
+      const messageString =
+        typeof data === "string" ? data : JSON.stringify(data);
       wsRef.current.send(messageString);
-      addMessage('send', data, selectedService as any);
+      addMessage("send", data, selectedService as any);
     } else {
-      addMessage('error', 'WebSocket not connected', 'system');
+      addMessage("error", "WebSocket not connected", "system");
     }
   };
 
   const sendTranslationTest = () => {
     const message = {
-      action: 'translate',
+      action: "translate",
       session_id: `test-${Date.now()}`,
       ...translationTest,
     };
     sendMessage(message);
-    
+
     if (translationTest.streaming) {
       const session: StreamingSession = {
         id: message.session_id,
-        service: 'translation',
+        service: "translation",
         isActive: true,
         messageCount: 1,
         startTime: new Date(),
       };
-      setStreamingSessions(prev => [...prev, session]);
+      setStreamingSessions((prev) => [...prev, session]);
     }
   };
 
   const sendWhisperTest = () => {
     const message = {
-      action: 'start_transcription',
+      action: "start_transcription",
       session_id: `whisper-${Date.now()}`,
       config: whisperTest,
     };
     sendMessage(message);
-    
+
     const session: StreamingSession = {
       id: message.session_id,
-      service: 'whisper',
+      service: "whisper",
       isActive: true,
       messageCount: 1,
       startTime: new Date(),
     };
-    setStreamingSessions(prev => [...prev, session]);
+    setStreamingSessions((prev) => [...prev, session]);
   };
 
   const sendCustomMessage = () => {
@@ -223,7 +235,7 @@ const WebSocketTest: React.FC = () => {
       } catch {
         sendMessage(messageInput);
       }
-      setMessageInput('');
+      setMessageInput("");
     }
   };
 
@@ -233,9 +245,9 @@ const WebSocketTest: React.FC = () => {
 
   const downloadMessages = () => {
     const data = JSON.stringify(messages, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+    const blob = new Blob([data], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `websocket-messages-${new Date().toISOString()}.json`;
     a.click();
@@ -243,57 +255,73 @@ const WebSocketTest: React.FC = () => {
   };
 
   const stopSession = (sessionId: string) => {
-    const session = streamingSessions.find(s => s.id === sessionId);
+    const session = streamingSessions.find((s) => s.id === sessionId);
     if (session) {
       const stopMessage = {
-        action: session.service === 'translation' ? 'stop_translation' : 'stop_transcription',
+        action:
+          session.service === "translation"
+            ? "stop_translation"
+            : "stop_transcription",
         session_id: sessionId,
       };
       sendMessage(stopMessage);
-      
-      setStreamingSessions(prev => 
-        prev.map(s => s.id === sessionId ? { ...s, isActive: false } : s)
+
+      setStreamingSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, isActive: false } : s)),
       );
     }
   };
 
-  const getMessageTypeColor = (type: WebSocketMessage['type']) => {
+  const getMessageTypeColor = (type: WebSocketMessage["type"]) => {
     switch (type) {
-      case 'send': return 'primary';
-      case 'receive': return 'success';
-      case 'error': return 'error';
-      case 'system': return 'default';
-      default: return 'default';
+      case "send":
+        return "primary";
+      case "receive":
+        return "success";
+      case "error":
+        return "error";
+      case "system":
+        return "default";
+      default:
+        return "default";
     }
   };
 
   const getServiceIcon = (service?: string) => {
     switch (service) {
-      case 'translation': return <TranslateIcon fontSize="small" />;
-      case 'whisper': return <VolumeIcon fontSize="small" />;
-      case 'orchestration': return <SpeedIcon fontSize="small" />;
-      default: return null;
+      case "translation":
+        return <TranslateIcon fontSize="small" />;
+      case "whisper":
+        return <VolumeIcon fontSize="small" />;
+      case "orchestration":
+        return <SpeedIcon fontSize="small" />;
+      default:
+        return null;
     }
   };
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
         <Typography variant="h4" component="h1">
           WebSocket Testing
         </Typography>
-        <ConnectionIndicator 
+        <ConnectionIndicator
           isConnected={connection.isConnected}
           reconnectAttempts={connection.reconnectAttempts}
           showLabel
         />
-        <Badge badgeContent={streamingSessions.filter(s => s.isActive).length} color="primary">
+        <Badge
+          badgeContent={streamingSessions.filter((s) => s.isActive).length}
+          color="primary"
+        >
           <Chip label="Active Sessions" variant="outlined" />
         </Badge>
       </Box>
-      
+
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Real-time WebSocket connection testing with translation and transcription capabilities
+        Real-time WebSocket connection testing with translation and
+        transcription capabilities
       </Typography>
 
       <Grid container spacing={3}>
@@ -301,8 +329,10 @@ const WebSocketTest: React.FC = () => {
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>Service Connection</Typography>
-              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Service Connection
+              </Typography>
+              <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
                 <FormControl sx={{ minWidth: 200 }}>
                   <InputLabel>Service</InputLabel>
                   <Select
@@ -310,7 +340,7 @@ const WebSocketTest: React.FC = () => {
                     onChange={(e) => setSelectedService(e.target.value)}
                     label="Service"
                   >
-                    {services.map(service => (
+                    {services.map((service) => (
                       <MenuItem key={service.id} value={service.id}>
                         {getServiceIcon(service.id)} {service.name}
                       </MenuItem>
@@ -334,15 +364,21 @@ const WebSocketTest: React.FC = () => {
               </Box>
               {streamingSessions.length > 0 && (
                 <Box>
-                  <Typography variant="subtitle2" gutterBottom>Active Sessions:</Typography>
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {streamingSessions.map(session => (
+                  <Typography variant="subtitle2" gutterBottom>
+                    Active Sessions:
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                    {streamingSessions.map((session) => (
                       <Chip
                         key={session.id}
                         label={`${session.service} (${session.messageCount})`}
-                        color={session.isActive ? 'primary' : 'default'}
-                        variant={session.isActive ? 'filled' : 'outlined'}
-                        onDelete={session.isActive ? () => stopSession(session.id) : undefined}
+                        color={session.isActive ? "primary" : "default"}
+                        variant={session.isActive ? "filled" : "outlined"}
+                        onDelete={
+                          session.isActive
+                            ? () => stopSession(session.id)
+                            : undefined
+                        }
                         deleteIcon={<StopIcon />}
                       />
                     ))}
@@ -355,76 +391,109 @@ const WebSocketTest: React.FC = () => {
 
         {/* Testing Interface */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
+          <Card
+            sx={{ height: "600px", display: "flex", flexDirection: "column" }}
+          >
             <CardContent sx={{ pb: 1 }}>
-              <Typography variant="h6" gutterBottom>Test Interface</Typography>
+              <Typography variant="h6" gutterBottom>
+                Test Interface
+              </Typography>
               <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
                 <Tab label="Translation" />
                 <Tab label="Whisper" />
                 <Tab label="Custom" />
               </Tabs>
             </CardContent>
-            
-            <CardContent sx={{ flex: 1, overflow: 'auto' }}>
+
+            <CardContent sx={{ flex: 1, overflow: "auto" }}>
               {/* Translation Testing */}
               {activeTab === 0 && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <TextField
                     label="Text to Translate"
                     multiline
                     rows={3}
                     value={translationTest.text}
-                    onChange={(e) => setTranslationTest(prev => ({ ...prev, text: e.target.value }))}
+                    onChange={(e) =>
+                      setTranslationTest((prev) => ({
+                        ...prev,
+                        text: e.target.value,
+                      }))
+                    }
                     fullWidth
                   />
-                  
-                  <Box sx={{ display: 'flex', gap: 2 }}>
+
+                  <Box sx={{ display: "flex", gap: 2 }}>
                     <FormControl sx={{ minWidth: 120 }}>
                       <InputLabel>Source</InputLabel>
                       <Select
                         value={translationTest.source_language}
-                        onChange={(e) => setTranslationTest(prev => ({ ...prev, source_language: e.target.value }))}
+                        onChange={(e) =>
+                          setTranslationTest((prev) => ({
+                            ...prev,
+                            source_language: e.target.value,
+                          }))
+                        }
                         label="Source"
                       >
-                        {languages.map(lang => (
-                          <MenuItem key={lang.code} value={lang.code}>{lang.name}</MenuItem>
+                        {languages.map((lang) => (
+                          <MenuItem key={lang.code} value={lang.code}>
+                            {lang.name}
+                          </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
-                    
+
                     <FormControl sx={{ minWidth: 120 }}>
                       <InputLabel>Target</InputLabel>
                       <Select
                         value={translationTest.target_language}
-                        onChange={(e) => setTranslationTest(prev => ({ ...prev, target_language: e.target.value }))}
+                        onChange={(e) =>
+                          setTranslationTest((prev) => ({
+                            ...prev,
+                            target_language: e.target.value,
+                          }))
+                        }
                         label="Target"
                       >
-                        {languages.map(lang => (
-                          <MenuItem key={lang.code} value={lang.code}>{lang.name}</MenuItem>
+                        {languages.map((lang) => (
+                          <MenuItem key={lang.code} value={lang.code}>
+                            {lang.name}
+                          </MenuItem>
                         ))}
                       </Select>
                     </FormControl>
                   </Box>
-                  
+
                   <TextField
                     label="Quality Threshold"
                     type="number"
                     inputProps={{ min: 0, max: 1, step: 0.1 }}
                     value={translationTest.quality_threshold}
-                    onChange={(e) => setTranslationTest(prev => ({ ...prev, quality_threshold: parseFloat(e.target.value) }))}
+                    onChange={(e) =>
+                      setTranslationTest((prev) => ({
+                        ...prev,
+                        quality_threshold: parseFloat(e.target.value),
+                      }))
+                    }
                     sx={{ width: 150 }}
                   />
-                  
+
                   <FormControlLabel
                     control={
                       <Switch
                         checked={translationTest.streaming}
-                        onChange={(e) => setTranslationTest(prev => ({ ...prev, streaming: e.target.checked }))}
+                        onChange={(e) =>
+                          setTranslationTest((prev) => ({
+                            ...prev,
+                            streaming: e.target.checked,
+                          }))
+                        }
                       />
                     }
                     label="Streaming Mode"
                   />
-                  
+
                   <Button
                     variant="contained"
                     startIcon={<TranslateIcon />}
@@ -439,17 +508,22 @@ const WebSocketTest: React.FC = () => {
 
               {/* Whisper Testing */}
               {activeTab === 1 && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <Alert severity="info">
                     Whisper testing simulates audio transcription sessions
                   </Alert>
-                  
-                  <Box sx={{ display: 'flex', gap: 2 }}>
+
+                  <Box sx={{ display: "flex", gap: 2 }}>
                     <FormControl sx={{ minWidth: 120 }}>
                       <InputLabel>Format</InputLabel>
                       <Select
                         value={whisperTest.audio_format}
-                        onChange={(e) => setWhisperTest(prev => ({ ...prev, audio_format: e.target.value }))}
+                        onChange={(e) =>
+                          setWhisperTest((prev) => ({
+                            ...prev,
+                            audio_format: e.target.value,
+                          }))
+                        }
                         label="Format"
                       >
                         <MenuItem value="wav">WAV</MenuItem>
@@ -457,12 +531,17 @@ const WebSocketTest: React.FC = () => {
                         <MenuItem value="webm">WebM</MenuItem>
                       </Select>
                     </FormControl>
-                    
+
                     <FormControl sx={{ minWidth: 120 }}>
                       <InputLabel>Sample Rate</InputLabel>
                       <Select
                         value={whisperTest.sample_rate}
-                        onChange={(e) => setWhisperTest(prev => ({ ...prev, sample_rate: Number(e.target.value) }))}
+                        onChange={(e) =>
+                          setWhisperTest((prev) => ({
+                            ...prev,
+                            sample_rate: Number(e.target.value),
+                          }))
+                        }
                         label="Sample Rate"
                       >
                         <MenuItem value={16000}>16kHz</MenuItem>
@@ -471,17 +550,22 @@ const WebSocketTest: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Box>
-                  
+
                   <FormControlLabel
                     control={
                       <Switch
                         checked={whisperTest.streaming}
-                        onChange={(e) => setWhisperTest(prev => ({ ...prev, streaming: e.target.checked }))}
+                        onChange={(e) =>
+                          setWhisperTest((prev) => ({
+                            ...prev,
+                            streaming: e.target.checked,
+                          }))
+                        }
                       />
                     }
                     label="Streaming Mode"
                   />
-                  
+
                   <Button
                     variant="contained"
                     startIcon={<VolumeIcon />}
@@ -496,8 +580,10 @@ const WebSocketTest: React.FC = () => {
 
               {/* Custom Message Testing */}
               {activeTab === 2 && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Typography variant="subtitle2">Send Custom JSON Message</Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Typography variant="subtitle2">
+                    Send Custom JSON Message
+                  </Typography>
                   <TextField
                     multiline
                     rows={8}
@@ -510,7 +596,10 @@ const WebSocketTest: React.FC = () => {
                     variant="contained"
                     startIcon={<SendIcon />}
                     onClick={sendCustomMessage}
-                    disabled={wsRef.current?.readyState !== WebSocket.OPEN || !messageInput.trim()}
+                    disabled={
+                      wsRef.current?.readyState !== WebSocket.OPEN ||
+                      !messageInput.trim()
+                    }
                     fullWidth
                   >
                     Send Message
@@ -523,9 +612,17 @@ const WebSocketTest: React.FC = () => {
 
         {/* Message Log */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ height: '600px', display: 'flex', flexDirection: 'column' }}>
+          <Card
+            sx={{ height: "600px", display: "flex", flexDirection: "column" }}
+          >
             <CardContent sx={{ pb: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
                 <Typography variant="h6">Message Log</Typography>
                 <Box>
                   <FormControlLabel
@@ -554,28 +651,40 @@ const WebSocketTest: React.FC = () => {
                 {messages.length} messages
               </Typography>
             </CardContent>
-            
+
             <Divider />
-            
-            <Box sx={{ flex: 1, overflow: 'auto', p: 1 }}>
+
+            <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
               <List dense>
                 {messages.map((message) => (
                   <ListItem key={message.id} sx={{ py: 0.5 }}>
-                    <Paper 
-                      sx={{ 
-                        p: 1, 
-                        width: '100%',
-                        bgcolor: message.type === 'send' ? 'primary.main' : 
-                               message.type === 'receive' ? 'success.main' :
-                               message.type === 'error' ? 'error.main' : 'grey.100',
-                        color: message.type !== 'system' ? 'white' : 'inherit',
-                        opacity: message.type === 'system' ? 0.8 : 1,
+                    <Paper
+                      sx={{
+                        p: 1,
+                        width: "100%",
+                        bgcolor:
+                          message.type === "send"
+                            ? "primary.main"
+                            : message.type === "receive"
+                              ? "success.main"
+                              : message.type === "error"
+                                ? "error.main"
+                                : "grey.100",
+                        color: message.type !== "system" ? "white" : "inherit",
+                        opacity: message.type === "system" ? 0.8 : 1,
                       }}
                     >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                        <Chip 
-                          label={message.type} 
-                          size="small" 
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                          mb: 0.5,
+                        }}
+                      >
+                        <Chip
+                          label={message.type}
+                          size="small"
                           color={getMessageTypeColor(message.type) as any}
                           variant="outlined"
                         />
@@ -584,11 +693,13 @@ const WebSocketTest: React.FC = () => {
                           {message.timestamp.toLocaleTimeString()}
                         </Typography>
                       </Box>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                        {typeof message.data === 'object' 
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+                      >
+                        {typeof message.data === "object"
                           ? JSON.stringify(message.data, null, 2)
-                          : message.data
-                        }
+                          : message.data}
                       </Typography>
                     </Paper>
                   </ListItem>

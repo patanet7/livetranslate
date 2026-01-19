@@ -23,6 +23,7 @@ Expected Flow:
 import asyncio
 import base64
 import time
+
 import numpy as np
 import socketio
 
@@ -99,8 +100,6 @@ async def test_orchestration_streaming():
         has_unstable = "unstable_text" in data
         has_draft = "is_draft" in data
         has_final = "is_final" in data
-        has_should_translate = "should_translate" in data
-        has_stability_score = "stability_score" in data
 
         if has_stable or has_unstable or has_draft or has_final:
             stability_data_received = True
@@ -151,8 +150,7 @@ async def test_orchestration_streaming():
 
             # Check for Phase 3C stability fields
             has_stability = any(
-                k in data
-                for k in ["stable_text", "unstable_text", "is_draft", "is_final"]
+                k in data for k in ["stable_text", "unstable_text", "is_draft", "is_final"]
             )
 
             if has_stability:
@@ -224,9 +222,7 @@ async def test_orchestration_streaming():
         print("\n📊 Statistics:")
         print(f"   Chunks sent: {len(chunks)}")
         print(f"   Results received: {len(whisper_results)}")
-        print(
-            f"   Stability data detected: {'✅ YES' if stability_data_received else '❌ NO'}"
-        )
+        print(f"   Stability data detected: {'✅ YES' if stability_data_received else '❌ NO'}")
 
         if whisper_results:
             print("\n📝 Sample Results:")

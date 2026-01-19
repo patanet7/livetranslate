@@ -7,7 +7,7 @@ Write-Host "Applying security hardening to LiveTranslate containers..." -Foregro
 # Function to check Docker daemon security
 function Check-DockerDaemonSecurity {
     Write-Host "`nChecking Docker daemon security..." -ForegroundColor Yellow
-    
+
     # Check Docker version
     try {
         $DockerVersion = docker version --format "{{.Server.Version}}"
@@ -16,7 +16,7 @@ function Check-DockerDaemonSecurity {
     catch {
         Write-Host "  Could not get Docker version" -ForegroundColor Red
     }
-    
+
     # Check running containers
     Write-Host "`nRunning containers:" -ForegroundColor Cyan
     docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
@@ -25,16 +25,16 @@ function Check-DockerDaemonSecurity {
 # Function to check service security
 function Check-ServiceSecurity {
     param([string]$ServicePattern)
-    
+
     Write-Host "`nChecking security for services matching: $ServicePattern" -ForegroundColor Yellow
-    
+
     # Get running containers matching pattern
     $Containers = docker ps --filter "name=$ServicePattern" --format "{{.Names}}"
-    
+
     if ($Containers) {
         foreach ($Container in $Containers) {
             Write-Host "`n  Checking container: $Container" -ForegroundColor Cyan
-            
+
             # Check user
             try {
                 $User = docker exec $Container whoami 2>$null
@@ -47,7 +47,7 @@ function Check-ServiceSecurity {
             catch {
                 Write-Host "    Could not check user" -ForegroundColor Yellow
             }
-            
+
             # Check basic stats
             try {
                 $Stats = docker stats $Container --no-stream --format "{{.CPUPerc}} {{.MemUsage}}"

@@ -13,7 +13,7 @@ export async function joinMicrosoftTeams(page: Page, botConfig: BotConfig): Prom
   log(`Step 1: Navigating to Teams meeting: ${botConfig.meetingUrl}`);
   await page.goto(botConfig.meetingUrl!, { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(500);
-  
+
   try {
     await callJoiningCallback(botConfig);
     log("Joining callback sent successfully");

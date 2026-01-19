@@ -25,29 +25,29 @@ Run with:
     python test_real_endtoend_transcription.py
 """
 
-import sys
-import time
 import asyncio
 import logging
+import sys
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-import numpy as np
 import httpx
-from PIL import Image
+import numpy as np
 
 # Import bot components
 from bot.bot_manager import GoogleMeetBotManager, MeetingRequest, create_bot_manager
 from bot.virtual_webcam import (
-    VirtualWebcamManager,
     DisplayMode,
     Theme,
-    create_virtual_webcam,
+    VirtualWebcamManager,
     create_default_webcam_config,
+    create_virtual_webcam,
 )
+from PIL import Image
 
 # Configure logging
 logging.basicConfig(
@@ -70,11 +70,11 @@ class RealEndToEndTest:
     """
 
     def __init__(self):
-        self.bot_manager: Optional[GoogleMeetBotManager] = None
-        self.webcam: Optional[VirtualWebcamManager] = None
-        self.session_id: Optional[str] = None
-        self.frames_saved: List[Path] = []
-        self.transcriptions_received: List[Dict[str, Any]] = []
+        self.bot_manager: GoogleMeetBotManager | None = None
+        self.webcam: VirtualWebcamManager | None = None
+        self.session_id: str | None = None
+        self.frames_saved: list[Path] = []
+        self.transcriptions_received: list[dict[str, Any]] = []
         self.test_start_time: float = 0
 
     async def run(self):
@@ -93,9 +93,7 @@ class RealEndToEndTest:
                 print(
                     "  Orchestration: cd modules/orchestration-service && python src/main_fastapi.py"
                 )
-                print(
-                    "  Whisper: cd modules/whisper-service && python src/main.py --device=cpu"
-                )
+                print("  Whisper: cd modules/whisper-service && python src/main.py --device=cpu")
                 return False
 
             # Step 2: Create output directory
@@ -152,9 +150,7 @@ class RealEndToEndTest:
                 if response.status_code == 200:
                     print(f"  ✅ Orchestration service: Running ({ORCHESTRATION_URL})")
                 else:
-                    print(
-                        f"  ❌ Orchestration service: Unhealthy (status {response.status_code})"
-                    )
+                    print(f"  ❌ Orchestration service: Unhealthy (status {response.status_code})")
                     services_ok = False
         except Exception as e:
             print(f"  ❌ Orchestration service: Not running ({ORCHESTRATION_URL})")
@@ -168,9 +164,7 @@ class RealEndToEndTest:
                 if response.status_code == 200:
                     print(f"  ✅ Whisper service: Running ({WHISPER_URL})")
                 else:
-                    print(
-                        f"  ❌ Whisper service: Unhealthy (status {response.status_code})"
-                    )
+                    print(f"  ❌ Whisper service: Unhealthy (status {response.status_code})")
                     services_ok = False
         except Exception as e:
             print(f"  ❌ Whisper service: Not running ({WHISPER_URL})")
@@ -178,7 +172,7 @@ class RealEndToEndTest:
             services_ok = False
 
         # Database is optional
-        print("  ℹ️  Database: Optional (test will work without it)")
+        print("  [i] Database: Optional (test will work without it)")
 
         return services_ok
 
@@ -226,16 +220,12 @@ class RealEndToEndTest:
                 theme=Theme.DARK,
                 resolution=(1920, 1080),
             )
-            webcam_config.translation_duration_seconds = (
-                5.0  # Shorter duration for test
-            )
+            webcam_config.translation_duration_seconds = 5.0  # Shorter duration for test
             webcam_config.show_speaker_names = True
             webcam_config.show_confidence = True
             webcam_config.show_timestamps = True
 
-            self.webcam = create_virtual_webcam(
-                webcam_config, bot_manager=self.bot_manager
-            )
+            self.webcam = create_virtual_webcam(webcam_config, bot_manager=self.bot_manager)
 
             # Set up frame capture callback
             def on_frame(frame: np.ndarray):
@@ -459,9 +449,7 @@ class RealEndToEndTest:
             logger.error(f"Error generating audio: {e}", exc_info=True)
             raise
 
-    async def _upload_audio_chunk(
-        self, audio_bytes: bytes, chunk_id: str
-    ) -> Optional[Dict[str, Any]]:
+    async def _upload_audio_chunk(self, audio_bytes: bytes, chunk_id: str) -> dict[str, Any] | None:
         """
         Upload audio chunk to REAL orchestration service.
 
@@ -495,9 +483,7 @@ class RealEndToEndTest:
                     logger.debug(f"Upload successful: {chunk_id}")
                     return result
                 else:
-                    logger.error(
-                        f"Upload failed: {response.status_code} - {response.text}"
-                    )
+                    logger.error(f"Upload failed: {response.status_code} - {response.text}")
                     return {"status": "failed", "error": response.text}
 
         except Exception as e:

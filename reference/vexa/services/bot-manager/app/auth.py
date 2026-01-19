@@ -21,10 +21,10 @@ async def get_api_key(api_key: str = Security(API_KEY_HEADER),
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Missing API token (X-API-Key header)"
         )
-    
+
     # Log the API key received for debugging
     logger.info(f"Received API key: {api_key[:5]}...")
-    
+
     # Find the token in the database
     result = await db.execute(
         select(APIToken, User)
@@ -32,7 +32,7 @@ async def get_api_key(api_key: str = Security(API_KEY_HEADER),
         .where(APIToken.token == api_key)
     )
     token_user = result.first()
-    
+
     if not token_user:
         logger.warning(f"Invalid API token provided: {api_key[:5]}...")
         # Do NOT return mock user in any environment
@@ -44,7 +44,7 @@ async def get_api_key(api_key: str = Security(API_KEY_HEADER),
         # # For development, create a mock user
         # mock_user = User(id=999, email="mock@example.com", name="Mock User")
         # return (None, mock_user)
-    
+
     # Extract User object from the result row
     user_obj = token_user[1] # Assuming User is the second element
     if not isinstance(user_obj, User):
@@ -70,6 +70,6 @@ async def get_current_user(user_and_token: tuple[str, User] = Depends(get_user_a
     logger.info(f"get_current_user providing User object for user {user.id}")
     return user # Return only the User object
 
-# --- Remove Admin Auth --- 
+# --- Remove Admin Auth ---
 # async def verify_admin_token(admin_token: str = Security(API_KEY_HEADER)):
-#    ... 
+#    ...

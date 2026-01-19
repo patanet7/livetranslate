@@ -17,12 +17,15 @@ Features:
 """
 
 import asyncio
-import json
 import base64
+import contextlib
+import json
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Callable, Set
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
 import websockets
 from websockets.asyncio.client import ClientConnection
 
@@ -34,16 +37,16 @@ class WhisperSessionState:
     """Tracks state of a Whisper streaming session"""
 
     session_id: str
-    config: Dict[str, Any]
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    config: dict[str, Any]
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     is_active: bool = True
     chunks_sent: int = 0
     segments_received: int = 0
-    last_activity: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def update_activity(self):
         """Update last activity timestamp"""
-        self.last_activity = datetime.now(timezone.utc)
+        self.last_activity = datetime.now(UTC)
 
 
 class WebSocketWhisperClient:
@@ -91,21 +94,21 @@ class WebSocketWhisperClient:
         self.max_reconnect_attempts = max_reconnect_attempts
         self.reconnect_delay = reconnect_delay
 
-        self.websocket: Optional[ClientConnection] = None
+        self.websocket: ClientConnection | None = None
         self.connected = False
         self.reconnect_count = 0
 
         # Session management
-        self.sessions: Dict[str, WhisperSessionState] = {}
+        self.sessions: dict[str, WhisperSessionState] = {}
 
         # Callbacks
-        self.segment_callbacks: Set[Callable[[Dict[str, Any]], None]] = set()
-        self.error_callbacks: Set[Callable[[str], None]] = set()
-        self.connection_callbacks: Set[Callable[[bool], None]] = set()
+        self.segment_callbacks: set[Callable[[dict[str, Any]], None]] = set()
+        self.error_callbacks: set[Callable[[str], None]] = set()
+        self.connection_callbacks: set[Callable[[bool], None]] = set()
 
         # Background tasks
-        self.receiver_task: Optional[asyncio.Task] = None
-        self.heartbeat_task: Optional[asyncio.Task] = None
+        self.receiver_task: asyncio.Task | None = None
+        self.heartbeat_task: asyncio.Task | None = None
 
     @property
     def whisper_url(self) -> str:
@@ -143,10 +146,7 @@ class WebSocketWhisperClient:
             self.connected = False
             self._notify_connection(False)
 
-            if (
-                self.auto_reconnect
-                and self.reconnect_count < self.max_reconnect_attempts
-            ):
+            if self.auto_reconnect and self.reconnect_count < self.max_reconnect_attempts:
                 await self._attempt_reconnect()
 
             return False
@@ -180,13 +180,10 @@ class WebSocketWhisperClient:
             self.connected = False
             self._notify_connection(False)
 
-            if (
-                self.auto_reconnect
-                and self.reconnect_count < self.max_reconnect_attempts
-            ):
+            if self.auto_reconnect and self.reconnect_count < self.max_reconnect_attempts:
                 await self._attempt_reconnect()
 
-    async def _handle_message(self, data: Dict[str, Any]):
+    async def _handle_message(self, data: dict[str, Any]):
         """Handle incoming message from Whisper"""
         msg_type = data.get("type")
         session_id = data.get("session_id")
@@ -230,7 +227,7 @@ class WebSocketWhisperClient:
                 logger.error(f"Heartbeat error: {e}")
                 break
 
-    async def start_stream(self, session_id: str, config: Dict[str, Any]) -> str:
+    async def start_stream(self, session_id: str, config: dict[str, Any]) -> str:
         """
         Start a new streaming session on Whisper
 
@@ -260,7 +257,7 @@ class WebSocketWhisperClient:
         return session_id
 
     async def send_audio_chunk(
-        self, session_id: str, audio_data: bytes, timestamp: Optional[datetime] = None
+        self, session_id: str, audio_data: bytes, timestamp: datetime | None = None
     ):
         """
         Send audio chunk to Whisper for processing
@@ -284,7 +281,7 @@ class WebSocketWhisperClient:
 
         # Use current timestamp if not provided
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now(UTC)
 
         # Format timestamp as ISO 8601 with 'Z' suffix
         timestamp_str = timestamp.isoformat().replace("+00:00", "Z")
@@ -305,8 +302,7 @@ class WebSocketWhisperClient:
         session.update_activity()
 
         logger.debug(
-            f"🎵 Sent audio chunk for session {session_id} "
-            f"(chunk #{session.chunks_sent})"
+            f"🎵 Sent audio chunk for session {session_id} " f"(chunk #{session.chunks_sent})"
         )
 
     async def close_stream(self, session_id: str):
@@ -341,17 +337,13 @@ class WebSocketWhisperClient:
         # Cancel background tasks
         if self.receiver_task:
             self.receiver_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.receiver_task
-            except asyncio.CancelledError:
-                pass
 
         if self.heartbeat_task:
             self.heartbeat_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.heartbeat_task
-            except asyncio.CancelledError:
-                pass
 
         # Close all active sessions
         for session_id in list(self.sessions.keys()):
@@ -369,7 +361,7 @@ class WebSocketWhisperClient:
 
     # Callback registration methods
 
-    def on_segment(self, callback: Callable[[Dict[str, Any]], None]):
+    def on_segment(self, callback: Callable[[dict[str, Any]], None]):
         """
         Register callback for segment events
 
@@ -396,7 +388,7 @@ class WebSocketWhisperClient:
         """
         self.connection_callbacks.add(callback)
 
-    def _notify_segment(self, segment: Dict[str, Any]):
+    def _notify_segment(self, segment: dict[str, Any]):
         """Notify all segment callbacks"""
         for callback in self.segment_callbacks:
             try:
@@ -422,7 +414,7 @@ class WebSocketWhisperClient:
 
     # Status methods
 
-    def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
+    def get_session_info(self, session_id: str) -> dict[str, Any] | None:
         """
         Get session information
 
@@ -446,23 +438,20 @@ class WebSocketWhisperClient:
             "last_activity": session.last_activity.isoformat(),
         }
 
-    def get_all_sessions(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_sessions(self) -> dict[str, dict[str, Any]]:
         """
         Get all session information
 
         Returns:
             Dict mapping session_id to session info
         """
-        return {
-            session_id: self.get_session_info(session_id)
-            for session_id in self.sessions
-        }
+        return {session_id: self.get_session_info(session_id) for session_id in self.sessions}
 
     def is_connected(self) -> bool:
         """Check if connected to Whisper"""
         return self.connected
 
-    def get_connection_stats(self) -> Dict[str, Any]:
+    def get_connection_stats(self) -> dict[str, Any]:
         """
         Get connection statistics
 
@@ -476,9 +465,7 @@ class WebSocketWhisperClient:
             "active_sessions": sum(1 for s in self.sessions.values() if s.is_active),
             "total_sessions": len(self.sessions),
             "total_chunks_sent": sum(s.chunks_sent for s in self.sessions.values()),
-            "total_segments_received": sum(
-                s.segments_received for s in self.sessions.values()
-            ),
+            "total_segments_received": sum(s.segments_received for s in self.sessions.values()),
         }
 
 
@@ -517,7 +504,7 @@ async def example_usage():
     # Send audio chunks
     import numpy as np
 
-    for i in range(10):
+    for _i in range(10):
         # Generate test audio (1 second)
         test_audio = np.random.randn(16000).astype(np.float32)
         await client.send_audio_chunk(session_id, test_audio.tobytes())

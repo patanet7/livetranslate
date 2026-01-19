@@ -1,16 +1,14 @@
-#!/usr/bin/env python3
 """
 Logging Utility
 
 Provides structured logging setup for the orchestration service.
 """
 
+import json
 import logging
 import sys
-import json
-from typing import Optional
-from datetime import datetime, timezone
 import threading
+from datetime import UTC, datetime
 
 
 class StructuredFormatter(logging.Formatter):
@@ -19,7 +17,7 @@ class StructuredFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as structured JSON"""
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": datetime.now(UTC).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -65,7 +63,7 @@ class StructuredFormatter(logging.Formatter):
 class PlainFormatter(logging.Formatter):
     """Plain text formatter for development"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
@@ -76,7 +74,7 @@ def setup_logging(
     name: str,
     level: str = "INFO",
     format_type: str = "plain",
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
 ) -> logging.Logger:
     """
     Setup structured logging for the application
@@ -100,10 +98,7 @@ def setup_logging(
     logger.setLevel(log_level)
 
     # Choose formatter
-    if format_type.lower() == "json":
-        formatter = StructuredFormatter()
-    else:
-        formatter = PlainFormatter()
+    formatter = StructuredFormatter() if format_type.lower() == "json" else PlainFormatter()
 
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)

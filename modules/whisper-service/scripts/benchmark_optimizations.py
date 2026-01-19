@@ -11,16 +11,17 @@ Usage:
     python scripts/benchmark_optimizations.py
 """
 
-import sys
 import os
+import sys
 import time
+
 import numpy as np
 import torch
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from utils import RingBuffer, EncoderCache, PerformanceMetrics
+from utils import EncoderCache, PerformanceMetrics, RingBuffer
 
 
 def benchmark_ringbuffer():
@@ -58,7 +59,9 @@ def benchmark_ringbuffer():
     speedup = time_concat / time_ring
     print("\n" + "-" * 80)
     print("RESULTS:")
-    print(f"  np.concatenate: {time_concat*1000:8.2f} ms ({time_concat/iterations*1000000:.2f} µs/op)")
+    print(
+        f"  np.concatenate: {time_concat*1000:8.2f} ms ({time_concat/iterations*1000000:.2f} µs/op)"
+    )
     print(f"  RingBuffer:     {time_ring*1000:8.2f} ms ({time_ring/iterations*1000000:.2f} µs/op)")
     print(f"  Speedup:        {speedup:8.2f}x")
     print(f"  Time saved:     {(time_concat-time_ring)*1000:8.2f} ms")
@@ -79,14 +82,14 @@ def benchmark_encoder_cache():
     print(f"\nGenerating {unique_frames} unique audio frames...")
     audio_frames = []
     encoder_outputs = []
-    for i in range(unique_frames):
+    for _ in range(unique_frames):
         audio = np.random.randn(160).astype(np.float32)
         output = torch.randn(1, 1500, 512)
         audio_frames.append(audio)
         encoder_outputs.append(output)
 
     # Create cache
-    cache = EncoderCache(max_size=cache_size, device='cpu')
+    cache = EncoderCache(max_size=cache_size, device="cpu")
 
     # Simulate LID processing with cache
     print(f"\nProcessing {iterations} frames with cache (max_size={cache_size})...")
@@ -127,7 +130,9 @@ def benchmark_encoder_cache():
             cache_hits += 1
 
         if (i + 1) % 100 == 0:
-            print(f"   Progress: {i+1}/{iterations} (hit rate: {cache_hits/(cache_hits+cache_misses)*100:.1f}%)")
+            print(
+                f"   Progress: {i+1}/{iterations} (hit rate: {cache_hits/(cache_hits+cache_misses)*100:.1f}%)"
+            )
 
     time_total = time.perf_counter() - start
 
@@ -159,7 +164,7 @@ def benchmark_performance_metrics():
     print(f"\n1. Baseline (no metrics) - {iterations} iterations")
     start = time.perf_counter()
     for _ in range(iterations):
-        x = 42 * 42  # Trivial operation
+        pass  # Trivial operation
     time_baseline = time.perf_counter() - start
 
     # With metrics
@@ -167,8 +172,8 @@ def benchmark_performance_metrics():
     metrics = PerformanceMetrics(max_samples=1000, enable_logging=False)
     start = time.perf_counter()
     for _ in range(iterations):
-        with metrics.measure('trivial_op'):
-            x = 42 * 42
+        with metrics.measure("trivial_op"):
+            pass
     time_with_metrics = time.perf_counter() - start
 
     # Results
@@ -177,8 +182,12 @@ def benchmark_performance_metrics():
 
     print("\n" + "-" * 80)
     print("RESULTS:")
-    print(f"  Baseline:        {time_baseline*1000:8.2f} ms ({time_baseline/iterations*1000000:.2f} µs/op)")
-    print(f"  With metrics:    {time_with_metrics*1000:8.2f} ms ({time_with_metrics/iterations*1000000:.2f} µs/op)")
+    print(
+        f"  Baseline:        {time_baseline*1000:8.2f} ms ({time_baseline/iterations*1000000:.2f} µs/op)"
+    )
+    print(
+        f"  With metrics:    {time_with_metrics*1000:8.2f} ms ({time_with_metrics/iterations*1000000:.2f} µs/op)"
+    )
     print(f"  Overhead:        {overhead:8.2f} µs per operation")
     print(f"  Overhead %:      {overhead_percent:8.2f}%")
     print("\n  Conclusion: Sub-microsecond overhead, negligible for real-time audio")
@@ -203,7 +212,7 @@ def benchmark_memory_usage():
     for _ in range(iterations):
         chunk = np.random.randn(chunk_size).astype(np.float32)
         buffer_concat = np.concatenate([buffer_concat, chunk])
-    current, peak_concat = tracemalloc.get_traced_memory()
+    _current, peak_concat = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
     # Optimized: RingBuffer
@@ -213,7 +222,7 @@ def benchmark_memory_usage():
     for _ in range(iterations):
         chunk = np.random.randn(chunk_size).astype(np.float32)
         buffer_ring.append(chunk)
-    current, peak_ring = tracemalloc.get_traced_memory()
+    _current, peak_ring = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
     # Results
@@ -261,5 +270,5 @@ def main():
     print("\n" + "=" * 80)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

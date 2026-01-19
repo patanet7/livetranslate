@@ -13,15 +13,13 @@ Integrates with CaptionBuffer for caption management.
 """
 
 import asyncio
-import logging
-from typing import Dict, List, Optional, Set
-from datetime import datetime, timezone
 import json
+import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
+from models.fireflies import CaptionEntry
 from pydantic import BaseModel, Field
-
-from models.fireflies import CaptionEntry, CaptionBroadcast
 from services.caption_buffer import CaptionBuffer, create_caption_buffer
 
 logger = logging.getLogger(__name__)
@@ -44,17 +42,17 @@ class ConnectionManager:
 
     def __init__(self):
         # session_id -> set of WebSocket connections
-        self._connections: Dict[str, Set[WebSocket]] = {}
+        self._connections: dict[str, set[WebSocket]] = {}
         # WebSocket -> session_id (reverse lookup)
-        self._session_lookup: Dict[WebSocket, str] = {}
+        self._session_lookup: dict[WebSocket, str] = {}
         # WebSocket -> target_language filter (optional)
-        self._language_filters: Dict[WebSocket, Optional[str]] = {}
+        self._language_filters: dict[WebSocket, str | None] = {}
 
     async def connect(
         self,
         websocket: WebSocket,
         session_id: str,
-        target_language: Optional[str] = None,
+        target_language: str | None = None,
     ) -> None:
         """Accept WebSocket connection and register it."""
         await websocket.accept()
@@ -89,7 +87,7 @@ class ConnectionManager:
         self,
         session_id: str,
         message: dict,
-        target_language: Optional[str] = None,
+        target_language: str | None = None,
     ) -> None:
         """
         Broadcast message to all connections for a session.
@@ -102,7 +100,9 @@ class ConnectionManager:
         connections = self._connections.get(session_id, set())
         event_type = message.get("event", "unknown")
 
-        logger.debug(f"Broadcasting {event_type} to session {session_id}: {len(connections)} connections")
+        logger.debug(
+            f"Broadcasting {event_type} to session {session_id}: {len(connections)} connections"
+        )
 
         sent_count = 0
         for websocket in connections.copy():
@@ -119,7 +119,9 @@ class ConnectionManager:
                 self.disconnect(websocket)
 
         if sent_count > 0:
-            logger.info(f"Broadcast {event_type} to {sent_count} client(s) for session {session_id}")
+            logger.info(
+                f"Broadcast {event_type} to {sent_count} client(s) for session {session_id}"
+            )
 
     def get_connection_count(self, session_id: str) -> int:
         """Get number of connections for a session."""
@@ -144,7 +146,7 @@ def get_connection_manager() -> ConnectionManager:
 # =============================================================================
 
 
-_caption_buffers: Dict[str, CaptionBuffer] = {}
+_caption_buffers: dict[str, CaptionBuffer] = {}
 
 
 def get_caption_buffer(session_id: str) -> CaptionBuffer:
@@ -210,9 +212,9 @@ class CaptionsResponse(BaseModel):
     """Response with current captions."""
 
     session_id: str
-    captions: List[CaptionEntry]
+    captions: list[CaptionEntry]
     count: int
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class CaptionStatsResponse(BaseModel):
@@ -224,14 +226,14 @@ class CaptionStatsResponse(BaseModel):
     current_count: int
     unique_speakers: int
     connection_count: int
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class WebSocketMessage(BaseModel):
     """WebSocket message format."""
 
     event: str
-    data: Optional[dict] = None
+    data: dict | None = None
 
 
 # =============================================================================
@@ -243,7 +245,7 @@ class WebSocketMessage(BaseModel):
 async def caption_stream(
     websocket: WebSocket,
     session_id: str,
-    target_language: Optional[str] = None,
+    target_language: str | None = None,
 ):
     """
     WebSocket endpoint for real-time caption streaming.
@@ -269,12 +271,14 @@ async def caption_stream(
         buffer = get_caption_buffer(session_id)
         current_captions = buffer.get_active_captions()
 
-        await websocket.send_json({
-            "event": "connected",
-            "session_id": session_id,
-            "current_captions": [c.to_dict() for c in current_captions],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        await websocket.send_json(
+            {
+                "event": "connected",
+                "session_id": session_id,
+                "current_captions": [c.to_dict() for c in current_captions],
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         # Keep connection open and handle messages
         while True:
@@ -295,25 +299,31 @@ async def caption_stream(
                         # Update language filter
                         new_lang = message.get("language")
                         manager._language_filters[websocket] = new_lang
-                        await websocket.send_json({
-                            "event": "language_updated",
-                            "language": new_lang,
-                        })
+                        await websocket.send_json(
+                            {
+                                "event": "language_updated",
+                                "language": new_lang,
+                            }
+                        )
                     elif event == "get_captions":
                         # Request current captions
                         captions = buffer.get_active_captions()
-                        await websocket.send_json({
-                            "event": "captions",
-                            "captions": [c.to_dict() for c in captions],
-                        })
+                        await websocket.send_json(
+                            {
+                                "event": "captions",
+                                "captions": [c.to_dict() for c in captions],
+                            }
+                        )
                 except json.JSONDecodeError:
                     logger.warning(f"Invalid JSON from client: {data[:100]}")
-                    await websocket.send_json({
-                        "event": "error",
-                        "message": "Invalid JSON",
-                    })
+                    await websocket.send_json(
+                        {
+                            "event": "error",
+                            "message": "Invalid JSON",
+                        }
+                    )
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Send ping on timeout
                 await websocket.send_json({"event": "ping"})
 
@@ -350,7 +360,7 @@ async def get_current_captions(session_id: str):
         "session_id": session_id,
         "captions": [c.to_dict() for c in captions],
         "count": len(captions),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -378,7 +388,7 @@ async def get_caption_stats(session_id: str):
         "current_count": stats.get("current_caption_count", 0),
         "unique_speakers": stats.get("speakers_seen", 0),
         "connection_count": manager.get_connection_count(session_id),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -415,11 +425,13 @@ class AddCaptionRequest(BaseModel):
     """Request to add a caption."""
 
     text: str = Field(..., description="Translated text to display")
-    original_text: Optional[str] = Field(None, description="Original text")
+    original_text: str | None = Field(None, description="Original text")
     speaker_name: str = Field("Speaker", description="Speaker name")
     speaker_color: str = Field("#4CAF50", description="Speaker color hex")
     target_language: str = Field("es", description="Target language code")
-    duration_seconds: Optional[float] = Field(None, description="Display duration (uses buffer default if not set)")
+    duration_seconds: float | None = Field(
+        None, description="Display duration (uses buffer default if not set)"
+    )
     confidence: float = Field(0.95, description="Translation confidence")
 
 

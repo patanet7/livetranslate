@@ -6,18 +6,18 @@ Bot configuration endpoints including:
 - Bot config retrieval (/config)
 """
 
-from typing import Dict, Any
+from typing import Any
 
+from dependencies import get_bot_manager
 from fastapi import Depends, HTTPException, status
 
 from ._shared import (
-    create_bot_router,
     BotConfigUpdateRequest,
-    logger,
+    create_bot_router,
     get_error_response,
+    logger,
     validate_bot_exists,
 )
-from dependencies import get_bot_manager
 
 # Create router for bot configuration management
 router = create_bot_router()
@@ -26,7 +26,7 @@ router = create_bot_router()
 @router.post("/{bot_id}/config")
 async def update_bot_config(
     bot_id: str, request: BotConfigUpdateRequest, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Update bot configuration
 
@@ -54,15 +54,13 @@ async def update_bot_config(
         logger.error(f"Failed to update bot config: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to update bot config: {str(e)}",
+            f"Failed to update bot config: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e
 
 
 @router.get("/{bot_id}/config")
-async def get_bot_config(
-    bot_id: str, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+async def get_bot_config(bot_id: str, bot_manager=Depends(get_bot_manager)) -> dict[str, Any]:
     """
     Get bot configuration
 
@@ -83,6 +81,6 @@ async def get_bot_config(
         logger.error(f"Failed to get bot config: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get bot config: {str(e)}",
+            f"Failed to get bot config: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e

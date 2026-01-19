@@ -76,5 +76,3 @@ async def count_user_active_bots(user_id: int) -> int:
         logger.warning(f"[Seat Count] Fallback due to DB error for user {user_id}: {e}")
         # Fallback conservatively to 0 so we don't block users due to a read error
         return 0
-
-

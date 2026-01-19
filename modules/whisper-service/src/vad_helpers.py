@@ -12,25 +12,27 @@ Usage:
 """
 
 from enum import Enum
-from typing import Optional, Tuple
+
 from type_definitions import VADResult
 
 
 class VADEventType(Enum):
     """VAD event types for clearer state management"""
-    NO_CHANGE = "no_change"              # No VAD event detected
-    SPEECH_START = "speech_start"        # Speech started (pure start, no end)
-    SPEECH_END = "speech_end"            # Speech ended (pure end, no start)
-    SPEECH_RESTART = "speech_restart"    # Speech ended AND immediately restarted
+
+    NO_CHANGE = "no_change"  # No VAD event detected
+    SPEECH_START = "speech_start"  # Speech started (pure start, no end)
+    SPEECH_END = "speech_end"  # Speech ended (pure end, no start)
+    SPEECH_RESTART = "speech_restart"  # Speech ended AND immediately restarted
 
 
 class VADStatus(Enum):
     """Current VAD status"""
-    VOICE = "voice"          # Currently in speech
-    NONVOICE = "nonvoice"    # Currently in silence
+
+    VOICE = "voice"  # Currently in speech
+    NONVOICE = "nonvoice"  # Currently in silence
 
 
-def parse_vad_event(vad_result: Optional[VADResult]) -> VADEventType:
+def parse_vad_event(vad_result: VADResult | None) -> VADEventType:
     """
     Parse VAD result into a clear event type.
 
@@ -58,8 +60,8 @@ def parse_vad_event(vad_result: Optional[VADResult]) -> VADEventType:
     if vad_result is None:
         return VADEventType.NO_CHANGE
 
-    has_start = 'start' in vad_result
-    has_end = 'end' in vad_result
+    has_start = "start" in vad_result
+    has_end = "end" in vad_result
 
     if has_start and has_end:
         # Both events - speech ended and immediately restarted
@@ -188,9 +190,8 @@ def update_vad_status(event_type: VADEventType, current_status: VADStatus) -> VA
 
 
 def get_vad_action_plan(
-    vad_result: Optional[VADResult],
-    current_status: VADStatus
-) -> Tuple[bool, bool, VADStatus]:
+    vad_result: VADResult | None, current_status: VADStatus
+) -> tuple[bool, bool, VADStatus]:
     """
     Get complete action plan from VAD result.
 
@@ -257,8 +258,13 @@ def assert_valid_audio_chunk(audio_chunk) -> None:
     import numpy as np
 
     assert audio_chunk is not None, "Audio chunk is None"
-    assert isinstance(audio_chunk, np.ndarray), f"Audio chunk must be ndarray, got {type(audio_chunk)}"
+    assert isinstance(
+        audio_chunk, np.ndarray
+    ), f"Audio chunk must be ndarray, got {type(audio_chunk)}"
     assert len(audio_chunk) > 0, "Audio chunk is empty"
-    assert audio_chunk.dtype in [np.float32, np.float64], f"Audio must be float32/float64, got {audio_chunk.dtype}"
+    assert audio_chunk.dtype in [
+        np.float32,
+        np.float64,
+    ], f"Audio must be float32/float64, got {audio_chunk.dtype}"
     assert not np.isnan(audio_chunk).any(), "Audio contains NaN values"
     assert not np.isinf(audio_chunk).any(), "Audio contains infinite values"

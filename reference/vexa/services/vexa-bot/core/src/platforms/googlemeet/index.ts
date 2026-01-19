@@ -16,7 +16,7 @@ export async function handleGoogleMeet(
   page: Page,
   gracefulLeaveFunction: (page: Page | null, exitCode: number, reason: string, errorDetails?: any) => Promise<void>
 ): Promise<void> {
-  
+
   const strategies: PlatformStrategies = {
     join: async (page: Page, botConfig: BotConfig) => {
       await joinGoogleMeeting(page, botConfig.meetingUrl!, botConfig.botName, botConfig);

@@ -1,4 +1,4 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode } from "react";
 import {
   Box,
   Paper,
@@ -9,7 +9,7 @@ import {
   Stack,
   Chip,
   Collapse,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Error as ErrorIcon,
   Refresh,
@@ -18,12 +18,12 @@ import {
   Home as HomeIcon,
   ExpandLess as ExpandLessIcon,
   ExpandMore as ExpandMoreIcon,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-  level?: 'page' | 'component' | 'critical';
+  level?: "page" | "component" | "critical";
   onError?: (error: Error, errorInfo: ErrorInfo) => void;
   enableRetry?: boolean;
   enableReporting?: boolean;
@@ -48,7 +48,7 @@ export class ErrorBoundary extends Component<Props, State> {
       hasError: false,
       error: null,
       errorInfo: null,
-      errorId: '',
+      errorId: "",
       retryCount: 0,
       showDetails: false,
     };
@@ -73,11 +73,11 @@ export class ErrorBoundary extends Component<Props, State> {
     this.props.onError?.(error, errorInfo);
 
     // Log error to console in development
-    if (process.env.NODE_ENV === 'development') {
-      console.group('🚨 Error Boundary Caught Error');
-      console.error('Error:', error);
-      console.error('Error Info:', errorInfo);
-      console.error('Component Stack:', errorInfo.componentStack);
+    if (process.env.NODE_ENV === "development") {
+      console.group("🚨 Error Boundary Caught Error");
+      console.error("Error:", error);
+      console.error("Error Info:", errorInfo);
+      console.error("Component Stack:", errorInfo.componentStack);
       console.groupEnd();
     }
 
@@ -94,7 +94,7 @@ export class ErrorBoundary extends Component<Props, State> {
         message: error.message,
         stack: error.stack,
         componentStack: errorInfo.componentStack,
-        level: this.props.level || 'component',
+        level: this.props.level || "component",
         timestamp: new Date().toISOString(),
         userAgent: navigator.userAgent,
         url: window.location.href,
@@ -102,10 +102,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
       // Example: Send to error reporting service
       // errorReportingService.captureException(error, errorReport);
-      
-      console.warn('Error reported:', errorReport);
+
+      console.warn("Error reported:", errorReport);
     } catch (reportingError) {
-      console.error('Failed to report error:', reportingError);
+      console.error("Failed to report error:", reportingError);
     }
   };
 
@@ -114,7 +114,7 @@ export class ErrorBoundary extends Component<Props, State> {
       return;
     }
 
-    this.setState(prevState => ({
+    this.setState((prevState) => ({
       hasError: false,
       error: null,
       errorInfo: null,
@@ -133,11 +133,11 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   handleGoHome = () => {
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   private toggleDetails = () => {
-    this.setState(prevState => ({
+    this.setState((prevState) => ({
       showDetails: !prevState.showDetails,
     }));
   };
@@ -154,10 +154,12 @@ export class ErrorBoundary extends Component<Props, State> {
     };
 
     try {
-      await navigator.clipboard.writeText(JSON.stringify(errorDetails, null, 2));
-      alert('Error details copied to clipboard');
+      await navigator.clipboard.writeText(
+        JSON.stringify(errorDetails, null, 2),
+      );
+      alert("Error details copied to clipboard");
     } catch (err) {
-      console.error('Failed to copy error details:', err);
+      console.error("Failed to copy error details:", err);
     }
   };
 
@@ -174,64 +176,71 @@ export class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
-      const { level = 'component', enableRetry = true } = this.props;
+      const { level = "component", enableRetry = true } = this.props;
       const { error, retryCount, showDetails } = this.state;
       const canRetry = enableRetry && retryCount < this.maxRetries;
 
       // Different UI based on error level
-      const severity = level === 'critical' ? 'error' : level === 'page' ? 'warning' : 'info';
-      const title = level === 'critical' 
-        ? 'Application Error' 
-        : level === 'page' 
-        ? 'Page Error' 
-        : 'Component Error';
+      const severity =
+        level === "critical" ? "error" : level === "page" ? "warning" : "info";
+      const title =
+        level === "critical"
+          ? "Application Error"
+          : level === "page"
+            ? "Page Error"
+            : "Component Error";
 
-      const description = level === 'critical'
-        ? 'A critical error has occurred. The application may not function properly.'
-        : level === 'page'
-        ? 'An error occurred while loading this page.'
-        : 'A component failed to render properly.';
+      const description =
+        level === "critical"
+          ? "A critical error has occurred. The application may not function properly."
+          : level === "page"
+            ? "An error occurred while loading this page."
+            : "A component failed to render properly.";
 
       return (
         <Box
           sx={{
             p: 3,
-            textAlign: 'center',
-            minHeight: level === 'critical' ? '100vh' : 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: level === 'critical' ? 'center' : 'flex-start',
-            alignItems: 'center',
+            textAlign: "center",
+            minHeight: level === "critical" ? "100vh" : "auto",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: level === "critical" ? "center" : "flex-start",
+            alignItems: "center",
           }}
         >
-          <Paper 
-            elevation={level === 'critical' ? 8 : 2} 
-            sx={{ 
-              p: 4, 
-              maxWidth: 600, 
-              width: '100%',
-              textAlign: 'left'
+          <Paper
+            elevation={level === "critical" ? 8 : 2}
+            sx={{
+              p: 4,
+              maxWidth: 600,
+              width: "100%",
+              textAlign: "left",
             }}
           >
             <Stack spacing={3}>
               {/* Header */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                 <ErrorIcon color={severity} sx={{ fontSize: 40 }} />
                 <Box>
-                  <Typography variant="h5" color={`${severity}.main`} gutterBottom>
+                  <Typography
+                    variant="h5"
+                    color={`${severity}.main`}
+                    gutterBottom
+                  >
                     {title}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <Chip 
-                      label={`Level: ${level}`} 
-                      size="small" 
+                    <Chip
+                      label={`Level: ${level}`}
+                      size="small"
                       color={severity}
                       variant="outlined"
                     />
                     {retryCount > 0 && (
-                      <Chip 
-                        label={`Retry: ${retryCount}/${this.maxRetries}`} 
-                        size="small" 
+                      <Chip
+                        label={`Retry: ${retryCount}/${this.maxRetries}`}
+                        size="small"
                         color="warning"
                         variant="outlined"
                       />
@@ -246,7 +255,10 @@ export class ErrorBoundary extends Component<Props, State> {
                   {description}
                 </Typography>
                 {error && (
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', mt: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontFamily: "monospace", mt: 1 }}
+                  >
                     {error.message}
                   </Typography>
                 )}
@@ -264,8 +276,8 @@ export class ErrorBoundary extends Component<Props, State> {
                     Try Again ({this.maxRetries - retryCount} remaining)
                   </Button>
                 )}
-                
-                {level !== 'critical' && (
+
+                {level !== "critical" && (
                   <Button
                     variant="outlined"
                     startIcon={<HomeIcon />}
@@ -274,7 +286,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     Go Home
                   </Button>
                 )}
-                
+
                 <Button
                   variant="outlined"
                   startIcon={<Refresh />}
@@ -291,40 +303,56 @@ export class ErrorBoundary extends Component<Props, State> {
               <Box>
                 <Button
                   variant="text"
-                  startIcon={showDetails ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  startIcon={
+                    showDetails ? <ExpandLessIcon /> : <ExpandMoreIcon />
+                  }
                   onClick={this.toggleDetails}
                   size="small"
                   color="inherit"
                 >
-                  {showDetails ? 'Hide' : 'Show'} Technical Details
+                  {showDetails ? "Hide" : "Show"} Technical Details
                 </Button>
-                
+
                 <Collapse in={showDetails}>
                   <Box sx={{ mt: 2 }}>
                     <Stack spacing={2}>
-                      <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50' }}>
-                        <Typography variant="subtitle2" color="error" gutterBottom>
+                      <Paper elevation={0} sx={{ p: 2, bgcolor: "grey.50" }}>
+                        <Typography
+                          variant="subtitle2"
+                          color="error"
+                          gutterBottom
+                        >
                           Error ID: {this.state.errorId}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-word' }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontFamily: "monospace",
+                            wordBreak: "break-word",
+                          }}
+                        >
                           {error?.message}
                         </Typography>
                       </Paper>
 
                       {error?.stack && (
-                        <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50' }}>
-                          <Typography variant="subtitle2" color="error" gutterBottom>
+                        <Paper elevation={0} sx={{ p: 2, bgcolor: "grey.50" }}>
+                          <Typography
+                            variant="subtitle2"
+                            color="error"
+                            gutterBottom
+                          >
                             Stack Trace:
                           </Typography>
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontFamily: 'monospace', 
-                              fontSize: '0.75rem',
-                              whiteSpace: 'pre-wrap',
-                              wordBreak: 'break-word',
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontFamily: "monospace",
+                              fontSize: "0.75rem",
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
                               maxHeight: 200,
-                              overflow: 'auto'
+                              overflow: "auto",
                             }}
                           >
                             {error.stack}
@@ -337,7 +365,7 @@ export class ErrorBoundary extends Component<Props, State> {
                         startIcon={<ContentCopy />}
                         onClick={this.handleCopyError}
                         size="small"
-                        sx={{ alignSelf: 'flex-start' }}
+                        sx={{ alignSelf: "flex-start" }}
                       >
                         Copy Error Details
                       </Button>
@@ -347,12 +375,13 @@ export class ErrorBoundary extends Component<Props, State> {
               </Box>
 
               {/* Development Info */}
-              {process.env.NODE_ENV === 'development' && (
+              {process.env.NODE_ENV === "development" && (
                 <Alert severity="info" icon={<BugReport />}>
                   <Typography variant="body2">
-                    <strong>Development Mode:</strong> This error boundary is showing detailed 
-                    information because you're in development mode. In production, users 
-                    would see a more user-friendly error message.
+                    <strong>Development Mode:</strong> This error boundary is
+                    showing detailed information because you're in development
+                    mode. In production, users would see a more user-friendly
+                    error message.
                   </Typography>
                 </Alert>
               )}
@@ -369,7 +398,7 @@ export class ErrorBoundary extends Component<Props, State> {
 // Higher-order component for easy wrapping
 export const withErrorBoundary = <P extends object>(
   WrappedComponent: React.ComponentType<P>,
-  errorBoundaryProps?: Omit<Props, 'children'>
+  errorBoundaryProps?: Omit<Props, "children">,
 ) => {
   const WithErrorBoundaryComponent = (props: P) => (
     <ErrorBoundary {...errorBoundaryProps}>
@@ -378,24 +407,30 @@ export const withErrorBoundary = <P extends object>(
   );
 
   WithErrorBoundaryComponent.displayName = `withErrorBoundary(${WrappedComponent.displayName || WrappedComponent.name})`;
-  
+
   return WithErrorBoundaryComponent;
 };
 
 // Specialized error boundaries
-export const PageErrorBoundary: React.FC<{ children: ReactNode }> = ({ children }) => (
+export const PageErrorBoundary: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => (
   <ErrorBoundary level="page" enableRetry={true} enableReporting={true}>
     {children}
   </ErrorBoundary>
 );
 
-export const ComponentErrorBoundary: React.FC<{ children: ReactNode }> = ({ children }) => (
+export const ComponentErrorBoundary: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => (
   <ErrorBoundary level="component" enableRetry={true} enableReporting={false}>
     {children}
   </ErrorBoundary>
 );
 
-export const CriticalErrorBoundary: React.FC<{ children: ReactNode }> = ({ children }) => (
+export const CriticalErrorBoundary: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => (
   <ErrorBoundary level="critical" enableRetry={false} enableReporting={true}>
     {children}
   </ErrorBoundary>

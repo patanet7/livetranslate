@@ -154,4 +154,3 @@ npm run build 2>&1 | grep "error TS6133" | sed 's/\(.*\.tsx\?\).*/\1/' | sort -u
 # Get detailed error list
 npm run build 2>&1 | grep "error TS6133" > remaining_errors.txt
 ```
-

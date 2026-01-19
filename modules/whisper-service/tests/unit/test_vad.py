@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Unit Tests: Voice Activity Detection (VAD)
 
@@ -15,20 +14,17 @@ Critical functionality:
 Reference: modules/whisper-service/src/vad_detector.py
 """
 
-import sys
-import os
-from pathlib import Path
-import pytest
-import numpy as np
-import torch
 import logging
-from typing import Optional, Dict
+import sys
+from pathlib import Path
 
 # Add src to path
 src_path = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
-from vad_detector import SileroVAD, VADIterator, FixedVADIterator
+import numpy as np
+import pytest
+from vad_detector import FixedVADIterator, SileroVAD
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +42,7 @@ def shared_silero_vad():
     This loads the Silero VAD model ONCE per module instead of 6+ times.
     The internal model is shared, but each test class resets state for isolation.
     """
-    vad_instance = SileroVAD(
-        threshold=0.5,
-        sampling_rate=16000,
-        min_silence_duration_ms=500
-    )
+    vad_instance = SileroVAD(threshold=0.5, sampling_rate=16000, min_silence_duration_ms=500)
     logger.info("[FIXTURE] ✓ Shared SileroVAD instance created")
     yield vad_instance
     logger.info("[FIXTURE] Cleaning up shared SileroVAD instance")
@@ -125,6 +117,7 @@ class TestVADSpeechDetection:
         audio, sr = sf.read(str(jfk_path))
         if sr != 16000:
             import librosa
+
             audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
 
         audio = audio.astype(np.float32)
@@ -134,10 +127,10 @@ class TestVADSpeechDetection:
         speech_detected = False
 
         for i in range(0, len(audio), chunk_size):
-            chunk = audio[i:i + chunk_size]
+            chunk = audio[i : i + chunk_size]
             result = vad.check_speech(chunk)
 
-            if result is not None and 'start' in result:
+            if result is not None and "start" in result:
                 speech_detected = True
                 logger.info(f"✅ Speech START detected at {result['start']:.2f}s")
                 break
@@ -152,17 +145,16 @@ class TestVADSpeechDetection:
         # Process in chunks
         chunk_size = 8000
         start_detected = False
-        end_detected = False
 
         for i in range(0, len(silence), chunk_size):
-            chunk = silence[i:i + chunk_size]
+            chunk = silence[i : i + chunk_size]
             result = vad.check_speech(chunk)
 
             if result is not None:
-                if 'start' in result:
+                if "start" in result:
                     start_detected = True
-                if 'end' in result:
-                    end_detected = True
+                if "end" in result:
+                    pass
 
         assert not start_detected, "Should not detect speech START in silence"
         logger.info("✅ Silence correctly identified (no false START)")
@@ -177,7 +169,7 @@ class TestVADSpeechDetection:
         events = []
 
         for i in range(0, len(noise), chunk_size):
-            chunk = noise[i:i + chunk_size]
+            chunk = noise[i : i + chunk_size]
             result = vad.check_speech(chunk)
             if result is not None:
                 events.append(result)
@@ -209,14 +201,14 @@ class TestVADEventDetection:
         result = None
         chunk_size = 8000
         for i in range(0, len(speech), chunk_size):
-            chunk = speech[i:i + chunk_size]
+            chunk = speech[i : i + chunk_size]
             result = vad.check_speech(chunk)
-            if result is not None and 'start' in result:
+            if result is not None and "start" in result:
                 break
 
-        if result is not None and 'start' in result:
-            assert isinstance(result['start'], (int, float))
-            assert result['start'] >= 0
+        if result is not None and "start" in result:
+            assert isinstance(result["start"], int | float)
+            assert result["start"] >= 0
             logger.info(f"✅ START event format correct: {result}")
 
     def test_end_event_format(self, vad):
@@ -229,12 +221,12 @@ class TestVADEventDetection:
         end_detected = False
         chunk_size = 8000
         for i in range(0, len(combined), chunk_size):
-            chunk = combined[i:i + chunk_size]
+            chunk = combined[i : i + chunk_size]
             result = vad.check_speech(chunk)
 
-            if result is not None and 'end' in result:
-                assert isinstance(result['end'], (int, float))
-                assert result['end'] >= 0
+            if result is not None and "end" in result:
+                assert isinstance(result["end"], int | float)
+                assert result["end"] >= 0
                 end_detected = True
                 logger.info(f"✅ END event format correct: {result}")
                 break
@@ -255,12 +247,12 @@ class TestVADEventDetection:
         # Process in large chunks to potentially catch both events
         chunk_size = 16000
         for i in range(0, len(combined), chunk_size):
-            chunk = combined[i:i + chunk_size]
+            chunk = combined[i : i + chunk_size]
             result = vad.check_speech(chunk)
 
             if result is not None:
                 # Check structure
-                if 'start' in result and 'end' in result:
+                if "start" in result and "end" in result:
                     logger.info(f"✅ Both START and END in single result: {result}")
                     return
 
@@ -285,26 +277,20 @@ class TestFixedVADIterator:
     def test_handles_512_sample_chunks(self, vad_model):
         """Test exact 512-sample chunks (Silero VAD native size)"""
         iterator = FixedVADIterator(
-            model=vad_model,
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
+            model=vad_model, threshold=0.5, sampling_rate=16000, min_silence_duration_ms=500
         )
 
         # Feed exact 512-sample chunks
         for _ in range(10):
             chunk = np.random.randn(512).astype(np.float32) * 0.1
-            result = iterator(chunk, return_seconds=True)
+            iterator(chunk, return_seconds=True)
 
         logger.info("✅ 512-sample chunks handled correctly")
 
     def test_handles_arbitrary_chunk_sizes(self, vad_model):
         """Test arbitrary chunk sizes (not multiples of 512)"""
         iterator = FixedVADIterator(
-            model=vad_model,
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
+            model=vad_model, threshold=0.5, sampling_rate=16000, min_silence_duration_ms=500
         )
 
         # Various arbitrary sizes
@@ -312,7 +298,7 @@ class TestFixedVADIterator:
 
         for size in chunk_sizes:
             chunk = np.random.randn(size).astype(np.float32) * 0.1
-            result = iterator(chunk, return_seconds=True)
+            iterator(chunk, return_seconds=True)
             # Should not crash
 
         logger.info(f"✅ Arbitrary chunk sizes handled: {chunk_sizes}")
@@ -320,16 +306,13 @@ class TestFixedVADIterator:
     def test_buffer_accumulation(self, vad_model):
         """Test buffer correctly accumulates partial chunks"""
         iterator = FixedVADIterator(
-            model=vad_model,
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
+            model=vad_model, threshold=0.5, sampling_rate=16000, min_silence_duration_ms=500
         )
 
         # Feed chunks smaller than 512 - should buffer
         for _ in range(5):
             chunk = np.random.randn(100).astype(np.float32) * 0.1
-            result = iterator(chunk, return_seconds=True)
+            iterator(chunk, return_seconds=True)
 
         # Buffer should have accumulated
         assert len(iterator.buffer) >= 0  # May have processed some 512-chunks
@@ -339,15 +322,12 @@ class TestFixedVADIterator:
     def test_processes_multiple_512_chunks_from_large_input(self, vad_model):
         """Test processes multiple 512-chunks from large input"""
         iterator = FixedVADIterator(
-            model=vad_model,
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
+            model=vad_model, threshold=0.5, sampling_rate=16000, min_silence_duration_ms=500
         )
 
         # Large chunk (10 * 512 = 5120 samples)
         large_chunk = np.random.randn(5120).astype(np.float32) * 0.1
-        result = iterator(large_chunk, return_seconds=True)
+        iterator(large_chunk, return_seconds=True)
 
         # Should have processed 10 internal 512-chunks
         # Buffer should be empty or small
@@ -358,10 +338,7 @@ class TestFixedVADIterator:
     def test_return_seconds_vs_samples(self, vad_model):
         """Test return_seconds parameter"""
         iterator = FixedVADIterator(
-            model=vad_model,
-            threshold=0.5,
-            sampling_rate=16000,
-            min_silence_duration_ms=500
+            model=vad_model, threshold=0.5, sampling_rate=16000, min_silence_duration_ms=500
         )
 
         # High amplitude to trigger detection
@@ -373,27 +350,29 @@ class TestFixedVADIterator:
         # Try with return_seconds=False
         iterator.reset_states()
         for i in range(0, len(speech), 8000):
-            chunk = speech[i:i + 8000]
+            chunk = speech[i : i + 8000]
             r = iterator(chunk, return_seconds=False)
-            if r is not None and 'start' in r:
+            if r is not None and "start" in r:
                 result_samples = r
                 break
 
         # Try with return_seconds=True
         iterator.reset_states()
         for i in range(0, len(speech), 8000):
-            chunk = speech[i:i + 8000]
+            chunk = speech[i : i + 8000]
             r = iterator(chunk, return_seconds=True)
-            if r is not None and 'start' in r:
+            if r is not None and "start" in r:
                 result_seconds = r
                 break
 
         if result_samples and result_seconds:
             # Samples should be larger numbers
-            assert isinstance(result_samples['start'], int)
+            assert isinstance(result_samples["start"], int)
             # Seconds should be float
-            assert isinstance(result_seconds['start'], float)
-            logger.info(f"✅ return_seconds works: samples={result_samples}, seconds={result_seconds}")
+            assert isinstance(result_seconds["start"], float)
+            logger.info(
+                f"✅ return_seconds works: samples={result_samples}, seconds={result_seconds}"
+            )
 
 
 class TestVADRobustness:
@@ -449,7 +428,7 @@ class TestVADRobustness:
 
         # Should handle gracefully (may return None or error)
         try:
-            result = vad.check_speech(audio)
+            vad.check_speech(audio)
             logger.info("✅ NaN values handled gracefully")
         except Exception as e:
             logger.info(f"⚠️ NaN values caused expected error: {e}")
@@ -460,7 +439,7 @@ class TestVADRobustness:
         audio[100:110] = np.inf
 
         try:
-            result = vad.check_speech(audio)
+            vad.check_speech(audio)
             logger.info("✅ Inf values handled gracefully")
         except Exception as e:
             logger.info(f"⚠️ Inf values caused expected error: {e}")
@@ -470,7 +449,7 @@ class TestVADRobustness:
         empty = np.array([], dtype=np.float32)
 
         try:
-            result = vad.check_speech(empty)
+            vad.check_speech(empty)
             logger.info("✅ Empty audio handled")
         except Exception as e:
             logger.info(f"⚠️ Empty audio caused expected error: {e}")
@@ -479,7 +458,7 @@ class TestVADRobustness:
         """Test VAD handles single sample"""
         single = np.array([0.5], dtype=np.float32)
 
-        result = vad.check_speech(single)
+        vad.check_speech(single)
         # Too short to process, should handle gracefully
         logger.info("✅ Single sample handled")
 
@@ -489,7 +468,7 @@ class TestVADRobustness:
 
         for size in chunk_sizes:
             audio = np.random.randn(size).astype(np.float32) * 0.3
-            result = vad.check_speech(audio)
+            vad.check_speech(audio)
             # Should not crash regardless of chunk size
 
         logger.info(f"✅ Various chunk sizes handled continuously: {chunk_sizes}")
@@ -544,7 +523,7 @@ class TestVADPropertyBased:
         for i in range(iterations):
             audio = np.random.randn(8000).astype(np.float32) * 0.1
             try:
-                result = vad.check_speech(audio)
+                vad.check_speech(audio)
             except Exception as e:
                 pytest.fail(f"VAD crashed on iteration {i}: {e}")
 
@@ -560,7 +539,7 @@ class TestVADPropertyBased:
         vad.reset()
         result1 = None
         for i in range(0, len(audio), 8000):
-            r = vad.check_speech(audio[i:i + 8000])
+            r = vad.check_speech(audio[i : i + 8000])
             if r is not None:
                 result1 = r
                 break
@@ -568,13 +547,13 @@ class TestVADPropertyBased:
         vad.reset()
         result2 = None
         for i in range(0, len(audio), 8000):
-            r = vad.check_speech(audio[i:i + 8000])
+            r = vad.check_speech(audio[i : i + 8000])
             if r is not None:
                 result2 = r
                 break
 
         # Should get same results
-        assert type(result1) == type(result2)
+        assert type(result1) is type(result2)
         logger.info("✅ VAD is deterministic on same input")
 
 
@@ -607,14 +586,14 @@ class TestVADStateMachine:
         end_detected = False
 
         for i in range(0, len(combined), 8000):
-            chunk = combined[i:i + 8000]
+            chunk = combined[i : i + 8000]
             result = vad.check_speech(chunk)
 
             if result is not None:
-                if 'start' in result:
+                if "start" in result:
                     start_detected = True
                     logger.info(f"✅ State transition: silence → speech at {result['start']:.2f}s")
-                if 'end' in result:
+                if "end" in result:
                     end_detected = True
                     logger.info(f"✅ State transition: speech → silence at {result['end']:.2f}s")
 
@@ -626,14 +605,14 @@ class TestVADStateMachine:
         # Process some audio to build state
         audio = np.random.randn(16000).astype(np.float32) * 0.5
         for i in range(0, len(audio), 8000):
-            vad.check_speech(audio[i:i + 8000])
+            vad.check_speech(audio[i : i + 8000])
 
         # Reset
         vad.reset()
 
         # Should start fresh
         silence = np.zeros(8000, dtype=np.float32)
-        result = vad.check_speech(silence)
+        vad.check_speech(silence)
 
         # Should not have lingering state
         logger.info("✅ Reset clears state machine")

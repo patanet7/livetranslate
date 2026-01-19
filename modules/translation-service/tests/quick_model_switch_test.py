@@ -10,6 +10,9 @@ Usage:
     # Then run this test:
     python tests/quick_model_switch_test.py
 
+    # Or with custom URL:
+    TRANSLATION_SERVICE_URL=http://myserver:5003 python tests/quick_model_switch_test.py
+
 This tests:
 1. Translation with initial model
 2. Get model status
@@ -19,11 +22,21 @@ This tests:
 """
 
 import asyncio
-import aiohttp
-import time
+import os
 import sys
+import time
+from pathlib import Path
 
-BASE_URL = "http://localhost:5003"
+import aiohttp
+
+# Load config from conftest if available, otherwise use env vars
+try:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from conftest import test_config
+
+    BASE_URL = test_config.translation_service_url
+except ImportError:
+    BASE_URL = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
 
 
 async def main():
@@ -37,7 +50,7 @@ async def main():
         async with session.get(f"{BASE_URL}/health") as resp:
             health = await resp.json()
             print(f"   Status: {health.get('status')}")
-            if health.get('status') != 'healthy':
+            if health.get("status") != "healthy":
                 print("   ❌ Service not healthy!")
                 return
 
@@ -47,11 +60,13 @@ async def main():
             if resp.status == 404:
                 print("   ❌ Model status endpoint not found!")
                 print("   👉 Did you restart the translation service after updating the code?")
-                print("   👉 Run: cd modules/translation-service && python src/api_server_fastapi.py")
+                print(
+                    "   👉 Run: cd modules/translation-service && python src/api_server_fastapi.py"
+                )
                 return
 
             status = await resp.json()
-            current_model = status.get('current_model')
+            current_model = status.get("current_model")
             print(f"   Current model: {current_model}")
             print(f"   Backend: {status.get('current_backend')}")
             print(f"   Ready: {status.get('is_ready')}")
@@ -60,16 +75,12 @@ async def main():
         # Step 3: Translate with initial model
         print("\n3️⃣  Translating with current model...")
         test_text = "The server processes requests asynchronously using event loops."
-        payload = {
-            "text": test_text,
-            "source_language": "en",
-            "target_language": "es"
-        }
+        payload = {"text": test_text, "source_language": "en", "target_language": "es"}
 
         async with session.post(f"{BASE_URL}/api/translate", json=payload) as resp:
             if resp.status == 200:
                 result = await resp.json()
-                translation1 = result.get('translated_text', '')
+                translation1 = result.get("translated_text", "")
                 print(f"   EN: {test_text}")
                 print(f"   ES: {translation1}")
                 print(f"   Model: {result.get('model_used', current_model)}")
@@ -82,7 +93,7 @@ async def main():
         async with session.get(f"{BASE_URL}/api/models/list/ollama") as resp:
             if resp.status == 200:
                 models_data = await resp.json()
-                models = models_data.get('models', [])
+                models = models_data.get("models", [])
                 print(f"   Found {len(models)} models")
                 if models:
                     print(f"   Available: {models[:5]}...")
@@ -101,43 +112,51 @@ async def main():
 
                         async with session.post(
                             f"{BASE_URL}/api/models/switch",
-                            json={"model": other_model, "backend": "ollama"}
+                            json={"model": other_model, "backend": "ollama"},
                         ) as resp:
                             switch_result = await resp.json()
                             switch_time = time.time() - switch_start
 
-                            if switch_result.get('success'):
+                            if switch_result.get("success"):
                                 print(f"   ✅ Switch successful in {switch_time:.2f}s")
 
                                 # Step 6: Translate with new model
                                 print(f"\n6️⃣  Translating with NEW model ({other_model})...")
-                                async with session.post(f"{BASE_URL}/api/translate", json=payload) as resp:
+                                async with session.post(
+                                    f"{BASE_URL}/api/translate", json=payload
+                                ) as resp:
                                     if resp.status == 200:
                                         result = await resp.json()
-                                        translation2 = result.get('translated_text', '')
+                                        translation2 = result.get("translated_text", "")
                                         print(f"   EN: {test_text}")
                                         print(f"   ES: {translation2}")
                                         print(f"   Model: {result.get('model_used', other_model)}")
 
                                         # Compare
-                                        print(f"\n7️⃣  Comparing translations:")
-                                        print(f"   Model 1 ({current_model}): {translation1[:60]}...")
+                                        print("\n7️⃣  Comparing translations:")
+                                        print(
+                                            f"   Model 1 ({current_model}): {translation1[:60]}..."
+                                        )
                                         print(f"   Model 2 ({other_model}): {translation2[:60]}...")
 
                                         if translation1 != translation2:
-                                            print("   ✅ Translations DIFFER - model switch confirmed!")
+                                            print(
+                                                "   ✅ Translations DIFFER - model switch confirmed!"
+                                            )
                                         else:
-                                            print("   ⚠️ Translations identical (models may produce same output)")
+                                            print(
+                                                "   ⚠️ Translations identical (models may produce same output)"
+                                            )
 
                                         # Switch back
                                         print(f"\n8️⃣  Switching back to {current_model}...")
                                         async with session.post(
                                             f"{BASE_URL}/api/models/switch",
-                                            json={"model": current_model, "backend": "ollama"}
+                                            json={"model": current_model, "backend": "ollama"},
                                         ) as resp:
                                             back_result = await resp.json()
-                                            if back_result.get('success'):
-                                                print(f"   ✅ Switched back successfully")
+                                            if back_result.get("success"):
+                                                print("   ✅ Switched back successfully")
                             else:
                                 print(f"   ❌ Switch failed: {switch_result.get('message')}")
                     else:

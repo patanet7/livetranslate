@@ -13,4 +13,4 @@ Components:
 
 from .session_manager import SessionRestartTranscriber
 
-__all__ = ['SessionRestartTranscriber']
+__all__ = ["SessionRestartTranscriber"]

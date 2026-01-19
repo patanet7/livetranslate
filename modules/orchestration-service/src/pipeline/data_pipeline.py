@@ -26,15 +26,15 @@ Author: LiveTranslate Team
 Version: 1.0
 """
 
+import asyncio
+import logging
 import sys
 import uuid
-import logging
-import asyncio
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
-from pathlib import Path
 from collections import OrderedDict
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -53,14 +53,14 @@ logger = logging.getLogger(__name__)
 class AudioChunkMetadata:
     """Metadata for audio chunks."""
 
-    duration_seconds: Optional[float] = None
-    sample_rate: Optional[int] = None
-    channels: Optional[int] = None
-    chunk_start_time: Optional[float] = None
-    chunk_end_time: Optional[float] = None
-    audio_quality_score: Optional[float] = None
-    codec: Optional[str] = None
-    bitrate: Optional[int] = None
+    duration_seconds: float | None = None
+    sample_rate: int | None = None
+    channels: int | None = None
+    chunk_start_time: float | None = None
+    chunk_end_time: float | None = None
+    audio_quality_score: float | None = None
+    codec: str | None = None
+    bitrate: int | None = None
 
 
 @dataclass
@@ -71,12 +71,12 @@ class TranscriptionResult:
     language: str
     start_time: float
     end_time: float
-    speaker: Optional[str] = None  # 'SPEAKER_00', 'SPEAKER_01', etc.
-    speaker_name: Optional[str] = None
-    confidence: Optional[float] = None
+    speaker: str | None = None  # 'SPEAKER_00', 'SPEAKER_01', etc.
+    speaker_name: str | None = None
+    confidence: float | None = None
     segment_index: int = 0
     is_final: bool = True
-    words: Optional[List[Dict]] = None  # Word-level timestamps
+    words: list[dict] | None = None  # Word-level timestamps
 
 
 @dataclass
@@ -86,11 +86,11 @@ class TranslationResult:
     text: str
     source_language: str
     target_language: str
-    speaker: Optional[str] = None
-    speaker_name: Optional[str] = None
-    confidence: Optional[float] = None
+    speaker: str | None = None
+    speaker_name: str | None = None
+    confidence: float | None = None
     translation_service: str = "translation_service"
-    model_name: Optional[str] = None
+    model_name: str | None = None
 
 
 @dataclass
@@ -102,10 +102,10 @@ class TimelineEntry:
     entry_type: str  # 'transcript', 'translation', 'audio'
     content: str
     language: str
-    speaker_id: Optional[str] = None
-    speaker_name: Optional[str] = None
-    confidence: Optional[float] = None
-    metadata: Optional[Dict] = None
+    speaker_id: str | None = None
+    speaker_name: str | None = None
+    confidence: float | None = None
+    metadata: dict | None = None
 
 
 @dataclass
@@ -114,9 +114,9 @@ class SpeakerStatistics:
 
     session_id: str
     speaker_id: str
-    speaker_name: Optional[str]
-    identification_method: Optional[str]
-    identification_confidence: Optional[float]
+    speaker_name: str | None
+    identification_method: str | None
+    identification_confidence: float | None
     total_segments: int
     total_speaking_time: float
     average_confidence: float
@@ -173,8 +173,8 @@ class TranscriptionDataPipeline:
         session_id: str,
         audio_bytes: bytes,
         file_format: str = "wav",
-        metadata: Optional[AudioChunkMetadata] = None,
-    ) -> Optional[str]:
+        metadata: AudioChunkMetadata | None = None,
+    ) -> str | None:
         """
         Process and store an audio chunk.
 
@@ -226,10 +226,10 @@ class TranscriptionDataPipeline:
     async def process_transcription_result(
         self,
         session_id: str,
-        file_id: Optional[str],
+        file_id: str | None,
         transcription: TranscriptionResult,
         source_type: str = "whisper_service",
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Process and store a transcription result.
 
@@ -309,7 +309,7 @@ class TranscriptionDataPipeline:
         translation: TranslationResult,
         start_time: float,
         end_time: float,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Process and store a translation result.
 
@@ -343,18 +343,16 @@ class TranscriptionDataPipeline:
             }
 
             # Store translation
-            translation_id = (
-                await self.db_manager.translation_manager.store_translation(
-                    session_id=session_id,
-                    source_transcript_id=transcript_id,
-                    translated_text=translation.text,
-                    source_language=translation.source_language,
-                    target_language=translation.target_language,
-                    translation_service=translation.translation_service,
-                    speaker_info=speaker_info,
-                    timing_info=timing_info,
-                    processing_metadata=processing_metadata,
-                )
+            translation_id = await self.db_manager.translation_manager.store_translation(
+                session_id=session_id,
+                source_transcript_id=transcript_id,
+                translated_text=translation.text,
+                source_language=translation.source_language,
+                target_language=translation.target_language,
+                translation_service=translation.translation_service,
+                speaker_info=speaker_info,
+                timing_info=timing_info,
+                processing_metadata=processing_metadata,
             )
 
             if translation_id:
@@ -375,12 +373,12 @@ class TranscriptionDataPipeline:
     async def get_session_timeline(
         self,
         session_id: str,
-        start_time: Optional[float] = None,
-        end_time: Optional[float] = None,
+        start_time: float | None = None,
+        end_time: float | None = None,
         include_translations: bool = True,
-        language_filter: Optional[str] = None,
-        speaker_filter: Optional[str] = None,
-    ) -> List[TimelineEntry]:
+        language_filter: str | None = None,
+        speaker_filter: str | None = None,
+    ) -> list[TimelineEntry]:
         """
         Get complete session timeline.
 
@@ -404,10 +402,8 @@ class TranscriptionDataPipeline:
                     session_id, start_time, end_time
                 )
             else:
-                transcripts = (
-                    await self.db_manager.transcript_manager.get_session_transcripts(
-                        session_id
-                    )
+                transcripts = await self.db_manager.transcript_manager.get_session_transcripts(
+                    session_id
                 )
 
             # Add transcripts to timeline
@@ -438,26 +434,18 @@ class TranscriptionDataPipeline:
 
             # Add translations if requested
             if include_translations:
-                translations = (
-                    await self.db_manager.translation_manager.get_session_translations(
-                        session_id
-                    )
+                translations = await self.db_manager.translation_manager.get_session_translations(
+                    session_id
                 )
 
                 for translation in translations:
                     # Apply filters
-                    if (
-                        language_filter
-                        and translation.target_language != language_filter
-                    ):
+                    if language_filter and translation.target_language != language_filter:
                         continue
                     if speaker_filter and translation.speaker_id != speaker_filter:
                         continue
                     # NULL-safe timestamp comparisons - prevent TypeError on NULL timestamps
-                    if (
-                        start_time is not None
-                        and translation.start_timestamp is not None
-                    ):
+                    if start_time is not None and translation.start_timestamp is not None:
                         if translation.start_timestamp < start_time:
                             continue
                     if end_time is not None and translation.end_timestamp is not None:
@@ -469,9 +457,7 @@ class TranscriptionDataPipeline:
                         translation.start_timestamp is not None
                         and translation.end_timestamp is not None
                     ):
-                        duration = (
-                            translation.end_timestamp - translation.start_timestamp
-                        )
+                        duration = translation.end_timestamp - translation.start_timestamp
                         timestamp = translation.start_timestamp
                     else:
                         duration = 0.0
@@ -498,9 +484,7 @@ class TranscriptionDataPipeline:
             # Sort by timestamp
             timeline.sort(key=lambda x: x.timestamp)
 
-            logger.debug(
-                f"Retrieved timeline for session {session_id}: {len(timeline)} entries"
-            )
+            logger.debug(f"Retrieved timeline for session {session_id}: {len(timeline)} entries")
             return timeline
 
         except Exception as e:
@@ -512,7 +496,7 @@ class TranscriptionDataPipeline:
         session_id: str,
         speaker_id: str,
         include_translations: bool = True,
-    ) -> List[TimelineEntry]:
+    ) -> list[TimelineEntry]:
         """
         Get timeline for a specific speaker.
 
@@ -530,7 +514,7 @@ class TranscriptionDataPipeline:
             include_translations=include_translations,
         )
 
-    async def get_speaker_statistics(self, session_id: str) -> List[SpeakerStatistics]:
+    async def get_speaker_statistics(self, session_id: str) -> list[SpeakerStatistics]:
         """
         Get statistics for all speakers in a session.
 
@@ -582,9 +566,9 @@ class TranscriptionDataPipeline:
         self,
         session_id: str,
         query: str,
-        language: Optional[str] = None,
+        language: str | None = None,
         use_fuzzy: bool = True,
-    ) -> List[TranscriptRecord]:
+    ) -> list[TranscriptRecord]:
         """
         Full-text search across transcripts.
 
@@ -650,9 +634,7 @@ class TranscriptionDataPipeline:
                             confidence_score=row["confidence_score"],
                             segment_index=row["segment_index"],
                             audio_file_id=row["audio_file_id"],
-                            google_transcript_entry_id=row[
-                                "google_transcript_entry_id"
-                            ],
+                            google_transcript_entry_id=row["google_transcript_entry_id"],
                             processing_metadata=row["processing_metadata"],
                             created_at=row["created_at"],
                             updated_at=row["updated_at"],
@@ -668,9 +650,7 @@ class TranscriptionDataPipeline:
             logger.error(f"Error searching transcripts: {e}", exc_info=True)
             return []
 
-    async def _update_segment_continuity(
-        self, session_id: str, transcript_id: str
-    ) -> None:
+    async def _update_segment_continuity(self, session_id: str, transcript_id: str) -> None:
         """
         Update segment continuity links with LRU cache.
 
@@ -743,7 +723,7 @@ class TranscriptionDataPipeline:
         except Exception as e:
             logger.warning(f"Error clearing session cache: {e}")
 
-    def get_cache_statistics(self) -> Dict[str, Any]:
+    def get_cache_statistics(self) -> dict[str, Any]:
         """
         Get cache performance statistics.
 
@@ -783,18 +763,17 @@ class TranscriptionDataPipeline:
         Raises:
             Exception: Re-raises any exception after rolling back transaction
         """
-        async with self.db_manager.db_pool.acquire() as conn:
-            async with conn.transaction():
-                yield conn
+        async with self.db_manager.db_pool.acquire() as conn, conn.transaction():
+            yield conn
 
     async def process_complete_segment(
         self,
         session_id: str,
         audio_bytes: bytes,
         transcription: TranscriptionResult,
-        translations: List[TranslationResult],
-        audio_metadata: Optional[AudioChunkMetadata] = None,
-    ) -> Optional[Dict[str, Any]]:
+        translations: list[TranslationResult],
+        audio_metadata: AudioChunkMetadata | None = None,
+    ) -> dict[str, Any] | None:
         """
         Process complete segment atomically (audio + transcription + translations).
 
@@ -877,7 +856,7 @@ class TranscriptionDataPipeline:
         self,
         session_id: str,
         speaker_label: str,
-        speaker_name: Optional[str],
+        speaker_name: str | None,
         source: str,
     ) -> None:
         """
@@ -935,7 +914,7 @@ class TranscriptionDataPipeline:
 # Factory function
 def create_data_pipeline(
     database_manager: "BotSessionDatabaseManager",
-    audio_storage_path: str = None,
+    audio_storage_path: str | None = None,
     enable_speaker_tracking: bool = True,
     enable_segment_continuity: bool = True,
 ) -> TranscriptionDataPipeline:
@@ -1004,9 +983,7 @@ async def main():
         chunk_start_time=0.0,
         chunk_end_time=10.0,
     )
-    file_id = await pipeline.process_audio_chunk(
-        session_id, audio_bytes, "wav", metadata
-    )
+    file_id = await pipeline.process_audio_chunk(session_id, audio_bytes, "wav", metadata)
     print(f"✅ Stored audio: {file_id}")
 
     # Process transcription
@@ -1020,9 +997,7 @@ async def main():
         confidence=0.95,
         segment_index=0,
     )
-    transcript_id = await pipeline.process_transcription_result(
-        session_id, file_id, transcription
-    )
+    transcript_id = await pipeline.process_transcription_result(session_id, file_id, transcription)
     print(f"✅ Stored transcript: {transcript_id}")
 
     # Process translation

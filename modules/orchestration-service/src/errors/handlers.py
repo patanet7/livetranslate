@@ -14,17 +14,16 @@ Usage:
 """
 
 import logging
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, Optional, Union
-from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from pydantic import ValidationError as PydanticValidationError
 
-from .exceptions import APIError, ValidationError, NotFoundError
+from .exceptions import APIError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +52,8 @@ class ErrorCode(str, Enum):
 
 
 def error_response(
-    error: Union[APIError, Exception],
-    request_id: Optional[str] = None,
+    error: APIError | Exception,
+    request_id: str | None = None,
     include_timestamp: bool = True,
 ) -> JSONResponse:
     """
@@ -101,7 +100,7 @@ def error_response(
     )
 
 
-def _format_validation_errors(errors: list) -> Dict[str, Any]:
+def _format_validation_errors(errors: list) -> dict[str, Any]:
     """
     Format Pydantic/FastAPI validation errors into readable structure.
 
@@ -110,7 +109,7 @@ def _format_validation_errors(errors: list) -> Dict[str, Any]:
     Into:
         {"fields": {"text": "field required"}, "count": 1}
     """
-    formatted_fields = {}
+    formatted_fields: dict[str, str] = {}
 
     for error in errors:
         # Get field path (skip 'body' prefix)
@@ -150,9 +149,7 @@ async def api_error_handler(request: Request, exc: APIError) -> JSONResponse:
     return error_response(exc, request_id=request_id)
 
 
-async def validation_error_handler(
-    request: Request, exc: RequestValidationError
-) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     """Handler for FastAPI request validation errors."""
     request_id = getattr(request.state, "request_id", None)
 
@@ -162,7 +159,7 @@ async def validation_error_handler(
     # Create readable message
     field_count = details["count"]
     if field_count == 1:
-        field_name = list(details["fields"].keys())[0]
+        field_name = next(iter(details["fields"].keys()))
         message = f"Validation failed: {field_name} - {details['fields'][field_name]}"
     else:
         message = f"Validation failed for {field_count} fields"
@@ -172,16 +169,14 @@ async def validation_error_handler(
     error.code = ErrorCode.VALIDATION_ERROR
     error.message = message
     error.details = details
-    error.timestamp = datetime.now(timezone.utc)
+    error.timestamp = datetime.now(UTC)
 
     logger.info(f"[{request_id}] Validation error: {message}")
 
     return error_response(error, request_id=request_id)
 
 
-async def http_exception_handler(
-    request: Request, exc: StarletteHTTPException
-) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
     """Handler for Starlette/FastAPI HTTP exceptions."""
     request_id = getattr(request.state, "request_id", None)
 
@@ -212,9 +207,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
     request_id = getattr(request.state, "request_id", None)
 
     # Log the full exception for debugging
-    logger.exception(
-        f"[{request_id}] Unhandled exception: {type(exc).__name__}: {exc}"
-    )
+    logger.exception(f"[{request_id}] Unhandled exception: {type(exc).__name__}: {exc}")
 
     # Don't expose internal details in production
     error = APIError(

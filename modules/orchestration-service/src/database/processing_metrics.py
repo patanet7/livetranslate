@@ -7,21 +7,23 @@ performance metrics and statistics for long-term analysis.
 """
 
 import json
-from typing import Dict, Any
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import numpy as np
 from sqlalchemy import (
-    Column,
-    Integer,
-    Float,
-    String,
-    DateTime,
-    Text,
     Boolean,
+    Column,
+    DateTime,
+    Float,
     Index,
+    Integer,
+    String,
+    Text,
     create_engine,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class ProcessingMetrics(Base):
     __tablename__ = "processing_metrics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     session_id = Column(String(255), nullable=True)
     chunk_id = Column(String(255), nullable=True)
 
@@ -80,7 +82,7 @@ class StageMetrics(Base):
     __tablename__ = "stage_metrics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     session_id = Column(String(255), nullable=True)
     chunk_id = Column(String(255), nullable=True)
 
@@ -123,7 +125,7 @@ class ProcessingStatistics(Base):
     __tablename__ = "processing_statistics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     # Time window for aggregation
     time_window_minutes = Column(Integer, nullable=False)  # 1, 5, 15, 60, etc.
@@ -171,9 +173,7 @@ class ProcessingMetricsManager:
 
     def __init__(self, database_url: str = "sqlite:///processing_metrics.db"):
         self.engine = create_engine(database_url)
-        self.SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=self.engine
-        )
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
         # Create tables
         Base.metadata.create_all(bind=self.engine)
@@ -182,9 +182,9 @@ class ProcessingMetricsManager:
 
     def store_pipeline_metrics(
         self,
-        pipeline_result: Dict[str, Any],
-        session_id: str = None,
-        chunk_id: str = None,
+        pipeline_result: dict[str, Any],
+        session_id: str | None = None,
+        chunk_id: str | None = None,
     ):
         """Store pipeline processing metrics."""
         try:
@@ -196,24 +196,14 @@ class ProcessingMetricsManager:
                 pipeline_metrics = ProcessingMetrics(
                     session_id=session_id,
                     chunk_id=chunk_id,
-                    total_processing_time_ms=pipeline_meta.get(
-                        "total_processing_time_ms", 0.0
-                    ),
+                    total_processing_time_ms=pipeline_meta.get("total_processing_time_ms", 0.0),
                     input_level_db=pipeline_meta.get("input_level_db", 0.0),
                     output_level_db=pipeline_meta.get("output_level_db", 0.0),
                     level_change_db=pipeline_meta.get("level_change_db", 0.0),
-                    stages_processed=json.dumps(
-                        pipeline_meta.get("stages_processed", [])
-                    ),
-                    stages_bypassed=json.dumps(
-                        pipeline_meta.get("stages_bypassed", [])
-                    ),
-                    stages_with_errors=json.dumps(
-                        pipeline_meta.get("stages_with_errors", [])
-                    ),
-                    performance_warnings=json.dumps(
-                        pipeline_meta.get("performance_warnings", [])
-                    ),
+                    stages_processed=json.dumps(pipeline_meta.get("stages_processed", [])),
+                    stages_bypassed=json.dumps(pipeline_meta.get("stages_bypassed", [])),
+                    stages_with_errors=json.dumps(pipeline_meta.get("stages_with_errors", [])),
+                    performance_warnings=json.dumps(pipeline_meta.get("performance_warnings", [])),
                     sample_rate=16000,  # Default sample rate
                 )
 
@@ -221,9 +211,7 @@ class ProcessingMetricsManager:
                 session.commit()
 
                 # Store individual stage metrics
-                self._store_stage_metrics(
-                    session, pipeline_result, session_id, chunk_id
-                )
+                self._store_stage_metrics(session, pipeline_result, session_id, chunk_id)
 
         except Exception as e:
             logger.error(f"Failed to store pipeline metrics: {e}")
@@ -231,7 +219,7 @@ class ProcessingMetricsManager:
     def _store_stage_metrics(
         self,
         db_session,
-        pipeline_result: Dict[str, Any],
+        pipeline_result: dict[str, Any],
         session_id: str,
         chunk_id: str,
     ):
@@ -248,8 +236,7 @@ class ProcessingMetricsManager:
                     processing_time_ms=stage_result.processing_time_ms,
                     input_level_db=stage_result.input_level_db,
                     output_level_db=stage_result.output_level_db,
-                    level_change_db=stage_result.output_level_db
-                    - stage_result.input_level_db,
+                    level_change_db=stage_result.output_level_db - stage_result.input_level_db,
                     status=stage_result.status.value,
                     error_message=stage_result.error_message,
                     stage_metadata=json.dumps(stage_result.metadata)
@@ -266,13 +253,13 @@ class ProcessingMetricsManager:
                 logger.error(f"Failed to store stage metrics for {stage_name}: {e}")
 
     def get_processing_statistics(
-        self, hours: int = 24, session_id: str = None
-    ) -> Dict[str, Any]:
+        self, hours: int = 24, session_id: str | None = None
+    ) -> dict[str, Any]:
         """Get processing statistics for the specified time period."""
         try:
             with self.SessionLocal() as session:
                 # Calculate time window
-                end_time = datetime.now(timezone.utc)
+                end_time = datetime.now(UTC)
                 start_time = end_time - timedelta(hours=hours)
 
                 # Query pipeline metrics
@@ -290,9 +277,7 @@ class ProcessingMetricsManager:
                     return {"total_chunks": 0, "time_period_hours": hours}
 
                 # Calculate statistics
-                processing_times = [
-                    m.total_processing_time_ms for m in pipeline_metrics
-                ]
+                processing_times = [m.total_processing_time_ms for m in pipeline_metrics]
                 quality_scores = [
                     m.output_quality_score
                     for m in pipeline_metrics
@@ -310,9 +295,7 @@ class ProcessingMetricsManager:
                         "p99_ms": np.percentile(processing_times, 99),
                     },
                     "quality_stats": {
-                        "average_score": np.mean(quality_scores)
-                        if quality_scores
-                        else 0.0,
+                        "average_score": np.mean(quality_scores) if quality_scores else 0.0,
                         "min_score": np.min(quality_scores) if quality_scores else 0.0,
                         "max_score": np.max(quality_scores) if quality_scores else 0.0,
                     },
@@ -321,8 +304,7 @@ class ProcessingMetricsManager:
                             [
                                 m
                                 for m in pipeline_metrics
-                                if m.stages_with_errors
-                                and json.loads(m.stages_with_errors)
+                                if m.stages_with_errors and json.loads(m.stages_with_errors)
                             ]
                         ),
                         "error_rate": 0.0,  # Calculate error rate
@@ -332,8 +314,7 @@ class ProcessingMetricsManager:
                 # Calculate error rate
                 if stats["total_chunks"] > 0:
                     stats["error_stats"]["error_rate"] = (
-                        stats["error_stats"]["chunks_with_errors"]
-                        / stats["total_chunks"]
+                        stats["error_stats"]["chunks_with_errors"] / stats["total_chunks"]
                     )
 
                 # Get stage-specific statistics
@@ -352,8 +333,8 @@ class ProcessingMetricsManager:
         db_session,
         start_time: datetime,
         end_time: datetime,
-        session_id: str = None,
-    ) -> Dict[str, Any]:
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
         """Get stage-specific statistics."""
         try:
             query = db_session.query(StageMetrics).filter(
@@ -378,9 +359,7 @@ class ProcessingMetricsManager:
                     }
 
                 stage_stats[stage_name]["total_processed"] += 1
-                stage_stats[stage_name]["processing_times"].append(
-                    metric.processing_time_ms
-                )
+                stage_stats[stage_name]["processing_times"].append(metric.processing_time_ms)
 
                 if metric.status == "ERROR":
                     stage_stats[stage_name]["error_count"] += 1
@@ -388,15 +367,13 @@ class ProcessingMetricsManager:
                     stage_stats[stage_name]["bypass_count"] += 1
 
             # Calculate statistics for each stage
-            for stage_name, stats in stage_stats.items():
+            for _stage_name, stats in stage_stats.items():
                 processing_times = stats["processing_times"]
                 if processing_times:
                     stats["average_processing_time_ms"] = np.mean(processing_times)
                     stats["min_processing_time_ms"] = np.min(processing_times)
                     stats["max_processing_time_ms"] = np.max(processing_times)
-                    stats["p95_processing_time_ms"] = np.percentile(
-                        processing_times, 95
-                    )
+                    stats["p95_processing_time_ms"] = np.percentile(processing_times, 95)
                 else:
                     stats["average_processing_time_ms"] = 0.0
                     stats["min_processing_time_ms"] = 0.0
@@ -405,12 +382,8 @@ class ProcessingMetricsManager:
 
                 # Calculate rates
                 if stats["total_processed"] > 0:
-                    stats["error_rate"] = (
-                        stats["error_count"] / stats["total_processed"]
-                    )
-                    stats["bypass_rate"] = (
-                        stats["bypass_count"] / stats["total_processed"]
-                    )
+                    stats["error_rate"] = stats["error_count"] / stats["total_processed"]
+                    stats["bypass_rate"] = stats["bypass_count"] / stats["total_processed"]
                 else:
                     stats["error_rate"] = 0.0
                     stats["bypass_rate"] = 0.0
@@ -428,7 +401,7 @@ class ProcessingMetricsManager:
         """Remove old metrics to keep database size manageable."""
         try:
             with self.SessionLocal() as session:
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_to_keep)
+                cutoff_date = datetime.now(UTC) - timedelta(days=days_to_keep)
 
                 # Delete old processing metrics
                 deleted_pipeline = (
@@ -453,11 +426,11 @@ class ProcessingMetricsManager:
         except Exception as e:
             logger.error(f"Failed to cleanup old metrics: {e}")
 
-    def get_real_time_metrics(self, minutes: int = 5) -> Dict[str, Any]:
+    def get_real_time_metrics(self, minutes: int = 5) -> dict[str, Any]:
         """Get real-time metrics for the last few minutes."""
         try:
             with self.SessionLocal() as session:
-                end_time = datetime.now(timezone.utc)
+                end_time = datetime.now(UTC)
                 start_time = end_time - timedelta(minutes=minutes)
 
                 recent_metrics = (

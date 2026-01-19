@@ -19,7 +19,7 @@ param(
     [Parameter(Position=0)]
     [ValidateSet('dev', 'prod', 'test')]
     [string]$Mode = 'dev',
-    
+
     [switch]$Clean,
     [switch]$ShowLogs,
     [switch]$Help
@@ -69,19 +69,19 @@ function Test-DatabaseRunning {
 
 function Wait-ForDatabase {
     param([int]$MaxAttempts = 30, [int]$DelaySeconds = 2)
-    
+
     Write-ColorOutput "🔄 Waiting for database to be ready..." $Yellow
-    
+
     for ($i = 1; $i -le $MaxAttempts; $i++) {
         if (Test-DatabaseRunning) {
             Write-ColorOutput "✅ Database is ready!" $Green
             return $true
         }
-        
+
         Write-Host "   Attempt $i/$MaxAttempts - waiting..."
         Start-Sleep -Seconds $DelaySeconds
     }
-    
+
     Write-ColorOutput "❌ Database failed to start within expected time" $Red
     return $false
 }
@@ -89,10 +89,10 @@ function Wait-ForDatabase {
 function Show-DatabaseInfo {
     Write-ColorOutput "`n📊 Database Service Information" $Blue
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
+
     # Get container status
     $containers = @('livetranslate-postgres', 'livetranslate-redis', 'livetranslate-pgadmin')
-    
+
     foreach ($container in $containers) {
         try {
             $status = docker ps --filter "name=$container" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" --no-trunc
@@ -106,7 +106,7 @@ function Show-DatabaseInfo {
             Write-ColorOutput "❌ $container: Error getting status" $Red
         }
     }
-    
+
     Write-Host "`n🔗 Connection Information:"
     Write-Host "   PostgreSQL: localhost:5432"
     Write-Host "   Database: livetranslate"
@@ -247,7 +247,7 @@ $env:PGADMIN_PASSWORD = if ($Mode -eq 'prod') { "secure_admin_password" } else {
 if ($Clean) {
     Write-ColorOutput "🧹 Cleaning existing data volumes..." $Yellow
     docker-compose -f docker-compose.database.yml down -v --remove-orphans 2>$null
-    
+
     # Remove named volumes explicitly
     $volumes = @('livetranslate_postgres_data', 'livetranslate_redis_data', 'livetranslate_pgadmin_data')
     foreach ($volume in $volumes) {
@@ -265,11 +265,11 @@ if ($Clean) {
 Write-ColorOutput "🐳 Starting Docker containers..." $Yellow
 try {
     docker-compose -f docker-compose.database.yml up -d --remove-orphans
-    
+
     if ($LASTEXITCODE -ne 0) {
         throw "Docker Compose failed to start services"
     }
-    
+
     Write-ColorOutput "✅ Docker containers started successfully" $Green
 } catch {
     Write-ColorOutput "❌ Failed to start Docker containers: $($_.Exception.Message)" $Red

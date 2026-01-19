@@ -13,18 +13,16 @@ These tests verify:
 6. Session finalization and stats
 """
 
-import pytest
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from routers.fireflies import FirefliesSessionManager
-from services.pipeline import (
-    TranscriptionPipelineCoordinator,
-    PipelineConfig,
-    ImportChunkAdapter,
-)
 from services.caption_buffer import CaptionBuffer
+from services.pipeline import (
+    ImportChunkAdapter,
+    PipelineConfig,
+    TranscriptionPipelineCoordinator,
+)
 
 
 class TestFirefliesSessionManagerImportSession:
@@ -72,9 +70,7 @@ class TestFirefliesSessionManagerImportSession:
         ]
 
     @pytest.mark.asyncio
-    async def test_create_import_session_returns_session_id_and_coordinator(
-        self, session_manager
-    ):
+    async def test_create_import_session_returns_session_id_and_coordinator(self, session_manager):
         """Create import session returns session_id and coordinator."""
         session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
@@ -89,7 +85,7 @@ class TestFirefliesSessionManagerImportSession:
     @pytest.mark.asyncio
     async def test_create_import_session_initializes_coordinator(self, session_manager):
         """Coordinator is properly initialized after session creation."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -118,7 +114,7 @@ class TestFirefliesSessionManagerImportSession:
     @pytest.mark.asyncio
     async def test_create_import_session_uses_import_adapter(self, session_manager):
         """Session uses ImportChunkAdapter."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -128,9 +124,7 @@ class TestFirefliesSessionManagerImportSession:
         assert coordinator.adapter.source_type == "fireflies_import"
 
     @pytest.mark.asyncio
-    async def test_create_import_session_configures_pipeline_correctly(
-        self, session_manager
-    ):
+    async def test_create_import_session_configures_pipeline_correctly(self, session_manager):
         """Pipeline config is set correctly for imports."""
         session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
@@ -149,11 +143,9 @@ class TestFirefliesSessionManagerImportSession:
         assert config.domain == "technology"
 
     @pytest.mark.asyncio
-    async def test_create_import_session_relaxed_aggregation_settings(
-        self, session_manager
-    ):
+    async def test_create_import_session_relaxed_aggregation_settings(self, session_manager):
         """Import sessions have relaxed aggregation settings since sentences are pre-formed."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -222,7 +214,7 @@ class TestImportSessionChunkProcessing:
     @pytest.mark.asyncio
     async def test_process_single_chunk(self, session_manager, sample_sentences):
         """Process a single chunk through the coordinator."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -238,7 +230,7 @@ class TestImportSessionChunkProcessing:
     @pytest.mark.asyncio
     async def test_process_multiple_chunks(self, session_manager, sample_sentences):
         """Process multiple chunks through the coordinator."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -254,7 +246,7 @@ class TestImportSessionChunkProcessing:
     @pytest.mark.asyncio
     async def test_process_tracks_speakers(self, session_manager, sample_sentences):
         """Processing tracks unique speakers."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -274,7 +266,7 @@ class TestImportSessionChunkProcessing:
     @pytest.mark.asyncio
     async def test_process_chunk_with_transcript_id(self, session_manager):
         """Chunks preserve transcript_id through processing."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -314,7 +306,13 @@ class TestImportSessionFinalization:
 
         # Process some chunks
         sentences = [
-            {"text": "Hello.", "speaker_name": "Alice", "start_time": 0.0, "end_time": 1.0, "index": 0},
+            {
+                "text": "Hello.",
+                "speaker_name": "Alice",
+                "start_time": 0.0,
+                "end_time": 1.0,
+                "index": 0,
+            },
             {"text": "Hi.", "speaker_name": "Bob", "start_time": 1.0, "end_time": 2.0, "index": 1},
         ]
         for s in sentences:
@@ -330,7 +328,7 @@ class TestImportSessionFinalization:
     @pytest.mark.asyncio
     async def test_finalize_import_session_cleans_up(self, session_manager):
         """Finalize cleans up session from manager."""
-        session_id, coordinator = await session_manager.create_import_session(
+        session_id, _coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -386,18 +384,18 @@ class TestImportSessionWithMockTranslation:
     def mock_translation_client(self):
         """Create mock translation client."""
         client = MagicMock()
-        client.translate = AsyncMock(return_value={
-            "translated_text": "Hola a todos.",
-            "source_language": "en",
-            "target_language": "es",
-            "confidence": 0.95,
-        })
+        client.translate = AsyncMock(
+            return_value={
+                "translated_text": "Hola a todos.",
+                "source_language": "en",
+                "target_language": "es",
+                "confidence": 0.95,
+            }
+        )
         return client
 
     @pytest.mark.asyncio
-    async def test_import_with_translation_client(
-        self, session_manager, mock_translation_client
-    ):
+    async def test_import_with_translation_client(self, session_manager, mock_translation_client):
         """Import session works with translation client."""
         session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
@@ -445,7 +443,7 @@ class TestImportSessionWithMockDatabase:
     @pytest.mark.asyncio
     async def test_import_with_db_manager(self, session_manager, mock_db_manager):
         """Import session works with database manager."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -466,7 +464,7 @@ class TestImportVsLiveSessionParity:
     @pytest.mark.asyncio
     async def test_import_session_has_same_components_as_live(self, session_manager):
         """Import session has same pipeline components as live session would."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -480,7 +478,7 @@ class TestImportVsLiveSessionParity:
     @pytest.mark.asyncio
     async def test_import_session_uses_same_pipeline_config_class(self, session_manager):
         """Import session uses same PipelineConfig class as live sessions."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
@@ -491,20 +489,22 @@ class TestImportVsLiveSessionParity:
     @pytest.mark.asyncio
     async def test_import_session_produces_same_stats_format(self, session_manager):
         """Import session stats have same format as live sessions."""
-        session_id, coordinator = await session_manager.create_import_session(
+        _session_id, coordinator = await session_manager.create_import_session(
             transcript_id="ff_test_123",
             transcript_title="Test Meeting",
             target_languages=["es"],
         )
 
         # Process a chunk
-        await coordinator.process_raw_chunk({
-            "text": "Test.",
-            "speaker_name": "Alice",
-            "start_time": 0.0,
-            "end_time": 1.0,
-            "index": 0,
-        })
+        await coordinator.process_raw_chunk(
+            {
+                "text": "Test.",
+                "speaker_name": "Alice",
+                "start_time": 0.0,
+                "end_time": 1.0,
+                "index": 0,
+            }
+        )
 
         stats = coordinator.get_stats()
 

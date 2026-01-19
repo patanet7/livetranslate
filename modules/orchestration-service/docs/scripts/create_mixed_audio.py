@@ -5,8 +5,8 @@ Pattern: JFK (EN) → Chinese → JFK (EN) → Chinese → JFK (EN)
 """
 
 import librosa
-import soundfile as sf
 import numpy as np
+import soundfile as sf
 
 # Load audio files
 jfk_audio, jfk_sr = librosa.load(
@@ -35,9 +35,7 @@ chinese_part1 = chinese_audio[:chinese_half]
 chinese_part2 = chinese_audio[chinese_half:]
 
 # Create pattern: JFK1 (EN) → Chinese1 (ZH) → JFK2 (EN) → Chinese2 (ZH) → JFK3 (EN)
-mixed_audio = np.concatenate(
-    [jfk_part1, chinese_part1, jfk_part2, chinese_part2, jfk_part3]
-)
+mixed_audio = np.concatenate([jfk_part1, chinese_part1, jfk_part2, chinese_part2, jfk_part3])
 
 print("\nMixed audio pattern:")
 print(f"  0-{len(jfk_part1) / 16000:.2f}s: JFK (EN)")

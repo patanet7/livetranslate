@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Typography,
@@ -8,21 +8,21 @@ import {
   CardContent,
   Container,
   Snackbar,
-} from '@mui/material';
-import { TabPanel } from '@/components/ui';
-import AudioProcessingSettings from './components/AudioProcessingSettings';
-import ChunkingSettings from './components/ChunkingSettings';
-import CorrelationSettings from './components/CorrelationSettings';
-import TranslationSettings from './components/TranslationSettings';
-import { PromptManagementSettings } from './components/PromptManagementSettings';
-import SystemSettings from './components/SystemSettings';
-import BotSettings from './components/BotSettings';
-import ConfigSyncSettings from './components/ConfigSyncSettings';
+} from "@mui/material";
+import { TabPanel } from "@/components/ui";
+import AudioProcessingSettings from "./components/AudioProcessingSettings";
+import ChunkingSettings from "./components/ChunkingSettings";
+import CorrelationSettings from "./components/CorrelationSettings";
+import TranslationSettings from "./components/TranslationSettings";
+import { PromptManagementSettings } from "./components/PromptManagementSettings";
+import SystemSettings from "./components/SystemSettings";
+import BotSettings from "./components/BotSettings";
+import ConfigSyncSettings from "./components/ConfigSyncSettings";
 
 function a11yProps(index: number) {
   return {
     id: `settings-tab-${index}`,
-    'aria-controls': `settings-tabpanel-${index}`,
+    "aria-controls": `settings-tabpanel-${index}`,
   };
 }
 
@@ -31,8 +31,8 @@ const Settings: React.FC = () => {
   const [saveNotification, setSaveNotification] = useState<{
     open: boolean;
     message: string;
-    severity: 'success' | 'error';
-  }>({ open: false, message: '', severity: 'success' });
+    severity: "success" | "error";
+  }>({ open: false, message: "", severity: "success" });
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -42,12 +42,12 @@ const Settings: React.FC = () => {
     setSaveNotification({
       open: true,
       message,
-      severity: success ? 'success' : 'error',
+      severity: success ? "success" : "error",
     });
   };
 
   const handleCloseNotification = () => {
-    setSaveNotification(prev => ({ ...prev, open: false }));
+    setSaveNotification((prev) => ({ ...prev, open: false }));
   };
 
   return (
@@ -57,14 +57,15 @@ const Settings: React.FC = () => {
           Settings
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Comprehensive system configuration, service settings, and hyperparameter tuning
+          Comprehensive system configuration, service settings, and
+          hyperparameter tuning
         </Typography>
 
         <Card>
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs 
-              value={activeTab} 
-              onChange={handleTabChange} 
+          <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
               aria-label="settings tabs"
               variant="scrollable"
               scrollButtons="auto"

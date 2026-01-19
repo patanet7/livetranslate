@@ -1,5 +1,5 @@
 """Worker utilities for processing event streams."""
 
-from .redis_consumer import RedisStreamConsumer, ConsumerConfig  # noqa
+from .redis_consumer import ConsumerConfig, RedisStreamConsumer
 
-__all__ = ["RedisStreamConsumer", "ConsumerConfig"]
+__all__ = ["ConsumerConfig", "RedisStreamConsumer"]

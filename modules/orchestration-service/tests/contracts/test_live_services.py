@@ -1,11 +1,10 @@
 import io
 import os
 import uuid
-from typing import Dict
 
+import httpx
 import numpy as np
 import pytest
-import httpx
 
 VERIFY_LIVE = os.getenv("VERIFY_LIVE_SERVICES") == "1"
 
@@ -63,9 +62,7 @@ async def test_whisper_live_endpoints():
         assert chunk_resp.status_code == 200
 
         # Check status
-        status_resp = await client.get(
-            f"{base_url}/api/realtime/status/{session_id}"
-        )
+        status_resp = await client.get(f"{base_url}/api/realtime/status/{session_id}")
         assert status_resp.status_code == 200
 
         # Stop session
@@ -124,9 +121,7 @@ async def test_translation_live_endpoints():
         assert languages.status_code == 200
         assert languages.json().get("languages"), "Expected language list"
 
-        detect = await client.post(
-            f"{base_url}/api/detect", json={"text": "hello"}
-        )
+        detect = await client.post(f"{base_url}/api/detect", json={"text": "hello"})
         assert detect.status_code == 200
         payload = detect.json()
         assert "language" in payload

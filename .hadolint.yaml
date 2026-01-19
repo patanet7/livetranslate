@@ -1,0 +1,31 @@
+# Hadolint configuration
+# https://github.com/hadolint/hadolint
+
+# Ignored rules
+ignored:
+  # DL3008: Pin versions in apt-get install
+  # We use --no-install-recommends but don't pin versions for flexibility
+  - DL3008
+  # DL3013: Pin versions in pip install
+  # PDM handles versioning via pyproject.toml
+  - DL3013
+  # DL3018: Pin versions in apk add
+  # Alpine packages are version-locked to the base image
+  - DL3018
+  # DL3015: Avoid additional packages - we need recommends in some cases
+  - DL3015
+  # DL3059: Multiple consecutive RUN - sometimes needed for clarity
+  - DL3059
+
+# Trusted container registries
+trustedRegistries:
+  - docker.io
+  - gcr.io
+  - ghcr.io
+  - quay.io
+  - registry.hub.docker.com
+
+# Override severity for specific rules
+override:
+  warning:
+    - DL3002

@@ -5,7 +5,7 @@
  * Eliminates duplicate loading/error state patterns.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 /**
  * State for async operations
@@ -36,7 +36,7 @@ export interface AsyncState<T> {
  * // Manual data update
  * setData([...data, newBot]);
  */
-export const useAsyncState = <T,>(initialValue: T) => {
+export const useAsyncState = <T>(initialValue: T) => {
   const [data, setData] = useState<T>(initialValue);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +109,11 @@ export const useAsyncState = <T,>(initialValue: T) => {
  * });
  */
 export const useAsyncStates = <T extends Record<string, any>>(
-  initialValues: T
+  initialValues: T,
 ): { [K in keyof T]: ReturnType<typeof useAsyncState<T[K]>> } => {
-  const states = {} as { [K in keyof T]: ReturnType<typeof useAsyncState<T[K]>> };
+  const states = {} as {
+    [K in keyof T]: ReturnType<typeof useAsyncState<T[K]>>;
+  };
 
   for (const key in initialValues) {
     // eslint-disable-next-line react-hooks/rules-of-hooks

@@ -7,13 +7,13 @@ System-wide bot management endpoints including:
 - System cleanup (/system/cleanup)
 """
 
-from datetime import datetime, timezone
-from typing import Dict, Any
+from datetime import UTC, datetime
+from typing import Any
 
+from dependencies import get_bot_manager
 from fastapi import BackgroundTasks, Depends, status
 
-from ._shared import create_bot_router, SystemStatsResponse, logger, get_error_response
-from dependencies import get_bot_manager
+from ._shared import SystemStatsResponse, create_bot_router, get_error_response, logger
 
 # Create router for system bot management
 router = create_bot_router()
@@ -44,13 +44,13 @@ async def get_bot_stats() -> SystemStatsResponse:
             "recoveryRate": 0.0,
         }
 
-        return SystemStatsResponse(stats=stats, timestamp=datetime.now(timezone.utc).isoformat())
+        return SystemStatsResponse(stats=stats, timestamp=datetime.now(UTC).isoformat())
 
     except Exception as e:
         logger.error(f"Failed to get bot stats: {e}")
         raise get_error_response(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, f"Failed to get bot stats: {str(e)}"
-        )
+            status.HTTP_500_INTERNAL_SERVER_ERROR, f"Failed to get bot stats: {e!s}"
+        ) from e
 
 
 @router.get("/system/stats")
@@ -66,20 +66,20 @@ async def get_system_bot_stats(
     try:
         stats = bot_manager.get_bot_stats()  # Not async, using get_bot_stats instead
 
-        return SystemStatsResponse(stats=stats, timestamp=datetime.now(timezone.utc).isoformat())
+        return SystemStatsResponse(stats=stats, timestamp=datetime.now(UTC).isoformat())
 
     except Exception as e:
         logger.error(f"Failed to get system bot stats: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get system bot stats: {str(e)}",
-        )
+            f"Failed to get system bot stats: {e!s}",
+        ) from e
 
 
 @router.post("/system/cleanup")
 async def cleanup_system_bots(
     background_tasks: BackgroundTasks, bot_manager=Depends(get_bot_manager)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Cleanup system bot resources
 
@@ -98,5 +98,5 @@ async def cleanup_system_bots(
         logger.error(f"Failed to start system cleanup: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to start system cleanup: {str(e)}",
-        )
+            f"Failed to start system cleanup: {e!s}",
+        ) from e

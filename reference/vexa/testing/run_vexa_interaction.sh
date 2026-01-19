@@ -103,20 +103,20 @@ USER_NAME="Test User $(date +%s)"
 BOT_NAME="VexaFirstTestBot"
 PLATFORM="google_meet"
 
-# --- Function to stop the bot --- 
+# --- Function to stop the bot ---
 MEETING_ID_TO_STOP=""
 USER_API_KEY_FOR_STOP=""
 
 function stop_the_bot() {
     echo_info "\nStopping transcription client and bot..."
-    
+
     # Stop the Python transcription client if it's running
     if [[ -n "$TRANSCRIPTION_PID" ]]; then
         echo_info "Stopping real-time transcription client (PID: $TRANSCRIPTION_PID)..."
         kill "$TRANSCRIPTION_PID" 2>/dev/null
         wait "$TRANSCRIPTION_PID" 2>/dev/null
     fi
-    
+
     # Stop the bot
     if [[ -n "$MEETING_ID_TO_STOP" && -n "$USER_API_KEY_FOR_STOP" ]]; then
         echo_info "Stopping bot for meeting $MEETING_ID_TO_STOP..."
@@ -124,7 +124,7 @@ function stop_the_bot() {
             -H "Content-Type: application/json" \
             -H "X-API-Key: $USER_API_KEY_FOR_STOP" \
             "$BASE_URL/bots/$PLATFORM/$MEETING_ID_TO_STOP")
-        
+
         if [[ "$JQ_INSTALLED" == true ]]; then
             STOP_MESSAGE=$(echo "$STOP_RESPONSE" | jq -r .message)
             echo_info "Stop bot response: $STOP_MESSAGE"
@@ -291,7 +291,7 @@ for i in $(seq $COUNTDOWN_SECONDS -1 1); do
 done
 echo "GO!"
 
-# --- 5. Start Real-time Transcription --- 
+# --- 5. Start Real-time Transcription ---
 echo_info "Starting real-time WebSocket transcription for $PLATFORM/$GOOGLE_MEET_ID... Press Ctrl+C to stop."
 
 # Python dependency already checked above
@@ -332,4 +332,4 @@ echo_info "Real-time transcription client started (PID: $TRANSCRIPTION_PID)"
 echo_info "Press Ctrl+C to stop the transcription client and bot."
 
 # Wait for the transcription client to complete or be interrupted
-wait $TRANSCRIPTION_PID 
+wait $TRANSCRIPTION_PID

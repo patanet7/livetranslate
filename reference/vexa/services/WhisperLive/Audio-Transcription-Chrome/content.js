@@ -169,7 +169,7 @@ function remove_element() {
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const { type, data } = request;
-    
+
     if (type === "STOP") {
         remove_element();
         sendResponse({data: "STOPPED"});
@@ -192,7 +192,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         text += message[i].text + ' ';
     }
     text = text.replace(/(\r\n|\n|\r)/gm, "");
-    
+
     var elem = document.getElementById('t3');
     elem.innerHTML = text;
 
@@ -203,7 +203,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     text_segments = [];
     text_segments = get_lines(elem, line_height);
-    
+
     elem.innerHTML = '';
 
     if (text_segments.length > 2) {

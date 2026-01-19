@@ -33,7 +33,7 @@ foreach ($Service in $Services) {
     $Container = docker ps --filter "name=$Service" --format "{{.Names}}" 2>$null
     if ($Container) {
         Write-Host "  ✓ $Service service running: $Container" -ForegroundColor Green
-        
+
         # Check user
         try {
             $User = docker exec $Container whoami 2>$null
@@ -63,4 +63,4 @@ Write-Host "2. Set resource limits in docker-compose files" -ForegroundColor Cya
 Write-Host "3. Use custom networks for service isolation" -ForegroundColor Cyan
 Write-Host "4. Regular security monitoring and updates" -ForegroundColor Cyan
 
-Write-Host "`nSecurity check completed!" -ForegroundColor Green 
+Write-Host "`nSecurity check completed!" -ForegroundColor Green

@@ -10,6 +10,7 @@ Usage:
         PipelineConfig,
         FirefliesChunkAdapter,
         GoogleMeetChunkAdapter,
+        AudioUploadChunkAdapter,
     )
 
     # Create coordinator with appropriate adapter
@@ -20,26 +21,28 @@ Usage:
     )
 """
 
-from .config import PipelineConfig, PipelineStats
-from .coordinator import TranscriptionPipelineCoordinator
 from .adapters import (
+    AudioUploadChunkAdapter,
     ChunkAdapter,
-    TranscriptChunk,
     FirefliesChunkAdapter,
     GoogleMeetChunkAdapter,
     ImportChunkAdapter,
+    TranscriptChunk,
 )
+from .config import PipelineConfig, PipelineStats
+from .coordinator import TranscriptionPipelineCoordinator
 
 __all__ = [
-    # Config
-    "PipelineConfig",
-    "PipelineStats",
-    # Coordinator
-    "TranscriptionPipelineCoordinator",
+    "AudioUploadChunkAdapter",
     # Adapters
     "ChunkAdapter",
-    "TranscriptChunk",
     "FirefliesChunkAdapter",
     "GoogleMeetChunkAdapter",
     "ImportChunkAdapter",
+    # Config
+    "PipelineConfig",
+    "PipelineStats",
+    "TranscriptChunk",
+    # Coordinator
+    "TranscriptionPipelineCoordinator",
 ]

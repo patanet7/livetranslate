@@ -19,7 +19,6 @@ API_SERVER="${API_SERVER:-fastapi}"  # fastapi (default) or flask
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log_info() {
@@ -45,7 +44,7 @@ if [[ "$current_dir" != "$expected_dir" ]]; then
     log_warning "⚠️  Current directory: $current_dir"
     log_warning "⚠️  Expected directory: $expected_dir"
     log_info "💡 Attempting to navigate to translation service directory..."
-    
+
     # Try to find and navigate to the translation service directory
     possible_paths=(
         "./modules/translation-service"
@@ -53,7 +52,7 @@ if [[ "$current_dir" != "$expected_dir" ]]; then
         "./translation-service"
         "../../modules/translation-service"
     )
-    
+
     found=false
     for path in "${possible_paths[@]}"; do
         if [[ -d "$path" ]]; then
@@ -63,7 +62,7 @@ if [[ "$current_dir" != "$expected_dir" ]]; then
             break
         fi
     done
-    
+
     if [[ "$found" == false ]]; then
         log_error "❌ Could not find translation-service directory"
         log_info "💡 Please run this script from the translation-service directory"
@@ -103,10 +102,8 @@ fi
 # Use python3 if available, otherwise python
 if command -v python3 &> /dev/null; then
     PYTHON_CMD="python3"
-    PIP_CMD="pip3"
 else
     PYTHON_CMD="python"
-    PIP_CMD="pip"
 fi
 
 python_version=$($PYTHON_CMD --version 2>&1)
@@ -117,7 +114,7 @@ venv_path="venv"
 if [[ ! -d "$venv_path" ]]; then
     log_info "📦 Creating Python virtual environment..."
     $PYTHON_CMD -m venv "$venv_path"
-    
+
     if [[ $? -ne 0 ]]; then
         log_error "❌ Failed to create virtual environment"
         exit 1
@@ -134,30 +131,30 @@ pip_list=$(pip list 2>&1)
 
 if ! echo "$pip_list" | grep -q "fastapi" || ! echo "$pip_list" | grep -q "uvicorn"; then
     log_info "📦 Installing required dependencies..."
-    
+
     # Install base requirements
     pip install --upgrade pip
     pip install -r requirements.txt
-    
+
     if [[ $? -ne 0 ]]; then
         log_warning "⚠️  Basic requirements installation had issues, continuing..."
     fi
-    
+
     # Try to install optional GPU dependencies if GPU is enabled
     if [[ "$GPU_ENABLE" == "true" ]]; then
         log_info "🚀 Installing GPU dependencies..."
-        
+
         # Check if CUDA is available
         if command -v nvidia-smi &> /dev/null; then
             cuda_output=$(nvidia-smi 2>&1 || true)
             if echo "$cuda_output" | grep -q "CUDA Version"; then
                 detected_cuda=$(echo "$cuda_output" | grep -o "CUDA Version: [0-9.]*" | cut -d' ' -f3)
                 log_info "🎮 CUDA detected: $detected_cuda"
-                
+
                 # Install PyTorch with CUDA support
                 log_info "📦 Installing PyTorch with CUDA support..."
                 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-                
+
                 # Try to install vLLM if not present
                 if ! echo "$pip_list" | grep -q "vllm"; then
                     log_info "📦 Installing vLLM..."

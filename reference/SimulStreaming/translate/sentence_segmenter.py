@@ -5,10 +5,10 @@ class SentenceSegmenter:
     """
     Regex sentence splitter for Latin languages, Japanese and Chinese.
     It is based on sacrebleu TokenizerV14International(BaseTokenizer).
-    
+
     Returns: a list of strings, where each string is a sentence.
     Spaces following punctuation are appended after punctuation within the sequence.
-    Total number of characters in the output is the same as in the input.  
+    Total number of characters in the output is the same as in the input.
     """
 
     sep = 'ŽžŽžSentenceSeparatorŽžŽž'  # string that certainly won't be in src or target
@@ -20,8 +20,8 @@ class SentenceSegmenter:
         # end of sentence characters:
         terminals = self.terminals
         self._re = [
-            # Separate out punctuations preceeded by a non-digit. 
-            # If followed by space-like sequence of characters, they are 
+            # Separate out punctuations preceeded by a non-digit.
+            # If followed by space-like sequence of characters, they are
             # appended to the punctuation, not to the next sequence.
             (regex.compile(r'(\P{N})(['+terminals+r'])(\p{Z}*)'), r'\1\2\3'+self.sep),
             # Separate out punctuations followed by a non-digit

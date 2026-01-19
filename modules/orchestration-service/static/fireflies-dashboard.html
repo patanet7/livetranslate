@@ -2982,16 +2982,18 @@ Translation:`,
           'Import to database'
         );
 
-        showAlert(`Imported ${result.imported_count} sentences to database! Session ID: ${result.session_id}`, 'success');
+        showAlert(`Imported ${result.processed || result.total_sentences} sentences to database! Session ID: ${result.session_id}`, 'success');
         log(`Import complete: ${result.message}`, 'success');
 
-        // Store reference locally
-        const key = `fireflies_imported_${transcriptId}`;
+        // Store reference locally - use fireflies_translated_ prefix so it shows in saved list
+        const key = `fireflies_translated_${transcriptId}`;
         localStorage.setItem(key, JSON.stringify({
           transcript_id: transcriptId,
           session_id: result.session_id,
-          imported_at: new Date().toISOString(),
-          imported_count: result.imported_count,
+          target_language: result.target_language,
+          translated_at: new Date().toISOString(),
+          entry_count: result.processed || result.total_sentences,
+          title: result.title,
         }));
 
       } catch (e) {
@@ -3014,14 +3016,29 @@ Translation:`,
 
     function loadSavedTranscripts() {
       const saved = [];
+      // Prefixes for saved transcript data from ALL sources
+      const validPrefixes = [
+        'fireflies_translated_',
+        'fireflies_feed_',
+        'fireflies_imported_',
+        'saved_transcript_',
+        'local_transcript_',
+        'audio_session_',
+        'import_',
+      ];
+
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key.startsWith('fireflies_translated_') || key.startsWith('fireflies_feed_')) {
+        // Include all saved transcript data from any source
+        if (validPrefixes.some(prefix => key.startsWith(prefix))) {
           try {
             const data = JSON.parse(localStorage.getItem(key));
+            // Add source type for display
+            const prefix = validPrefixes.find(p => key.startsWith(p)) || 'unknown_';
+            data.source_type = prefix.replace(/_$/, '').replace(/_/g, ' ');
             saved.push({ key, ...data });
           } catch (e) {
-            console.error('Failed to parse saved data:', key);
+            console.warn(`Failed to parse saved data: ${key}`);
           }
         }
       }
@@ -3034,7 +3051,7 @@ Translation:`,
       } else {
         tbody.innerHTML = saved.map(s => `
           <tr>
-            <td>${escapeHtml(s.transcript_id || s.session_id || 'Unknown')}</td>
+            <td title="Source: ${escapeHtml(s.source_type || 'unknown')}">${escapeHtml(s.transcript_id || s.session_id || 'Unknown')}</td>
             <td>${s.target_language || '-'}</td>
             <td>${new Date(s.translated_at || s.saved_at).toLocaleString()}</td>
             <td>${s.translations?.length || s.entries?.length || s.entry_count || 0}</td>

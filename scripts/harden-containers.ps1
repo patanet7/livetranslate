@@ -15,19 +15,19 @@ function Apply-SecurityHardening {
         [string]$Service,
         [string]$DockerComposeFile
     )
-    
+
     Write-Host "`nHardening service: $Service" -ForegroundColor Yellow
-    
+
     # Check if service is running
     $ContainerName = "${Service}-service"
     $RunningContainer = docker ps --filter "name=$ContainerName" --format "{{.Names}}" 2>$null
-    
+
     if ($RunningContainer) {
         Write-Host "  Service is running: $RunningContainer" -ForegroundColor Green
-        
+
         # Check container security settings
         Write-Host "  Checking security configuration..." -ForegroundColor Cyan
-        
+
         # Check if running as non-root user
         $UserInfo = docker exec $RunningContainer whoami 2>$null
         if ($UserInfo -and $UserInfo -ne "root") {
@@ -35,27 +35,27 @@ function Apply-SecurityHardening {
         } else {
             Write-Host "    ✗ WARNING: Running as root user" -ForegroundColor Red
         }
-        
+
         # Check resource limits
         $Stats = docker stats $RunningContainer --no-stream --format "table {{.CPUPerc}}\t{{.MemUsage}}" 2>$null
         if ($Stats) {
             Write-Host "    ✓ Resource monitoring available" -ForegroundColor Green
             Write-Host "      $Stats" -ForegroundColor Gray
         }
-        
+
         # Check network configuration
         $NetworkInfo = docker inspect $RunningContainer --format "{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}" 2>$null
         if ($NetworkInfo) {
             Write-Host "    ✓ Custom network configuration detected" -ForegroundColor Green
         }
-        
+
         # Check volume mounts
         $VolumeInfo = docker inspect $RunningContainer --format "{{range .Mounts}}{{.Type}}:{{.Source}}->{{.Destination}} {{end}}" 2>$null
         if ($VolumeInfo) {
             Write-Host "    ✓ Volume mounts configured" -ForegroundColor Green
             Write-Host "      $VolumeInfo" -ForegroundColor Gray
         }
-        
+
     } else {
         Write-Host "  Service is not running" -ForegroundColor Yellow
     }
@@ -64,9 +64,9 @@ function Apply-SecurityHardening {
 # Function to scan container for vulnerabilities
 function Scan-ContainerVulnerabilities {
     param([string]$ImageName)
-    
+
     Write-Host "`nScanning image for vulnerabilities: $ImageName" -ForegroundColor Yellow
-    
+
     # Check if trivy is available
     $TrivyAvailable = Get-Command trivy -ErrorAction SilentlyContinue
     if ($TrivyAvailable) {
@@ -85,7 +85,7 @@ function Scan-ContainerVulnerabilities {
         Write-Host "  Trivy not available - install for vulnerability scanning" -ForegroundColor Yellow
         Write-Host "  Install: https://github.com/aquasecurity/trivy" -ForegroundColor Gray
     }
-    
+
     # Alternative: Docker scan (if available)
     try {
         $DockerScanResult = docker scan $ImageName 2>$null
@@ -101,19 +101,19 @@ function Scan-ContainerVulnerabilities {
 # Function to check Docker daemon security
 function Check-DockerDaemonSecurity {
     Write-Host "`nChecking Docker daemon security..." -ForegroundColor Yellow
-    
+
     # Check Docker version
     $DockerVersion = docker version --format "{{.Server.Version}}" 2>$null
     if ($DockerVersion) {
         Write-Host "  Docker version: $DockerVersion" -ForegroundColor Green
     }
-    
+
     # Check if Docker is running in rootless mode
     $DockerInfo = docker info --format "{{.SecurityOptions}}" 2>$null
     if ($DockerInfo) {
         Write-Host "  Security options: $DockerInfo" -ForegroundColor Green
     }
-    
+
     # Check for Docker Bench Security
     $BenchAvailable = docker images --filter "reference=docker/docker-bench-security" --format "{{.Repository}}" 2>$null
     if ($BenchAvailable) {
@@ -128,7 +128,7 @@ function Check-DockerDaemonSecurity {
 # Function to create security monitoring script
 function Create-SecurityMonitoring {
     Write-Host "`nCreating security monitoring script..." -ForegroundColor Yellow
-    
+
     $MonitoringScript = @"
 #!/bin/bash
 # LiveTranslate Security Monitoring Script
@@ -201,7 +201,7 @@ foreach ($Service in $Services) {
     $ComposeFile = "modules/$Service-service/docker-compose.yml"
     if (Test-Path $ComposeFile) {
         Apply-SecurityHardening -Service $Service -DockerComposeFile $ComposeFile
-        
+
         # Scan service image if it exists
         $ImageName = "livetranslate/$Service-service:latest"
         $ImageExists = docker images --filter "reference=$ImageName" --format "{{.Repository}}" 2>$null
@@ -229,4 +229,4 @@ Write-Host "4. Use read-only filesystems where possible" -ForegroundColor Cyan
 Write-Host "5. Implement log monitoring and alerting" -ForegroundColor Cyan
 Write-Host "6. Regular security audits and penetration testing" -ForegroundColor Cyan
 
-Write-Host "`nContainer hardening completed!" -ForegroundColor Green 
+Write-Host "`nContainer hardening completed!" -ForegroundColor Green

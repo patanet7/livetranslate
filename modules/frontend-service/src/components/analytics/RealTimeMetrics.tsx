@@ -1,6 +1,6 @@
 /**
  * RealTimeMetrics - Real-time System Metrics Display
- * 
+ *
  * Provides real-time monitoring of critical system metrics including:
  * - CPU, Memory, and Disk utilization
  * - Network activity and connection statistics
@@ -9,7 +9,7 @@
  * - Audio processing performance metrics
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Card,
@@ -24,7 +24,7 @@ import {
   Alert,
   useTheme,
   alpha,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Speed,
   Memory,
@@ -37,10 +37,10 @@ import {
   Error,
   Refresh,
   Timer,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 // Import chart components
-import { ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area } from "recharts";
 
 // Types
 interface SystemMetric {
@@ -49,8 +49,8 @@ interface SystemMetric {
   value: number;
   unit: string;
   icon: React.ReactElement;
-  color: 'primary' | 'secondary' | 'success' | 'warning' | 'error';
-  trend: 'up' | 'down' | 'stable';
+  color: "primary" | "secondary" | "success" | "warning" | "error";
+  trend: "up" | "down" | "stable";
   threshold: {
     warning: number;
     critical: number;
@@ -60,7 +60,7 @@ interface SystemMetric {
 
 interface ServiceMetric {
   name: string;
-  status: 'healthy' | 'degraded' | 'down';
+  status: "healthy" | "degraded" | "down";
   responseTime: number;
   throughput: number;
   errorRate: number;
@@ -85,84 +85,93 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   const [serviceMetrics, setServiceMetrics] = useState<ServiceMetric[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connected" | "connecting" | "disconnected"
+  >("connecting");
 
   // Initialize default metrics
-  const initializeMetrics = useCallback((): SystemMetric[] => [
-    {
-      id: 'cpu',
-      name: 'CPU Usage',
-      value: 0,
-      unit: '%',
-      icon: <Speed />,
-      color: 'primary',
-      trend: 'stable',
-      threshold: { warning: 70, critical: 90 },
-      history: [],
-    },
-    {
-      id: 'memory',
-      name: 'Memory Usage',
-      value: 0,
-      unit: '%',
-      icon: <Memory />,
-      color: 'secondary',
-      trend: 'stable',
-      threshold: { warning: 80, critical: 95 },
-      history: [],
-    },
-    {
-      id: 'disk',
-      name: 'Disk Usage',
-      value: 0,
-      unit: '%',
-      icon: <Storage />,
-      color: 'success',
-      trend: 'stable',
-      threshold: { warning: 85, critical: 95 },
-      history: [],
-    },
-    {
-      id: 'network',
-      name: 'Network I/O',
-      value: 0,
-      unit: 'MB/s',
-      icon: <NetworkWifi />,
-      color: 'warning',
-      trend: 'stable',
-      threshold: { warning: 100, critical: 200 },
-      history: [],
-    },
-    {
-      id: 'requests',
-      name: 'Requests/sec',
-      value: 0,
-      unit: 'req/s',
-      icon: <TrendingUp />,
-      color: 'primary',
-      trend: 'stable',
-      threshold: { warning: 1000, critical: 2000 },
-      history: [],
-    },
-    {
-      id: 'response_time',
-      name: 'Avg Response Time',
-      value: 0,
-      unit: 'ms',
-      icon: <Timer />,
-      color: 'secondary',
-      trend: 'stable',
-      threshold: { warning: 500, critical: 1000 },
-      history: [],
-    },
-  ], []);
+  const initializeMetrics = useCallback(
+    (): SystemMetric[] => [
+      {
+        id: "cpu",
+        name: "CPU Usage",
+        value: 0,
+        unit: "%",
+        icon: <Speed />,
+        color: "primary",
+        trend: "stable",
+        threshold: { warning: 70, critical: 90 },
+        history: [],
+      },
+      {
+        id: "memory",
+        name: "Memory Usage",
+        value: 0,
+        unit: "%",
+        icon: <Memory />,
+        color: "secondary",
+        trend: "stable",
+        threshold: { warning: 80, critical: 95 },
+        history: [],
+      },
+      {
+        id: "disk",
+        name: "Disk Usage",
+        value: 0,
+        unit: "%",
+        icon: <Storage />,
+        color: "success",
+        trend: "stable",
+        threshold: { warning: 85, critical: 95 },
+        history: [],
+      },
+      {
+        id: "network",
+        name: "Network I/O",
+        value: 0,
+        unit: "MB/s",
+        icon: <NetworkWifi />,
+        color: "warning",
+        trend: "stable",
+        threshold: { warning: 100, critical: 200 },
+        history: [],
+      },
+      {
+        id: "requests",
+        name: "Requests/sec",
+        value: 0,
+        unit: "req/s",
+        icon: <TrendingUp />,
+        color: "primary",
+        trend: "stable",
+        threshold: { warning: 1000, critical: 2000 },
+        history: [],
+      },
+      {
+        id: "response_time",
+        name: "Avg Response Time",
+        value: 0,
+        unit: "ms",
+        icon: <Timer />,
+        color: "secondary",
+        trend: "stable",
+        threshold: { warning: 500, critical: 1000 },
+        history: [],
+      },
+    ],
+    [],
+  );
 
   // Subscribe to unified analytics service
   const [analyticsData] = useState<{
     systemMetrics: any;
     serviceHealth: any[];
     connectionStatus: any;
-  }>({ systemMetrics: null, serviceHealth: [], connectionStatus: { isConnected: false } });
+  }>({
+    systemMetrics: null,
+    serviceHealth: [],
+    connectionStatus: { isConnected: false },
+  });
 
   // Remove the broken useEffect - analytics data will be handled by the hook
 
@@ -178,18 +187,25 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
       disk: analyticsData.systemMetrics.disk?.percentage || 0,
       network: analyticsData.systemMetrics.network?.utilization || 0,
       requests: analyticsData.systemMetrics.performance?.requestsPerSecond || 0,
-      response_time: analyticsData.systemMetrics.performance?.averageResponseTime || 0,
+      response_time:
+        analyticsData.systemMetrics.performance?.averageResponseTime || 0,
     };
 
-    const serviceMetrics: ServiceMetric[] = analyticsData.serviceHealth.map(service => ({
-      name: service.name,
-      status: service.status === 'healthy' ? 'healthy' : 
-             service.status === 'degraded' ? 'degraded' : 'down',
-      responseTime: service.responseTime || 0,
-      throughput: 0, // Not provided by unified service yet
-      errorRate: 0, // Not provided by unified service yet
-      uptime: service.uptime || 0,
-    }));
+    const serviceMetrics: ServiceMetric[] = analyticsData.serviceHealth.map(
+      (service) => ({
+        name: service.name,
+        status:
+          service.status === "healthy"
+            ? "healthy"
+            : service.status === "degraded"
+              ? "degraded"
+              : "down",
+        responseTime: service.responseTime || 0,
+        throughput: 0, // Not provided by unified service yet
+        errorRate: 0, // Not provided by unified service yet
+        uptime: service.uptime || 0,
+      }),
+    );
 
     return { systemMetrics, serviceMetrics };
   }, [analyticsData]);
@@ -197,27 +213,30 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   // Update metrics using unified analytics service
   const updateMetrics = useCallback(async () => {
     try {
-      setConnectionStatus('connecting');
-      
+      setConnectionStatus("connecting");
+
       // Use unified analytics service
       const transformedData = transformAnalyticsData();
-      
-      setMetrics(prevMetrics => {
-        return prevMetrics.map(metric => {
-          const newValue = transformedData.systemMetrics[metric.id as keyof typeof transformedData.systemMetrics] || 0;
+
+      setMetrics((prevMetrics) => {
+        return prevMetrics.map((metric) => {
+          const newValue =
+            transformedData.systemMetrics[
+              metric.id as keyof typeof transformedData.systemMetrics
+            ] || 0;
           const previousValue = metric.value;
-          
+
           // Calculate trend
-          let trend: 'up' | 'down' | 'stable' = 'stable';
-          if (newValue > previousValue + 5) trend = 'up';
-          else if (newValue < previousValue - 5) trend = 'down';
-          
+          let trend: "up" | "down" | "stable" = "stable";
+          if (newValue > previousValue + 5) trend = "up";
+          else if (newValue < previousValue - 5) trend = "down";
+
           // Update history (keep last 50 points)
           const newHistory = [
             ...metric.history.slice(-49),
-            { timestamp: new Date(), value: newValue }
+            { timestamp: new Date(), value: newValue },
           ];
-          
+
           return {
             ...metric,
             value: newValue,
@@ -226,14 +245,17 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
           };
         });
       });
-      
+
       setServiceMetrics(transformedData.serviceMetrics);
-      setConnectionStatus(analyticsData.connectionStatus?.isConnected ? 'connected' : 'disconnected');
+      setConnectionStatus(
+        analyticsData.connectionStatus?.isConnected
+          ? "connected"
+          : "disconnected",
+      );
       setLastUpdate(new Date());
-      
     } catch (error) {
-      console.error('Failed to update metrics:', error);
-      setConnectionStatus('disconnected');
+      console.error("Failed to update metrics:", error);
+      setConnectionStatus("disconnected");
     } finally {
       setIsLoading(false);
     }
@@ -258,35 +280,35 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
 
   // Helper functions
   const getMetricColor = (metric: SystemMetric) => {
-    if (metric.value >= metric.threshold.critical) return 'error';
-    if (metric.value >= metric.threshold.warning) return 'warning';
+    if (metric.value >= metric.threshold.critical) return "error";
+    if (metric.value >= metric.threshold.warning) return "warning";
     return metric.color;
   };
 
   const getMetricStatus = (metric: SystemMetric) => {
-    if (metric.value >= metric.threshold.critical) return 'critical';
-    if (metric.value >= metric.threshold.warning) return 'warning';
-    return 'normal';
+    if (metric.value >= metric.threshold.critical) return "critical";
+    if (metric.value >= metric.threshold.warning) return "warning";
+    return "normal";
   };
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
-      case 'up':
+      case "up":
         return <TrendingUp fontSize="small" />;
-      case 'down':
+      case "down":
         return <TrendingDown fontSize="small" />;
       default:
         return null;
     }
   };
 
-  const getServiceStatusIcon = (status: ServiceMetric['status']) => {
+  const getServiceStatusIcon = (status: ServiceMetric["status"]) => {
     switch (status) {
-      case 'healthy':
+      case "healthy":
         return <CheckCircle color="success" fontSize="small" />;
-      case 'degraded':
+      case "degraded":
         return <Warning color="warning" fontSize="small" />;
-      case 'down':
+      case "down":
         return <Error color="error" fontSize="small" />;
       default:
         return <Warning color="disabled" fontSize="small" />;
@@ -294,7 +316,7 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   };
 
   const formatValue = (value: number, unit: string) => {
-    if (unit === 'ms' || unit === 'req/s' || unit === 'MB/s') {
+    if (unit === "ms" || unit === "req/s" || unit === "MB/s") {
       return `${Math.round(value)}${unit}`;
     }
     return `${Math.round(value)}${unit}`;
@@ -302,13 +324,20 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
 
   if (isLoading && metrics.length === 0) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: 200,
+        }}
+      >
         <CircularProgress />
       </Box>
     );
   }
 
-  if (connectionStatus === 'disconnected' && metrics.length === 0) {
+  if (connectionStatus === "disconnected" && metrics.length === 0) {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -316,10 +345,11 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
             Unable to Connect to Real-Time Metrics API
           </Typography>
           <Typography variant="body2">
-            Cannot retrieve real-time system metrics. Please ensure the backend services are running and accessible.
+            Cannot retrieve real-time system metrics. Please ensure the backend
+            services are running and accessible.
           </Typography>
         </Alert>
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{ display: "flex", justifyContent: "center" }}>
           <IconButton onClick={handleRefresh} disabled={isLoading}>
             <Refresh />
           </IconButton>
@@ -331,26 +361,34 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        mb: 2 
-      }}>
-        <Typography variant={compact ? 'h6' : 'h5'} sx={{ fontWeight: 600 }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+        }}
+      >
+        <Typography variant={compact ? "h6" : "h5"} sx={{ fontWeight: 600 }}>
           Real-time System Metrics
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Chip
-            icon={<Box 
-              sx={{ 
-                width: 8, 
-                height: 8, 
-                borderRadius: '50%',
-                backgroundColor: connectionStatus === 'connected' ? 'success.main' : 
-                               connectionStatus === 'connecting' ? 'warning.main' : 'error.main'
-              }}
-            />}
+            icon={
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  backgroundColor:
+                    connectionStatus === "connected"
+                      ? "success.main"
+                      : connectionStatus === "connecting"
+                        ? "warning.main"
+                        : "error.main",
+                }}
+              />
+            }
             label={connectionStatus}
             size="small"
             variant="outlined"
@@ -364,7 +402,7 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
       </Box>
 
       {/* Connection Status Alert */}
-      {connectionStatus === 'disconnected' && (
+      {connectionStatus === "disconnected" && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Connection lost. Metrics may be outdated.
         </Alert>
@@ -374,28 +412,34 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
       <Grid container spacing={2}>
         {metrics.map((metric) => (
           <Grid item xs={12} sm={6} md={compact ? 6 : 4} key={metric.id}>
-            <Card sx={{ 
-              bgcolor: alpha(theme.palette.background.paper, 0.7),
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${alpha(
-                theme.palette[getMetricColor(metric)].main, 
-                0.3
-              )}`,
-            }}>
+            <Card
+              sx={{
+                bgcolor: alpha(theme.palette.background.paper, 0.7),
+                backdropFilter: "blur(10px)",
+                border: `1px solid ${alpha(
+                  theme.palette[getMetricColor(metric)].main,
+                  0.3,
+                )}`,
+              }}
+            >
               <CardContent sx={{ pb: compact ? 1 : 2 }}>
                 {/* Metric Header */}
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  mb: 1 
-                }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ 
-                      color: theme.palette[getMetricColor(metric)].main,
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 1,
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Box
+                      sx={{
+                        color: theme.palette[getMetricColor(metric)].main,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
                       {metric.icon}
                     </Box>
                     <Typography variant="body2" color="textSecondary">
@@ -406,12 +450,12 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                 </Box>
 
                 {/* Metric Value */}
-                <Typography 
-                  variant={compact ? 'h6' : 'h5'} 
-                  sx={{ 
+                <Typography
+                  variant={compact ? "h6" : "h5"}
+                  sx={{
                     fontWeight: 600,
                     color: theme.palette[getMetricColor(metric)].main,
-                    mb: 1
+                    mb: 1,
                   }}
                 >
                   {formatValue(metric.value, metric.unit)}
@@ -422,8 +466,8 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                   variant="determinate"
                   value={Math.min(metric.value, 100)}
                   color={getMetricColor(metric)}
-                  sx={{ 
-                    height: 8, 
+                  sx={{
+                    height: 8,
                     borderRadius: 4,
                     mb: showHistory && !compact ? 1 : 0,
                   }}
@@ -434,11 +478,14 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                   <Box sx={{ height: 60, mt: 1 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={metric.history}>
-                        <Area 
-                          type="monotone" 
-                          dataKey="value" 
+                        <Area
+                          type="monotone"
+                          dataKey="value"
                           stroke={theme.palette[getMetricColor(metric)].main}
-                          fill={alpha(theme.palette[getMetricColor(metric)].main, 0.2)}
+                          fill={alpha(
+                            theme.palette[getMetricColor(metric)].main,
+                            0.2,
+                          )}
                           strokeWidth={2}
                         />
                       </AreaChart>
@@ -453,7 +500,7 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                     size="small"
                     color={getMetricColor(metric)}
                     variant="outlined"
-                    sx={{ fontSize: '0.7rem', height: 20, mt: 1 }}
+                    sx={{ fontSize: "0.7rem", height: 20, mt: 1 }}
                   />
                 )}
               </CardContent>
@@ -471,25 +518,40 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
           <Grid container spacing={2}>
             {serviceMetrics.map((service, index) => (
               <Grid item xs={12} md={4} key={index}>
-                <Card sx={{ 
-                  bgcolor: alpha(theme.palette.background.paper, 0.7),
-                  backdropFilter: 'blur(10px)',
-                }}>
+                <Card
+                  sx={{
+                    bgcolor: alpha(theme.palette.background.paper, 0.7),
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
                   <CardContent>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      mb: 1 
-                    }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mb: 1,
+                      }}
+                    >
                       <Typography variant="subtitle2" sx={{ fontWeight: 500 }}>
                         {service.name}
                       </Typography>
                       {getServiceStatusIcon(service.status)}
                     </Box>
-                    
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 0.5,
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography variant="caption" color="textSecondary">
                           Response Time:
                         </Typography>
@@ -497,8 +559,13 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                           {Math.round(service.responseTime)}ms
                         </Typography>
                       </Box>
-                      
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography variant="caption" color="textSecondary">
                           Throughput:
                         </Typography>
@@ -506,8 +573,13 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                           {Math.round(service.throughput)} req/s
                         </Typography>
                       </Box>
-                      
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography variant="caption" color="textSecondary">
                           Error Rate:
                         </Typography>
@@ -515,8 +587,13 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
                           {service.errorRate.toFixed(2)}%
                         </Typography>
                       </Box>
-                      
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
                         <Typography variant="caption" color="textSecondary">
                           Uptime:
                         </Typography>
@@ -534,14 +611,16 @@ const RealTimeMetrics: React.FC<RealTimeMetricsProps> = ({
       )}
 
       {/* Footer */}
-      <Box sx={{ 
-        mt: 2, 
-        pt: 1, 
-        borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
+      <Box
+        sx={{
+          mt: 2,
+          pt: 1,
+          borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <Typography variant="caption" color="textSecondary">
           Last updated: {lastUpdate.toLocaleTimeString()}
         </Typography>

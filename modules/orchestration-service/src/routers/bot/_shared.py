@@ -5,18 +5,17 @@ Common imports, utilities, and configurations used across all bot router compone
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
 
 # Dependencies
-
 # Models
 from models.bot import (
-    BotResponse,
     BotInstance,
+    BotResponse,
 )
+from pydantic import BaseModel
 
 # Shared logger
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 class BotListResponse(BaseModel):
     """Response model for bot list"""
 
-    bots: List[BotResponse]
+    bots: list[BotResponse]
     total: int
     active: int
     inactive: int
@@ -36,21 +35,21 @@ class BotConfigUpdateRequest(BaseModel):
     """Request model for bot configuration update"""
 
     bot_id: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 class BotAnalyticsResponse(BaseModel):
     """Response model for bot analytics"""
 
     bot_id: str
-    analytics: Dict[str, Any]
+    analytics: dict[str, Any]
     timestamp: str
 
 
 class SystemStatsResponse(BaseModel):
     """Response model for system statistics"""
 
-    stats: Dict[str, Any]
+    stats: dict[str, Any]
     timestamp: str
 
 
@@ -58,7 +57,7 @@ class VirtualWebcamConfigRequest(BaseModel):
     """Request model for virtual webcam configuration"""
 
     bot_id: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
 
 
 def create_bot_router(prefix: str = "") -> APIRouter:
@@ -75,7 +74,7 @@ def create_bot_router(prefix: str = "") -> APIRouter:
 
 
 def get_error_response(
-    status_code: int, message: str, details: Optional[Dict[str, Any]] = None
+    status_code: int, message: str, details: dict[str, Any] | None = None
 ) -> HTTPException:
     """Create standardized error response"""
     error_detail = {"message": message}
@@ -98,6 +97,6 @@ async def validate_bot_exists(bot_id: str, bot_manager) -> BotInstance:
         logger.error(f"Error validating bot {bot_id}: {e}")
         raise get_error_response(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to validate bot: {str(e)}",
+            f"Failed to validate bot: {e!s}",
             {"bot_id": bot_id},
-        )
+        ) from e

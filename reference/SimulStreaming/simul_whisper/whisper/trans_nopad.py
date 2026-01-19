@@ -192,7 +192,7 @@ def transcribe(
             if not needs_fallback:
                 break
             # print("decode with temperature {} compress rate {:.3f}/{:.3f}, log_prob {:.3f}/{:.3f}, {:.3f}/{:.3f}".format(
-            #     t, 
+            #     t,
             #     decode_result.compression_ratio, compression_ratio_threshold,
             #     -decode_result.avg_logprob, -logprob_threshold,
             #     decode_result.no_speech_prob, no_speech_threshold
@@ -276,7 +276,7 @@ def transcribe(
             timestamp_tokens[-1] = False
             single_timestamp_ending = timestamp_tokens[-2:].tolist() == [False, True] # 如果最后是[False,True]：本段里一个句子结束了
 
-            consecutive = torch.where(timestamp_tokens[:-1] & timestamp_tokens[1:])[0] 
+            consecutive = torch.where(timestamp_tokens[:-1] & timestamp_tokens[1:])[0]
             # torch.where(condition) is identical to torch.nonzero(condition, as_tuple=True).
             # timestamp_token就是个一维向量吧 那为啥不直接nonzero
             # 如果有两个连续的时间戳 这个会是一个一维tensor 是这两个连续时间戳的结尾位置

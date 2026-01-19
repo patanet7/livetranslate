@@ -19,7 +19,7 @@ class User(Base):
     created_at = Column(DateTime, server_default=func.now())
     max_concurrent_bots = Column(Integer, nullable=False, server_default='1', default=1) # Added field
     data = Column(JSONB, nullable=False, server_default=text("'{}'::jsonb"), default=lambda: {})
-    
+
     meetings = relationship("Meeting", back_populates="user")
     api_tokens = relationship("APIToken", back_populates="user")
 
@@ -29,7 +29,7 @@ class APIToken(Base):
     token = Column(String(255), unique=True, index=True, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now())
-    
+
     user = relationship("User", back_populates="api_tokens")
 
 class Meeting(Base):
@@ -69,11 +69,11 @@ class Meeting(Base):
     @property
     def native_meeting_id(self):
         return self.platform_specific_id
-        
+
     @native_meeting_id.setter
     def native_meeting_id(self, value):
         self.platform_specific_id = value
-        
+
     @property
     def constructed_meeting_url(self) -> Optional[str]: # Added return type hint
         # Calculate the URL on demand using the static method from schemas.py
@@ -94,7 +94,7 @@ class Transcription(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     meeting = relationship("Meeting", back_populates="transcriptions")
-    
+
     session_uid = Column(String, nullable=True, index=True) # Link to the specific bot session
 
     # Index for efficient querying by meeting_id and start_time

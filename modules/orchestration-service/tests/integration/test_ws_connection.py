@@ -4,9 +4,10 @@ Simple WebSocket connection test to diagnose issues
 """
 
 import asyncio
+import json
+
 import httpx
 import websockets
-import json
 
 BASE_URL = "http://localhost:3000"
 WS_BASE_URL = "ws://localhost:3000"
@@ -79,7 +80,7 @@ async def test_connection():
 
     except websockets.exceptions.ConnectionClosedOK as e:
         print(f"\n❌ Connection closed: {e}")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print("\n❌ Timeout waiting for response")
     except Exception as e:
         print(f"\n❌ Error: {type(e).__name__}: {e}")

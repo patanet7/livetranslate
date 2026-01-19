@@ -22,14 +22,11 @@ Ref: FEEDBACK.md lines 6, 9, 12, 106, 342
 Ref: IMPLEMENTATION_PLAN.md Milestone 1 Success Criteria
 """
 
+import logging
 import sys
-import os
 import time
 import wave
-import numpy as np
 from pathlib import Path
-from typing import Dict
-import logging
 
 # Add src and tests directory to path
 SRC_DIR = Path(__file__).parent.parent.parent / "src"
@@ -37,18 +34,14 @@ TESTS_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(SRC_DIR))
 sys.path.insert(0, str(TESTS_DIR))
 
+import numpy as np
+
 # Import test utilities
-from test_utils import (
-    normalize_text,
-    calculate_wer_detailed,
-    calculate_cer,
-    print_wer_results
-)
+from test_utils import calculate_wer_detailed, normalize_text, print_wer_results
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -64,13 +57,13 @@ def load_audio_file(file_path: Path) -> tuple[np.ndarray, int]:
     if not file_path.exists():
         raise FileNotFoundError(f"Audio file not found: {file_path}")
 
-    with wave.open(str(file_path), 'rb') as wav_file:
+    with wave.open(str(file_path), "rb") as wav_file:
         n_channels = wav_file.getnchannels()
         sample_rate = wav_file.getframerate()
         n_frames = wav_file.getnframes()
         duration = n_frames / sample_rate
 
-        logger.info(f"Audio properties:")
+        logger.info("Audio properties:")
         logger.info(f"  Channels: {n_channels}")
         logger.info(f"  Sample rate: {sample_rate}Hz")
         logger.info(f"  Duration: {duration:.2f}s")
@@ -86,13 +79,14 @@ def load_audio_file(file_path: Path) -> tuple[np.ndarray, int]:
         # Convert stereo to mono if needed
         if n_channels == 2:
             audio_float = audio_float.reshape(-1, 2).mean(axis=1)
-            logger.info(f"  Converted stereo to mono")
+            logger.info("  Converted stereo to mono")
 
         return audio_float, sample_rate
 
 
 class KVCacheMonitor:
     """Monitor for KV cache violations (FEEDBACK.md line 6)"""
+
     def __init__(self):
         self.cache_clears = []
         self.monitoring = False
@@ -107,10 +101,8 @@ class KVCacheMonitor:
         """Record a cache clear event"""
         if self.monitoring:
             import traceback
-            self.cache_clears.append({
-                'location': location,
-                'stack': traceback.format_stack()
-            })
+
+            self.cache_clears.append({"location": location, "stack": traceback.format_stack()})
             logger.warning(f"⚠️  KV cache clear detected at: {location}")
 
     def verify_no_clears(self) -> bool:
@@ -128,6 +120,7 @@ class KVCacheMonitor:
 
 class SOTMonitor:
     """Monitor for SOT swap violations (FEEDBACK.md line 9)"""
+
     def __init__(self):
         self.sot_swaps = []
         self.initial_language = None
@@ -144,18 +137,21 @@ class SOTMonitor:
         """Record a SOT swap event"""
         if self.monitoring and old_lang != new_lang:
             import traceback
-            self.sot_swaps.append({
-                'from': old_lang,
-                'to': new_lang,
-                'location': location,
-                'stack': traceback.format_stack()
-            })
+
+            self.sot_swaps.append(
+                {
+                    "from": old_lang,
+                    "to": new_lang,
+                    "location": location,
+                    "stack": traceback.format_stack(),
+                }
+            )
             logger.warning(f"⚠️  SOT swap detected: {old_lang} → {new_lang} at {location}")
 
     def verify_no_swaps(self) -> bool:
         """Verify no SOT swaps occurred during monitoring"""
         if len(self.sot_swaps) == 0:
-            logger.info(f"✅ PASS: No SOT swaps detected (FEEDBACK.md line 9 compliant)")
+            logger.info("✅ PASS: No SOT swaps detected (FEEDBACK.md line 9 compliant)")
             logger.info(f"   Language remained: {self.initial_language}")
             return True
         else:
@@ -176,12 +172,12 @@ def test_milestone1_baseline_english():
     3. No SOT swaps mid-sequence
     4. VAD-first processing order
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("MILESTONE 1 BASELINE TEST - ENGLISH TRANSCRIPTION")
-    print("="*80)
+    print("=" * 80)
     print("Testing: Single-language English (TRANSCRIBE mode)")
     print("Expected: 75-90% WER, no FEEDBACK.md violations")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Initialize monitors
     kv_monitor = KVCacheMonitor()
@@ -222,7 +218,7 @@ def test_milestone1_baseline_english():
             temperature=0.0,
             streaming_policy="alignatt",
             task="transcribe",  # TRANSCRIBE, not translate
-            target_language="en"
+            target_language="en",
         )
 
         elapsed = time.time() - start_time
@@ -231,68 +227,76 @@ def test_milestone1_baseline_english():
 
         # Extract results - handle both dict and object responses
         if isinstance(result, dict):
-            transcription = result.get('text', '')
-            detected_language = result.get('language', 'unknown')
-            segments = result.get('segments', [])
+            transcription = result.get("text", "")
+            detected_language = result.get("language", "unknown")
+            segments = result.get("segments", [])
         else:
-            transcription = getattr(result, 'text', '')
-            detected_language = getattr(result, 'language', 'unknown')
-            segments = getattr(result, 'segments', [])
+            transcription = getattr(result, "text", "")
+            detected_language = getattr(result, "language", "unknown")
+            segments = getattr(result, "segments", [])
 
-        print("="*80)
+        print("=" * 80)
         print("TRANSCRIPTION RESULTS")
-        print("="*80)
+        print("=" * 80)
         print(f"Detected Language: {detected_language}")
         print(f"Segments: {len(segments)}")
-        print(f"\nTranscription (raw):")
+        print("\nTranscription (raw):")
         print(f"  '{transcription}'\n")
-        print(f"Reference (raw):")
+        print("Reference (raw):")
         print(f"  '{EXPECTED_JFK_TEXT}'\n")
 
         # Calculate and print detailed WER/CER metrics using test_utils library
         metrics = print_wer_results(EXPECTED_JFK_TEXT, transcription, target_wer=25.0)
 
         # Extract key metrics from result
-        normalized_wer = metrics['wer']
-        normalized_accuracy = metrics['accuracy']
-        cer = metrics['cer']
+        normalized_wer = metrics["wer"]
+        normalized_accuracy = metrics["accuracy"]
+        cer = metrics["cer"]
 
         # Also calculate raw WER for reference
         wer_details = calculate_wer_detailed(EXPECTED_JFK_TEXT, transcription)
-        raw_wer = wer_details['raw']['wer']
+        raw_wer = wer_details["raw"]["wer"]
 
         # Verify monitors
-        print("="*80)
+        print("=" * 80)
         print("FEEDBACK.MD COMPLIANCE CHECKS")
-        print("="*80)
+        print("=" * 80)
 
         kv_compliant = kv_monitor.verify_no_clears()
         sot_compliant = sot_monitor.verify_no_swaps()
 
         # Language detection check
-        language_correct = detected_language == 'en' or detected_language == 'english'
+        language_correct = detected_language == "en" or detected_language == "english"
         if language_correct:
             logger.info(f"✅ PASS: Correct language detected ({detected_language})")
         else:
-            logger.warning(f"⚠️  WARN: Unexpected language detected ({detected_language}, expected 'en')")
+            logger.warning(
+                f"⚠️  WARN: Unexpected language detected ({detected_language}, expected 'en')"
+            )
 
         print()
 
         # Final verdict
-        print("="*80)
+        print("=" * 80)
         print("MILESTONE 1 TEST RESULTS")
-        print("="*80)
+        print("=" * 80)
 
         wer_pass = normalized_accuracy >= 75.0  # 75-90% accuracy target (normalized)
         all_checks_pass = kv_compliant and sot_compliant and wer_pass
 
-        print(f"✅ Normalized Accuracy: {normalized_accuracy:.1f}% {'PASS' if wer_pass else 'FAIL'} (target: ≥75%)")
-        print(f"✅ Normalized WER: {normalized_wer:.1f}% {'PASS' if wer_pass else 'FAIL'} (target: ≤25%)")
+        print(
+            f"✅ Normalized Accuracy: {normalized_accuracy:.1f}% {'PASS' if wer_pass else 'FAIL'} (target: ≥75%)"
+        )
+        print(
+            f"✅ Normalized WER: {normalized_wer:.1f}% {'PASS' if wer_pass else 'FAIL'} (target: ≤25%)"
+        )
         print(f"✅ Raw WER (with punct): {raw_wer:.1f}%")
         print(f"✅ Normalized CER: {cer:.1f}%")
         print(f"✅ KV Cache: {'PASS' if kv_compliant else 'FAIL'} (no clears)")
         print(f"✅ SOT Tokens: {'PASS' if sot_compliant else 'FAIL'} (no swaps)")
-        print(f"✅ Language: {'PASS' if language_correct else 'WARN'} (detected: {detected_language})")
+        print(
+            f"✅ Language: {'PASS' if language_correct else 'WARN'} (detected: {detected_language})"
+        )
         print()
 
         if all_checks_pass:
@@ -305,11 +309,11 @@ def test_milestone1_baseline_english():
             if not wer_pass:
                 print(f"   Accuracy too low: {normalized_accuracy:.1f}% (target: ≥75%)")
             if not kv_compliant:
-                print(f"   KV cache violations detected")
+                print("   KV cache violations detected")
             if not sot_compliant:
-                print(f"   SOT swap violations detected")
+                print("   SOT swap violations detected")
 
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         return {
             "passed": all_checks_pass,
@@ -322,17 +326,15 @@ def test_milestone1_baseline_english():
             "transcription_normalized": normalize_text(transcription),
             "kv_compliant": kv_compliant,
             "sot_compliant": sot_compliant,
-            "processing_time": elapsed
+            "processing_time": elapsed,
         }
 
     except Exception as e:
         logger.error(f"❌ Test failed with exception: {e}")
         import traceback
+
         traceback.print_exc()
-        return {
-            "passed": False,
-            "error": str(e)
-        }
+        return {"passed": False, "error": str(e)}
 
 
 if __name__ == "__main__":

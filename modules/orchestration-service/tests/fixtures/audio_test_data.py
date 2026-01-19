@@ -7,16 +7,16 @@ audio processing tests, including various formats, quality levels, edge cases,
 and realistic audio scenarios.
 """
 
+import hashlib
 import io
 import json
-import wave
+import logging
 import struct
 import tempfile
-import hashlib
+import wave
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
-import logging
+from typing import Any
 
 import numpy as np
 import pytest
@@ -35,17 +35,17 @@ class AudioTestCase:
     sample_rate: int
     duration: float
     channels: int
-    expected_text: Optional[str] = None
-    expected_language: Optional[str] = "en"
-    expected_speaker_count: Optional[int] = 1
+    expected_text: str | None = None
+    expected_language: str | None = "en"
+    expected_speaker_count: int | None = 1
     quality_level: str = "medium"  # low, medium, high
     contains_speech: bool = True
     noise_level: float = 0.01
-    corruption_type: Optional[str] = None  # None, "partial", "header", "data"
-    file_size_bytes: Optional[int] = None
-    content_type: Optional[str] = None
+    corruption_type: str | None = None  # None, "partial", "header", "data"
+    file_size_bytes: int | None = None
+    content_type: str | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
@@ -58,7 +58,7 @@ class AudioSignalGenerator:
         duration: float,
         sample_rate: int = 16000,
         fundamental_freq: float = 120,
-        formants: List[float] = None,
+        formants: list[float] | None = None,
         amplitude: float = 0.7,
         noise_level: float = 0.01,
     ) -> np.ndarray:
@@ -81,9 +81,7 @@ class AudioSignalGenerator:
         # Harmonics with decreasing amplitude
         for harmonic in range(2, 8):
             harmonic_amp = amplitude / (harmonic**1.5)
-            signal += harmonic_amp * np.sin(
-                2 * np.pi * instantaneous_freq * harmonic * t
-            )
+            signal += harmonic_amp * np.sin(2 * np.pi * instantaneous_freq * harmonic * t)
 
         # Add formant resonances
         for i, formant in enumerate(formants):
@@ -115,7 +113,7 @@ class AudioSignalGenerator:
     @staticmethod
     def generate_multi_speaker_audio(
         duration: float,
-        speaker_configs: List[Dict],
+        speaker_configs: list[dict],
         sample_rate: int = 16000,
         overlap_factor: float = 0.1,
     ) -> np.ndarray:
@@ -144,9 +142,7 @@ class AudioSignalGenerator:
                     speaker_signal = speaker_signal[:available_samples]
 
                 # Add to main signal
-                signal[start_sample : start_sample + len(speaker_signal)] += (
-                    speaker_signal
-                )
+                signal[start_sample : start_sample + len(speaker_signal)] += speaker_signal
 
         # Normalize to prevent clipping
         if np.max(np.abs(signal)) > 0:
@@ -158,7 +154,7 @@ class AudioSignalGenerator:
     def generate_music_like(
         duration: float,
         sample_rate: int = 16000,
-        chord_progression: List[List[float]] = None,
+        chord_progression: list[list[float]] | None = None,
         amplitude: float = 0.6,
     ) -> np.ndarray:
         """Generate music-like audio for non-speech testing."""
@@ -186,9 +182,7 @@ class AudioSignalGenerator:
             # Generate chord
             chord_signal = np.zeros_like(chord_t)
             for freq in chord:
-                chord_signal += (
-                    amplitude * np.sin(2 * np.pi * freq * chord_t) / len(chord)
-                )
+                chord_signal += amplitude * np.sin(2 * np.pi * freq * chord_t) / len(chord)
 
             signal[chord_mask] = chord_signal
 
@@ -247,7 +241,7 @@ class AudioSignalGenerator:
 
     @staticmethod
     def apply_effects(
-        signal: np.ndarray, effects: List[Dict], sample_rate: int = 16000
+        signal: np.ndarray, effects: list[dict], sample_rate: int = 16000
     ) -> np.ndarray:
         """Apply various audio effects for testing."""
         processed_signal = signal.copy()
@@ -262,9 +256,7 @@ class AudioSignalGenerator:
 
                 reverb_signal = np.zeros_like(processed_signal)
                 if delay_samples < len(processed_signal):
-                    reverb_signal[delay_samples:] = (
-                        processed_signal[:-delay_samples] * decay
-                    )
+                    reverb_signal[delay_samples:] = processed_signal[:-delay_samples] * decay
                 processed_signal += reverb_signal
 
             elif effect_type == "echo":
@@ -274,9 +266,7 @@ class AudioSignalGenerator:
 
                 echo_signal = np.zeros_like(processed_signal)
                 if delay_samples < len(processed_signal):
-                    echo_signal[delay_samples:] = (
-                        processed_signal[:-delay_samples] * feedback
-                    )
+                    echo_signal[delay_samples:] = processed_signal[:-delay_samples] * feedback
                 processed_signal += echo_signal
 
             elif effect_type == "distortion":
@@ -318,9 +308,7 @@ class AudioFormatEncoder:
     """Encode audio signals into various formats for testing."""
 
     @staticmethod
-    def encode_wav(
-        signal: np.ndarray, sample_rate: int = 16000, bit_depth: int = 16
-    ) -> bytes:
+    def encode_wav(signal: np.ndarray, sample_rate: int = 16000, bit_depth: int = 16) -> bytes:
         """Encode signal as WAV format."""
         if bit_depth == 16:
             pcm_data = (signal * 32767).astype(np.int16)
@@ -443,7 +431,7 @@ class AudioTestDataManager:
         self.cache_dir = Path(tempfile.gettempdir()) / "audio_test_cache"
         self.cache_dir.mkdir(exist_ok=True)
 
-    def generate_comprehensive_test_suite(self) -> Dict[str, AudioTestCase]:
+    def generate_comprehensive_test_suite(self) -> dict[str, AudioTestCase]:
         """Generate comprehensive test suite with various audio scenarios."""
         test_cases = {}
 
@@ -471,7 +459,7 @@ class AudioTestDataManager:
         self.test_cases = test_cases
         return test_cases
 
-    def _generate_speech_tests(self) -> Dict[str, AudioTestCase]:
+    def _generate_speech_tests(self) -> dict[str, AudioTestCase]:
         """Generate basic speech audio tests."""
         tests = {}
 
@@ -490,7 +478,7 @@ class AudioTestDataManager:
         )
 
         # Different languages (simulated)
-        for lang, freq in [
+        for lang, _freq in [
             ("english", 120),
             ("spanish", 130),
             ("french", 125),
@@ -530,7 +518,7 @@ class AudioTestDataManager:
 
         return tests
 
-    def _generate_multi_speaker_tests(self) -> Dict[str, AudioTestCase]:
+    def _generate_multi_speaker_tests(self) -> dict[str, AudioTestCase]:
         """Generate multi-speaker audio tests."""
         tests = {}
 
@@ -564,7 +552,7 @@ class AudioTestDataManager:
 
         return tests
 
-    def _generate_quality_tests(self) -> Dict[str, AudioTestCase]:
+    def _generate_quality_tests(self) -> dict[str, AudioTestCase]:
         """Generate tests with various quality levels."""
         tests = {}
 
@@ -575,7 +563,7 @@ class AudioTestDataManager:
             ("very_noisy", 3, 0.3),  # Very low SNR, very high noise
         ]
 
-        for name, snr_db, noise_level in quality_configs:
+        for name, _snr_db, noise_level in quality_configs:
             tests[name] = AudioTestCase(
                 name=name,
                 description=f"Audio with {name.replace('_', ' ')}",
@@ -590,7 +578,7 @@ class AudioTestDataManager:
 
         return tests
 
-    def _generate_format_tests(self) -> Dict[str, AudioTestCase]:
+    def _generate_format_tests(self) -> dict[str, AudioTestCase]:
         """Generate tests for different audio formats."""
         tests = {}
 
@@ -632,7 +620,7 @@ class AudioTestDataManager:
 
         return tests
 
-    def _generate_error_tests(self) -> Dict[str, AudioTestCase]:
+    def _generate_error_tests(self) -> dict[str, AudioTestCase]:
         """Generate error scenario tests."""
         tests = {}
 
@@ -688,7 +676,7 @@ class AudioTestDataManager:
 
         return tests
 
-    def _generate_performance_tests(self) -> Dict[str, AudioTestCase]:
+    def _generate_performance_tests(self) -> dict[str, AudioTestCase]:
         """Generate performance testing scenarios."""
         tests = {}
 
@@ -708,7 +696,7 @@ class AudioTestDataManager:
 
         return tests
 
-    def _generate_edge_case_tests(self) -> Dict[str, AudioTestCase]:
+    def _generate_edge_case_tests(self) -> dict[str, AudioTestCase]:
         """Generate edge case tests."""
         tests = {}
 
@@ -784,9 +772,7 @@ class AudioTestDataManager:
             signal = np.array([], dtype=np.float32)
         elif not test_case.contains_speech:
             if test_case.name == "silence":
-                signal = np.zeros(
-                    int(test_case.duration * test_case.sample_rate), dtype=np.float32
-                )
+                signal = np.zeros(int(test_case.duration * test_case.sample_rate), dtype=np.float32)
             elif test_case.name == "pure_tone":
                 t = (
                     np.arange(int(test_case.duration * test_case.sample_rate))
@@ -798,15 +784,10 @@ class AudioTestDataManager:
                     test_case.duration, test_case.sample_rate
                 )
             else:
-                signal = np.zeros(
-                    int(test_case.duration * test_case.sample_rate), dtype=np.float32
-                )
+                signal = np.zeros(int(test_case.duration * test_case.sample_rate), dtype=np.float32)
         else:
             # Speech-like audio
-            if (
-                test_case.expected_speaker_count
-                and test_case.expected_speaker_count > 1
-            ):
+            if test_case.expected_speaker_count and test_case.expected_speaker_count > 1:
                 # Multi-speaker audio
                 speaker_configs = []
                 for i in range(test_case.expected_speaker_count):
@@ -847,9 +828,7 @@ class AudioTestDataManager:
         # Apply quality adjustments
         if test_case.quality_level == "low" or "noisy" in test_case.name:
             snr_db = 8 if test_case.quality_level == "low" else 3
-            signal = AudioSignalGenerator.add_noise(
-                signal, "white", snr_db, test_case.sample_rate
-            )
+            signal = AudioSignalGenerator.add_noise(signal, "white", snr_db, test_case.sample_rate)
 
         # Apply effects for specific test cases
         if test_case.name == "clipped":
@@ -859,9 +838,7 @@ class AudioTestDataManager:
         if test_case.format_type == "wav":
             audio_data = AudioFormatEncoder.encode_wav(signal, test_case.sample_rate)
         elif test_case.format_type == "mp3":
-            audio_data = AudioFormatEncoder.encode_simulated_mp3(
-                signal, test_case.sample_rate
-            )
+            audio_data = AudioFormatEncoder.encode_simulated_mp3(signal, test_case.sample_rate)
         else:
             # For other formats, use WAV as base and add format-specific header
             audio_data = AudioFormatEncoder.encode_wav(signal, test_case.sample_rate)
@@ -917,7 +894,7 @@ class AudioTestDataManager:
             size=len(audio_data),
         )
 
-    def get_test_cases_by_category(self, category: str) -> Dict[str, AudioTestCase]:
+    def get_test_cases_by_category(self, category: str) -> dict[str, AudioTestCase]:
         """Get test cases filtered by category."""
         if not self.test_cases:
             self.generate_comprehensive_test_suite()
@@ -929,15 +906,15 @@ class AudioTestDataManager:
 
         return filtered
 
-    def get_performance_test_cases(self) -> Dict[str, AudioTestCase]:
+    def get_performance_test_cases(self) -> dict[str, AudioTestCase]:
         """Get test cases specifically for performance testing."""
         return self.get_test_cases_by_category("performance")
 
-    def get_error_test_cases(self) -> Dict[str, AudioTestCase]:
+    def get_error_test_cases(self) -> dict[str, AudioTestCase]:
         """Get test cases specifically for error testing."""
         return self.get_test_cases_by_category("corrupted")
 
-    def get_format_test_cases(self) -> Dict[str, AudioTestCase]:
+    def get_format_test_cases(self) -> dict[str, AudioTestCase]:
         """Get test cases specifically for format testing."""
         return self.get_test_cases_by_category("format")
 

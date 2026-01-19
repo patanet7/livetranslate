@@ -15,10 +15,11 @@ Models:
 """
 
 import uuid
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
-from pydantic import BaseModel, Field, field_validator, model_validator, ValidationInfo
+from datetime import UTC, datetime
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 
 class AudioFormat(str, Enum):
@@ -79,31 +80,19 @@ class AudioChunkMetadata(BaseModel):
     file_path: str = Field(..., description="Storage path for audio file")
     file_name: str = Field(..., description="Audio file name")
     file_size: int = Field(..., ge=0, description="File size in bytes")
-    file_format: AudioFormat = Field(
-        default=AudioFormat.WAV, description="Audio file format"
-    )
-    file_hash: Optional[str] = Field(
-        None, description="SHA256 hash for integrity verification"
-    )
+    file_format: AudioFormat = Field(default=AudioFormat.WAV, description="Audio file format")
+    file_hash: str | None = Field(None, description="SHA256 hash for integrity verification")
 
     # Audio properties
     duration_seconds: float = Field(..., ge=0, description="Audio duration in seconds")
-    sample_rate: int = Field(
-        default=16000, ge=8000, le=48000, description="Audio sample rate"
-    )
+    sample_rate: int = Field(default=16000, ge=8000, le=48000, description="Audio sample rate")
     channels: int = Field(default=1, ge=1, le=2, description="Number of audio channels")
 
     # Chunking information
     chunk_sequence: int = Field(..., ge=0, description="Sequence number in session")
-    chunk_start_time: float = Field(
-        ..., description="Chunk start timestamp (relative to session)"
-    )
-    chunk_end_time: float = Field(
-        ..., description="Chunk end timestamp (relative to session)"
-    )
-    overlap_duration: float = Field(
-        default=0.0, ge=0, description="Overlap with previous chunk"
-    )
+    chunk_start_time: float = Field(..., description="Chunk start timestamp (relative to session)")
+    chunk_end_time: float = Field(..., description="Chunk end timestamp (relative to session)")
+    overlap_duration: float = Field(default=0.0, ge=0, description="Overlap with previous chunk")
 
     # Processing information
     processing_status: ProcessingStatus = Field(default=ProcessingStatus.PENDING)
@@ -116,16 +105,16 @@ class AudioChunkMetadata(BaseModel):
     processing_pipeline_version: str = Field(
         default="1.0", description="Pipeline version for compatibility"
     )
-    overlap_metadata: Dict[str, Any] = Field(
+    overlap_metadata: dict[str, Any] = Field(
         default_factory=dict, description="Overlap processing details"
     )
-    chunk_metadata: Dict[str, Any] = Field(
+    chunk_metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional chunk information"
     )
 
     # Timestamps
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @field_validator("chunk_end_time")
     @classmethod
@@ -140,13 +129,9 @@ class AudioChunkMetadata(BaseModel):
     def validate_duration_consistency(cls, v, info: ValidationInfo):
         """Ensure duration matches chunk timing."""
         if "chunk_start_time" in info.data and "chunk_end_time" in info.data:
-            expected_duration = (
-                info.data["chunk_end_time"] - info.data["chunk_start_time"]
-            )
+            expected_duration = info.data["chunk_end_time"] - info.data["chunk_start_time"]
             if abs(v - expected_duration) > 0.1:  # 100ms tolerance
-                raise ValueError(
-                    f"Duration {v}s doesn't match chunk timing {expected_duration}s"
-                )
+                raise ValueError(f"Duration {v}s doesn't match chunk timing {expected_duration}s")
         return v
 
 
@@ -162,53 +147,39 @@ class SpeakerCorrelation(BaseModel):
 
     # Speaker mapping
     whisper_speaker_id: str = Field(..., description="Whisper service speaker ID")
-    google_meet_speaker_id: Optional[str] = Field(
-        None, description="Google Meet speaker ID"
-    )
-    google_meet_speaker_name: Optional[str] = Field(
+    google_meet_speaker_id: str | None = Field(None, description="Google Meet speaker ID")
+    google_meet_speaker_name: str | None = Field(
         None, description="Google Meet speaker display name"
     )
-    external_speaker_id: Optional[str] = Field(
-        None, description="External system speaker ID"
-    )
-    external_speaker_name: Optional[str] = Field(
-        None, description="External system speaker name"
-    )
+    external_speaker_id: str | None = Field(None, description="External system speaker ID")
+    external_speaker_name: str | None = Field(None, description="External system speaker name")
 
     # Correlation details
-    correlation_confidence: float = Field(
-        ..., ge=0, le=1, description="Confidence in correlation"
-    )
-    correlation_type: CorrelationType = Field(
-        ..., description="Type of correlation method used"
-    )
-    correlation_method: str = Field(
-        ..., description="Specific algorithm or method used"
-    )
+    correlation_confidence: float = Field(..., ge=0, le=1, description="Confidence in correlation")
+    correlation_type: CorrelationType = Field(..., description="Type of correlation method used")
+    correlation_method: str = Field(..., description="Specific algorithm or method used")
 
     # Temporal information
     start_timestamp: float = Field(..., description="Start time of correlation window")
     end_timestamp: float = Field(..., description="End time of correlation window")
-    timing_offset: float = Field(
-        default=0.0, description="Timing offset between sources"
-    )
+    timing_offset: float = Field(default=0.0, description="Timing offset between sources")
 
     # Evidence and metadata
-    text_similarity_score: Optional[float] = Field(
+    text_similarity_score: float | None = Field(
         None, ge=0, le=1, description="Text similarity evidence"
     )
-    temporal_alignment_score: Optional[float] = Field(
+    temporal_alignment_score: float | None = Field(
         None, ge=0, le=1, description="Temporal alignment evidence"
     )
-    historical_pattern_score: Optional[float] = Field(
+    historical_pattern_score: float | None = Field(
         None, ge=0, le=1, description="Historical pattern evidence"
     )
-    correlation_metadata: Dict[str, Any] = Field(
+    correlation_metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional correlation data"
     )
 
     # Timestamps
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @field_validator("end_timestamp")
     @classmethod
@@ -235,38 +206,26 @@ class ProcessingResult(BaseModel):
 
     # Result data
     status: ProcessingStatus = Field(..., description="Processing status")
-    result_data: Dict[str, Any] = Field(
+    result_data: dict[str, Any] = Field(
         default_factory=dict, description="Stage-specific result data"
     )
-    error_message: Optional[str] = Field(
-        None, description="Error message if processing failed"
-    )
+    error_message: str | None = Field(None, description="Error message if processing failed")
 
     # Performance metrics
     processing_time_ms: float = Field(
         default=0.0, ge=0, description="Processing time in milliseconds"
     )
-    quality_score: float = Field(
-        default=0.0, ge=0, le=1, description="Result quality score"
-    )
-    confidence_score: float = Field(
-        default=0.0, ge=0, le=1, description="Result confidence score"
-    )
+    quality_score: float = Field(default=0.0, ge=0, le=1, description="Result quality score")
+    confidence_score: float = Field(default=0.0, ge=0, le=1, description="Result confidence score")
 
     # Lineage tracking
-    input_chunk_ids: List[str] = Field(
-        default_factory=list, description="Input chunk dependencies"
-    )
-    output_chunk_ids: List[str] = Field(
-        default_factory=list, description="Generated output chunks"
-    )
-    correlation_ids: List[str] = Field(
-        default_factory=list, description="Related correlations"
-    )
+    input_chunk_ids: list[str] = Field(default_factory=list, description="Input chunk dependencies")
+    output_chunk_ids: list[str] = Field(default_factory=list, description="Generated output chunks")
+    correlation_ids: list[str] = Field(default_factory=list, description="Related correlations")
 
     # Timestamps
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    completed_at: Optional[datetime] = Field(None)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = Field(None)
 
     @field_validator("completed_at")
     @classmethod
@@ -320,21 +279,11 @@ class AudioChunkingConfig(BaseModel):
     )
 
     # Database integration settings
-    store_audio_files: bool = Field(
-        default=True, description="Store audio files in database"
-    )
-    store_transcripts: bool = Field(
-        default=True, description="Store transcripts in database"
-    )
-    store_translations: bool = Field(
-        default=True, description="Store translations in database"
-    )
-    store_correlations: bool = Field(
-        default=True, description="Store speaker correlations"
-    )
-    track_chunk_lineage: bool = Field(
-        default=True, description="Track chunk processing lineage"
-    )
+    store_audio_files: bool = Field(default=True, description="Store audio files in database")
+    store_transcripts: bool = Field(default=True, description="Store transcripts in database")
+    store_translations: bool = Field(default=True, description="Store translations in database")
+    store_correlations: bool = Field(default=True, description="Store speaker correlations")
+    track_chunk_lineage: bool = Field(default=True, description="Track chunk processing lineage")
 
     # Performance settings
     max_concurrent_chunks: int = Field(
@@ -354,9 +303,7 @@ class AudioChunkingConfig(BaseModel):
     file_compression_enabled: bool = Field(
         default=True, description="Enable audio file compression"
     )
-    cleanup_old_files: bool = Field(
-        default=True, description="Automatically cleanup old files"
-    )
+    cleanup_old_files: bool = Field(default=True, description="Automatically cleanup old files")
     file_retention_days: int = Field(
         default=30, ge=1, le=365, description="File retention period in days"
     )
@@ -390,41 +337,33 @@ class ChunkLineage(BaseModel):
     session_id: str = Field(..., description="Bot session identifier")
 
     # Chunk relationships
-    source_chunk_id: str = Field(
-        ..., description="Source chunk that generated this lineage"
-    )
-    derived_chunk_ids: List[str] = Field(
+    source_chunk_id: str = Field(..., description="Source chunk that generated this lineage")
+    derived_chunk_ids: list[str] = Field(
         default_factory=list, description="Chunks derived from source"
     )
-    parent_lineage_ids: List[str] = Field(
+    parent_lineage_ids: list[str] = Field(
         default_factory=list, description="Parent lineage entries"
     )
 
     # Processing information
-    processing_stage: str = Field(
-        ..., description="Processing stage that created this lineage"
-    )
+    processing_stage: str = Field(..., description="Processing stage that created this lineage")
     transformation_type: str = Field(..., description="Type of transformation applied")
-    processing_parameters: Dict[str, Any] = Field(
+    processing_parameters: dict[str, Any] = Field(
         default_factory=dict, description="Parameters used"
     )
 
     # Quality and performance
-    input_quality_score: float = Field(
-        default=0.0, ge=0, le=1, description="Input quality score"
-    )
-    output_quality_score: float = Field(
-        default=0.0, ge=0, le=1, description="Output quality score"
-    )
+    input_quality_score: float = Field(default=0.0, ge=0, le=1, description="Input quality score")
+    output_quality_score: float = Field(default=0.0, ge=0, le=1, description="Output quality score")
     processing_time_ms: float = Field(
         default=0.0, ge=0, description="Processing time in milliseconds"
     )
 
     # Metadata
-    lineage_metadata: Dict[str, Any] = Field(
+    lineage_metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional lineage information"
     )
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class QualityMetrics(BaseModel):
@@ -440,49 +379,31 @@ class QualityMetrics(BaseModel):
     zero_crossing_rate: float = Field(..., ge=0, description="Zero crossing rate")
 
     # Voice activity metrics
-    voice_activity_detected: bool = Field(
-        ..., description="Voice activity detection result"
-    )
-    voice_activity_confidence: float = Field(
-        default=0.0, ge=0, le=1, description="VAD confidence"
-    )
+    voice_activity_detected: bool = Field(..., description="Voice activity detection result")
+    voice_activity_confidence: float = Field(default=0.0, ge=0, le=1, description="VAD confidence")
     speaking_time_ratio: float = Field(
         default=0.0, ge=0, le=1, description="Ratio of speaking time"
     )
 
     # Distortion metrics
-    clipping_detected: bool = Field(
-        default=False, description="Audio clipping detection"
-    )
-    distortion_level: float = Field(
-        default=0.0, ge=0, le=1, description="Overall distortion level"
-    )
-    noise_level: float = Field(
-        default=0.0, ge=0, le=1, description="Background noise level"
-    )
+    clipping_detected: bool = Field(default=False, description="Audio clipping detection")
+    distortion_level: float = Field(default=0.0, ge=0, le=1, description="Overall distortion level")
+    noise_level: float = Field(default=0.0, ge=0, le=1, description="Background noise level")
 
     # Frequency analysis
-    spectral_centroid: Optional[float] = Field(
-        None, description="Spectral centroid frequency"
-    )
-    spectral_bandwidth: Optional[float] = Field(None, description="Spectral bandwidth")
-    spectral_rolloff: Optional[float] = Field(
-        None, description="Spectral rolloff frequency"
-    )
+    spectral_centroid: float | None = Field(None, description="Spectral centroid frequency")
+    spectral_bandwidth: float | None = Field(None, description="Spectral bandwidth")
+    spectral_rolloff: float | None = Field(None, description="Spectral rolloff frequency")
 
     # Overall quality
-    overall_quality_score: float = Field(
-        ..., ge=0, le=1, description="Overall quality assessment"
-    )
-    quality_factors: Dict[str, float] = Field(
+    overall_quality_score: float = Field(..., ge=0, le=1, description="Overall quality assessment")
+    quality_factors: dict[str, float] = Field(
         default_factory=dict, description="Detailed quality factors"
     )
 
     # Assessment metadata
-    analysis_method: str = Field(
-        default="standard", description="Quality analysis method used"
-    )
-    analysis_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    analysis_method: str = Field(default="standard", description="Quality analysis method used")
+    analysis_timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class AudioStreamingSession(BaseModel):
@@ -498,41 +419,31 @@ class AudioStreamingSession(BaseModel):
     # Stream configuration
     source_type: SourceType = Field(..., description="Audio stream source")
     chunk_config: AudioChunkingConfig = Field(..., description="Chunking configuration")
-    target_languages: List[str] = Field(
+    target_languages: list[str] = Field(
         default_factory=list, description="Target translation languages"
     )
 
     # Processing settings
-    real_time_processing: bool = Field(
-        default=True, description="Enable real-time processing"
-    )
+    real_time_processing: bool = Field(default=True, description="Enable real-time processing")
     speaker_correlation_enabled: bool = Field(
         default=True, description="Enable speaker correlation"
     )
-    quality_monitoring_enabled: bool = Field(
-        default=True, description="Enable quality monitoring"
-    )
+    quality_monitoring_enabled: bool = Field(default=True, description="Enable quality monitoring")
 
     # Stream state
-    stream_status: str = Field(
-        default="initialized", description="Current stream status"
-    )
+    stream_status: str = Field(default="initialized", description="Current stream status")
     chunks_processed: int = Field(default=0, description="Number of chunks processed")
     total_duration: float = Field(default=0.0, description="Total stream duration")
 
     # Performance metrics
-    average_processing_time: float = Field(
-        default=0.0, description="Average chunk processing time"
-    )
-    average_quality_score: float = Field(
-        default=0.0, description="Average quality score"
-    )
+    average_processing_time: float = Field(default=0.0, description="Average chunk processing time")
+    average_quality_score: float = Field(default=0.0, description="Average quality score")
     error_count: int = Field(default=0, description="Number of processing errors")
 
     # Timestamps
-    started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    last_activity_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    ended_at: Optional[datetime] = Field(None)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_activity_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    ended_at: datetime | None = Field(None)
 
 
 # Factory functions for creating commonly used models
@@ -608,7 +519,7 @@ def create_processing_result(
 
 
 # Configuration validation and loading
-def load_chunking_config(config_dict: Dict[str, Any]) -> AudioChunkingConfig:
+def load_chunking_config(config_dict: dict[str, Any]) -> AudioChunkingConfig:
     """Load and validate audio chunking configuration from dictionary."""
     return AudioChunkingConfig(**config_dict)
 

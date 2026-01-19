@@ -18,8 +18,8 @@ def test_lufs_stage():
     print("=" * 60)
 
     try:
-        from audio.stages_enhanced import LUFSNormalizationStageEnhanced
         from audio.config import LUFSNormalizationConfig, LUFSNormalizationMode
+        from audio.stages_enhanced import LUFSNormalizationStageEnhanced
 
         # Create config
         config = LUFSNormalizationConfig(
@@ -59,8 +59,8 @@ def test_compression_stage():
     print("=" * 60)
 
     try:
-        from audio.stages_enhanced import CompressionStageEnhanced
         from audio.config import CompressionConfig, CompressionMode
+        from audio.stages_enhanced import CompressionStageEnhanced
 
         # Create config
         config = CompressionConfig(
@@ -102,13 +102,11 @@ def test_limiter_stage():
     print("=" * 60)
 
     try:
-        from audio.stages_enhanced import LimiterStageEnhanced
         from audio.config import LimiterConfig
+        from audio.stages_enhanced import LimiterStageEnhanced
 
         # Create config
-        config = LimiterConfig(
-            enabled=True, threshold=-1.0, release_time=50.0, soft_clip=True
-        )
+        config = LimiterConfig(enabled=True, threshold=-1.0, release_time=50.0, soft_clip=True)
 
         # Create stage
         stage = LimiterStageEnhanced(config, sample_rate=16000)

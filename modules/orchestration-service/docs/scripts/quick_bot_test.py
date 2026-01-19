@@ -16,11 +16,12 @@ Or provide a custom meeting URL:
     python quick_bot_test.py --url https://meet.google.com/your-meeting-code
 """
 
-import asyncio
 import argparse
-import httpx
+import asyncio
 import sys
 import time
+
+import httpx
 
 # ANSI colors for better output
 GREEN = "\033[92m"
@@ -37,7 +38,7 @@ async def check_service(url: str) -> bool:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(f"{url}/api/health")
             return response.status_code == 200
-    except:
+    except Exception:
         return False
 
 
@@ -95,20 +96,14 @@ async def monitor_bot(base_url: str, connection_id: str, max_time: int = 60):
             timestamp = time.strftime("%H:%M:%S")
 
             if current_status == "spawning":
-                print(
-                    f"{timestamp} | {YELLOW}🔄 SPAWNING{RESET} - Bot container starting..."
-                )
+                print(f"{timestamp} | {YELLOW}🔄 SPAWNING{RESET} - Bot container starting...")
             elif current_status == "starting":
                 print(f"{timestamp} | {YELLOW}🚀 STARTING{RESET} - Bot initializing...")
             elif current_status == "joining":
-                print(
-                    f"{timestamp} | {YELLOW}🚪 JOINING{RESET} - Bot joining Google Meet..."
-                )
+                print(f"{timestamp} | {YELLOW}🚪 JOINING{RESET} - Bot joining Google Meet...")
             elif current_status == "active":
                 print(f"{timestamp} | {GREEN}✅ ACTIVE{RESET} - Bot is in the meeting!")
-                print(
-                    f"\n{GREEN}{BOLD}SUCCESS! Bot successfully joined Google Meet!{RESET}\n"
-                )
+                print(f"\n{GREEN}{BOLD}SUCCESS! Bot successfully joined Google Meet!{RESET}\n")
 
                 # Show additional info
                 print(f"{BLUE}Bot Details:{RESET}")

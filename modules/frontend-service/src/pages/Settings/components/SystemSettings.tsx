@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -24,23 +24,23 @@ import {
   Tooltip,
   Paper,
   Divider,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import RestoreIcon from '@mui/icons-material/Restore';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SecurityIcon from '@mui/icons-material/Security';
-import StorageIcon from '@mui/icons-material/Storage';
-import NetworkCheckIcon from '@mui/icons-material/NetworkCheck';
-import BugReportIcon from '@mui/icons-material/BugReport';
-import PaletteIcon from '@mui/icons-material/Palette';
+} from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import RestoreIcon from "@mui/icons-material/Restore";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import SecurityIcon from "@mui/icons-material/Security";
+import StorageIcon from "@mui/icons-material/Storage";
+import NetworkCheckIcon from "@mui/icons-material/NetworkCheck";
+import BugReportIcon from "@mui/icons-material/BugReport";
+import PaletteIcon from "@mui/icons-material/Palette";
 
 interface SystemConfig {
   // General System Settings
   general: {
     system_name: string;
-    environment: 'development' | 'staging' | 'production';
+    environment: "development" | "staging" | "production";
     debug_mode: boolean;
-    log_level: 'debug' | 'info' | 'warning' | 'error';
+    log_level: "debug" | "info" | "warning" | "error";
     timezone: string;
     language: string;
   };
@@ -94,7 +94,7 @@ interface SystemConfig {
 
   // User Interface
   ui: {
-    theme: 'light' | 'dark' | 'auto';
+    theme: "light" | "dark" | "auto";
     compact_mode: boolean;
     animations_enabled: boolean;
     auto_refresh_interval_seconds: number;
@@ -106,7 +106,7 @@ interface SystemConfig {
   api: {
     enable_swagger_docs: boolean;
     enable_api_versioning: boolean;
-    default_response_format: 'json' | 'xml';
+    default_response_format: "json" | "xml";
     enable_webhooks: boolean;
     webhook_timeout_ms: number;
     enable_batch_requests: boolean;
@@ -131,10 +131,10 @@ interface SystemHealth {
   uptime_seconds: number;
   last_backup: string;
   service_status: {
-    orchestration: 'healthy' | 'warning' | 'error';
-    whisper: 'healthy' | 'warning' | 'error';
-    translation: 'healthy' | 'warning' | 'error';
-    database: 'healthy' | 'warning' | 'error';
+    orchestration: "healthy" | "warning" | "error";
+    whisper: "healthy" | "warning" | "error";
+    translation: "healthy" | "warning" | "error";
+    database: "healthy" | "warning" | "error";
   };
 }
 
@@ -144,12 +144,12 @@ interface SystemSettingsProps {
 
 const defaultSystemConfig: SystemConfig = {
   general: {
-    system_name: 'LiveTranslate System',
-    environment: 'development',
+    system_name: "LiveTranslate System",
+    environment: "development",
     debug_mode: true,
-    log_level: 'info',
-    timezone: 'UTC',
-    language: 'en',
+    log_level: "info",
+    timezone: "UTC",
+    language: "en",
   },
   security: {
     enable_authentication: false,
@@ -157,7 +157,7 @@ const defaultSystemConfig: SystemConfig = {
     rate_limiting: true,
     rate_limit_requests_per_minute: 100,
     cors_enabled: true,
-    allowed_origins: ['http://localhost:5173', 'http://localhost:3000'],
+    allowed_origins: ["http://localhost:5173", "http://localhost:3000"],
     api_key_required: false,
   },
   performance: {
@@ -191,7 +191,7 @@ const defaultSystemConfig: SystemConfig = {
     },
   },
   ui: {
-    theme: 'auto',
+    theme: "auto",
     compact_mode: false,
     animations_enabled: true,
     auto_refresh_interval_seconds: 30,
@@ -201,13 +201,13 @@ const defaultSystemConfig: SystemConfig = {
   api: {
     enable_swagger_docs: true,
     enable_api_versioning: true,
-    default_response_format: 'json',
+    default_response_format: "json",
     enable_webhooks: false,
     webhook_timeout_ms: 5000,
     enable_batch_requests: true,
   },
   database: {
-    connection_string: 'postgresql://localhost:5432/livetranslate',
+    connection_string: "postgresql://localhost:5432/livetranslate",
     max_connections: 20,
     connection_timeout_ms: 10000,
     query_timeout_ms: 30000,
@@ -217,18 +217,27 @@ const defaultSystemConfig: SystemConfig = {
 };
 
 const timezones = [
-  'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-  'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Shanghai',
-  'Australia/Sydney', 'Pacific/Auckland'
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Australia/Sydney",
+  "Pacific/Auckland",
 ];
 
 const languages = [
-  { code: 'en', name: 'English' },
-  { code: 'es', name: 'Spanish' },
-  { code: 'fr', name: 'French' },
-  { code: 'de', name: 'German' },
-  { code: 'ja', name: 'Japanese' },
-  { code: 'zh', name: 'Chinese' },
+  { code: "en", name: "English" },
+  { code: "es", name: "Spanish" },
+  { code: "fr", name: "French" },
+  { code: "de", name: "German" },
+  { code: "ja", name: "Japanese" },
+  { code: "zh", name: "Chinese" },
 ];
 
 const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
@@ -239,12 +248,12 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
     disk_usage: 0,
     active_connections: 0,
     uptime_seconds: 0,
-    last_backup: '',
+    last_backup: "",
     service_status: {
-      orchestration: 'healthy',
-      whisper: 'healthy',
-      translation: 'healthy',
-      database: 'healthy',
+      orchestration: "healthy",
+      whisper: "healthy",
+      translation: "healthy",
+      database: "healthy",
     },
   });
 
@@ -252,28 +261,28 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
   useEffect(() => {
     const loadConfiguration = async () => {
       try {
-        const response = await fetch('/api/settings/system');
+        const response = await fetch("/api/settings/system");
         if (response.ok) {
           const currentConfig = await response.json();
           setConfig({ ...defaultSystemConfig, ...currentConfig });
         }
       } catch (error) {
-        console.error('Failed to load system configuration:', error);
+        console.error("Failed to load system configuration:", error);
       }
     };
 
     const loadSystemHealth = async () => {
       try {
-        const response = await fetch('/api/system/health');
+        const response = await fetch("/api/system/health");
         if (response.ok) {
           const health = await response.json();
           setSystemHealth(health);
         }
       } catch (error) {
-        console.error('Failed to load system health:', error);
+        console.error("Failed to load system health:", error);
       }
     };
-    
+
     loadConfiguration();
     loadSystemHealth();
 
@@ -283,8 +292,12 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
     return () => clearInterval(healthInterval);
   }, []);
 
-  const handleConfigChange = (section: keyof SystemConfig, key: string, value: any) => {
-    setConfig(prev => ({
+  const handleConfigChange = (
+    section: keyof SystemConfig,
+    key: string,
+    value: any,
+  ) => {
+    setConfig((prev) => ({
       ...prev,
       [section]: {
         ...prev[section],
@@ -295,66 +308,70 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
 
   const handleSave = async () => {
     try {
-      const response = await fetch('/api/settings/system', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/settings/system", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-      
+
       if (response.ok) {
-        onSave('System settings saved successfully');
+        onSave("System settings saved successfully");
       } else {
-        onSave('Failed to save system settings', false);
+        onSave("Failed to save system settings", false);
       }
     } catch (error) {
-      onSave('Error saving system settings', false);
+      onSave("Error saving system settings", false);
     }
   };
 
   const handleResetToDefaults = () => {
     setConfig(defaultSystemConfig);
-    onSave('System configuration reset to defaults');
+    onSave("System configuration reset to defaults");
   };
 
   const handleRestartServices = async () => {
     try {
-      const response = await fetch('/api/system/restart', {
-        method: 'POST',
+      const response = await fetch("/api/system/restart", {
+        method: "POST",
       });
-      
+
       if (response.ok) {
-        onSave('System restart initiated successfully');
+        onSave("System restart initiated successfully");
       } else {
-        onSave('Failed to restart system services', false);
+        onSave("Failed to restart system services", false);
       }
     } catch (error) {
-      onSave('Error restarting system services', false);
+      onSave("Error restarting system services", false);
     }
   };
 
   const handleTestConnections = async () => {
     try {
-      const response = await fetch('/api/system/test-connections', {
-        method: 'POST',
+      const response = await fetch("/api/system/test-connections", {
+        method: "POST",
       });
-      
+
       if (response.ok) {
         const results = await response.json();
         onSave(`Connection test completed: ${results.summary}`);
       } else {
-        onSave('Connection test failed', false);
+        onSave("Connection test failed", false);
       }
     } catch (error) {
-      onSave('Error testing connections', false);
+      onSave("Error testing connections", false);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'healthy': return 'success';
-      case 'warning': return 'warning';
-      case 'error': return 'error';
-      default: return 'default';
+      case "healthy":
+        return "success";
+      case "warning":
+        return "warning";
+      case "error":
+        return "error";
+      default:
+        return "default";
     }
   };
 
@@ -367,7 +384,12 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={3}
+      >
         <Typography variant="h5" component="h2">
           System Configuration
         </Typography>
@@ -392,14 +414,15 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
       </Box>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Configure system-wide settings including security, performance, monitoring, and user interface preferences.
-        Changes may require a system restart to take effect.
+        Configure system-wide settings including security, performance,
+        monitoring, and user interface preferences. Changes may require a system
+        restart to take effect.
       </Alert>
 
       {/* System Health Overview */}
       <Card sx={{ mb: 3 }}>
-        <CardHeader 
-          title="System Health Overview" 
+        <CardHeader
+          title="System Health Overview"
           action={
             <Button
               variant="outlined"
@@ -414,7 +437,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
         <CardContent>
           <Grid container spacing={2}>
             <Grid item xs={12} md={3}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {systemHealth.cpu_usage.toFixed(1)}%
                 </Typography>
@@ -424,7 +447,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
               </Paper>
             </Grid>
             <Grid item xs={12} md={3}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {systemHealth.memory_usage.toFixed(1)}%
                 </Typography>
@@ -434,7 +457,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
               </Paper>
             </Grid>
             <Grid item xs={12} md={3}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {systemHealth.disk_usage.toFixed(1)}%
                 </Typography>
@@ -444,7 +467,7 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
               </Paper>
             </Grid>
             <Grid item xs={12} md={3}>
-              <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Paper sx={{ p: 2, textAlign: "center" }}>
                 <Typography variant="h6" color="primary">
                   {formatUptime(systemHealth.uptime_seconds)}
                 </Typography>
@@ -454,22 +477,26 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
               </Paper>
             </Grid>
           </Grid>
-          
+
           <Divider sx={{ my: 2 }} />
-          
-          <Typography variant="h6" gutterBottom>Service Status</Typography>
+
+          <Typography variant="h6" gutterBottom>
+            Service Status
+          </Typography>
           <Grid container spacing={1}>
-            {Object.entries(systemHealth.service_status).map(([service, status]) => (
-              <Grid item xs={6} md={3} key={service}>
-                <Chip
-                  label={`${service}: ${status}`}
-                  color={getStatusColor(status) as any}
-                  variant={status === 'healthy' ? 'filled' : 'outlined'}
-                  size="small"
-                  sx={{ width: '100%' }}
-                />
-              </Grid>
-            ))}
+            {Object.entries(systemHealth.service_status).map(
+              ([service, status]) => (
+                <Grid item xs={6} md={3} key={service}>
+                  <Chip
+                    label={`${service}: ${status}`}
+                    color={getStatusColor(status) as any}
+                    variant={status === "healthy" ? "filled" : "outlined"}
+                    size="small"
+                    sx={{ width: "100%" }}
+                  />
+                </Grid>
+              ),
+            )}
           </Grid>
         </CardContent>
       </Card>
@@ -478,9 +505,11 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
       <Accordion defaultExpanded>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <Typography variant="h6">General System Settings</Typography>
-          <Chip 
-            label={config.general.environment} 
-            color={config.general.environment === 'production' ? 'error' : 'default'}
+          <Chip
+            label={config.general.environment}
+            color={
+              config.general.environment === "production" ? "error" : "default"
+            }
             size="small"
             sx={{ ml: 2 }}
           />
@@ -492,7 +521,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 fullWidth
                 label="System Name"
                 value={config.general.system_name}
-                onChange={(e) => handleConfigChange('general', 'system_name', e.target.value)}
+                onChange={(e) =>
+                  handleConfigChange("general", "system_name", e.target.value)
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -501,7 +532,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.general.environment}
                   label="Environment"
-                  onChange={(e) => handleConfigChange('general', 'environment', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("general", "environment", e.target.value)
+                  }
                 >
                   <MenuItem value="development">Development</MenuItem>
                   <MenuItem value="staging">Staging</MenuItem>
@@ -515,7 +548,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.general.log_level}
                   label="Log Level"
-                  onChange={(e) => handleConfigChange('general', 'log_level', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("general", "log_level", e.target.value)
+                  }
                 >
                   <MenuItem value="debug">Debug</MenuItem>
                   <MenuItem value="info">Info</MenuItem>
@@ -530,10 +565,14 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.general.timezone}
                   label="Timezone"
-                  onChange={(e) => handleConfigChange('general', 'timezone', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("general", "timezone", e.target.value)
+                  }
                 >
                   {timezones.map((tz) => (
-                    <MenuItem key={tz} value={tz}>{tz}</MenuItem>
+                    <MenuItem key={tz} value={tz}>
+                      {tz}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -544,10 +583,14 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.general.language}
                   label="Language"
-                  onChange={(e) => handleConfigChange('general', 'language', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("general", "language", e.target.value)
+                  }
                 >
                   {languages.map((lang) => (
-                    <MenuItem key={lang.code} value={lang.code}>{lang.name}</MenuItem>
+                    <MenuItem key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -557,7 +600,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.general.debug_mode}
-                    onChange={(e) => handleConfigChange('general', 'debug_mode', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "general",
+                        "debug_mode",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Debug Mode"
@@ -572,9 +621,15 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <SecurityIcon sx={{ mr: 1 }} />
           <Typography variant="h6">Security Settings</Typography>
-          <Chip 
-            label={config.security.enable_authentication ? 'Auth Enabled' : 'Auth Disabled'} 
-            color={config.security.enable_authentication ? 'success' : 'warning'}
+          <Chip
+            label={
+              config.security.enable_authentication
+                ? "Auth Enabled"
+                : "Auth Disabled"
+            }
+            color={
+              config.security.enable_authentication ? "success" : "warning"
+            }
             size="small"
             sx={{ ml: 2 }}
           />
@@ -586,7 +641,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.security.enable_authentication}
-                    onChange={(e) => handleConfigChange('security', 'enable_authentication', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "security",
+                        "enable_authentication",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Authentication"
@@ -598,7 +659,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Session Timeout (minutes)"
                 type="number"
                 value={config.security.session_timeout_minutes}
-                onChange={(e) => handleConfigChange('security', 'session_timeout_minutes', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "security",
+                    "session_timeout_minutes",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.security.enable_authentication}
               />
             </Grid>
@@ -607,7 +674,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.security.rate_limiting}
-                    onChange={(e) => handleConfigChange('security', 'rate_limiting', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "security",
+                        "rate_limiting",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Rate Limiting"
@@ -619,7 +692,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Rate Limit (requests/minute)"
                 type="number"
                 value={config.security.rate_limit_requests_per_minute}
-                onChange={(e) => handleConfigChange('security', 'rate_limit_requests_per_minute', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "security",
+                    "rate_limit_requests_per_minute",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.security.rate_limiting}
               />
             </Grid>
@@ -628,7 +707,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.security.cors_enabled}
-                    onChange={(e) => handleConfigChange('security', 'cors_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "security",
+                        "cors_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="CORS Enabled"
@@ -638,8 +723,14 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
               <TextField
                 fullWidth
                 label="Allowed Origins (comma-separated)"
-                value={config.security.allowed_origins.join(', ')}
-                onChange={(e) => handleConfigChange('security', 'allowed_origins', e.target.value.split(', ').filter(Boolean))}
+                value={config.security.allowed_origins.join(", ")}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "security",
+                    "allowed_origins",
+                    e.target.value.split(", ").filter(Boolean),
+                  )
+                }
                 disabled={!config.security.cors_enabled}
                 helperText="List of allowed CORS origins"
               />
@@ -657,18 +748,27 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
         <AccordionDetails>
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Max Concurrent Sessions: {config.performance.max_concurrent_sessions}</Typography>
+              <Typography gutterBottom>
+                Max Concurrent Sessions:{" "}
+                {config.performance.max_concurrent_sessions}
+              </Typography>
               <Slider
                 value={config.performance.max_concurrent_sessions}
-                onChange={(_, value) => handleConfigChange('performance', 'max_concurrent_sessions', value)}
+                onChange={(_, value) =>
+                  handleConfigChange(
+                    "performance",
+                    "max_concurrent_sessions",
+                    value,
+                  )
+                }
                 min={10}
                 max={1000}
                 step={10}
                 marks={[
-                  { value: 50, label: '50' },
-                  { value: 100, label: '100' },
-                  { value: 500, label: '500' },
-                  { value: 1000, label: '1000' },
+                  { value: 50, label: "50" },
+                  { value: 100, label: "100" },
+                  { value: 500, label: "500" },
+                  { value: 1000, label: "1000" },
                 ]}
               />
             </Grid>
@@ -678,7 +778,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Request Timeout (ms)"
                 type="number"
                 value={config.performance.request_timeout_ms}
-                onChange={(e) => handleConfigChange('performance', 'request_timeout_ms', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "performance",
+                    "request_timeout_ms",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -687,7 +793,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Connection Pool Size"
                 type="number"
                 value={config.performance.connection_pool_size}
-                onChange={(e) => handleConfigChange('performance', 'connection_pool_size', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "performance",
+                    "connection_pool_size",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -696,7 +808,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Cache TTL (minutes)"
                 type="number"
                 value={config.performance.cache_ttl_minutes}
-                onChange={(e) => handleConfigChange('performance', 'cache_ttl_minutes', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "performance",
+                    "cache_ttl_minutes",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.performance.cache_enabled}
               />
             </Grid>
@@ -705,7 +823,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.performance.cache_enabled}
-                    onChange={(e) => handleConfigChange('performance', 'cache_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "performance",
+                        "cache_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Caching"
@@ -716,7 +840,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.performance.compression_enabled}
-                    onChange={(e) => handleConfigChange('performance', 'compression_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "performance",
+                        "compression_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Compression"
@@ -740,7 +870,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Data Retention (days)"
                 type="number"
                 value={config.storage.data_retention_days}
-                onChange={(e) => handleConfigChange('storage', 'data_retention_days', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "storage",
+                    "data_retention_days",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -749,7 +885,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Max Storage (GB)"
                 type="number"
                 value={config.storage.max_storage_gb}
-                onChange={(e) => handleConfigChange('storage', 'max_storage_gb', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "storage",
+                    "max_storage_gb",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={6}>
@@ -758,7 +900,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Backup Interval (hours)"
                 type="number"
                 value={config.storage.backup_interval_hours}
-                onChange={(e) => handleConfigChange('storage', 'backup_interval_hours', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "storage",
+                    "backup_interval_hours",
+                    Number(e.target.value),
+                  )
+                }
                 disabled={!config.storage.backup_enabled}
               />
             </Grid>
@@ -767,7 +915,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.storage.auto_cleanup}
-                    onChange={(e) => handleConfigChange('storage', 'auto_cleanup', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "storage",
+                        "auto_cleanup",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Auto Cleanup"
@@ -778,7 +932,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.storage.backup_enabled}
-                    onChange={(e) => handleConfigChange('storage', 'backup_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "storage",
+                        "backup_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Enable Backups"
@@ -789,7 +949,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.storage.storage_monitoring}
-                    onChange={(e) => handleConfigChange('storage', 'storage_monitoring', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "storage",
+                        "storage_monitoring",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Storage Monitoring"
@@ -804,8 +970,8 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
           <PaletteIcon sx={{ mr: 1 }} />
           <Typography variant="h6">User Interface</Typography>
-          <Chip 
-            label={config.ui.theme} 
+          <Chip
+            label={config.ui.theme}
             color="primary"
             size="small"
             sx={{ ml: 2 }}
@@ -819,7 +985,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 <Select
                   value={config.ui.theme}
                   label="Theme"
-                  onChange={(e) => handleConfigChange('ui', 'theme', e.target.value)}
+                  onChange={(e) =>
+                    handleConfigChange("ui", "theme", e.target.value)
+                  }
                 >
                   <MenuItem value="light">Light</MenuItem>
                   <MenuItem value="dark">Dark</MenuItem>
@@ -833,7 +1001,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 label="Auto Refresh Interval (seconds)"
                 type="number"
                 value={config.ui.auto_refresh_interval_seconds}
-                onChange={(e) => handleConfigChange('ui', 'auto_refresh_interval_seconds', Number(e.target.value))}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "ui",
+                    "auto_refresh_interval_seconds",
+                    Number(e.target.value),
+                  )
+                }
               />
             </Grid>
             <Grid item xs={12} md={4}>
@@ -841,7 +1015,9 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.ui.compact_mode}
-                    onChange={(e) => handleConfigChange('ui', 'compact_mode', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange("ui", "compact_mode", e.target.checked)
+                    }
                   />
                 }
                 label="Compact Mode"
@@ -852,7 +1028,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.ui.animations_enabled}
-                    onChange={(e) => handleConfigChange('ui', 'animations_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "ui",
+                        "animations_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Animations"
@@ -863,7 +1045,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.ui.show_advanced_features}
-                    onChange={(e) => handleConfigChange('ui', 'show_advanced_features', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "ui",
+                        "show_advanced_features",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Advanced Features"
@@ -874,7 +1062,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.ui.notification_sounds}
-                    onChange={(e) => handleConfigChange('ui', 'notification_sounds', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "ui",
+                        "notification_sounds",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Notification Sounds"
@@ -897,7 +1091,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.monitoring.health_checks}
-                    onChange={(e) => handleConfigChange('monitoring', 'health_checks', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "monitoring",
+                        "health_checks",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Health Checks"
@@ -908,7 +1108,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.monitoring.metrics_collection}
-                    onChange={(e) => handleConfigChange('monitoring', 'metrics_collection', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "monitoring",
+                        "metrics_collection",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Metrics Collection"
@@ -919,36 +1125,54 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.monitoring.error_tracking}
-                    onChange={(e) => handleConfigChange('monitoring', 'error_tracking', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "monitoring",
+                        "error_tracking",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Error Tracking"
               />
             </Grid>
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>Alert Thresholds</Typography>
+              <Typography variant="h6" gutterBottom>
+                Alert Thresholds
+              </Typography>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>CPU Usage Alert: {config.monitoring.alert_thresholds.cpu_usage_percent}%</Typography>
+              <Typography gutterBottom>
+                CPU Usage Alert:{" "}
+                {config.monitoring.alert_thresholds.cpu_usage_percent}%
+              </Typography>
               <Slider
                 value={config.monitoring.alert_thresholds.cpu_usage_percent}
-                onChange={(_, value) => handleConfigChange('monitoring', 'alert_thresholds', {
-                  ...config.monitoring.alert_thresholds,
-                  cpu_usage_percent: value
-                })}
+                onChange={(_, value) =>
+                  handleConfigChange("monitoring", "alert_thresholds", {
+                    ...config.monitoring.alert_thresholds,
+                    cpu_usage_percent: value,
+                  })
+                }
                 min={50}
                 max={100}
                 step={5}
               />
             </Grid>
             <Grid item xs={12} md={6}>
-              <Typography gutterBottom>Memory Usage Alert: {config.monitoring.alert_thresholds.memory_usage_percent}%</Typography>
+              <Typography gutterBottom>
+                Memory Usage Alert:{" "}
+                {config.monitoring.alert_thresholds.memory_usage_percent}%
+              </Typography>
               <Slider
                 value={config.monitoring.alert_thresholds.memory_usage_percent}
-                onChange={(_, value) => handleConfigChange('monitoring', 'alert_thresholds', {
-                  ...config.monitoring.alert_thresholds,
-                  memory_usage_percent: value
-                })}
+                onChange={(_, value) =>
+                  handleConfigChange("monitoring", "alert_thresholds", {
+                    ...config.monitoring.alert_thresholds,
+                    memory_usage_percent: value,
+                  })
+                }
                 min={50}
                 max={100}
                 step={5}
@@ -959,7 +1183,13 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
                 control={
                   <Switch
                     checked={config.monitoring.alert_email_enabled}
-                    onChange={(e) => handleConfigChange('monitoring', 'alert_email_enabled', e.target.checked)}
+                    onChange={(e) =>
+                      handleConfigChange(
+                        "monitoring",
+                        "alert_email_enabled",
+                        e.target.checked,
+                      )
+                    }
                   />
                 }
                 label="Email Alerts"
@@ -969,8 +1199,14 @@ const SystemSettings: React.FC<SystemSettingsProps> = ({ onSave }) => {
               <TextField
                 fullWidth
                 label="Alert Email Addresses (comma-separated)"
-                value={config.monitoring.alert_email_addresses.join(', ')}
-                onChange={(e) => handleConfigChange('monitoring', 'alert_email_addresses', e.target.value.split(', ').filter(Boolean))}
+                value={config.monitoring.alert_email_addresses.join(", ")}
+                onChange={(e) =>
+                  handleConfigChange(
+                    "monitoring",
+                    "alert_email_addresses",
+                    e.target.value.split(", ").filter(Boolean),
+                  )
+                }
                 disabled={!config.monitoring.alert_email_enabled}
               />
             </Grid>

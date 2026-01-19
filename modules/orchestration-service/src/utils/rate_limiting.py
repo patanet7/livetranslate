@@ -4,9 +4,8 @@ Rate Limiting Utilities
 Implements rate limiting for API endpoints and WebSocket connections.
 """
 
-import time
 import asyncio
-from typing import Dict, Optional
+import time
 from collections import defaultdict, deque
 
 
@@ -19,9 +18,7 @@ class RateLimiter:
         self.requests = defaultdict(lambda: defaultdict(deque))
         self.lock = asyncio.Lock()
 
-    async def is_allowed(
-        self, client_id: str, endpoint: str, limit: int, window: int
-    ) -> bool:
+    async def is_allowed(self, client_id: str, endpoint: str, limit: int, window: int) -> bool:
         """
         Check if request is allowed for client
 
@@ -50,9 +47,7 @@ class RateLimiter:
             client_requests.append(current_time)
             return True
 
-    async def get_remaining(
-        self, client_id: str, endpoint: str, limit: int, window: int
-    ) -> int:
+    async def get_remaining(self, client_id: str, endpoint: str, limit: int, window: int) -> int:
         """
         Get remaining requests for client
 
@@ -69,7 +64,7 @@ class RateLimiter:
 
             return max(0, limit - len(client_requests))
 
-    async def reset_client(self, client_id: str, endpoint: Optional[str] = None):
+    async def reset_client(self, client_id: str, endpoint: str | None = None):
         """
         Reset rate limit for client
 
@@ -120,7 +115,7 @@ class RateLimiter:
             for client_id in clients_to_remove:
                 del self.requests[client_id]
 
-    async def get_stats(self) -> Dict[str, int]:
+    async def get_stats(self) -> dict[str, int]:
         """
         Get rate limiter statistics
 
@@ -129,9 +124,7 @@ class RateLimiter:
         """
         async with self.lock:
             total_clients = len(self.requests)
-            total_endpoints = sum(
-                len(endpoints) for endpoints in self.requests.values()
-            )
+            total_endpoints = sum(len(endpoints) for endpoints in self.requests.values())
             total_requests = sum(
                 len(requests)
                 for endpoints in self.requests.values()

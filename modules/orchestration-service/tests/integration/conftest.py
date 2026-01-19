@@ -2,10 +2,11 @@
 Pytest configuration for integration tests
 """
 
-import pytest
 import asyncio
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -42,6 +43,7 @@ def reset_singletons():
     # Reset before test
     try:
         from src.dependencies import reset_dependencies
+
         reset_dependencies()
     except ImportError:
         pass  # Not all tests may have src in path
@@ -51,6 +53,7 @@ def reset_singletons():
     # Reset after test (cleanup)
     try:
         from src.dependencies import reset_dependencies
+
         reset_dependencies()
     except ImportError:
         pass
@@ -59,8 +62,9 @@ def reset_singletons():
 @pytest.fixture(scope="session", autouse=True)
 def verify_backend_running():
     """Verify backend is running before tests"""
-    import httpx
     import time
+
+    import httpx
 
     backend_url = "http://localhost:3000/api/health"
     max_retries = 5
@@ -72,11 +76,9 @@ def verify_backend_running():
             if response.status_code == 200:
                 print("\n✅ Backend is running at http://localhost:3000")
                 return
-        except:
+        except Exception:
             if attempt < max_retries - 1:
-                print(
-                    f"⏳ Waiting for backend... (attempt {attempt + 1}/{max_retries})"
-                )
+                print(f"⏳ Waiting for backend... (attempt {attempt + 1}/{max_retries})")
                 time.sleep(retry_delay)
             else:
                 pytest.exit(

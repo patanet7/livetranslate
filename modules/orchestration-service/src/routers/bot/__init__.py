@@ -18,11 +18,11 @@ from fastapi import APIRouter
 from . import (
     bot_analytics,
     bot_configuration,
+    bot_docker_callbacks,
+    bot_docker_management,
     bot_lifecycle,
     bot_system,
     bot_webcam,
-    bot_docker_management,
-    bot_docker_callbacks,
 )
 
 router = APIRouter(
@@ -90,14 +90,14 @@ docker_management_router = bot_docker_management.router
 docker_callbacks_router = bot_docker_callbacks.router
 
 __all__ = [
-    "router",
-    "docker_management_router",
-    "docker_callbacks_router",
     "bot_analytics",
     "bot_configuration",
+    "bot_docker_callbacks",
+    "bot_docker_management",
     "bot_lifecycle",
     "bot_system",
     "bot_webcam",
-    "bot_docker_management",
-    "bot_docker_callbacks",
+    "docker_callbacks_router",
+    "docker_management_router",
+    "router",
 ]

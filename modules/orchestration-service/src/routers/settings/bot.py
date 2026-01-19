@@ -5,16 +5,15 @@ Handles bot management configuration, templates, and test spawn functionality.
 """
 
 from ._shared import (
-    logger,
-    BotConfig,
     BOT_CONFIG_FILE,
-    load_config,
-    save_config,
+    Any,
     APIRouter,
+    BotConfig,
     HTTPException,
     asyncio,
-    Dict,
-    Any,
+    load_config,
+    logger,
+    save_config,
 )
 
 router = APIRouter(tags=["settings-bot"])
@@ -25,7 +24,7 @@ router = APIRouter(tags=["settings-bot"])
 # ============================================================================
 
 
-@router.get("/bot", response_model=Dict[str, Any])
+@router.get("/bot", response_model=dict[str, Any])
 async def get_bot_settings():
     """Get current bot management configuration"""
     try:
@@ -34,7 +33,7 @@ async def get_bot_settings():
         return config
     except Exception as e:
         logger.error(f"Error getting bot settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load bot settings")
+        raise HTTPException(status_code=500, detail="Failed to load bot settings") from e
 
 
 @router.post("/bot")
@@ -49,7 +48,7 @@ async def save_bot_settings(config: BotConfig):
             raise HTTPException(status_code=500, detail="Failed to save bot settings")
     except Exception as e:
         logger.error(f"Error saving bot settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save bot settings")
+        raise HTTPException(status_code=500, detail="Failed to save bot settings") from e
 
 
 @router.get("/bot/stats")
@@ -65,7 +64,7 @@ async def get_bot_stats():
         }
     except Exception as e:
         logger.error(f"Error getting bot stats: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load bot statistics")
+        raise HTTPException(status_code=500, detail="Failed to load bot statistics") from e
 
 
 @router.get("/bot/templates")
@@ -93,30 +92,28 @@ async def get_bot_templates():
         ]
     except Exception as e:
         logger.error(f"Error getting bot templates: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load bot templates")
+        raise HTTPException(status_code=500, detail="Failed to load bot templates") from e
 
 
 @router.post("/bot/templates")
-async def save_bot_template(template: Dict[str, Any]):
+async def save_bot_template(template: dict[str, Any]):
     """Save bot configuration template"""
     try:
         required_fields = ["name", "description", "config"]
         for field in required_fields:
             if field not in template:
-                raise HTTPException(
-                    status_code=400, detail=f"Missing required field: {field}"
-                )
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
 
         return {"message": "Bot template saved successfully", "template": template}
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error saving bot template: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save bot template")
+        raise HTTPException(status_code=500, detail="Failed to save bot template") from e
 
 
 @router.post("/bot/test-spawn")
-async def test_bot_spawn(test_request: Dict[str, Any]):
+async def test_bot_spawn(test_request: dict[str, Any]):
     """Test bot spawning configuration"""
     try:
         await asyncio.sleep(2)  # Simulate bot spawn test
@@ -130,4 +127,4 @@ async def test_bot_spawn(test_request: Dict[str, Any]):
         }
     except Exception as e:
         logger.error(f"Error testing bot spawn: {e}")
-        raise HTTPException(status_code=500, detail="Bot spawn test failed")
+        raise HTTPException(status_code=500, detail="Bot spawn test failed") from e

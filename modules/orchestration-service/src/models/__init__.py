@@ -4,93 +4,93 @@ Pydantic models for request/response validation
 Modern data validation with automatic OpenAPI schema generation
 """
 
-from .base import BaseModel, TimestampMixin
-from .system import SystemStatus, ServiceHealth, ErrorResponse
-from .config import ConfigUpdate, ConfigResponse
 from .audio import (
+    AudioConfiguration,
     AudioProcessingRequest,
     AudioProcessingResponse,
-    AudioConfiguration,
     AudioStats,
 )
-from .bot import BotSpawnRequest, BotResponse, BotStatus, BotStats, BotConfiguration
-from .websocket import WebSocketMessage, WebSocketResponse, ConnectionStats
+from .base import BaseModel, TimestampMixin
+from .bot import BotConfiguration, BotResponse, BotSpawnRequest, BotStats, BotStatus
+from .config import ConfigResponse, ConfigUpdate
 from .fireflies import (
     # Constants
     FIREFLIES_SOURCE_TYPE,
     TRANSCRIPT_SOURCE_TYPES,
-    # Enums
-    FirefliesEventType,
-    FirefliesConnectionStatus,
-    MeetingState,
-    # API Models
-    FirefliesChunk,
-    FirefliesEvent,
-    FirefliesMeeting,
-    # Session Models
-    FirefliesSessionConfig,
-    FirefliesSession,
-    # Sentence Aggregation
-    SpeakerBuffer,
-    TranslationUnit,
-    # Translation
-    TranslationContext,
-    TranslationResult,
+    ActiveMeetingsResponse,
+    CaptionBroadcast,
     # Caption Output
     CaptionEntry,
-    CaptionBroadcast,
+    # API Models
+    FirefliesChunk,
+    FirefliesConnectionStatus,
     # API Request/Response
     FirefliesConnectRequest,
     FirefliesConnectResponse,
+    FirefliesEvent,
+    # Enums
+    FirefliesEventType,
+    FirefliesMeeting,
+    FirefliesSession,
+    # Session Models
+    FirefliesSessionConfig,
     FirefliesStatusResponse,
-    ActiveMeetingsResponse,
+    MeetingState,
+    # Sentence Aggregation
+    SpeakerBuffer,
+    # Translation
+    TranslationContext,
+    TranslationResult,
+    TranslationUnit,
 )
+from .system import ErrorResponse, ServiceHealth, SystemStatus
+from .websocket import ConnectionStats, WebSocketMessage, WebSocketResponse
 
 __all__ = [
-    # Base models
-    "BaseModel",
-    "TimestampMixin",
-    # System models
-    "SystemStatus",
-    "ServiceHealth",
-    "ErrorResponse",
-    # Configuration models
-    "ConfigUpdate",
-    "ConfigResponse",
-    # Audio models
-    "AudioProcessingRequest",
-    "AudioProcessingResponse",
-    "AudioConfiguration",
-    "AudioStats",
-    # Bot models
-    "BotSpawnRequest",
-    "BotResponse",
-    "BotStatus",
-    "BotStats",
-    "BotConfiguration",
-    # WebSocket models
-    "WebSocketMessage",
-    "WebSocketResponse",
-    "ConnectionStats",
     # Fireflies models
     "FIREFLIES_SOURCE_TYPE",
     "TRANSCRIPT_SOURCE_TYPES",
-    "FirefliesEventType",
-    "FirefliesConnectionStatus",
-    "MeetingState",
-    "FirefliesChunk",
-    "FirefliesEvent",
-    "FirefliesMeeting",
-    "FirefliesSessionConfig",
-    "FirefliesSession",
-    "SpeakerBuffer",
-    "TranslationUnit",
-    "TranslationContext",
-    "TranslationResult",
-    "CaptionEntry",
+    "ActiveMeetingsResponse",
+    "AudioConfiguration",
+    # Audio models
+    "AudioProcessingRequest",
+    "AudioProcessingResponse",
+    "AudioStats",
+    # Base models
+    "BaseModel",
+    "BotConfiguration",
+    "BotResponse",
+    # Bot models
+    "BotSpawnRequest",
+    "BotStats",
+    "BotStatus",
     "CaptionBroadcast",
+    "CaptionEntry",
+    "ConfigResponse",
+    # Configuration models
+    "ConfigUpdate",
+    "ConnectionStats",
+    "ErrorResponse",
+    "FirefliesChunk",
     "FirefliesConnectRequest",
     "FirefliesConnectResponse",
+    "FirefliesConnectionStatus",
+    "FirefliesEvent",
+    "FirefliesEventType",
+    "FirefliesMeeting",
+    "FirefliesSession",
+    "FirefliesSessionConfig",
     "FirefliesStatusResponse",
-    "ActiveMeetingsResponse",
+    "MeetingState",
+    "ServiceHealth",
+    "SpeakerBuffer",
+    # System models
+    "SystemStatus",
+    "TimestampMixin",
+    "TranslationContext",
+    "TranslationResult",
+    "TranslationUnit",
+    # WebSocket models
+    "WebSocketMessage",
+    "WebSocketResponse",
 ]

@@ -16,7 +16,7 @@ models_dir = os.path.join(os.path.dirname(__file__), "models")
 os.environ["WHISPER_MODELS_DIR"] = models_dir
 
 # Import and run main
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from main import main
 
 if __name__ == "__main__":

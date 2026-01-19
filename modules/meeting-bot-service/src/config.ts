@@ -35,7 +35,7 @@ const constructRedisUri = () => {
   const port = process.env.REDIS_PORT || 6379;
   const username = process.env.REDIS_USERNAME;
   const password = process.env.REDIS_PASSWORD;
-  
+
   if (username && password) {
     return `redis://${username}:${password}@${host}:${port}`;
   } else if (password) {

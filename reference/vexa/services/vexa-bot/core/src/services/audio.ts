@@ -37,9 +37,9 @@ export class AudioService {
     for (let i = 0; i < retries; i++) {
       const mediaElements = Array.from(
         document.querySelectorAll("audio, video")
-      ).filter((el: any) => 
-        !el.paused && 
-        el.srcObject instanceof MediaStream && 
+      ).filter((el: any) =>
+        !el.paused &&
+        el.srcObject instanceof MediaStream &&
         el.srcObject.getAudioTracks().length > 0
       ) as HTMLMediaElement[];
 
@@ -148,7 +148,7 @@ export class AudioService {
 
       const inputData = event.inputBuffer.getChannelData(0);
       const resampledData = this.resampleAudioData(inputData, this.processor!.audioContext.sampleRate);
-      
+
       onAudioData(resampledData, this.processor!.sessionAudioStartTimeMs);
     };
   }
@@ -162,10 +162,10 @@ export class AudioService {
     );
     const resampledData = new Float32Array(targetLength);
     const springFactor = (inputData.length - 1) / (targetLength - 1);
-    
+
     resampledData[0] = inputData[0];
     resampledData[targetLength - 1] = inputData[inputData.length - 1];
-    
+
     for (let i = 1; i < targetLength - 1; i++) {
       const index = i * springFactor;
       const leftIndex = Math.floor(index);
@@ -175,7 +175,7 @@ export class AudioService {
         inputData[leftIndex] +
         (inputData[rightIndex] - inputData[leftIndex]) * fraction;
     }
-    
+
     return resampledData;
   }
 

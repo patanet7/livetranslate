@@ -19,13 +19,14 @@ Usage:
     translate_span.end()
 """
 
-import uuid
-import time
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+import time
+import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,17 @@ class TraceSpan:
     trace_id: str
     span_id: str
     operation_name: str
-    parent_span_id: Optional[str] = None
-    session_id: Optional[str] = None
-    transcript_id: Optional[str] = None
+    parent_span_id: str | None = None
+    session_id: str | None = None
+    transcript_id: str | None = None
     start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    end_time: float | None = None
+    attributes: dict[str, Any] = field(default_factory=dict)
     status: str = "in_progress"  # in_progress, success, error
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     @property
-    def duration_ms(self) -> Optional[float]:
+    def duration_ms(self) -> float | None:
         """Get span duration in milliseconds."""
         if self.end_time is None:
             return None
@@ -61,7 +62,7 @@ class TraceSpan:
         """Set a span attribute."""
         self.attributes[key] = value
 
-    def set_status(self, status: str, error_message: Optional[str] = None) -> None:
+    def set_status(self, status: str, error_message: str | None = None) -> None:
         """Set span status."""
         self.status = status
         if error_message:
@@ -76,7 +77,7 @@ class TraceSpan:
             f"duration={self.duration_ms:.2f}ms, status={self.status}"
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert span to dictionary for logging/storage."""
         return {
             "trace_id": self.trace_id,
@@ -85,8 +86,10 @@ class TraceSpan:
             "parent_span_id": self.parent_span_id,
             "session_id": self.session_id,
             "transcript_id": self.transcript_id,
-            "start_time": datetime.fromtimestamp(self.start_time, tz=timezone.utc).isoformat(),
-            "end_time": datetime.fromtimestamp(self.end_time, tz=timezone.utc).isoformat() if self.end_time else None,
+            "start_time": datetime.fromtimestamp(self.start_time, tz=UTC).isoformat(),
+            "end_time": datetime.fromtimestamp(self.end_time, tz=UTC).isoformat()
+            if self.end_time
+            else None,
             "duration_ms": self.duration_ms,
             "attributes": self.attributes,
             "status": self.status,
@@ -104,18 +107,15 @@ class TraceContext:
 
     trace_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     root_span_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
-    session_id: Optional[str] = None
-    transcript_id: Optional[str] = None
-    current_span: Optional[TraceSpan] = None
-    spans: List[TraceSpan] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    session_id: str | None = None
+    transcript_id: str | None = None
+    current_span: TraceSpan | None = None
+    spans: list[TraceSpan] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def create(
-        cls,
-        session_id: Optional[str] = None,
-        transcript_id: Optional[str] = None,
-        **metadata
+        cls, session_id: str | None = None, transcript_id: str | None = None, **metadata: Any
     ) -> "TraceContext":
         """Create a new trace context."""
         ctx = cls(
@@ -133,8 +133,8 @@ class TraceContext:
     def from_parent(
         cls,
         parent: "TraceContext",
-        session_id: Optional[str] = None,
-        transcript_id: Optional[str] = None,
+        session_id: str | None = None,
+        transcript_id: str | None = None,
     ) -> "TraceContext":
         """Create a child trace context inheriting parent trace_id."""
         return cls(
@@ -170,7 +170,7 @@ class TraceContext:
         return span
 
     @contextmanager
-    def span(self, operation: str):
+    def span(self, operation: str) -> Generator["TraceSpan", None, None]:
         """
         Context manager for creating and automatically ending a span.
 
@@ -196,7 +196,7 @@ class TraceContext:
         """Set trace-level metadata."""
         self.metadata[key] = value
 
-    def get_log_context(self) -> Dict[str, Any]:
+    def get_log_context(self) -> dict[str, Any]:
         """
         Get context for structured logging.
 
@@ -228,7 +228,7 @@ class TraceContext:
             logger.warning(f"Failed to parse trace header: {e}")
         return None
 
-    def get_timing_summary(self) -> Dict[str, Any]:
+    def get_timing_summary(self) -> dict[str, Any]:
         """
         Get a summary of all span timings.
 

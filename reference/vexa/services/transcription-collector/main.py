@@ -57,7 +57,7 @@ speaker_stream_consumer_task = None
 @app.on_event("startup")
 async def startup():
     global redis_client, redis_to_pg_task, stream_consumer_task, speaker_stream_consumer_task, transcription_filter
-    
+
     logger.info(f"Connecting to Redis at {REDIS_HOST}:{REDIS_PORT}")
     temp_redis_client = aioredis.Redis(
         host=REDIS_HOST,
@@ -69,12 +69,12 @@ async def startup():
     redis_client = temp_redis_client
     app.state.redis_client = redis_client
     logger.info("Redis connection successful.")
-    
+
     try:
         logger.info(f"Ensuring Redis Stream group '{REDIS_CONSUMER_GROUP}' exists for stream '{REDIS_STREAM_NAME}'...")
         await redis_client.xgroup_create(
-            name=REDIS_STREAM_NAME, 
-            groupname=REDIS_CONSUMER_GROUP, 
+            name=REDIS_STREAM_NAME,
+            groupname=REDIS_CONSUMER_GROUP,
             id='0',
             mkstream=True
         )
@@ -85,13 +85,13 @@ async def startup():
         else:
             logger.error(f"Failed to create Redis consumer group: {e}", exc_info=True)
             return
-    
+
     # Ensure speaker events stream and consumer group exist
     try:
         logger.info(f"Ensuring Redis Stream group '{REDIS_SPEAKER_EVENTS_CONSUMER_GROUP}' exists for stream '{REDIS_SPEAKER_EVENTS_STREAM_NAME}'...")
         await redis_client.xgroup_create(
-            name=REDIS_SPEAKER_EVENTS_STREAM_NAME, 
-            groupname=REDIS_SPEAKER_EVENTS_CONSUMER_GROUP, 
+            name=REDIS_SPEAKER_EVENTS_STREAM_NAME,
+            groupname=REDIS_SPEAKER_EVENTS_CONSUMER_GROUP,
             id='0',
             mkstream=True
         )
@@ -102,14 +102,14 @@ async def startup():
         else:
             logger.error(f"Failed to create Redis consumer group for speaker events: {e}", exc_info=True)
             return
-    
+
     logger.info("Database initialized.")
-    
+
     await claim_stale_messages(redis_client)
-    
+
     redis_to_pg_task = asyncio.create_task(process_redis_to_postgres(redis_client, transcription_filter))
     logger.info(f"Redis-to-PostgreSQL task started (Interval: {BACKGROUND_TASK_INTERVAL}s, Threshold: {IMMUTABILITY_THRESHOLD}s)")
-    
+
     stream_consumer_task = asyncio.create_task(consume_redis_stream(redis_client))
     logger.info(f"Redis Stream consumer task started (Stream: {REDIS_STREAM_NAME}, Group: {REDIS_CONSUMER_GROUP}, Consumer: {CONSUMER_NAME})")
 
@@ -131,14 +131,14 @@ async def shutdown():
                 logger.info(f"Background task {i+1} cancelled.")
             except Exception as e:
                 logger.error(f"Error during background task {i+1} cancellation: {e}", exc_info=True)
-    
+
     # Close Redis connection
     if redis_client:
         await redis_client.close()
         logger.info("Redis connection closed.")
-    
+
     logger.info("Shutdown complete.")
 
 if __name__ == "__main__":
     # Removed uvicorn runner, rely on Docker CMD
-    pass 
+    pass

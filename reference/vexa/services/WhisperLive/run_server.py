@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('--no_single_model', '-nsm',
                         action='store_true',
                         help='Set this if every connection should instantiate its own model. Only relevant for custom model, passed using -trt or -fw.')
-    
+
     # Audio buffer settings
     parser.add_argument('--max_buffer_s', type=float, default=settings.MAX_BUFFER_S)
     parser.add_argument('--discard_buffer_s', type=float, default=settings.DISCARD_BUFFER_S)

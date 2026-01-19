@@ -15,28 +15,28 @@ Author: LiveTranslate Team
 Version: 1.0
 """
 
+import asyncio
 import os
 import sys
-import pytest
-import asyncio
 import uuid
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 # Add parent directories to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from pipeline.data_pipeline import (
-    TranscriptionDataPipeline,
-    AudioChunkMetadata,
-    TranscriptionResult,
-    TranslationResult,
-)
+from bot.bot_manager import GoogleMeetBotManager
 from database.bot_session_manager import (
     create_bot_session_manager,
 )
-from bot.bot_manager import GoogleMeetBotManager
-
+from pipeline.data_pipeline import (
+    AudioChunkMetadata,
+    TranscriptionDataPipeline,
+    TranscriptionResult,
+    TranslationResult,
+)
 
 # ============================================================================
 # TEST CONFIGURATION
@@ -132,9 +132,7 @@ async def test_null_timestamps_in_database(pipeline, test_session, db_manager):
         confidence=0.95,
     )
 
-    transcript_id = await pipeline.process_transcription_result(
-        test_session, None, transcription
-    )
+    transcript_id = await pipeline.process_transcription_result(test_session, None, transcription)
     assert transcript_id is not None
 
     # Manually insert translation with NULL timestamps
@@ -163,9 +161,7 @@ async def test_null_timestamps_in_database(pipeline, test_session, db_manager):
 
     # Query timeline - should not raise TypeError
     try:
-        timeline = await pipeline.get_session_timeline(
-            test_session, start_time=0.0, end_time=10.0
-        )
+        await pipeline.get_session_timeline(test_session, start_time=0.0, end_time=10.0)
         assert True, "NULL safety works with real database"
     except TypeError as e:
         pytest.fail(f"NULL timestamps caused TypeError: {e}")
@@ -193,9 +189,7 @@ async def test_cache_eviction_under_load(pipeline, test_session):
         session_id = f"cache_test_{i}"
         transcript_id = f"transcript_{i}"
 
-        task = small_cache_pipeline._update_segment_continuity(
-            session_id, transcript_id
-        )
+        task = small_cache_pipeline._update_segment_continuity(session_id, transcript_id)
         tasks.append(task)
 
     await asyncio.gather(*tasks)
@@ -235,7 +229,7 @@ async def test_connection_pool_limits(db_manager):
         results = await asyncio.gather(*tasks, return_exceptions=False)
         assert len(results) == num_tasks
         assert all(r == 1 for r in results)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         pytest.fail("Connection pool exhausted without proper timeout handling")
 
 
@@ -276,7 +270,7 @@ async def test_transaction_rollback_real_database(pipeline, test_session):
     )
 
     # Attempt to process complete segment with invalid data
-    result = await pipeline.process_complete_segment(
+    await pipeline.process_complete_segment(
         session_id=test_session,
         audio_bytes=b"test_audio",
         transcription=transcription,
@@ -288,9 +282,7 @@ async def test_transaction_rollback_real_database(pipeline, test_session):
     # For now, just verify the method handles failures gracefully
 
     # Verify no partial data was committed
-    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(
-        test_session
-    )
+    await pipeline.db_manager.transcript_manager.get_session_transcripts(test_session)
 
     # If transaction support works, either:
     # 1. All data is committed (success), or
@@ -332,15 +324,11 @@ async def test_transaction_success_real_database(pipeline, test_session):
     assert "translation_ids" in result
 
     # Verify all data is committed
-    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(
-        test_session
-    )
+    transcripts = await pipeline.db_manager.transcript_manager.get_session_transcripts(test_session)
     assert len(transcripts) == 1
 
-    translations_db = (
-        await pipeline.db_manager.translation_manager.get_session_translations(
-            test_session
-        )
+    translations_db = await pipeline.db_manager.translation_manager.get_session_translations(
+        test_session
     )
     assert len(translations_db) == 1
 
@@ -380,7 +368,7 @@ async def test_rate_limiting_concurrent_operations():
 
     # Create many concurrent save operations
     async def save_operation(i):
-        metadata = AudioChunkMetadata(duration_seconds=1.0)
+        AudioChunkMetadata(duration_seconds=1.0)
         audio_data = b"test" * 100
         return await manager.save_audio_chunk(session_id, audio_data, {"chunk_id": i})
 
@@ -391,7 +379,7 @@ async def test_rate_limiting_concurrent_operations():
 
     # Some should succeed, some might be rate limited
     successful = [r for r in results if r is not None and not isinstance(r, Exception)]
-    rejected = [r for r in results if r is None]
+    [r for r in results if r is None]
 
     # At least some should succeed
     assert len(successful) > 0, "Some operations should succeed"

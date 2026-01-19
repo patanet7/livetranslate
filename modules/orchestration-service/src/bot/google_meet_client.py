@@ -17,13 +17,15 @@ Features:
 API Documentation: https://developers.google.com/workspace/meet/api
 """
 
-import os
-import time
-import logging
 import asyncio
 import json
-from typing import Dict, List, Optional, Any
+import logging
+import os
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
+
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -62,10 +64,10 @@ class MeetingSpace:
     name: str  # Format: spaces/{space_id}
     meeting_uri: str
     meeting_code: str
-    config: Dict[str, Any]
-    active_conference: Optional[str] = None
-    created_time: Optional[str] = None
-    end_time: Optional[str] = None
+    config: dict[str, Any]
+    active_conference: str | None = None
+    created_time: str | None = None
+    end_time: str | None = None
 
 
 @dataclass
@@ -74,9 +76,9 @@ class ConferenceRecord:
 
     name: str  # Format: conferenceRecords/{conference_id}
     start_time: str
-    end_time: Optional[str] = None
-    expire_time: Optional[str] = None
-    space: Optional[str] = None
+    end_time: str | None = None
+    expire_time: str | None = None
+    space: str | None = None
 
 
 @dataclass
@@ -84,10 +86,10 @@ class Participant:
     """Meeting participant information."""
 
     name: str  # Format: conferenceRecords/{conference_id}/participants/{participant_id}
-    earliest_start_time: Optional[str] = None
-    latest_end_time: Optional[str] = None
-    participant_id: Optional[str] = None
-    display_name: Optional[str] = None
+    earliest_start_time: str | None = None
+    latest_end_time: str | None = None
+    participant_id: str | None = None
+    display_name: str | None = None
 
 
 @dataclass
@@ -95,11 +97,11 @@ class TranscriptEntry:
     """Meeting transcript entry."""
 
     name: str  # Format: conferenceRecords/{conference_id}/transcripts/{transcript_id}/entries/{entry_id}
-    participant: Optional[str] = None
-    text: Optional[str] = None
-    language_code: Optional[str] = None
-    start_time: Optional[str] = None
-    end_time: Optional[str] = None
+    participant: str | None = None
+    text: str | None = None
+    language_code: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
 
 
 class GoogleMeetAuthenticator:
@@ -121,11 +123,7 @@ class GoogleMeetAuthenticator:
 
             # Refresh or obtain new credentials
             if not self.credentials or not self.credentials.valid:
-                if (
-                    self.credentials
-                    and self.credentials.expired
-                    and self.credentials.refresh_token
-                ):
+                if self.credentials and self.credentials.expired and self.credentials.refresh_token:
                     logger.info("Refreshing Google Meet API credentials")
                     self.credentials.refresh(Request())
                 else:
@@ -156,11 +154,7 @@ class GoogleMeetAuthenticator:
 
     def is_authenticated(self) -> bool:
         """Check if currently authenticated."""
-        return (
-            self.credentials is not None
-            and self.credentials.valid
-            and self.service is not None
-        )
+        return self.credentials is not None and self.credentials.valid and self.service is not None
 
 
 class GoogleMeetSpaceManager:
@@ -170,9 +164,7 @@ class GoogleMeetSpaceManager:
         self.service = service
         self.config = config
 
-    async def create_space(
-        self, config: Dict[str, Any] = None
-    ) -> Optional[MeetingSpace]:
+    async def create_space(self, config: dict[str, Any] | None = None) -> MeetingSpace | None:
         """Create a new Google Meet space."""
         try:
             space_config = config or {
@@ -180,9 +172,7 @@ class GoogleMeetSpaceManager:
                 "entry_point_access": "ALL",
             }
 
-            space = (
-                self.service.spaces().create(body={"config": space_config}).execute()
-            )
+            space = self.service.spaces().create(body={"config": space_config}).execute()
 
             meeting_space = MeetingSpace(
                 name=space["name"],
@@ -199,7 +189,7 @@ class GoogleMeetSpaceManager:
             logger.error(f"Failed to create Google Meet space: {e}")
             return None
 
-    async def get_space(self, space_name: str) -> Optional[MeetingSpace]:
+    async def get_space(self, space_name: str) -> MeetingSpace | None:
         """Get existing Google Meet space."""
         try:
             space = self.service.spaces().get(name=space_name).execute()
@@ -237,14 +227,10 @@ class GoogleMeetConferenceManager:
         self.service = service
         self.config = config
 
-    async def get_conference_record(
-        self, conference_name: str
-    ) -> Optional[ConferenceRecord]:
+    async def get_conference_record(self, conference_name: str) -> ConferenceRecord | None:
         """Get conference record information."""
         try:
-            conference = (
-                self.service.conferenceRecords().get(name=conference_name).execute()
-            )
+            conference = self.service.conferenceRecords().get(name=conference_name).execute()
 
             return ConferenceRecord(
                 name=conference["name"],
@@ -259,8 +245,8 @@ class GoogleMeetConferenceManager:
             return None
 
     async def list_conference_records(
-        self, filter_query: str = None
-    ) -> List[ConferenceRecord]:
+        self, filter_query: str | None = None
+    ) -> list[ConferenceRecord]:
         """List conference records with optional filtering."""
         try:
             request = self.service.conferenceRecords().list()
@@ -290,14 +276,10 @@ class GoogleMeetConferenceManager:
             logger.error(f"Failed to list conference records: {e}")
             return []
 
-    async def get_participants(self, conference_name: str) -> List[Participant]:
+    async def get_participants(self, conference_name: str) -> list[Participant]:
         """Get participants for a conference."""
         try:
-            request = (
-                self.service.conferenceRecords()
-                .participants()
-                .list(parent=conference_name)
-            )
+            request = self.service.conferenceRecords().participants().list(parent=conference_name)
 
             participants = []
             while request is not None:
@@ -309,20 +291,14 @@ class GoogleMeetConferenceManager:
                             name=participant["name"],
                             earliest_start_time=participant.get("earliestStartTime"),
                             latest_end_time=participant.get("latestEndTime"),
-                            participant_id=participant.get("signedinUser", {}).get(
-                                "user"
-                            ),
-                            display_name=participant.get("signedinUser", {}).get(
-                                "displayName"
-                            )
+                            participant_id=participant.get("signedinUser", {}).get("user"),
+                            display_name=participant.get("signedinUser", {}).get("displayName")
                             or participant.get("anonymousUser", {}).get("displayName"),
                         )
                     )
 
                 request = (
-                    self.service.conferenceRecords()
-                    .participants()
-                    .list_next(request, response)
+                    self.service.conferenceRecords().participants().list_next(request, response)
                 )
 
             return participants
@@ -339,7 +315,7 @@ class GoogleMeetTranscriptManager:
         self.service = service
         self.config = config
 
-    async def list_transcripts(self, conference_name: str) -> List[str]:
+    async def list_transcripts(self, conference_name: str) -> list[str]:
         """List available transcripts for a conference."""
         try:
             response = (
@@ -349,17 +325,13 @@ class GoogleMeetTranscriptManager:
                 .execute()
             )
 
-            return [
-                transcript["name"] for transcript in response.get("transcripts", [])
-            ]
+            return [transcript["name"] for transcript in response.get("transcripts", [])]
 
         except HttpError as e:
             logger.error(f"Failed to list transcripts for {conference_name}: {e}")
             return []
 
-    async def get_transcript_entries(
-        self, transcript_name: str
-    ) -> List[TranscriptEntry]:
+    async def get_transcript_entries(self, transcript_name: str) -> list[TranscriptEntry]:
         """Get transcript entries."""
         try:
             request = (
@@ -420,8 +392,11 @@ class GoogleMeetClient:
 
         # State tracking
         self.authenticated = False
-        self.monitored_spaces: Dict[str, Dict] = {}
-        self.active_conferences: Dict[str, Dict] = {}
+        self.monitored_spaces: dict[str, dict] = {}
+        self.active_conferences: dict[str, dict] = {}
+
+        # Background task tracking (prevents garbage collection and enables cleanup)
+        self._background_tasks: set[asyncio.Task] = set()
 
         logger.info("GoogleMeetClient initialized")
         logger.info(f"  Application: {config.application_name}")
@@ -458,8 +433,8 @@ class GoogleMeetClient:
         )
 
     async def create_meeting_space(
-        self, meeting_config: Dict[str, Any] = None
-    ) -> Optional[MeetingSpace]:
+        self, meeting_config: dict[str, Any] | None = None
+    ) -> MeetingSpace | None:
         """Create a new meeting space for bot integration."""
         if not self.is_ready():
             logger.error("Google Meet client not ready")
@@ -467,7 +442,7 @@ class GoogleMeetClient:
 
         return await self.space_manager.create_space(meeting_config)
 
-    async def join_existing_meeting(self, meeting_uri: str) -> Optional[Dict[str, Any]]:
+    async def join_existing_meeting(self, meeting_uri: str) -> dict[str, Any] | None:
         """
         Get information about an existing meeting for bot integration.
 
@@ -508,7 +483,7 @@ class GoogleMeetClient:
             return None
 
     async def monitor_active_conference(
-        self, space_name: str, callback: callable = None
+        self, space_name: str, callback: Callable | None = None
     ) -> bool:
         """Monitor an active conference for events."""
         try:
@@ -529,7 +504,9 @@ class GoogleMeetClient:
             }
 
             # Start monitoring task
-            asyncio.create_task(self._monitor_conference_loop(space_name))
+            task = asyncio.create_task(self._monitor_conference_loop(space_name))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
             logger.info(f"Started monitoring conference: {space.active_conference}")
             return True
@@ -538,41 +515,31 @@ class GoogleMeetClient:
             logger.error(f"Failed to monitor conference in space {space_name}: {e}")
             return False
 
-    async def get_live_participants(self, conference_name: str) -> List[Participant]:
+    async def get_live_participants(self, conference_name: str) -> list[Participant]:
         """Get current participants in an active conference."""
         if not self.is_ready():
             return []
 
         return await self.conference_manager.get_participants(conference_name)
 
-    async def get_meeting_transcript(
-        self, conference_name: str
-    ) -> List[TranscriptEntry]:
+    async def get_meeting_transcript(self, conference_name: str) -> list[TranscriptEntry]:
         """Get transcript entries for a conference (available after meeting ends)."""
         if not self.is_ready():
             return []
 
         try:
             # List available transcripts
-            transcripts = await self.transcript_manager.list_transcripts(
-                conference_name
-            )
+            transcripts = await self.transcript_manager.list_transcripts(conference_name)
 
             if not transcripts:
-                logger.info(
-                    f"No transcripts available for conference: {conference_name}"
-                )
+                logger.info(f"No transcripts available for conference: {conference_name}")
                 return []
 
             # Get entries from the first available transcript
             transcript_name = transcripts[0]
-            entries = await self.transcript_manager.get_transcript_entries(
-                transcript_name
-            )
+            entries = await self.transcript_manager.get_transcript_entries(transcript_name)
 
-            logger.info(
-                f"Retrieved {len(entries)} transcript entries from {transcript_name}"
-            )
+            logger.info(f"Retrieved {len(entries)} transcript entries from {transcript_name}")
             return entries
 
         except Exception as e:
@@ -636,7 +603,7 @@ class GoogleMeetClient:
             if space_name in self.monitored_spaces:
                 del self.monitored_spaces[space_name]
 
-    def _extract_meeting_code(self, meeting_uri: str) -> Optional[str]:
+    def _extract_meeting_code(self, meeting_uri: str) -> str | None:
         """Extract meeting code from Google Meet URI."""
         try:
             # Handle various Google Meet URI formats
@@ -646,13 +613,13 @@ class GoogleMeetClient:
         except Exception:
             return None
 
-    async def _search_spaces_by_code(self, meeting_code: str) -> List[MeetingSpace]:
+    async def _search_spaces_by_code(self, meeting_code: str) -> list[MeetingSpace]:
         """Search for spaces by meeting code (limited API functionality)."""
         # Note: Google Meet API doesn't provide direct search by meeting code
         # This would require maintaining our own mapping of created spaces
         return []
 
-    def get_client_statistics(self) -> Dict[str, Any]:
+    def get_client_statistics(self) -> dict[str, Any]:
         """Get comprehensive client statistics."""
         return {
             "authenticated": self.authenticated,
@@ -671,9 +638,7 @@ class GoogleMeetClient:
 
 
 # Factory functions
-def create_google_meet_client(
-    credentials_path: str, **config_kwargs
-) -> GoogleMeetClient:
+def create_google_meet_client(credentials_path: str, **config_kwargs) -> GoogleMeetClient:
     """Create a Google Meet client with configuration."""
     config = GoogleMeetConfig(credentials_path=credentials_path, **config_kwargs)
     return GoogleMeetClient(config)
@@ -687,7 +652,7 @@ class BotManagerIntegration:
         self.meet_client = meet_client
         self.bot_manager = bot_manager
 
-    async def create_bot_meeting(self, meeting_request) -> Optional[Dict[str, Any]]:
+    async def create_bot_meeting(self, meeting_request) -> dict[str, Any] | None:
         """Create a meeting space for a bot."""
         space = await self.meet_client.create_meeting_space()
         if space:
@@ -701,7 +666,7 @@ class BotManagerIntegration:
             }
         return None
 
-    async def join_external_meeting(self, meeting_uri: str) -> Optional[Dict[str, Any]]:
+    async def join_external_meeting(self, meeting_uri: str) -> dict[str, Any] | None:
         """Get information for joining an external meeting."""
         return await self.meet_client.join_existing_meeting(meeting_uri)
 
@@ -713,9 +678,7 @@ class BotManagerIntegration:
             if hasattr(self.bot_manager, "handle_meeting_event"):
                 await self.bot_manager.handle_meeting_event(bot_id, event_data)
 
-        return await self.meet_client.monitor_active_conference(
-            space_name, bot_callback
-        )
+        return await self.meet_client.monitor_active_conference(space_name, bot_callback)
 
 
 # Example usage

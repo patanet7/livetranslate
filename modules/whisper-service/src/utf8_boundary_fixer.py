@@ -20,12 +20,11 @@ as they represent incomplete multi-byte characters from the split.
 """
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 # Unicode replacement character (used when UTF-8 decoding fails)
-REPLACEMENT_CHAR = '\ufffd'  # �
+REPLACEMENT_CHAR = "\ufffd"  # �
 
 
 class UTF8BoundaryFixer:
@@ -129,13 +128,11 @@ class UTF8BoundaryFixer:
 
 # Example usage and testing
 if __name__ == "__main__":
-    import sys
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("UTF8BoundaryFixer - Example Usage")
-    print("="*80)
+    print("=" * 80)
 
     fixer = UTF8BoundaryFixer()
 
@@ -191,6 +188,6 @@ if __name__ == "__main__":
         print(f"'{text[:30]}...'")
         print(f"  Has �: {has_repl}, Count: {count}")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("✅ UTF8BoundaryFixer examples complete")
-    print("="*80)
+    print("=" * 80)

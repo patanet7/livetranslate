@@ -8,15 +8,15 @@ and other data before storage.
 from .transcript_validation import (
     TranscriptValidator,
     TranslationValidator,
+    ValidationResult,
     validate_transcript,
     validate_translation,
-    ValidationResult,
 )
 
 __all__ = [
     "TranscriptValidator",
     "TranslationValidator",
+    "ValidationResult",
     "validate_transcript",
     "validate_translation",
-    "ValidationResult",
 ]

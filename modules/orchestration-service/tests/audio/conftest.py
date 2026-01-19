@@ -7,14 +7,15 @@ Provides test data, mock services, and utility functions for available modules.
 """
 
 import asyncio
-import tempfile
-import pytest
-import numpy as np
-from pathlib import Path
-from unittest.mock import AsyncMock
 
 # Import the audio components we're testing
 import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import AsyncMock
+
+import numpy as np
+import pytest
 
 # Add multiple possible paths to ensure we can find the src directory
 current_dir = Path(__file__).parent
@@ -27,28 +28,7 @@ if src_path.exists():
     sys.path.insert(0, str(src_path.parent))
     sys.path.insert(0, str(src_path))
 
-# Only import modules that actually exist
-try:
-    from src.audio.models import (
-        AudioChunkMetadata,
-        AudioChunkingConfig,
-        QualityMetrics,
-        SourceType,
-        ProcessingStatus,
-        create_audio_chunk_metadata,
-        get_default_chunking_config,
-    )
-except ImportError as e:
-    print(f"Warning: Could not import audio models: {e}")
-
-try:
-    from src.audio.config import (
-        AudioPreset,
-        AudioProcessingConfig,
-        get_default_audio_processing_config,
-    )
-except ImportError as e:
-    print(f"Warning: Could not import audio config: {e}")
+# Audio model imports moved to test files that actually use them
 
 
 # Test Configuration
@@ -106,9 +86,7 @@ class AudioTestFixtures:
         return signal.astype(np.float32)
 
     @staticmethod
-    def generate_silence(
-        duration: float, sample_rate: int = TEST_SAMPLE_RATE
-    ) -> np.ndarray:
+    def generate_silence(duration: float, sample_rate: int = TEST_SAMPLE_RATE) -> np.ndarray:
         """Generate silence for testing."""
         samples = int(duration * sample_rate)
         return np.zeros(samples, dtype=np.float32)
@@ -141,11 +119,19 @@ def test_audio_fixtures():
 @pytest.fixture
 def sample_audio_data(test_audio_fixtures):
     """Generate sample audio data for testing."""
+    voice_like = test_audio_fixtures.generate_voice_like_audio(TEST_DURATION)
+    noise = test_audio_fixtures.generate_noise(TEST_DURATION, amplitude=0.1)
+
+    # Create noisy voice at 10dB SNR
+    noise_10db = test_audio_fixtures.generate_noise(TEST_DURATION, amplitude=0.03)
+    noisy_voice_10db = voice_like + noise_10db
+
     return {
         "sine_440": test_audio_fixtures.generate_sine_wave(440, TEST_DURATION),
-        "voice_like": test_audio_fixtures.generate_voice_like_audio(TEST_DURATION),
-        "noise": test_audio_fixtures.generate_noise(TEST_DURATION),
+        "voice_like": voice_like,
+        "noise": noise,
         "silence": test_audio_fixtures.generate_silence(TEST_DURATION),
+        "noisy_voice_10db": noisy_voice_10db.astype(np.float32),
     }
 
 
@@ -160,11 +146,76 @@ async def mock_database_adapter():
     mock_adapter.store_transcript.return_value = "test_transcript_id"
     mock_adapter.store_translation.return_value = "test_translation_id"
     mock_adapter.store_speaker_correlation.return_value = "test_correlation_id"
+    mock_adapter.store_session.return_value = "test_session_id"
     mock_adapter.get_session_audio_chunks.return_value = []
     mock_adapter.get_session_transcripts.return_value = []
     mock_adapter.get_speaker_correlations.return_value = []
 
     return mock_adapter
+
+
+@pytest.fixture
+def mock_service_urls():
+    """Provide mock service URLs for testing."""
+    return {
+        "whisper": "http://localhost:5001",
+        "translation": "http://localhost:5003",
+        "orchestration": "http://localhost:3000",
+    }
+
+
+@pytest.fixture
+def test_chunk_metadata():
+    """Provide test chunk metadata."""
+    from src.audio.models import AudioChunkMetadata, SourceType
+
+    return AudioChunkMetadata(
+        chunk_id="test_chunk_001",
+        session_id="test_session_001",
+        sequence_number=0,
+        timestamp_start=0.0,
+        timestamp_end=3.0,
+        sample_rate=TEST_SAMPLE_RATE,
+        channels=TEST_CHANNELS,
+        audio_format="pcm_f32le",
+        samples=int(TEST_SAMPLE_RATE * TEST_DURATION),
+        source_type=SourceType.BOT_AUDIO,
+    )
+
+
+@pytest.fixture
+async def audio_coordinator(mock_database_adapter, mock_service_urls, temp_dir):
+    """Provide an AudioCoordinator instance for testing."""
+    from src.audio.audio_coordinator import create_audio_coordinator
+    from src.audio.models import get_default_chunking_config
+
+    config_file = temp_dir / "test_audio_config.yaml"
+    audio_storage_dir = temp_dir / "audio"
+    audio_storage_dir.mkdir(exist_ok=True)
+
+    # Get default config and override storage path
+    config = get_default_chunking_config()
+    config.audio_storage_path = str(audio_storage_dir)
+
+    coordinator = create_audio_coordinator(
+        database_url=None,  # Using mock adapter
+        service_urls=mock_service_urls,
+        config=config,
+        max_concurrent_sessions=5,
+        audio_config_file=str(config_file),
+    )
+
+    # Replace with mock adapter
+    coordinator.database_adapter = mock_database_adapter
+
+    # Initialize coordinator
+    await coordinator.initialize()
+
+    yield coordinator
+
+    # Cleanup
+    if coordinator.is_running:
+        await coordinator.shutdown()
 
 
 # Utility Functions for Testing

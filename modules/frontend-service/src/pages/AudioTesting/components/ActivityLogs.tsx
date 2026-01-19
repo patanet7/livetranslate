@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Typography,
@@ -19,7 +19,7 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Info as InfoIcon,
   CheckCircle as SuccessIcon,
@@ -29,19 +29,19 @@ import {
   Download as DownloadIcon,
   FilterList as FilterIcon,
   Search as SearchIcon,
-} from '@mui/icons-material';
-import { useAppSelector, useAppDispatch } from '@/store';
-import { clearProcessingLogs } from '@/store/slices/audioSlice';
+} from "@mui/icons-material";
+import { useAppSelector, useAppDispatch } from "@/store";
+import { clearProcessingLogs } from "@/store/slices/audioSlice";
 
 const getLogIcon = (level: string) => {
   switch (level) {
-    case 'INFO':
+    case "INFO":
       return <InfoIcon color="info" />;
-    case 'SUCCESS':
+    case "SUCCESS":
       return <SuccessIcon color="success" />;
-    case 'ERROR':
+    case "ERROR":
       return <ErrorIcon color="error" />;
-    case 'WARNING':
+    case "WARNING":
       return <WarningIcon color="warning" />;
     default:
       return <InfoIcon color="disabled" />;
@@ -50,29 +50,31 @@ const getLogIcon = (level: string) => {
 
 const getLogColor = (level: string) => {
   switch (level) {
-    case 'INFO':
-      return 'info';
-    case 'SUCCESS':
-      return 'success';
-    case 'ERROR':
-      return 'error';
-    case 'WARNING':
-      return 'warning';
+    case "INFO":
+      return "info";
+    case "SUCCESS":
+      return "success";
+    case "ERROR":
+      return "error";
+    case "WARNING":
+      return "warning";
     default:
-      return 'default';
+      return "default";
   }
 };
 
 export const ActivityLogs: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { logs } = useAppSelector(state => state.audio.processing);
+  const { logs } = useAppSelector((state) => state.audio.processing);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [levelFilter, setLevelFilter] = useState<string>("all");
 
-  const filteredLogs = logs.filter(log => {
-    const matchesSearch = log.message.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLevel = levelFilter === 'all' || log.level === levelFilter;
+  const filteredLogs = logs.filter((log) => {
+    const matchesSearch = log.message
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesLevel = levelFilter === "all" || log.level === levelFilter;
     return matchesSearch && matchesLevel;
   });
 
@@ -84,7 +86,7 @@ export const ActivityLogs: React.FC = () => {
     const logsData = {
       exportDate: new Date().toISOString(),
       totalLogs: logs.length,
-      logs: logs.map(log => ({
+      logs: logs.map((log) => ({
         timestamp: new Date(log.timestamp).toISOString(),
         level: log.level,
         message: log.message,
@@ -92,12 +94,13 @@ export const ActivityLogs: React.FC = () => {
     };
 
     const dataStr = JSON.stringify(logsData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = `audio-test-logs-${new Date().toISOString().split('T')[0]}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
+    const dataUri =
+      "data:application/json;charset=utf-8," + encodeURIComponent(dataStr);
+    const exportFileDefaultName = `audio-test-logs-${new Date().toISOString().split("T")[0]}.json`;
+
+    const linkElement = document.createElement("a");
+    linkElement.setAttribute("href", dataUri);
+    linkElement.setAttribute("download", exportFileDefaultName);
     linkElement.click();
   };
 
@@ -106,10 +109,13 @@ export const ActivityLogs: React.FC = () => {
   };
 
   const getLogStats = () => {
-    const stats = logs.reduce((acc, log) => {
-      acc[log.level] = (acc[log.level] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const stats = logs.reduce(
+      (acc, log) => {
+        acc[log.level] = (acc[log.level] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     return {
       total: logs.length,
@@ -125,10 +131,15 @@ export const ActivityLogs: React.FC = () => {
   return (
     <Box>
       {/* Header with controls */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6">
-          📋 Activity Logs
-        </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Typography variant="h6">📋 Activity Logs</Typography>
         <Stack direction="row" spacing={1}>
           <Button
             variant="outlined"
@@ -166,15 +177,8 @@ export const ActivityLogs: React.FC = () => {
           Log Statistics
         </Typography>
         <Stack direction="row" spacing={1} flexWrap="wrap">
-          <Chip
-            label={`Total: ${stats.total}`}
-            variant="outlined"
-          />
-          <Chip
-            label={`Info: ${stats.info}`}
-            color="info"
-            variant="outlined"
-          />
+          <Chip label={`Total: ${stats.total}`} variant="outlined" />
+          <Chip label={`Info: ${stats.info}`} color="info" variant="outlined" />
           <Chip
             label={`Success: ${stats.success}`}
             color="success"
@@ -208,11 +212,13 @@ export const ActivityLogs: React.FC = () => {
       </Paper>
 
       {/* Logs list */}
-      <Paper sx={{ maxHeight: 400, overflow: 'auto' }}>
+      <Paper sx={{ maxHeight: 400, overflow: "auto" }}>
         {filteredLogs.length === 0 ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Box sx={{ p: 3, textAlign: "center" }}>
             <Typography color="text.secondary">
-              {logs.length === 0 ? 'No logs available' : 'No logs match the current filter'}
+              {logs.length === 0
+                ? "No logs available"
+                : "No logs match the current filter"}
             </Typography>
           </Box>
         ) : (
@@ -224,7 +230,7 @@ export const ActivityLogs: React.FC = () => {
                 </ListItemIcon>
                 <ListItemText
                   primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Typography
                         variant="body2"
                         fontFamily="monospace"
@@ -263,7 +269,7 @@ export const ActivityLogs: React.FC = () => {
               fullWidth
               placeholder="Search in messages..."
             />
-            
+
             <FormControl fullWidth>
               <InputLabel>Log Level</InputLabel>
               <Select
@@ -281,13 +287,11 @@ export const ActivityLogs: React.FC = () => {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setFilterOpen(false)}>
-            Close
-          </Button>
+          <Button onClick={() => setFilterOpen(false)}>Close</Button>
           <Button
             onClick={() => {
-              setSearchTerm('');
-              setLevelFilter('all');
+              setSearchTerm("");
+              setLevelFilter("all");
             }}
             variant="outlined"
           >

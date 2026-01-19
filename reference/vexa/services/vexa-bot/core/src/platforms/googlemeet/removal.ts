@@ -29,7 +29,7 @@ export async function checkForGoogleRemoval(page: Page): Promise<boolean> {
 export function startGoogleRemovalMonitor(page: Page, onRemoval?: () => void | Promise<void>): () => void {
   log("Starting periodic Google Meet removal monitoring...");
   let removalDetected = false;
-  
+
   const removalCheckInterval = setInterval(async () => {
     try {
       const isRemoved = await checkForGoogleRemoval(page);
@@ -37,7 +37,7 @@ export function startGoogleRemovalMonitor(page: Page, onRemoval?: () => void | P
         removalDetected = true; // Prevent duplicate detection
         log("🚨 Google Meet removal detected from Node.js side. Initiating graceful shutdown...");
         clearInterval(removalCheckInterval);
-        
+
         try {
           // Attempt to click any dismiss buttons to close the modal gracefully
           await page.evaluate(() => {
@@ -53,14 +53,14 @@ export function startGoogleRemovalMonitor(page: Page, onRemoval?: () => void | P
             for (const b of btns) {
               const t = (b.textContent || b.innerText || '').trim().toLowerCase();
               const a = (b.getAttribute('aria-label') || '').toLowerCase();
-              if (t === 'dismiss' || a.includes('dismiss') || t === 'ok' || a.includes('ok')) { 
-                clickIfVisible(b); 
-                break; 
+              if (t === 'dismiss' || a.includes('dismiss') || t === 'ok' || a.includes('ok')) {
+                clickIfVisible(b);
+                break;
               }
             }
           });
         } catch {}
-        
+
         // Signal removal to caller
         try { await onRemoval?.(); } catch {}
       }

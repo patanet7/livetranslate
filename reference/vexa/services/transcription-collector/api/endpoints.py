@@ -55,7 +55,7 @@ async def _get_full_transcript_segments(
     Core logic to fetch and merge transcript segments from PG and Redis.
     """
     logger.debug(f"[_get_full_transcript_segments] Fetching for meeting ID {internal_meeting_id}")
-    
+
     # 1. Fetch session start times for this meeting
     stmt_sessions = select(MeetingSession).where(MeetingSession.meeting_id == internal_meeting_id)
     result_sessions = await db.execute(stmt_sessions)
@@ -120,7 +120,7 @@ async def _get_full_transcript_segments(
                     if session_uid_from_redis.startswith(prefix):
                         potential_session_key = session_uid_from_redis[len(prefix):]
                         break
-            session_start = session_times.get(potential_session_key) 
+            session_start = session_times.get(potential_session_key)
             if 'end_time' in segment_data and 'text' in segment_data and session_uid_from_redis and session_start:
                 if session_start.tzinfo is None:
                     session_start = session_start.replace(tzinfo=timezone.utc)
@@ -143,7 +143,7 @@ async def _get_full_transcript_segments(
     # 5. Sort based on calculated absolute time and return
     sorted_segment_tuples = sorted(merged_segments_with_abs_time.values(), key=lambda item: item[0])
     segments = [segment_obj for abs_time, segment_obj in sorted_segment_tuples]
-    
+
     # 6. Deduplicate overlapping segments with identical text
     deduped: List[TranscriptionSegment] = []
     for seg in segments:
@@ -173,19 +173,19 @@ async def health_check(request: Request, db: AsyncSession = Depends(get_db)):
     """Health check endpoint"""
     redis_status = "healthy"
     db_status = "healthy"
-    
+
     try:
         redis_c = getattr(request.app.state, 'redis_client', None)
         if not redis_c: raise ValueError("Redis client not initialized in app.state")
         await redis_c.ping()
     except Exception as e:
         redis_status = f"unhealthy: {str(e)}"
-    
+
     try:
-        await db.execute(text("SELECT 1")) 
+        await db.execute(text("SELECT 1"))
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
-    
+
     return HealthResponse(
         status="healthy" if redis_status == "healthy" and db_status == "healthy" else "unhealthy",
         redis=redis_status,
@@ -193,7 +193,7 @@ async def health_check(request: Request, db: AsyncSession = Depends(get_db)):
         timestamp=datetime.now().isoformat()
     )
 
-@router.get("/meetings", 
+@router.get("/meetings",
             response_model=MeetingListResponse,
             summary="Get list of all meetings for the current user",
             dependencies=[Depends(get_current_user)])
@@ -206,7 +206,7 @@ async def get_meetings(
     result = await db.execute(stmt)
     meetings = result.scalars().all()
     return MeetingListResponse(meetings=[MeetingResponse.from_orm(m) for m in meetings])
-    
+
 @router.get("/transcripts/{platform}/{native_meeting_id}",
             response_model=TranscriptionResponse,
             summary="Get transcript for a specific meeting by platform and native ID",
@@ -220,16 +220,16 @@ async def get_transcript_by_native_id(
     db: AsyncSession = Depends(get_db)
 ):
     """Retrieves the meeting details and transcript segments for a meeting specified by its platform and native ID.
-    
+
     Behavior:
     - If meeting_id is provided: Returns the exact meeting with that database ID (must belong to user and match platform/native_meeting_id)
     - If meeting_id is not provided: Returns the latest matching meeting record for the user (backward compatible behavior)
-    
+
     Combines data from both PostgreSQL (immutable segments) and Redis Hashes (mutable segments).
     """
     logger.debug(f"[API] User {current_user.id} requested transcript for {platform.value} / {native_meeting_id}, meeting_id={meeting_id}")
     redis_c = getattr(request.app.state, 'redis_client', None)
-    
+
     if meeting_id is not None:
         # Get specific meeting by database ID
         # Validate it belongs to user and matches platform/native_meeting_id for consistency
@@ -251,7 +251,7 @@ async def get_transcript_by_native_id(
 
     result_meeting = await db.execute(stmt_meeting)
     meeting = result_meeting.scalars().first()
-    
+
     if not meeting:
         if meeting_id is not None:
             logger.warning(f"[API] No meeting found for user {current_user.id}, platform '{platform.value}', native ID '{native_meeting_id}', meeting_id '{meeting_id}'")
@@ -270,9 +270,9 @@ async def get_transcript_by_native_id(
     logger.debug(f"[API] Found meeting record ID {internal_meeting_id}, fetching segments...")
 
     sorted_segments = await _get_full_transcript_segments(internal_meeting_id, db, redis_c)
-    
+
     logger.info(f"[API Meet {internal_meeting_id}] Merged and sorted into {len(sorted_segments)} total segments.")
-    
+
     meeting_details = MeetingResponse.from_orm(meeting)
     response_data = meeting_details.dict()
     response_data["segments"] = sorted_segments
@@ -322,7 +322,7 @@ async def ws_authorize_subscribe(
             continue
 
         authorized.append({
-            "platform": platform_value, 
+            "platform": platform_value,
             "native_id": native_id,
             "user_id": str(current_user.id),
             "meeting_id": str(meeting.id)
@@ -343,14 +343,14 @@ async def get_transcript_internal(
     """Internal endpoint for services to fetch all transcript segments for a given meeting ID."""
     logger.debug(f"[Internal API] Transcript segments requested for meeting {meeting_id}")
     redis_c = getattr(request.app.state, 'redis_client', None)
-    
+
     meeting = await db.get(Meeting, meeting_id)
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meeting with ID {meeting_id} not found."
         )
-        
+
     segments = await _get_full_transcript_segments(meeting_id, db, redis_c)
     return segments
 
@@ -366,27 +366,27 @@ async def update_meeting_data(
     db: AsyncSession = Depends(get_db)
 ):
     """Updates the user-editable data (name, participants, languages, notes) for the latest meeting matching the platform and native ID."""
-    
+
     logger.info(f"[API] User {current_user.id} updating meeting {platform.value}/{native_meeting_id}")
     logger.debug(f"[API] Raw meeting_update object: {meeting_update}")
     logger.debug(f"[API] meeting_update.data type: {type(meeting_update.data)}")
     logger.debug(f"[API] meeting_update.data content: {meeting_update.data}")
-    
+
     stmt = select(Meeting).where(
         Meeting.user_id == current_user.id,
         Meeting.platform == platform.value,
         Meeting.platform_specific_id == native_meeting_id
     ).order_by(Meeting.created_at.desc())
-    
+
     result = await db.execute(stmt)
     meeting = result.scalars().first()
-    
+
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meeting not found for platform {platform.value} and ID {native_meeting_id}"
         )
-        
+
     # Extract update data from the MeetingDataUpdate object
     try:
         if hasattr(meeting_update.data, 'dict'):
@@ -401,30 +401,30 @@ async def update_meeting_data(
         # Handle case where data might be parsed differently
         update_data = meeting_update.data
         logger.debug(f"[API] Fallback update_data: {update_data}")
-    
+
     # Remove None values from update_data
     update_data = {k: v for k, v in update_data.items() if v is not None}
     logger.debug(f"[API] Final update_data after filtering None values: {update_data}")
-    
+
     if not update_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No data provided for update."
         )
-        
+
     if meeting.data is None:
         meeting.data = {}
         logger.debug(f"[API] Initialized empty meeting.data")
-        
+
     logger.debug(f"[API] Current meeting.data before update: {meeting.data}")
-        
+
     # Only allow updating restricted fields: name, participants, languages, notes
     allowed_fields = {'name', 'participants', 'languages', 'notes'}
     updated_fields = []
-    
+
     # Create a new copy of the data dict to ensure SQLAlchemy detects the change
     new_data = dict(meeting.data) if meeting.data else {}
-    
+
     for key, value in update_data.items():
         if key in allowed_fields and value is not None:
             new_data[key] = value
@@ -432,22 +432,22 @@ async def update_meeting_data(
             logger.debug(f"[API] Updated field {key} = {value}")
         else:
             logger.debug(f"[API] Skipped field {key} (not in allowed_fields or value is None)")
-    
+
     # Assign the new dict to ensure SQLAlchemy detects the change
     meeting.data = new_data
-    
+
     # Mark the field as modified to ensure SQLAlchemy detects the change
     from sqlalchemy.orm import attributes
     attributes.flag_modified(meeting, "data")
-    
+
     logger.info(f"[API] Updated fields: {', '.join(updated_fields) if updated_fields else 'none'}")
     logger.debug(f"[API] Final meeting.data after update: {meeting.data}")
 
     await db.commit()
     await db.refresh(meeting)
-    
+
     logger.debug(f"[API] Meeting.data after commit and refresh: {meeting.data}")
-    
+
     return MeetingResponse.from_orm(meeting)
 
 @router.delete("/meetings/{platform}/{native_meeting_id}",
@@ -462,34 +462,34 @@ async def delete_meeting(
 ):
     """
     Purges transcripts and anonymizes meeting data for finalized meetings.
-    
+
     Only allows deletion for meetings in finalized states (completed, failed).
     Deletes all transcripts but preserves meeting and session records for telemetry.
     Scrubs PII from meeting record while keeping telemetry data.
     """
-    
+
     stmt = select(Meeting).where(
         Meeting.user_id == current_user.id,
         Meeting.platform == platform.value,
         Meeting.platform_specific_id == native_meeting_id
     ).order_by(Meeting.created_at.desc())
-    
+
     result = await db.execute(stmt)
     meeting = result.scalars().first()
-    
+
     if not meeting:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Meeting not found for platform {platform.value} and ID {native_meeting_id}"
         )
-    
+
     internal_meeting_id = meeting.id
-    
+
     # Check if already redacted (idempotency)
     if meeting.data and meeting.data.get('redacted'):
         logger.info(f"[API] Meeting {internal_meeting_id} already redacted, returning success")
         return {"message": f"Meeting {platform.value}/{native_meeting_id} transcripts already deleted and data anonymized"}
-    
+
     # Check if meeting is in finalized state
     finalized_states = {MeetingStatus.COMPLETED.value, MeetingStatus.FAILED.value}
     if meeting.status not in finalized_states:
@@ -498,17 +498,17 @@ async def delete_meeting(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Meeting not finalized; cannot delete transcripts. Current status: {meeting.status}"
         )
-    
+
     logger.info(f"[API] User {current_user.id} purging transcripts and anonymizing meeting {internal_meeting_id}")
-    
+
     # Delete transcripts from PostgreSQL
     stmt_transcripts = select(Transcription).where(Transcription.meeting_id == internal_meeting_id)
     result_transcripts = await db.execute(stmt_transcripts)
     transcripts = result_transcripts.scalars().all()
-    
+
     for transcript in transcripts:
         await db.delete(transcript)
-    
+
     # Delete transcript segments from Redis and remove from active meetings
     redis_c = getattr(request.app.state, 'redis_client', None)
     if redis_c:
@@ -522,24 +522,24 @@ async def delete_meeting(
             logger.debug(f"[API] Deleted Redis hash {hash_key} and removed from active_meetings")
         except Exception as e:
             logger.error(f"[API] Failed to delete Redis data for meeting {internal_meeting_id}: {e}")
-    
+
     # Scrub PII from meeting record while preserving telemetry
     original_data = meeting.data or {}
-    
+
     # Keep only telemetry fields
     telemetry_fields = {'status_transition', 'completion_reason', 'error', 'diagnostics'}
     scrubbed_data = {k: v for k, v in original_data.items() if k in telemetry_fields}
-    
+
     # Add redaction marker for idempotency
     scrubbed_data['redacted'] = True
-    
+
     # Update meeting record with scrubbed data
     meeting.platform_specific_id = None  # Clear native meeting ID (this makes constructed_meeting_url return None)
     meeting.data = scrubbed_data
-    
+
     # Note: We keep Meeting and MeetingSession records for telemetry
     await db.commit()
-    
+
     logger.info(f"[API] Successfully purged transcripts and anonymized meeting {internal_meeting_id}")
-    
-    return {"message": f"Meeting {platform.value}/{native_meeting_id} transcripts deleted and data anonymized"} 
+
+    return {"message": f"Meeting {platform.value}/{native_meeting_id} transcripts deleted and data anonymized"}

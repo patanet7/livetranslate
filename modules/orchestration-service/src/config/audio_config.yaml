@@ -60,7 +60,7 @@ performance:
 # Enabled stages (can be toggled individually)
 enabled_stages:
   - "vad"
-  - "voice_filter" 
+  - "voice_filter"
   - "voice_enhancement"
   # "noise_reduction" is disabled for loopback compatibility
 

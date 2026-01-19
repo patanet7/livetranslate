@@ -2,7 +2,7 @@ import { ConsoleMessage } from 'playwright';
 import { createLogger, format, transports, Logger } from 'winston';
 import { v5 as uuidv5, v4 } from 'uuid';
 
-const NAMESPACE = uuidv5.DNS; 
+const NAMESPACE = uuidv5.DNS;
 
 export function loggerFactory(correlationId: string, botType?: string): Logger {
   return createLogger({
@@ -96,7 +96,7 @@ export const createCorrelationId = ({
 
 export const getErrorType = (error: unknown): string => {
   if (!error) return 'Unknown';
-  
+
   if (error instanceof Error) {
     // Handle KnownError and its subclasses
     if (error.constructor.name === 'WaitingAtLobbyError') {
@@ -111,7 +111,7 @@ export const getErrorType = (error: unknown): string => {
     if (error.constructor.name === 'KnownError') {
       return 'KnownError';
     }
-    
+
     // Handle other common error types
     if (error.name === 'AxiosError' || error.constructor.name === 'AxiosError') {
       return 'AxiosError';
@@ -119,11 +119,11 @@ export const getErrorType = (error: unknown): string => {
     if (error.name === 'TimeoutError' || error.constructor.name === 'TimeoutError') {
       return 'TimeoutError';
     }
-    
+
     // Return the constructor name for other Error instances
     return error.constructor.name || error.name || 'UnknownError';
   }
-  
+
   return 'Unknown';
 };
 

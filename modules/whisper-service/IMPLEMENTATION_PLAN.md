@@ -136,7 +136,7 @@ Based on comprehensive codebase analysis of 74 Python files:
 # CURRENT CODE (BROKEN - DELETE THIS)
 def update_language_tokens(self, language: str):
     """Updates language-specific tokens for the current session."""
-    # This VIOLATES FEEBACK.md non-negotiables
+    # This VIOLATES FEEDBACK.md non-negotiables
     self.kv_cache.reset()  # ❌ Clears context mid-utterance
     self.decoder.language = language  # ❌ Swaps SOT mid-sequence
     # ... more violations

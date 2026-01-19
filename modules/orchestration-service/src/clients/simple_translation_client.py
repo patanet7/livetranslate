@@ -12,8 +12,8 @@ All intelligence stays in the orchestration service.
 """
 
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import AsyncIterator, Optional
 
 import aiohttp
 
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # Data Classes
 # =============================================================================
 
+
 @dataclass
 class PromptTranslationResult:
     """Result from V3 translation endpoint."""
@@ -32,24 +33,25 @@ class PromptTranslationResult:
     processing_time_ms: float
     backend_used: str
     model_used: str
-    tokens_used: Optional[int] = None
+    tokens_used: int | None = None
 
 
 @dataclass
 class StreamChunk:
     """Streaming chunk from V3 translation endpoint."""
 
-    chunk: Optional[str] = None
+    chunk: str | None = None
     done: bool = False
-    processing_time_ms: Optional[float] = None
-    backend_used: Optional[str] = None
-    model_used: Optional[str] = None
-    error: Optional[str] = None
+    processing_time_ms: float | None = None
+    backend_used: str | None = None
+    model_used: str | None = None
+    error: str | None = None
 
 
 # =============================================================================
 # Simple Translation Client
 # =============================================================================
+
 
 class SimpleTranslationClient:
     """
@@ -95,7 +97,7 @@ class SimpleTranslationClient:
         self.default_max_tokens = default_max_tokens
         self.default_temperature = default_temperature
 
-        self._session: Optional[aiohttp.ClientSession] = None
+        self._session: aiohttp.ClientSession | None = None
 
     async def connect(self) -> bool:
         """
@@ -105,9 +107,7 @@ class SimpleTranslationClient:
             True if connected successfully
         """
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=self.timeout)
-            )
+            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout))
             logger.info(f"SimpleTranslationClient connected to {self.base_url}")
         return True
 
@@ -120,10 +120,10 @@ class SimpleTranslationClient:
     async def translate_prompt(
         self,
         prompt: str,
-        backend: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        system_prompt: Optional[str] = None,
+        backend: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        system_prompt: str | None = None,
     ) -> PromptTranslationResult:
         """
         Send a complete prompt to the translation service.
@@ -180,10 +180,10 @@ class SimpleTranslationClient:
     async def translate_prompt_stream(
         self,
         prompt: str,
-        backend: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        system_prompt: Optional[str] = None,
+        backend: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        system_prompt: str | None = None,
     ) -> AsyncIterator[StreamChunk]:
         """
         Stream translation results from the translation service.
@@ -279,6 +279,7 @@ class SimpleTranslationClient:
 # =============================================================================
 # Factory Function
 # =============================================================================
+
 
 def create_simple_translation_client(
     base_url: str = "http://localhost:5003",

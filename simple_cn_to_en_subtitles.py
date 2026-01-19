@@ -16,25 +16,24 @@ Requirements:
 """
 
 import asyncio
+import io
+import json
 import logging
 import sys
 import time
-from pathlib import Path
-import pyaudio
 import wave
-import io
-import httpx
-import json
-from datetime import datetime
+from pathlib import Path
+
 import cv2
-import numpy as np
+import httpx
+import pyaudio
 
 # Add orchestration service to path for virtual webcam
 sys.path.insert(0, str(Path(__file__).parent / "modules" / "orchestration-service" / "src"))
 
-from bot.virtual_webcam import VirtualWebcamManager, WebcamConfig, DisplayMode, Theme
+from bot.virtual_webcam import DisplayMode, Theme, VirtualWebcamManager, WebcamConfig
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Config
@@ -59,10 +58,10 @@ class LoopbackCapture:
 
         for i in range(self.audio.get_device_count()):
             info = self.audio.get_device_info_by_index(i)
-            name = info['name'].lower()
+            name = info["name"].lower()
 
-            if any(kw in name for kw in ['blackhole', 'soundflower', 'loopback']):
-                if info['maxInputChannels'] > 0:
+            if any(kw in name for kw in ["blackhole", "soundflower", "loopback"]):
+                if info["maxInputChannels"] > 0:
                     logger.info(f"✅ Found: {info['name']}")
                     self.device_index = i
                     return True
@@ -81,7 +80,7 @@ class LoopbackCapture:
             input=True,
             input_device_index=self.device_index,
             frames_per_buffer=int(SAMPLE_RATE * CHUNK_DURATION),
-            stream_callback=callback
+            stream_callback=callback,
         )
         self.stream.start_stream()
 
@@ -107,7 +106,7 @@ class SubtitleDisplay:
             font_size=36,
             show_speaker_names=False,
             show_confidence=True,
-            show_timestamps=True
+            show_timestamps=True,
         )
 
         self.webcam = VirtualWebcamManager(self.config)
@@ -148,7 +147,7 @@ class SubtitleDisplay:
             source_language="zh",
             target_language="zh",
             speaker_name=None,
-            confidence=1.0
+            confidence=1.0,
         )
 
         # Display English translation
@@ -158,7 +157,7 @@ class SubtitleDisplay:
             source_language="zh",
             target_language="en",
             speaker_name=None,
-            confidence=confidence
+            confidence=confidence,
         )
 
         self.update_display()
@@ -176,6 +175,8 @@ class ChineseEnglishSession:
         self.session_id = f"cn_en_{int(time.time())}"
         self.chunk_count = 0
         self.display = SubtitleDisplay()
+        # Background task tracking (prevents fire-and-forget)
+        self._background_tasks: set = set()
 
     async def check_services(self):
         """Check orchestration"""
@@ -190,8 +191,8 @@ class ChineseEnglishSession:
                 else:
                     logger.error(f"❌ Orchestration: HTTP {resp.status_code}")
                     return False
-        except Exception as e:
-            logger.error(f"❌ Orchestration not running")
+        except Exception:
+            logger.error("❌ Orchestration not running")
             logger.info("💡 Start: cd modules/orchestration-service && python src/main.py")
             return False
 
@@ -202,7 +203,7 @@ class ChineseEnglishSession:
 
         # Convert to WAV
         wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wf:
+        with wave.open(wav_buffer, "wb") as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(2)
             wf.setframerate(SAMPLE_RATE)
@@ -213,41 +214,41 @@ class ChineseEnglishSession:
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                files = {'file': ('audio.wav', wav_buffer.read(), 'audio/wav')}
+                files = {"file": ("audio.wav", wav_buffer.read(), "audio/wav")}
                 data = {
-                    'chunk_id': chunk_id,
-                    'session_id': self.session_id,
-                    'target_languages': json.dumps(['en']),  # Only English
-                    'enable_transcription': 'true',
-                    'enable_translation': 'true',
-                    'enable_diarization': 'false',
-                    'whisper_model': 'whisper-base'
+                    "chunk_id": chunk_id,
+                    "session_id": self.session_id,
+                    "target_languages": json.dumps(["en"]),  # Only English
+                    "enable_transcription": "true",
+                    "enable_translation": "true",
+                    "enable_diarization": "false",
+                    "whisper_model": "whisper-base",
                 }
 
                 resp = await client.post(
-                    f"{ORCHESTRATION_URL}/api/audio/upload",
-                    files=files,
-                    data=data
+                    f"{ORCHESTRATION_URL}/api/audio/upload", files=files, data=data
                 )
 
                 if resp.status_code == 200:
                     result = resp.json()
 
                     # Get Chinese transcription
-                    transcription = result.get('transcription', {})
-                    chinese_text = transcription.get('text', '').strip()
-                    lang = transcription.get('language', 'unknown')
+                    transcription = result.get("transcription", {})
+                    chinese_text = transcription.get("text", "").strip()
+                    transcription.get("language", "unknown")
 
                     if chinese_text:
                         logger.info(f"✅ Chinese: {chinese_text[:50]}...")
 
                         # Get English translation
-                        translations = result.get('translations', {})
-                        english_data = translations.get('en', {})
+                        translations = result.get("translations", {})
+                        english_data = translations.get("en", {})
 
                         if isinstance(english_data, dict):
-                            english_text = english_data.get('translated_text', english_data.get('text', ''))
-                            confidence = english_data.get('confidence', 0.0)
+                            english_text = english_data.get(
+                                "translated_text", english_data.get("text", "")
+                            )
+                            confidence = english_data.get("confidence", 0.0)
                         else:
                             english_text = str(english_data)
                             confidence = 0.0
@@ -272,10 +273,10 @@ class ChineseEnglishSession:
 
     async def run(self):
         """Run session"""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("  🎤 CHINESE → ENGLISH SUBTITLES")
         print("  Real-time translation display")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         if not await self.check_services():
             return 1
@@ -285,19 +286,21 @@ class ChineseEnglishSession:
         capture = LoopbackCapture()
         audio_queue = asyncio.Queue()
 
-        def audio_callback(in_data, frame_count, time_info, status):
-            asyncio.create_task(audio_queue.put(in_data))
+        def audio_callback(in_data, _frame_count, _time_info, _status):
+            task = asyncio.create_task(audio_queue.put(in_data))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
             return (in_data, pyaudio.paContinue)
 
         try:
             capture.start(audio_callback)
 
-            print(f"🎙️  LISTENING FOR CHINESE AUDIO...")
+            print("🎙️  LISTENING FOR CHINESE AUDIO...")
             print(f"   Session: {self.session_id}")
-            print(f"   Translation: Chinese → English")
+            print("   Translation: Chinese → English")
             print(f"   Chunk size: {CHUNK_DURATION}s")
-            print(f"\n   💡 Play Chinese audio/video to see English subtitles!")
-            print(f"   💡 Press 'q' in window or Ctrl+C to stop\n")
+            print("\n   💡 Play Chinese audio/video to see English subtitles!")
+            print("   💡 Press 'q' in window or Ctrl+C to stop\n")
 
             while True:
                 if cv2.getWindowProperty(self.display.window_name, cv2.WND_PROP_VISIBLE) < 1:
@@ -307,7 +310,7 @@ class ChineseEnglishSession:
                 try:
                     audio_data = await asyncio.wait_for(audio_queue.get(), timeout=0.1)
                     await self.process_chunk(audio_data)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     self.display.update_display()
                     continue
 
@@ -316,14 +319,15 @@ class ChineseEnglishSession:
         except Exception as e:
             print(f"\n❌ Error: {e}")
             import traceback
+
             traceback.print_exc()
         finally:
             capture.stop()
             await self.display.stop()
 
-            print("\n" + "="*80)
+            print("\n" + "=" * 80)
             print(f"  📊 STATS: {self.chunk_count} chunks processed")
-            print("="*80 + "\n")
+            print("=" * 80 + "\n")
 
         return 0
 

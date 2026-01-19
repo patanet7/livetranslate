@@ -28,11 +28,12 @@ To implement domain prompts in orchestration service, add these fields to:
 See ORCHESTRATION_DOMAIN_PROMPTS.md for detailed implementation guide.
 """
 
-import requests
+import json
 import time
 import wave
-import json
 from pathlib import Path
+
+import requests
 
 ORCHESTRATION_URL = "http://localhost:3000"
 # Use fixtures path (consistent with conftest.py jfk_audio fixture)
@@ -54,11 +55,11 @@ def test_jfk_via_orchestration():
     - "country" → recognized correctly
     - "fellow" → recognized correctly
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("JFK AUDIO VIA ORCHESTRATION SERVICE + DOMAIN PROMPTS TEST")
-    print("="*80)
+    print("=" * 80)
     print("Testing full integration: Frontend → Orchestration → Whisper")
-    print("="*80)
+    print("=" * 80)
 
     # Check if orchestration service is running
     try:
@@ -69,9 +70,9 @@ def test_jfk_via_orchestration():
         print("✅ Orchestration service is running")
     except requests.exceptions.RequestException as e:
         print(f"❌ Cannot connect to orchestration service: {e}")
-        print(f"\n💡 Start orchestration service:")
-        print(f"   cd modules/orchestration-service")
-        print(f"   python src/main.py")
+        print("\n💡 Start orchestration service:")
+        print("   cd modules/orchestration-service")
+        print("   python src/main.py")
         return {"passed": False, "error": "Orchestration service not running"}
 
     # Load JFK audio file
@@ -80,7 +81,7 @@ def test_jfk_via_orchestration():
         return {"passed": False, "error": "Audio file not found"}
 
     print(f"\n📁 Loading JFK audio from: {JFK_AUDIO_PATH}")
-    with wave.open(JFK_AUDIO_PATH, 'rb') as wav_file:
+    with wave.open(JFK_AUDIO_PATH, "rb") as wav_file:
         sample_rate = wav_file.getframerate()
         n_frames = wav_file.getnframes()
         duration = n_frames / sample_rate
@@ -93,49 +94,40 @@ def test_jfk_via_orchestration():
     # Domain prompt configuration
     domain_config = {
         "domain": "political",
-        "custom_terms": json.dumps([
-            "Americans",
-            "fellow citizens",
-            "country",
-            "nation",
-            "freedom",
-            "liberty",
-            "democracy"
-        ]),
-        "initial_prompt": "Presidential inaugural speech about American values and civic responsibility"
+        "custom_terms": json.dumps(
+            ["Americans", "fellow citizens", "country", "nation", "freedom", "liberty", "democracy"]
+        ),
+        "initial_prompt": "Presidential inaugural speech about American values and civic responsibility",
     }
 
-    print(f"\n📝 Domain prompts configuration:")
+    print("\n📝 Domain prompts configuration:")
     print(f"   Domain: {domain_config['domain']}")
     print(f"   Custom terms: {json.loads(domain_config['custom_terms'])}")
     print(f"   Initial prompt: {domain_config['initial_prompt']}")
 
     # Upload audio file with domain prompts
-    print(f"\n📤 Uploading JFK audio to orchestration service...")
+    print("\n📤 Uploading JFK audio to orchestration service...")
     print(f"   Session ID: {session_id}")
 
     try:
-        with open(JFK_AUDIO_PATH, 'rb') as audio_file:
-            files = {'audio': ('jfk.wav', audio_file, 'audio/wav')}
+        with open(JFK_AUDIO_PATH, "rb") as audio_file:
+            files = {"audio": ("jfk.wav", audio_file, "audio/wav")}
 
             data = {
-                'session_id': session_id,
-                'enable_transcription': 'true',
-                'enable_translation': 'false',
-                'enable_diarization': 'false',
-                'whisper_model': 'large-v3-turbo',
+                "session_id": session_id,
+                "enable_transcription": "true",
+                "enable_translation": "false",
+                "enable_diarization": "false",
+                "whisper_model": "large-v3-turbo",
                 # DOMAIN PROMPT FIELDS (requires orchestration service implementation)
-                **domain_config
+                **domain_config,
             }
 
             response = requests.post(
-                f"{ORCHESTRATION_URL}/api/audio/upload",
-                files=files,
-                data=data,
-                timeout=60
+                f"{ORCHESTRATION_URL}/api/audio/upload", files=files, data=data, timeout=60
             )
 
-        print(f"\n📥 Response received:")
+        print("\n📥 Response received:")
         print(f"   Status code: {response.status_code}")
 
         if response.status_code == 200:
@@ -143,16 +135,16 @@ def test_jfk_via_orchestration():
             print(f"   Response: {json.dumps(result, indent=2)}")
 
             # Extract transcription
-            transcription = result.get('transcription', {})
-            text = transcription.get('text', '')
+            transcription = result.get("transcription", {})
+            text = transcription.get("text", "")
 
-            print(f"\n" + "="*80)
+            print("\n" + "=" * 80)
             print("TEST RESULTS")
-            print("="*80)
+            print("=" * 80)
             print(f"📄 Transcription: '{text}'")
 
             # Check for expected keywords
-            print(f"\n🔍 Keyword detection:")
+            print("\n🔍 Keyword detection:")
             keywords = ["Americans", "country", "fellow"]
             all_found = True
             for keyword in keywords:
@@ -162,27 +154,30 @@ def test_jfk_via_orchestration():
                 if not found:
                     all_found = False
 
-            print("\n" + "="*80)
+            print("\n" + "=" * 80)
             if all_found and len(text) > 0:
                 print("✅ TEST PASSED - Domain prompts working via orchestration!")
             elif len(text) > 0:
                 print("⚠️  TEST PARTIALLY PASSED - Transcription received but some keywords missing")
             else:
                 print("❌ TEST FAILED - No transcription received")
-            print("="*80 + "\n")
+            print("=" * 80 + "\n")
 
             return {
                 "passed": all_found and len(text) > 0,
                 "transcription": text,
-                "keywords_found": all_found
+                "keywords_found": all_found,
             }
 
         elif response.status_code == 422:
-            print(f"   ⚠️  Validation error (422) - Domain prompt fields not supported yet")
+            print("   ⚠️  Validation error (422) - Domain prompt fields not supported yet")
             print(f"   Response: {response.text}")
-            print(f"\n💡 The orchestration service needs to be updated to support domain prompts.")
-            print(f"   See ORCHESTRATION_DOMAIN_PROMPTS.md for implementation guide.")
-            return {"passed": False, "error": "Domain prompts not supported in orchestration service"}
+            print("\n💡 The orchestration service needs to be updated to support domain prompts.")
+            print("   See ORCHESTRATION_DOMAIN_PROMPTS.md for implementation guide.")
+            return {
+                "passed": False,
+                "error": "Domain prompts not supported in orchestration service",
+            }
 
         else:
             print(f"   ❌ Upload failed: {response.status_code}")
@@ -190,12 +185,13 @@ def test_jfk_via_orchestration():
             return {"passed": False, "error": f"Upload failed: {response.status_code}"}
 
     except requests.exceptions.Timeout:
-        print(f"❌ Request timed out after 60 seconds")
+        print("❌ Request timed out after 60 seconds")
         return {"passed": False, "error": "Request timeout"}
 
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return {"passed": False, "error": str(e)}
 

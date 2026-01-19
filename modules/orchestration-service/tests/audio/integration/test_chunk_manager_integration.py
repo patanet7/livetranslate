@@ -6,13 +6,14 @@ Tests the ChunkManager integration including database persistence, file operatio
 audio buffering, and quality analysis with real I/O operations.
 """
 
-import pytest
 import asyncio
-import numpy as np
 
 # import soundfile as sf  # Missing dependency - commented out
 import os
 from unittest.mock import patch
+
+import numpy as np
+import pytest
 
 # Skip tests until ChunkManager is implemented
 pytestmark = pytest.mark.skip(reason="ChunkManager not yet implemented")
@@ -23,6 +24,15 @@ from src.audio.models import (
     SourceType,
     get_default_chunking_config,
 )
+
+# Import or create placeholder for create_chunk_manager
+try:
+    from src.audio.chunk_manager import create_chunk_manager
+except ImportError:
+
+    def create_chunk_manager(*args, **kwargs):
+        """Placeholder - ChunkManager not yet implemented."""
+        raise NotImplementedError("ChunkManager not yet implemented")
 
 
 class TestChunkManagerIntegration:
@@ -44,13 +54,13 @@ class TestChunkManagerIntegration:
 
         # Test initialization
         await manager.start()
-        assert manager.is_active == True
+        assert manager.is_active
         assert manager.session_id == session_id
         assert manager.chunks_processed == 0
 
         # Test cleanup
         await manager.stop()
-        assert manager.is_active == False
+        assert not manager.is_active
 
     @pytest.mark.asyncio
     async def test_audio_buffering_and_chunking(self, chunk_manager, sample_audio_data):
@@ -70,13 +80,11 @@ class TestChunkManagerIntegration:
                 audio_chunk = voice_audio[i : i + chunk_size]
 
                 result = await chunk_manager.add_audio_data(audio_chunk)
-                assert result == True
+                assert result
 
                 # Check if chunk was created
                 if mock_process.call_count > len(chunks_created):
-                    chunks_created.append(
-                        mock_process.call_args[0][0]
-                    )  # chunk_metadata
+                    chunks_created.append(mock_process.call_args[0][0])  # chunk_metadata
 
         # Verify chunks were created
         assert len(chunks_created) > 0
@@ -107,10 +115,10 @@ class TestChunkManagerIntegration:
 
                 # Process audio through chunk manager
                 result = await chunk_manager.add_audio_data(voice_audio)
-                assert result == True
+                assert result
 
                 # Flush any remaining buffered audio
-                final_chunks = await chunk_manager.flush_buffer()
+                await chunk_manager.flush_buffer()
 
                 # Verify overlap was handled
                 assert mock_store.call_count > 0
@@ -133,9 +141,7 @@ class TestChunkManagerIntegration:
                 assert abs(overlap - expected_overlap) < 0.1  # Allow small tolerance
 
     @pytest.mark.asyncio
-    async def test_file_storage_and_persistence(
-        self, chunk_manager, sample_audio_data, temp_dir
-    ):
+    async def test_file_storage_and_persistence(self, chunk_manager, sample_audio_data, temp_dir):
         """Test file storage and persistence operations."""
         voice_audio = sample_audio_data["voice_like"]
 
@@ -145,14 +151,12 @@ class TestChunkManagerIntegration:
         stored_files = []
 
         # Mock database operations but allow real file operations
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "test_chunk_id"
 
             # Process audio
             result = await chunk_manager.add_audio_data(voice_audio)
-            assert result == True
+            assert result
 
             # Flush buffer to ensure all chunks are processed
             await chunk_manager.flush_buffer()
@@ -185,9 +189,7 @@ class TestChunkManagerIntegration:
         """Test quality analysis integration with chunking."""
         quality_results = {}
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "quality_test_chunk"
 
             # Test quality analysis for different audio types
@@ -197,7 +199,7 @@ class TestChunkManagerIntegration:
 
                 # Process audio through chunk manager
                 result = await chunk_manager.add_audio_data(audio_data)
-                assert result == True
+                assert result
 
                 # Get quality metrics from stored chunk
                 if mock_store.call_args:
@@ -207,31 +209,25 @@ class TestChunkManagerIntegration:
                     quality_results[test_case["name"]] = quality_score
 
                     # Verify quality score is in expected range
-                    assert expected_range[0] <= quality_score <= expected_range[1], (
-                        f"Quality score {quality_score} not in range {expected_range} for {test_case['name']}"
-                    )
+                    assert (
+                        expected_range[0] <= quality_score <= expected_range[1]
+                    ), f"Quality score {quality_score} not in range {expected_range} for {test_case['name']}"
 
                 # Reset mock for next test
                 mock_store.reset_mock()
 
         # Verify quality differentiation
-        assert (
-            quality_results["high_quality_voice"] > quality_results["low_quality_noise"]
-        )
-        assert (
-            quality_results["medium_quality_noisy_voice"] > quality_results["silence"]
-        )
+        assert quality_results["high_quality_voice"] > quality_results["low_quality_noise"]
+        assert quality_results["medium_quality_noisy_voice"] > quality_results["silence"]
 
     @pytest.mark.asyncio
-    async def test_database_integration_operations(
-        self, chunk_manager, sample_audio_data
-    ):
+    async def test_database_integration_operations(self, chunk_manager, sample_audio_data):
         """Test database integration for chunk operations."""
         voice_audio = sample_audio_data["voice_like"]
 
         # Process audio and verify database operations
         result = await chunk_manager.add_audio_data(voice_audio)
-        assert result == True
+        assert result
 
         # Flush buffer to ensure database operations
         await chunk_manager.flush_buffer()
@@ -262,13 +258,10 @@ class TestChunkManagerIntegration:
         # Split audio into multiple concurrent streams
         chunk_size = len(voice_audio) // 4
         audio_streams = [
-            voice_audio[i : i + chunk_size]
-            for i in range(0, len(voice_audio), chunk_size)
+            voice_audio[i : i + chunk_size] for i in range(0, len(voice_audio), chunk_size)
         ]
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "concurrent_chunk_id"
 
             # Process streams concurrently
@@ -281,13 +274,11 @@ class TestChunkManagerIntegration:
                 assert not isinstance(result, Exception)
 
         # Verify thread safety - no corrupted state
-        assert chunk_manager.is_active == True
+        assert chunk_manager.is_active
         assert chunk_manager.chunks_processed >= 0
 
     @pytest.mark.asyncio
-    async def test_buffer_management_and_memory_usage(
-        self, chunk_manager, sample_audio_data
-    ):
+    async def test_buffer_management_and_memory_usage(self, chunk_manager, sample_audio_data):
         """Test buffer management and memory efficiency."""
         voice_audio = sample_audio_data["voice_like"]
 
@@ -311,9 +302,7 @@ class TestChunkManagerIntegration:
                 max_buffer_size = max(max_buffer_size, current_buffer_size)
 
                 # Buffer shouldn't grow indefinitely
-                max_allowed_size = (
-                    chunk_manager.config.buffer_duration * 16000
-                )  # samples
+                max_allowed_size = chunk_manager.config.buffer_duration * 16000  # samples
                 assert current_buffer_size <= max_allowed_size
 
         # Verify buffer was actively managed
@@ -330,9 +319,7 @@ class TestChunkManagerIntegration:
         voice_audio = sample_audio_data["voice_like"]
 
         # Test database error handling
-        chunk_manager.database_adapter.store_audio_chunk.side_effect = Exception(
-            "Database error"
-        )
+        chunk_manager.database_adapter.store_audio_chunk.side_effect = Exception("Database error")
 
         # Should handle database errors gracefully
         result = await chunk_manager.add_audio_data(voice_audio)
@@ -341,9 +328,7 @@ class TestChunkManagerIntegration:
 
         # Reset and test file storage error
         chunk_manager.database_adapter.store_audio_chunk.side_effect = None
-        chunk_manager.database_adapter.store_audio_chunk.return_value = (
-            "recovered_chunk_id"
-        )
+        chunk_manager.database_adapter.store_audio_chunk.return_value = "recovered_chunk_id"
 
         with patch("soundfile.write", side_effect=Exception("File write error")):
             result = await chunk_manager.add_audio_data(voice_audio)
@@ -354,17 +339,13 @@ class TestChunkManagerIntegration:
         assert isinstance(result, bool)
 
     @pytest.mark.asyncio
-    async def test_chunk_sequence_and_timing_accuracy(
-        self, chunk_manager, sample_audio_data
-    ):
+    async def test_chunk_sequence_and_timing_accuracy(self, chunk_manager, sample_audio_data):
         """Test chunk sequence numbering and timing accuracy."""
         voice_audio = sample_audio_data["voice_like"]
 
         chunk_metadatas = []
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "sequence_test_chunk"
 
             # Process audio
@@ -388,28 +369,22 @@ class TestChunkManagerIntegration:
             last_end = chunk_metadatas[-1].chunk_end_time
 
             covered_duration = last_end - first_start
-            assert (
-                abs(covered_duration - total_expected_duration) < 0.5
-            )  # Allow tolerance
+            assert abs(covered_duration - total_expected_duration) < 0.5  # Allow tolerance
 
     @pytest.mark.asyncio
-    async def test_configuration_updates_during_processing(
-        self, chunk_manager, sample_audio_data
-    ):
+    async def test_configuration_updates_during_processing(self, chunk_manager, sample_audio_data):
         """Test configuration updates during active processing."""
         voice_audio = sample_audio_data["voice_like"]
 
         # Initial configuration
         initial_chunk_duration = chunk_manager.config.chunk_duration
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "config_test_chunk"
 
             # Start processing
             result1 = await chunk_manager.add_audio_data(voice_audio[:8000])
-            assert result1 == True
+            assert result1
 
             # Update configuration
             new_config = get_default_chunking_config()
@@ -420,7 +395,7 @@ class TestChunkManagerIntegration:
 
             # Continue processing with new config
             result2 = await chunk_manager.add_audio_data(voice_audio[8000:])
-            assert result2 == True
+            assert result2
 
             await chunk_manager.flush_buffer()
 
@@ -438,9 +413,7 @@ class TestChunkManagerIntegration:
         chunk_manager.config.audio_storage_path = str(temp_dir)
         created_files = []
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "cleanup_test_chunk"
 
             # Process audio and track created files
@@ -460,7 +433,7 @@ class TestChunkManagerIntegration:
         await chunk_manager.cleanup(remove_files=True)
 
         # Verify cleanup
-        assert chunk_manager.is_active == False
+        assert not chunk_manager.is_active
 
         # Verify files were removed (if cleanup includes file removal)
         for file_path in created_files:
@@ -505,9 +478,7 @@ class TestChunkManagerErrorScenarios:
         # Test non-existent directory
         chunk_manager.config.audio_storage_path = "/nonexistent/directory"
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "storage_error_chunk"
 
             result = await chunk_manager.add_audio_data(voice_audio)
@@ -551,13 +522,9 @@ class TestChunkManagerErrorScenarios:
     async def test_memory_pressure_scenarios(self, chunk_manager):
         """Test behavior under memory pressure."""
         # Generate large audio data to test memory handling
-        large_audio = np.random.randn(16000 * 60).astype(
-            np.float32
-        )  # 1 minute of audio
+        large_audio = np.random.randn(16000 * 60).astype(np.float32)  # 1 minute of audio
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "memory_test_chunk"
 
             # Process in chunks to simulate streaming
@@ -586,15 +553,13 @@ class TestChunkManagerPerformance:
         # Repeat audio to create longer test sequence
         extended_audio = np.tile(voice_audio, 10)  # 30 seconds of audio
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "throughput_test_chunk"
 
             start_time = asyncio.get_event_loop().time()
 
             # Process audio
-            result = await chunk_manager.add_audio_data(extended_audio)
+            await chunk_manager.add_audio_data(extended_audio)
             await chunk_manager.flush_buffer()
 
             end_time = asyncio.get_event_loop().time()
@@ -606,9 +571,7 @@ class TestChunkManagerPerformance:
             throughput_ratio = audio_duration / processing_time
 
             # Should process faster than real-time
-            assert throughput_ratio > 1.0, (
-                f"Throughput ratio {throughput_ratio} should be > 1.0"
-            )
+            assert throughput_ratio > 1.0, f"Throughput ratio {throughput_ratio} should be > 1.0"
 
             # Verify chunks were created
             assert mock_store.call_count > 0
@@ -618,15 +581,14 @@ class TestChunkManagerPerformance:
         """Test memory efficiency during processing."""
         voice_audio = sample_audio_data["voice_like"]
 
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss
 
-        with patch.object(
-            chunk_manager.database_adapter, "store_audio_chunk"
-        ) as mock_store:
+        with patch.object(chunk_manager.database_adapter, "store_audio_chunk") as mock_store:
             mock_store.return_value = "memory_efficiency_chunk"
 
             # Process audio multiple times
@@ -638,9 +600,9 @@ class TestChunkManagerPerformance:
             memory_increase = final_memory - initial_memory
 
             # Memory increase should be reasonable (less than 100MB)
-            assert memory_increase < 100 * 1024 * 1024, (
-                f"Memory increased by {memory_increase} bytes"
-            )
+            assert (
+                memory_increase < 100 * 1024 * 1024
+            ), f"Memory increased by {memory_increase} bytes"
 
 
 if __name__ == "__main__":

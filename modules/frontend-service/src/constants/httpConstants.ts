@@ -12,16 +12,16 @@
  * Replaces: String literals 'GET', 'POST', etc.
  */
 export const HTTP_METHODS = {
-  GET: 'GET',
-  POST: 'POST',
-  PUT: 'PUT',
-  PATCH: 'PATCH',
-  DELETE: 'DELETE',
-  HEAD: 'HEAD',
-  OPTIONS: 'OPTIONS',
+  GET: "GET",
+  POST: "POST",
+  PUT: "PUT",
+  PATCH: "PATCH",
+  DELETE: "DELETE",
+  HEAD: "HEAD",
+  OPTIONS: "OPTIONS",
 } as const;
 
-export type HttpMethod = typeof HTTP_METHODS[keyof typeof HTTP_METHODS];
+export type HttpMethod = (typeof HTTP_METHODS)[keyof typeof HTTP_METHODS];
 
 /**
  * HTTP Status Codes
@@ -64,7 +64,7 @@ export const HTTP_STATUS = {
   GATEWAY_TIMEOUT: 504,
 } as const;
 
-export type HttpStatus = typeof HTTP_STATUS[keyof typeof HTTP_STATUS];
+export type HttpStatus = (typeof HTTP_STATUS)[keyof typeof HTTP_STATUS];
 
 /**
  * Content Types
@@ -73,20 +73,20 @@ export type HttpStatus = typeof HTTP_STATUS[keyof typeof HTTP_STATUS];
  * Replaces: String literals for Content-Type
  */
 export const CONTENT_TYPES = {
-  JSON: 'application/json',
-  FORM_DATA: 'multipart/form-data',
-  FORM_URLENCODED: 'application/x-www-form-urlencoded',
-  TEXT: 'text/plain',
-  HTML: 'text/html',
-  XML: 'application/xml',
-  BINARY: 'application/octet-stream',
-  PDF: 'application/pdf',
-  AUDIO_WAV: 'audio/wav',
-  AUDIO_MP3: 'audio/mpeg',
-  AUDIO_WEBM: 'audio/webm',
+  JSON: "application/json",
+  FORM_DATA: "multipart/form-data",
+  FORM_URLENCODED: "application/x-www-form-urlencoded",
+  TEXT: "text/plain",
+  HTML: "text/html",
+  XML: "application/xml",
+  BINARY: "application/octet-stream",
+  PDF: "application/pdf",
+  AUDIO_WAV: "audio/wav",
+  AUDIO_MP3: "audio/mpeg",
+  AUDIO_WEBM: "audio/webm",
 } as const;
 
-export type ContentType = typeof CONTENT_TYPES[keyof typeof CONTENT_TYPES];
+export type ContentType = (typeof CONTENT_TYPES)[keyof typeof CONTENT_TYPES];
 
 /**
  * Common HTTP Headers
@@ -94,17 +94,17 @@ export type ContentType = typeof CONTENT_TYPES[keyof typeof CONTENT_TYPES];
  * Used for: Request/Response header names
  */
 export const HTTP_HEADERS = {
-  CONTENT_TYPE: 'Content-Type',
-  AUTHORIZATION: 'Authorization',
-  ACCEPT: 'Accept',
-  CACHE_CONTROL: 'Cache-Control',
-  USER_AGENT: 'User-Agent',
-  REFERER: 'Referer',
-  ACCEPT_LANGUAGE: 'Accept-Language',
-  ACCEPT_ENCODING: 'Accept-Encoding',
+  CONTENT_TYPE: "Content-Type",
+  AUTHORIZATION: "Authorization",
+  ACCEPT: "Accept",
+  CACHE_CONTROL: "Cache-Control",
+  USER_AGENT: "User-Agent",
+  REFERER: "Referer",
+  ACCEPT_LANGUAGE: "Accept-Language",
+  ACCEPT_ENCODING: "Accept-Encoding",
 } as const;
 
-export type HttpHeader = typeof HTTP_HEADERS[keyof typeof HTTP_HEADERS];
+export type HttpHeader = (typeof HTTP_HEADERS)[keyof typeof HTTP_HEADERS];
 
 /**
  * Check if status code is successful (2xx)
@@ -132,19 +132,19 @@ export const isServerError = (status: number): boolean => {
  */
 export const getStatusDescription = (status: number): string => {
   const statusMap: Record<number, string> = {
-    200: 'OK',
-    201: 'Created',
-    204: 'No Content',
-    400: 'Bad Request',
-    401: 'Unauthorized',
-    403: 'Forbidden',
-    404: 'Not Found',
-    409: 'Conflict',
-    422: 'Unprocessable Entity',
-    500: 'Internal Server Error',
-    502: 'Bad Gateway',
-    503: 'Service Unavailable',
+    200: "OK",
+    201: "Created",
+    204: "No Content",
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    409: "Conflict",
+    422: "Unprocessable Entity",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+    503: "Service Unavailable",
   };
 
-  return statusMap[status] || 'Unknown Status';
+  return statusMap[status] || "Unknown Status";
 };

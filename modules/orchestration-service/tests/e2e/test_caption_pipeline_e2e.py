@@ -15,12 +15,7 @@ This tests everything except actual Whisper/translation model inference.
 import asyncio
 import json
 import logging
-import random
-import time
 from dataclasses import dataclass
-from datetime import datetime
-from typing import List, Optional
-from uuid import uuid4
 
 import aiohttp
 import pytest
@@ -38,7 +33,9 @@ WS_URL = "ws://localhost:3000/api/captions/stream"
 
 # Use "test" session by default so you can watch in the overlay
 # Override with environment variable: TEST_SESSION_ID=my-session
+import contextlib
 import os
+
 SESSION_ID = os.environ.get("TEST_SESSION_ID", "test")
 
 
@@ -63,7 +60,7 @@ async def clear_session(session_id: str, delay_before: float = 2.0):
                     "text": "init",
                     "speaker_name": "System",
                     "duration_seconds": 0.1,
-                }
+                },
             )
             await asyncio.sleep(0.2)
 
@@ -82,13 +79,15 @@ async def clear_session(session_id: str, delay_before: float = 2.0):
 # Simulated Data
 # =============================================================================
 
+
 @dataclass
 class SimulatedUtterance:
     """Simulates a transcribed utterance from Whisper + diarization."""
+
     speaker: str
     text: str
     delay_before: float = 0.5  # Seconds before this utterance
-    translation: Optional[str] = None  # If None, will auto-generate
+    translation: str | None = None  # If None, will auto-generate
 
 
 # Realistic conversation simulation
@@ -135,13 +134,14 @@ def get_translation(text: str) -> str:
 # WebSocket Client for Receiving Captions
 # =============================================================================
 
+
 class CaptionReceiver:
     """WebSocket client that receives caption events."""
 
     def __init__(self, session_id: str):
         self.session_id = session_id
         self.ws = None
-        self.received_events: List[dict] = []
+        self.received_events: list[dict] = []
         self.captions: dict = {}  # id -> caption data
         self.connected = False
         self._task = None
@@ -190,12 +190,16 @@ class CaptionReceiver:
         elif event == "caption_added":
             caption = data.get("caption", {})
             self.captions[caption["id"]] = caption
-            logger.info(f"Caption added: [{caption.get('speaker_name')}] {caption.get('translated_text')[:40]}...")
+            logger.info(
+                f"Caption added: [{caption.get('speaker_name')}] {caption.get('translated_text')[:40]}..."
+            )
 
         elif event == "caption_updated":
             caption = data.get("caption", {})
             self.captions[caption["id"]] = caption
-            logger.info(f"Caption updated: [{caption.get('speaker_name')}] {caption.get('translated_text')[:40]}...")
+            logger.info(
+                f"Caption updated: [{caption.get('speaker_name')}] {caption.get('translated_text')[:40]}..."
+            )
 
         elif event == "caption_expired":
             caption_id = data.get("caption_id")
@@ -206,17 +210,15 @@ class CaptionReceiver:
         """Close WebSocket connection."""
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
         if self.ws:
             await self.ws.close()
-        if hasattr(self, '_session'):
+        if hasattr(self, "_session"):
             await self._session.close()
         self.connected = False
 
-    def get_visible_captions(self) -> List[dict]:
+    def get_visible_captions(self) -> list[dict]:
         """Get currently visible captions."""
         return list(self.captions.values())
 
@@ -224,7 +226,7 @@ class CaptionReceiver:
         """Get number of visible captions."""
         return len(self.captions)
 
-    def get_events_by_type(self, event_type: str) -> List[dict]:
+    def get_events_by_type(self, event_type: str) -> list[dict]:
         """Get all events of a specific type."""
         return [e for e in self.received_events if e.get("event") == event_type]
 
@@ -232,6 +234,7 @@ class CaptionReceiver:
 # =============================================================================
 # Caption Sender (Simulates Translation Pipeline Output)
 # =============================================================================
+
 
 class CaptionSender:
     """Sends captions to the API (simulates translation pipeline output)."""
@@ -244,7 +247,7 @@ class CaptionSender:
         self,
         text: str,
         speaker_name: str,
-        original_text: Optional[str] = None,
+        original_text: str | None = None,
     ) -> dict:
         """Send a caption to the API."""
         url = f"{BASE_URL}/api/captions/{self.session_id}"
@@ -267,6 +270,7 @@ class CaptionSender:
 # =============================================================================
 # Test Scenarios
 # =============================================================================
+
 
 @pytest.mark.asyncio
 async def test_full_conversation_flow():
@@ -324,7 +328,9 @@ async def test_full_conversation_flow():
         # Count aggregations
         aggregated = sum(1 for r in results if r.get("was_aggregated"))
         new_bubbles = sum(1 for r in results if not r.get("was_aggregated"))
-        logger.info(f"Sent {len(results)} utterances: {new_bubbles} new bubbles, {aggregated} aggregations")
+        logger.info(
+            f"Sent {len(results)} utterances: {new_bubbles} new bubbles, {aggregated} aggregations"
+        )
 
         # Check WebSocket events
         added_events = receiver.get_events_by_type("caption_added")
@@ -344,15 +350,16 @@ async def test_full_conversation_flow():
 
         # Verify out-of-order behavior
         # Alice speaks, then Bob, then Alice again - Alice should get new bubble
-        alice_results = [r for i, r in enumerate(results) if CONVERSATION_SCRIPT[i].speaker == "Alice"]
+        [r for i, r in enumerate(results) if CONVERSATION_SCRIPT[i].speaker == "Alice"]
         # After Bob speaks, Alice's next utterance should NOT aggregate
         # Find where Alice speaks after Bob
         speakers = [u.speaker for u in CONVERSATION_SCRIPT]
         for i in range(1, len(speakers)):
-            if speakers[i] == "Alice" and speakers[i-1] != "Alice":
+            if speakers[i] == "Alice" and speakers[i - 1] != "Alice":
                 # This Alice utterance should be a new bubble (out-of-order)
-                assert not results[i].get("was_aggregated"), \
-                    f"Alice utterance {i} should be new bubble after {speakers[i-1]} spoke"
+                assert not results[i].get(
+                    "was_aggregated"
+                ), f"Alice utterance {i} should be new bubble after {speakers[i-1]} spoke"
 
         logger.info("\n✅ All assertions passed!")
 
@@ -415,7 +422,7 @@ async def test_rapid_same_speaker():
         full_text = visible[0]["translated_text"]
         assert "[1]" in full_text and "[5]" in full_text, "Should contain first and last"
 
-        logger.info(f"✅ Rapid same speaker: Single bubble with aggregated text")
+        logger.info("✅ Rapid same speaker: Single bubble with aggregated text")
         logger.info(f"   Text: {full_text[:80]}...")
 
     finally:
@@ -447,8 +454,8 @@ async def test_speaker_interleaving():
             ("Alice", "Alice first message"),
             ("Bob", "Bob responds"),
             ("Alice", "Alice replies"),  # Should be NEW (out-of-order)
-            ("Bob", "Bob continues"),    # Should be NEW (out-of-order)
-            ("Alice", "Alice wraps up"), # Should be NEW (out-of-order)
+            ("Bob", "Bob continues"),  # Should be NEW (out-of-order)
+            ("Alice", "Alice wraps up"),  # Should be NEW (out-of-order)
         ]
 
         results = []
@@ -464,8 +471,9 @@ async def test_speaker_interleaving():
                 assert not result.get("was_aggregated"), "First should be new"
             else:
                 # Since speakers alternate, each should be new (out-of-order)
-                assert not result.get("was_aggregated"), \
-                    f"Utterance {i} should be new (speaker changed)"
+                assert not result.get(
+                    "was_aggregated"
+                ), f"Utterance {i} should be new (speaker changed)"
 
         await asyncio.sleep(0.5)
         visible = receiver.get_visible_captions()
@@ -524,7 +532,7 @@ async def test_max_aggregation_time():
                     assert result["caption_id"] != first_id, "Should have new ID"
                     break
 
-        logger.info(f"✅ Max aggregation time: New bubble forced after ~6 seconds")
+        logger.info("✅ Max aggregation time: New bubble forced after ~6 seconds")
 
     finally:
         await receiver.close()
@@ -594,7 +602,7 @@ async def test_caption_expiration():
                 logger.info(f"After expiration: {remaining_count} captions remaining")
                 assert remaining_count == 0, "Caption should be cleaned up"
 
-        logger.info(f"✅ Expiration: Caption properly expired and cleaned up")
+        logger.info("✅ Expiration: Caption properly expired and cleaned up")
 
     finally:
         await receiver.close()
@@ -603,6 +611,7 @@ async def test_caption_expiration():
 # =============================================================================
 # Main Runner
 # =============================================================================
+
 
 async def run_all_tests():
     """Run all tests and report results."""

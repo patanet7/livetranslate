@@ -14,8 +14,8 @@ This module provides:
 
 import logging
 import os
-from typing import Dict, Any, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from typing import Any
 
 from .models import AudioChunkingConfig
 
@@ -34,7 +34,7 @@ class WhisperServiceConfig:
     enable_vad: bool = True
 
     # Device settings
-    device: Optional[str] = None
+    device: str | None = None
 
     # Performance settings
     min_inference_interval: float = 0.2
@@ -45,7 +45,7 @@ class WhisperServiceConfig:
     default_model: str = "whisper-base.en"
 
     # Session settings
-    session_dir: Optional[str] = None
+    session_dir: str | None = None
 
 
 class WhisperCompatibilityManager:
@@ -69,9 +69,7 @@ class WhisperCompatibilityManager:
                 overlap_duration=float(os.getenv("OVERLAP_DURATION", "0.2")),
                 enable_vad=os.getenv("ENABLE_VAD", "true").lower() == "true",
                 device=os.getenv("OPENVINO_DEVICE"),
-                min_inference_interval=float(
-                    os.getenv("MIN_INFERENCE_INTERVAL", "0.2")
-                ),
+                min_inference_interval=float(os.getenv("MIN_INFERENCE_INTERVAL", "0.2")),
                 max_concurrent_requests=int(os.getenv("MAX_CONCURRENT_REQUESTS", "10")),
                 models_dir=os.getenv("WHISPER_MODELS_DIR", ""),
                 default_model=os.getenv("WHISPER_DEFAULT_MODEL", "whisper-base.en"),
@@ -94,11 +92,8 @@ class WhisperCompatibilityManager:
             # Core chunking parameters - match whisper service
             chunk_duration=self.whisper_config.inference_interval,  # 3.0s default
             overlap_duration=self.whisper_config.overlap_duration,  # 0.2s default
-            processing_interval=self.whisper_config.inference_interval
-            * 0.8,  # Slightly faster
-            buffer_duration=max(
-                5.0, self.whisper_config.buffer_duration
-            ),  # Ensure >= 5.0s minimum
+            processing_interval=self.whisper_config.inference_interval * 0.8,  # Slightly faster
+            buffer_duration=max(5.0, self.whisper_config.buffer_duration),  # Ensure >= 5.0s minimum
             # Quality thresholds - optimized for whisper compatibility
             min_quality_threshold=0.3,
             silence_threshold=0.01,  # Match whisper's silence detection
@@ -124,12 +119,10 @@ class WhisperCompatibilityManager:
             file_retention_days=30,
         )
 
-        logger.info(
-            f"Created compatible orchestration config: {orchestration_config.dict()}"
-        )
+        logger.info(f"Created compatible orchestration config: {orchestration_config.dict()}")
         return orchestration_config
 
-    def validate_compatibility(self) -> Dict[str, Any]:
+    def validate_compatibility(self) -> dict[str, Any]:
         """Validate that orchestration config is compatible with whisper service."""
 
         validation_result = {
@@ -140,29 +133,20 @@ class WhisperCompatibilityManager:
         }
 
         # Check timing compatibility
-        if (
-            self.orchestration_config.chunk_duration
-            != self.whisper_config.inference_interval
-        ):
+        if self.orchestration_config.chunk_duration != self.whisper_config.inference_interval:
             validation_result["warnings"].append(
                 f"Chunk duration ({self.orchestration_config.chunk_duration}s) differs from "
                 f"whisper inference interval ({self.whisper_config.inference_interval}s)"
             )
 
-        if (
-            self.orchestration_config.overlap_duration
-            != self.whisper_config.overlap_duration
-        ):
+        if self.orchestration_config.overlap_duration != self.whisper_config.overlap_duration:
             validation_result["warnings"].append(
                 f"Overlap duration ({self.orchestration_config.overlap_duration}s) differs from "
                 f"whisper overlap ({self.whisper_config.overlap_duration}s)"
             )
 
         # Check buffer compatibility
-        if (
-            self.orchestration_config.buffer_duration
-            < self.whisper_config.buffer_duration
-        ):
+        if self.orchestration_config.buffer_duration < self.whisper_config.buffer_duration:
             validation_result["issues"].append(
                 f"Orchestration buffer ({self.orchestration_config.buffer_duration}s) is smaller than "
                 f"whisper buffer ({self.whisper_config.buffer_duration}s)"
@@ -193,7 +177,7 @@ class WhisperCompatibilityManager:
         logger.info(f"Compatibility validation result: {validation_result}")
         return validation_result
 
-    def get_migration_config(self) -> Dict[str, Any]:
+    def get_migration_config(self) -> dict[str, Any]:
         """Get configuration for smooth migration from whisper service."""
 
         return {
@@ -225,7 +209,7 @@ class WhisperCompatibilityManager:
         start_time: float,
         end_time: float,
         audio_data: bytes,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create chunk metadata compatible with whisper service expectations.
         This ensures whisper service receives all necessary context.
@@ -240,9 +224,7 @@ class WhisperCompatibilityManager:
             "start_time": start_time,
             "end_time": end_time,
             "duration": duration,
-            "overlap_start": max(
-                0, start_time - self.orchestration_config.overlap_duration
-            ),
+            "overlap_start": max(0, start_time - self.orchestration_config.overlap_duration),
             "overlap_end": min(
                 end_time + self.orchestration_config.overlap_duration,
                 start_time + self.orchestration_config.buffer_duration,
@@ -264,9 +246,9 @@ class WhisperCompatibilityManager:
         chunk_id: str,
         session_id: str,
         audio_data: bytes,
-        chunk_metadata: Dict[str, Any],
-        model_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        chunk_metadata: dict[str, Any],
+        model_name: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a complete request for the whisper service that matches the new API.
         This ensures seamless integration with the updated whisper service.
@@ -282,7 +264,7 @@ class WhisperCompatibilityManager:
             "model_name": model_name or self.whisper_config.default_model,
         }
 
-    def validate_whisper_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_whisper_response(self, response: dict[str, Any]) -> dict[str, Any]:
         """
         Validate and normalize whisper service response for orchestration service.
         Ensures consistent response format regardless of whisper service version.
@@ -295,9 +277,7 @@ class WhisperCompatibilityManager:
             required_fields = ["chunk_id", "session_id", "status"]
             for field in required_fields:
                 if field not in response:
-                    validation_result["issues"].append(
-                        f"Missing required field: {field}"
-                    )
+                    validation_result["issues"].append(f"Missing required field: {field}")
                     validation_result["valid"] = False
 
             # Normalize response structure
@@ -315,9 +295,7 @@ class WhisperCompatibilityManager:
                 }
 
                 # Ensure transcription has required fields
-                transcription = validation_result["normalized_response"][
-                    "transcription"
-                ]
+                transcription = validation_result["normalized_response"]["transcription"]
                 if transcription:
                     transcription.setdefault("text", "")
                     transcription.setdefault("language", "unknown")
@@ -326,7 +304,7 @@ class WhisperCompatibilityManager:
 
         except Exception as e:
             validation_result["valid"] = False
-            validation_result["issues"].append(f"Response validation error: {str(e)}")
+            validation_result["issues"].append(f"Response validation error: {e!s}")
 
         return validation_result
 
@@ -342,7 +320,7 @@ def get_compatible_chunking_config() -> AudioChunkingConfig:
     return manager.orchestration_config
 
 
-def validate_migration_readiness() -> Dict[str, Any]:
+def validate_migration_readiness() -> dict[str, Any]:
     """Validate that the system is ready for migration from whisper to orchestration chunking."""
     manager = create_compatibility_manager()
 
@@ -366,7 +344,7 @@ def validate_migration_readiness() -> Dict[str, Any]:
 
 
 # Easy configuration access for frontend settings
-def get_frontend_compatible_config() -> Dict[str, Any]:
+def get_frontend_compatible_config() -> dict[str, Any]:
     """Get configuration in format suitable for frontend settings pages."""
     manager = create_compatibility_manager()
 

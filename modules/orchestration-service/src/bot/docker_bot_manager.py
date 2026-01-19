@@ -17,13 +17,13 @@ Reduction: -60% complexity
 """
 
 import asyncio
+import json
 import logging
 import time
 import uuid
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
-import json
+from typing import Any
 
 try:
     import docker
@@ -74,16 +74,16 @@ class BotConfig:
 
     # Optional
     orchestration_ws_url: str = "ws://orchestration:3000/ws"
-    redis_url: Optional[str] = "redis://redis:6379"
-    bot_manager_url: Optional[str] = "http://orchestration:3000"
+    redis_url: str | None = "redis://redis:6379"
+    bot_manager_url: str | None = "http://orchestration:3000"
     language: str = "en"
     task: str = "transcribe"
     enable_virtual_webcam: bool = False
 
     # Google Authentication (for restricted meetings)
-    google_email: Optional[str] = None
-    google_password: Optional[str] = None
-    user_data_dir: Optional[str] = None
+    google_email: str | None = None
+    google_password: str | None = None
+    user_data_dir: str | None = None
     headless: bool = True
     screenshots_enabled: bool = True
     screenshots_path: str = "/tmp/bot-screenshots"
@@ -92,7 +92,7 @@ class BotConfig:
     docker_image: str = "livetranslate-bot:latest"
     docker_network: str = "livetranslate_default"
 
-    def to_env_vars(self) -> Dict[str, str]:
+    def to_env_vars(self) -> dict[str, str]:
         """Convert config to Docker environment variables"""
         env_vars = {
             "MEETING_URL": self.meeting_url,
@@ -132,33 +132,31 @@ class BotInstance:
     meeting_url: str
 
     # Container
-    container_id: Optional[str] = None
-    container_name: Optional[str] = None
+    container_id: str | None = None
+    container_name: str | None = None
 
     # Status
     status: BotStatus = BotStatus.SPAWNING
     created_at: float = field(default_factory=time.time)
-    started_at: Optional[float] = None
-    active_at: Optional[float] = None
-    stopped_at: Optional[float] = None
+    started_at: float | None = None
+    active_at: float | None = None
+    stopped_at: float | None = None
 
     # Health
-    last_callback: Optional[float] = None
-    error_message: Optional[str] = None
-    exit_code: Optional[int] = None
+    last_callback: float | None = None
+    error_message: str | None = None
+    exit_code: int | None = None
 
     # Metadata
-    config: Optional[Dict[str, Any]] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary with JSON-safe types"""
         data = asdict(self)
         # Ensure status is a string
         data["status"] = (
-            self.status.value
-            if isinstance(self.status, BotStatus)
-            else str(self.status)
+            self.status.value if isinstance(self.status, BotStatus) else str(self.status)
         )
         # Add computed properties
         data["uptime_seconds"] = self.uptime_seconds
@@ -230,9 +228,9 @@ class DockerBotManager:
         docker_network: str = "livetranslate_default",
         enable_database: bool = False,  # Disabled by default for local testing
         # Google Authentication (for restricted meetings)
-        google_email: Optional[str] = None,
-        google_password: Optional[str] = None,
-        user_data_dir: Optional[str] = None,
+        google_email: str | None = None,
+        google_password: str | None = None,
+        user_data_dir: str | None = None,
         headless: bool = True,
         screenshots_enabled: bool = True,
         screenshots_path: str = "/tmp/bot-screenshots",
@@ -257,13 +255,13 @@ class DockerBotManager:
         )
 
         # Bot tracking
-        self.bots: Dict[str, BotInstance] = {}
+        self.bots: dict[str, BotInstance] = {}
 
         # Docker client
-        self.docker_client: Optional[docker.DockerClient] = None
+        self.docker_client: docker.DockerClient | None = None
 
         # Redis client
-        self.redis_client: Optional[aioredis.Redis] = None
+        self.redis_client: aioredis.Redis | None = None
 
         # Database
         self.db_manager = None
@@ -304,8 +302,8 @@ class DockerBotManager:
         # Initialize database (if enabled)
         if self.enable_database:
             try:
-                from database.bot_session_manager import create_bot_session_manager
                 from config import get_settings
+                from database.bot_session_manager import create_bot_session_manager
 
                 # Get database config from settings
                 settings = get_settings()
@@ -354,7 +352,7 @@ class DockerBotManager:
         language: str = "en",
         task: str = "transcribe",
         enable_virtual_webcam: bool = False,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """
         Start a bot container
@@ -380,9 +378,7 @@ class DockerBotManager:
             "localhost", "host.docker.internal"
         )
         redis_url_for_container = (
-            self.redis_url.replace("localhost", "host.docker.internal")
-            if self.redis_url
-            else None
+            self.redis_url.replace("localhost", "host.docker.internal") if self.redis_url else None
         )
 
         config = BotConfig(
@@ -432,9 +428,7 @@ class DockerBotManager:
                 container = await self._start_container(config)
                 bot.container_id = container.id
                 bot.container_name = container.name
-                logger.info(
-                    f"✅ Bot container started: {container.name} ({container.short_id})"
-                )
+                logger.info(f"✅ Bot container started: {container.name} ({container.short_id})")
             else:
                 # Mock mode
                 bot.container_id = f"mock-{connection_id}"
@@ -532,15 +526,11 @@ class DockerBotManager:
         # Update database
         if self.db_manager:
             try:
-                await self.db_manager.update_bot_status(
-                    connection_id, BotStatus.COMPLETED.value
-                )
+                await self.db_manager.update_bot_status(connection_id, BotStatus.COMPLETED.value)
             except Exception as e:
                 logger.error(f"Failed to update bot status in database: {e}")
 
-    async def handle_bot_callback(
-        self, connection_id: str, status: str, data: Dict[str, Any]
-    ):
+    async def handle_bot_callback(self, connection_id: str, status: str, data: dict[str, Any]):
         """
         Handle HTTP callback from bot container
 
@@ -619,7 +609,7 @@ class DockerBotManager:
         # Keep bot in memory for stats/history
         # (could implement removal after X hours)
 
-    async def send_command(self, connection_id: str, command: Dict[str, Any]):
+    async def send_command(self, connection_id: str, command: dict[str, Any]):
         """
         Send Redis command to bot
 
@@ -634,13 +624,13 @@ class DockerBotManager:
         await self.redis_client.publish(channel, json.dumps(command))
         logger.info(f"Sent command to bot {connection_id}: {command}")
 
-    def get_bot(self, connection_id: str) -> Optional[BotInstance]:
+    def get_bot(self, connection_id: str) -> BotInstance | None:
         """Get bot by connection ID"""
         return self.bots.get(connection_id)
 
     def list_bots(
-        self, status: Optional[BotStatus] = None, user_id: Optional[str] = None
-    ) -> List[BotInstance]:
+        self, status: BotStatus | None = None, user_id: str | None = None
+    ) -> list[BotInstance]:
         """List bots with optional filters"""
         bots = list(self.bots.values())
 
@@ -652,11 +642,9 @@ class DockerBotManager:
 
         return bots
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get manager statistics"""
-        active_bots = len(
-            [b for b in self.bots.values() if b.status == BotStatus.ACTIVE]
-        )
+        active_bots = len([b for b in self.bots.values() if b.status == BotStatus.ACTIVE])
 
         return {
             "total_bots": len(self.bots),
@@ -673,7 +661,7 @@ class DockerBotManager:
 
 
 # Singleton instance
-_manager: Optional[DockerBotManager] = None
+_manager: DockerBotManager | None = None
 
 
 async def get_bot_manager() -> DockerBotManager:

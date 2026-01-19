@@ -11,17 +11,17 @@ that are not tied to any specific bot session.
 These settings use event_type='dashboard_setting' and do not require a session_id.
 """
 
-from typing import Sequence, Union
-from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
+from collections.abc import Sequence
 
+import sqlalchemy as sa
+from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "002_session_id_nullable"
-down_revision: Union[str, None] = "5f3bcf8a26da"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "5f3bcf8a26da"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -44,7 +44,7 @@ def upgrade() -> None:
     )
     row = result.fetchone()
 
-    if row and row[0] == 'YES':
+    if row and row[0] == "YES":
         # Column is already nullable, nothing to do
         print("session_events.session_id is already nullable, skipping...")
         return
@@ -70,25 +70,25 @@ def upgrade() -> None:
 
     if fk_row:
         fk_name = fk_row[0]
-        op.drop_constraint(fk_name, 'session_events', type_='foreignkey')
+        op.drop_constraint(fk_name, "session_events", type_="foreignkey")
 
     # Step 2: Alter column to be nullable
     op.alter_column(
-        'session_events',
-        'session_id',
+        "session_events",
+        "session_id",
         existing_type=postgresql.UUID(as_uuid=True),
         nullable=True,
-        existing_nullable=False
+        existing_nullable=False,
     )
 
     # Step 3: Recreate the foreign key constraint (allowing NULL values)
     op.create_foreign_key(
-        'fk_session_events_session_id',
-        'session_events',
-        'bot_sessions',
-        ['session_id'],
-        ['session_id'],
-        ondelete='CASCADE'
+        "fk_session_events_session_id",
+        "session_events",
+        "bot_sessions",
+        ["session_id"],
+        ["session_id"],
+        ondelete="CASCADE",
     )
 
     print("Successfully made session_events.session_id nullable")
@@ -119,25 +119,25 @@ def downgrade() -> None:
         )
 
     # Drop the foreign key constraint
-    op.drop_constraint('fk_session_events_session_id', 'session_events', type_='foreignkey')
+    op.drop_constraint("fk_session_events_session_id", "session_events", type_="foreignkey")
 
     # Alter column back to NOT NULL
     op.alter_column(
-        'session_events',
-        'session_id',
+        "session_events",
+        "session_id",
         existing_type=postgresql.UUID(as_uuid=True),
         nullable=False,
-        existing_nullable=True
+        existing_nullable=True,
     )
 
     # Recreate the foreign key constraint
     op.create_foreign_key(
-        'fk_session_events_session_id',
-        'session_events',
-        'bot_sessions',
-        ['session_id'],
-        ['session_id'],
-        ondelete='CASCADE'
+        "fk_session_events_session_id",
+        "session_events",
+        "bot_sessions",
+        ["session_id"],
+        ["session_id"],
+        ondelete="CASCADE",
     )
 
     print("Successfully reverted session_events.session_id to NOT NULL")

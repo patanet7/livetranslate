@@ -51,7 +51,7 @@ def test_long_audio_transcription(long_speech_audio, default_whisper_config):
 @pytest.mark.integration
 def test_noisy_audio_transcription(noisy_audio, default_whisper_config):
     """Test transcription with noisy audio."""
-    audio, sr = noisy_audio
+    audio, _sr = noisy_audio
 
     # Verify audio is noisy (has variance)
     assert np.std(audio) > 0.01
@@ -69,7 +69,7 @@ def test_gpu_transcription(hello_world_audio, default_whisper_config):
 
     This test will be skipped if GPU is not available.
     """
-    audio, sr = hello_world_audio
+    _audio, _sr = hello_world_audio
     config = default_whisper_config.copy()
     config["device"] = "cuda"
 
@@ -86,7 +86,7 @@ def test_openvino_transcription(hello_world_audio, default_whisper_config):
 
     This test will be skipped if OpenVINO is not available.
     """
-    audio, sr = hello_world_audio
+    _audio, _sr = hello_world_audio
     config = default_whisper_config.copy()
     config["device"] = "openvino"
 
@@ -98,7 +98,7 @@ def test_openvino_transcription(hello_world_audio, default_whisper_config):
 @pytest.mark.integration
 def test_device_fallback(hello_world_audio, device_type):
     """Test that device fallback works correctly."""
-    audio, sr = hello_world_audio
+    _audio, _sr = hello_world_audio
 
     # Device type should be automatically detected
     assert device_type in ["openvino", "cuda", "cpu"]

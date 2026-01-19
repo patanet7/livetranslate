@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 async def run(meeting: Meeting, db: AsyncSession, status_change_info: Optional[Dict[str, Any]] = None):
     """
     Sends a webhook for ANY meeting status change, not just completion.
-    
+
     Args:
         meeting: Meeting object with current status
         db: Database session
         status_change_info: Optional dict containing status change details like:
             - old_status: Previous status
-            - new_status: Current status  
+            - new_status: Current status
             - reason: Reason for change
             - timestamp: When change occurred
     """
@@ -73,7 +73,7 @@ async def run(meeting: Meeting, db: AsyncSession, status_change_info: Optional[D
                 timeout=30.0,
                 headers={'Content-Type': 'application/json'}
             )
-            
+
             if response.status_code >= 200 and response.status_code < 300:
                 logger.info(f"Successfully sent status webhook for meeting {meeting.id} to {webhook_url}")
             else:

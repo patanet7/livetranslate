@@ -15,19 +15,19 @@ networks:
     external: true
     # Subnet: 172.20.0.0/16, Gateway: 172.20.0.1
     # Services: Frontend UI, API Gateway, Load Balancer
-    
-  # Backend Network - Core processing services  
+
+  # Backend Network - Core processing services
   livetranslate-backend:
     external: true
     # Subnet: 172.25.0.0/16, Gateway: 172.25.0.1
     # Services: Whisper Service, Speaker Service, Translation Service
-    
+
   # Data Network - Persistence and caching
   livetranslate-data:
     external: true
     # Subnet: 172.26.0.0/16, Gateway: 172.26.0.1
     # Services: Redis, PostgreSQL, File Storage
-    
+
   # Monitoring Network - Observability stack
   livetranslate-monitoring:
     external: true
@@ -66,4 +66,4 @@ networks:
 # Create networks: docker network create --driver bridge --subnet=172.X.0.0/16 --gateway=172.X.0.1 <network-name>
 # List networks: docker network ls | findstr livetranslate
 # Inspect network: docker network inspect <network-name>
-# Remove network: docker network rm <network-name> 
+# Remove network: docker network rm <network-name>

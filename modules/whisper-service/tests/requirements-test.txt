@@ -1,18 +1,18 @@
 # Test requirements for whisper-service comprehensive test suite
 
+
+# Property-based testing
+hypothesis>=6.145.1  # Generative testing
+
+# Stress testing
+psutil>=5.9.5  # Memory monitoring
 # Core testing
 pytest>=8.4.2
 pytest-asyncio>=1.2.0
 pytest-cov>=7.0.0
 pytest-mock>=3.15.1
 pytest-xdist>=3.8.0  # Parallel test execution
-
-# Stress testing
-psutil>=5.9.5  # Memory monitoring
 scipy>=1.16.2  # Audio generation utilities
-
-# Property-based testing
-hypothesis>=6.145.1  # Generative testing
 
 # Already in main requirements.txt but listed for clarity:
 # numpy>=1.20.0

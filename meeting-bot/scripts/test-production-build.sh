@@ -14,7 +14,7 @@ echo "✅ Production image built successfully!"
 echo "🚀 Testing container startup..."
 
 # Run the container in the background
-CONTAINER_ID=$(docker run -d --name meeting-bot-test -p 3001:3000 meeting-bot:test)
+docker run -d --name meeting-bot-test -p 3001:3000 meeting-bot:test
 
 # Wait a moment for the container to start
 sleep 5
@@ -22,7 +22,7 @@ sleep 5
 # Check if the container is running
 if docker ps | grep -q meeting-bot-test; then
     echo "✅ Container started successfully!"
-    
+
     # Test the health endpoint
     echo "🏥 Testing health endpoint..."
     if curl -f http://localhost:3001/health > /dev/null 2>&1; then
@@ -30,7 +30,7 @@ if docker ps | grep -q meeting-bot-test; then
     else
         echo "❌ Health endpoint failed"
     fi
-    
+
     # Clean up
     docker stop meeting-bot-test
     docker rm meeting-bot-test
@@ -43,4 +43,4 @@ else
     exit 1
 fi
 
-echo "🎉 Production build test completed successfully!" 
+echo "🎉 Production build test completed successfully!"

@@ -10,14 +10,18 @@
  * Total savings: ~420 lines of duplicate code
  */
 
-import { useEffect, useCallback, useRef } from 'react';
-import { useAppDispatch } from '@/store';
-import { setVisualizationData, addProcessingLog, setAudioQualityMetrics } from '@/store/slices/audioSlice';
+import { useEffect, useCallback, useRef } from "react";
+import { useAppDispatch } from "@/store";
+import {
+  setVisualizationData,
+  addProcessingLog,
+  setAudioQualityMetrics,
+} from "@/store/slices/audioSlice";
 import {
   calculateMeetingAudioLevel,
   getMeetingAudioQuality,
   getDisplayLevel,
-} from '@/utils/audioLevelCalculation';
+} from "@/utils/audioLevelCalculation";
 
 export interface AudioVisualizationOptions {
   /**
@@ -38,7 +42,7 @@ export interface AudioVisualizationOptions {
   /**
    * Custom audio constraints
    */
-  customConstraints?: MediaStreamConstraints['audio'];
+  customConstraints?: MediaStreamConstraints["audio"];
 
   /**
    * Enable/disable logging
@@ -49,14 +53,16 @@ export interface AudioVisualizationOptions {
 /**
  * Hook to set up audio visualization with real-time metrics
  */
-export const useAudioVisualization = (options: AudioVisualizationOptions = {}) => {
+export const useAudioVisualization = (
+  options: AudioVisualizationOptions = {},
+) => {
   const dispatch = useAppDispatch();
   const {
     deviceId,
     sampleRate = 16000,
     audioStreamRef,
     customConstraints,
-    enableLogging = true
+    enableLogging = true,
   } = options;
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -79,34 +85,42 @@ export const useAudioVisualization = (options: AudioVisualizationOptions = {}) =
       analyserRef.current.getByteTimeDomainData(timeData);
 
       // Calculate professional meeting-optimized audio metrics
-      const audioMetrics = calculateMeetingAudioLevel(timeData, frequencyData, sampleRate);
+      const audioMetrics = calculateMeetingAudioLevel(
+        timeData,
+        frequencyData,
+        sampleRate,
+      );
       const qualityAssessment = getMeetingAudioQuality(audioMetrics);
       const displayLevel = getDisplayLevel(audioMetrics);
 
       // Update Redux store with enhanced visualization data
-      dispatch(setVisualizationData({
-        frequencyData: Array.from(frequencyData),
-        timeData: Array.from(timeData),
-        audioLevel: displayLevel
-      }));
+      dispatch(
+        setVisualizationData({
+          frequencyData: Array.from(frequencyData),
+          timeData: Array.from(timeData),
+          audioLevel: displayLevel,
+        }),
+      );
 
       // Update comprehensive audio quality metrics
-      dispatch(setAudioQualityMetrics({
-        rmsLevel: audioMetrics.rmsDb,
-        peakLevel: audioMetrics.peakDb,
-        signalToNoise: audioMetrics.signalToNoise,
-        frequency: sampleRate,
-        clipping: audioMetrics.clipping * 100,
-        voiceActivity: audioMetrics.voiceActivity,
-        spectralCentroid: audioMetrics.spectralCentroid,
-        dynamicRange: audioMetrics.dynamicRange,
-        speechClarity: audioMetrics.speechClarity,
-        backgroundNoise: audioMetrics.backgroundNoise,
-        qualityAssessment: qualityAssessment.quality,
-        qualityScore: qualityAssessment.score,
-        recommendations: qualityAssessment.recommendations,
-        issues: qualityAssessment.issues
-      }));
+      dispatch(
+        setAudioQualityMetrics({
+          rmsLevel: audioMetrics.rmsDb,
+          peakLevel: audioMetrics.peakDb,
+          signalToNoise: audioMetrics.signalToNoise,
+          frequency: sampleRate,
+          clipping: audioMetrics.clipping * 100,
+          voiceActivity: audioMetrics.voiceActivity,
+          spectralCentroid: audioMetrics.spectralCentroid,
+          dynamicRange: audioMetrics.dynamicRange,
+          speechClarity: audioMetrics.speechClarity,
+          backgroundNoise: audioMetrics.backgroundNoise,
+          qualityAssessment: qualityAssessment.quality,
+          qualityScore: qualityAssessment.score,
+          recommendations: qualityAssessment.recommendations,
+          issues: qualityAssessment.issues,
+        }),
+      );
 
       animationFrameRef.current = requestAnimationFrame(updateVisualization);
     };
@@ -128,7 +142,7 @@ export const useAudioVisualization = (options: AudioVisualizationOptions = {}) =
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl: false,
-          }
+          },
         };
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -140,12 +154,18 @@ export const useAudioVisualization = (options: AudioVisualizationOptions = {}) =
         }
 
         // Clean up previous audio context if it exists
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        if (
+          audioContextRef.current &&
+          audioContextRef.current.state !== "closed"
+        ) {
           audioContextRef.current.close();
         }
 
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        microphoneRef.current = audioContextRef.current.createMediaStreamSource(stream);
+        audioContextRef.current = new (
+          window.AudioContext || (window as any).webkitAudioContext
+        )();
+        microphoneRef.current =
+          audioContextRef.current.createMediaStreamSource(stream);
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 2048;
         microphoneRef.current.connect(analyserRef.current);
@@ -153,19 +173,23 @@ export const useAudioVisualization = (options: AudioVisualizationOptions = {}) =
         startVisualization();
 
         if (enableLogging) {
-          dispatch(addProcessingLog({
-            level: 'SUCCESS',
-            message: `Audio visualization initialized with device: ${deviceId || 'custom'}`,
-            timestamp: Date.now()
-          }));
+          dispatch(
+            addProcessingLog({
+              level: "SUCCESS",
+              message: `Audio visualization initialized with device: ${deviceId || "custom"}`,
+              timestamp: Date.now(),
+            }),
+          );
         }
       } catch (error) {
         if (enableLogging) {
-          dispatch(addProcessingLog({
-            level: 'ERROR',
-            message: `Failed to initialize audio visualization: ${error}`,
-            timestamp: Date.now()
-          }));
+          dispatch(
+            addProcessingLog({
+              level: "ERROR",
+              message: `Failed to initialize audio visualization: ${error}`,
+              timestamp: Date.now(),
+            }),
+          );
         }
       }
     };
@@ -177,14 +201,25 @@ export const useAudioVisualization = (options: AudioVisualizationOptions = {}) =
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      if (
+        audioContextRef.current &&
+        audioContextRef.current.state !== "closed"
+      ) {
         audioContextRef.current.close();
       }
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [dispatch, deviceId, sampleRate, customConstraints, audioStreamRef, startVisualization, enableLogging]);
+  }, [
+    dispatch,
+    deviceId,
+    sampleRate,
+    customConstraints,
+    audioStreamRef,
+    startVisualization,
+    enableLogging,
+  ]);
 
   return {
     /**
@@ -205,7 +240,7 @@ export const useAudioVisualization = (options: AudioVisualizationOptions = {}) =
     /**
      * Animation frame ref
      */
-    animationFrameRef
+    animationFrameRef,
   };
 };
 

@@ -10,14 +10,14 @@ Usage:
     python scripts/discover_models.py --host 192.168.1.239
 """
 
-import asyncio
 import argparse
-import httpx
-from typing import List, Dict, Optional
+import asyncio
 import json
 
+import httpx
 
-async def discover_ollama_models(host: str, port: int = 11434) -> Optional[Dict]:
+
+async def discover_ollama_models(host: str, port: int = 11434) -> dict | None:
     """
     Discover models from Ollama server.
 
@@ -45,7 +45,7 @@ async def discover_ollama_models(host: str, port: int = 11434) -> Optional[Dict]
 
                 models = data.get("models", [])
 
-                print(f"✅ Ollama server is online")
+                print("✅ Ollama server is online")
                 print(f"📋 Found {len(models)} model(s):\n")
 
                 for model in models:
@@ -62,7 +62,7 @@ async def discover_ollama_models(host: str, port: int = 11434) -> Optional[Dict]
                     "status": "online",
                     "url": url,
                     "models": [m["name"] for m in models],
-                    "count": len(models)
+                    "count": len(models),
                 }
             else:
                 print(f"❌ Ollama server returned status {response.status_code}")
@@ -71,14 +71,14 @@ async def discover_ollama_models(host: str, port: int = 11434) -> Optional[Dict]
 
     except httpx.ConnectError:
         print(f"❌ Cannot connect to Ollama at {url}")
-        print(f"   Make sure Ollama is running and accessible")
+        print("   Make sure Ollama is running and accessible")
         return {"status": "offline", "url": url, "models": []}
     except Exception as e:
         print(f"❌ Error querying Ollama: {e}")
         return {"status": "error", "url": url, "models": []}
 
 
-async def discover_vllm_models(host: str, port: int = 8092) -> Optional[Dict]:
+async def discover_vllm_models(host: str, port: int = 8092) -> dict | None:
     """
     Discover models from vLLM server (OpenAI-compatible).
 
@@ -100,7 +100,7 @@ async def discover_vllm_models(host: str, port: int = 8092) -> Optional[Dict]:
                 data = response.json()
                 models = data.get("data", [])
 
-                print(f"✅ vLLM server is online")
+                print("✅ vLLM server is online")
                 print(f"📋 Found {len(models)} model(s):\n")
 
                 for model in models:
@@ -117,7 +117,7 @@ async def discover_vllm_models(host: str, port: int = 8092) -> Optional[Dict]:
                     "status": "online",
                     "url": url,
                     "models": [m["id"] for m in models],
-                    "count": len(models)
+                    "count": len(models),
                 }
             else:
                 print(f"❌ vLLM server returned status {response.status_code}")
@@ -126,14 +126,14 @@ async def discover_vllm_models(host: str, port: int = 8092) -> Optional[Dict]:
 
     except httpx.ConnectError:
         print(f"❌ Cannot connect to vLLM at {url}")
-        print(f"   Make sure vLLM server is running and accessible")
+        print("   Make sure vLLM server is running and accessible")
         return {"status": "offline", "url": url, "models": []}
     except Exception as e:
         print(f"❌ Error querying vLLM: {e}")
         return {"status": "error", "url": url, "models": []}
 
 
-async def discover_openwebui(host: str, port: int = 3030) -> Optional[Dict]:
+async def discover_openwebui(host: str, port: int = 3030) -> dict | None:
     """
     Check Open WebUI status.
 
@@ -153,8 +153,8 @@ async def discover_openwebui(host: str, port: int = 3030) -> Optional[Dict]:
 
             if response.status_code == 200:
                 print(f"✅ Open WebUI is online at {url}")
-                print(f"   Open WebUI provides a web interface for Ollama/OpenAI models")
-                print(f"   It uses the same models as Ollama backend")
+                print("   Open WebUI provides a web interface for Ollama/OpenAI models")
+                print("   It uses the same models as Ollama backend")
 
                 return {
                     "status": "online",
@@ -172,12 +172,12 @@ async def discover_openwebui(host: str, port: int = 3030) -> Optional[Dict]:
         return {"status": "error", "url": url}
 
 
-def generate_env_config(ollama_result: Dict, vllm_result: Dict, host: str):
+def generate_env_config(ollama_result: dict, vllm_result: dict, host: str):
     """Generate .env configuration based on discovered models"""
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("📝 RECOMMENDED .ENV CONFIGURATION")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     print("# Copy this to your .env file:\n")
 
@@ -236,17 +236,23 @@ def generate_env_config(ollama_result: Dict, vllm_result: Dict, host: str):
 
 async def main():
     parser = argparse.ArgumentParser(description="Discover available models on Ollama/vLLM servers")
-    parser.add_argument("--host", default="192.168.1.239", help="Server hostname/IP (default: 192.168.1.239)")
-    parser.add_argument("--ollama-port", type=int, default=11434, help="Ollama port (default: 11434)")
+    parser.add_argument(
+        "--host", default="192.168.1.239", help="Server hostname/IP (default: 192.168.1.239)"
+    )
+    parser.add_argument(
+        "--ollama-port", type=int, default=11434, help="Ollama port (default: 11434)"
+    )
     parser.add_argument("--vllm-port", type=int, default=8092, help="vLLM port (default: 8092)")
-    parser.add_argument("--openwebui-port", type=int, default=3030, help="Open WebUI port (default: 3030)")
+    parser.add_argument(
+        "--openwebui-port", type=int, default=3030, help="Open WebUI port (default: 3030)"
+    )
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
 
     args = parser.parse_args()
 
-    print("="*80)
+    print("=" * 80)
     print("🔍 MODEL DISCOVERY UTILITY")
-    print("="*80)
+    print("=" * 80)
     print(f"\nScanning server: {args.host}")
     print(f"Ollama port: {args.ollama_port}")
     print(f"vLLM port: {args.vllm_port}")
@@ -263,7 +269,7 @@ async def main():
             "host": args.host,
             "ollama": ollama_result,
             "vllm": vllm_result,
-            "openwebui": openwebui_result
+            "openwebui": openwebui_result,
         }
         print(json.dumps(results, indent=2))
     else:
@@ -271,9 +277,9 @@ async def main():
         generate_env_config(ollama_result, vllm_result, args.host)
 
         # Summary
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("📊 SUMMARY")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
         total_models = 0
 
@@ -288,7 +294,7 @@ async def main():
             print(f"✅ vLLM Server: {count} model(s) available")
 
         if openwebui_result.get("status") == "online":
-            print(f"✅ Open WebUI: Online")
+            print("✅ Open WebUI: Online")
 
         print(f"\n🎯 Total models discovered: {total_models}")
 

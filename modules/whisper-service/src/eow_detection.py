@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 End-of-Word Detection with CIF (Continuous Integrate-and-Fire)
 
@@ -14,21 +13,21 @@ License: MIT
 This is how SimulStreaming eliminates re-translations!
 """
 
+import logging
+from pathlib import Path
+
 import torch
 import torch.nn as nn
-import logging
-from typing import Tuple, Optional
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 def load_cif(
-    cif_ckpt_path: Optional[str] = None,
+    cif_ckpt_path: str | None = None,
     n_audio_state: int = 1280,  # Whisper large-v3 encoder dimension
     device: torch.device = None,
-    never_fire: bool = False
-) -> Tuple[nn.Linear, bool, bool]:
+    never_fire: bool = False,
+) -> tuple[nn.Linear, bool, bool]:
     """
     Load CIF (Continuous Integrate-and-Fire) model for end-of-word detection
 
@@ -94,8 +93,8 @@ def load_cif(
             always_fire = True
         else:
             try:
-                map_location = None if torch.cuda.is_available() else torch.device('cpu')
-                checkpoint = torch.load(cif_ckpt_path, map_location=map_location)
+                map_location = None if torch.cuda.is_available() else torch.device("cpu")
+                checkpoint = torch.load(cif_ckpt_path, map_location=map_location)  # nosec B614
                 cif_linear.load_state_dict(checkpoint)
                 logger.info(f"✅ CIF checkpoint loaded: {cif_ckpt_path}")
                 logger.info("Word boundary detection enabled (-50% re-translations)")
@@ -109,10 +108,8 @@ def load_cif(
 
 
 def resize(
-    alphas: torch.Tensor,
-    target_lengths: torch.Tensor,
-    threshold: float = 0.999
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    alphas: torch.Tensor, target_lengths: torch.Tensor, threshold: float = 0.999
+) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Resize alpha weights to target length with threshold clipping
 
@@ -152,7 +149,7 @@ def resize(
             break
 
         xs, ys = torch.where(_alphas > threshold)
-        for x, y in zip(xs, ys):
+        for x, y in zip(xs, ys, strict=False):
             if _alphas[x][y] >= threshold:
                 # Redistribute excess to neighbors
                 mask = _alphas[x].ne(0).float()
@@ -163,9 +160,7 @@ def resize(
 
 
 def fire_at_boundary(
-    chunked_encoder_feature: torch.Tensor,
-    cif_linear: nn.Linear,
-    threshold: float = 0.999
+    chunked_encoder_feature: torch.Tensor, cif_linear: nn.Linear, threshold: float = 0.999
 ) -> bool:
     """
     Determine if current chunk ends at a word boundary
@@ -186,13 +181,13 @@ def fire_at_boundary(
               False if mid-word (should buffer more audio)
 
     Algorithm:
-        1. Predict alpha weights: α = sigmoid(linear(encoder_features))
-        2. Calculate decode length: round(sum(α))
+        1. Predict alpha weights: alpha = sigmoid(linear(encoder_features))
+        2. Calculate decode length: round(sum(alpha))
         3. Resize alphas to decode length
-        4. Cumulative integration: integrate = cumsum(α)
+        4. Cumulative integration: integrate = cumsum(alpha)
         5. Check if final frames are beyond threshold
-        6. If yes → at word boundary → return True
-        7. If no → mid-word → return False
+        6. If yes -> at word boundary -> return True
+        7. If no -> mid-word -> return False
 
     Example:
         # Encoder features from Whisper
@@ -252,14 +247,12 @@ if __name__ == "__main__":
     # Test 1: Load CIF without checkpoint (fallback mode)
     print("\n[TEST 1] Load CIF without checkpoint:")
     cif_model, always_fire, never_fire = load_cif(
-        cif_ckpt_path=None,
-        n_audio_state=1280,
-        device=torch.device("cpu")
+        cif_ckpt_path=None, n_audio_state=1280, device=torch.device("cpu")
     )
     print(f"  CIF model: {cif_model}")
     print(f"  Always fire: {always_fire}")
     print(f"  Never fire: {never_fire}")
-    print(f"  ✅ Fallback mode initialized")
+    print("  ✅ Fallback mode initialized")
 
     # Test 2: Test resize function
     print("\n[TEST 2] Test alpha resize:")
@@ -271,7 +264,7 @@ if __name__ == "__main__":
     print(f"  Target length: {target_lengths.item()}")
     print(f"  Resized alphas: {resized}")
     print(f"  Resized sum: {resized.sum().item():.4f}")
-    print(f"  ✅ Resize function working")
+    print("  ✅ Resize function working")
 
     # Test 3: Test fire_at_boundary with random features
     print("\n[TEST 3] Test fire_at_boundary:")
@@ -281,15 +274,15 @@ if __name__ == "__main__":
     is_boundary = fire_at_boundary(encoder_features, cif_model)
     print(f"  Encoder features shape: {encoder_features.shape}")
     print(f"  At word boundary: {is_boundary}")
-    print(f"  ✅ Boundary detection working")
+    print("  ✅ Boundary detection working")
 
     # Test 4: Always fire mode behavior
     print("\n[TEST 4] Always fire mode:")
     # In always_fire mode, we should always return True
     # (This is handled at a higher level, not in fire_at_boundary itself)
     print(f"  Always fire mode: {always_fire}")
-    print(f"  Behavior: emit chunks at fixed intervals (fallback)")
-    print(f"  ✅ Fallback mode configured")
+    print("  Behavior: emit chunks at fixed intervals (fallback)")
+    print("  ✅ Fallback mode configured")
 
     print("\n" + "=" * 50)
     print("✅ CIF End-of-Word Detection Test Complete")

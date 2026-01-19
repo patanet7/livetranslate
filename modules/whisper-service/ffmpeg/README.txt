@@ -10,7 +10,7 @@ External Assets
 frei0r plugins:   https://www.gyan.dev/ffmpeg/builds/ffmpeg-frei0r-plugins
 lensfun database: https://www.gyan.dev/ffmpeg/builds/ffmpeg-lensfun-db
 
-git-full build configuration: 
+git-full build configuration:
 
 ARCH                      x86 (generic)
 big-endian                no
@@ -822,7 +822,7 @@ gdigrab                 libcdio                 vfwcap
 Enabled outdevs:
 caca
 
-git-full external libraries' versions: 
+git-full external libraries' versions:
 
 AMF v1.4.36-2-gd7311e3
 aom v3.12.1-198-gad5face97d
@@ -896,4 +896,3 @@ xvid v1.3.7
 zeromq 4.3.5
 zimg release-3.0.5-206-gbde53c0
 zvbi v0.2.44
-

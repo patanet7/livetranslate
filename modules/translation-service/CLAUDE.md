@@ -29,7 +29,7 @@ The Translation Service is a GPU-optimized microservice that provides:
 │  │ Quality     │← │ Post-Proc   │← │ Memory Mgmt │← │ Model   │ │
 │  │ • Scoring   │  │ • Validation│  │ • GPU Cache │  │ • Loading│ │
 │  │ • Metrics   │  │ • Format    │  │ • Batch Opt │  │ • Switch │ │
-│  │ • Confidence│  │ • Context   │  │ • OOM Recov │  │ • Fallbck│ │
+│  │ • Confidence│  │ • Context   │  │ • OOM Recov │  │ • Fallback│ │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```

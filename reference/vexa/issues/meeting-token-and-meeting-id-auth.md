@@ -186,5 +186,3 @@ Example claims:
 ### Notes
 
 - We intentionally use HS256 with `ADMIN_TOKEN` (single shared secret already present in `vexa/.env`) to avoid introducing a new key pair. If future isolation is needed, we can migrate to RS256 with JWKS and per-service public keys.
-
-

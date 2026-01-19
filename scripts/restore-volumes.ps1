@@ -15,39 +15,39 @@ function Restore-Volume {
         [string]$BackupPath,
         [bool]$ForceRestore = $false
     )
-    
+
     $BackupFile = Join-Path $BackupPath "$VolumeName.tar.gz"
-    
+
     if (-not (Test-Path $BackupFile)) {
         Write-Host "  ❌ Backup file not found: $BackupFile" -ForegroundColor Red
         return $false
     }
-    
+
     Write-Host "🔄 Restoring volume: $VolumeName" -ForegroundColor Yellow
-    
+
     try {
         # Check if volume exists
         $VolumeExists = docker volume ls --format "{{.Name}}" | Where-Object { $_ -eq $VolumeName }
-        
+
         if ($VolumeExists -and -not $ForceRestore) {
             Write-Host "  ⚠️  Volume $VolumeName already exists. Use -Force to overwrite." -ForegroundColor Orange
             return $false
         }
-        
+
         if ($VolumeExists -and $ForceRestore) {
             Write-Host "  🗑️  Removing existing volume: $VolumeName" -ForegroundColor Orange
             docker volume rm $VolumeName | Out-Null
         }
-        
+
         # Create new volume
         Write-Host "  📦 Creating volume: $VolumeName" -ForegroundColor Cyan
         docker volume create $VolumeName | Out-Null
-        
+
         # Restore data from backup
         Write-Host "  📥 Restoring data from backup..." -ForegroundColor Cyan
         $Command = "docker run --rm -v ${VolumeName}:/data -v ${BackupPath}:/backup alpine tar xzf /backup/$VolumeName.tar.gz -C /data"
         Invoke-Expression $Command
-        
+
         Write-Host "  ✅ Volume restored successfully: $VolumeName" -ForegroundColor Green
         return $true
     }
@@ -138,4 +138,4 @@ if ($SuccessCount -gt 0) {
 } else {
     Write-Host "`n❌ No volumes were restored successfully" -ForegroundColor Red
     exit 1
-} 
+}

@@ -6,12 +6,11 @@ Manages transcription sessions with persistence and statistics.
 Extracted from whisper_service.py for better modularity.
 """
 
-import os
 import json
 import logging
-from typing import Dict, List, Optional
-from datetime import datetime
+import os
 from collections import deque
+from datetime import datetime
 
 # Import TranscriptionResult from transcription package
 from transcription.request_models import TranscriptionResult
@@ -24,18 +23,20 @@ class SessionManager:
     Manages transcription sessions with persistence and statistics
     """
 
-    def __init__(self, session_dir: Optional[str] = None):
+    def __init__(self, session_dir: str | None = None):
         """Initialize session manager"""
-        self.session_dir = session_dir or os.path.join(os.path.dirname(__file__), "..", "..", "session_data")
+        self.session_dir = session_dir or os.path.join(
+            os.path.dirname(__file__), "..", "..", "session_data"
+        )
         os.makedirs(self.session_dir, exist_ok=True)
 
-        self.sessions: Dict[str, Dict] = {}
+        self.sessions: dict[str, dict] = {}
         self.transcription_history = deque(maxlen=200)
 
         # Load existing sessions
         self._load_sessions()
 
-    def create_session(self, session_id: str, config: Optional[Dict] = None) -> Dict:
+    def create_session(self, session_id: str, config: dict | None = None) -> dict:
         """Create a new transcription session"""
         session_config = {
             "session_id": session_id,
@@ -45,9 +46,9 @@ class SessionManager:
                 "transcriptions": 0,
                 "total_duration": 0.0,
                 "total_words": 0,
-                "avg_confidence": 0.0
+                "avg_confidence": 0.0,
             },
-            "transcriptions": []
+            "transcriptions": [],
         }
 
         self.sessions[session_id] = session_config
@@ -55,7 +56,7 @@ class SessionManager:
         logger.info(f"Created transcription session: {session_id}")
         return session_config
 
-    def get_session(self, session_id: str) -> Optional[Dict]:
+    def get_session(self, session_id: str) -> dict | None:
         """Get session information"""
         return self.sessions.get(session_id)
 
@@ -73,7 +74,7 @@ class SessionManager:
             "confidence": result.confidence_score,
             "model": result.model_used,
             "device": result.device_used,
-            "processing_time": result.processing_time
+            "processing_time": result.processing_time,
         }
 
         session["transcriptions"].append(transcription_data)
@@ -94,7 +95,7 @@ class SessionManager:
         # Save session
         self._save_session(session_id)
 
-    def close_session(self, session_id: str) -> Optional[Dict]:
+    def close_session(self, session_id: str) -> dict | None:
         """Close session and return final statistics"""
         session = self.sessions.get(session_id)
         if session:
@@ -103,7 +104,7 @@ class SessionManager:
             logger.info(f"Closed transcription session: {session_id}")
         return session
 
-    def get_transcription_history(self, limit: int = 50) -> List[Dict]:
+    def get_transcription_history(self, limit: int = 50) -> list[dict]:
         """Get recent transcription history"""
         return list(self.transcription_history)[-limit:]
 
@@ -112,14 +113,14 @@ class SessionManager:
         try:
             sessions_file = os.path.join(self.session_dir, "sessions.json")
             if os.path.exists(sessions_file):
-                with open(sessions_file, 'r', encoding='utf-8') as f:
+                with open(sessions_file, encoding="utf-8") as f:
                     data = json.load(f)
                     self.sessions = data.get("sessions", {})
 
             # Load transcription history
             history_file = os.path.join(self.session_dir, "transcriptions.json")
             if os.path.exists(history_file):
-                with open(history_file, 'r', encoding='utf-8') as f:
+                with open(history_file, encoding="utf-8") as f:
                     data = json.load(f)
                     self.transcription_history = deque(data.get("transcriptions", []), maxlen=200)
 
@@ -131,22 +132,19 @@ class SessionManager:
         try:
             # Save all sessions
             sessions_file = os.path.join(self.session_dir, "sessions.json")
-            sessions_data = {
-                "sessions": self.sessions,
-                "last_updated": datetime.now().isoformat()
-            }
+            sessions_data = {"sessions": self.sessions, "last_updated": datetime.now().isoformat()}
 
-            with open(sessions_file, 'w', encoding='utf-8') as f:
+            with open(sessions_file, "w", encoding="utf-8") as f:
                 json.dump(sessions_data, f, ensure_ascii=False, indent=2)
 
             # Save transcription history
             history_file = os.path.join(self.session_dir, "transcriptions.json")
             history_data = {
                 "transcriptions": list(self.transcription_history)[-100:],
-                "last_updated": datetime.now().isoformat()
+                "last_updated": datetime.now().isoformat(),
             }
 
-            with open(history_file, 'w', encoding='utf-8') as f:
+            with open(history_file, "w", encoding="utf-8") as f:
                 json.dump(history_data, f, ensure_ascii=False, indent=2)
 
         except Exception as e:

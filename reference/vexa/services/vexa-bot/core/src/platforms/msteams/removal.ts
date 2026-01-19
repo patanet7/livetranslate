@@ -29,7 +29,7 @@ export async function checkForTeamsRemoval(page: Page): Promise<boolean> {
 export function startTeamsRemovalMonitor(page: Page, onRemoval?: () => void | Promise<void>): () => void {
   log("Starting periodic Teams removal monitoring...");
   let removalDetected = false;
-  
+
   const removalCheckInterval = setInterval(async () => {
     try {
       const isRemoved = await checkForTeamsRemoval(page);
@@ -37,7 +37,7 @@ export function startTeamsRemovalMonitor(page: Page, onRemoval?: () => void | Pr
         removalDetected = true; // Prevent duplicate detection
         log("🚨 Teams removal detected from Node.js side. Initiating graceful shutdown...");
         clearInterval(removalCheckInterval);
-        
+
         try {
           // Attempt to click Rejoin/Dismiss to close the modal gracefully
           await page.evaluate(() => {
@@ -57,7 +57,7 @@ export function startTeamsRemovalMonitor(page: Page, onRemoval?: () => void | Pr
             }
           });
         } catch {}
-        
+
         // Signal removal to caller
         try { await onRemoval?.(); } catch {}
       }

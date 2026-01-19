@@ -3,14 +3,14 @@
 Verify that enhanced stages are now the default in AudioPipelineProcessor.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import numpy as np
-from audio.config import AudioProcessingConfig
 from audio.audio_processor import AudioPipelineProcessor
+from audio.config import AudioProcessingConfig
 
 
 def main():
@@ -26,9 +26,7 @@ def main():
     processor = AudioPipelineProcessor(config, sample_rate=16000)
 
     # Generate test audio
-    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(
-        np.float32
-    )
+    audio = (np.sin(2 * np.pi * 440 * np.linspace(0, 1, 16000)) * 0.5).astype(np.float32)
 
     # Process
     processed, metadata = processor.process_audio_chunk(audio)

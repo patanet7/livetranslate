@@ -11,18 +11,19 @@ Following SimulStreaming specification:
 NO MOCKS - Only real Whisper inference and attention hooks!
 """
 
-import pytest
-import numpy as np
-import torch
 import sys
 from pathlib import Path
+
+import numpy as np
+import pytest
+import torch
 
 # Add src directory to path
 SRC_DIR = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+from alignatt_decoder import AlignAttConfig, AlignAttDecoder, AlignAttState
 from whisper_service import ModelManager
-from alignatt_decoder import AlignAttDecoder, AlignAttConfig, AlignAttState
 
 
 class TestAlignAttIntegration:
@@ -49,7 +50,7 @@ class TestAlignAttIntegration:
         manager = ModelManager(models_dir=str(models_dir))
 
         # Load model (installs attention hooks)
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         # Clear attention buffer
         manager.dec_attns.clear()
@@ -58,11 +59,8 @@ class TestAlignAttIntegration:
         audio_data = np.zeros(16000, dtype=np.float32)
 
         # Run inference
-        result = manager.safe_inference(
-            model_name="large-v3",
-            audio_data=audio_data,
-            beam_size=1,
-            streaming_policy="alignatt"
+        manager.safe_inference(
+            model_name="large-v3", audio_data=audio_data, beam_size=1, streaming_policy="alignatt"
         )
 
         # Verify attention was captured
@@ -83,7 +81,7 @@ class TestAlignAttIntegration:
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         # Initialize AlignAtt decoder
         alignatt = AlignAttDecoder(frame_threshold_offset=10)
@@ -102,11 +100,8 @@ class TestAlignAttIntegration:
         # Clear and run inference
         manager.dec_attns.clear()
 
-        result = manager.safe_inference(
-            model_name="large-v3",
-            audio_data=audio_data,
-            beam_size=1,
-            streaming_policy="alignatt"
+        manager.safe_inference(
+            model_name="large-v3", audio_data=audio_data, beam_size=1, streaming_policy="alignatt"
         )
 
         # Verify attention captured
@@ -117,7 +112,7 @@ class TestAlignAttIntegration:
         assert state.current_token_index == 0
         assert not state.should_emit_chunk
 
-        print(f"✅ AlignAtt decoder initialized with real attention")
+        print("✅ AlignAtt decoder initialized with real attention")
 
     @pytest.mark.integration
     def test_alignatt_frame_threshold(self):
@@ -131,7 +126,7 @@ class TestAlignAttIntegration:
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         # Test different threshold offsets
         offsets = [5, 10, 20]
@@ -149,7 +144,7 @@ class TestAlignAttIntegration:
 
             print(f"   τ={offset}: max_frame={alignatt.max_frame} (k={audio_frames})")
 
-        print(f"✅ Frame threshold calculation correct")
+        print("✅ Frame threshold calculation correct")
 
     @pytest.mark.integration
     def test_alignatt_with_varying_audio_lengths(self):
@@ -163,7 +158,7 @@ class TestAlignAttIntegration:
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         durations = [1, 3, 5, 10]  # seconds
 
@@ -177,18 +172,18 @@ class TestAlignAttIntegration:
             # Run inference
             manager.dec_attns.clear()
 
-            result = manager.safe_inference(
+            manager.safe_inference(
                 model_name="large-v3",
                 audio_data=audio_data,
                 beam_size=1,
-                streaming_policy="alignatt"
+                streaming_policy="alignatt",
             )
 
             assert len(manager.dec_attns) > 0
 
             print(f"   {duration}s audio: {audio_frames} frames, threshold={alignatt.max_frame}")
 
-        print(f"✅ AlignAtt adapts to audio length")
+        print("✅ AlignAtt adapts to audio length")
 
     @pytest.mark.integration
     def test_alignatt_attention_analysis(self):
@@ -202,18 +197,14 @@ class TestAlignAttIntegration:
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         audio_data = np.zeros(16000 * 2, dtype=np.float32)
 
         # Run inference with attention capture
         manager.dec_attns.clear()
 
-        result = manager.safe_inference(
-            model_name="large-v3",
-            audio_data=audio_data,
-            beam_size=1
-        )
+        manager.safe_inference(model_name="large-v3", audio_data=audio_data, beam_size=1)
 
         # Analyze captured attention
         if len(manager.dec_attns) > 0:
@@ -232,7 +223,7 @@ class TestAlignAttIntegration:
             # Verify we can extract frame-level information
             assert len(max_frames) > 0
 
-            print(f"✅ Attention analysis successful")
+            print("✅ Attention analysis successful")
 
 
 class TestAlignAttStreamingPolicy:
@@ -263,7 +254,7 @@ class TestAlignAttStreamingPolicy:
         print(f"   Balanced: τ={balanced.frame_threshold_offset}")
         print(f"   Aggressive: τ={aggressive.frame_threshold_offset}")
 
-        print(f"✅ AlignAtt presets configured correctly")
+        print("✅ AlignAtt presets configured correctly")
 
     @pytest.mark.integration
     def test_alignatt_with_real_streaming_workflow(self):
@@ -277,7 +268,7 @@ class TestAlignAttStreamingPolicy:
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         # Simulate streaming: process multiple chunks
         chunk_duration = 2  # seconds
@@ -299,12 +290,14 @@ class TestAlignAttStreamingPolicy:
                 model_name="large-v3",
                 audio_data=chunk_audio,
                 beam_size=1,
-                streaming_policy="alignatt"
+                streaming_policy="alignatt",
             )
 
             accumulated_text.append(result.text)
 
-            print(f"   Chunk {i+1}/{num_chunks}: '{result.text}' ({len(manager.dec_attns)} attn layers)")
+            print(
+                f"   Chunk {i+1}/{num_chunks}: '{result.text}' ({len(manager.dec_attns)} attn layers)"
+            )
 
         print(f"✅ Processed {num_chunks} chunks with AlignAtt")
         print(f"   Total text: '{' '.join(accumulated_text)}'")
@@ -322,7 +315,7 @@ class TestAlignAttStreamingPolicy:
         models_dir = Path(__file__).parent.parent / ".models"
         manager = ModelManager(models_dir=str(models_dir))
 
-        model = manager.load_model("large-v3")
+        manager.load_model("large-v3")
 
         audio_data = np.zeros(16000 * 3, dtype=np.float32)
         audio_frames = len(audio_data) // 160
@@ -330,13 +323,11 @@ class TestAlignAttStreamingPolicy:
         policies = {
             "conservative": AlignAttConfig.conservative(),
             "balanced": AlignAttConfig.balanced(),
-            "aggressive": AlignAttConfig.aggressive()
+            "aggressive": AlignAttConfig.aggressive(),
         }
 
         for policy_name, config in policies.items():
-            alignatt = AlignAttDecoder(
-                frame_threshold_offset=config.frame_threshold_offset
-            )
+            alignatt = AlignAttDecoder(frame_threshold_offset=config.frame_threshold_offset)
             alignatt.set_max_attention_frame(audio_frames)
 
             threshold = alignatt.max_frame
@@ -344,7 +335,7 @@ class TestAlignAttStreamingPolicy:
 
             print(f"   {policy_name}: threshold={threshold}, latency≈{latency_estimate}ms")
 
-        print(f"✅ Latency/accuracy tradeoff verified")
+        print("✅ Latency/accuracy tradeoff verified")
 
 
 # Run tests

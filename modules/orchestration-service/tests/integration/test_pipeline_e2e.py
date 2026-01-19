@@ -8,14 +8,15 @@ Comprehensive integration tests for complete pipeline workflows:
 - Error recovery and resilience
 """
 
-import pytest
 import json
+import time
 import wave
+from contextlib import contextmanager
+
 import numpy as np
+import pytest
 from fastapi.testclient import TestClient
 from websockets.sync.client import connect as ws_connect
-from contextlib import contextmanager
-import time
 
 
 @pytest.fixture
@@ -90,7 +91,11 @@ def multi_stage_pipeline():
         },
         "connections": [
             {"id": "conn_1", "source_stage_id": "input", "target_stage_id": "noise_reduction"},
-            {"id": "conn_2", "source_stage_id": "noise_reduction", "target_stage_id": "voice_enhancement"},
+            {
+                "id": "conn_2",
+                "source_stage_id": "noise_reduction",
+                "target_stage_id": "voice_enhancement",
+            },
             {"id": "conn_3", "source_stage_id": "voice_enhancement", "target_stage_id": "output"},
         ],
     }
@@ -138,7 +143,7 @@ class TestCompleteE2EFlow:
             if chunk1_response.status_code == 200:
                 chunk1_data = chunk1_response.json()
                 assert "processed_audio" in chunk1_data
-                initial_metrics = chunk1_data.get("metrics", {})
+                chunk1_data.get("metrics", {})
 
             # Step 3: Update parameter on noise_reduction stage
             update_response = client.post(
@@ -167,9 +172,7 @@ class TestCompleteE2EFlow:
                 # Metrics should show parameter change took effect
                 updated_metrics = chunk2_data.get("metrics", {})
                 if "stage_metrics" in updated_metrics:
-                    noise_reduction_metrics = updated_metrics["stage_metrics"].get(
-                        "noise_reduction", {}
-                    )
+                    updated_metrics["stage_metrics"].get("noise_reduction", {})
                     # Verify stronger noise reduction was applied
 
         finally:
@@ -388,18 +391,14 @@ class TestWebSocketE2E:
     """End-to-end WebSocket integration tests"""
 
     @pytest.mark.e2e
-    @pytest.mark.skipif(
-        True, reason="WebSocket endpoint may not be available in test environment"
-    )
+    @pytest.mark.skipif(True, reason="WebSocket endpoint may not be available in test environment")
     def test_websocket_parameter_update(self, client):
         """Test parameter updates via WebSocket"""
         # Step 1: Start real-time session
         pipeline_config = {
             "pipeline_id": "ws-test",
             "name": "WebSocket Test",
-            "stages": {
-                "noise_reduction": {"enabled": True, "parameters": {"strength": 0.5}}
-            },
+            "stages": {"noise_reduction": {"enabled": True, "parameters": {"strength": 0.5}}},
             "connections": [],
         }
 
@@ -437,9 +436,7 @@ class TestWebSocketE2E:
             client.post(f"/api/pipeline/realtime/stop/{session_id}")
 
     @pytest.mark.e2e
-    @pytest.mark.skipif(
-        True, reason="WebSocket endpoint may not be available in test environment"
-    )
+    @pytest.mark.skipif(True, reason="WebSocket endpoint may not be available in test environment")
     def test_websocket_audio_chunk_processing(self, client, test_audio_file):
         """Test audio chunk processing via WebSocket"""
         pipeline_config = {
@@ -517,17 +514,13 @@ class TestStressAndPerformance:
 
                     response = client.post(
                         f"/api/pipeline/realtime/{session_id}/process",
-                        files={
-                            "audio_chunk": (f"chunk{i}.wav", audio_file, "audio/wav")
-                        },
+                        files={"audio_chunk": (f"chunk{i}.wav", audio_file, "audio/wav")},
                     )
 
                     end_time = time.time()
 
                     if response.status_code == 200:
-                        latencies.append(
-                            (end_time - start_time) * 1000
-                        )  # Convert to ms
+                        latencies.append((end_time - start_time) * 1000)  # Convert to ms
 
                 # Small delay to simulate realistic streaming
                 time.sleep(0.05)

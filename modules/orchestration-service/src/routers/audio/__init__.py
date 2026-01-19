@@ -14,15 +14,16 @@ Modules:
 """
 
 # Export individual modules for importing
+from fastapi import APIRouter
+
 from . import (
-    audio_core,
     audio_analysis,
-    audio_stages,
-    audio_presets,
     audio_coordination,
+    audio_core,
+    audio_presets,
+    audio_stages,
     websocket_audio,
 )
-from fastapi import APIRouter
 
 # Aggregate router so main app can mount /audio with all sub-routes
 # Note: No prefix here since main_fastapi.py already adds /api/audio
@@ -41,13 +42,13 @@ coordination_router = audio_coordination.router
 websocket_router = websocket_audio.router
 
 __all__ = [
-    "audio_core",
     "audio_analysis",
-    "audio_stages",
-    "audio_presets",
     "audio_coordination",
-    "websocket_audio",
-    "router",
+    "audio_core",
+    "audio_presets",
+    "audio_stages",
     "coordination_router",
+    "router",
+    "websocket_audio",
     "websocket_router",
 ]

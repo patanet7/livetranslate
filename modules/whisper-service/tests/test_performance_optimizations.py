@@ -15,17 +15,18 @@ Expected improvements:
 - Total latency: -35% (50-80ms → 30-50ms)
 """
 
-import pytest
-import numpy as np
-import torch
-import time
-import sys
 import os
+import sys
+import time
+
+import numpy as np
+import pytest
+import torch
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from utils import RingBuffer, EncoderCache, PerformanceMetrics
+from utils import EncoderCache, PerformanceMetrics, RingBuffer
 
 
 class TestRingBuffer:
@@ -111,7 +112,7 @@ class TestRingBuffer:
         time_ring = time.perf_counter() - start
 
         speedup = time_concat / time_ring
-        print(f"\nRingBuffer Performance:")
+        print("\nRingBuffer Performance:")
         print(f"  np.concatenate: {time_concat*1000:.2f}ms")
         print(f"  RingBuffer:     {time_ring*1000:.2f}ms")
         print(f"  Speedup:        {speedup:.2f}x")
@@ -138,7 +139,7 @@ class TestEncoderCache:
 
     def test_basic_caching(self):
         """Test basic cache operations"""
-        cache = EncoderCache(max_size=10, device='cpu')
+        cache = EncoderCache(max_size=10, device="cpu")
 
         # Create dummy encoder output
         encoder_output = torch.randn(1, 1500, 512)
@@ -148,7 +149,7 @@ class TestEncoderCache:
         assert cache.get(audio) is None
 
         # Cache the output
-        audio_hash = cache.put(encoder_output, audio)
+        cache.put(encoder_output, audio)
         assert len(cache) == 1
 
         # Test cache hit
@@ -158,12 +159,12 @@ class TestEncoderCache:
 
     def test_lru_eviction(self):
         """Test LRU eviction policy"""
-        cache = EncoderCache(max_size=3, device='cpu')
+        cache = EncoderCache(max_size=3, device="cpu")
 
         # Add 3 entries
         audios = []
         outputs = []
-        for i in range(3):
+        for _i in range(3):
             audio = np.random.randn(480000).astype(np.float32)
             output = torch.randn(1, 1500, 512)
             audios.append(audio)
@@ -189,7 +190,7 @@ class TestEncoderCache:
 
     def test_cache_statistics(self):
         """Test cache statistics tracking"""
-        cache = EncoderCache(max_size=5, device='cpu')
+        cache = EncoderCache(max_size=5, device="cpu")
 
         audio1 = np.random.randn(480000).astype(np.float32)
         output1 = torch.randn(1, 1500, 512)
@@ -205,14 +206,14 @@ class TestEncoderCache:
         cache.get(audio1)
 
         stats = cache.get_statistics()
-        assert stats['hits'] == 2
-        assert stats['misses'] == 1
-        assert stats['hit_rate'] == 2/3
-        assert stats['size'] == 1
+        assert stats["hits"] == 2
+        assert stats["misses"] == 1
+        assert stats["hit_rate"] == 2 / 3
+        assert stats["size"] == 1
 
     def test_hash_consistency(self):
         """Test that identical audio produces identical hash"""
-        cache = EncoderCache(max_size=5, device='cpu')
+        cache = EncoderCache(max_size=5, device="cpu")
 
         audio = np.random.randn(480000).astype(np.float32)
 
@@ -224,7 +225,7 @@ class TestEncoderCache:
 
         # Slightly different audio should produce different hash
         audio_different = audio + np.random.randn(*audio.shape) * 0.001
-        hash3 = cache.precompute_hash(audio_different)
+        cache.precompute_hash(audio_different)
 
         # Due to rounding, very small differences might still match
         # But large differences should produce different hashes
@@ -241,15 +242,15 @@ class TestPerformanceMetrics:
         metrics = PerformanceMetrics(max_samples=100, enable_logging=False)
 
         # Measure a known operation
-        with metrics.measure('test_operation'):
+        with metrics.measure("test_operation"):
             time.sleep(0.01)  # 10ms
 
-        stats = metrics.get_statistics('test_operation')
-        assert 'test_operation' in stats
+        stats = metrics.get_statistics("test_operation")
+        assert "test_operation" in stats
 
-        op_stats = stats['test_operation']
-        assert op_stats['count'] == 1
-        assert 8 < op_stats['mean'] < 15  # Should be ~10ms with some tolerance
+        op_stats = stats["test_operation"]
+        assert op_stats["count"] == 1
+        assert 8 < op_stats["mean"] < 15  # Should be ~10ms with some tolerance
 
     def test_multiple_measurements(self):
         """Test statistics with multiple measurements"""
@@ -258,27 +259,27 @@ class TestPerformanceMetrics:
         # Record varying durations
         for i in range(100):
             duration = 0.001 + i * 0.0001  # 1ms to 11ms
-            metrics.record('varying_op', duration)
+            metrics.record("varying_op", duration)
 
-        stats = metrics.get_statistics('varying_op')
-        op_stats = stats['varying_op']
+        stats = metrics.get_statistics("varying_op")
+        op_stats = stats["varying_op"]
 
-        assert op_stats['count'] == 100
-        assert op_stats['min'] < op_stats['mean'] < op_stats['max']
-        assert op_stats['p50'] < op_stats['p95'] < op_stats['p99']
+        assert op_stats["count"] == 100
+        assert op_stats["min"] < op_stats["mean"] < op_stats["max"]
+        assert op_stats["p50"] < op_stats["p95"] < op_stats["p99"]
 
     def test_manual_timing(self):
         """Test manual start/stop timer"""
         metrics = PerformanceMetrics(max_samples=100, enable_logging=False)
 
-        metrics.start_timer('manual_op')
+        metrics.start_timer("manual_op")
         time.sleep(0.005)  # 5ms
-        duration = metrics.stop_timer('manual_op')
+        duration = metrics.stop_timer("manual_op")
 
         assert 4 < duration * 1000 < 8  # Should be ~5ms
 
-        stats = metrics.get_statistics('manual_op')
-        assert stats['manual_op']['count'] == 1
+        stats = metrics.get_statistics("manual_op")
+        assert stats["manual_op"]["count"] == 1
 
     def test_percentile_accuracy(self):
         """Test percentile calculation accuracy"""
@@ -286,28 +287,28 @@ class TestPerformanceMetrics:
 
         # Record exact values
         for i in range(100):
-            metrics.record('percentile_test', i / 1000)  # 0ms to 99ms
+            metrics.record("percentile_test", i / 1000)  # 0ms to 99ms
 
-        stats = metrics.get_statistics('percentile_test')
-        op_stats = stats['percentile_test']
+        stats = metrics.get_statistics("percentile_test")
+        op_stats = stats["percentile_test"]
 
         # Check percentiles
-        assert 40 < op_stats['p50'] < 60  # Should be ~50ms
-        assert 90 < op_stats['p95'] < 98  # Should be ~95ms
-        assert 97 < op_stats['p99'] < 100  # Should be ~99ms
+        assert 40 < op_stats["p50"] < 60  # Should be ~50ms
+        assert 90 < op_stats["p95"] < 98  # Should be ~95ms
+        assert 97 < op_stats["p99"] < 100  # Should be ~99ms
 
     def test_prometheus_export(self):
         """Test Prometheus format export"""
         metrics = PerformanceMetrics(max_samples=100, enable_logging=False)
 
-        metrics.record('test_op', 0.01)
-        metrics.record('test_op', 0.02)
+        metrics.record("test_op", 0.01)
+        metrics.record("test_op", 0.02)
 
         prometheus_output = metrics.export_prometheus()
 
         # Check format
-        assert 'whisper_test_op_count' in prometheus_output
-        assert 'whisper_test_op_latency_ms' in prometheus_output
+        assert "whisper_test_op_count" in prometheus_output
+        assert "whisper_test_op_latency_ms" in prometheus_output
         assert 'quantile="0.5"' in prometheus_output
         assert 'quantile="0.95"' in prometheus_output
 
@@ -320,19 +321,19 @@ class TestPerformanceMetrics:
         # Baseline (no metrics)
         start = time.perf_counter()
         for _ in range(iterations):
-            x = 42 * 42  # Trivial operation
+            pass  # Trivial operation
         time_baseline = time.perf_counter() - start
 
         # With metrics
         start = time.perf_counter()
         for _ in range(iterations):
-            with metrics.measure('trivial_op'):
-                x = 42 * 42
+            with metrics.measure("trivial_op"):
+                pass
         time_with_metrics = time.perf_counter() - start
 
         overhead = (time_with_metrics - time_baseline) / iterations * 1000  # ms per operation
 
-        print(f"\nPerformanceMetrics Overhead:")
+        print("\nPerformanceMetrics Overhead:")
         print(f"  Baseline:      {time_baseline*1000:.2f}ms")
         print(f"  With metrics:  {time_with_metrics*1000:.2f}ms")
         print(f"  Per operation: {overhead*1000:.2f}µs")
@@ -355,11 +356,11 @@ class TestIntegrationPerformance:
         for _ in range(iterations):
             chunk = np.random.randn(chunk_size).astype(np.float32)
 
-            with metrics.measure('buffer_append'):
+            with metrics.measure("buffer_append"):
                 buffer.append(chunk)
 
-        stats = metrics.get_statistics('buffer_append')
-        append_p95 = stats['buffer_append']['p95']
+        stats = metrics.get_statistics("buffer_append")
+        append_p95 = stats["buffer_append"]["p95"]
 
         print(f"\nBuffer Append Latency (p95): {append_p95:.3f}ms")
 
@@ -379,7 +380,7 @@ class TestIntegrationPerformance:
         for _ in range(iterations):
             chunk = np.random.randn(chunk_size).astype(np.float32)
             buffer_concat = np.concatenate([buffer_concat, chunk])
-        current, peak_concat = tracemalloc.get_traced_memory()
+        _, peak_concat = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
         # Test RingBuffer memory
@@ -388,18 +389,20 @@ class TestIntegrationPerformance:
         for _ in range(iterations):
             chunk = np.random.randn(chunk_size).astype(np.float32)
             buffer_ring.append(chunk)
-        current, peak_ring = tracemalloc.get_traced_memory()
+        _current, peak_ring = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
         memory_reduction = (peak_concat - peak_ring) / peak_concat
 
-        print(f"\nMemory Usage:")
+        print("\nMemory Usage:")
         print(f"  np.concatenate: {peak_concat / 1024:.1f} KB")
         print(f"  RingBuffer:     {peak_ring / 1024:.1f} KB")
         print(f"  Reduction:      {memory_reduction*100:.1f}%")
 
         # RingBuffer should use significantly less memory (at least 20% reduction)
-        assert memory_reduction > 0.20, f"Expected >20% memory reduction, got {memory_reduction*100:.1f}%"
+        assert (
+            memory_reduction > 0.20
+        ), f"Expected >20% memory reduction, got {memory_reduction*100:.1f}%"
 
 
 def run_performance_benchmarks():
@@ -409,8 +412,8 @@ def run_performance_benchmarks():
     print("=" * 80)
 
     # Run all tests
-    pytest.main([__file__, '-v', '-s'])
+    pytest.main([__file__, "-v", "-s"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_performance_benchmarks()

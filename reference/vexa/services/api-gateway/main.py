@@ -60,19 +60,19 @@ app = FastAPI(
     title="Vexa API Gateway",
     description="""
     **Main entry point for the Vexa platform APIs.**
-    
+
     Provides access to:
     - Bot Management (Starting/Stopping transcription bots)
     - Transcription Retrieval
     - User & Token Administration (Admin only)
-    
+
     ## Authentication
-    
+
     Two types of API keys are used:
-    
+
     1.  **`X-API-Key`**: Required for all regular client operations (e.g., managing bots, getting transcripts). Obtain your key from an administrator.
     2.  **`X-Admin-API-Key`**: Required *only* for administrative endpoints (prefixed with `/admin`). This key is configured server-side.
-    
+
     Include the appropriate header in your requests.
     """,
     version="1.2.0", # Incremented version
@@ -92,7 +92,7 @@ app = FastAPI(
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     # Generate basic schema first, without components
     openapi_schema = get_openapi(
         title=app.title,
@@ -102,11 +102,11 @@ def custom_openapi():
         contact=app.contact,
         license_info=app.license_info,
     )
-    
+
     # Manually add security schemes to the schema
     if "components" not in openapi_schema:
         openapi_schema["components"] = {}
-    
+
     # Add securitySchemes component
     openapi_schema["components"]["securitySchemes"] = {
         "ApiKeyAuth": {
@@ -122,10 +122,10 @@ def custom_openapi():
             "description": "API Key for admin operations"
         }
     }
-    
+
     # Optional: Add global security requirement
     # openapi_schema["security"] = [{"ApiKeyAuth": []}]
-    
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
@@ -140,7 +140,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- HTTP Client --- 
+# --- HTTP Client ---
 # Use a single client instance for connection pooling
 @app.on_event("startup")
 async def startup_event():
@@ -157,20 +157,20 @@ async def shutdown_event():
     except Exception:
         pass
 
-# --- Helper for Forwarding --- 
+# --- Helper for Forwarding ---
 async def forward_request(client: httpx.AsyncClient, method: str, url: str, request: Request) -> Response:
     # Copy original headers, converting to a standard dict
     # Exclude host, content-length, transfer-encoding as they are handled by httpx/server
     excluded_headers = {"host", "content-length", "transfer-encoding"}
     headers = {k.lower(): v for k, v in request.headers.items() if k.lower() not in excluded_headers}
-    
+
     # Debug logging for original request headers
     print(f"DEBUG: Original request headers: {dict(request.headers)}")
     print(f"DEBUG: Original query params: {dict(request.query_params)}")
-    
+
     # Determine target service based on URL path prefix
     is_admin_request = url.startswith(f"{ADMIN_API_URL}/admin")
-    
+
     # Forward appropriate auth header if present
     if is_admin_request:
         admin_key = request.headers.get("x-admin-api-key")
@@ -187,17 +187,17 @@ async def forward_request(client: httpx.AsyncClient, method: str, url: str, requ
             print(f"DEBUG: Forwarding x-api-key header: {client_key[:5]}...")
         else:
             print(f"DEBUG: No x-api-key header found in request. Headers: {dict(request.headers)}")
-    
+
     # Debug logging for forwarded headers
     print(f"DEBUG: Forwarded headers: {headers}")
-    
+
     # Forward query parameters
     forwarded_params = dict(request.query_params)
     if forwarded_params:
         print(f"DEBUG: Forwarding query params: {forwarded_params}")
-    
+
     content = await request.body()
-    
+
     try:
         print(f"DEBUG: Forwarding {method} request to {url}")
         resp = await client.request(method, url, headers=headers, params=forwarded_params or None, content=content)
@@ -208,13 +208,13 @@ async def forward_request(client: httpx.AsyncClient, method: str, url: str, requ
         print(f"DEBUG: Request error: {exc}")
         raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}")
 
-# --- Root Endpoint --- 
+# --- Root Endpoint ---
 @app.get("/", tags=["General"], summary="API Gateway Root")
 async def root():
     """Provides a welcome message for the Vexa API Gateway."""
     return {"message": "Welcome to the Vexa API Gateway"}
 
-# --- Bot Manager Routes --- 
+# --- Bot Manager Routes ---
 @app.post("/bots",
          tags=["Bot Management"],
          summary="Request a new bot to join a meeting",
@@ -235,7 +235,7 @@ async def root():
              },
          })
 # Function signature remains generic for forwarding
-async def request_bot_proxy(request: Request): 
+async def request_bot_proxy(request: Request):
     """Forward request to Bot Manager to start a bot."""
     url = f"{BOT_MANAGER_URL}/bots"
     # forward_request handles reading and passing the body from the original request
@@ -260,7 +260,7 @@ async def stop_bot_proxy(platform: Platform, native_meeting_id: str, request: Re
           status_code=status.HTTP_202_ACCEPTED,
           dependencies=[Depends(api_key_scheme)])
 # Need to accept request body for PUT
-async def update_bot_config_proxy(platform: Platform, native_meeting_id: str, request: Request): 
+async def update_bot_config_proxy(platform: Platform, native_meeting_id: str, request: Request):
     """Forward request to Bot Manager to update bot config."""
     url = f"{BOT_MANAGER_URL}/bots/{platform.value}/{native_meeting_id}/config"
     # forward_request handles reading and passing the body from the original request
@@ -280,12 +280,12 @@ async def get_bots_status_proxy(request: Request):
     return await forward_request(app.state.http_client, "GET", url, request)
 # --- END Route for GET /bots/status ---
 
-# --- Transcription Collector Routes --- 
+# --- Transcription Collector Routes ---
 @app.get("/meetings",
         tags=["Transcriptions"],
         summary="Get list of user's meetings",
         description="Returns a list of all meetings initiated by the user associated with the API key.",
-        response_model=MeetingListResponse, 
+        response_model=MeetingListResponse,
         dependencies=[Depends(api_key_scheme)])
 async def get_meetings_proxy(request: Request):
     """Forward request to Transcription Collector to get meetings."""
@@ -353,15 +353,15 @@ async def set_user_webhook_proxy(request: Request):
     url = f"{ADMIN_API_URL}/user/webhook"
     return await forward_request(app.state.http_client, "PUT", url, request)
 
-# --- Admin API Routes --- 
-@app.api_route("/admin/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"], 
+# --- Admin API Routes ---
+@app.api_route("/admin/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
                tags=["Administration"],
                summary="Forward admin requests",
                description="Forwards requests prefixed with `/admin` to the Admin API service. Requires `X-Admin-API-Key`.",
                dependencies=[Depends(admin_api_key_scheme)])
 async def forward_admin_request(request: Request, path: str):
     """Generic forwarder for all admin endpoints."""
-    admin_path = f"/admin/{path}" 
+    admin_path = f"/admin/{path}"
     url = f"{ADMIN_API_URL}{admin_path}"
     return await forward_request(app.state.http_client, request.method, url, request)
 
@@ -500,7 +500,7 @@ async def websocket_multiplex(ws: WebSocket):
                     if not plat or not nid:
                         errors.append(f"meetings[{idx}] missing 'platform' or 'native_id'")
                         continue
-                    
+
                     # Find the subscription key that matches platform and native_id
                     # Since we now use (platform, native_id, user_id) as key, we need to find it
                     matching_key = None
@@ -508,7 +508,7 @@ async def websocket_multiplex(ws: WebSocket):
                         if key[0] == plat and key[1] == nid:
                             matching_key = key
                             break
-                    
+
                     if matching_key:
                         await unsubscribe_meeting(plat, nid, matching_key[2])
                         unsubscribed.append({"platform": plat, "native_id": nid})
@@ -523,7 +523,7 @@ async def websocket_multiplex(ws: WebSocket):
                     "type": "unsubscribed",
                     "meetings": unsubscribed
                 }))
-                
+
             elif action == "ping":
                 await ws.send_text(json.dumps({"type": "pong"}))
             else:
@@ -539,6 +539,6 @@ async def websocket_multiplex(ws: WebSocket):
         for task in sub_tasks.values():
             task.cancel()
 
-# --- Main Execution --- 
+# --- Main Execution ---
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

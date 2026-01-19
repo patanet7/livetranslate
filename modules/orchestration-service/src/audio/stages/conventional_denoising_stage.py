@@ -7,11 +7,13 @@ Provides fast, low-latency noise reduction with various filtering algorithms.
 Complements spectral denoising for optimal noise reduction performance.
 """
 
+from typing import Any
+
 import numpy as np
 import scipy.signal
-from typing import Dict, Any, Tuple
-from ..stage_components import BaseAudioStage
+
 from ..config import ConventionalDenoisingConfig, ConventionalDenoisingMode
+from ..stage_components import BaseAudioStage
 
 
 class ConventionalDenoisingStage(BaseAudioStage):
@@ -59,9 +61,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
 
         self.is_initialized = True
 
-    def _process_audio(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _process_audio(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Process audio through conventional denoising."""
         try:
             # Apply input gain
@@ -125,11 +125,9 @@ class ConventionalDenoisingStage(BaseAudioStage):
             return denoised, metadata
 
         except Exception as e:
-            raise Exception(f"Conventional denoising failed: {e}")
+            raise Exception(f"Conventional denoising failed: {e}") from e
 
-    def _median_filter_denoising(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _median_filter_denoising(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Apply median filtering for impulse noise removal."""
         kernel_size = self.config.median_kernel_size
 
@@ -137,9 +135,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
         filtered = scipy.signal.medfilt(audio_data, kernel_size=kernel_size)
 
         # Blend with original based on strength
-        denoised = (
-            1 - self.config.strength
-        ) * audio_data + self.config.strength * filtered
+        denoised = (1 - self.config.strength) * audio_data + self.config.strength * filtered
 
         stats = {"kernel_size": kernel_size, "filter_type": "median"}
 
@@ -147,7 +143,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
 
     def _gaussian_filter_denoising(
         self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Apply Gaussian filtering for noise smoothing."""
         from scipy.ndimage import gaussian_filter1d
 
@@ -165,9 +161,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
             filtered[transient_mask] = audio_data[transient_mask]
 
         # Blend with original based on strength
-        denoised = (
-            1 - self.config.strength
-        ) * audio_data + self.config.strength * filtered
+        denoised = (1 - self.config.strength) * audio_data + self.config.strength * filtered
 
         stats = {
             "gaussian_sigma": self.config.gaussian_sigma,
@@ -179,7 +173,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
 
     def _bilateral_filter_denoising(
         self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Apply bilateral filtering for edge-preserving denoising."""
         # Simplified bilateral filter implementation for 1D audio
         window_size = self.config.window_size
@@ -202,9 +196,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
             )
 
             # Color weights (intensity difference)
-            color_weights = np.exp(
-                -0.5 * ((window - center_val) ** 2) / (sigma_color**2)
-            )
+            color_weights = np.exp(-0.5 * ((window - center_val) ** 2) / (sigma_color**2))
 
             # Combined weights
             weights = spatial_weights * color_weights
@@ -214,9 +206,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
             denoised[i] = np.sum(window * weights)
 
         # Blend with original based on strength
-        denoised = (
-            1 - self.config.strength
-        ) * audio_data + self.config.strength * denoised
+        denoised = (1 - self.config.strength) * audio_data + self.config.strength * denoised
 
         stats = {
             "sigma_color": sigma_color,
@@ -227,9 +217,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
 
         return denoised, stats
 
-    def _wavelet_denoising(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _wavelet_denoising(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Apply wavelet denoising."""
         if not self.wavelet_available:
             # Fallback to Gaussian filter
@@ -245,21 +233,15 @@ class ConventionalDenoisingStage(BaseAudioStage):
             sigma = np.median(np.abs(coeffs[-1])) / 0.6745
 
             # Threshold calculation (Donoho-Johnstone)
-            threshold = (
-                sigma * np.sqrt(2 * np.log(len(audio_data))) * self.config.strength
-            )
+            threshold = sigma * np.sqrt(2 * np.log(len(audio_data))) * self.config.strength
 
             # Apply thresholding to detail coefficients
             coeffs_thresh = coeffs.copy()
             for i in range(1, len(coeffs)):  # Skip approximation coefficients
                 if self.config.wavelet_threshold_mode == "soft":
-                    coeffs_thresh[i] = self.pywt.threshold(
-                        coeffs[i], threshold, mode="soft"
-                    )
+                    coeffs_thresh[i] = self.pywt.threshold(coeffs[i], threshold, mode="soft")
                 else:
-                    coeffs_thresh[i] = self.pywt.threshold(
-                        coeffs[i], threshold, mode="hard"
-                    )
+                    coeffs_thresh[i] = self.pywt.threshold(coeffs[i], threshold, mode="hard")
 
             # Wavelet reconstruction
             denoised = self.pywt.waverec(coeffs_thresh, self.config.wavelet_type)
@@ -285,7 +267,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
 
     def _adaptive_filter_denoising(
         self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """Apply adaptive filtering with LMS algorithm."""
         window_size = self.config.window_size
         mu = self.config.adaptation_rate  # Learning rate
@@ -324,9 +306,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
                 denoised[i] = audio_data[i]
 
         # Blend with original based on strength
-        denoised = (
-            1 - self.config.strength
-        ) * audio_data + self.config.strength * denoised
+        denoised = (1 - self.config.strength) * audio_data + self.config.strength * denoised
 
         stats = {
             "adaptation_rate": mu,
@@ -337,9 +317,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
 
         return denoised, stats
 
-    def _rnr_filter_denoising(
-        self, audio_data: np.ndarray
-    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _rnr_filter_denoising(self, audio_data: np.ndarray) -> tuple[np.ndarray, dict[str, Any]]:
         """Apply Reduce Noise and Reverb filtering."""
         # Combine multiple techniques for comprehensive noise reduction
 
@@ -347,9 +325,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
         if self.emphasis_b is not None:
             if self.emphasis_zi is None:
                 # Initialize filter state
-                self.emphasis_zi = scipy.signal.lfilter_zi(
-                    self.emphasis_b, self.emphasis_a
-                )
+                self.emphasis_zi = scipy.signal.lfilter_zi(self.emphasis_b, self.emphasis_a)
                 emphasized, self.emphasis_zi = scipy.signal.lfilter(
                     self.emphasis_b, self.emphasis_a, audio_data, zi=self.emphasis_zi
                 )
@@ -376,9 +352,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
         # 4. Energy-based gating
         # Calculate local energy
         window_size = max(3, self.config.window_size // 2)
-        energy = np.convolve(
-            audio_data**2, np.ones(window_size) / window_size, mode="same"
-        )
+        energy = np.convolve(audio_data**2, np.ones(window_size) / window_size, mode="same")
 
         # Adaptive threshold based on energy distribution
         energy_threshold = np.percentile(energy, 30) * (1 + self.config.threshold)
@@ -403,7 +377,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
 
         return denoised, stats
 
-    def _get_stage_config(self) -> Dict[str, Any]:
+    def _get_stage_config(self) -> dict[str, Any]:
         """Get current stage configuration."""
         return {
             "enabled": self.config.enabled,
@@ -437,9 +411,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
         self.prev_energy = 0.0
         self.energy_history.fill(0)
         if self.emphasis_zi is not None:
-            self.emphasis_zi = (
-                scipy.signal.lfilter_zi(self.emphasis_b, self.emphasis_a) * 0
-            )
+            self.emphasis_zi = scipy.signal.lfilter_zi(self.emphasis_b, self.emphasis_a) * 0
 
     def update_config(self, new_config: ConventionalDenoisingConfig):
         """Update configuration and reset state if necessary."""
@@ -450,9 +422,7 @@ class ConventionalDenoisingStage(BaseAudioStage):
         if new_config.window_size != old_window_size:
             self.history_buffer = np.zeros(new_config.window_size * 2)
             self.adaptation_state = np.zeros(new_config.window_size)
-            self.filter_coeffs = (
-                np.ones(new_config.window_size) / new_config.window_size
-            )
+            self.filter_coeffs = np.ones(new_config.window_size) / new_config.window_size
             self.reference_signal = np.zeros(new_config.window_size)
 
         # Update high frequency emphasis filter if needed

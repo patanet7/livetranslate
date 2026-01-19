@@ -6,15 +6,15 @@ Provides intelligent request routing, load balancing, and circuit breaking
 for backend services. Integrates with the frontend service proxy functionality.
 """
 
-import time
 import logging
-import requests
-from typing import Dict, Any, Optional, List
+import threading
+import time
 from collections import defaultdict
 from enum import Enum
-import threading
+from typing import Any
 
-from flask import jsonify, Response
+import requests
+from flask import Response, jsonify
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class CircuitBreaker:
 class APIGateway:
     """API Gateway with load balancing and circuit breaking"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         """Initialize API gateway"""
         self.config = config
         self.timeout = config.get("timeout", 30)
@@ -101,9 +101,9 @@ class APIGateway:
         self.circuit_breaker_threshold = config.get("circuit_breaker_threshold", 5)
 
         # Service registry
-        self.services: Dict[str, List[ServiceInstance]] = {}
-        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
-        self.load_balancer_state: Dict[str, int] = defaultdict(int)  # Round-robin state
+        self.services: dict[str, list[ServiceInstance]] = {}
+        self.circuit_breakers: dict[str, CircuitBreaker] = {}
+        self.load_balancer_state: dict[str, int] = defaultdict(int)  # Round-robin state
 
         # Metrics
         self.metrics = {
@@ -163,15 +163,11 @@ class APIGateway:
 
             logger.info(f"Registered service: {service_name} at {url}")
 
-    def route_request(
-        self, service_name: str, api_path: str, flask_request
-    ) -> Response:
+    def route_request(self, service_name: str, api_path: str, flask_request) -> Response:
         """Route request to appropriate service with load balancing and circuit breaking"""
         try:
             # Debug incoming request
-            logger.info(
-                f"Gateway routing {flask_request.method} {api_path} to {service_name}"
-            )
+            logger.info(f"Gateway routing {flask_request.method} {api_path} to {service_name}")
             logger.info(f"Request content type: {flask_request.content_type}")
             logger.info(f"Request has files: {bool(flask_request.files)}")
             if flask_request.files:
@@ -237,7 +233,7 @@ class APIGateway:
 
             return jsonify({"error": "Gateway routing error", "details": str(e)}), 500
 
-    def _select_service_instance(self, service_name: str) -> Optional[ServiceInstance]:
+    def _select_service_instance(self, service_name: str) -> ServiceInstance | None:
         """Select service instance using weighted round-robin"""
         with self._lock:
             instances = self.services.get(service_name, [])
@@ -259,16 +255,12 @@ class APIGateway:
 
             # Weighted round-robin selection
             current_index = self.load_balancer_state[service_name]
-            selected_instance = healthy_instances[
-                current_index % len(healthy_instances)
-            ]
-            self.load_balancer_state[service_name] = (current_index + 1) % len(
-                healthy_instances
-            )
+            selected_instance = healthy_instances[current_index % len(healthy_instances)]
+            self.load_balancer_state[service_name] = (current_index + 1) % len(healthy_instances)
 
             return selected_instance
 
-    def _prepare_request_data(self, flask_request) -> Dict[str, Any]:
+    def _prepare_request_data(self, flask_request) -> dict[str, Any]:
         """Prepare request data for forwarding"""
         request_data = {}
 
@@ -276,14 +268,10 @@ class APIGateway:
         logger.info("Gateway _prepare_request_data called:")
         logger.info(f"  Method: {flask_request.method}")
         logger.info(f"  Content-Type: {flask_request.content_type}")
-        logger.info(
-            f"  Content-Length: {flask_request.environ.get('CONTENT_LENGTH', 'unknown')}"
-        )
+        logger.info(f"  Content-Length: {flask_request.environ.get('CONTENT_LENGTH', 'unknown')}")
         logger.info(f"  Files available: {bool(flask_request.files)}")
         logger.info(f"  Form available: {bool(flask_request.form)}")
-        logger.info(
-            f"  Raw data length: {len(flask_request.data) if flask_request.data else 0}"
-        )
+        logger.info(f"  Raw data length: {len(flask_request.data) if flask_request.data else 0}")
 
         # Handle different request types
         if flask_request.method in ["POST", "PUT", "PATCH"]:
@@ -292,9 +280,7 @@ class APIGateway:
                 request_data["json"] = flask_request.get_json()
             elif flask_request.files:
                 # Handle file uploads - preserve multipart form data
-                logger.info(
-                    f"Gateway processing files: {list(flask_request.files.keys())}"
-                )
+                logger.info(f"Gateway processing files: {list(flask_request.files.keys())}")
                 files = {}
                 for key, file in flask_request.files.items():
                     # Make sure to seek to beginning of file
@@ -337,9 +323,7 @@ class APIGateway:
 
                 # Also include form data if present alongside files
                 if flask_request.form:
-                    logger.info(
-                        f"Gateway processing form data: {list(flask_request.form.keys())}"
-                    )
+                    logger.info(f"Gateway processing form data: {list(flask_request.form.keys())}")
                     request_data["data"] = flask_request.form.to_dict()
             elif flask_request.form:
                 logger.info("Processing form data")
@@ -359,19 +343,14 @@ class APIGateway:
                     # Try to parse manually or pass as raw data
                     request_data["data"] = flask_request.data
                     # Also try to set content-type for requests library
-                    request_data["headers"] = {
-                        "Content-Type": flask_request.content_type
-                    }
+                    request_data["headers"] = {"Content-Type": flask_request.content_type}
 
         # Add query parameters
         if flask_request.args:
             request_data["params"] = flask_request.args.to_dict()
 
         # Prepare headers (filter out problematic ones)
-        if "headers" not in request_data:
-            headers = {}
-        else:
-            headers = request_data["headers"]
+        headers = request_data.get("headers", {})
 
         skip_headers = {
             "host",
@@ -406,9 +385,7 @@ class APIGateway:
             logger.info(f"  Files: {list(request_data['files'].keys())}")
             for key, file_info in request_data["files"].items():
                 filename, content, content_type = file_info
-                logger.info(
-                    f"    {key}: {filename} ({len(content)} bytes, {content_type})"
-                )
+                logger.info(f"    {key}: {filename} ({len(content)} bytes, {content_type})")
         if "data" in request_data:
             data_type = type(request_data["data"])
             if isinstance(request_data["data"], bytes):
@@ -424,9 +401,9 @@ class APIGateway:
         self,
         method: str,
         url: str,
-        request_data: Dict,
+        request_data: dict,
         service_name: str,
-        circuit_breaker: Optional[CircuitBreaker],
+        circuit_breaker: CircuitBreaker | None,
     ) -> Response:
         """Make request with retry logic"""
         last_exception = None
@@ -440,14 +417,8 @@ class APIGateway:
                     for key, file_info in request_data["files"].items():
                         if isinstance(file_info, tuple) and len(file_info) >= 2:
                             filename, content = file_info[0], file_info[1]
-                            content_len = (
-                                len(content)
-                                if hasattr(content, "__len__")
-                                else "unknown"
-                            )
-                            logger.info(
-                                f"  File {key}: {filename} ({content_len} bytes)"
-                            )
+                            content_len = len(content) if hasattr(content, "__len__") else "unknown"
+                            logger.info(f"  File {key}: {filename} ({content_len} bytes)")
                         else:
                             logger.info(f"  File {key}: {file_info}")
 
@@ -501,9 +472,7 @@ class APIGateway:
 
             except requests.exceptions.RequestException as e:
                 last_exception = e
-                logger.warning(
-                    f"Request attempt {attempt + 1} failed for {service_name}: {e}"
-                )
+                logger.warning(f"Request attempt {attempt + 1} failed for {service_name}: {e}")
 
                 # Record failure
                 self._record_request_metrics(service_name, 0, False)
@@ -511,13 +480,15 @@ class APIGateway:
                     circuit_breaker.record_failure()
 
                 # Don't retry on certain errors
-                if isinstance(
-                    e,
-                    (requests.exceptions.ConnectionError, requests.exceptions.Timeout),
+                if (
+                    isinstance(
+                        e,
+                        requests.exceptions.ConnectionError | requests.exceptions.Timeout,
+                    )
+                    and attempt < self.retries - 1
                 ):
-                    if attempt < self.retries - 1:
-                        time.sleep(0.5 * (attempt + 1))  # Exponential backoff
-                        continue
+                    time.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                    continue
 
                 break
 
@@ -538,9 +509,7 @@ class APIGateway:
             503,
         )
 
-    def _record_request_metrics(
-        self, service_name: str, response_time: float, success: bool
-    ):
+    def _record_request_metrics(self, service_name: str, response_time: float, success: bool):
         """Record request metrics"""
         with self._lock:
             if success:
@@ -555,9 +524,7 @@ class APIGateway:
             else:
                 self.metrics["failed_requests"] += 1
 
-    def health_check_service(
-        self, service_name: str, instance: ServiceInstance
-    ) -> bool:
+    def health_check_service(self, service_name: str, instance: ServiceInstance) -> bool:
         """Perform health check on service instance"""
         try:
             health_url = f"{instance.url}/health"
@@ -590,7 +557,7 @@ class APIGateway:
             instance.status = ServiceStatus.UNHEALTHY
             return False
 
-    def get_service_health(self) -> Dict[str, Any]:
+    def get_service_health(self) -> dict[str, Any]:
         """Get health status of all services"""
         health_status = {}
 
@@ -600,9 +567,7 @@ class APIGateway:
                     "instances": [],
                     "healthy_count": 0,
                     "total_count": len(instances),
-                    "circuit_breaker": self.circuit_breakers.get(
-                        service_name, {}
-                    ).state.value
+                    "circuit_breaker": self.circuit_breakers.get(service_name, {}).state.value
                     if service_name in self.circuit_breakers
                     else "none",
                 }
@@ -612,9 +577,7 @@ class APIGateway:
                         "url": instance.url,
                         "status": instance.status.value,
                         "last_check": instance.last_check,
-                        "response_times": instance.response_times[
-                            -10:
-                        ],  # Last 10 response times
+                        "response_times": instance.response_times[-10:],  # Last 10 response times
                         "error_count": instance.error_count,
                         "success_count": instance.success_count,
                     }
@@ -627,7 +590,7 @@ class APIGateway:
 
         return health_status
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get gateway metrics"""
         with self._lock:
             return {
@@ -643,7 +606,7 @@ class APIGateway:
                 "service_health": self.get_service_health(),
             }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get gateway status"""
         return {
             "component": "api_gateway",

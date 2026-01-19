@@ -2,31 +2,31 @@
 
 // Bot enums matching backend
 export enum BotPriority {
-  LOW = 'low',
-  MEDIUM = 'medium',
-  HIGH = 'high',
-  CRITICAL = 'critical'
+  LOW = "low",
+  MEDIUM = "medium",
+  HIGH = "high",
+  CRITICAL = "critical",
 }
 
 export enum MeetingPlatform {
-  GOOGLE_MEET = 'google_meet',
-  ZOOM = 'zoom',
-  TEAMS = 'teams',
-  WEBEX = 'webex'
+  GOOGLE_MEET = "google_meet",
+  ZOOM = "zoom",
+  TEAMS = "teams",
+  WEBEX = "webex",
 }
 
 export enum WebcamDisplayMode {
-  OVERLAY = 'overlay',
-  SIDEBAR = 'sidebar',
-  FULLSCREEN = 'fullscreen',
-  PICTURE_IN_PICTURE = 'picture_in_picture'
+  OVERLAY = "overlay",
+  SIDEBAR = "sidebar",
+  FULLSCREEN = "fullscreen",
+  PICTURE_IN_PICTURE = "picture_in_picture",
 }
 
 export enum WebcamTheme {
-  DARK = 'dark',
-  LIGHT = 'light',
-  AUTO = 'auto',
-  CUSTOM = 'custom'
+  DARK = "dark",
+  LIGHT = "light",
+  AUTO = "auto",
+  CUSTOM = "custom",
 }
 
 // Configuration interfaces matching backend structure
@@ -55,7 +55,7 @@ export interface TranslationConfig {
   targetLanguages: string[];
   sourceLanguage?: string;
   enableAutoTranslation: boolean;
-  translationQuality: 'fast' | 'balanced' | 'accurate';
+  translationQuality: "fast" | "balanced" | "accurate";
   realTimeTranslation: boolean;
 }
 
@@ -178,7 +178,7 @@ export interface BotHealthMetrics {
   captionRegionDetected: boolean;
   segmentsCount: number;
   memoryUsageMb: number;
-  domSelectorStatus: 'healthy' | 'degraded' | 'failed';
+  domSelectorStatus: "healthy" | "degraded" | "failed";
   lastCaptionTimestamp: number;
   audioStreamActive: boolean;
   webcamStreamActive: boolean;
@@ -187,7 +187,13 @@ export interface BotHealthMetrics {
 
 export interface BotError {
   errorId: string;
-  errorType: 'connection' | 'audio' | 'caption' | 'webcam' | 'memory' | 'timeout';
+  errorType:
+    | "connection"
+    | "audio"
+    | "caption"
+    | "webcam"
+    | "memory"
+    | "timeout";
   errorMessage: string;
   errorStack?: string;
   timestamp: number;
@@ -201,7 +207,7 @@ export interface BotSession {
   meetingId: string;
   startTime: number;
   endTime?: number;
-  status: 'active' | 'completed' | 'terminated' | 'error';
+  status: "active" | "completed" | "terminated" | "error";
   totalAudioCaptured: number;
   totalCaptionsProcessed: number;
   totalTranslationsGenerated: number;
@@ -245,7 +251,7 @@ export interface TimeCorrelationResult {
   correlationId: string;
   externalEventId: string;
   internalResultId: string;
-  correlationType: 'exact' | 'inferred' | 'interpolated';
+  correlationType: "exact" | "inferred" | "interpolated";
   correlationConfidence: number;
   timingOffset: number;
   speakerName: string;

@@ -12,10 +12,9 @@ Usage:
     vad_config = VADConfig.from_env()
 """
 
-import os
 import logging
+import os
 from dataclasses import dataclass, field
-from typing import List, Optional
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -46,22 +45,28 @@ class VADConfig:
             raise ValueError(f"VAD sampling_rate must be 8000 or 16000, got {self.sampling_rate}")
 
         if self.min_silence_duration_ms < 100:
-            raise ValueError(f"min_silence_duration_ms must be >= 100ms, got {self.min_silence_duration_ms}")
+            raise ValueError(
+                f"min_silence_duration_ms must be >= 100ms, got {self.min_silence_duration_ms}"
+            )
 
         if self.silence_threshold_chunks < 1:
-            raise ValueError(f"silence_threshold_chunks must be >= 1, got {self.silence_threshold_chunks}")
+            raise ValueError(
+                f"silence_threshold_chunks must be >= 1, got {self.silence_threshold_chunks}"
+            )
 
-        logger.debug(f"VADConfig initialized: threshold={self.threshold}, min_silence={self.min_silence_duration_ms}ms")
+        logger.debug(
+            f"VADConfig initialized: threshold={self.threshold}, min_silence={self.min_silence_duration_ms}ms"
+        )
 
     @classmethod
-    def from_env(cls) -> 'VADConfig':
+    def from_env(cls) -> "VADConfig":
         """Load configuration from environment variables"""
         return cls(
-            threshold=float(os.getenv('VAD_THRESHOLD', '0.5')),
-            sampling_rate=int(os.getenv('VAD_SAMPLING_RATE', '16000')),
-            min_silence_duration_ms=int(os.getenv('VAD_MIN_SILENCE_MS', '500')),
-            speech_pad_ms=int(os.getenv('VAD_SPEECH_PAD_MS', '100')),
-            silence_threshold_chunks=int(os.getenv('VAD_SILENCE_THRESHOLD_CHUNKS', '10'))
+            threshold=float(os.getenv("VAD_THRESHOLD", "0.5")),
+            sampling_rate=int(os.getenv("VAD_SAMPLING_RATE", "16000")),
+            min_silence_duration_ms=int(os.getenv("VAD_MIN_SILENCE_MS", "500")),
+            speech_pad_ms=int(os.getenv("VAD_SPEECH_PAD_MS", "100")),
+            silence_threshold_chunks=int(os.getenv("VAD_SILENCE_THRESHOLD_CHUNKS", "10")),
         )
 
 
@@ -86,7 +91,9 @@ class LIDConfig:
     def __post_init__(self):
         """Validate configuration"""
         if self.confidence_margin < 0.1 or self.confidence_margin > 0.5:
-            raise ValueError(f"confidence_margin must be in [0.1, 0.5], got {self.confidence_margin}")
+            raise ValueError(
+                f"confidence_margin must be in [0.1, 0.5], got {self.confidence_margin}"
+            )
 
         if self.min_dwell_ms < 100:
             raise ValueError(f"min_dwell_ms must be >= 100ms, got {self.min_dwell_ms}")
@@ -97,20 +104,22 @@ class LIDConfig:
         if self.lid_hop_ms < 50 or self.lid_hop_ms > 200:
             logger.warning(f"lid_hop_ms={self.lid_hop_ms} is outside recommended range [50, 200]")
 
-        logger.debug(f"LIDConfig initialized: margin={self.confidence_margin}, min_dwell={self.min_dwell_ms}ms")
+        logger.debug(
+            f"LIDConfig initialized: margin={self.confidence_margin}, min_dwell={self.min_dwell_ms}ms"
+        )
 
     @classmethod
-    def from_env(cls) -> 'LIDConfig':
+    def from_env(cls) -> "LIDConfig":
         """Load configuration from environment variables"""
         return cls(
-            lid_hop_ms=int(os.getenv('LID_HOP_MS', '100')),
-            smoothing_enabled=os.getenv('LID_SMOOTHING_ENABLED', 'true').lower() == 'true',
-            smoothing_window_size=int(os.getenv('LID_SMOOTHING_WINDOW', '5')),
-            confidence_margin=float(os.getenv('LID_CONFIDENCE_MARGIN', '0.2')),
-            min_dwell_frames=int(os.getenv('LID_MIN_DWELL_FRAMES', '6')),
-            min_dwell_ms=float(os.getenv('LID_MIN_DWELL_MS', '250.0')),
-            viterbi_transition_cost=float(os.getenv('LID_VITERBI_TRANSITION_COST', '0.3')),
-            viterbi_window_size=int(os.getenv('LID_VITERBI_WINDOW', '5'))
+            lid_hop_ms=int(os.getenv("LID_HOP_MS", "100")),
+            smoothing_enabled=os.getenv("LID_SMOOTHING_ENABLED", "true").lower() == "true",
+            smoothing_window_size=int(os.getenv("LID_SMOOTHING_WINDOW", "5")),
+            confidence_margin=float(os.getenv("LID_CONFIDENCE_MARGIN", "0.2")),
+            min_dwell_frames=int(os.getenv("LID_MIN_DWELL_FRAMES", "6")),
+            min_dwell_ms=float(os.getenv("LID_MIN_DWELL_MS", "250.0")),
+            viterbi_transition_cost=float(os.getenv("LID_VITERBI_TRANSITION_COST", "0.3")),
+            viterbi_window_size=int(os.getenv("LID_VITERBI_WINDOW", "5")),
         )
 
 
@@ -120,7 +129,7 @@ class WhisperConfig:
 
     # Model configuration
     model_path: str = ""  # Required, no default
-    models_dir: Optional[str] = None
+    models_dir: str | None = None
 
     # Decoder configuration
     decoder_type: str = "greedy"  # "greedy" or "beam"
@@ -131,7 +140,7 @@ class WhisperConfig:
     sampling_rate: int = 16000
 
     # Language configuration
-    target_languages: List[str] = field(default_factory=lambda: ['en', 'zh'])
+    target_languages: list[str] = field(default_factory=lambda: ["en", "zh"])
 
     # Audio processing
     audio_min_len: float = 1.0  # Minimum audio length in seconds
@@ -148,14 +157,18 @@ class WhisperConfig:
             raise ValueError(f"decoder_type must be 'greedy' or 'beam', got {self.decoder_type}")
 
         if self.decoder_type == "greedy" and self.beam_size != 1:
-            logger.warning(f"decoder_type='greedy' requires beam_size=1, overriding beam_size={self.beam_size}")
+            logger.warning(
+                f"decoder_type='greedy' requires beam_size=1, overriding beam_size={self.beam_size}"
+            )
             self.beam_size = 1
 
         if self.beam_size < 1:
             raise ValueError(f"beam_size must be >= 1, got {self.beam_size}")
 
         if self.online_chunk_size < 0.5 or self.online_chunk_size > 5.0:
-            logger.warning(f"online_chunk_size={self.online_chunk_size} is outside recommended range [0.5, 5.0]")
+            logger.warning(
+                f"online_chunk_size={self.online_chunk_size} is outside recommended range [0.5, 5.0]"
+            )
 
         if self.sampling_rate not in [8000, 16000]:
             raise ValueError(f"sampling_rate must be 8000 or 16000, got {self.sampling_rate}")
@@ -167,24 +180,26 @@ class WhisperConfig:
         if self.models_dir is None:
             self.models_dir = str(Path.home() / ".whisper" / "models")
 
-        logger.debug(f"WhisperConfig initialized: model={self.model_path}, decoder={self.decoder_type}")
+        logger.debug(
+            f"WhisperConfig initialized: model={self.model_path}, decoder={self.decoder_type}"
+        )
 
     @classmethod
-    def from_env(cls, model_path: str) -> 'WhisperConfig':
+    def from_env(cls, model_path: str) -> "WhisperConfig":
         """Load configuration from environment variables"""
-        languages_str = os.getenv('WHISPER_LANGUAGES', 'en,zh')
-        languages = [lang.strip() for lang in languages_str.split(',')]
+        languages_str = os.getenv("WHISPER_LANGUAGES", "en,zh")
+        languages = [lang.strip() for lang in languages_str.split(",")]
 
         return cls(
             model_path=model_path,
-            models_dir=os.getenv('WHISPER_MODELS_DIR'),
-            decoder_type=os.getenv('WHISPER_DECODER_TYPE', 'greedy'),
-            beam_size=int(os.getenv('WHISPER_BEAM_SIZE', '1')),
-            online_chunk_size=float(os.getenv('WHISPER_CHUNK_SIZE', '1.2')),
-            sampling_rate=int(os.getenv('WHISPER_SAMPLING_RATE', '16000')),
+            models_dir=os.getenv("WHISPER_MODELS_DIR"),
+            decoder_type=os.getenv("WHISPER_DECODER_TYPE", "greedy"),
+            beam_size=int(os.getenv("WHISPER_BEAM_SIZE", "1")),
+            online_chunk_size=float(os.getenv("WHISPER_CHUNK_SIZE", "1.2")),
+            sampling_rate=int(os.getenv("WHISPER_SAMPLING_RATE", "16000")),
             target_languages=languages,
-            audio_min_len=float(os.getenv('WHISPER_AUDIO_MIN_LEN', '1.0')),
-            n_mels=int(os.getenv('WHISPER_N_MELS', '80'))
+            audio_min_len=float(os.getenv("WHISPER_AUDIO_MIN_LEN", "1.0")),
+            n_mels=int(os.getenv("WHISPER_N_MELS", "80")),
         )
 
 
@@ -211,30 +226,30 @@ class SessionConfig:
         logger.debug(f"SessionConfig initialized with log_level={self.log_level}")
 
     @classmethod
-    def from_env(cls, model_path: str) -> 'SessionConfig':
+    def from_env(cls, model_path: str) -> "SessionConfig":
         """Load complete configuration from environment variables"""
         return cls(
             whisper=WhisperConfig.from_env(model_path),
             vad=VADConfig.from_env(),
             lid=LIDConfig.from_env(),
-            log_level=os.getenv('LOG_LEVEL', 'INFO'),
-            enable_performance_logging=os.getenv('ENABLE_PERF_LOGGING', 'true').lower() == 'true',
-            enable_debug_audio_stats=os.getenv('ENABLE_DEBUG_AUDIO', 'false').lower() == 'true'
+            log_level=os.getenv("LOG_LEVEL", "INFO"),
+            enable_performance_logging=os.getenv("ENABLE_PERF_LOGGING", "true").lower() == "true",
+            enable_debug_audio_stats=os.getenv("ENABLE_DEBUG_AUDIO", "false").lower() == "true",
         )
 
     def configure_logging(self):
         """Configure logging based on settings"""
         logging.basicConfig(
             level=getattr(logging, self.log_level),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
 
         # Adjust specific loggers for high-frequency operations
         if self.log_level == "INFO":
             # Reduce noise from high-frequency loggers
-            logging.getLogger('vad_detector').setLevel(logging.WARNING)
-            logging.getLogger('sustained_detector').setLevel(logging.INFO)
-            logging.getLogger('lid_detector').setLevel(logging.INFO)
+            logging.getLogger("vad_detector").setLevel(logging.WARNING)
+            logging.getLogger("sustained_detector").setLevel(logging.INFO)
+            logging.getLogger("lid_detector").setLevel(logging.INFO)
 
         logger.info(f"Logging configured: level={self.log_level}")
 

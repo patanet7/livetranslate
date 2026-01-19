@@ -1,0 +1,97 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.env
+.env.local
+.env.*
+
+# PDM
+.pdm-build/
+.pdm-python
+pdm.lock
+
+# Poetry (legacy)
+poetry.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Tests
+tests/
+*.test.py
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Models (large files - download at runtime)
+models/
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+
+# Logs
+logs/
+*.log
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Docker files (not needed inside container)
+Dockerfile*
+docker-compose*.yml
+.docker/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.circleci/
+Jenkinsfile
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sessions and temporary data
+sessions/
+tmp/
+temp/
+*.tmp
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Profiling
+*.prof
+*.lprof
+
+# Mypy
+.mypy_cache/
+
+# Ruff/Linting
+.ruff_cache/

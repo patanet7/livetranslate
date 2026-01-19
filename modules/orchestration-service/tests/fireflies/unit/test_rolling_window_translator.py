@@ -16,15 +16,14 @@ Test Categories:
 """
 
 import asyncio
-import pytest
-import sys
+import contextlib
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Deque, Dict, List, Optional, Tuple
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 from uuid import uuid4
+
+import pytest
 
 # =============================================================================
 # Test-Local Model Definitions
@@ -38,8 +37,8 @@ class TranslationContext:
 
     def __init__(
         self,
-        previous_sentences: List[str] = None,
-        glossary: Dict[str, str] = None,
+        previous_sentences: list[str] | None = None,
+        glossary: dict[str, str] | None = None,
         target_language: str = "es",
         source_language: str = "en",
     ):
@@ -71,12 +70,12 @@ class TranslationResult:
         target_language: str = "es",
         confidence: float = 1.0,
         context_sentences_used: int = 0,
-        glossary_terms_applied: List[str] = None,
+        glossary_terms_applied: list[str] | None = None,
         translation_time_ms: float = 0.0,
-        session_id: Optional[str] = None,
-        translation_unit_id: Optional[str] = None,
-        created_at: Optional[datetime] = None,
-        updated_at: Optional[datetime] = None,
+        session_id: str | None = None,
+        translation_unit_id: str | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
     ):
         self.original = original
         self.translated = translated
@@ -89,8 +88,8 @@ class TranslationResult:
         self.translation_time_ms = translation_time_ms
         self.session_id = session_id
         self.translation_unit_id = translation_unit_id
-        self.created_at = created_at or datetime.now(timezone.utc)
-        self.updated_at = updated_at or datetime.now(timezone.utc)
+        self.created_at = created_at or datetime.now(UTC)
+        self.updated_at = updated_at or datetime.now(UTC)
 
 
 class TranslationUnit:
@@ -104,9 +103,9 @@ class TranslationUnit:
         end_time: float,
         session_id: str,
         transcript_id: str,
-        chunk_ids: List[str] = None,
+        chunk_ids: list[str] | None = None,
         boundary_type: str = "unknown",
-        created_at: Optional[datetime] = None,
+        created_at: datetime | None = None,
     ):
         self.text = text
         self.speaker_name = speaker_name
@@ -116,7 +115,7 @@ class TranslationUnit:
         self.transcript_id = transcript_id
         self.chunk_ids = chunk_ids or []
         self.boundary_type = boundary_type
-        self.created_at = created_at or datetime.now(timezone.utc)
+        self.created_at = created_at or datetime.now(UTC)
 
     @property
     def word_count(self) -> int:
@@ -139,16 +138,16 @@ class SpeakerContext:
     """Context window for a single speaker."""
 
     speaker_name: str
-    sentences: Deque[str] = field(default_factory=lambda: deque(maxlen=5))
+    sentences: deque[str] = field(default_factory=lambda: deque(maxlen=5))
     translation_count: int = 0
-    last_translation_time: Optional[datetime] = None
+    last_translation_time: datetime | None = None
 
     def add(self, sentence: str) -> None:
         self.sentences.append(sentence)
         self.translation_count += 1
-        self.last_translation_time = datetime.now(timezone.utc)
+        self.last_translation_time = datetime.now(UTC)
 
-    def get_context(self, max_sentences: int = 3) -> List[str]:
+    def get_context(self, max_sentences: int = 3) -> list[str]:
         return list(self.sentences)[-max_sentences:]
 
     def clear(self) -> None:
@@ -160,28 +159,22 @@ class SessionTranslationState:
     """Translation state for a Fireflies session."""
 
     session_id: str
-    speaker_contexts: Dict[str, SpeakerContext] = field(default_factory=dict)
-    global_context: Deque[Tuple[str, str]] = field(
-        default_factory=lambda: deque(maxlen=10)
-    )
+    speaker_contexts: dict[str, SpeakerContext] = field(default_factory=dict)
+    global_context: deque[tuple[str, str]] = field(default_factory=lambda: deque(maxlen=10))
     total_translations: int = 0
     total_errors: int = 0
     average_translation_time_ms: float = 0.0
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def get_speaker_context(self, speaker_name: str) -> SpeakerContext:
         if speaker_name not in self.speaker_contexts:
-            self.speaker_contexts[speaker_name] = SpeakerContext(
-                speaker_name=speaker_name
-            )
+            self.speaker_contexts[speaker_name] = SpeakerContext(speaker_name=speaker_name)
         return self.speaker_contexts[speaker_name]
 
     def add_to_global_context(self, speaker: str, sentence: str) -> None:
         self.global_context.append((speaker, sentence))
 
-    def get_cross_speaker_context(
-        self, exclude_speaker: str, max_sentences: int = 3
-    ) -> List[str]:
+    def get_cross_speaker_context(self, exclude_speaker: str, max_sentences: int = 3) -> list[str]:
         other_sentences = [
             f"[{speaker}] {sentence}"
             for speaker, sentence in self.global_context
@@ -193,8 +186,8 @@ class SessionTranslationState:
         if success:
             n = self.total_translations
             self.average_translation_time_ms = (
-                (self.average_translation_time_ms * n + translation_time_ms) / (n + 1)
-            )
+                self.average_translation_time_ms * n + translation_time_ms
+            ) / (n + 1)
             self.total_translations += 1
         else:
             self.total_errors += 1
@@ -226,7 +219,7 @@ class RollingWindowTranslator:
         self.include_cross_speaker_context = include_cross_speaker_context
         self.max_cross_speaker_sentences = max_cross_speaker_sentences
         self.use_prompt_based_translation = use_prompt_based_translation
-        self._sessions: Dict[str, SessionTranslationState] = {}
+        self._sessions: dict[str, SessionTranslationState] = {}
 
     def _get_session_state(self, session_id: str) -> SessionTranslationState:
         if session_id not in self._sessions:
@@ -240,7 +233,7 @@ class RollingWindowTranslator:
         speaker_context: SpeakerContext,
         target_language: str,
         glossary_id,
-        domain: Optional[str],
+        domain: str | None,
         source_language: str,
     ) -> TranslationContext:
         previous_sentences = speaker_context.get_context(self.window_size)
@@ -252,17 +245,15 @@ class RollingWindowTranslator:
             )
             previous_sentences = cross_speaker + previous_sentences
 
-        glossary_terms: Dict[str, str] = {}
+        glossary_terms: dict[str, str] = {}
         if self.glossary_service and glossary_id:
-            try:
+            with contextlib.suppress(Exception):
                 glossary_terms = self.glossary_service.get_glossary_terms(
                     glossary_id=glossary_id,
                     target_language=target_language,
                     domain=domain,
                     include_default=True,
                 )
-            except Exception:
-                pass
 
         return TranslationContext(
             previous_sentences=previous_sentences,
@@ -275,8 +266,8 @@ class RollingWindowTranslator:
         self,
         original: str,
         translated: str,
-        glossary_terms: Dict[str, str],
-    ) -> List[str]:
+        glossary_terms: dict[str, str],
+    ) -> list[str]:
         applied = []
         original_lower = original.lower()
         translated_lower = translated.lower()
@@ -293,10 +284,11 @@ class RollingWindowTranslator:
         unit: TranslationUnit,
         target_language: str,
         glossary_id=None,
-        domain: Optional[str] = None,
+        domain: str | None = None,
         source_language: str = "en",
     ) -> TranslationResult:
         import time
+
         start_time = time.time()
 
         session_state = self._get_session_state(unit.session_id)
@@ -377,12 +369,12 @@ class RollingWindowTranslator:
     async def translate_to_multiple_languages(
         self,
         unit: TranslationUnit,
-        target_languages: List[str],
+        target_languages: list[str],
         glossary_id=None,
-        domain: Optional[str] = None,
+        domain: str | None = None,
         source_language: str = "en",
-    ) -> Dict[str, TranslationResult]:
-        results: Dict[str, TranslationResult] = {}
+    ) -> dict[str, TranslationResult]:
+        results: dict[str, TranslationResult] = {}
 
         tasks = [
             self.translate(
@@ -397,7 +389,7 @@ class RollingWindowTranslator:
 
         completed = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for lang, result in zip(target_languages, completed):
+        for lang, result in zip(target_languages, completed, strict=False):
             if isinstance(result, Exception):
                 results[lang] = TranslationResult(
                     original=unit.text,
@@ -413,7 +405,7 @@ class RollingWindowTranslator:
 
         return results
 
-    def get_session_stats(self, session_id: str) -> Optional[Dict]:
+    def get_session_stats(self, session_id: str) -> dict | None:
         if session_id not in self._sessions:
             return None
 
@@ -428,8 +420,7 @@ class RollingWindowTranslator:
             "average_translation_time_ms": state.average_translation_time_ms,
             "speakers": list(state.speaker_contexts.keys()),
             "speaker_translation_counts": {
-                name: ctx.translation_count
-                for name, ctx in state.speaker_contexts.items()
+                name: ctx.translation_count for name, ctx in state.speaker_contexts.items()
             },
             "created_at": state.created_at.isoformat(),
         }
@@ -454,7 +445,7 @@ class RollingWindowTranslator:
 def create_rolling_window_translator(
     translation_client,
     glossary_service=None,
-    config: Optional[Dict] = None,
+    config: dict | None = None,
 ) -> RollingWindowTranslator:
     config = config or {}
     return RollingWindowTranslator(
@@ -476,19 +467,21 @@ class MockTranslationClient:
     """Mock translation client for testing."""
 
     def __init__(self):
-        self.translate_calls: List[Dict] = []
-        self.translation_map: Dict[str, str] = {}
+        self.translate_calls: list[dict] = []
+        self.translation_map: dict[str, str] = {}
         self.default_confidence: float = 0.95
         self.should_fail: bool = False
         self.failure_message: str = "Translation service unavailable"
 
     async def translate(self, request) -> MockTranslationResponse:
-        self.translate_calls.append({
-            "text": request.text,
-            "source_language": request.source_language,
-            "target_language": request.target_language,
-            "quality": request.quality,
-        })
+        self.translate_calls.append(
+            {
+                "text": request.text,
+                "source_language": request.source_language,
+                "target_language": request.target_language,
+                "quality": request.quality,
+            }
+        )
 
         if self.should_fail:
             raise Exception(self.failure_message)
@@ -514,22 +507,24 @@ class MockGlossaryService:
     """Mock glossary service for testing."""
 
     def __init__(self):
-        self.glossary_terms: Dict[str, Dict[str, str]] = {}
-        self.get_terms_calls: List[Dict] = []
+        self.glossary_terms: dict[str, dict[str, str]] = {}
+        self.get_terms_calls: list[dict] = []
 
     def get_glossary_terms(
         self,
         glossary_id,
         target_language: str,
-        domain: Optional[str] = None,
+        domain: str | None = None,
         include_default: bool = True,
-    ) -> Dict[str, str]:
-        self.get_terms_calls.append({
-            "glossary_id": glossary_id,
-            "target_language": target_language,
-            "domain": domain,
-            "include_default": include_default,
-        })
+    ) -> dict[str, str]:
+        self.get_terms_calls.append(
+            {
+                "glossary_id": glossary_id,
+                "target_language": target_language,
+                "domain": domain,
+                "include_default": include_default,
+            }
+        )
 
         key = f"{glossary_id}_{target_language}"
         return self.glossary_terms.get(key, {})
@@ -538,7 +533,7 @@ class MockGlossaryService:
         self,
         glossary_id,
         target_language: str,
-        terms: Dict[str, str],
+        terms: dict[str, str],
     ) -> None:
         key = f"{glossary_id}_{target_language}"
         self.glossary_terms[key] = terms
@@ -822,7 +817,7 @@ class TestCrossSpeakerContext:
             speaker_name="Bob",
             session_id=session_id,
         )
-        result_b = await translator.translate(unit=unit_b, target_language="es")
+        await translator.translate(unit=unit_b, target_language="es")
 
         # Bob should have Alice's context
         state = translator._get_session_state(session_id)
@@ -894,9 +889,7 @@ class TestGlossaryIntegration:
         assert call["domain"] == "tech"
 
     @pytest.mark.asyncio
-    async def test_glossary_not_requested_without_id(
-        self, translator, mock_glossary_service
-    ):
+    async def test_glossary_not_requested_without_id(self, translator, mock_glossary_service):
         """GIVEN no glossary_id
         WHEN translate is called
         THEN glossary service should not be called."""
@@ -985,9 +978,7 @@ class TestMultiLanguageSupport:
         assert all(r.original == "Hello!" for r in results.values())
 
     @pytest.mark.asyncio
-    async def test_multi_language_handles_partial_failures(
-        self, mock_translation_client
-    ):
+    async def test_multi_language_handles_partial_failures(self, mock_translation_client):
         """GIVEN multiple target languages where one fails
         WHEN translate_to_multiple_languages is called
         THEN successful translations should be returned, failed ones should have error."""
@@ -1125,9 +1116,7 @@ class TestErrorHandling:
         assert result.original == "Test sentence."
 
     @pytest.mark.asyncio
-    async def test_error_increments_error_count(
-        self, translator, mock_translation_client
-    ):
+    async def test_error_increments_error_count(self, translator, mock_translation_client):
         """GIVEN a translation failure
         WHEN get_session_stats is called
         THEN error count should be incremented."""
@@ -1141,9 +1130,7 @@ class TestErrorHandling:
         assert stats["total_errors"] == 1
 
     @pytest.mark.asyncio
-    async def test_context_not_updated_on_error(
-        self, translator, mock_translation_client
-    ):
+    async def test_context_not_updated_on_error(self, translator, mock_translation_client):
         """GIVEN a translation failure
         WHEN error occurs
         THEN the failed sentence should NOT be added to context."""
@@ -1172,9 +1159,7 @@ class TestErrorHandling:
         assert "This will fail." not in ctx.sentences
 
     @pytest.mark.asyncio
-    async def test_glossary_error_handled_gracefully(
-        self, mock_translation_client
-    ):
+    async def test_glossary_error_handled_gracefully(self, mock_translation_client):
         """GIVEN a glossary service that raises an exception
         WHEN translate is called
         THEN translation should proceed without glossary."""
@@ -1239,10 +1224,7 @@ class TestEdgeCases:
         WHEN translate is called
         THEN special characters should be preserved."""
         special_text = "Hello! ¿Cómo estás? 你好 🎉"
-        mock_translation_client.set_translation(
-            special_text,
-            "Translated with émojis 🎉"
-        )
+        mock_translation_client.set_translation(special_text, "Translated with émojis 🎉")
         unit = create_translation_unit(special_text)
 
         result = await translator.translate(unit=unit, target_language="es")
@@ -1266,10 +1248,9 @@ class TestEdgeCases:
         ]
 
         # Translate concurrently
-        results = await asyncio.gather(*[
-            translator.translate(unit=unit, target_language="es")
-            for unit in units
-        ])
+        results = await asyncio.gather(
+            *[translator.translate(unit=unit, target_language="es") for unit in units]
+        )
 
         assert len(results) == 10
         assert all(r is not None for r in results)

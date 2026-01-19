@@ -7,10 +7,10 @@ Fireflies integration tests.
 """
 
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Optional, List
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 # Add src to path for imports
@@ -27,9 +27,7 @@ sys.path.insert(0, str(src_path))
 
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "fireflies: marks tests as fireflies integration tests"
-    )
+    config.addinivalue_line("markers", "fireflies: marks tests as fireflies integration tests")
     config.addinivalue_line("markers", "unit: marks tests as unit tests")
     config.addinivalue_line("markers", "integration: marks tests as integration tests")
 
@@ -40,32 +38,18 @@ def pytest_configure(config):
 
 try:
     from src.models.fireflies import (
+        CaptionEntry,
         FirefliesChunk,
+        FirefliesConnectionStatus,
         FirefliesMeeting,
         FirefliesSession,
         FirefliesSessionConfig,
-        FirefliesConnectionStatus,
-        SpeakerBuffer,
-        TranslationUnit,
+        MeetingState,
         TranslationContext,
         TranslationResult,
-        CaptionEntry,
-        CaptionBroadcast,
-        MeetingState,
+        TranslationUnit,
     )
-
-    from src.clients.fireflies_client import (
-        FirefliesClient,
-        FirefliesGraphQLClient,
-        FirefliesRealtimeClient,
-        FirefliesAPIError,
-    )
-
-    from src.routers.fireflies import (
-        FirefliesSessionManager,
-        get_session_manager,
-        get_fireflies_config,
-    )
+    from src.routers.fireflies import FirefliesSessionManager
 
     MODELS_AVAILABLE = True
 except ImportError as e:
@@ -162,7 +146,7 @@ def sample_meeting():
         title="Team Standup",
         organizer_email="user@example.com",
         meeting_link="https://zoom.us/j/123456",
-        start_time=datetime.now(timezone.utc),
+        start_time=datetime.now(UTC),
         state=MeetingState.ACTIVE,
     )
 
@@ -193,7 +177,7 @@ def sample_session(transcript_id, session_id):
         session_id=session_id,
         fireflies_transcript_id=transcript_id,
         connection_status=FirefliesConnectionStatus.CONNECTED,
-        connected_at=datetime.now(timezone.utc),
+        connected_at=datetime.now(UTC),
         chunks_received=10,
         sentences_produced=3,
         translations_completed=9,
@@ -330,9 +314,7 @@ def mock_realtime_client(api_key, transcript_id):
     client.api_key = api_key
     client.transcript_id = transcript_id
     client.endpoint = "wss://api.fireflies.ai/realtime"
-    client._status = (
-        FirefliesConnectionStatus.DISCONNECTED if MODELS_AVAILABLE else "disconnected"
-    )
+    client._status = FirefliesConnectionStatus.DISCONNECTED if MODELS_AVAILABLE else "disconnected"
     client.is_connected = False
     return client
 
@@ -442,11 +424,11 @@ def graphql_error_response():
 
 def create_chunk_sequence(
     transcript_id: str,
-    texts: List[str],
-    speakers: Optional[List[str]] = None,
+    texts: list[str],
+    speakers: list[str] | None = None,
     start_time: float = 0.0,
     word_duration: float = 0.3,
-) -> List:
+) -> list:
     """Create a sequence of chunks for testing."""
     if not MODELS_AVAILABLE:
         return []
@@ -479,9 +461,9 @@ def chunk_factory(transcript_id):
     def _create_chunk(
         text: str,
         speaker_name: str = "Speaker",
-        chunk_id: Optional[str] = None,
+        chunk_id: str | None = None,
         start_time: float = 0.0,
-        end_time: Optional[float] = None,
+        end_time: float | None = None,
     ):
         if not MODELS_AVAILABLE:
             pytest.skip("Fireflies models not available")

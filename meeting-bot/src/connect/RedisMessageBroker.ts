@@ -80,7 +80,7 @@ export class RedisMessageBroker extends EventEmitter {
       if (this.meetbot?.isOpen) {
         await this.meetbot?.quit();
       }
-      console.log('Closed redis connection');      
+      console.log('Closed redis connection');
     } catch(quitError) {
       console.error('Error while closing redis connection', quitError);
     }

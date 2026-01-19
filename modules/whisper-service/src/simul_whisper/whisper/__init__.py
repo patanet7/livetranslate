@@ -3,7 +3,7 @@ import io
 import os
 import urllib
 import warnings
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import torch
 from tqdm import tqdm
@@ -51,7 +51,7 @@ _ALIGNMENT_HEADS = {
 }
 
 
-def _download(url: str, root: str, in_memory: bool) -> Union[bytes, str]:
+def _download(url: str, root: str, in_memory: bool) -> bytes | str:
     os.makedirs(root, exist_ok=True)
 
     expected_sha256 = url.split("/")[-2]
@@ -67,24 +67,28 @@ def _download(url: str, root: str, in_memory: bool) -> Union[bytes, str]:
             return model_bytes if in_memory else download_target
         else:
             warnings.warn(
-                f"{download_target} exists, but the SHA256 checksum does not match; re-downloading the file"
+                f"{download_target} exists, but the SHA256 checksum does not match; re-downloading the file",
+                stacklevel=2,
             )
 
-    with urllib.request.urlopen(url) as source, open(download_target, "wb") as output:
-        with tqdm(
+    with (
+        urllib.request.urlopen(url) as source,  # nosec B310
+        open(download_target, "wb") as output,
+        tqdm(
             total=int(source.info().get("Content-Length")),
             ncols=80,
             unit="iB",
             unit_scale=True,
             unit_divisor=1024,
-        ) as loop:
-            while True:
-                buffer = source.read(8192)
-                if not buffer:
-                    break
+        ) as loop,
+    ):
+        while True:
+            buffer = source.read(8192)
+            if not buffer:
+                break
 
-                output.write(buffer)
-                loop.update(len(buffer))
+            output.write(buffer)
+            loop.update(len(buffer))
 
     model_bytes = open(download_target, "rb").read()
     if hashlib.sha256(model_bytes).hexdigest() != expected_sha256:
@@ -95,15 +99,15 @@ def _download(url: str, root: str, in_memory: bool) -> Union[bytes, str]:
     return model_bytes if in_memory else download_target
 
 
-def available_models() -> List[str]:
+def available_models() -> list[str]:
     """Returns the names of available models"""
     return list(_MODELS.keys())
 
 
 def load_model(
     name: str,
-    device: Optional[Union[str, torch.device]] = None,
-    download_root: str = None,
+    device: str | torch.device | None = None,
+    download_root: str | None = None,
     in_memory: bool = False,
 ) -> Whisper:
     """
@@ -140,14 +144,10 @@ def load_model(
         checkpoint_file = open(name, "rb").read() if in_memory else name
         alignment_heads = None
     else:
-        raise RuntimeError(
-            f"Model {name} not found; available models = {available_models()}"
-        )
+        raise RuntimeError(f"Model {name} not found; available models = {available_models()}")
 
-    with (
-        io.BytesIO(checkpoint_file) if in_memory else open(checkpoint_file, "rb")
-    ) as fp:
-        checkpoint = torch.load(fp, map_location=device)
+    with io.BytesIO(checkpoint_file) if in_memory else open(checkpoint_file, "rb") as fp:
+        checkpoint = torch.load(fp, map_location=device)  # nosec B614
     del checkpoint_file
 
     dims = ModelDimensions(**checkpoint["dims"])

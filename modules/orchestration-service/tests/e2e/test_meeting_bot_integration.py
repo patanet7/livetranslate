@@ -94,7 +94,7 @@ async def test_integration():
         if status.success:
             print("   ✅ Bot status retrieved!")
         else:
-            print(f"   ℹ️  Note: {status.error}")
+            print(f"   [i] Note: {status.error}")
 
         print()
 
@@ -119,7 +119,7 @@ async def test_integration():
         if leave_result.get("success"):
             print("   ✅ Bot left meeting successfully!")
         else:
-            print(f"   ℹ️  Note: {leave_result.get('error')}")
+            print(f"   [i] Note: {leave_result.get('error')}")
 
         print()
 

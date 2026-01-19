@@ -1,37 +1,84 @@
-# Use Python base image for better compatibility
-FROM python:3.10-slim
+# syntax=docker/dockerfile:1.4
+
+# =============================================================================
+# Stage 1: Builder
+# Install dependencies and prepare the application
+# =============================================================================
+FROM python:3.10-slim AS builder
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONIOENCODING=UTF-8
-ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=UTF-8 \
+    DEBIAN_FRONTEND=noninteractive \
+    PDM_CHECK_UPDATE=false
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies for building
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PDM
+RUN pip install --no-cache-dir pdm
+
+# Set working directory
+WORKDIR /app
+
+# Copy only dependency files first (layer caching)
+COPY pyproject.toml pdm.lock* ./
+
+# Install dependencies (production only, no lock file generation)
+RUN pdm install --prod --no-lock --no-editable
+
+# =============================================================================
+# Stage 2: Runtime
+# Minimal runtime image with only necessary components
+# =============================================================================
+FROM python:3.10-slim AS runtime
+
+# Labels for metadata
+LABEL org.opencontainers.image.title="Whisper Service" \
+      org.opencontainers.image.description="NPU-optimized Whisper transcription service" \
+      org.opencontainers.image.vendor="LiveTranslate" \
+      org.opencontainers.image.version="1.0.0"
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=UTF-8 \
+    DEBIAN_FRONTEND=noninteractive \
+    PYTHONPATH=/app:/app/src \
+    WHISPER_CACHE_DIR=/app/.whisper
+
+# Install runtime system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     portaudio19-dev \
     curl \
-    git \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Create working directory
+# Create non-root user
+RUN groupadd -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser -d /app -s /sbin/nologin appuser
+
+# Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
 
-# Copy all source code
-COPY . .
+# Update PATH to use virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Create directories
-RUN mkdir -p /root/.whisper/models /app/sessions /app/logs
+# Copy source code
+COPY --chown=appuser:appuser src ./src
 
-# Set permissions
-RUN chmod -R 777 /root/.whisper
-RUN chmod -R 777 /app/sessions
-RUN chmod -R 777 /app/logs
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/.whisper/models /app/sessions /app/logs && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 5001

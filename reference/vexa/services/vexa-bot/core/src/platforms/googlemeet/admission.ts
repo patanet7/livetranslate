@@ -74,27 +74,27 @@ export async function waitForGoogleMeetingAdmission(
 ): Promise<boolean> {
   try {
     log("Waiting for Google Meet meeting admission...");
-    
+
     // Take screenshot at start of admission check
     await page.screenshot({ path: '/app/storage/screenshots/bot-checkpoint-1-admission-start.png', fullPage: true });
     log("📸 Screenshot taken: Start of admission check");
-    
+
     // FIRST: Check if bot is already admitted (no waiting room needed)
     log("Checking if bot is already admitted to the Google Meet meeting...");
-    
+
     // Check for any visible admission indicator (multiple selectors for robustness)
     const initialAdmissionFound = await checkForGoogleAdmissionIndicators(page);
-    
+
     // Negative check: ensure we're not still in lobby/pre-join
     const initialLobbyStillVisible = await checkForWaitingRoomIndicators(page);
-    
+
     if (initialAdmissionFound && !initialLobbyStillVisible) {
       log(`Found Google Meet admission indicator: visible meeting controls - Bot is already admitted to the meeting!`);
-      
+
       // Take screenshot when already admitted
       await page.screenshot({ path: '/app/storage/screenshots/bot-checkpoint-2-admitted.png', fullPage: true });
       log("📸 Screenshot taken: Bot confirmed already admitted to meeting");
-      
+
       // --- Call awaiting admission callback even for immediate admission ---
       try {
         await callAwaitingAdmissionCallback(botConfig);
@@ -102,25 +102,25 @@ export async function waitForGoogleMeetingAdmission(
       } catch (callbackError: any) {
         log(`Warning: Failed to send awaiting admission callback: ${callbackError.message}. Continuing...`);
       }
-      
+
       log("Successfully admitted to the Google Meet meeting - no waiting room required");
       return true;
     }
-    
+
     log("Bot not yet admitted - checking for Google Meet waiting room indicators...");
-    
+
     // Check for waiting room indicators using visibility checks
     let stillInWaitingRoom = false;
-    
+
     const waitingRoomVisible = await checkForWaitingRoomIndicators(page);
-    
+
     if (waitingRoomVisible) {
       log(`Found Google Meet waiting room indicator - Bot is still in waiting room`);
-      
+
       // Take screenshot when waiting room indicator found
       await page.screenshot({ path: '/app/storage/screenshots/bot-checkpoint-4-waiting-room.png', fullPage: true });
       log("📸 Screenshot taken: Bot confirmed in waiting room");
-      
+
       // --- Call awaiting admission callback to notify bot-manager that bot is waiting ---
       try {
         await callAwaitingAdmissionCallback(botConfig);
@@ -128,50 +128,50 @@ export async function waitForGoogleMeetingAdmission(
       } catch (callbackError: any) {
         log(`Warning: Failed to send awaiting admission callback: ${callbackError.message}. Continuing with admission wait...`);
       }
-      
+
       stillInWaitingRoom = true;
     }
-    
+
     // If we're in waiting room, wait for the full timeout period for admission
     if (stillInWaitingRoom) {
       log(`Bot is in Google Meet waiting room. Waiting for ${timeout}ms for admission...`);
-      
+
       const checkInterval = 2000; // Check every 2 seconds for faster detection
       const startTime = Date.now();
-      
+
       while (Date.now() - startTime < timeout) {
         // Check if we're still in waiting room using visibility
         const stillWaiting = await checkForWaitingRoomIndicators(page);
-        
+
         if (!stillWaiting) {
           log("Google Meet waiting room indicator disappeared - checking if bot was admitted or rejected...");
-          
+
           // CRITICAL: Check for rejection first since that's a definitive outcome
           const isRejected = await checkForGoogleRejection(page);
           if (isRejected) {
             log("🚨 Bot was rejected from the Google Meet meeting by admin");
             throw new Error("Bot admission was rejected by meeting admin");
           }
-          
+
           // Check for admission indicators since waiting room disappeared and no rejection found
           const admissionFound = await checkForGoogleAdmissionIndicators(page);
-          
+
           if (admissionFound) {
             log(`✅ Bot was admitted to the Google Meet meeting: meeting controls confirmed`);
             return true;
           }
-          
+
           // Keep waiting if neither admitted nor rejected
         }
-        
+
         // Wait before next check
         await page.waitForTimeout(checkInterval);
         log(`Still in Google Meet waiting room... ${Math.round((Date.now() - startTime) / 1000)}s elapsed`);
       }
-      
+
       // After waiting, check if we're still in waiting room using visibility
       const finalWaitingCheck = await checkForWaitingRoomIndicators(page);
-      
+
       if (finalWaitingCheck) {
         throw new Error("Bot is still in the Google Meet waiting room after timeout - not admitted to the meeting");
       }
@@ -199,7 +199,7 @@ export async function waitForGoogleMeetingAdmission(
         // If lobby appears later, switch to waiting-room handling by breaking
         if (lobbyVisible) {
           log("ℹ️ Waiting room appeared during polling. Switching to waiting-room monitoring...");
-          
+
           // --- Call awaiting admission callback when waiting room appears during polling ---
           try {
             await callAwaitingAdmissionCallback(botConfig);
@@ -207,7 +207,7 @@ export async function waitForGoogleMeetingAdmission(
           } catch (callbackError: any) {
             log(`Warning: Failed to send awaiting admission callback: ${callbackError.message}. Continuing...`);
           }
-          
+
           stillInWaitingRoom = true;
           break;
         }
@@ -232,7 +232,7 @@ export async function waitForGoogleMeetingAdmission(
         }
       }
     }
-    
+
     // Final check after waiting/polling
     log("Performing final admission check after waiting/polling window...");
     const finalAdmissionFound = await checkForGoogleAdmissionIndicators(page);
@@ -254,7 +254,7 @@ export async function waitForGoogleMeetingAdmission(
     await page.screenshot({ path: '/app/storage/screenshots/bot-checkpoint-3-no-indicators.png', fullPage: true });
     log("📸 Screenshot taken: No meeting indicators found after timeout");
     throw new Error("Bot failed to join the Google Meet meeting - no meeting indicators found within timeout");
-    
+
   } catch (error: any) {
     throw new Error(
       `Bot was not admitted into the Google Meet meeting within the timeout period: ${error.message}`

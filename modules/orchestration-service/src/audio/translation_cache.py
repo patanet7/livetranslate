@@ -18,8 +18,9 @@ import hashlib
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
+
 import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
@@ -41,8 +42,8 @@ class TranslationResultCache:
         self,
         redis_url: str,
         ttl: int = 3600,
-        db_adapter: Optional[Any] = None,
-        session_id: Optional[str] = None,
+        db_adapter: Any | None = None,
+        session_id: str | None = None,
     ):
         """
         Initialize translation cache.
@@ -63,8 +64,11 @@ class TranslationResultCache:
         self.miss_count = 0
         self._stats_lock = asyncio.Lock()
 
+        # Background task tracking (prevents garbage collection and enables cleanup)
+        self._background_tasks: set[asyncio.Task] = set()
+
         # Redis connection (lazy initialization)
-        self._redis: Optional[redis.Redis] = None
+        self._redis: redis.Redis | None = None
 
         logger.info(
             f"Translation cache initialized: TTL={ttl}s, DB tracking={'enabled' if db_adapter else 'disabled'}"
@@ -126,16 +130,14 @@ class TranslationResultCache:
         """
         normalized_text = TranslationResultCache._normalize_text(text)
         content = f"{source_lang}:{target_lang}:{normalized_text}"
-        hash_val = hashlib.md5(content.encode()).hexdigest()
+        hash_val = hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
         return f"trans:v1:{hash_val}"
 
     # =========================================================================
     # SINGLE TRANSLATION OPERATIONS
     # =========================================================================
 
-    async def get(
-        self, text: str, source_lang: str, target_lang: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get(self, text: str, source_lang: str, target_lang: str) -> dict[str, Any] | None:
         """
         Get cached translation if exists.
 
@@ -171,11 +173,11 @@ class TranslationResultCache:
 
                 # Track in database if adapter available
                 if self.db_adapter and self.session_id:
-                    asyncio.create_task(
-                        self._record_cache_hit(
-                            text, source_lang, target_lang, latency_ms, result
-                        )
+                    task = asyncio.create_task(
+                        self._record_cache_hit(text, source_lang, target_lang, latency_ms, result)
                     )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
 
                 return result
 
@@ -191,11 +193,11 @@ class TranslationResultCache:
 
                 # Track in database if adapter available
                 if self.db_adapter and self.session_id:
-                    asyncio.create_task(
-                        self._record_cache_miss(
-                            text, source_lang, target_lang, latency_ms
-                        )
+                    task = asyncio.create_task(
+                        self._record_cache_miss(text, source_lang, target_lang, latency_ms)
                     )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
 
                 return None
 
@@ -210,7 +212,7 @@ class TranslationResultCache:
         target_lang: str,
         translation: str,
         confidence: float,
-        metadata: Optional[Dict] = None,
+        metadata: dict | None = None,
     ):
         """
         Store translation in cache.
@@ -229,7 +231,7 @@ class TranslationResultCache:
             "translated_text": translation,
             "confidence": confidence,
             "metadata": metadata or {},
-            "cached_at": datetime.now(timezone.utc).isoformat(),
+            "cached_at": datetime.now(UTC).isoformat(),
         }
 
         try:
@@ -237,8 +239,7 @@ class TranslationResultCache:
             await r.setex(cache_key, self.ttl, json.dumps(cache_data))
 
             logger.debug(
-                f"Cache SET: {source_lang}→{target_lang} "
-                f"'{text[:50]}...' (TTL={self.ttl}s)"
+                f"Cache SET: {source_lang}→{target_lang} " f"'{text[:50]}...' (TTL={self.ttl}s)"
             )
 
         except Exception as e:
@@ -249,8 +250,8 @@ class TranslationResultCache:
     # =========================================================================
 
     async def get_multi(
-        self, text: str, source_lang: str, target_langs: List[str]
-    ) -> Dict[str, Optional[Dict[str, Any]]]:
+        self, text: str, source_lang: str, target_langs: list[str]
+    ) -> dict[str, dict[str, Any] | None]:
         """
         Get cached translations for multiple target languages at once.
 
@@ -264,9 +265,7 @@ class TranslationResultCache:
         Returns:
             Dict mapping language code to translation result (or None if not cached)
         """
-        cache_keys = [
-            self._generate_cache_key(text, source_lang, lang) for lang in target_langs
-        ]
+        cache_keys = [self._generate_cache_key(text, source_lang, lang) for lang in target_langs]
 
         start_time = time.time()
 
@@ -310,11 +309,9 @@ class TranslationResultCache:
         except Exception as e:
             logger.error(f"Cache multi-get error: {e}")
             # Return all None on error
-            return {lang: None for lang in target_langs}
+            return dict.fromkeys(target_langs)
 
-    async def set_multi(
-        self, text: str, source_lang: str, translations: Dict[str, Dict[str, Any]]
-    ):
+    async def set_multi(self, text: str, source_lang: str, translations: dict[str, dict[str, Any]]):
         """
         Store multiple translations at once.
 
@@ -339,7 +336,7 @@ class TranslationResultCache:
                     "translated_text": translation_data.get("translated_text", ""),
                     "confidence": translation_data.get("confidence", 0.0),
                     "metadata": translation_data.get("metadata", {}),
-                    "cached_at": datetime.now(timezone.utc).isoformat(),
+                    "cached_at": datetime.now(UTC).isoformat(),
                 }
 
                 pipe.setex(cache_key, self.ttl, json.dumps(cache_data))
@@ -358,7 +355,7 @@ class TranslationResultCache:
     # STATISTICS & MONITORING
     # =========================================================================
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get cache statistics.
 
@@ -395,7 +392,7 @@ class TranslationResultCache:
         source_lang: str,
         target_lang: str,
         latency_ms: float,
-        result: Dict[str, Any],
+        result: dict[str, Any],
     ):
         """Record cache hit in database for analytics."""
         if not self.db_adapter or not self.session_id:

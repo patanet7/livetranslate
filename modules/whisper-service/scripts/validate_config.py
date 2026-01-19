@@ -11,15 +11,15 @@ Usage:
     python scripts/validate_config.py --model-path /path/to/model.pt
 """
 
-import sys
-import os
 import argparse
+import os
+import sys
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from service_config import SessionConfig, VADConfig, LIDConfig, WhisperConfig
+from service_config import LIDConfig, SessionConfig, VADConfig, WhisperConfig
 
 
 def load_env_file(env_file: str):
@@ -28,14 +28,14 @@ def load_env_file(env_file: str):
         print(f"❌ Environment file not found: {env_file}")
         return False
 
-    with open(env_file, 'r') as f:
+    with open(env_file) as f:
         for line in f:
             line = line.strip()
-            if not line or line.startswith('#'):
+            if not line or line.startswith("#"):
                 continue
 
-            if '=' in line:
-                key, value = line.split('=', 1)
+            if "=" in line:
+                key, value = line.split("=", 1)
                 os.environ[key.strip()] = value.strip()
 
     print(f"✅ Loaded environment from: {env_file}")
@@ -48,7 +48,7 @@ def validate_vad_config():
 
     try:
         config = VADConfig.from_env()
-        print(f"✅ VAD Config Valid")
+        print("✅ VAD Config Valid")
         print(f"   - Threshold: {config.threshold}")
         print(f"   - Sampling Rate: {config.sampling_rate} Hz")
         print(f"   - Min Silence: {config.min_silence_duration_ms} ms")
@@ -65,7 +65,7 @@ def validate_lid_config():
 
     try:
         config = LIDConfig.from_env()
-        print(f"✅ LID Config Valid")
+        print("✅ LID Config Valid")
         print(f"   - LID Hop: {config.lid_hop_ms} ms")
         print(f"   - Confidence Margin: {config.confidence_margin}")
         print(f"   - Min Dwell: {config.min_dwell_ms} ms ({config.min_dwell_frames} frames)")
@@ -82,7 +82,7 @@ def validate_whisper_config(model_path: str):
 
     try:
         config = WhisperConfig.from_env(model_path)
-        print(f"✅ Whisper Config Valid")
+        print("✅ Whisper Config Valid")
         print(f"   - Model Path: {config.model_path}")
         print(f"   - Models Dir: {config.models_dir}")
         print(f"   - Decoder: {config.decoder_type}")
@@ -93,7 +93,7 @@ def validate_whisper_config(model_path: str):
         # Check if model file exists
         if not os.path.exists(config.model_path):
             print(f"⚠️  Warning: Model file not found: {config.model_path}")
-            print(f"   (This is OK if model will be downloaded)")
+            print("   (This is OK if model will be downloaded)")
 
         return True
     except Exception as e:
@@ -107,7 +107,7 @@ def validate_session_config(model_path: str):
 
     try:
         config = SessionConfig.from_env(model_path)
-        print(f"✅ Session Config Valid")
+        print("✅ Session Config Valid")
         print(f"   - Log Level: {config.log_level}")
         print(f"   - Performance Logging: {config.enable_performance_logging}")
         print(f"   - Debug Audio Stats: {config.enable_debug_audio_stats}")
@@ -122,11 +122,11 @@ def check_environment_variables():
     print("\n=== Environment Variables ===")
 
     env_vars = {
-        'VAD_THRESHOLD': 'VAD speech threshold',
-        'LID_CONFIDENCE_MARGIN': 'LID confidence margin',
-        'WHISPER_DECODER_TYPE': 'Whisper decoder type',
-        'WHISPER_LANGUAGES': 'Target languages',
-        'LOG_LEVEL': 'Logging level',
+        "VAD_THRESHOLD": "VAD speech threshold",
+        "LID_CONFIDENCE_MARGIN": "LID confidence margin",
+        "WHISPER_DECODER_TYPE": "Whisper decoder type",
+        "WHISPER_LANGUAGES": "Target languages",
+        "LOG_LEVEL": "Logging level",
     }
 
     for var, description in env_vars.items():
@@ -134,23 +134,14 @@ def check_environment_variables():
         if value:
             print(f"✅ {var}={value} ({description})")
         else:
-            print(f"ℹ️  {var} not set (using default) - {description}")
+            print(f"[i] {var} not set (using default) - {description}")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Validate Whisper Service Configuration'
-    )
+    parser = argparse.ArgumentParser(description="Validate Whisper Service Configuration")
+    parser.add_argument("--env-file", type=str, help="Path to .env file to load")
     parser.add_argument(
-        '--env-file',
-        type=str,
-        help='Path to .env file to load'
-    )
-    parser.add_argument(
-        '--model-path',
-        type=str,
-        default='/path/to/model.pt',
-        help='Path to Whisper model file'
+        "--model-path", type=str, default="/path/to/model.pt", help="Path to Whisper model file"
     )
 
     args = parser.parse_args()
@@ -160,9 +151,8 @@ def main():
     print("=" * 60)
 
     # Load environment file if specified
-    if args.env_file:
-        if not load_env_file(args.env_file):
-            sys.exit(1)
+    if args.env_file and not load_env_file(args.env_file):
+        sys.exit(1)
 
     # Check environment variables
     check_environment_variables()
@@ -187,5 +177,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

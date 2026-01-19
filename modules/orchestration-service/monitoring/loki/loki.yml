@@ -49,7 +49,7 @@ pattern_ingester:
 ruler:
   enable_alertmanager_discovery: true
   enable_api: true
-  
+
 frontend:
   encoding: protobuf
 
@@ -68,4 +68,4 @@ compactor:
 #
 # If you would like to disable reporting, uncomment the following lines:
 analytics:
-  reporting_enabled: false 
+  reporting_enabled: false

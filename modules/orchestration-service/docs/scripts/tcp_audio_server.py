@@ -15,11 +15,11 @@ Usage:
     ffmpeg -i audio.mp3 -f s16le -ar 16000 -ac 1 - | nc 127.0.0.1 43001
 """
 
+import argparse
 import asyncio
 import logging
-import argparse
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # Add src to path
 sys.path.insert(
@@ -77,12 +77,10 @@ class TCPAudioServer:
         print(f"📝 {text}")
         print("=" * 80)
 
-    async def handle_client(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ):
+    async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         """Handle incoming TCP connection"""
         addr = writer.get_extra_info("peername")
-        session_id = f"tcp-{int(datetime.now(timezone.utc).timestamp())}"
+        session_id = f"tcp-{int(datetime.now(UTC).timestamp())}"
 
         logger.info(f"✅ Client connected from {addr}")
         logger.info(f"📝 Session ID: {session_id}")
@@ -111,7 +109,7 @@ class TCPAudioServer:
             )
 
             logger.info("🎵 Streaming audio... (Ctrl+C to stop)")
-            self.start_time = datetime.now(timezone.utc)
+            self.start_time = datetime.now(UTC)
 
             # Read audio chunks from TCP socket
             while True:
@@ -127,12 +125,12 @@ class TCPAudioServer:
                 await self.whisper_client.send_audio_chunk(
                     session_id=session_id,
                     audio_data=chunk,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
+                    timestamp=datetime.now(UTC).isoformat(),
                 )
 
                 # Log progress every 100 chunks (10 seconds)
                 if self.total_chunks % 100 == 0:
-                    elapsed = (datetime.now(timezone.utc) - self.start_time).total_seconds()
+                    elapsed = (datetime.now(UTC) - self.start_time).total_seconds()
                     logger.info(
                         f"📊 Sent {self.total_chunks} chunks ({elapsed:.1f}s, {self.total_segments} segments)"
                     )
@@ -149,7 +147,7 @@ class TCPAudioServer:
 
             # Print stats
             if self.start_time:
-                elapsed = (datetime.now(timezone.utc) - self.start_time).total_seconds()
+                elapsed = (datetime.now(UTC) - self.start_time).total_seconds()
                 print("\n" + "=" * 80)
                 print("📊 STREAMING STATISTICS")
                 print("=" * 80)
@@ -157,9 +155,7 @@ class TCPAudioServer:
                 print(f"Chunks sent:       {self.total_chunks}")
                 print(f"Segments received: {self.total_segments}")
                 if elapsed > 0:
-                    print(
-                        f"Chunk rate:        {self.total_chunks / elapsed:.1f} chunks/sec"
-                    )
+                    print(f"Chunk rate:        {self.total_chunks / elapsed:.1f} chunks/sec")
                 print("=" * 80 + "\n")
 
             writer.close()
@@ -189,18 +185,14 @@ async def main():
     parser.add_argument(
         "--whisper-host", type=str, default="localhost", help="Whisper service host"
     )
-    parser.add_argument(
-        "--whisper-port", type=int, default=5001, help="Whisper service port"
-    )
+    parser.add_argument("--whisper-port", type=int, default=5001, help="Whisper service port")
     parser.add_argument(
         "--chunk-size",
         type=int,
         default=3200,
         help="Chunk size in bytes (default: 3200 = 100ms)",
     )
-    parser.add_argument(
-        "--model", type=str, default="large-v3-turbo", help="Whisper model"
-    )
+    parser.add_argument("--model", type=str, default="large-v3-turbo", help="Whisper model")
     parser.add_argument("--language", type=str, default="en", help="Source language")
     args = parser.parse_args()
 

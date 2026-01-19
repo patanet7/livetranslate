@@ -8,23 +8,21 @@ NO MOCKS - Full end-to-end testing of transcription pipeline.
 Following TDD principle: Test current behavior BEFORE refactoring.
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
-import numpy as np
 import sys
 from pathlib import Path
-from typing import List
 
 # Add src to path (adjusted for tests/integration/ location)
 SRC_DIR = Path(__file__).parent.parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+import numpy as np
+import pytest
 from whisper_service import (
-    WhisperService,
     TranscriptionRequest,
     TranscriptionResult,
-    create_whisper_service
+    WhisperService,
+    create_whisper_service,
 )
 
 # Root directory for test fixtures
@@ -34,10 +32,7 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 @pytest.fixture(scope="module")
 def whisper_service():
     """Create WhisperService instance for tests (reuse across module)"""
-    config = {
-        "orchestration_mode": False,
-        "models_dir": str(ROOT_DIR / ".models")
-    }
+    config = {"orchestration_mode": False, "models_dir": str(ROOT_DIR / ".models")}
     service = WhisperService(config=config)
     yield service
     # Cleanup after tests
@@ -53,7 +48,7 @@ def jfk_audio():
     if not jfk_path.exists():
         pytest.skip(f"JFK audio file not found: {jfk_path}")
 
-    audio_data, sample_rate = sf.read(jfk_path, dtype='float32')
+    audio_data, sample_rate = sf.read(jfk_path, dtype="float32")
 
     # Convert stereo to mono if needed
     if len(audio_data.shape) > 1:
@@ -82,14 +77,14 @@ class TestWhisperServiceTranscription:
     @pytest.mark.asyncio
     async def test_transcribe_jfk_audio(self, whisper_service, jfk_audio):
         """Test transcription of JFK audio file"""
-        audio_data, sample_rate = jfk_audio
+        audio_data, _sample_rate = jfk_audio
 
         request = TranscriptionRequest(
             audio_data=audio_data,
             model_name="base",  # Use base model for speed
             language="en",
             streaming=False,
-            enable_vad=True
+            enable_vad=True,
         )
 
         result = await whisper_service.transcribe(request)
@@ -126,7 +121,7 @@ class TestWhisperServiceTranscription:
             model_name="base",
             language="en",
             beam_size=5,  # Use beam search
-            temperature=0.0  # Deterministic
+            temperature=0.0,  # Deterministic
         )
 
         result = await whisper_service.transcribe(request)
@@ -144,7 +139,7 @@ class TestWhisperServiceTranscription:
             model_name="base",
             language="en",
             beam_size=1,  # Greedy decoding
-            temperature=0.0
+            temperature=0.0,
         )
 
         result = await whisper_service.transcribe(request)
@@ -157,14 +152,14 @@ class TestWhisperServiceTranscription:
     @pytest.mark.asyncio
     async def test_transcribe_with_domain_prompt(self, whisper_service, jfk_audio):
         """Test transcription with domain-specific prompt"""
-        audio_data, sample_rate = jfk_audio
+        audio_data, _sample_rate = jfk_audio
 
         request = TranscriptionRequest(
             audio_data=audio_data,
             model_name="base",
             language="en",
             initial_prompt="Political speech about American values.",
-            domain="political"
+            domain="political",
         )
 
         result = await whisper_service.transcribe(request)
@@ -181,7 +176,7 @@ class TestWhisperServiceStreaming:
     @pytest.mark.asyncio
     async def test_streaming_basic(self, whisper_service, jfk_audio):
         """Test basic streaming transcription"""
-        audio_data, sample_rate = jfk_audio
+        audio_data, _sample_rate = jfk_audio
 
         request = TranscriptionRequest(
             audio_data=audio_data,
@@ -189,7 +184,7 @@ class TestWhisperServiceStreaming:
             language="en",
             streaming=True,
             enable_vad=True,
-            session_id="test-stream-1"
+            session_id="test-stream-1",
         )
 
         results = []
@@ -222,7 +217,7 @@ class TestWhisperServiceStreaming:
             chunk_count = whisper_service.add_audio_chunk(
                 audio_chunk,
                 session_id=session_id,
-                enable_vad_prefilter=False  # Accept all chunks for testing
+                enable_vad_prefilter=False,  # Accept all chunks for testing
             )
             print(f"\n[Chunk {i+1}] Buffer size: {chunk_count}")
 
@@ -268,7 +263,9 @@ class TestWhisperServiceSessions:
         # Create session and add audio
         whisper_service.create_session(session_id)
         audio_chunk = np.zeros(16000, dtype=np.float32)
-        whisper_service.add_audio_chunk(audio_chunk, session_id=session_id, enable_vad_prefilter=False)
+        whisper_service.add_audio_chunk(
+            audio_chunk, session_id=session_id, enable_vad_prefilter=False
+        )
 
         # Verify audio was added
         assert session_id in whisper_service.session_audio_buffers
@@ -317,10 +314,7 @@ class TestWhisperServiceOrchestrationMode:
     @pytest.fixture
     def orchestration_service(self):
         """Create service in orchestration mode"""
-        config = {
-            "orchestration_mode": True,
-            "models_dir": str(ROOT_DIR / ".models")
-        }
+        config = {"orchestration_mode": True, "models_dir": str(ROOT_DIR / ".models")}
         service = WhisperService(config=config)
         yield service
         asyncio.run(service.shutdown())
@@ -336,12 +330,8 @@ class TestWhisperServiceOrchestrationMode:
             chunk_id="chunk-001",
             session_id="orch-session-1",
             audio_data=audio_bytes,
-            chunk_metadata={
-                "sequence": 1,
-                "timestamp": 0.0,
-                "duration": 1.0
-            },
-            model_name="base"
+            chunk_metadata={"sequence": 1, "timestamp": 0.0, "duration": 1.0},
+            model_name="base",
         )
 
         assert result is not None
@@ -360,9 +350,7 @@ class TestWhisperServiceOrchestrationMode:
 
         # Should return 0 (blocked)
         result = orchestration_service.add_audio_chunk(
-            audio_chunk,
-            session_id="test",
-            enable_vad_prefilter=False
+            audio_chunk, session_id="test", enable_vad_prefilter=False
         )
 
         assert result == 0
@@ -393,7 +381,7 @@ class TestWhisperServiceUtilities:
         assert "orchestration_mode" in status
         assert "sessions" in status
 
-        print(f"\n✅ Service status:")
+        print("\n✅ Service status:")
         print(f"   Device: {status['device']}")
         print(f"   Loaded models: {status['loaded_models']}")
         print(f"   Orchestration mode: {status['orchestration_mode']}")
@@ -402,23 +390,19 @@ class TestWhisperServiceUtilities:
         """Test clearing model cache"""
         # Load a model first
         request = TranscriptionRequest(
-            audio_data=np.zeros(16000, dtype=np.float32),
-            model_name="base"
+            audio_data=np.zeros(16000, dtype=np.float32), model_name="base"
         )
         asyncio.run(whisper_service.transcribe(request))
 
         # Clear cache (should not raise exception)
         whisper_service.clear_cache()
 
-        print(f"\n✅ Cache cleared successfully")
+        print("\n✅ Cache cleared successfully")
 
     @pytest.mark.asyncio
     async def test_shutdown(self):
         """Test service shutdown"""
-        config = {
-            "orchestration_mode": False,
-            "models_dir": str(ROOT_DIR / ".models")
-        }
+        config = {"orchestration_mode": False, "models_dir": str(ROOT_DIR / ".models")}
         service = WhisperService(config=config)
 
         # Add some audio to create sessions
@@ -433,7 +417,7 @@ class TestWhisperServiceUtilities:
         assert len(service.session_audio_buffers) == 0
         assert not service.streaming_active
 
-        print(f"\n✅ Service shutdown successfully")
+        print("\n✅ Service shutdown successfully")
 
 
 class TestWhisperServiceFactoryFunction:
@@ -442,10 +426,7 @@ class TestWhisperServiceFactoryFunction:
     @pytest.mark.asyncio
     async def test_create_whisper_service(self):
         """Test factory function creates service correctly"""
-        config = {
-            "orchestration_mode": True,
-            "models_dir": str(ROOT_DIR / ".models")
-        }
+        config = {"orchestration_mode": True, "models_dir": str(ROOT_DIR / ".models")}
 
         service = await create_whisper_service(config)
 

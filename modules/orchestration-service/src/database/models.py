@@ -4,33 +4,32 @@ Database Models
 SQLAlchemy models for the orchestration service database.
 """
 
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
-
+import uuid
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Boolean,
-    Text,
     JSON,
+    Boolean,
+    Column,
+    DateTime,
     Float,
     ForeignKey,
     Index,
+    Integer,
+    String,
+    Text,
 )
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
-import uuid
+from sqlalchemy.orm import relationship
 
 # Import shared Base from base.py to ensure all models share the same MetaData
 from .base import Base
 
 
-def utc_now():
+def utc_now() -> datetime:
     """Return current UTC time (timezone-naive for TIMESTAMP WITHOUT TIME ZONE columns)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class BotSession(Base):
@@ -63,12 +62,8 @@ class BotSession(Base):
     error_message = Column(Text, nullable=True)
 
     # Relationships
-    audio_files = relationship(
-        "AudioFile", back_populates="session", cascade="all, delete-orphan"
-    )
-    transcripts = relationship(
-        "Transcript", back_populates="session", cascade="all, delete-orphan"
-    )
+    audio_files = relationship("AudioFile", back_populates="session", cascade="all, delete-orphan")
+    transcripts = relationship("Transcript", back_populates="session", cascade="all, delete-orphan")
     translations = relationship(
         "Translation", back_populates="session", cascade="all, delete-orphan"
     )
@@ -78,9 +73,7 @@ class BotSession(Base):
     participants = relationship(
         "Participant", back_populates="session", cascade="all, delete-orphan"
     )
-    events = relationship(
-        "SessionEvent", back_populates="session", cascade="all, delete-orphan"
-    )
+    events = relationship("SessionEvent", back_populates="session", cascade="all, delete-orphan")
 
     # Indexes
     __table_args__ = (
@@ -90,7 +83,7 @@ class BotSession(Base):
         Index("idx_bot_sessions_bot_id", "bot_id"),
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             "session_id": str(self.session_id),
@@ -119,9 +112,7 @@ class AudioFile(Base):
     __tablename__ = "audio_files"
 
     file_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(
-        UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False
-    )
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
 
     # File information
     filename = Column(String(255), nullable=False)
@@ -162,9 +153,7 @@ class Transcript(Base):
     __tablename__ = "transcripts"
 
     transcript_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(
-        UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False
-    )
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
 
     # Transcript content
     text = Column(Text, nullable=False)
@@ -173,9 +162,7 @@ class Transcript(Base):
 
     # Source information
     source = Column(String(50), nullable=False)  # 'google_meet', 'whisper', etc.
-    audio_file_id = Column(
-        UUID(as_uuid=True), ForeignKey("audio_files.file_id"), nullable=True
-    )
+    audio_file_id = Column(UUID(as_uuid=True), ForeignKey("audio_files.file_id"), nullable=True)
 
     # Speaker information
     speaker_id = Column(String(100), nullable=True)
@@ -210,9 +197,7 @@ class Translation(Base):
     __tablename__ = "translations"
 
     translation_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(
-        UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False
-    )
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
     transcript_id = Column(
         UUID(as_uuid=True), ForeignKey("transcripts.transcript_id"), nullable=True
     )
@@ -260,9 +245,7 @@ class Correlation(Base):
     __tablename__ = "correlations"
 
     correlation_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(
-        UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False
-    )
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
 
     # External source (e.g., Google Meet captions)
     external_source = Column(String(50), nullable=False)
@@ -300,9 +283,7 @@ class Participant(Base):
     __tablename__ = "participants"
 
     participant_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id = Column(
-        UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False
-    )
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
 
     # Participant information
     external_id = Column(String(255), nullable=True)  # External system ID
@@ -353,9 +334,7 @@ class SessionEvent(Base):
     timestamp = Column(DateTime, nullable=False, default=utc_now)
 
     # Severity
-    severity = Column(
-        String(20), nullable=False, default="info"
-    )  # debug, info, warning, error
+    severity = Column(String(20), nullable=False, default="info")  # debug, info, warning, error
 
     # Source
     source = Column(String(100), nullable=False)
@@ -406,9 +385,7 @@ class SessionStatistics(Base):
 
     # Translation metrics
     translation_quality_score = Column(Float, nullable=True)
-    translation_coverage = Column(
-        Float, nullable=True
-    )  # Percentage of transcripts translated
+    translation_coverage = Column(Float, nullable=True)  # Percentage of transcripts translated
 
     # Speaker metrics
     unique_speakers = Column(Integer, nullable=False, default=0)
@@ -453,9 +430,7 @@ class Glossary(Base):
     description = Column(Text, nullable=True)
 
     # Domain categorization
-    domain = Column(
-        String(100), nullable=True, index=True
-    )  # e.g., 'medical', 'legal', 'tech'
+    domain = Column(String(100), nullable=True, index=True)  # e.g., 'medical', 'legal', 'tech'
 
     # Language settings
     source_language = Column(String(10), nullable=False, default="en")
@@ -467,18 +442,14 @@ class Glossary(Base):
 
     # Metadata
     created_at = Column(DateTime, nullable=False, default=utc_now)
-    updated_at = Column(
-        DateTime, nullable=False, default=utc_now, onupdate=utc_now
-    )
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
     created_by = Column(String(255), nullable=True)
 
     # Entry count (denormalized for performance)
     entry_count = Column(Integer, nullable=False, default=0)
 
     # Relationships
-    entries = relationship(
-        "GlossaryEntry", back_populates="glossary", cascade="all, delete-orphan"
-    )
+    entries = relationship("GlossaryEntry", back_populates="glossary", cascade="all, delete-orphan")
 
     # Indexes
     __table_args__ = (
@@ -488,7 +459,7 @@ class Glossary(Base):
         Index("idx_glossaries_source_language", "source_language"),
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             "glossary_id": str(self.glossary_id),
@@ -515,9 +486,7 @@ class GlossaryEntry(Base):
     __tablename__ = "glossary_entries"
 
     entry_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    glossary_id = Column(
-        UUID(as_uuid=True), ForeignKey("glossaries.glossary_id"), nullable=False
-    )
+    glossary_id = Column(UUID(as_uuid=True), ForeignKey("glossaries.glossary_id"), nullable=False)
 
     # Source term
     source_term = Column(String(500), nullable=False)
@@ -545,9 +514,7 @@ class GlossaryEntry(Base):
 
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=utc_now)
-    updated_at = Column(
-        DateTime, nullable=False, default=utc_now, onupdate=utc_now
-    )
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
 
     # Relationships
     glossary = relationship("Glossary", back_populates="entries")
@@ -559,7 +526,7 @@ class GlossaryEntry(Base):
         Index("idx_glossary_entries_priority", "priority"),
     )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""
         return {
             "entry_id": str(self.entry_id),
@@ -577,8 +544,9 @@ class GlossaryEntry(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
-    def get_translation(self, target_language: str) -> Optional[str]:
+    def get_translation(self, target_language: str) -> str | None:
         """Get translation for a specific target language"""
         if self.translations and target_language in self.translations:
-            return self.translations[target_language]
+            translation: str = self.translations[target_language]
+            return translation
         return None

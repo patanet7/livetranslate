@@ -31,26 +31,28 @@ Usage:
         await coordinator.process_raw_chunk(raw_chunk)
 """
 
+import contextlib
 import logging
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
-
-from .config import PipelineConfig, PipelineStats
-from .adapters.base import ChunkAdapter, TranscriptChunk
 
 # Import existing models (using Fireflies models as canonical internal format)
 from models.fireflies import (
     FirefliesChunk,
     FirefliesSessionConfig,
-    TranslationUnit,
     TranslationResult,
+    TranslationUnit,
 )
+from services.caption_buffer import Caption, CaptionBuffer
+from services.rolling_window_translator import RollingWindowTranslator
 
 # Import existing services
 from services.sentence_aggregator import SentenceAggregator
-from services.rolling_window_translator import RollingWindowTranslator
-from services.caption_buffer import CaptionBuffer, Caption
+
+from .adapters.base import ChunkAdapter, TranscriptChunk
+from .config import PipelineConfig, PipelineStats
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +78,7 @@ class TranscriptionPipelineCoordinator:
         glossary_service: Any = None,
         translation_client: Any = None,  # TranslationServiceClient
         simple_translation_client: Any = None,  # SimpleTranslationClient for V3 API
-        caption_buffer: Optional[CaptionBuffer] = None,
+        caption_buffer: CaptionBuffer | None = None,
         # Optional
         db_manager: Any = None,
         obs_output: Any = None,
@@ -106,19 +108,22 @@ class TranscriptionPipelineCoordinator:
         self.obs_output = obs_output
 
         # Internal components (created in initialize)
-        self._sentence_aggregator: Optional[SentenceAggregator] = None
-        self._rolling_translator: Optional[RollingWindowTranslator] = None
-        self._glossary_terms: Dict[str, str] = {}
+        self._sentence_aggregator: SentenceAggregator | None = None
+        self._rolling_translator: RollingWindowTranslator | None = None
+        self._glossary_terms: dict[str, str] = {}
 
         # Callbacks (user-settable)
-        self._on_sentence_ready: Optional[Callable] = None
-        self._on_translation_ready: Optional[Callable] = None
-        self._on_caption_event: Optional[Callable] = None
-        self._on_error: Optional[Callable] = None
+        self._on_sentence_ready: Callable | None = None
+        self._on_translation_ready: Callable | None = None
+        self._on_caption_event: Callable | None = None
+        self._on_error: Callable | None = None
 
         # State
         self._stats = PipelineStats()
         self._initialized = False
+
+        # Background task tracking (prevents fire-and-forget)
+        self._background_tasks: set = set()
 
     async def initialize(self) -> bool:
         """
@@ -204,7 +209,7 @@ class TranscriptionPipelineCoordinator:
             raise RuntimeError("Pipeline not initialized. Call initialize() first.")
 
         self._stats.chunks_received += 1
-        self._stats.last_chunk_at = datetime.now(timezone.utc)
+        self._stats.last_chunk_at = datetime.now(UTC)
 
         try:
             # Step 1: Adapt source-specific format to unified format
@@ -254,9 +259,11 @@ class TranscriptionPipelineCoordinator:
         try:
             # Get or create event loop
             try:
-                loop = asyncio.get_running_loop()
-                # Already in async context - schedule coroutine
-                asyncio.create_task(self._handle_sentence_ready(unit))
+                asyncio.get_running_loop()
+                # Already in async context - schedule coroutine with proper tracking
+                task = asyncio.create_task(self._handle_sentence_ready(unit))
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
             except RuntimeError:
                 # No running loop - run synchronously
                 asyncio.run(self._handle_sentence_ready(unit))
@@ -313,7 +320,7 @@ class TranscriptionPipelineCoordinator:
             if self._on_error:
                 await self._on_error(str(e))
 
-    async def _load_glossary(self) -> Dict[str, str]:
+    async def _load_glossary(self) -> dict[str, str]:
         """Load glossary terms for the session domain."""
         if not self.glossary_service or not self.config.glossary_id:
             return {}
@@ -321,16 +328,10 @@ class TranscriptionPipelineCoordinator:
         try:
             # Try to parse glossary_id as UUID
             glossary_uuid = None
-            try:
+            with contextlib.suppress(ValueError):
                 glossary_uuid = UUID(self.config.glossary_id)
-            except ValueError:
-                pass
 
-            target_lang = (
-                self.config.target_languages[0]
-                if self.config.target_languages
-                else "es"
-            )
+            target_lang = self.config.target_languages[0] if self.config.target_languages else "es"
 
             terms = await self.glossary_service.get_terms(
                 glossary_id=glossary_uuid,
@@ -344,25 +345,19 @@ class TranscriptionPipelineCoordinator:
             logger.warning(f"Failed to load glossary: {e}")
             return {}
 
-    async def _translate_sentence(self, unit: TranslationUnit) -> Optional[TranslationResult]:
+    async def _translate_sentence(self, unit: TranslationUnit) -> TranslationResult | None:
         """Translate using RollingWindowTranslator."""
         if not self._rolling_translator:
             return None
 
         try:
-            target_lang = (
-                self.config.target_languages[0]
-                if self.config.target_languages
-                else "es"
-            )
+            target_lang = self.config.target_languages[0] if self.config.target_languages else "es"
 
             # Try to parse glossary_id as UUID
             glossary_uuid = None
             if self.config.glossary_id:
-                try:
+                with contextlib.suppress(ValueError):
                     glossary_uuid = UUID(self.config.glossary_id)
-                except ValueError:
-                    pass
 
             result = await self._rolling_translator.translate(
                 unit=unit,
@@ -383,7 +378,7 @@ class TranscriptionPipelineCoordinator:
             self._stats.translations_failed += 1
             return None
 
-    async def _store_transcript(self, unit: TranslationUnit) -> Optional[str]:
+    async def _store_transcript(self, unit: TranslationUnit) -> str | None:
         """Store transcript to database."""
         if not self.db_manager:
             return None
@@ -407,9 +402,7 @@ class TranscriptionPipelineCoordinator:
             logger.error(f"Failed to store transcript: {e}")
             return None
 
-    async def _store_translation(
-        self, transcript_id: str, result: TranslationResult
-    ) -> Optional[str]:
+    async def _store_translation(self, transcript_id: str, result: TranslationResult) -> str | None:
         """Store translation to database."""
         if not self.db_manager:
             return None
@@ -507,7 +500,7 @@ class TranscriptionPipelineCoordinator:
             for unit in remaining:
                 await self._handle_sentence_ready(unit)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get pipeline statistics."""
         stats = self._stats.to_dict()
         stats["source_type"] = self.adapter.source_type

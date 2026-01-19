@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -13,7 +13,7 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Timeline,
   Speed,
@@ -23,7 +23,7 @@ import {
   Error,
   ExpandMore,
   Refresh,
-} from '@mui/icons-material';
+} from "@mui/icons-material";
 
 interface StageMetricsProps {
   stageName: string;
@@ -45,7 +45,7 @@ interface StagePerformanceMetrics {
     estimated_snr_db: number;
     dynamic_range: number;
   };
-  status: 'success' | 'warning' | 'error';
+  status: "success" | "warning" | "error";
   error_message?: string;
   processing_count: number;
   average_latency_ms: number;
@@ -60,7 +60,7 @@ interface QualityIndicatorProps {
   unit: string;
   range: [number, number];
   optimal?: [number, number];
-  format?: 'decimal' | 'integer' | 'db';
+  format?: "decimal" | "integer" | "db";
 }
 
 const QualityIndicator: React.FC<QualityIndicatorProps> = ({
@@ -69,14 +69,14 @@ const QualityIndicator: React.FC<QualityIndicatorProps> = ({
   unit,
   range,
   optimal,
-  format = 'decimal',
+  format = "decimal",
 }) => {
   const formatValue = (val: number) => {
     switch (format) {
-      case 'integer':
+      case "integer":
         return Math.round(val).toString();
-      case 'db':
-        return `${val > 0 ? '+' : ''}${val.toFixed(1)}`;
+      case "db":
+        return `${val > 0 ? "+" : ""}${val.toFixed(1)}`;
       default:
         return val.toFixed(3);
     }
@@ -84,10 +84,10 @@ const QualityIndicator: React.FC<QualityIndicatorProps> = ({
 
   const getIndicatorColor = () => {
     if (optimal) {
-      if (value >= optimal[0] && value <= optimal[1]) return 'success';
+      if (value >= optimal[0] && value <= optimal[1]) return "success";
     }
-    if (value >= range[0] && value <= range[1]) return 'warning';
-    return 'error';
+    if (value >= range[0] && value <= range[1]) return "warning";
+    return "error";
   };
 
   const getProgressValue = () => {
@@ -97,9 +97,14 @@ const QualityIndicator: React.FC<QualityIndicatorProps> = ({
 
   return (
     <Box mb={2}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={1}
+      >
         <Typography variant="body2">{label}</Typography>
-        <Chip 
+        <Chip
           label={`${formatValue(value)} ${unit}`}
           size="small"
           color={getIndicatorColor()}
@@ -154,7 +159,9 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [expanded, setExpanded] = useState(false);
 
-  const targets = (STAGE_PERFORMANCE_TARGETS as Record<string, { target: number; max: number }>)[stageName] || { target: 10.0, max: 20.0 };
+  const targets = (
+    STAGE_PERFORMANCE_TARGETS as Record<string, { target: number; max: number }>
+  )[stageName] || { target: 10.0, max: 20.0 };
 
   useEffect(() => {
     if (isActive && onRefresh) {
@@ -168,36 +175,46 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
   }, [isActive, onRefresh, refreshInterval]);
 
   const getLatencyStatus = () => {
-    if (!metrics) return 'default';
-    
-    if (metrics.processing_time_ms <= targets.target) return 'success';
-    if (metrics.processing_time_ms <= targets.max) return 'warning';
-    return 'error';
+    if (!metrics) return "default";
+
+    if (metrics.processing_time_ms <= targets.target) return "success";
+    if (metrics.processing_time_ms <= targets.max) return "warning";
+    return "error";
   };
 
   const getLatencyIcon = () => {
     const status = getLatencyStatus();
     switch (status) {
-      case 'success': return <CheckCircle color="success" />;
-      case 'warning': return <Warning color="warning" />;
-      case 'error': return <Error color="error" />;
-      default: return <Speed />;
+      case "success":
+        return <CheckCircle color="success" />;
+      case "warning":
+        return <Warning color="warning" />;
+      case "error":
+        return <Error color="error" />;
+      default:
+        return <Speed />;
     }
   };
 
   if (!metrics) {
     return (
-      <Card sx={{ height: '100%' }}>
+      <Card sx={{ height: "100%" }}>
         <CardContent>
-          <Box display="flex" alignItems="center" justifyContent="between" mb={2}>
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="between"
+            mb={2}
+          >
             <Typography variant="h6" component="h3">
               {stageDisplayName} Metrics
             </Typography>
             <Chip label="No Data" size="small" color="default" />
           </Box>
-          
+
           <Alert severity="info">
-            No metrics available. Process audio through this stage to see performance data.
+            No metrics available. Process audio through this stage to see
+            performance data.
           </Alert>
         </CardContent>
       </Card>
@@ -205,19 +222,24 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
   }
 
   return (
-    <Card sx={{ height: '100%' }}>
+    <Card sx={{ height: "100%" }}>
       <CardContent>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+        <Box
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={2}
+        >
           <Typography variant="h6" component="h3">
             {stageDisplayName} Metrics
           </Typography>
-          
+
           <Box display="flex" alignItems="center" gap={1}>
-            <Chip 
-              label={isActive ? 'Live' : 'Static'} 
-              size="small" 
-              color={isActive ? 'success' : 'default'}
-              variant={isActive ? 'filled' : 'outlined'}
+            <Chip
+              label={isActive ? "Live" : "Static"}
+              size="small"
+              color={isActive ? "success" : "default"}
+              variant={isActive ? "filled" : "outlined"}
             />
             {onRefresh && (
               <Tooltip title="Refresh metrics">
@@ -232,7 +254,12 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
         {/* Primary Performance Metrics */}
         <Grid container spacing={2} mb={3}>
           <Grid item xs={6}>
-            <Box textAlign="center" p={2} bgcolor="background.default" borderRadius={1}>
+            <Box
+              textAlign="center"
+              p={2}
+              bgcolor="background.default"
+              borderRadius={1}
+            >
               <Box display="flex" justifyContent="center" mb={1}>
                 {getLatencyIcon()}
               </Box>
@@ -249,11 +276,33 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
           </Grid>
 
           <Grid item xs={6}>
-            <Box textAlign="center" p={2} bgcolor="background.default" borderRadius={1}>
+            <Box
+              textAlign="center"
+              p={2}
+              bgcolor="background.default"
+              borderRadius={1}
+            >
               <Box display="flex" justifyContent="center" mb={1}>
-                <ShowChart color={metrics.success_rate >= 95 ? 'success' : metrics.success_rate >= 90 ? 'warning' : 'error'} />
+                <ShowChart
+                  color={
+                    metrics.success_rate >= 95
+                      ? "success"
+                      : metrics.success_rate >= 90
+                        ? "warning"
+                        : "error"
+                  }
+                />
               </Box>
-              <Typography variant="h4" color={metrics.success_rate >= 95 ? 'success.main' : metrics.success_rate >= 90 ? 'warning.main' : 'error.main'}>
+              <Typography
+                variant="h4"
+                color={
+                  metrics.success_rate >= 95
+                    ? "success.main"
+                    : metrics.success_rate >= 90
+                      ? "warning.main"
+                      : "error.main"
+                }
+              >
                 {metrics.success_rate.toFixed(1)}%
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -267,7 +316,7 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
         </Grid>
 
         {/* Status Alert */}
-        {metrics.status === 'error' && metrics.error_message && (
+        {metrics.status === "error" && metrics.error_message && (
           <Alert severity="error" sx={{ mb: 2 }}>
             <Typography variant="body2">
               <strong>Processing Error:</strong> {metrics.error_message}
@@ -275,9 +324,10 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
           </Alert>
         )}
 
-        {metrics.status === 'warning' && (
+        {metrics.status === "warning" && (
           <Alert severity="warning" sx={{ mb: 2 }}>
-            Performance degradation detected. Processing time exceeds target latency.
+            Performance degradation detected. Processing time exceeds target
+            latency.
           </Alert>
         )}
 
@@ -285,40 +335,54 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
         <Accordion expanded={expanded} onChange={() => setExpanded(!expanded)}>
           <AccordionSummary expandIcon={<ExpandMore />}>
             <Typography variant="subtitle2">
-              <Timeline sx={{ verticalAlign: 'middle', mr: 1, fontSize: 20 }} />
+              <Timeline sx={{ verticalAlign: "middle", mr: 1, fontSize: 20 }} />
               Detailed Performance Analysis
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
             <Grid container spacing={2}>
               <Grid item xs={6}>
-                <Typography variant="body2" gutterBottom>Latency Statistics</Typography>
+                <Typography variant="body2" gutterBottom>
+                  Latency Statistics
+                </Typography>
                 <Box mb={2}>
                   <Box display="flex" justifyContent="space-between">
                     <Typography variant="caption">Current:</Typography>
-                    <Typography variant="caption">{metrics.processing_time_ms.toFixed(1)}ms</Typography>
+                    <Typography variant="caption">
+                      {metrics.processing_time_ms.toFixed(1)}ms
+                    </Typography>
                   </Box>
                   <Box display="flex" justifyContent="space-between">
                     <Typography variant="caption">Average:</Typography>
-                    <Typography variant="caption">{metrics.average_latency_ms.toFixed(1)}ms</Typography>
+                    <Typography variant="caption">
+                      {metrics.average_latency_ms.toFixed(1)}ms
+                    </Typography>
                   </Box>
                   <Box display="flex" justifyContent="space-between">
                     <Typography variant="caption">Peak:</Typography>
-                    <Typography variant="caption">{metrics.peak_latency_ms.toFixed(1)}ms</Typography>
+                    <Typography variant="caption">
+                      {metrics.peak_latency_ms.toFixed(1)}ms
+                    </Typography>
                   </Box>
                 </Box>
               </Grid>
 
               <Grid item xs={6}>
-                <Typography variant="body2" gutterBottom>Session Info</Typography>
+                <Typography variant="body2" gutterBottom>
+                  Session Info
+                </Typography>
                 <Box mb={2}>
                   <Box display="flex" justifyContent="space-between">
                     <Typography variant="caption">Processed:</Typography>
-                    <Typography variant="caption">{metrics.processing_count}</Typography>
+                    <Typography variant="caption">
+                      {metrics.processing_count}
+                    </Typography>
                   </Box>
                   <Box display="flex" justifyContent="space-between">
                     <Typography variant="caption">Success Rate:</Typography>
-                    <Typography variant="caption">{metrics.success_rate.toFixed(1)}%</Typography>
+                    <Typography variant="caption">
+                      {metrics.success_rate.toFixed(1)}%
+                    </Typography>
                   </Box>
                   <Box display="flex" justifyContent="space-between">
                     <Typography variant="caption">Last Updated:</Typography>
@@ -334,7 +398,7 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
             <Typography variant="body2" gutterBottom mt={2}>
               Audio Quality Analysis
             </Typography>
-            
+
             <QualityIndicator
               label="Input RMS Level"
               value={metrics.quality_metrics.input_rms}
@@ -386,9 +450,15 @@ export const StageMetrics: React.FC<StageMetricsProps> = ({
         <Box mt={2} textAlign="center">
           <Typography variant="caption" color="text.secondary">
             {isActive ? (
-              <>Refreshing every {refreshInterval/1000}s • Last: {lastRefresh.toLocaleTimeString()}</>
+              <>
+                Refreshing every {refreshInterval / 1000}s • Last:{" "}
+                {lastRefresh.toLocaleTimeString()}
+              </>
             ) : (
-              <>Static metrics • Last updated: {new Date(metrics.last_updated).toLocaleTimeString()}</>
+              <>
+                Static metrics • Last updated:{" "}
+                {new Date(metrics.last_updated).toLocaleTimeString()}
+              </>
             )}
           </Typography>
         </Box>

@@ -1,5 +1,5 @@
 # Custom filter configuration file
-# This file can be edited to add or modify filtering behavior 
+# This file can be edited to add or modify filtering behavior
 # without changing the core code
 
 # Additional patterns to filter out beyond the default ones
@@ -7,7 +7,7 @@ ADDITIONAL_FILTER_PATTERNS = [
     # Add your own patterns here
     r"^testing$",       # Example: filter out segments that are just "testing"
     r"^test[\s\d]*$",   # Example: filter out segments like "test", "test 123"
-    r"^hello[\s\d]*$",  # Example: filter out segments like "hello", "hello 123" 
+    r"^hello[\s\d]*$",  # Example: filter out segments like "hello", "hello 123"
 ]
 
 # Minimum character length for a segment to be considered informative
@@ -37,4 +37,4 @@ CUSTOM_FILTERS = [
 STOPWORDS = {
     "en": ["the", "and", "for", "you", "this", "that", "with", "from", "have", "are"],
     # Add other languages as needed
-} 
+}

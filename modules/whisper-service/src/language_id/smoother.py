@@ -11,10 +11,10 @@ Language switching has a cost (transition penalty), so the Viterbi algorithm
 will prefer staying in the same language unless there's strong evidence for a switch.
 """
 
-import numpy as np
 import logging
-from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SmoothedLIDResult:
     """Result of Viterbi smoothing"""
+
     language: str
-    smoothed_probabilities: Dict[str, float]
-    raw_probabilities: Dict[str, float]
+    smoothed_probabilities: dict[str, float]
+    raw_probabilities: dict[str, float]
     confidence: float
     transition_cost: float
 
@@ -47,19 +48,14 @@ class LIDSmoother:
         window_size: Number of frames for Viterbi window (default 5)
     """
 
-    def __init__(
-        self,
-        languages: List[str],
-        transition_cost: float = 0.3,
-        window_size: int = 5
-    ):
+    def __init__(self, languages: list[str], transition_cost: float = 0.3, window_size: int = 5):
         self.languages = languages
         self.transition_cost = transition_cost
         self.window_size = window_size
 
         # History for Viterbi smoothing
-        self.probability_history: List[Dict[str, float]] = []
-        self.smoothed_history: List[str] = []
+        self.probability_history: list[dict[str, float]] = []
+        self.smoothed_history: list[str] = []
 
         # Initialize transition matrix (uniform with self-transition preference)
         self.transition_matrix = self._init_transition_matrix()
@@ -96,11 +92,7 @@ class LIDSmoother:
 
         return matrix
 
-    def smooth(
-        self,
-        lid_probs: Dict[str, float],
-        timestamp: float
-    ) -> SmoothedLIDResult:
+    def smooth(self, lid_probs: dict[str, float], timestamp: float) -> SmoothedLIDResult:
         """
         Smooth LID probabilities using Viterbi algorithm.
 
@@ -126,7 +118,7 @@ class LIDSmoother:
                 smoothed_probabilities=lid_probs.copy(),
                 raw_probabilities=lid_probs.copy(),
                 confidence=lid_probs[top_lang],
-                transition_cost=0.0
+                transition_cost=0.0,
             )
 
         # Run Viterbi over window
@@ -149,10 +141,7 @@ class LIDSmoother:
 
         # Create smoothed probabilities (boost selected language)
         smoothed_probs = lid_probs.copy()
-        smoothed_probs[smoothed_lang] = min(
-            1.0,
-            smoothed_probs.get(smoothed_lang, 0.0) + 0.1
-        )
+        smoothed_probs[smoothed_lang] = min(1.0, smoothed_probs.get(smoothed_lang, 0.0) + 0.1)
 
         # Normalize
         total = sum(smoothed_probs.values())
@@ -164,13 +153,10 @@ class LIDSmoother:
             smoothed_probabilities=smoothed_probs,
             raw_probabilities=lid_probs.copy(),
             confidence=smoothed_probs[smoothed_lang],
-            transition_cost=trans_cost
+            transition_cost=trans_cost,
         )
 
-    def _viterbi_decode(
-        self,
-        observations: List[Dict[str, float]]
-    ) -> List[str]:
+    def _viterbi_decode(self, observations: list[dict[str, float]]) -> list[str]:
         """
         Viterbi algorithm to find most likely language sequence.
 
@@ -204,7 +190,7 @@ class LIDSmoother:
         for t in range(1, n_obs):
             for s in range(n_states):
                 # Calculate probability of each previous state + transition
-                trans_probs = viterbi[t-1] + log_trans[:, s]
+                trans_probs = viterbi[t - 1] + log_trans[:, s]
 
                 # Best previous state
                 backpointer[t, s] = np.argmax(trans_probs)
@@ -230,21 +216,19 @@ class LIDSmoother:
         self.smoothed_history.clear()
         logger.debug("LID smoother reset")
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """Get smoothing statistics"""
         # Count transitions in smoothed history
         transitions = 0
         if len(self.smoothed_history) > 1:
             for i in range(1, len(self.smoothed_history)):
-                if self.smoothed_history[i] != self.smoothed_history[i-1]:
+                if self.smoothed_history[i] != self.smoothed_history[i - 1]:
                     transitions += 1
 
         return {
-            'window_size': self.window_size,
-            'transition_cost': self.transition_cost,
-            'history_length': len(self.probability_history),
-            'smoothed_transitions': transitions,
-            'current_language': (
-                self.smoothed_history[-1] if self.smoothed_history else None
-            )
+            "window_size": self.window_size,
+            "transition_cost": self.transition_cost,
+            "history_length": len(self.probability_history),
+            "smoothed_transitions": transitions,
+            "current_language": (self.smoothed_history[-1] if self.smoothed_history else None),
         }

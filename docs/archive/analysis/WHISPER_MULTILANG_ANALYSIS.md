@@ -746,4 +746,3 @@ With concurrent sessions:
 - **Minimal**: 1-2 day effort to make rolling context per-session
 - **Recommended**: Also add language validation (1 hour)
 - **Optional**: Async inference for parallel transcription (2-3 days)
-

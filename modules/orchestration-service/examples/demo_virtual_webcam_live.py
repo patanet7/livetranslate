@@ -22,12 +22,13 @@ Output:
     - Can be converted to video with ffmpeg
 """
 
-import sys
 import asyncio
 import logging
-from pathlib import Path
-from datetime import datetime
+import sys
 import time
+from datetime import datetime
+from pathlib import Path
+
 import numpy as np
 from PIL import Image
 
@@ -35,10 +36,10 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from bot.virtual_webcam import (
-    VirtualWebcamManager,
-    WebcamConfig,
     DisplayMode,
     Theme,
+    VirtualWebcamManager,
+    WebcamConfig,
 )
 
 # Configure logging with colors

@@ -6,28 +6,24 @@ Moved from standalone routers/audio_coordination.py for package consolidation.
 from __future__ import annotations
 
 import base64
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
-
 from audio.models import AudioStreamingSession, SourceType
 from dependencies import get_audio_coordinator
-
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 
 router = APIRouter()
 
 
 class CreateSessionRequest(BaseModel):
     bot_session_id: str = Field(..., description="Parent bot session identifier")
-    source_type: SourceType = Field(
-        SourceType.BOT_AUDIO, description="Audio source type"
-    )
-    target_languages: Optional[List[str]] = Field(
+    source_type: SourceType = Field(SourceType.BOT_AUDIO, description="Audio source type")
+    target_languages: list[str] | None = Field(
         default=None, description="Languages to request translations for"
     )
-    custom_config: Optional[Dict[str, Any]] = Field(
+    custom_config: dict[str, Any] | None = Field(
         default=None, description="Chunking configuration overrides"
     )
     auto_start: bool = Field(
@@ -38,7 +34,7 @@ class CreateSessionRequest(BaseModel):
 class StartStopResponse(BaseModel):
     session_id: str
     success: bool
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
 class AudioChunkRequest(BaseModel):
@@ -56,7 +52,7 @@ async def _ensure_coordinator_ready(coordinator) -> None:
             )
 
 
-def _session_to_dict(session: AudioStreamingSession) -> Dict[str, Any]:
+def _session_to_dict(session: AudioStreamingSession) -> dict[str, Any]:
     data = session.model_dump()
     for key, value in list(data.items()):
         if hasattr(value, "isoformat"):
@@ -67,13 +63,10 @@ def _session_to_dict(session: AudioStreamingSession) -> Dict[str, Any]:
 @router.get("/health")
 async def audio_coordination_health(
     coordinator=Depends(get_audio_coordinator),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return current status of the audio coordination subsystem."""
     running = getattr(coordinator, "is_running", False)
-    if running:
-        stats = coordinator.session_manager.get_session_statistics()
-    else:
-        stats = {}
+    stats = coordinator.session_manager.get_session_statistics() if running else {}
     return {
         "running": running,
         "statistics": stats,
@@ -83,17 +76,17 @@ async def audio_coordination_health(
 @router.get("/sessions")
 async def list_audio_sessions(
     coordinator=Depends(get_audio_coordinator),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     sessions = coordinator.session_manager.get_all_sessions()
     return {"sessions": [_session_to_dict(session) for session in sessions]}
 
 
-@router.post("/sessions", response_model=Dict[str, Any])
+@router.post("/sessions", response_model=dict[str, Any])
 async def create_audio_session(
     request: CreateSessionRequest,
     coordinator=Depends(get_audio_coordinator),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     session_id = await coordinator.create_audio_session(
         bot_session_id=request.bot_session_id,
@@ -121,9 +114,7 @@ async def start_audio_session(
     await _ensure_coordinator_ready(coordinator)
     success = await coordinator.start_audio_session(session_id)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
     return StartStopResponse(session_id=session_id, success=True)
 
 
@@ -139,13 +130,11 @@ async def stop_audio_session(
 @router.get("/sessions/{session_id}")
 async def get_audio_session(
     session_id: str, coordinator=Depends(get_audio_coordinator)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     session = coordinator.session_manager.get_session(session_id)
     if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
     return _session_to_dict(session)
 
 
@@ -154,11 +143,9 @@ async def add_audio_chunk(
     session_id: str,
     chunk: AudioChunkRequest,
     coordinator=Depends(get_audio_coordinator),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if session_id != chunk.session_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Session ID mismatch"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Session ID mismatch")
 
     await _ensure_coordinator_ready(coordinator)
 
@@ -172,9 +159,7 @@ async def add_audio_chunk(
         ) from exc
 
     if audio_array.size == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Empty audio payload"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty audio payload")
 
     success = await coordinator.add_audio_data(session_id, audio_array)
     if not success:
@@ -189,7 +174,7 @@ async def add_audio_chunk(
 @router.get("/statistics")
 async def get_audio_statistics(
     coordinator=Depends(get_audio_coordinator),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     return coordinator.session_manager.get_session_statistics()
 
@@ -197,7 +182,7 @@ async def get_audio_statistics(
 @router.get("/config/schema")
 async def get_audio_config_schema(
     coordinator=Depends(get_audio_coordinator),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     return coordinator.get_audio_config_schema()
 
@@ -205,11 +190,9 @@ async def get_audio_config_schema(
 @router.post("/config/presets/{preset_name}")
 async def apply_audio_preset(
     preset_name: str, coordinator=Depends(get_audio_coordinator)
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     await _ensure_coordinator_ready(coordinator)
     success = await coordinator.apply_audio_preset(preset_name)
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Preset not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Preset not found")
     return {"preset": preset_name, "applied": True}

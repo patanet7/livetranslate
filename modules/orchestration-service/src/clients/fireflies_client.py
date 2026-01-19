@@ -3,26 +3,29 @@ Fireflies.ai Realtime Client
 
 Handles communication with Fireflies.ai API:
 - GraphQL API for querying active meetings
-- WebSocket API for realtime transcript streaming
+- Socket.IO API for realtime transcript streaming
 
 Reference:
 - https://docs.fireflies.ai/realtime-api/overview
 - https://docs.fireflies.ai/realtime-api/event-schema
 - https://docs.fireflies.ai/graphql-api/query/active-meetings
+
+NOTE: Fireflies uses Socket.IO protocol, NOT raw WebSocket.
+The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 """
 
-import logging
 import asyncio
-import json
+import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Callable, Awaitable
-import aiohttp
-from aiohttp import WSMsgType, ClientWebSocketResponse
+from typing import Any
 
+import aiohttp
+import socketio
 from models.fireflies import (
     FirefliesChunk,
-    FirefliesMeeting,
     FirefliesConnectionStatus,
+    FirefliesMeeting,
     MeetingState,
 )
 
@@ -34,7 +37,9 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 DEFAULT_GRAPHQL_ENDPOINT = "https://api.fireflies.ai/graphql"
-DEFAULT_WEBSOCKET_ENDPOINT = "wss://api.fireflies.ai/realtime"
+# Socket.IO endpoint (NOT raw WebSocket)
+DEFAULT_WEBSOCKET_ENDPOINT = "wss://api.fireflies.ai"
+DEFAULT_WEBSOCKET_PATH = "/ws/realtime"
 
 # Reconnection settings
 MAX_RECONNECTION_ATTEMPTS = 5
@@ -106,10 +111,10 @@ query Transcript($id: String!) {
 TranscriptCallback = Callable[[FirefliesChunk], Awaitable[None]]
 
 # Callback for connection status changes
-StatusCallback = Callable[[FirefliesConnectionStatus, Optional[str]], Awaitable[None]]
+StatusCallback = Callable[[FirefliesConnectionStatus, str | None], Awaitable[None]]
 
 # Callback for errors
-ErrorCallback = Callable[[str, Optional[Exception]], Awaitable[None]]
+ErrorCallback = Callable[[str, Exception | None], Awaitable[None]]
 
 
 # =============================================================================
@@ -134,7 +139,7 @@ class FirefliesGraphQLClient:
         self.api_key = api_key
         self.endpoint = endpoint
         self.timeout = aiohttp.ClientTimeout(total=timeout)
-        self._session: Optional[aiohttp.ClientSession] = None
+        self._session: aiohttp.ClientSession | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session"""
@@ -157,8 +162,8 @@ class FirefliesGraphQLClient:
     async def execute_query(
         self,
         query: str,
-        variables: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        variables: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Execute a GraphQL query.
 
@@ -183,17 +188,15 @@ class FirefliesGraphQLClient:
                 result = await response.json()
 
                 if response.status != 200:
-                    error_msg = result.get("errors", [{"message": "Unknown error"}])[
-                        0
-                    ].get("message")
+                    error_msg = result.get("errors", [{"message": "Unknown error"}])[0].get(
+                        "message"
+                    )
                     raise FirefliesAPIError(
                         f"GraphQL error: {error_msg}", status_code=response.status
                     )
 
                 if "errors" in result:
-                    error_msg = result["errors"][0].get(
-                        "message", "Unknown GraphQL error"
-                    )
+                    error_msg = result["errors"][0].get("message", "Unknown GraphQL error")
                     raise FirefliesAPIError(f"GraphQL error: {error_msg}")
 
                 return result.get("data", {})
@@ -204,9 +207,9 @@ class FirefliesGraphQLClient:
 
     async def get_active_meetings(
         self,
-        email: Optional[str] = None,
-        states: Optional[List[MeetingState]] = None,
-    ) -> List[FirefliesMeeting]:
+        email: str | None = None,
+        states: list[MeetingState] | None = None,
+    ) -> list[FirefliesMeeting]:
         """
         Get active meetings from Fireflies.
 
@@ -234,14 +237,10 @@ class FirefliesGraphQLClient:
                     title=m.get("title"),
                     organizer_email=m.get("organizer_email"),
                     meeting_link=m.get("meeting_link"),
-                    start_time=datetime.fromisoformat(
-                        m["start_time"].replace("Z", "+00:00")
-                    )
+                    start_time=datetime.fromisoformat(m["start_time"].replace("Z", "+00:00"))
                     if m.get("start_time")
                     else None,
-                    end_time=datetime.fromisoformat(
-                        m["end_time"].replace("Z", "+00:00")
-                    )
+                    end_time=datetime.fromisoformat(m["end_time"].replace("Z", "+00:00"))
                     if m.get("end_time")
                     else None,
                     privacy=m.get("privacy"),
@@ -260,7 +259,7 @@ class FirefliesGraphQLClient:
         self,
         limit: int = 20,
         skip: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get past transcripts from Fireflies.
 
@@ -287,7 +286,7 @@ class FirefliesGraphQLClient:
     async def get_transcript_detail(
         self,
         transcript_id: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get detailed transcript including sentences.
 
@@ -309,23 +308,26 @@ class FirefliesGraphQLClient:
 
 
 # =============================================================================
-# WebSocket Client
+# Socket.IO Client (Fireflies Realtime API)
 # =============================================================================
 
 
 class FirefliesRealtimeClient:
     """
-    WebSocket client for Fireflies.ai Realtime API.
+    Socket.IO client for Fireflies.ai Realtime API.
 
-    Connects to Fireflies WebSocket to receive live transcription events.
+    Connects to Fireflies Socket.IO endpoint to receive live transcription events.
     Handles authentication, reconnection, and event parsing.
 
-    Events emitted:
+    Events received:
     - auth.success: Authentication succeeded
     - auth.failed: Authentication failed (socket will disconnect)
     - connection.established: Ready to receive transcripts
     - connection.error: Connection or authorization error
     - transcription.broadcast: New transcript segment
+
+    NOTE: Fireflies uses Socket.IO protocol, NOT raw WebSocket.
+    Previous implementation using aiohttp ws_connect returned 404.
     """
 
     def __init__(
@@ -333,9 +335,10 @@ class FirefliesRealtimeClient:
         api_key: str,
         transcript_id: str,
         endpoint: str = DEFAULT_WEBSOCKET_ENDPOINT,
-        on_transcript: Optional[TranscriptCallback] = None,
-        on_status_change: Optional[StatusCallback] = None,
-        on_error: Optional[ErrorCallback] = None,
+        socketio_path: str = DEFAULT_WEBSOCKET_PATH,
+        on_transcript: TranscriptCallback | None = None,
+        on_status_change: StatusCallback | None = None,
+        on_error: ErrorCallback | None = None,
         auto_reconnect: bool = True,
         max_reconnect_attempts: int = MAX_RECONNECTION_ATTEMPTS,
     ):
@@ -345,7 +348,8 @@ class FirefliesRealtimeClient:
         Args:
             api_key: Fireflies API key
             transcript_id: Transcript ID to connect to (from active_meetings)
-            endpoint: WebSocket endpoint URL
+            endpoint: Socket.IO endpoint URL (wss://api.fireflies.ai)
+            socketio_path: Socket.IO path (/ws/realtime)
             on_transcript: Callback for transcript chunks
             on_status_change: Callback for connection status changes
             on_error: Callback for errors
@@ -355,6 +359,7 @@ class FirefliesRealtimeClient:
         self.api_key = api_key
         self.transcript_id = transcript_id
         self.endpoint = endpoint
+        self.socketio_path = socketio_path
 
         # Callbacks
         self.on_transcript = on_transcript
@@ -366,17 +371,103 @@ class FirefliesRealtimeClient:
         self.max_reconnect_attempts = max_reconnect_attempts
 
         # State
-        self._ws: Optional[ClientWebSocketResponse] = None
-        self._session: Optional[aiohttp.ClientSession] = None
         self._status = FirefliesConnectionStatus.DISCONNECTED
         self._reconnect_attempts = 0
         self._reconnect_delay = INITIAL_RECONNECTION_DELAY
         self._running = False
-        self._receive_task: Optional[asyncio.Task] = None
+
+        # Socket.IO client
+        self.sio = socketio.AsyncClient(
+            reconnection=auto_reconnect,
+            reconnection_attempts=max_reconnect_attempts,
+            reconnection_delay=INITIAL_RECONNECTION_DELAY,
+            reconnection_delay_max=MAX_RECONNECTION_DELAY,
+            logger=False,  # Use our own logging
+            engineio_logger=False,
+        )
+
+        # Register event handlers
+        self._register_handlers()
 
         # Chunk tracking for deduplication
-        self._last_chunk_id: Optional[str] = None
+        self._last_chunk_id: str | None = None
         self._processed_chunk_ids: set = set()
+
+    def _register_handlers(self):
+        """Register Socket.IO event handlers"""
+
+        @self.sio.event
+        async def connect():
+            """Called when Socket.IO connects"""
+            logger.info("Socket.IO connected to Fireflies")
+            await self._set_status(FirefliesConnectionStatus.AUTHENTICATING)
+
+        @self.sio.event
+        async def disconnect():
+            """Called when Socket.IO disconnects"""
+            logger.info("Socket.IO disconnected from Fireflies")
+            if self._running:
+                await self._set_status(FirefliesConnectionStatus.RECONNECTING)
+            else:
+                await self._set_status(FirefliesConnectionStatus.DISCONNECTED)
+
+        @self.sio.event
+        async def connect_error(data):
+            """Called on connection error"""
+            error_msg = str(data) if data else "Connection error"
+            logger.error(f"Socket.IO connection error: {error_msg}")
+            await self._notify_error(f"Connection error: {error_msg}")
+            await self._set_status(FirefliesConnectionStatus.ERROR, error_msg)
+
+        # Fireflies-specific events
+        @self.sio.on("auth.success")
+        async def on_auth_success(data=None):
+            """Called when authentication succeeds"""
+            logger.info("Fireflies authentication successful")
+            await self._set_status(FirefliesConnectionStatus.CONNECTED, "Authenticated")
+            self._reconnect_attempts = 0
+            self._reconnect_delay = INITIAL_RECONNECTION_DELAY
+
+        @self.sio.on("auth.failed")
+        async def on_auth_failed(data=None):
+            """Called when authentication fails"""
+            error_msg = (
+                data.get("message", "Authentication failed")
+                if isinstance(data, dict)
+                else "Authentication failed"
+            )
+            logger.error(f"Fireflies authentication failed: {error_msg}")
+            await self._notify_error(error_msg)
+            await self._set_status(FirefliesConnectionStatus.ERROR, error_msg)
+            self._running = False
+            self.auto_reconnect = False  # Don't reconnect on auth failure
+
+        @self.sio.on("connection.established")
+        async def on_connection_established(data=None):
+            """Called when connection is fully established"""
+            logger.info("Fireflies connection established, ready for transcripts")
+
+        @self.sio.on("connection.error")
+        async def on_connection_error(data=None):
+            """Called on Fireflies connection error"""
+            error_msg = (
+                data.get("message", "Connection error")
+                if isinstance(data, dict)
+                else "Connection error"
+            )
+            logger.error(f"Fireflies connection error: {error_msg}")
+            await self._notify_error(f"Connection error: {error_msg}")
+
+        @self.sio.on("transcription.broadcast")
+        async def on_transcription_broadcast(data):
+            """Called when new transcription data is received"""
+            await self._handle_transcript(data)
+
+        # Also handle generic 'transcript' event (some APIs use this)
+        @self.sio.on("transcript")
+        async def on_transcript_event(data):
+            """Fallback handler for transcript events"""
+            await self._handle_transcript(data)
 
     @property
     def status(self) -> FirefliesConnectionStatus:
@@ -388,14 +479,11 @@ class FirefliesRealtimeClient:
         """Whether currently connected and authenticated"""
         return self._status == FirefliesConnectionStatus.CONNECTED
 
-    async def _set_status(
-        self, status: FirefliesConnectionStatus, message: Optional[str] = None
-    ):
+    async def _set_status(self, status: FirefliesConnectionStatus, message: str | None = None):
         """Update status and notify callback"""
         self._status = status
         logger.info(
-            f"Fireflies connection status: {status.value}"
-            + (f" - {message}" if message else "")
+            f"Fireflies connection status: {status.value}" + (f" - {message}" if message else "")
         )
 
         if self.on_status_change:
@@ -404,11 +492,9 @@ class FirefliesRealtimeClient:
             except Exception as e:
                 logger.error(f"Error in status callback: {e}")
 
-    async def _notify_error(self, message: str, exception: Optional[Exception] = None):
+    async def _notify_error(self, message: str, exception: Exception | None = None):
         """Notify error callback"""
-        logger.error(
-            f"Fireflies error: {message}" + (f" - {exception}" if exception else "")
-        )
+        logger.error(f"Fireflies error: {message}" + (f" - {exception}" if exception else ""))
 
         if self.on_error:
             try:
@@ -418,7 +504,7 @@ class FirefliesRealtimeClient:
 
     async def connect(self) -> bool:
         """
-        Connect to Fireflies realtime WebSocket.
+        Connect to Fireflies realtime Socket.IO endpoint.
 
         Returns:
             True if connection and authentication succeeded
@@ -431,143 +517,74 @@ class FirefliesRealtimeClient:
         await self._set_status(FirefliesConnectionStatus.CONNECTING)
 
         try:
-            # Create session if needed
-            if self._session is None or self._session.closed:
-                self._session = aiohttp.ClientSession()
-
-            # Build WebSocket URL with authentication
-            ws_url = f"{self.endpoint}?token={self.api_key}&transcript_id={self.transcript_id}"
-
-            await self._set_status(FirefliesConnectionStatus.AUTHENTICATING)
-
-            # Connect to WebSocket
-            self._ws = await self._session.ws_connect(
-                ws_url,
-                heartbeat=30.0,
-                receive_timeout=60.0,
-            )
+            # Socket.IO auth payload
+            auth = {
+                "token": f"Bearer {self.api_key}",
+                "transcriptId": self.transcript_id,
+            }
 
             logger.info(
-                f"WebSocket connected to Fireflies for transcript: {self.transcript_id}"
+                f"Connecting to Fireflies Socket.IO: {self.endpoint} "
+                f"(path: {self.socketio_path}, transcript: {self.transcript_id})"
             )
 
-            # Start receiving messages
-            self._receive_task = asyncio.create_task(self._receive_loop())
+            # Connect using Socket.IO protocol
+            await self.sio.connect(
+                self.endpoint,
+                socketio_path=self.socketio_path,
+                auth=auth,
+                transports=["websocket"],  # Prefer WebSocket transport
+                wait_timeout=30,
+            )
 
             # Wait briefly for auth response
             await asyncio.sleep(0.5)
 
             return self.is_connected
 
-        except aiohttp.ClientError as e:
-            await self._notify_error(f"Connection failed: {e}", e)
+        except socketio.exceptions.ConnectionError as e:
+            error_msg = f"Socket.IO connection failed: {e}"
+            logger.error(error_msg)
+            await self._notify_error(error_msg, e)
             await self._set_status(FirefliesConnectionStatus.ERROR, str(e))
             self._running = False
             return False
         except Exception as e:
-            await self._notify_error(f"Unexpected connection error: {e}", e)
+            error_msg = f"Unexpected connection error: {e}"
+            logger.error(error_msg)
+            await self._notify_error(error_msg, e)
             await self._set_status(FirefliesConnectionStatus.ERROR, str(e))
             self._running = False
             return False
 
     async def disconnect(self):
-        """Disconnect from Fireflies WebSocket"""
+        """Disconnect from Fireflies Socket.IO"""
         self._running = False
         self.auto_reconnect = False  # Prevent reconnection
 
-        if self._receive_task:
-            self._receive_task.cancel()
-            try:
-                await self._receive_task
-            except asyncio.CancelledError:
-                pass
-            self._receive_task = None
+        # Update Socket.IO client reconnection setting
+        self.sio.reconnection = False
 
-        if self._ws and not self._ws.closed:
-            await self._ws.close()
-            self._ws = None
-
-        if self._session and not self._session.closed:
-            await self._session.close()
-            self._session = None
+        try:
+            if self.sio.connected:
+                await self.sio.disconnect()
+        except Exception as e:
+            logger.warning(f"Error during disconnect: {e}")
 
         await self._set_status(FirefliesConnectionStatus.DISCONNECTED)
         logger.info("Disconnected from Fireflies")
 
-    async def _receive_loop(self):
-        """Main loop for receiving WebSocket messages"""
-        try:
-            async for msg in self._ws:
-                if msg.type == WSMsgType.TEXT:
-                    await self._handle_message(msg.data)
-                elif msg.type == WSMsgType.ERROR:
-                    await self._notify_error(f"WebSocket error: {self._ws.exception()}")
-                    break
-                elif msg.type == WSMsgType.CLOSED:
-                    logger.info("WebSocket closed by server")
-                    break
-
-        except asyncio.CancelledError:
-            logger.debug("Receive loop cancelled")
-            raise
-        except Exception as e:
-            await self._notify_error(f"Receive loop error: {e}", e)
-        finally:
-            if self._running and self.auto_reconnect:
-                await self._attempt_reconnect()
-            else:
-                await self._set_status(FirefliesConnectionStatus.DISCONNECTED)
-
-    async def _handle_message(self, data: str):
-        """Parse and handle incoming WebSocket message"""
-        try:
-            message = json.loads(data)
-            event_type = message.get("type") or message.get("event")
-
-            # Handle different event types
-            if event_type == "auth.success":
-                await self._set_status(
-                    FirefliesConnectionStatus.CONNECTED, "Authenticated"
-                )
-                self._reconnect_attempts = 0
-                self._reconnect_delay = INITIAL_RECONNECTION_DELAY
-
-            elif event_type == "auth.failed":
-                await self._notify_error("Authentication failed")
-                await self._set_status(
-                    FirefliesConnectionStatus.ERROR, "Authentication failed"
-                )
-                self._running = False
-                self.auto_reconnect = False  # Don't reconnect on auth failure
-
-            elif event_type == "connection.established":
-                logger.info("Fireflies connection established, ready for transcripts")
-
-            elif event_type == "connection.error":
-                error_msg = message.get("message", "Unknown connection error")
-                await self._notify_error(f"Connection error: {error_msg}")
-
-            elif event_type == "transcription.broadcast":
-                await self._handle_transcript(message)
-
-            else:
-                logger.debug(f"Unhandled Fireflies event type: {event_type}")
-
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse Fireflies message: {e}")
-        except Exception as e:
-            logger.error(f"Error handling Fireflies message: {e}")
-
-    async def _handle_transcript(self, message: Dict[str, Any]):
+    async def _handle_transcript(self, message: dict[str, Any]):
         """Handle transcription.broadcast event"""
         try:
             # Extract chunk data - may be nested in 'data' or at top level
-            chunk_data = message.get("data", message)
+            chunk_data = message.get("data", message) if isinstance(message, dict) else message
+
+            if not isinstance(chunk_data, dict):
+                logger.warning(f"Unexpected transcript data format: {type(chunk_data)}")
+                return
 
             chunk_id = chunk_data.get("chunk_id")
-
-            # Skip if we've already processed this exact chunk
-            # (Note: same chunk_id with different text = update, which we DO want)
 
             # Create FirefliesChunk model
             chunk = FirefliesChunk(
@@ -594,62 +611,6 @@ class FirefliesRealtimeClient:
         except Exception as e:
             logger.error(f"Error processing transcript chunk: {e}")
 
-    async def _attempt_reconnect(self):
-        """Attempt to reconnect with exponential backoff"""
-        if not self.auto_reconnect:
-            return
-
-        if self._reconnect_attempts >= self.max_reconnect_attempts:
-            await self._notify_error(
-                f"Max reconnection attempts ({self.max_reconnect_attempts}) reached"
-            )
-            await self._set_status(
-                FirefliesConnectionStatus.ERROR, "Max reconnection attempts reached"
-            )
-            self._running = False
-            return
-
-        self._reconnect_attempts += 1
-        await self._set_status(
-            FirefliesConnectionStatus.RECONNECTING,
-            f"Attempt {self._reconnect_attempts}/{self.max_reconnect_attempts}",
-        )
-
-        logger.info(
-            f"Reconnecting to Fireflies in {self._reconnect_delay:.1f}s "
-            f"(attempt {self._reconnect_attempts}/{self.max_reconnect_attempts})"
-        )
-
-        await asyncio.sleep(self._reconnect_delay)
-
-        # Increase delay for next attempt (exponential backoff)
-        self._reconnect_delay = min(
-            self._reconnect_delay * RECONNECTION_BACKOFF_MULTIPLIER,
-            MAX_RECONNECTION_DELAY,
-        )
-
-        # Close existing connections
-        if self._ws and not self._ws.closed:
-            await self._ws.close()
-
-        # Attempt reconnection
-        try:
-            ws_url = f"{self.endpoint}?token={self.api_key}&transcript_id={self.transcript_id}"
-            self._ws = await self._session.ws_connect(
-                ws_url,
-                heartbeat=30.0,
-                receive_timeout=60.0,
-            )
-
-            logger.info("Reconnected to Fireflies WebSocket")
-
-            # Restart receive loop
-            self._receive_task = asyncio.create_task(self._receive_loop())
-
-        except Exception as e:
-            logger.error(f"Reconnection failed: {e}")
-            await self._attempt_reconnect()
-
 
 # =============================================================================
 # Unified Client
@@ -658,7 +619,7 @@ class FirefliesRealtimeClient:
 
 class FirefliesClient:
     """
-    Unified Fireflies.ai client combining GraphQL and WebSocket functionality.
+    Unified Fireflies.ai client combining GraphQL and Socket.IO functionality.
 
     Usage:
         client = FirefliesClient(api_key="your-api-key")
@@ -678,6 +639,7 @@ class FirefliesClient:
         api_key: str,
         graphql_endpoint: str = DEFAULT_GRAPHQL_ENDPOINT,
         websocket_endpoint: str = DEFAULT_WEBSOCKET_ENDPOINT,
+        socketio_path: str = DEFAULT_WEBSOCKET_PATH,
     ):
         """
         Initialize the Fireflies client.
@@ -685,11 +647,13 @@ class FirefliesClient:
         Args:
             api_key: Fireflies API key
             graphql_endpoint: GraphQL API endpoint
-            websocket_endpoint: WebSocket API endpoint
+            websocket_endpoint: Socket.IO endpoint URL
+            socketio_path: Socket.IO path for realtime
         """
         self.api_key = api_key
         self.graphql_endpoint = graphql_endpoint
         self.websocket_endpoint = websocket_endpoint
+        self.socketio_path = socketio_path
 
         # GraphQL client
         self._graphql = FirefliesGraphQLClient(
@@ -698,7 +662,7 @@ class FirefliesClient:
         )
 
         # Active realtime connections (transcript_id -> client)
-        self._realtime_clients: Dict[str, FirefliesRealtimeClient] = {}
+        self._realtime_clients: dict[str, FirefliesRealtimeClient] = {}
 
     async def close(self):
         """Close all connections"""
@@ -716,9 +680,9 @@ class FirefliesClient:
 
     async def get_active_meetings(
         self,
-        email: Optional[str] = None,
-        states: Optional[List[MeetingState]] = None,
-    ) -> List[FirefliesMeeting]:
+        email: str | None = None,
+        states: list[MeetingState] | None = None,
+    ) -> list[FirefliesMeeting]:
         """
         Get active meetings from Fireflies.
 
@@ -735,7 +699,7 @@ class FirefliesClient:
         self,
         limit: int = 20,
         skip: int = 0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get past transcripts from Fireflies.
 
@@ -751,7 +715,7 @@ class FirefliesClient:
     async def get_transcript_detail(
         self,
         transcript_id: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get detailed transcript including sentences.
 
@@ -770,9 +734,9 @@ class FirefliesClient:
     async def connect_realtime(
         self,
         transcript_id: str,
-        on_transcript: Optional[TranscriptCallback] = None,
-        on_status_change: Optional[StatusCallback] = None,
-        on_error: Optional[ErrorCallback] = None,
+        on_transcript: TranscriptCallback | None = None,
+        on_status_change: StatusCallback | None = None,
+        on_error: ErrorCallback | None = None,
         auto_reconnect: bool = True,
     ) -> FirefliesRealtimeClient:
         """
@@ -803,6 +767,7 @@ class FirefliesClient:
             api_key=self.api_key,
             transcript_id=transcript_id,
             endpoint=self.websocket_endpoint,
+            socketio_path=self.socketio_path,
             on_transcript=on_transcript,
             on_status_change=on_status_change,
             on_error=on_error,
@@ -814,13 +779,9 @@ class FirefliesClient:
 
         if success:
             self._realtime_clients[transcript_id] = client
-            logger.info(
-                f"Connected to Fireflies realtime for transcript: {transcript_id}"
-            )
+            logger.info(f"Connected to Fireflies realtime for transcript: {transcript_id}")
         else:
-            logger.error(
-                f"Failed to connect to Fireflies realtime for transcript: {transcript_id}"
-            )
+            logger.error(f"Failed to connect to Fireflies realtime for transcript: {transcript_id}")
 
         return client
 
@@ -838,9 +799,7 @@ class FirefliesClient:
         else:
             logger.warning(f"No active connection for transcript: {transcript_id}")
 
-    def get_realtime_status(
-        self, transcript_id: str
-    ) -> Optional[FirefliesConnectionStatus]:
+    def get_realtime_status(self, transcript_id: str) -> FirefliesConnectionStatus | None:
         """
         Get the connection status for a transcript.
 
@@ -854,7 +813,7 @@ class FirefliesClient:
             return self._realtime_clients[transcript_id].status
         return None
 
-    def get_active_connections(self) -> Dict[str, FirefliesConnectionStatus]:
+    def get_active_connections(self) -> dict[str, FirefliesConnectionStatus]:
         """
         Get all active realtime connections and their statuses.
 
@@ -872,7 +831,7 @@ class FirefliesClient:
 class FirefliesAPIError(Exception):
     """Exception for Fireflies API errors"""
 
-    def __init__(self, message: str, status_code: Optional[int] = None):
+    def __init__(self, message: str, status_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
 

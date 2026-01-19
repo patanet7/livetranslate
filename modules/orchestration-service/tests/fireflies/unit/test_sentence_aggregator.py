@@ -12,12 +12,13 @@ Tests all boundary detection methods:
 Reference: FIREFLIES_ADAPTATION_PLAN.md
 """
 
-import sys
 import os
-from pathlib import Path
-import pytest
+import sys
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Prevent SQLAlchemy conflicts from database imports
 os.environ["SKIP_MAIN_FASTAPI_IMPORT"] = "1"
@@ -29,18 +30,17 @@ sys.path.insert(0, str(orchestration_root))
 sys.path.insert(0, str(src_path))
 
 # Import directly from module files to avoid __init__.py cascade
+# Import sentence_aggregator components directly (avoid services/__init__.py)
+import importlib.util
+
 from models.fireflies import (
     FirefliesChunk,
     FirefliesSessionConfig,
-    SpeakerBuffer,
     TranslationUnit,
 )
 
-# Import sentence_aggregator components directly (avoid services/__init__.py)
-import importlib.util
 _sa_spec = importlib.util.spec_from_file_location(
-    "sentence_aggregator",
-    src_path / "services" / "sentence_aggregator.py"
+    "sentence_aggregator", src_path / "services" / "sentence_aggregator.py"
 )
 _sa_module = importlib.util.module_from_spec(_sa_spec)
 _sa_spec.loader.exec_module(_sa_module)
@@ -97,7 +97,7 @@ def make_chunk(
     speaker: str = "Alice",
     start_time: float = 0.0,
     end_time: float = 1.0,
-    chunk_id: str = None,
+    chunk_id: str | None = None,
     transcript_id: str = "transcript-abc",
 ) -> FirefliesChunk:
     """Helper to create test chunks"""
@@ -326,7 +326,9 @@ class TestSpeakerChange:
         chunk2 = make_chunk("Bob is speaking now", speaker="Bob", start_time=1.5, end_time=2.5)
         results1 = aggregator.process_chunk(chunk2)
 
-        chunk3 = make_chunk("Charlie is speaking now", speaker="Charlie", start_time=3.0, end_time=4.0)
+        chunk3 = make_chunk(
+            "Charlie is speaking now", speaker="Charlie", start_time=3.0, end_time=4.0
+        )
         results2 = aggregator.process_chunk(chunk3)
 
         # Alice flushed when Bob started
@@ -453,7 +455,7 @@ class TestNLPBoundaryDetection:
 
     def test_nlp_extracts_mid_buffer_sentences(self, nlp_aggregator):
         """NLP should detect sentence boundaries mid-buffer (with mock NLP)"""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         # Create mock NLP that simulates sentence boundary detection
         mock_nlp = MagicMock()
@@ -470,7 +472,7 @@ class TestNLPBoundaryDetection:
         mock_doc.sents = iter([mock_sent1, mock_sent2, mock_sent3])
         mock_nlp.return_value = mock_doc
 
-        with patch.object(NLPLoader, 'get_nlp', return_value=mock_nlp):
+        with patch.object(NLPLoader, "get_nlp", return_value=mock_nlp):
             # Long text with multiple sentences but no pause
             chunk = make_chunk(
                 "This is the first sentence. This is the second sentence. And this continues",
@@ -556,7 +558,9 @@ class TestSentenceCallback:
     def test_callback_receives_translation_unit(self, session_id, transcript_id, default_config):
         """Callback should receive TranslationUnit objects"""
         received = []
-        callback = lambda unit: received.append(unit)
+
+        def callback(unit):
+            return received.append(unit)
 
         agg = SentenceAggregator(
             session_id=session_id,
@@ -798,6 +802,6 @@ class TestConstants:
 
     def test_sentence_endings_includes_unicode(self):
         """Sentence endings should include Unicode variants"""
-        assert "。" in SENTENCE_ENDINGS  # Chinese period
-        assert "？" in SENTENCE_ENDINGS  # Chinese question
-        assert "！" in SENTENCE_ENDINGS  # Chinese exclamation
+        assert "\u3002" in SENTENCE_ENDINGS  # Chinese period
+        assert "\uff1f" in SENTENCE_ENDINGS  # Chinese question
+        assert "\uff01" in SENTENCE_ENDINGS  # Chinese exclamation

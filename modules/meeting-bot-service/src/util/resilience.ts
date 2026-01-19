@@ -11,7 +11,7 @@ function sleepUntil(ms: number): Promise<void> {
 /**
  * Retries an async action up to a given number of attempts, waiting between each attempt.
  * The wait happens after failure, except after the last attempt.
- * 
+ *
  * @param actionName - Reference this in logging and debugging
  * @param action - The flaky async function to execute. Ensure this function can either resolve or reject.
  * @param logger - an instance of Winston logger to maintain history of 'correlated' events

@@ -6,16 +6,15 @@ Also includes bulk export/import for translation-specific settings.
 """
 
 from ._shared import (
-    logger,
-    TranslationConfig,
     TRANSLATION_CONFIG_FILE,
-    load_config,
-    save_config,
+    Any,
     APIRouter,
     HTTPException,
+    TranslationConfig,
     asyncio,
-    Dict,
-    Any,
+    load_config,
+    logger,
+    save_config,
 )
 
 router = APIRouter(tags=["settings-translation"])
@@ -26,7 +25,7 @@ router = APIRouter(tags=["settings-translation"])
 # ============================================================================
 
 
-@router.get("/translation", response_model=Dict[str, Any])
+@router.get("/translation", response_model=dict[str, Any])
 async def get_translation_settings():
     """Get current translation configuration"""
     try:
@@ -35,9 +34,7 @@ async def get_translation_settings():
         return config
     except Exception as e:
         logger.error(f"Error getting translation settings: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to load translation settings"
-        )
+        raise HTTPException(status_code=500, detail="Failed to load translation settings") from e
 
 
 @router.post("/translation")
@@ -52,14 +49,10 @@ async def save_translation_settings(config: TranslationConfig):
                 "config": config_dict,
             }
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to save translation settings"
-            )
+            raise HTTPException(status_code=500, detail="Failed to save translation settings")
     except Exception as e:
         logger.error(f"Error saving translation settings: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to save translation settings"
-        )
+        raise HTTPException(status_code=500, detail="Failed to save translation settings") from e
 
 
 @router.get("/translation/stats")
@@ -75,13 +68,11 @@ async def get_translation_stats():
         }
     except Exception as e:
         logger.error(f"Error getting translation stats: {e}")
-        raise HTTPException(
-            status_code=500, detail="Failed to load translation statistics"
-        )
+        raise HTTPException(status_code=500, detail="Failed to load translation statistics") from e
 
 
 @router.post("/translation/test")
-async def test_translation(test_request: Dict[str, Any]):
+async def test_translation(test_request: dict[str, Any]):
     """Test translation configuration"""
     try:
         text = test_request.get("text", "Hello, world!")
@@ -108,7 +99,7 @@ async def test_translation(test_request: Dict[str, Any]):
         }
     except Exception as e:
         logger.error(f"Error testing translation: {e}")
-        raise HTTPException(status_code=500, detail="Translation test failed")
+        raise HTTPException(status_code=500, detail="Translation test failed") from e
 
 
 @router.post("/translation/clear-cache")
@@ -119,4 +110,4 @@ async def clear_translation_cache():
         return {"message": "Translation cache cleared successfully"}
     except Exception as e:
         logger.error(f"Error clearing translation cache: {e}")
-        raise HTTPException(status_code=500, detail="Failed to clear translation cache")
+        raise HTTPException(status_code=500, detail="Failed to clear translation cache") from e

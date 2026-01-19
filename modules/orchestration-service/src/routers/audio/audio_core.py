@@ -12,11 +12,11 @@ Main audio processing endpoints including:
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
 
-from fastapi import Depends, UploadFile, File, Form, HTTPException, status
+from fastapi import Depends, File, Form, HTTPException, UploadFile, status
 
 # Add shared module to path for model registry (append to avoid conflicts)
 _SHARED_PATH = Path(__file__).parent.parent.parent.parent.parent / "shared" / "src"
@@ -25,38 +25,51 @@ if str(_SHARED_PATH) not in sys.path:
 
 try:
     from model_registry import ModelRegistry
+
     _DEFAULT_WHISPER_MODEL = ModelRegistry.DEFAULT_WHISPER_MODEL
 except ImportError:
     _DEFAULT_WHISPER_MODEL = "whisper-base"
 
-from ._shared import (
-    create_audio_router,
-    logger,
-    format_recovery,
-    service_recovery,
-    audio_service_circuit_breaker,
-    retry_manager,
-)
-from models.audio import AudioProcessingRequest, AudioProcessingResponse, AudioStats
 from dependencies import (
-    get_config_manager,
-    get_audio_service_client,
     get_audio_coordinator,
+    get_audio_service_client,
+    get_config_manager,
     get_config_sync_manager,
-    get_health_monitor,
     get_event_publisher,
+    get_health_monitor,
     get_translation_service_client,
 )
+from models.audio import (
+    AudioProcessingRequest,
+    AudioProcessingResponse,
+    AudioStats,
+)
+
+# Import pipeline components for DRY processing
+from services.pipeline import (
+    AudioUploadChunkAdapter,
+    PipelineConfig,
+    TranscriptionPipelineCoordinator,
+)
 from utils.audio_errors import (
-    error_boundary,
-    AudioProcessingError,
-    AudioProcessingBaseError,
-    ValidationError,
-    AudioFormatError,
     AudioCorruptionError,
+    AudioFormatError,
+    AudioProcessingBaseError,
+    AudioProcessingError,
+    ConfigurationError,
     NetworkError,
     ServiceUnavailableError,
-    ConfigurationError,
+    ValidationError,
+    error_boundary,
+)
+
+from ._shared import (
+    audio_service_circuit_breaker,
+    create_audio_router,
+    format_recovery,
+    logger,
+    retry_manager,
+    service_recovery,
 )
 
 # Create router for core audio processing
@@ -81,7 +94,7 @@ async def process_audio(
     - **transcription**: Enable transcription
     - **speaker_diarization**: Enable speaker diarization
     """
-    request_id = f"req_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+    request_id = f"req_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=request_id,
@@ -120,10 +133,10 @@ async def process_audio(
                 audio_service_config = await config_manager.get_service_config("audio")
             except Exception as e:
                 raise ConfigurationError(
-                    f"Failed to get audio service configuration: {str(e)}",
+                    f"Failed to get audio service configuration: {e!s}",
                     correlation_id=correlation_id,
                     config_details={"service": "audio"},
-                )
+                ) from e
 
             # Process through enhanced pipeline with circuit breaker
             if request.streaming:
@@ -149,11 +162,11 @@ async def process_audio(
         except Exception as e:
             # Convert unknown exceptions to AudioProcessingError
             raise AudioProcessingError(
-                f"Unexpected error in audio processing: {str(e)}",
+                f"Unexpected error in audio processing: {e!s}",
                 correlation_id=correlation_id,
                 processing_stage="main_pipeline",
                 details={"exception_type": type(e).__name__},
-            )
+            ) from e
 
 
 async def _validate_audio_request(request: AudioProcessingRequest, correlation_id: str):
@@ -165,9 +178,7 @@ async def _validate_audio_request(request: AudioProcessingRequest, correlation_i
             correlation_id=correlation_id,
             validation_details={
                 "missing_fields": ["audio_data", "audio_url", "file_upload"],
-                "provided_fields": [
-                    k for k, v in request.dict().items() if v is not None
-                ],
+                "provided_fields": [k for k, v in request.dict().items() if v is not None],
             },
         )
 
@@ -196,10 +207,10 @@ async def _validate_audio_request(request: AudioProcessingRequest, correlation_i
             if isinstance(e, AudioProcessingBaseError):
                 raise
             raise AudioFormatError(
-                f"Invalid base64 audio data: {str(e)}",
+                f"Invalid base64 audio data: {e!s}",
                 correlation_id=correlation_id,
                 format_details={"encoding": "base64", "error": str(e)},
-            )
+            ) from e
 
     # Validate configuration
     if request.config:
@@ -208,17 +219,17 @@ async def _validate_audio_request(request: AudioProcessingRequest, correlation_i
                 json.loads(request.config)
         except json.JSONDecodeError as e:
             raise ValidationError(
-                f"Invalid JSON configuration: {str(e)}",
+                f"Invalid JSON configuration: {e!s}",
                 correlation_id=correlation_id,
                 validation_details={"config_error": str(e)},
-            )
+            ) from e
 
 
 async def _process_audio_streaming_with_retry(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any],
+    audio_service_config: dict[str, Any],
 ) -> AudioProcessingResponse:
     """Streaming audio processing with retry mechanism"""
     return await retry_manager.execute_with_retry(
@@ -236,7 +247,7 @@ async def _process_audio_batch_with_retry(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any],
+    audio_service_config: dict[str, Any],
 ) -> AudioProcessingResponse:
     """Batch audio processing with retry mechanism"""
     return await retry_manager.execute_with_retry(
@@ -254,7 +265,7 @@ async def _process_audio_streaming(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any],
+    audio_service_config: dict[str, Any],
 ) -> AudioProcessingResponse:
     """Core streaming audio processing logic"""
     # Placeholder for streaming implementation
@@ -272,7 +283,7 @@ async def _process_audio_batch(
     request: AudioProcessingRequest,
     correlation_id: str,
     audio_client,
-    audio_service_config: Dict[str, Any],
+    audio_service_config: dict[str, Any],
 ) -> AudioProcessingResponse:
     """Core batch audio processing logic"""
     # Placeholder for batch implementation
@@ -286,26 +297,26 @@ async def _process_audio_batch(
     )
 
 
-@router.post("/upload", response_model=Dict[str, Any])
+@router.post("/upload", response_model=dict[str, Any])
 async def upload_audio_file(
     audio: UploadFile = File(..., alias="audio"),
-    config: Optional[str] = Form(None),
-    session_id: Optional[str] = Form(None),
-    chunk_id: Optional[str] = Form(None),
-    target_languages: Optional[str] = Form(None),
-    enable_transcription: Optional[str] = Form("true"),
-    enable_translation: Optional[str] = Form("false"),
-    enable_diarization: Optional[str] = Form("true"),
-    whisper_model: Optional[str] = Form(_DEFAULT_WHISPER_MODEL),
-    translation_quality: Optional[str] = Form("balanced"),
-    audio_processing: Optional[str] = Form("true"),
-    noise_reduction: Optional[str] = Form("false"),
-    speech_enhancement: Optional[str] = Form("true"),
+    config: str | None = Form(None),
+    session_id: str | None = Form(None),
+    chunk_id: str | None = Form(None),
+    target_languages: str | None = Form(None),
+    enable_transcription: str | None = Form("true"),
+    enable_translation: str | None = Form("false"),
+    enable_diarization: str | None = Form("true"),
+    whisper_model: str | None = Form(_DEFAULT_WHISPER_MODEL),
+    translation_quality: str | None = Form("balanced"),
+    audio_processing: str | None = Form("true"),
+    noise_reduction: str | None = Form("false"),
+    speech_enhancement: str | None = Form("true"),
     audio_coordinator=Depends(get_audio_coordinator),
     config_sync_manager=Depends(get_config_sync_manager),
     audio_client=Depends(get_audio_service_client),
     event_publisher=Depends(get_event_publisher),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Upload audio file for processing with enhanced error handling and validation
 
@@ -320,7 +331,7 @@ async def upload_audio_file(
     - **whisper_model**: Whisper model to use (default: whisper-base)
     - **translation_quality**: Translation quality setting (default: balanced)
     """
-    correlation_id = f"upload_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}"
+    correlation_id = f"upload_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S_%f')}"
 
     async with error_boundary(
         correlation_id=correlation_id,
@@ -333,9 +344,7 @@ async def upload_audio_file(
         recovery_strategies=[format_recovery, service_recovery],
     ) as upload_correlation_id:
         try:
-            logger.info(
-                f"[{upload_correlation_id}] Processing file upload: {audio.filename}"
-            )
+            logger.info(f"[{upload_correlation_id}] Processing file upload: {audio.filename}")
 
             # Enhanced file validation
             await _validate_upload_file(audio, upload_correlation_id)
@@ -348,29 +357,19 @@ async def upload_audio_file(
                 else True
             )
             enable_transl = (
-                enable_translation.lower() in ("true", "1", "yes")
-                if enable_translation
-                else False
+                enable_translation.lower() in ("true", "1", "yes") if enable_translation else False
             )
             enable_diar = (
-                enable_diarization.lower() in ("true", "1", "yes")
-                if enable_diarization
-                else True
+                enable_diarization.lower() in ("true", "1", "yes") if enable_diarization else True
             )
             enable_audio_proc = (
-                audio_processing.lower() in ("true", "1", "yes")
-                if audio_processing
-                else True
+                audio_processing.lower() in ("true", "1", "yes") if audio_processing else True
             )
             enable_noise_red = (
-                noise_reduction.lower() in ("true", "1", "yes")
-                if noise_reduction
-                else False
+                noise_reduction.lower() in ("true", "1", "yes") if noise_reduction else False
             )
             enable_speech_enh = (
-                speech_enhancement.lower() in ("true", "1", "yes")
-                if speech_enhancement
-                else True
+                speech_enhancement.lower() in ("true", "1", "yes") if speech_enhancement else True
             )
 
             request_config = {
@@ -414,8 +413,8 @@ async def upload_audio_file(
             # Just process directly with the coordinator
 
             # Process the uploaded file
-            import tempfile
             import os
+            import tempfile
 
             with tempfile.NamedTemporaryFile(
                 delete=False, suffix=f"_{audio.filename}"
@@ -460,7 +459,7 @@ async def upload_audio_file(
                     "status": "uploaded_and_processed",
                     "file_size": len(content),
                     "processing_result": result,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 }
 
             finally:
@@ -468,9 +467,7 @@ async def upload_audio_file(
                 try:
                     os.unlink(temp_file_path)
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to clean up temp file {temp_file_path}: {e}"
-                    )
+                    logger.warning(f"Failed to clean up temp file {temp_file_path}: {e}")
 
         except AudioProcessingBaseError:
             # Re-raise our custom errors
@@ -478,11 +475,11 @@ async def upload_audio_file(
         except Exception as e:
             # Convert unknown exceptions to appropriate audio errors
             raise AudioProcessingError(
-                f"File upload failed: {str(e)}",
+                f"File upload failed: {e!s}",
                 correlation_id=upload_correlation_id,
                 processing_stage="file_upload",
                 details={"filename": audio.filename, "error": str(e)},
-            )
+            ) from e
 
 
 async def _validate_upload_file(audio: UploadFile, correlation_id: str):
@@ -521,9 +518,7 @@ async def _validate_upload_file(audio: UploadFile, correlation_id: str):
     # Validate file extension
     if audio.filename:
         allowed_extensions = {".wav", ".mp3", ".ogg", ".webm", ".mp4", ".flac", ".m4a"}
-        file_ext = (
-            "." + audio.filename.split(".")[-1].lower() if "." in audio.filename else ""
-        )
+        file_ext = "." + audio.filename.split(".")[-1].lower() if "." in audio.filename else ""
 
         if file_ext not in allowed_extensions:
             raise AudioFormatError(
@@ -541,10 +536,10 @@ async def _process_uploaded_file_safe(
     correlation_id: str,
     temp_file_path: str,
     audio_client,
-    request_data: Dict[str, Any],
+    request_data: dict[str, Any],
     audio_coordinator,
     config_sync_manager,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Safe wrapper for uploaded file processing with error handling"""
     try:
         return await _process_uploaded_file(
@@ -560,29 +555,29 @@ async def _process_uploaded_file_safe(
         # Convert generic exceptions to appropriate audio errors
         if "network" in str(e).lower() or "connection" in str(e).lower():
             raise NetworkError(
-                f"Network error during audio processing: {str(e)}",
+                f"Network error during audio processing: {e!s}",
                 correlation_id=correlation_id,
                 network_details={"original_error": str(e)},
-            )
+            ) from e
         elif "timeout" in str(e).lower():
             raise TimeoutError(
-                f"Timeout during audio processing: {str(e)}",
+                f"Timeout during audio processing: {e!s}",
                 correlation_id=correlation_id,
                 timeout_details={"original_error": str(e)},
-            )
+            ) from e
         elif "service" in str(e).lower() or "unavailable" in str(e).lower():
             raise ServiceUnavailableError(
-                f"Audio service unavailable: {str(e)}",
+                f"Audio service unavailable: {e!s}",
                 correlation_id=correlation_id,
                 service_name="whisper_service",
-            )
+            ) from e
         else:
             raise AudioProcessingError(
-                f"Audio processing failed: {str(e)}",
+                f"Audio processing failed: {e!s}",
                 correlation_id=correlation_id,
                 processing_stage="file_processing",
                 details={"original_error": str(e)},
-            )
+            ) from e
 
 
 async def _process_uploaded_file(
@@ -590,39 +585,165 @@ async def _process_uploaded_file(
     correlation_id: str,
     temp_file_path: str,
     audio_client,
-    request_data: Dict[str, Any],
+    request_data: dict[str, Any],
     audio_coordinator,
     config_sync_manager,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Core uploaded file processing logic - processes audio through the full orchestration pipeline.
 
-    This now uses the complete AudioCoordinator streaming infrastructure for real transcription
-    and translation, replacing the previous placeholder implementation.
+    This uses AudioCoordinator for Whisper transcription (no translation), then routes
+    the segments through TranscriptionPipelineCoordinator for DRY translation and storage.
+
+    Pipeline flow:
+        Audio → AudioCoordinator (Whisper) → Segments → Pipeline (Aggregation + Translation) → DB
     """
     try:
-        logger.info(
-            f"[{correlation_id}] Processing uploaded file through AudioCoordinator"
-        )
+        logger.info(f"[{correlation_id}] Processing uploaded file through unified pipeline")
 
-        # Use audio coordinator for complete processing
+        session_id = request_data.get("session_id", correlation_id)
+
+        # Step 1: Use AudioCoordinator for Whisper transcription ONLY (disable translation)
+        transcription_config = {
+            **request_data,
+            "enable_translation": False,  # Pipeline handles translation
+        }
+
         result = await audio_coordinator.process_audio_file(
-            session_id=request_data.get("session_id", "unknown"),
+            session_id=session_id,
             audio_file_path=temp_file_path,
-            config=request_data,
+            config=transcription_config,
             request_id=correlation_id,
         )
 
         logger.info(
-            f"[{correlation_id}] Audio coordinator processing complete: status={result.get('status')}"
+            f"[{correlation_id}] Whisper transcription complete: status={result.get('status')}"
         )
+
+        # Step 2: If transcription successful and segments available, process through pipeline
+        segments = result.get("segments", [])
+        enable_translation = request_data.get("enable_translation", False)
+        target_languages = request_data.get("target_languages", [])
+
+        if (
+            result.get("status") == "processed"
+            and segments
+            and enable_translation
+            and target_languages
+        ):
+            logger.info(
+                f"[{correlation_id}] Routing {len(segments)} segments through DRY pipeline for translation"
+            )
+
+            # Parse target_languages if string
+            if isinstance(target_languages, str):
+                try:
+                    target_languages = json.loads(target_languages)
+                except json.JSONDecodeError:
+                    target_languages = [lang.strip() for lang in target_languages.split(",")]
+
+            # Create adapter and pipeline config
+            adapter = AudioUploadChunkAdapter(session_id=session_id)
+
+            pipeline_config = PipelineConfig(
+                session_id=session_id,
+                transcript_id=correlation_id,
+                target_languages=target_languages,
+                source_language=result.get("language", "auto"),
+                domain=request_data.get("domain", "general"),
+            )
+
+            # Get translation client for pipeline
+            import os
+
+            from clients.simple_translation_client import SimpleTranslationClient
+
+            translation_base_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+            simple_translation_client = SimpleTranslationClient(base_url=translation_base_url)
+
+            # Create pipeline coordinator
+            coordinator = TranscriptionPipelineCoordinator(
+                config=pipeline_config,
+                adapter=adapter,
+                simple_translation_client=simple_translation_client,
+            )
+
+            # Initialize pipeline
+            await coordinator.initialize()
+
+            # Track translations from pipeline
+            pipeline_translations = {}
+
+            # Set callback to capture translations
+            async def capture_translation(unit, translation_result):
+                if translation_result:
+                    target_lang = translation_result.target_language
+                    if target_lang not in pipeline_translations:
+                        pipeline_translations[target_lang] = {
+                            "texts": [],
+                            "confidence": 0.0,
+                            "count": 0,
+                        }
+                    pipeline_translations[target_lang]["texts"].append(
+                        translation_result.translated
+                    )
+                    pipeline_translations[target_lang]["confidence"] += (
+                        translation_result.confidence or 0.0
+                    )
+                    pipeline_translations[target_lang]["count"] += 1
+
+            coordinator.on_translation_ready(capture_translation)
+
+            # Process each segment through the pipeline
+            for segment in segments:
+                # Ensure segment has required fields for adapter
+                if not segment.get("text"):
+                    continue
+
+                # Add session context if missing
+                segment["session_id"] = session_id
+                segment["transcript_id"] = correlation_id
+
+                # Process through pipeline
+                await coordinator.process_raw_chunk(segment)
+
+            # Flush any remaining content
+            await coordinator.flush()
+
+            # Get pipeline stats
+            pipeline_stats = coordinator.get_stats()
+            logger.info(
+                f"[{correlation_id}] Pipeline processing complete: "
+                f"chunks={pipeline_stats.get('chunks_received', 0)}, "
+                f"sentences={pipeline_stats.get('sentences_produced', 0)}, "
+                f"translations={len(pipeline_translations)}"
+            )
+
+            # Consolidate translations into result
+            if pipeline_translations:
+                result["translations"] = {}
+                for lang, data in pipeline_translations.items():
+                    avg_confidence = (
+                        data["confidence"] / data["count"] if data["count"] > 0 else 0.0
+                    )
+                    result["translations"][lang] = {
+                        "text": " ".join(data["texts"]),
+                        "confidence": avg_confidence,
+                        "service": "pipeline_v3",
+                        "sentences_translated": data["count"],
+                    }
+
+            result["pipeline_stats"] = pipeline_stats
+
+        elif enable_translation and not segments:
+            logger.warning(
+                f"[{correlation_id}] Translation requested but no segments available from Whisper"
+            )
 
         return result
 
     except Exception as e:
-        logger.error(
-            f"[{correlation_id}] Failed to process uploaded file: {e}", exc_info=True
-        )
+        logger.error(f"[{correlation_id}] Failed to process uploaded file: {e}", exc_info=True)
         return {
             "status": "error",
             "error": str(e),
@@ -632,7 +753,7 @@ async def _process_uploaded_file(
 
 
 @router.get("/health")
-async def health_check(health_monitor=Depends(get_health_monitor)) -> Dict[str, Any]:
+async def health_check(health_monitor=Depends(get_health_monitor)) -> dict[str, Any]:
     """
     Audio service health check with comprehensive diagnostics
     """
@@ -642,7 +763,7 @@ async def health_check(health_monitor=Depends(get_health_monitor)) -> Dict[str, 
 
         return {
             "status": "healthy",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "service": "orchestration_audio",
             "version": "2.0.0",
             "components": health_status,
@@ -659,14 +780,14 @@ async def health_check(health_monitor=Depends(get_health_monitor)) -> Dict[str, 
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
 
 @router.get("/models/transcription")
 async def get_transcription_models(
     audio_client=Depends(get_audio_service_client),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get available Whisper transcription models
     """
@@ -690,14 +811,14 @@ async def get_transcription_models(
         logger.error(f"Failed to get transcription models: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Whisper service unavailable: {str(e)}",
-        )
+            detail=f"Whisper service unavailable: {e!s}",
+        ) from e
 
 
 @router.get("/models/translation")
 async def get_translation_models(
     translation_client=Depends(get_translation_service_client),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get available translation models
     """
@@ -721,15 +842,15 @@ async def get_translation_models(
         logger.error(f"Failed to get translation models: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Translation service unavailable: {str(e)}",
-        )
+            detail=f"Translation service unavailable: {e!s}",
+        ) from e
 
 
 @router.get("/models")
 async def get_all_models(
     audio_client=Depends(get_audio_service_client),
     translation_client=Depends(get_translation_service_client),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Get all available models (transcription + translation) with device information
     """
@@ -742,7 +863,7 @@ async def get_all_models(
         try:
             translation_models = await translation_client.get_models()
             translation_device_info = await translation_client.get_device_info()
-        except:
+        except Exception:
             translation_models = []
             translation_device_info = {"device": "unknown", "status": "unavailable"}
 
@@ -761,8 +882,8 @@ async def get_all_models(
         logger.error(f"Failed to get models: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service unavailable: {str(e)}",
-        )
+            detail=f"Service unavailable: {e!s}",
+        ) from e
 
 
 @router.get("/stats", response_model=AudioStats)
@@ -786,5 +907,5 @@ async def get_audio_stats(health_monitor=Depends(get_health_monitor)) -> AudioSt
         logger.error(f"Failed to get stats: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve statistics: {str(e)}",
-        )
+            detail=f"Failed to retrieve statistics: {e!s}",
+        ) from e

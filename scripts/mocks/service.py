@@ -2,7 +2,7 @@ import os
 import random
 import string
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import FastAPI, File, UploadFile
 
@@ -12,7 +12,7 @@ def _generate_session_id(prefix: str) -> str:
     return f"{prefix}-{suffix}"
 
 
-def _base_metadata() -> Dict[str, Any]:
+def _base_metadata() -> dict[str, Any]:
     return {
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "request_id": _generate_session_id("req"),
@@ -30,11 +30,11 @@ def build_whisper_app() -> FastAPI:
 
     @app.get("/health")
     @app.get("/api/health")
-    async def health() -> Dict[str, Any]:
+    async def health() -> dict[str, Any]:
         return {"status": "healthy", "service": "whisper-mock", **_base_metadata()}
 
     @app.get("/api/models")
-    async def list_models() -> Dict[str, List[Dict[str, str]]]:
+    async def list_models() -> dict[str, list[dict[str, str]]]:
         return {"available_models": models}
 
     @app.post("/transcribe/{model_name}")
@@ -42,7 +42,7 @@ def build_whisper_app() -> FastAPI:
     async def transcribe(
         model_name: str = "whisper-base",  # pragma: allowlist secret
         audio: UploadFile = File(...),
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         _ = await audio.read()  # discard content; mock result
         return {
             "text": "This is a mock transcription.",
@@ -77,11 +77,11 @@ def build_translation_app() -> FastAPI:
     ]
 
     @app.get("/api/health")
-    async def health() -> Dict[str, Any]:
+    async def health() -> dict[str, Any]:
         return {"status": "healthy", "service": "translation-mock", **_base_metadata()}
 
     @app.get("/api/device-info")
-    async def device_info() -> Dict[str, Any]:
+    async def device_info() -> dict[str, Any]:
         return {
             "device": "cpu",
             "status": "ready",
@@ -90,11 +90,11 @@ def build_translation_app() -> FastAPI:
         }
 
     @app.get("/api/languages")
-    async def supported_languages() -> Dict[str, List[Dict[str, str]]]:
+    async def supported_languages() -> dict[str, list[dict[str, str]]]:
         return {"languages": languages}
 
     @app.post("/api/translate")
-    async def translate(payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def translate(payload: dict[str, Any]) -> dict[str, Any]:
         text = payload.get("text", "")
         target = payload.get("target_language", "en")
         session_id = payload.get("session_id") or _generate_session_id("session")

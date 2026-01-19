@@ -4,15 +4,16 @@ Test anonymous Google Meet joining with Vexa + ScreenApp battle-tested configura
 
 This test verifies that bots can join Google Meet WITHOUT authentication.
 """
+
 import asyncio
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from google_meet_automation import GoogleMeetAutomation, BrowserConfig
+from google_meet_automation import BrowserConfig, GoogleMeetAutomation
 
 
 async def test_anonymous_join():
@@ -42,7 +43,7 @@ async def test_anonymous_join():
         screenshots_enabled=True,
         screenshots_path="/tmp/test-screenshots-anonymous",
         google_email="thomas.patane@xbanker.ai",
-        google_password=os.getenv("GOOGLE_PASSWORD")  # Set this in env
+        google_password=os.getenv("GOOGLE_PASSWORD"),  # Set this in env
     )
 
     # Try AUTHENTICATED joining - may bypass bot detection
@@ -98,6 +99,7 @@ async def test_anonymous_join():
         print(f"❌ ERROR: {e}")
         print("=" * 70)
         import traceback
+
         traceback.print_exc()
 
         # LEAVE BROWSER OPEN FOR INVESTIGATION

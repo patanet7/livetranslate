@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Dependency validation utility for orchestration service.
 
@@ -8,7 +7,6 @@ and provides informative warnings about missing optional features.
 
 import logging
 import sys
-from typing import Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +14,10 @@ logger = logging.getLogger(__name__)
 class DependencyChecker:
     """Validates dependencies and provides feature availability information."""
 
-    def __init__(self):
-        self.missing_required: List[str] = []
-        self.missing_optional: Dict[str, str] = {}
-        self.available_features: Dict[str, bool] = {}
+    def __init__(self) -> None:
+        self.missing_required: list[str] = []
+        self.missing_optional: dict[str, str] = {}
+        self.available_features: dict[str, bool] = {}
 
     def check_required_dependencies(self) -> bool:
         """Check all required dependencies are available."""
@@ -40,9 +38,7 @@ class DependencyChecker:
             except ImportError:
                 if dep == "asyncpg":
                     # asyncpg is optional in development
-                    logger.warning(
-                        f"⚠️  {dep}: {description} - optional for development"
-                    )
+                    logger.warning(f"⚠️  {dep}: {description} - optional for development")
                     self.missing_optional[dep] = description
                 else:
                     logger.error(f"❌ {dep}: {description} - REQUIRED")
@@ -51,7 +47,7 @@ class DependencyChecker:
 
         return all_available
 
-    def check_optional_dependencies(self) -> Dict[str, bool]:
+    def check_optional_dependencies(self) -> dict[str, bool]:
         """Check optional dependencies and return feature availability."""
         optional_deps = [
             (
@@ -77,7 +73,7 @@ class DependencyChecker:
 
         return self.available_features
 
-    def generate_install_commands(self) -> List[str]:
+    def generate_install_commands(self) -> list[str]:
         """Generate pip install commands for missing dependencies."""
         commands = []
 
@@ -85,28 +81,22 @@ class DependencyChecker:
             commands.append(f"pip install {' '.join(self.missing_required)}")
 
         # Group optional dependencies by common install patterns
-        http2_deps = [dep for dep in self.missing_optional.keys() if dep == "h2"]
+        http2_deps = [dep for dep in self.missing_optional if dep == "h2"]
         audio_deps = [
-            dep
-            for dep in self.missing_optional.keys()
-            if dep in ["scipy", "librosa", "soundfile"]
+            dep for dep in self.missing_optional if dep in ["scipy", "librosa", "soundfile"]
         ]
-        system_deps = [dep for dep in self.missing_optional.keys() if dep in ["psutil"]]
+        system_deps = [dep for dep in self.missing_optional if dep in ["psutil"]]
 
         if http2_deps:
             commands.append("pip install 'httpx[http2]'  # For HTTP/2 support")
         if audio_deps:
-            commands.append(
-                f"pip install {' '.join(audio_deps)}  # For advanced audio processing"
-            )
+            commands.append(f"pip install {' '.join(audio_deps)}  # For advanced audio processing")
         if system_deps:
-            commands.append(
-                f"pip install {' '.join(system_deps)}  # For system monitoring"
-            )
+            commands.append(f"pip install {' '.join(system_deps)}  # For system monitoring")
 
         return commands
 
-    def print_summary(self):
+    def print_summary(self) -> None:
         """Print a comprehensive dependency summary."""
         logger.info("🔍 Dependency Validation Summary")
         logger.info("=" * 50)
@@ -137,7 +127,7 @@ class DependencyChecker:
 
         logger.info("=" * 50)
 
-    def validate_environment(self) -> Tuple[bool, Dict[str, bool]]:
+    def validate_environment(self) -> tuple[bool, dict[str, bool]]:
         """
         Complete environment validation.
 
@@ -158,7 +148,7 @@ class DependencyChecker:
         return required_ok, features
 
 
-def validate_startup_environment() -> Dict[str, bool]:
+def validate_startup_environment() -> dict[str, bool]:
     """
     Validate environment at startup and return feature availability.
 

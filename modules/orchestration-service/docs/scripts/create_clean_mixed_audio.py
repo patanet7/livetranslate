@@ -6,8 +6,8 @@ This avoids mid-sentence switching confusion.
 """
 
 import librosa
-import soundfile as sf
 import numpy as np
+import soundfile as sf
 
 # Load COMPLETE audio files
 jfk_audio, jfk_sr = librosa.load(
@@ -22,9 +22,7 @@ if cn_sr != 16000:
     chinese_audio = librosa.resample(chinese_audio, orig_sr=cn_sr, target_sr=16000)
 
 print(f"JFK (full): {len(jfk_audio) / 16000:.2f}s ({len(jfk_audio)} samples)")
-print(
-    f"Chinese #1 (full): {len(chinese_audio) / 16000:.2f}s ({len(chinese_audio)} samples)"
-)
+print(f"Chinese #1 (full): {len(chinese_audio) / 16000:.2f}s ({len(chinese_audio)} samples)")
 
 # Add 1 second of silence between sections to make boundaries clear
 silence = np.zeros(16000, dtype=np.float32)
@@ -36,9 +34,7 @@ chinese_audio2, cn_sr2 = librosa.load(
 if cn_sr2 != 16000:
     chinese_audio2 = librosa.resample(chinese_audio2, orig_sr=cn_sr2, target_sr=16000)
 
-print(
-    f"Chinese #2 (full): {len(chinese_audio2) / 16000:.2f}s ({len(chinese_audio2)} samples)"
-)
+print(f"Chinese #2 (full): {len(chinese_audio2) / 16000:.2f}s ({len(chinese_audio2)} samples)")
 
 # Create pattern with COMPLETE utterances and clear boundaries:
 # JFK (full) → silence → Chinese #1 (full) → silence → JFK (full) → silence → Chinese #2 (full)

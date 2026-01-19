@@ -12,14 +12,14 @@ Behaviors:
 Run with: pytest tests/fireflies/unit/test_session_events.py -v
 """
 
-import pytest
 import json
-import uuid
-from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
 import sys
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 # Add src path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
@@ -42,10 +42,12 @@ def mock_db_manager():
     mock_conn.fetch = AsyncMock(return_value=[])
     mock_conn.fetchrow = AsyncMock(return_value=None)
 
-    manager.db_pool.acquire = MagicMock(return_value=AsyncMock(
-        __aenter__=AsyncMock(return_value=mock_conn),
-        __aexit__=AsyncMock(return_value=None),
-    ))
+    manager.db_pool.acquire = MagicMock(
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(return_value=mock_conn),
+            __aexit__=AsyncMock(return_value=None),
+        )
+    )
 
     return manager
 
@@ -88,7 +90,7 @@ class TestEventLogging:
             "session_id": sample_session_id,
             "event_type": "pipeline",
             "event_name": "chunk_received",
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
             "severity": "info",
             "source": "pipeline_coordinator",
             "event_data": {},
@@ -181,9 +183,14 @@ class TestEventLogging:
         mock_conn = await mock_db_manager.db_pool.acquire().__aenter__()
         await mock_conn.execute(
             "INSERT INTO session_events (...) VALUES (...)",
-            event_id, sample_session_id, event_type, event_name,
-            json.dumps(event_data), datetime.now(timezone.utc),
-            "info", "pipeline_coordinator"
+            event_id,
+            sample_session_id,
+            event_type,
+            event_name,
+            json.dumps(event_data),
+            datetime.now(UTC),
+            "info",
+            "pipeline_coordinator",
         )
 
         # Assert
@@ -318,6 +325,7 @@ class TestErrorEventLogging:
         WHEN: Determining severity
         THEN: Should assign appropriate level
         """
+
         # Arrange
         def get_error_severity(error_type: str) -> str:
             severity_map = {
@@ -426,7 +434,7 @@ class TestEventQuerying:
         ]
 
         # Act
-        def filter_by_min_severity(events: List[Dict], min_severity: str) -> List[Dict]:
+        def filter_by_min_severity(events: list[dict], min_severity: str) -> list[dict]:
             min_level = severity_order.index(min_severity)
             return [e for e in events if severity_order.index(e["severity"]) >= min_level]
 

@@ -1,32 +1,32 @@
 # Core web framework
 fastapi==0.121.0
-uvicorn[standard]==0.38.0
-
-# WebSocket support (FastAPI native)
-websockets==15.0.1
-
-# HTTP client
-requests==2.31.0
+ffmpeg-python==0.2.0
 httpx[http2]==0.28.1  # Async HTTP client with HTTP/2 support for service communication
+librosa==0.11.0
+
+# Audio processing dependencies (for orchestration audio pipeline)
+numpy==2.3.4
 
 # FastAPI dependencies
 pydantic==2.12.3
 pydantic-settings==2.7.1
+pydub==0.25.1
+
+# Data processing
+python-dateutil==2.8.2
 python-multipart==0.0.6
 
 # Configuration
 PyYAML==6.0.1
 
-# Data processing
-python-dateutil==2.8.2
-
-# Audio processing dependencies (for orchestration audio pipeline)
-numpy==2.3.4
-soundfile==0.13.1
+# HTTP client
+requests==2.31.0
 scipy==1.16.2
-librosa==0.11.0
-pydub==0.25.1
-ffmpeg-python==0.2.0
+soundfile==0.13.1
+uvicorn[standard]==0.38.0
+
+# WebSocket support (FastAPI native)
+websockets==15.0.1
 
 # Development
 Werkzeug==2.3.7

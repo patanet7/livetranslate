@@ -29,22 +29,18 @@ Usage:
 """
 
 import asyncio
+import io
 import logging
 import sys
 import time
-from pathlib import Path
-import pyaudio
 import wave
-import io
-import httpx
-import json
 from datetime import datetime
 
+import httpx
+import pyaudio
+
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -67,6 +63,7 @@ TARGET_LANGUAGES = ["es", "fr", "de"]  # Spanish, French, German
 # Loopback Audio Capture
 # ============================================================================
 
+
 class LoopbackAudioCapture:
     """Captures system audio using loopback device."""
 
@@ -84,14 +81,19 @@ class LoopbackAudioCapture:
 
         for i in range(self.audio.get_device_count()):
             info = self.audio.get_device_info_by_index(i)
-            name = info['name'].lower()
+            name = info["name"].lower()
 
             # Look for common loopback device names
-            if any(keyword in name for keyword in ['blackhole', 'soundflower', 'loopback', 'virtual']):
-                if info['maxInputChannels'] > 0:
-                    logger.info(f"✅ Found loopback device: {info['name']} (index {i})")
-                    self.loopback_device_index = i
-                    return True
+            if (
+                any(
+                    keyword in name
+                    for keyword in ["blackhole", "soundflower", "loopback", "virtual"]
+                )
+                and info["maxInputChannels"] > 0
+            ):
+                logger.info(f"✅ Found loopback device: {info['name']} (index {i})")
+                self.loopback_device_index = i
+                return True
 
         logger.error("❌ No loopback device found!")
         logger.info("   Install BlackHole: brew install blackhole-2ch")
@@ -116,7 +118,7 @@ class LoopbackAudioCapture:
             logger.warning("⚠️  Using default input device (microphone)")
             self.loopback_device_index = None
 
-        logger.info(f"🎙️  Starting audio capture...")
+        logger.info("🎙️  Starting audio capture...")
         logger.info(f"   Sample rate: {self.sample_rate}Hz")
         logger.info(f"   Chunk duration: {self.chunk_duration}s")
 
@@ -128,7 +130,7 @@ class LoopbackAudioCapture:
                 input=True,
                 input_device_index=self.loopback_device_index,
                 frames_per_buffer=self.chunk_size,
-                stream_callback=callback
+                stream_callback=callback,
             )
 
             self.stream.start_stream()
@@ -150,6 +152,7 @@ class LoopbackAudioCapture:
 # ============================================================================
 # Translation Pipeline
 # ============================================================================
+
 
 class SimpleTranslationPipeline:
     """Simple pipeline: Audio → Whisper → Translation → Print"""
@@ -181,7 +184,9 @@ class SimpleTranslationPipeline:
                 response = await client.get(f"{TRANSLATION_URL}/api/health")
                 if response.status_code == 200:
                     data = response.json()
-                    logger.info(f"✅ Translation service: READY (backend: {data.get('backend', 'unknown')})")
+                    logger.info(
+                        f"✅ Translation service: READY (backend: {data.get('backend', 'unknown')})"
+                    )
                 else:
                     logger.error(f"❌ Translation service: HTTP {response.status_code}")
                     return False
@@ -195,65 +200,55 @@ class SimpleTranslationPipeline:
         """Transcribe audio using Whisper service."""
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                files = {'file': ('audio.wav', audio_bytes, 'audio/wav')}
-                data = {
-                    'language': 'auto',
-                    'enable_diarization': 'false'
-                }
+                files = {"file": ("audio.wav", audio_bytes, "audio/wav")}
+                data = {"language": "auto", "enable_diarization": "false"}
 
-                response = await client.post(
-                    f"{WHISPER_URL}/transcribe",
-                    files=files,
-                    data=data
-                )
+                response = await client.post(f"{WHISPER_URL}/transcribe", files=files, data=data)
 
                 if response.status_code == 200:
                     result = response.json()
                     return {
-                        'text': result.get('text', ''),
-                        'language': result.get('language', 'unknown'),
-                        'success': True
+                        "text": result.get("text", ""),
+                        "language": result.get("language", "unknown"),
+                        "success": True,
                     }
                 else:
                     logger.error(f"Whisper transcription failed: {response.status_code}")
-                    return {'success': False, 'error': f"HTTP {response.status_code}"}
+                    return {"success": False, "error": f"HTTP {response.status_code}"}
 
         except Exception as e:
             logger.error(f"Whisper transcription error: {e}")
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
     async def translate_text(self, text: str, source_lang: str, target_lang: str) -> dict:
         """Translate text using translation service."""
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 request_data = {
-                    'text': text,
-                    'source_language': source_lang,
-                    'target_language': target_lang,
-                    'model': 'ollama',
-                    'quality': 'balanced'
+                    "text": text,
+                    "source_language": source_lang,
+                    "target_language": target_lang,
+                    "model": "ollama",
+                    "quality": "balanced",
                 }
 
-                response = await client.post(
-                    f"{TRANSLATION_URL}/api/translate",
-                    json=request_data
-                )
+                response = await client.post(f"{TRANSLATION_URL}/api/translate", json=request_data)
 
                 if response.status_code == 200:
                     result = response.json()
                     return {
-                        'text': result.get('translated_text', ''),
-                        'confidence': result.get('confidence', 0.0),
-                        'processing_time': result.get('processing_time', 0.0),
-                        'success': True
+                        "text": result.get("translated_text", ""),
+                        "confidence": result.get("confidence", 0.0),
+                        "processing_time": result.get("processing_time", 0.0),
+                        "success": True,
                     }
                 else:
                     logger.error(f"Translation failed: {response.status_code}")
-                    return {'success': False, 'error': f"HTTP {response.status_code}"}
+                    return {"success": False, "error": f"HTTP {response.status_code}"}
 
         except Exception as e:
             logger.error(f"Translation error: {e}")
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
     async def process_audio_chunk(self, audio_data: bytes):
         """Process one audio chunk: transcribe + translate."""
@@ -261,7 +256,7 @@ class SimpleTranslationPipeline:
 
         # Convert raw audio to WAV
         wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, 'wb') as wav_file:
+        with wave.open(wav_buffer, "wb") as wav_file:
             wav_file.setnchannels(CHANNELS)
             wav_file.setsampwidth(2)  # 16-bit
             wav_file.setframerate(SAMPLE_RATE)
@@ -270,26 +265,26 @@ class SimpleTranslationPipeline:
         wav_buffer.seek(0)
         wav_bytes = wav_buffer.read()
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print(f"🎵 CHUNK {self.chunk_count} | {datetime.now().strftime('%H:%M:%S')}")
-        print("="*80)
+        print("=" * 80)
 
         # Step 1: Transcribe
         print("📝 Transcribing...")
         transcription = await self.transcribe_audio(wav_bytes)
 
-        if not transcription.get('success'):
+        if not transcription.get("success"):
             print(f"❌ Transcription failed: {transcription.get('error')}")
             return
 
-        text = transcription['text'].strip()
-        language = transcription['language']
+        text = transcription["text"].strip()
+        language = transcription["language"]
 
         if not text:
             print("⚠️  No speech detected (silent audio)")
             return
 
-        print(f"✅ Transcribed ({language}): \"{text}\"")
+        print(f'✅ Transcribed ({language}): "{text}"')
 
         # Step 2: Translate to all target languages
         print(f"\n🌐 Translating to {len(TARGET_LANGUAGES)} languages...")
@@ -301,12 +296,12 @@ class SimpleTranslationPipeline:
 
             translation = await self.translate_text(text, language, target_lang)
 
-            if translation.get('success'):
-                translated_text = translation['text']
-                confidence = translation['confidence']
-                proc_time = translation['processing_time']
+            if translation.get("success"):
+                translated_text = translation["text"]
+                confidence = translation["confidence"]
+                proc_time = translation["processing_time"]
 
-                print(f"   [{target_lang}] \"{translated_text}\"")
+                print(f'   [{target_lang}] "{translated_text}"')
                 print(f"           (confidence: {confidence:.2f}, time: {proc_time:.2f}s)")
 
                 self.total_translations += 1
@@ -315,18 +310,21 @@ class SimpleTranslationPipeline:
 
         # Stats
         elapsed = time.time() - self.start_time
-        print(f"\n📊 Stats: {self.chunk_count} chunks, {self.total_translations} translations, {elapsed:.1f}s")
+        print(
+            f"\n📊 Stats: {self.chunk_count} chunks, {self.total_translations} translations, {elapsed:.1f}s"
+        )
 
 
 # ============================================================================
 # Main
 # ============================================================================
 
+
 async def main():
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("  🎤 LOOPBACK AUDIO → TRANSLATION TEST")
     print("  Real-time system audio capture with translation")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Initialize pipeline
     pipeline = SimpleTranslationPipeline()
@@ -334,21 +332,23 @@ async def main():
     # Check services
     if not await pipeline.check_services():
         print("\n❌ Services not ready. Please start them first:")
-        print("   1. Translation service: cd modules/translation-service && python src/api_server_fastapi.py")
+        print(
+            "   1. Translation service: cd modules/translation-service && python src/api_server_fastapi.py"
+        )
         print("   2. Whisper service: cd modules/whisper-service && python src/main.py")
         return 1
 
     # Initialize audio capture
     capture = LoopbackAudioCapture(SAMPLE_RATE, CHUNK_DURATION)
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     capture.list_audio_devices()
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     # Audio callback
     audio_queue = asyncio.Queue()
 
-    def audio_callback(in_data, frame_count, time_info, status):
+    def audio_callback(in_data, _frame_count, _time_info, _status):
         asyncio.create_task(audio_queue.put(in_data))
         return (in_data, pyaudio.paContinue)
 
@@ -371,16 +371,17 @@ async def main():
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         capture.stop_capture()
 
-        print("\n" + "="*80)
-        print(f"  📊 FINAL STATS")
+        print("\n" + "=" * 80)
+        print("  📊 FINAL STATS")
         print(f"     Chunks processed: {pipeline.chunk_count}")
         print(f"     Translations: {pipeline.total_translations}")
         print(f"     Duration: {time.time() - pipeline.start_time:.1f}s")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
 
     return 0
 

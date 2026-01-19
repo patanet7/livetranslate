@@ -12,10 +12,7 @@ Uses centralized error handling from errors module.
 
 import logging
 import time
-from typing import Callable
-
-from fastapi import Request, Response, HTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
+from collections.abc import Callable
 
 from errors import (
     APIError,
@@ -23,6 +20,8 @@ from errors import (
     ValidationError,
     error_response,
 )
+from fastapi import HTTPException, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -45,12 +44,10 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         }
     """
 
-    def __init__(self, app, config: dict = None):
+    def __init__(self, app, config: dict | None = None):
         super().__init__(app)
         self.config = config or {}
-        self.max_request_size = self.config.get(
-            "max_request_size", 10 * 1024 * 1024
-        )  # 10MB
+        self.max_request_size = self.config.get("max_request_size", 10 * 1024 * 1024)  # 10MB
         self.blocked_ips = set(self.config.get("blocked_ips", []))
         self.allowed_origins = self.config.get("allowed_origins", ["*"])
 

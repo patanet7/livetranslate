@@ -10,7 +10,7 @@ Phase 2 Refactoring: Created 2025-10-25
 """
 
 import logging
-from typing import Optional
+
 import torch
 
 from .base_model import WhisperModel
@@ -18,8 +18,10 @@ from .pytorch_manager import PyTorchModelManager
 
 # OpenVINO is OPTIONAL - may not be installed on all systems
 try:
-    from .openvino_manager import OpenVINOModelManager
     import openvino as ov
+
+    from .openvino_manager import OpenVINOModelManager
+
     OPENVINO_AVAILABLE = True
 except ImportError:
     OPENVINO_AVAILABLE = False
@@ -58,8 +60,8 @@ class ModelFactory:
     def create(
         device: str = "auto",
         model_name: str = "large-v3-turbo",
-        models_dir: Optional[str] = None,
-        **kwargs
+        models_dir: str | None = None,
+        **kwargs,
     ) -> WhisperModel:
         """
         Create appropriate model implementation based on device and availability.
@@ -122,7 +124,7 @@ class ModelFactory:
                         models_dir=models_dir or ".models/openvino",
                         default_model=model_name,
                         device="npu",
-                        **kwargs
+                        **kwargs,
                     )
 
         # PyTorch for GPU/MPS/CPU
@@ -138,12 +140,12 @@ class ModelFactory:
 
         return PyTorchModelManager(
             models_dir=models_dir,
-            warmup_file=kwargs.pop('warmup_file', None),
-            auto_warmup=kwargs.pop('auto_warmup', False),
-            static_prompt=kwargs.pop('static_prompt', None),
-            init_prompt=kwargs.pop('init_prompt', None),
-            max_context_tokens=kwargs.pop('max_context_tokens', 223),
-            **kwargs
+            warmup_file=kwargs.pop("warmup_file", None),
+            auto_warmup=kwargs.pop("auto_warmup", False),
+            static_prompt=kwargs.pop("static_prompt", None),
+            init_prompt=kwargs.pop("init_prompt", None),
+            max_context_tokens=kwargs.pop("max_context_tokens", 223),
+            **kwargs,
         )
 
     @staticmethod
@@ -248,15 +250,15 @@ class ModelFactory:
         info["cuda"] = {
             "available": torch.cuda.is_available(),
             "name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
-            "count": torch.cuda.device_count() if torch.cuda.is_available() else 0
+            "count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
         }
 
         # Apple MPS
         info["mps"] = {
             "available": (
-                hasattr(torch.backends, "mps") and
-                torch.backends.mps.is_available() and
-                torch.backends.mps.is_built()
+                hasattr(torch.backends, "mps")
+                and torch.backends.mps.is_available()
+                and torch.backends.mps.is_built()
             )
         }
 
@@ -268,7 +270,7 @@ class ModelFactory:
                 info["npu"] = {
                     "available": len(npu_devices) > 0,
                     "devices": npu_devices,
-                    "openvino_version": ov.__version__ if hasattr(ov, '__version__') else "unknown"
+                    "openvino_version": ov.__version__ if hasattr(ov, "__version__") else "unknown",
                 }
             except Exception as e:
                 info["npu"] = {"available": False, "error": str(e)}
@@ -299,7 +301,7 @@ def create_model(device: str = "auto", **kwargs) -> WhisperModel:
 
 
 __all__ = [
-    'ModelFactory',
-    'create_model',
-    'OPENVINO_AVAILABLE',
+    "OPENVINO_AVAILABLE",
+    "ModelFactory",
+    "create_model",
 ]

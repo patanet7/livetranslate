@@ -7,17 +7,16 @@ Extracted from whisper_service.py for better modularity and testability.
 """
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 def prepare_domain_prompt(
-    domain: Optional[str] = None,
-    custom_terms: Optional[list] = None,
-    previous_context: Optional[str] = None,
-    initial_prompt: Optional[str] = None
-) -> Optional[str]:
+    domain: str | None = None,
+    custom_terms: list | None = None,
+    previous_context: str | None = None,
+    initial_prompt: str | None = None,
+) -> str | None:
     """
     Prepare domain-specific prompt for Whisper transcription.
 
@@ -43,7 +42,7 @@ def prepare_domain_prompt(
     try:
         # If explicit initial_prompt provided, use it directly
         if initial_prompt:
-            logger.info(f"[DOMAIN] Using provided initial prompt")
+            logger.info("[DOMAIN] Using provided initial prompt")
             return initial_prompt
 
         # Otherwise, generate from domain/terms/context
@@ -54,9 +53,7 @@ def prepare_domain_prompt(
 
         # Generate prompt from domain, terms, and context
         generated_prompt = domain_mgr.create_domain_prompt(
-            domain=domain,
-            custom_terms=custom_terms,
-            previous_context=previous_context
+            domain=domain, custom_terms=custom_terms, previous_context=previous_context
         )
 
         logger.info(f"[DOMAIN] Generated prompt: {len(generated_prompt)} chars, domain={domain}")
