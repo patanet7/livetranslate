@@ -2,7 +2,7 @@
 # This Dockerfile supports the React migration plan outlined in REACT_MIGRATION_PLAN.md
 
 # Stage 1: Build React Frontend
-FROM node:18-alpine AS frontend-build
+FROM node:25-alpine AS frontend-build
 
 # Set working directory
 WORKDIR /app
@@ -18,7 +18,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Build FastAPI Backend
-FROM python:3.11-slim AS backend-build
+FROM python:3.14-slim AS backend-build
 
 # Set working directory
 WORKDIR /app
@@ -43,7 +43,7 @@ COPY backend/ ./
 COPY --from=frontend-build /app/dist ./static
 
 # Stage 3: Production Runtime
-FROM python:3.11-slim AS production
+FROM python:3.14-slim AS production
 
 # Set working directory
 WORKDIR /app
@@ -81,7 +81,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 
 # Development Stage (for local development)
-FROM python:3.11-slim AS development
+FROM python:3.14-slim AS development
 
 WORKDIR /app
 

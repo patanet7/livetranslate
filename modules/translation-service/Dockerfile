@@ -4,7 +4,7 @@
 # Stage 1: Builder
 # Install dependencies and prepare the application
 # =============================================================================
-FROM python:3.11-slim AS builder
+FROM python:3.14-slim AS builder
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -34,7 +34,7 @@ RUN pdm install ${PDM_INSTALL_ARGS}
 # Stage 2: Runtime
 # Minimal runtime image with only necessary components
 # =============================================================================
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Translation Service" \

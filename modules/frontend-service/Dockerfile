@@ -4,7 +4,7 @@
 # Stage 1: Dependencies
 # Install and cache node dependencies
 # =============================================================================
-FROM node:20-alpine AS deps
+FROM node:25-alpine AS deps
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Frontend Service - Dependencies" \
@@ -42,7 +42,7 @@ RUN pnpm build
 # Stage 3: Runtime
 # Minimal production runtime with nginx
 # =============================================================================
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.29-alpine AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Frontend Service" \
