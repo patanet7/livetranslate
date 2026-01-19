@@ -2,7 +2,7 @@
 # This Dockerfile supports the React migration plan outlined in REACT_MIGRATION_PLAN.md
 
 # Stage 1: Build React Frontend
-FROM node:18-alpine AS frontend-build
+FROM node:25-alpine AS frontend-build
 
 # Set working directory
 WORKDIR /app
