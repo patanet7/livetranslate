@@ -25,7 +25,7 @@ jobs:
       orchestration: ${{ steps.changes.outputs.orchestration }}
       frontend: ${{ steps.changes.outputs.frontend }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
         id: changes
         with:
@@ -56,7 +56,7 @@ jobs:
             path: modules/orchestration-service
             changed: ${{ needs.detect-changes.outputs.orchestration }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: matrix.service.changed == 'true' || github.event_name == 'push'
 
       - name: Set up Python
@@ -109,7 +109,7 @@ jobs:
             path: modules/orchestration-service
             changed: ${{ needs.detect-changes.outputs.orchestration }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: matrix.service.changed == 'true' || github.event_name == 'push'
 
       - name: Set up Python
@@ -156,7 +156,7 @@ jobs:
             path: modules/orchestration-service
             changed: ${{ needs.detect-changes.outputs.orchestration }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         if: matrix.service.changed == 'true' || github.event_name == 'push'
 
       - name: Set up Python
@@ -210,7 +210,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: (matrix.service.changed == 'true' || github.event_name == 'push') && always()
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ${{ matrix.service.path }}/coverage.xml
           flags: ${{ matrix.service.name }}
@@ -227,15 +227,15 @@ jobs:
       run:
         working-directory: modules/frontend-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -258,15 +258,15 @@ jobs:
       run:
         working-directory: modules/frontend-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -286,15 +286,15 @@ jobs:
       run:
         working-directory: modules/frontend-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -322,15 +322,15 @@ jobs:
       run:
         working-directory: modules/frontend-service
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
