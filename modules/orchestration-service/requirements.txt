@@ -14,7 +14,7 @@ pydub==0.25.1
 
 # Data processing
 python-dateutil==2.9.0.post0
-python-multipart==0.0.21
+python-multipart==0.0.22
 
 # Configuration
 PyYAML==6.0.3
