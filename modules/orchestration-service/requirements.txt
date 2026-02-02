@@ -5,7 +5,7 @@ httpx[http2]==0.28.1  # Async HTTP client with HTTP/2 support for service commun
 librosa==0.11.0
 
 # Audio processing dependencies (for orchestration audio pipeline)
-numpy==2.4.1
+numpy==2.4.2
 
 # FastAPI dependencies
 pydantic==2.12.5
@@ -14,7 +14,7 @@ pydub==0.25.1
 
 # Data processing
 python-dateutil==2.9.0.post0
-python-multipart==0.0.21
+python-multipart==0.0.22
 
 # Configuration
 PyYAML==6.0.3
