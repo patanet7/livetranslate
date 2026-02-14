@@ -22,9 +22,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from uuid import UUID
 
-from clients.simple_translation_client import (
-    SimpleTranslationClient,
-)
+from clients.protocol import LLMClientProtocol
 from clients.translation_service_client import (
     TranslationRequest,
     TranslationServiceClient,
@@ -152,7 +150,7 @@ class RollingWindowTranslator:
         include_cross_speaker_context: bool = True,
         max_cross_speaker_sentences: int = 2,
         use_prompt_based_translation: bool = True,
-        simple_client: SimpleTranslationClient | None = None,
+        llm_client: LLMClientProtocol | None = None,
         prompt_builder: TranslationPromptBuilder | None = None,
     ):
         """
@@ -165,7 +163,7 @@ class RollingWindowTranslator:
             include_cross_speaker_context: Include other speakers' sentences
             max_cross_speaker_sentences: Max other-speaker sentences to include
             use_prompt_based_translation: Use LLM prompt with context (vs direct)
-            simple_client: Optional SimpleTranslationClient for V3 API (recommended)
+            llm_client: Optional LLMClientProtocol for prompt-based translation
             prompt_builder: Optional PromptBuilder for building prompts
         """
         self.translation_client = translation_client
@@ -175,8 +173,8 @@ class RollingWindowTranslator:
         self.max_cross_speaker_sentences = max_cross_speaker_sentences
         self.use_prompt_based_translation = use_prompt_based_translation
 
-        # V3 API components (prompt-based translation)
-        self.simple_client = simple_client
+        # LLM client for prompt-based translation
+        self.llm_client = llm_client
         self.prompt_builder = prompt_builder or create_prompt_builder()
 
         # Session state tracking
@@ -186,7 +184,7 @@ class RollingWindowTranslator:
             f"RollingWindowTranslator initialized: "
             f"window_size={window_size}, "
             f"cross_speaker={include_cross_speaker_context}, "
-            f"v3_api={'enabled' if simple_client else 'disabled'}"
+            f"llm_client={'enabled' if self.llm_client else 'disabled'}"
         )
 
     # =========================================================================
@@ -521,7 +519,7 @@ class RollingWindowTranslator:
         """
         Translate using LLM prompt with context.
 
-        Uses the V3 API if simple_client is available, otherwise falls back
+        Uses the V3 API if llm_client is available, otherwise falls back
         to legacy API (which doesn't actually use the prompt).
 
         Returns:
@@ -544,10 +542,10 @@ class RollingWindowTranslator:
             f"glossary_terms={built_prompt.glossary_term_count}"
         )
 
-        # Use V3 API if available (sends the actual prompt)
-        if self.simple_client:
+        # Use LLM client if available (sends the actual prompt)
+        if self.llm_client:
             try:
-                result = await self.simple_client.translate_prompt(
+                result = await self.llm_client.translate_prompt(
                     prompt=built_prompt.prompt,
                     backend="ollama",
                 )
@@ -555,14 +553,14 @@ class RollingWindowTranslator:
                 confidence = 0.9 if result.text else 0.5
                 return result.text, confidence
             except Exception as e:
-                logger.warning(f"V3 API failed, falling back to legacy: {e}")
+                logger.warning(f"LLM client failed, falling back to legacy: {e}")
                 # Fall through to legacy API
 
         # Legacy fallback - NOTE: this still doesn't send the prompt!
-        # This is kept for backwards compatibility but the V3 API should be used
+        # This is kept for backwards compatibility but the LLM client should be used
         logger.warning(
             "Using legacy translation API - prompt context/glossary will NOT be applied! "
-            "Configure simple_client to use V3 API for full functionality."
+            "Configure llm_client to use prompt-based translation for full functionality."
         )
 
         request = TranslationRequest(
@@ -642,7 +640,7 @@ def create_rolling_window_translator(
     translation_client: TranslationServiceClient,
     glossary_service=None,
     config: dict | None = None,
-    simple_client: SimpleTranslationClient | None = None,
+    llm_client: LLMClientProtocol | None = None,
     prompt_builder: TranslationPromptBuilder | None = None,
 ) -> RollingWindowTranslator:
     """
@@ -656,15 +654,15 @@ def create_rolling_window_translator(
             - include_cross_speaker_context: bool (default: True)
             - max_cross_speaker_sentences: int (default: 2)
             - use_prompt_based_translation: bool (default: True)
-        simple_client: Optional SimpleTranslationClient for V3 API (recommended)
+        llm_client: Optional LLMClientProtocol for prompt-based translation
         prompt_builder: Optional TranslationPromptBuilder for building prompts
 
     Returns:
         Configured RollingWindowTranslator instance
 
     Note:
-        For full context/glossary support, provide a simple_client configured
-        to use the V3 translation API. Without it, prompts are built but not
+        For full context/glossary support, provide an llm_client configured
+        for prompt-based translation. Without it, prompts are built but not
         actually sent to the LLM.
     """
     config = config or {}
@@ -676,6 +674,6 @@ def create_rolling_window_translator(
         include_cross_speaker_context=config.get("include_cross_speaker_context", True),
         max_cross_speaker_sentences=config.get("max_cross_speaker_sentences", 2),
         use_prompt_based_translation=config.get("use_prompt_based_translation", True),
-        simple_client=simple_client,
+        llm_client=llm_client,
         prompt_builder=prompt_builder,
     )

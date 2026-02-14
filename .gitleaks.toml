@@ -69,6 +69,12 @@ id = "livetranslate-database-url"
 description = "Detects database connection strings with credentials"
 regex = '''(postgres(ql)?|mysql|mongodb(\+srv)?):\/\/[^:]+:[^@]+@[^\/]+\/'''
 keywords = ["postgres", "mysql", "mongodb"]
+[rules.allowlist]
+paths = [
+    '''tests/''',
+    '''conftest\.py$''',
+    '''\.env\.example$''',
+]
 
 [[rules]]
 id = "livetranslate-redis-url"

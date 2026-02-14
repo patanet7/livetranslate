@@ -76,6 +76,7 @@ _rate_limiter: RateLimiter | None = None
 _security_utils: SecurityUtils | None = None
 _event_publisher: EventPublisher | None = None
 _data_pipeline: Optional["TranscriptionDataPipeline"] = None
+_meeting_intelligence: Any = None  # MeetingIntelligenceService
 
 
 # ============================================================================
@@ -239,6 +240,119 @@ def get_data_pipeline() -> Optional["TranscriptionDataPipeline"]:
             return None
 
     return _data_pipeline
+
+
+# ============================================================================
+# Meeting Intelligence Service
+# ============================================================================
+
+
+def get_fireflies_llm_client():
+    """
+    Create LLM client for Fireflies translation pipeline.
+
+    NOT cached — each session may use different models/settings.
+    Reuses the same config pattern as get_meeting_intelligence_service().
+    """
+    from clients.llm_client import create_llm_client
+    from config import get_settings
+
+    intel_settings = get_settings().intelligence
+
+    if intel_settings.direct_llm_enabled:
+        client = create_llm_client(
+            base_url=intel_settings.direct_llm_base_url,
+            api_key=intel_settings.direct_llm_api_key,
+            model=intel_settings.direct_llm_model,
+            max_tokens=intel_settings.default_max_tokens,
+            temperature=intel_settings.default_temperature,
+            proxy_mode=False,
+        )
+        logger.info(
+            f"LLMClient (direct) created for Fireflies pipeline "
+            f"(model={intel_settings.direct_llm_model}, "
+            f"url={intel_settings.direct_llm_base_url})"
+        )
+    else:
+        translation_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+        client = create_llm_client(
+            base_url=translation_url,
+            default_backend=intel_settings.default_llm_backend,
+            proxy_mode=True,
+        )
+        logger.info(
+            f"LLMClient (proxy) created for Fireflies pipeline "
+            f"(backend={intel_settings.default_llm_backend})"
+        )
+
+    return client
+
+
+@lru_cache
+def get_meeting_intelligence_service():
+    """Get singleton MeetingIntelligenceService instance."""
+    global _meeting_intelligence
+    if _meeting_intelligence is None:
+        logger.info("Initializing MeetingIntelligenceService singleton")
+
+        from config import get_settings
+        from services.meeting_intelligence import MeetingIntelligenceService
+
+        settings = get_settings()
+        intel_settings = settings.intelligence
+
+        # Get database session factory
+        db_manager = get_database_manager()
+        db_session_factory = db_manager.get_session
+
+        # Choose LLM client based on config
+        translation_client = None
+
+        if intel_settings.direct_llm_enabled:
+            # Direct LLM client (bypasses Translation Service)
+            try:
+                from clients.llm_client import create_llm_client
+
+                translation_client = create_llm_client(
+                    base_url=intel_settings.direct_llm_base_url,
+                    api_key=intel_settings.direct_llm_api_key,
+                    model=intel_settings.direct_llm_model,
+                    max_tokens=intel_settings.default_max_tokens,
+                    temperature=intel_settings.default_temperature,
+                    proxy_mode=False,
+                )
+                logger.info(
+                    f"LLMClient (direct) created for intelligence "
+                    f"(model={intel_settings.direct_llm_model}, "
+                    f"url={intel_settings.direct_llm_base_url})"
+                )
+            except Exception as e:
+                logger.warning(f"LLMClient (direct) unavailable for intelligence: {e}")
+        else:
+            # LLMClient in proxy mode (via Translation Service)
+            try:
+                from clients.llm_client import create_llm_client
+
+                translation_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+                translation_client = create_llm_client(
+                    base_url=translation_url,
+                    default_backend=intel_settings.default_llm_backend,
+                    proxy_mode=True,
+                )
+                logger.info(
+                    f"LLMClient (proxy) created for intelligence "
+                    f"(backend={intel_settings.default_llm_backend})"
+                )
+            except Exception as e:
+                logger.warning(f"LLMClient (proxy) unavailable for intelligence: {e}")
+
+        _meeting_intelligence = MeetingIntelligenceService(
+            db_session_factory=db_session_factory,
+            translation_client=translation_client,
+            settings=intel_settings,
+        )
+        logger.info("MeetingIntelligenceService initialized successfully")
+    return _meeting_intelligence
 
 
 # ============================================================================
@@ -707,7 +821,7 @@ def reset_dependencies():
     global _database_manager, _unified_repository, _audio_service_client
     global _translation_service_client, _audio_coordinator, _config_sync_manager
     global _audio_config_manager, _rate_limiter, _security_utils, _data_pipeline
-    global _event_publisher
+    global _event_publisher, _meeting_intelligence
 
     logger.warning("Resetting all dependency singletons")
 
@@ -726,6 +840,7 @@ def reset_dependencies():
     _security_utils = None
     _data_pipeline = None
     _event_publisher = None
+    _meeting_intelligence = None
 
     # Clear LRU cache
     get_config_manager.cache_clear()
@@ -743,6 +858,7 @@ def reset_dependencies():
     get_rate_limiter.cache_clear()
     get_security_utils.cache_clear()
     get_event_publisher.cache_clear()
+    get_meeting_intelligence_service.cache_clear()
 
     # Reset internal service singletons (to handle event loop changes)
     try:
