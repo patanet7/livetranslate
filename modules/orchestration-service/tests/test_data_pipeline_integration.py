@@ -48,16 +48,19 @@ from pipeline.data_pipeline import (
 # TEST CONFIGURATION
 # ============================================================================
 
-# Database configuration from environment
-DB_CONFIG = {
-    "host": os.getenv("POSTGRES_HOST", "localhost"),
-    "port": int(os.getenv("POSTGRES_PORT", "5433")),  # livetranslate-postgres container
-    "database": os.getenv("POSTGRES_DB", "livetranslate_test"),
-    "username": os.getenv("POSTGRES_USER", "livetranslate"),
-    "password": os.getenv("POSTGRES_PASSWORD", "livetranslate_dev_password"),
-}
-
+# Audio storage path
 AUDIO_STORAGE_PATH = os.getenv("TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/audio")
+
+
+def _get_db_config() -> dict:
+    """Build DB config lazily so testcontainer env vars are picked up."""
+    return {
+        "host": os.getenv("POSTGRES_HOST", "localhost"),
+        "port": int(os.getenv("POSTGRES_PORT", "5433")),
+        "database": os.getenv("POSTGRES_DB", "livetranslate_test"),
+        "username": os.getenv("POSTGRES_USER", "livetranslate"),
+        "password": os.getenv("POSTGRES_PASSWORD", "livetranslate_dev_password"),
+    }
 
 
 # ============================================================================
@@ -65,10 +68,14 @@ AUDIO_STORAGE_PATH = os.getenv("TEST_AUDIO_STORAGE", "/tmp/livetranslate_test/au
 # ============================================================================
 
 
-@pytest_asyncio.fixture(scope="module")
-async def db_manager():
-    """Create and initialize database manager."""
-    manager = create_bot_session_manager(DB_CONFIG, AUDIO_STORAGE_PATH)
+@pytest_asyncio.fixture
+async def db_manager(database_url, bot_sessions_schema):
+    """Create and initialize database manager.
+
+    Function-scoped to avoid asyncpg pool / event-loop mismatch —
+    pytest-asyncio creates a fresh event loop per test function.
+    """
+    manager = create_bot_session_manager(_get_db_config(), AUDIO_STORAGE_PATH)
 
     # Initialize database
     success = await manager.initialize()
@@ -80,7 +87,7 @@ async def db_manager():
     await manager.close()
 
 
-@pytest_asyncio.fixture(scope="module")
+@pytest_asyncio.fixture
 async def pipeline(db_manager):
     """Create data pipeline instance."""
     pipeline = TranscriptionDataPipeline(
@@ -300,7 +307,7 @@ async def test_transcription_storage(pipeline, test_session):
     assert transcript.language_code == "en"
     assert transcript.speaker_id == "SPEAKER_00"
     assert transcript.speaker_name == "John Doe"
-    assert transcript.confidence_score == 0.95
+    assert transcript.confidence_score == pytest.approx(0.95, abs=1e-5)
 
 
 @pytest.mark.asyncio
@@ -692,10 +699,11 @@ async def test_speaker_statistics(pipeline, test_session):
     assert len(stats) == 3
 
     # Verify statistics for each speaker
+    expected = {sid: (name, segs) for sid, name, segs in speakers_data}
     for stat in stats:
-        expected_segments = dict(speakers_data)[stat.speaker_id][1]
+        _, expected_segments = expected[stat.speaker_id]
         assert stat.total_segments == expected_segments
-        assert stat.total_speaking_time == expected_segments * 2.0  # 2 seconds per segment
+        assert stat.total_speaking_time == pytest.approx(expected_segments * 2.0, abs=1e-5)
         assert stat.total_translations > 0
 
 

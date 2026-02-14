@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
@@ -584,6 +584,7 @@ __all__ = [
     "SYSTEM_CONFIG_FILE",
     "TRANSLATION_CONFIG_FILE",
     "TRANSLATION_SERVICE_URL",
+    "UTC",
     # FastAPI/Pydantic imports for re-export
     "APIRouter",
     "Any",

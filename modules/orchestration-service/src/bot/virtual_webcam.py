@@ -26,7 +26,7 @@ import time
 import uuid
 from collections import deque
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
@@ -336,8 +336,8 @@ class VirtualWebcamManager:
                 confidence=translation_data.get(
                     "translation_confidence", 0.0
                 ),  # Default to 0.0 instead of 1.0
-                timestamp=datetime.now(),
-                expires_at=datetime.now()
+                timestamp=datetime.now(UTC),
+                expires_at=datetime.now(UTC)
                 + timedelta(seconds=self.config.translation_duration_seconds),
             )
 
@@ -347,7 +347,7 @@ class VirtualWebcamManager:
 
             # Update speaker activity
             if speaker_id in self.speakers:
-                self.speakers[speaker_id].last_active = datetime.now()
+                self.speakers[speaker_id].last_active = datetime.now(UTC)
 
             # Add to display queue
             with self.frame_lock:
@@ -372,7 +372,7 @@ class VirtualWebcamManager:
             speaker_name=speaker_name or f"Speaker {len(self.speakers) + 1}",
             color=color,
             position=(0, 0),  # Will be calculated during layout
-            last_active=datetime.now(),
+            last_active=datetime.now(UTC),
         )
 
         logger.info(f"Added speaker: {speaker_name} ({speaker_id})")
@@ -495,7 +495,7 @@ class VirtualWebcamManager:
         # Group translations by speaker and sort by timestamp
         active_translations = []
         for translation in self.current_translations:
-            if not (translation.expires_at and datetime.now() > translation.expires_at):
+            if not (translation.expires_at and datetime.now(UTC) > translation.expires_at):
                 active_translations.append(translation)
 
         # Sort by timestamp (newest first)
@@ -541,7 +541,7 @@ class VirtualWebcamManager:
         sidebar_x = self.config.width - sidebar_width + 10
 
         for translation in self.current_translations:
-            if translation.expires_at and datetime.now() > translation.expires_at:
+            if translation.expires_at and datetime.now(UTC) > translation.expires_at:
                 continue
 
             self._draw_sidebar_translation(
@@ -595,7 +595,7 @@ class VirtualWebcamManager:
             start_y = (self.config.height - total_height) // 2
 
             for i, translation in enumerate(self.current_translations):
-                if translation.expires_at and datetime.now() > translation.expires_at:
+                if translation.expires_at and datetime.now(UTC) > translation.expires_at:
                     continue
 
                 y_pos = start_y + (i * 100)
@@ -857,7 +857,7 @@ class VirtualWebcamManager:
 
     def _cleanup_expired_translations(self):
         """Remove expired translations from display."""
-        current_time = datetime.now()
+        current_time = datetime.now(UTC)
         with self.frame_lock:
             # Filter out expired translations
             active_translations = deque()

@@ -6,16 +6,13 @@ Provides shared fixtures, configuration, and utilities for all
 Fireflies integration tests.
 """
 
-import os
 import sys
 import uuid
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Add src to path for imports
 orchestration_root = Path(__file__).parent.parent.parent
@@ -493,65 +490,8 @@ def chunk_factory(transcript_id):
 
 
 # =============================================================================
-# Async PostgreSQL Database Fixtures (shared across intelligence tests)
+# Database Fixtures (db_session_factory inherited from root conftest.py)
 # =============================================================================
-
-
-def _get_async_database_url() -> str:
-    """Build asyncpg database URL from environment."""
-    sync_url = os.environ.get(
-        "DATABASE_URL",
-        "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",  # pragma: allowlist secret
-    )
-    # Convert postgresql:// to postgresql+asyncpg://
-    if sync_url.startswith("postgresql://"):
-        return sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    if sync_url.startswith("postgresql+asyncpg://"):
-        return sync_url
-    return f"postgresql+asyncpg://{sync_url.split('://', 1)[-1]}"
-
-
-@pytest.fixture
-async def async_db_engine():
-    """Create an async PostgreSQL engine for real DB tests."""
-    url = _get_async_database_url()
-    engine = create_async_engine(url, echo=False, pool_pre_ping=True)
-    yield engine
-    await engine.dispose()
-
-
-@pytest.fixture
-async def db_session_factory(async_db_engine):
-    """Create tables and return an async session factory backed by real PostgreSQL.
-
-    Uses the real PostgreSQL database (not SQLite) so JSONB, UUID, and all
-    PostgreSQL-specific column types work correctly.
-
-    Tables are created at the start and dropped at the end to ensure isolation.
-    """
-    import database.models  # noqa: F401 — registers models with Base.metadata
-    from database.base import Base
-
-    async with async_db_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    session_factory = async_sessionmaker(
-        async_db_engine, class_=AsyncSession, expire_on_commit=False
-    )
-
-    @asynccontextmanager
-    async def _factory():
-        async with session_factory() as session:
-            try:
-                yield session
-            except Exception:
-                await session.rollback()
-                raise
-
-    yield _factory
-
-    async with async_db_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture

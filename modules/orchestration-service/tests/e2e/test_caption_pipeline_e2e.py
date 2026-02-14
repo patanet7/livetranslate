@@ -272,7 +272,21 @@ class CaptionSender:
 # =============================================================================
 
 
+def _service_reachable() -> bool:
+    """Check if the orchestration service is reachable on localhost:3000."""
+    import socket
+
+    try:
+        with socket.create_connection(("localhost", 3000), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not _service_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 async def test_full_conversation_flow():
     """
     Test a full conversation with multiple speakers.
@@ -368,6 +382,9 @@ async def test_full_conversation_flow():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not _service_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 async def test_rapid_same_speaker():
     """
     Test rapid speech from same speaker.
@@ -430,6 +447,9 @@ async def test_rapid_same_speaker():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not _service_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 async def test_speaker_interleaving():
     """
     Test speakers interleaving (A, B, A, B pattern).
@@ -488,6 +508,9 @@ async def test_speaker_interleaving():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not _service_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 async def test_max_aggregation_time():
     """
     Test that bubbles force-refresh after max_aggregation_time.
@@ -539,6 +562,9 @@ async def test_max_aggregation_time():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    not _service_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 async def test_caption_expiration():
     """
     Test that captions have correct expiration timing.

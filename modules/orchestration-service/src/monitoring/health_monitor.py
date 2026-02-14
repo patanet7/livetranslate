@@ -11,7 +11,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -52,14 +52,14 @@ class HealthAlert:
         self.service_name = service_name
         self.level = level
         self.message = message
-        self.timestamp = timestamp or datetime.now()
+        self.timestamp = timestamp or datetime.now(UTC)
         self.resolved = False
         self.resolution_time = None
 
     def resolve(self):
         """Mark alert as resolved"""
         self.resolved = True
-        self.resolution_time = datetime.now()
+        self.resolution_time = datetime.now(UTC)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary"""

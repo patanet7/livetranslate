@@ -14,7 +14,6 @@ Service responses use fixtures that match actual response formats
 """
 
 import asyncio
-import os
 import wave
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,8 +21,6 @@ from typing import Any
 
 import numpy as np
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
 # SMPTE Timecode for precise audio overlap handling
 try:
@@ -32,125 +29,37 @@ try:
     SMPTE_AVAILABLE = True
 except ImportError:
     SMPTE_AVAILABLE = False
-    print("⚠️  timecode (SMPTE) not available - falling back to simple chunking")
+    print("timecode (SMPTE) not available - falling back to simple chunking")
 
 # Database imports
 from src.database import (
-    Base,
     DatabaseManager,
 )
 from src.database.unified_bot_session_repository import UnifiedBotSessionRepository
 
 # Test Configuration
 BASE_URL = "http://localhost:3000"
-# Use PostgreSQL for integration tests - SQLite doesn't support JSONB types
-# Port 5433 is the livetranslate-postgres container
-# Sync URL for SQLAlchemy create_engine (psycopg2)
-TEST_DB_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
-)
-# Async URL for async operations (asyncpg)
-TEST_DB_URL_ASYNC = os.getenv(
-    "TEST_DATABASE_URL_ASYNC",
-    "postgresql+asyncpg://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
-)
 
 
 # =============================================================================
-# TEST DATABASE SETUP
+# TEST DATABASE SETUP -- uses shared testcontainer + Alembic from root conftest
 # =============================================================================
 
 
-@pytest.fixture(scope="session")
-def test_database():
-    """
-    Create a real test database for integration testing.
-    Uses PostgreSQL to match production and support JSONB types.
-    """
-    from sqlalchemy import text
-
-    # Create test database
-    engine = create_engine(TEST_DB_URL, echo=False)
-
-    # Use raw SQL to cleanly drop ALL objects in public schema
-    # This avoids issues with partial drops and index conflicts
-    with engine.connect() as conn:
-        # Drop all indexes first
-        conn.execute(
-            text("""
-            DO $$ DECLARE
-                idx RECORD;
-            BEGIN
-                FOR idx IN (
-                    SELECT indexname FROM pg_indexes
-                    WHERE schemaname = 'public'
-                    AND indexname NOT LIKE 'pg_%'
-                ) LOOP
-                    EXECUTE 'DROP INDEX IF EXISTS public.' || quote_ident(idx.indexname) || ' CASCADE';
-                END LOOP;
-            END $$;
-        """)
-        )
-
-        # Then drop all tables
-        conn.execute(
-            text("""
-            DO $$ DECLARE
-                r RECORD;
-            BEGIN
-                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-                    EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
-                END LOOP;
-            END $$;
-        """)
-        )
-        conn.commit()
-
-    # Now create all tables fresh
-    Base.metadata.create_all(bind=engine)
-
-    session_local = sessionmaker(bind=engine)
-
-    yield {
-        "engine": engine,
-        "session_factory": session_local,
-        "url": TEST_DB_URL,
-    }
-
-    # Cleanup after all tests - just drop tables, don't dispose engine yet
-    try:
-        Base.metadata.drop_all(bind=engine)
-    except Exception:
-        pass  # Ignore cleanup errors
-    engine.dispose()
-
-
 @pytest.fixture(scope="function")
-async def db_session(test_database):
-    """
-    Create a fresh database session for each test.
-    Rolls back after test to ensure isolation.
-    """
-    session = test_database["session_factory"]()
-
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
-
-
-@pytest.fixture(scope="function")
-async def bot_repository(test_database):
+async def bot_repository(database_url):
     """
     Create UnifiedBotSessionRepository with test database.
     Uses async URL for asyncpg driver.
     """
     from config import DatabaseSettings
 
-    # Use async URL for asyncpg driver
-    db_config = DatabaseSettings(url=TEST_DB_URL_ASYNC)
+    # Convert sync URL to async URL for asyncpg driver
+    async_url = database_url
+    if database_url.startswith("postgresql://"):
+        async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    db_config = DatabaseSettings(url=async_url)
     db_manager = DatabaseManager(db_config)
     db_manager.initialize()  # Sync method, not async
 
@@ -457,8 +366,12 @@ class TestDatabaseIntegration:
         """
         TEST: Create bot session and retrieve from database
         VERIFY: Session is persisted correctly with all fields
+
+        Uses actual ORM model column names:
+        - meeting_uri (not meeting_url)
+        - session_metadata (not bot_config / metadata)
+        - session_id is a UUID generated by PostgreSQL
         """
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
         meeting_url = "https://meet.google.com/abc-defg-hij"
         bot_config = {
             "audio_config": {
@@ -473,38 +386,42 @@ class TestDatabaseIntegration:
 
         # Create session
         created_session = await bot_repository.session_create(
-            session_id=session_id,
             meeting_url=meeting_url,
             bot_config=bot_config,
             metadata={"test": True},
         )
 
         assert created_session is not None, "Session should be created"
-        assert created_session.session_id == session_id
-        assert created_session.meeting_url == meeting_url
+        assert created_session.session_id is not None
+        assert created_session.meeting_uri == meeting_url
         assert created_session.status == "initializing"
-        assert created_session.bot_config == bot_config
+        # bot_config is stored inside session_metadata
+        assert created_session.session_metadata["bot_config"] == bot_config
 
-        # Retrieve session
-        retrieved_session = await bot_repository.session_get(session_id)
+        # Retrieve session by its UUID
+        retrieved_session = await bot_repository.session_get(created_session.session_id)
 
         assert retrieved_session is not None, "Session should be retrievable"
-        assert retrieved_session.session_id == session_id
-        assert retrieved_session.meeting_url == meeting_url
-        assert retrieved_session.bot_config == bot_config
+        assert retrieved_session.session_id == created_session.session_id
+        assert retrieved_session.meeting_uri == meeting_url
+        assert retrieved_session.session_metadata["bot_config"] == bot_config
 
     async def test_audio_file_storage(self, bot_repository, generate_test_audio):
         """
         TEST: Store and retrieve audio files with chunks
         VERIFY: Audio data persisted correctly with metadata
+
+        Uses actual ORM model column names:
+        - file_id (the UUID primary key for AudioFile)
+        - session_metadata (for metadata storage)
         """
         # Create session first
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-        await bot_repository.session_create(
-            session_id=session_id,
+        session = await bot_repository.session_create(
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
+        assert session is not None
+        session_id = session.session_id
 
         # Generate test audio
         audio_data = generate_test_audio(duration_seconds=2.0, frequency=440)
@@ -526,31 +443,37 @@ class TestDatabaseIntegration:
         assert audio_file.sample_rate == 16000
         assert audio_file.duration == 2.0
 
-        # Retrieve audio file
-        retrieved_audio = await bot_repository.audio_get(audio_file.audio_id)
+        # Retrieve audio file by its UUID (file_id is the ORM PK)
+        retrieved_audio = await bot_repository.audio_get(audio_file.file_id)
 
         assert retrieved_audio is not None, "Audio should be retrievable"
-        assert retrieved_audio.audio_id == audio_file.audio_id
+        assert retrieved_audio.file_id == audio_file.file_id
         assert retrieved_audio.file_size == len(audio_data)
 
     async def test_transcript_storage(self, bot_repository, whisper_transcription_response):
         """
         TEST: Store transcription results in database
         VERIFY: Transcripts persisted with segments and speakers
+
+        Uses actual ORM model column names:
+        - text (the transcription text)
+        - session_metadata contains segments and speakers
+        - audio_file_id links to the audio file
         """
         # Create session and audio file
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-        await bot_repository.session_create(
-            session_id=session_id,
+        session = await bot_repository.session_create(
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
+        assert session is not None
+        session_id = session.session_id
 
         audio_file = await bot_repository.audio_create(
             session_id=session_id,
             audio_data=b"fake_audio_data",
             metadata={"sample_rate": 16000},
         )
+        assert audio_file is not None
 
         # Create transcription response
         transcription = whisper_transcription_response(
@@ -561,7 +484,7 @@ class TestDatabaseIntegration:
 
         # Store transcript
         transcript_record = await bot_repository.transcript_create(
-            audio_id=audio_file.audio_id,
+            audio_id=audio_file.file_id,
             transcription_text=transcription["text"],
             language=transcription["language"],
             confidence=transcription["confidence"],
@@ -570,12 +493,13 @@ class TestDatabaseIntegration:
         )
 
         assert transcript_record is not None, "Transcript should be created"
-        assert transcript_record.audio_id == audio_file.audio_id
-        assert transcript_record.transcription_text == transcription["text"]
+        assert transcript_record.audio_file_id == audio_file.file_id
+        assert transcript_record.text == transcription["text"]
         assert transcript_record.language == "en"
         assert transcript_record.confidence >= 0.95
-        assert len(transcript_record.segments) > 0
-        assert len(transcript_record.speakers) > 0
+        # segments and speakers are stored inside session_metadata
+        assert len(transcript_record.session_metadata["segments"]) > 0
+        assert len(transcript_record.session_metadata["speakers"]) > 0
 
     async def test_translation_storage(self, bot_repository, translation_service_response):
         """
@@ -583,28 +507,30 @@ class TestDatabaseIntegration:
         VERIFY: Translations linked to transcripts correctly
         """
         # Create session, audio, and transcript
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-        await bot_repository.session_create(
-            session_id=session_id,
+        session = await bot_repository.session_create(
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
+        assert session is not None
+        session_id = session.session_id
 
         audio_file = await bot_repository.audio_create(
             session_id=session_id, audio_data=b"fake_audio", metadata={}
         )
+        assert audio_file is not None
 
         transcript = await bot_repository.transcript_create(
-            audio_id=audio_file.audio_id,
+            audio_id=audio_file.file_id,
             transcription_text="Hello, how are you?",
             language="en",
             confidence=0.95,
         )
+        assert transcript is not None
 
         # Create translation
         translation_data = translation_service_response(
             source_text="Hello, how are you?",
-            translated_text="Hola, ¿cómo estás?",
+            translated_text="Hola, como estas?",
             source_language="en",
             target_language="es",
             confidence=0.93,
@@ -671,12 +597,12 @@ class TestAudioChunking:
         VERIFY: All chunks tracked with sequence numbers
         """
         # Create session
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-        await bot_repository.session_create(
-            session_id=session_id,
+        session = await bot_repository.session_create(
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
+        assert session is not None
+        session_id = session.session_id
 
         # Generate and chunk audio
         audio_data = generate_test_audio(duration_seconds=2.0, sample_rate=16000)
@@ -700,10 +626,10 @@ class TestAudioChunking:
         # Verify all chunks stored
         assert len(audio_files) == len(chunks), "All chunks should be stored"
 
-        # Verify sequence
+        # Verify sequence (metadata is stored in session_metadata)
         for i, audio_file in enumerate(audio_files):
-            assert audio_file.metadata["chunk_index"] == i
-            assert audio_file.metadata["total_chunks"] == len(chunks)
+            assert audio_file.session_metadata["chunk_index"] == i
+            assert audio_file.session_metadata["total_chunks"] == len(chunks)
 
         # Verify total data
         total_size = sum(af.file_size for af in audio_files)
@@ -721,12 +647,12 @@ class TestAudioChunking:
         VERIFY: All chunks processed and stored correctly
         """
         # Create session
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-        await bot_repository.session_create(
-            session_id=session_id,
+        session = await bot_repository.session_create(
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
+        assert session is not None
+        session_id = session.session_id
 
         # Generate chunks
         audio_data = generate_test_audio(duration_seconds=3.0, sample_rate=16000)
@@ -750,7 +676,7 @@ class TestAudioChunking:
 
             # Store transcript
             transcript = await bot_repository.transcript_create(
-                audio_id=audio_file.audio_id,
+                audio_id=audio_file.file_id,
                 transcription_text=transcription["text"],
                 language=transcription["language"],
                 confidence=transcription["confidence"],
@@ -788,12 +714,12 @@ class TestAudioChunking:
         VERIFY: Overlaps handled correctly, SMPTE timecodes accurate, proper reconstruction
         """
         # Create session
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-        await bot_repository.session_create(
-            session_id=session_id,
+        session = await bot_repository.session_create(
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
+        assert session is not None
+        session_id = session.session_id
 
         # Generate audio (10 seconds for clear timecode testing)
         audio_data = generate_test_audio(duration_seconds=10.0, sample_rate=16000, frequency=440)
@@ -807,7 +733,7 @@ class TestAudioChunking:
             framerate="30",  # 30fps SMPTE timecode
         )
 
-        print("\n📊 Overlapping Chunk Analysis:")
+        print("\nOverlapping Chunk Analysis:")
         print("   Total audio duration: 10.0s")
         print("   Chunk size: 500ms")
         print("   Overlap: 100ms")
@@ -859,15 +785,15 @@ class TestAudioChunking:
         # Verify database storage
         assert len(stored_chunks) == len(chunks), "All chunks should be stored"
 
-        # Verify we can reconstruct timeline from database
+        # Verify we can reconstruct timeline from database (using session_metadata)
         retrieved_chunks = []
         for audio_file in stored_chunks:
             retrieved_chunks.append(
                 {
-                    "index": audio_file.metadata["chunk_index"],
-                    "start": audio_file.metadata["start_time_seconds"],
-                    "end": audio_file.metadata["end_time_seconds"],
-                    "timecode": audio_file.metadata.get("ltc_timecode"),
+                    "index": audio_file.session_metadata["chunk_index"],
+                    "start": audio_file.session_metadata["start_time_seconds"],
+                    "end": audio_file.session_metadata["end_time_seconds"],
+                    "timecode": audio_file.session_metadata.get("ltc_timecode"),
                 }
             )
 
@@ -880,11 +806,11 @@ class TestAudioChunking:
             gap = retrieved_chunks[i]["start"] - retrieved_chunks[i - 1]["end"]
             assert gap <= 0, f"No gaps allowed between chunks (gap: {gap:.3f}s)"
 
-        print(f"\n   ✅ All {len(chunks)} chunks stored with proper SMPTE timecode metadata")
-        print(f"   ✅ Overlaps verified: {chunks[1]['overlap_ms']}ms between consecutive chunks")
-        print("   ✅ Timeline reconstructed from database successfully")
+        print(f"\n   All {len(chunks)} chunks stored with proper SMPTE timecode metadata")
+        print(f"   Overlaps verified: {chunks[1]['overlap_ms']}ms between consecutive chunks")
+        print("   Timeline reconstructed from database successfully")
         if chunks[0].get("smpte_timecode"):
-            print(f"   ✅ SMPTE framerate: {chunks[0]['smpte_timecode']['framerate']} fps")
+            print(f"   SMPTE framerate: {chunks[0]['smpte_timecode']['framerate']} fps")
 
 
 # =============================================================================
@@ -902,18 +828,18 @@ class TestSessionMetrics:
         TEST: Track complete session lifecycle
         VERIFY: Status transitions recorded correctly
         """
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-
         # Create session
         session = await bot_repository.session_create(
-            session_id=session_id,
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
 
+        assert session is not None
         assert session.status == "initializing"
         assert session.started_at is not None
         assert session.ended_at is None
+
+        session_id = session.session_id
 
         # Update to running
         await bot_repository.session_update(
@@ -922,6 +848,7 @@ class TestSessionMetrics:
         )
 
         updated = await bot_repository.session_get(session_id)
+        assert updated is not None
         assert updated.status == "running"
 
         # Update to completed
@@ -931,6 +858,7 @@ class TestSessionMetrics:
         )
 
         completed = await bot_repository.session_get(session_id)
+        assert completed is not None
         assert completed.status == "completed"
         assert completed.ended_at is not None
 
@@ -950,12 +878,12 @@ class TestSessionMetrics:
         VERIFY: Latency, confidence, and throughput tracked
         """
         # Create session
-        session_id = f"test-session-{int(datetime.now().timestamp())}"
-        await bot_repository.session_create(
-            session_id=session_id,
+        session = await bot_repository.session_create(
             meeting_url="https://meet.google.com/test",
             bot_config={},
         )
+        assert session is not None
+        session_id = session.session_id
 
         # Process multiple chunks and track metrics
         metrics = {
@@ -979,6 +907,7 @@ class TestSessionMetrics:
                 audio_data=audio_data,
                 metadata={"chunk_index": i},
             )
+            assert audio_file is not None
 
             # Simulate transcription
             transcription = whisper_transcription_response(
@@ -988,16 +917,17 @@ class TestSessionMetrics:
             )
 
             transcript = await bot_repository.transcript_create(
-                audio_id=audio_file.audio_id,
+                audio_id=audio_file.file_id,
                 transcription_text=transcription["text"],
                 language=transcription["language"],
                 confidence=transcription["confidence"],
             )
+            assert transcript is not None
 
             # Simulate translation
             translation = translation_service_response(
                 source_text=transcription["text"],
-                translated_text=f"Chunk {i} traducción",
+                translated_text=f"Chunk {i} traduccion",
                 processing_time=0.2 + (i * 0.03),
             )
 
@@ -1033,7 +963,7 @@ class TestSessionMetrics:
         assert metrics["average_translation_time"] > 0
         assert metrics["throughput"] > 0, "Should have positive throughput"
 
-        print("\n📊 Processing Metrics:")
+        print("\nProcessing Metrics:")
         print(f"   Chunks processed: {metrics['chunks_processed']}")
         print(f"   Total duration: {metrics['total_audio_duration']:.2f}s")
         print(f"   Avg transcription time: {metrics['average_transcription_time']:.3f}s")
@@ -1049,18 +979,18 @@ _TEST_SUMMARY = """
 Test Summary:
 =============
 
-✅ Database Integration (4 tests):
+Database Integration (4 tests):
    - Session create and retrieve
    - Audio file storage with chunks
    - Transcript storage with segments
    - Translation storage with linking
 
-✅ Audio Chunking (3 tests):
+Audio Chunking (3 tests):
    - Chunk generation and validation
    - Chunk streaming to database
    - Concurrent chunk processing
 
-✅ Session Metrics (2 tests):
+Session Metrics (2 tests):
    - Session lifecycle tracking
    - Processing metrics collection
 

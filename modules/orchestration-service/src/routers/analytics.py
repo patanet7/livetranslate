@@ -15,7 +15,7 @@ FastAPI router for comprehensive system analytics and monitoring including:
 import csv
 import io
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
 
@@ -202,7 +202,7 @@ async def get_analytics_overview(
     """
     try:
         # Get time range boundaries
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = _get_start_time(time_range, end_time)
 
         # Collect metrics from all services
@@ -268,7 +268,7 @@ async def get_specific_metrics(
     with optional service filtering and custom aggregation.
     """
     try:
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = _get_start_time(time_range, end_time)
 
         # Route to specific metric collection
@@ -328,7 +328,7 @@ async def get_trend_analysis(
     with configurable resolution and forecasting.
     """
     try:
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = _get_start_time(time_range, end_time)
 
         trend_data = {}
@@ -389,7 +389,7 @@ async def get_audio_processing_analytics(
     performance, quality scores, and hardware utilization.
     """
     try:
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         start_time = _get_start_time(time_range, end_time)
 
         # Collect audio processing metrics
@@ -452,7 +452,7 @@ async def get_translation_analytics(
     speed, and language-specific performance breakdown.
     """
     try:
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         _get_start_time(time_range, end_time)
 
         # Get translation service metrics
@@ -508,7 +508,7 @@ async def get_websocket_analytics(
     message throughput, and performance characteristics.
     """
     try:
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         _get_start_time(time_range, end_time)
 
         # Get WebSocket analytics
@@ -569,7 +569,7 @@ async def get_bot_session_analytics(
     platform-specific performance, and session quality indicators.
     """
     try:
-        end_time = datetime.now()
+        end_time = datetime.now(UTC)
         _get_start_time(time_range, end_time)
 
         # Get bot session analytics (use placeholder for now)
@@ -651,7 +651,7 @@ async def create_custom_dashboard(
             "aggregation": dashboard_request.aggregation,
             "filters": dashboard_request.filters,
             "refresh_interval": dashboard_request.refresh_interval,
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
         }
 
         # Save dashboard configuration (in production, save to database)
@@ -704,9 +704,9 @@ async def get_dashboard_data(
         return {
             "dashboard_id": dashboard_id,
             "data": dashboard_data,
-            "last_updated": datetime.now().isoformat(),
+            "last_updated": datetime.now(UTC).isoformat(),
             "next_refresh": (
-                datetime.now() + timedelta(seconds=dashboard_config["refresh_interval"])
+                datetime.now(UTC) + timedelta(seconds=dashboard_config["refresh_interval"])
             ).isoformat(),
         }
 
@@ -733,7 +733,7 @@ async def export_analytics(
     """
     try:
         # Determine time range
-        end_time = export_request.end_time or datetime.now()
+        end_time = export_request.end_time or datetime.now(UTC)
         start_time = export_request.start_time or _get_start_time(
             export_request.time_range, end_time
         )
@@ -798,7 +798,7 @@ async def get_active_alerts(
             "total_alerts": len(enriched_alerts),
             "severity_breakdown": _count_by_severity(enriched_alerts),
             "alerts": enriched_alerts,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     except Exception as e:
@@ -1094,7 +1094,7 @@ async def _check_system_alerts(
 def _export_json(data: dict[str, Any], start_time: datetime, end_time: datetime) -> JSONResponse:
     """Export data as JSON"""
     export_data = {
-        "export_timestamp": datetime.now().isoformat(),
+        "export_timestamp": datetime.now(UTC).isoformat(),
         "time_range": {"start": start_time.isoformat(), "end": end_time.isoformat()},
         "data": data,
     }

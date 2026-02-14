@@ -23,7 +23,7 @@ import logging
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -234,8 +234,8 @@ class AudioFileManager:
                     "completed",
                     file_hash,
                     json.dumps(metadata or {}),
-                    datetime.now(),
-                    datetime.now(),
+                    datetime.now(UTC).replace(tzinfo=None),
+                    datetime.now(UTC).replace(tzinfo=None),
                 )
 
             logger.info(f"Stored audio file: {file_id} ({len(audio_data)} bytes)")
@@ -383,8 +383,8 @@ class TranscriptManager:
                     audio_file_id,
                     google_entry_id,
                     json.dumps(processing_metadata or {}),
-                    datetime.now(),
-                    datetime.now(),
+                    datetime.now(UTC).replace(tzinfo=None),
+                    datetime.now(UTC).replace(tzinfo=None),
                 )
 
             logger.debug(f"Stored transcript: {transcript_id} ({source_type})")
@@ -543,8 +543,8 @@ class TranslationManager:
                     start_timestamp,
                     end_timestamp,
                     json.dumps(processing_metadata or {}),
-                    datetime.now(),
-                    datetime.now(),
+                    datetime.now(UTC).replace(tzinfo=None),
+                    datetime.now(UTC).replace(tzinfo=None),
                 )
 
             logger.debug(
@@ -649,7 +649,7 @@ class CorrelationManager:
                     start_timestamp,
                     end_timestamp,
                     json.dumps(correlation_metadata or {}),
-                    datetime.now(),
+                    datetime.now(UTC).replace(tzinfo=None),
                 )
 
             logger.debug(f"Stored correlation: {correlation_id} ({correlation_type})")
@@ -805,13 +805,13 @@ class BotSessionDatabaseManager:
                     session_data.get("google_meet_space_id"),
                     session_data.get("conference_record_id"),
                     session_data.get("status", "spawning"),
-                    session_data.get("start_time", datetime.now()),
+                    session_data.get("start_time", datetime.now(UTC).replace(tzinfo=None)),
                     session_data.get("participant_count", 0),
                     json.dumps(session_data.get("target_languages", [])),
                     json.dumps(session_data.get("session_metadata", {})),
                     json.dumps(session_data.get("performance_stats", {})),
-                    datetime.now(),
-                    datetime.now(),
+                    datetime.now(UTC).replace(tzinfo=None),
+                    datetime.now(UTC).replace(tzinfo=None),
                 )
 
             self.total_sessions += 1
@@ -838,7 +838,7 @@ class BotSessionDatabaseManager:
                 param_count += 1
 
             set_clauses.append(f"updated_at = ${param_count}")
-            params.append(datetime.now())
+            params.append(datetime.now(UTC).replace(tzinfo=None))
             params.append(session_id)  # For WHERE clause
 
             query = f"""

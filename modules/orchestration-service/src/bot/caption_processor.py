@@ -22,7 +22,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 # Configure logging
@@ -320,7 +320,7 @@ class SpeakerTimelineManager:
                 "google_transcript_entry_id": caption.segment_id,
                 "processing_metadata": {
                     "caption_source": caption.caption_source,
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             }
 

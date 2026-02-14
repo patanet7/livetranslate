@@ -33,8 +33,21 @@ def generate_test_audio(
     return audio_signal.tobytes()
 
 
+def _orchestration_reachable() -> bool:
+    import socket
+
+    try:
+        with socket.create_connection(("localhost", 3000), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not _orchestration_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 class TestActualChunking:
     """Test real audio chunking through orchestration service"""
 
