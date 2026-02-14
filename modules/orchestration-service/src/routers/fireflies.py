@@ -22,7 +22,12 @@ from clients.fireflies_client import (
     FirefliesClient,
 )
 from config import FirefliesSettings, get_settings
-from dependencies import get_data_pipeline
+from dependencies import (
+    get_data_pipeline,
+    get_event_publisher,
+    get_fireflies_llm_client,
+    get_meeting_intelligence_service,
+)
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from models.fireflies import (
     ActiveMeetingsResponse,
@@ -33,6 +38,7 @@ from models.fireflies import (
     FirefliesSessionConfig,
 )
 from pydantic import BaseModel, Field
+from routers.captions import get_connection_manager as get_ws_manager
 from services.caption_buffer import CaptionBuffer
 
 # Pipeline imports (DRY coordinator)
@@ -93,9 +99,11 @@ class FirefliesSessionManager:
         # Optional service injections for pipeline
         glossary_service=None,
         translation_client=None,
-        simple_translation_client=None,
+        llm_client=None,
         db_manager=None,
         obs_output=None,
+        meeting_intelligence=None,
+        event_publisher=None,
     ) -> FirefliesSession:
         """Create and connect a new Fireflies session with full pipeline"""
 
@@ -145,21 +153,51 @@ class FirefliesSessionManager:
             source_metadata={"fireflies_transcript_id": config.transcript_id},
         )
 
+        # Configure auto-notes if meeting_intelligence is provided
+        if meeting_intelligence:
+            from config import get_settings
+
+            intel_settings = get_settings().intelligence
+            pipeline_config.enable_auto_notes = intel_settings.auto_notes_enabled
+            pipeline_config.auto_notes_interval = intel_settings.auto_notes_interval_sentences
+            pipeline_config.auto_notes_template = intel_settings.auto_notes_template
+
         # Create coordinator with Fireflies adapter
         coordinator = TranscriptionPipelineCoordinator(
             config=pipeline_config,
             adapter=FirefliesChunkAdapter(),
             glossary_service=glossary_service,
             translation_client=translation_client,
-            simple_translation_client=simple_translation_client,
+            llm_client=llm_client,
             caption_buffer=caption_buffer,
             db_manager=db_manager,
             obs_output=obs_output,
+            meeting_intelligence=meeting_intelligence,
+            event_publisher=event_publisher,
         )
 
         # Initialize the pipeline
         await coordinator.initialize()
         self._coordinators[session_id] = coordinator
+
+        # Bridge captions to WebSocket clients (captions.html)
+        ws_manager = get_ws_manager()
+
+        async def _broadcast_caption_to_ws(event_type: str, caption) -> None:
+            """Forward caption events from pipeline to WebSocket clients."""
+            if event_type == "caption_expired":
+                await ws_manager.broadcast_to_session(
+                    session_id,
+                    {"event": "caption_expired", "caption_id": caption.id},
+                )
+            else:
+                await ws_manager.broadcast_to_session(
+                    session_id,
+                    {"event": event_type, "caption": caption.to_dict()},
+                    target_language=caption.target_language,
+                )
+
+        coordinator.on_caption_event(_broadcast_caption_to_ws)
 
         logger.info(f"Pipeline coordinator initialized for session {session_id}")
 
@@ -271,7 +309,7 @@ class FirefliesSessionManager:
         domain: str | None = None,
         db_manager=None,
         translation_client=None,
-        simple_translation_client=None,
+        llm_client=None,
     ) -> tuple[str, TranscriptionPipelineCoordinator]:
         """
         Create a session for importing historical transcripts.
@@ -287,7 +325,7 @@ class FirefliesSessionManager:
             domain: Optional domain for glossary filtering
             db_manager: Database manager for persistence
             translation_client: Translation service client
-            simple_translation_client: V3 translation client
+            llm_client: LLMClientProtocol for prompt-based translation
 
         Returns:
             Tuple of (session_id, coordinator) for manual chunk processing
@@ -329,7 +367,7 @@ class FirefliesSessionManager:
             config=pipeline_config,
             adapter=ImportChunkAdapter(source_name="fireflies_import"),
             translation_client=translation_client,
-            simple_translation_client=simple_translation_client,
+            llm_client=llm_client,
             caption_buffer=caption_buffer,
             db_manager=db_manager,
         )
@@ -337,6 +375,24 @@ class FirefliesSessionManager:
         # Initialize the pipeline
         await coordinator.initialize()
         self._coordinators[session_id] = coordinator
+
+        # Bridge captions to WebSocket clients (captions.html)
+        ws_manager = get_ws_manager()
+
+        async def _broadcast_import_caption_to_ws(event_type: str, caption) -> None:
+            if event_type == "caption_expired":
+                await ws_manager.broadcast_to_session(
+                    session_id,
+                    {"event": "caption_expired", "caption_id": caption.id},
+                )
+            else:
+                await ws_manager.broadcast_to_session(
+                    session_id,
+                    {"event": event_type, "caption": caption.to_dict()},
+                    target_language=caption.target_language,
+                )
+
+        coordinator.on_caption_event(_broadcast_import_caption_to_ws)
 
         logger.info(f"Import session created: {session_id} for transcript {transcript_id}")
 
@@ -525,10 +581,36 @@ async def connect_to_fireflies(
                 "No database manager - transcripts and translations will NOT be persisted"
             )
 
+        # Get optional intelligence and event publisher services
+        try:
+            meeting_intelligence = get_meeting_intelligence_service()
+        except Exception:
+            meeting_intelligence = None
+
+        try:
+            event_publisher = get_event_publisher()
+        except Exception:
+            event_publisher = None
+
+        # Create LLM client for translation pipeline
+        llm_client = None
+        try:
+            llm_client = get_fireflies_llm_client()
+            await llm_client.connect()
+            logger.info("LLM client connected for Fireflies translation pipeline")
+        except Exception as e:
+            logger.warning(
+                f"LLM client unavailable for Fireflies pipeline: {e}. "
+                "Translations will be skipped but transcripts will still be stored."
+            )
+
         # Create session with transcript handling and database persistence
         session = await manager.create_session(
             config,
             db_manager=db_manager,
+            meeting_intelligence=meeting_intelligence,
+            event_publisher=event_publisher,
+            llm_client=llm_client,
         )
 
         logger.info(
@@ -950,15 +1032,22 @@ async def import_transcript_to_db(
 
         # Get translation clients if translations requested
         translation_client = None
-        simple_translation_client = None
+        llm_client = None
 
         if request.include_translations:
             try:
-                from clients.translation_service_client import TranslationServiceClient
-
-                translation_client = TranslationServiceClient()
+                llm_client = get_fireflies_llm_client()
+                await llm_client.connect()
+                logger.info("LLM client connected for Fireflies import pipeline")
             except Exception as e:
-                logger.warning(f"Translation client unavailable: {e}")
+                logger.warning(f"LLM client unavailable for import: {e}")
+                # Fall back to legacy TranslationServiceClient
+                try:
+                    from clients.translation_service_client import TranslationServiceClient
+
+                    translation_client = TranslationServiceClient()
+                except Exception as e2:
+                    logger.warning(f"Translation client also unavailable: {e2}")
 
         # Step 3: Create import session (uses same pipeline as live sessions)
         session_id, coordinator = await manager.create_import_session(
@@ -969,7 +1058,7 @@ async def import_transcript_to_db(
             domain=request.domain,
             db_manager=db_manager,
             translation_client=translation_client,
-            simple_translation_client=simple_translation_client,
+            llm_client=llm_client,
         )
 
         # Step 4: Process each sentence through the pipeline

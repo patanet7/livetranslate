@@ -550,3 +550,294 @@ class GlossaryEntry(Base):
             translation: str = self.translations[target_language]
             return translation
         return None
+
+
+# =============================================================================
+# Meeting Intelligence Models
+# =============================================================================
+
+
+class MeetingNote(Base):
+    """Real-time meeting notes (auto-generated, manual, or annotated)."""
+
+    __tablename__ = "meeting_notes"
+
+    note_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
+
+    # Note classification
+    note_type = Column(String(50), nullable=False, default="manual")  # auto, manual, annotation
+
+    # Content
+    content = Column(Text, nullable=False)
+    prompt_used = Column(Text, nullable=True)  # Prompt that generated it (null for manual)
+    context_sentences = Column(JSON, nullable=True)  # Transcript sentences used as context
+    speaker_name = Column(String(255), nullable=True)  # If note is about a specific speaker
+
+    # Transcript range
+    transcript_range_start = Column(Float, nullable=True)
+    transcript_range_end = Column(Float, nullable=True)
+
+    # LLM metadata
+    llm_backend = Column(String(100), nullable=True)
+    llm_model = Column(String(255), nullable=True)
+    processing_time_ms = Column(Float, nullable=True)
+
+    # Metadata
+    note_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    session = relationship("BotSession")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_meeting_notes_session_id", "session_id"),
+        Index("idx_meeting_notes_note_type", "note_type"),
+        Index("idx_meeting_notes_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "note_id": str(self.note_id),
+            "session_id": str(self.session_id),
+            "note_type": self.note_type,
+            "content": self.content,
+            "prompt_used": self.prompt_used,
+            "context_sentences": self.context_sentences,
+            "speaker_name": self.speaker_name,
+            "transcript_range_start": self.transcript_range_start,
+            "transcript_range_end": self.transcript_range_end,
+            "llm_backend": self.llm_backend,
+            "llm_model": self.llm_model,
+            "processing_time_ms": self.processing_time_ms,
+            "metadata": self.note_metadata,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class MeetingInsight(Base):
+    """Post-meeting generated insights."""
+
+    __tablename__ = "meeting_insights"
+
+    insight_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
+    template_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("insight_prompt_templates.template_id"),
+        nullable=True,
+    )
+
+    # Insight classification
+    insight_type = Column(
+        String(50), nullable=False, default="summary"
+    )  # summary, action_items, decisions, custom
+    title = Column(String(500), nullable=False)
+
+    # Content
+    content = Column(Text, nullable=False)
+    prompt_used = Column(Text, nullable=True)  # Full prompt sent to LLM
+    transcript_length = Column(Integer, nullable=True)  # Chars of transcript used
+
+    # LLM metadata
+    llm_backend = Column(String(100), nullable=True)
+    llm_model = Column(String(255), nullable=True)
+    processing_time_ms = Column(Float, nullable=True)
+
+    # Metadata (speakers, duration, etc.)
+    insight_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    session = relationship("BotSession")
+    template = relationship("InsightPromptTemplate")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_meeting_insights_session_id", "session_id"),
+        Index("idx_meeting_insights_insight_type", "insight_type"),
+        Index("idx_meeting_insights_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "insight_id": str(self.insight_id),
+            "session_id": str(self.session_id),
+            "template_id": str(self.template_id) if self.template_id else None,
+            "insight_type": self.insight_type,
+            "title": self.title,
+            "content": self.content,
+            "prompt_used": self.prompt_used,
+            "transcript_length": self.transcript_length,
+            "llm_backend": self.llm_backend,
+            "llm_model": self.llm_model,
+            "processing_time_ms": self.processing_time_ms,
+            "metadata": self.insight_metadata,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class InsightPromptTemplate(Base):
+    """Configurable prompt templates for insight generation."""
+
+    __tablename__ = "insight_prompt_templates"
+
+    template_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # Template identification
+    name = Column(String(255), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    category = Column(
+        String(100), nullable=False, default="custom"
+    )  # summary, analysis, action_items, custom
+
+    # Prompt content
+    prompt_template = Column(Text, nullable=False)  # With {transcript}, {speakers}, etc.
+    system_prompt = Column(Text, nullable=True)  # Optional system message override
+    expected_output_format = Column(
+        String(50), nullable=False, default="markdown"
+    )  # text, markdown, json, bullets
+
+    # LLM defaults
+    default_llm_backend = Column(String(100), nullable=True)  # Uses session default if null
+    default_temperature = Column(Float, nullable=False, default=0.3)
+    default_max_tokens = Column(Integer, nullable=False, default=1024)
+
+    # Status
+    is_builtin = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    # Metadata
+    template_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_insight_templates_name", "name"),
+        Index("idx_insight_templates_category", "category"),
+        Index("idx_insight_templates_is_active", "is_active"),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "template_id": str(self.template_id),
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "prompt_template": self.prompt_template,
+            "system_prompt": self.system_prompt,
+            "expected_output_format": self.expected_output_format,
+            "default_llm_backend": self.default_llm_backend,
+            "default_temperature": self.default_temperature,
+            "default_max_tokens": self.default_max_tokens,
+            "is_builtin": self.is_builtin,
+            "is_active": self.is_active,
+            "metadata": self.template_metadata,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class AgentConversation(Base):
+    """Chat sessions about a meeting."""
+
+    __tablename__ = "agent_conversations"
+
+    conversation_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id = Column(UUID(as_uuid=True), ForeignKey("bot_sessions.session_id"), nullable=False)
+
+    # Conversation details
+    title = Column(String(500), nullable=True)
+    status = Column(String(50), nullable=False, default="active")  # active, closed
+
+    # System context (system prompt with transcript context)
+    system_context = Column(Text, nullable=True)
+
+    # Metadata
+    conversation_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+    updated_at = Column(DateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    session = relationship("BotSession")
+    messages = relationship(
+        "AgentMessage", back_populates="conversation", cascade="all, delete-orphan"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_agent_conversations_session_id", "session_id"),
+        Index("idx_agent_conversations_status", "status"),
+        Index("idx_agent_conversations_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "conversation_id": str(self.conversation_id),
+            "session_id": str(self.session_id),
+            "title": self.title,
+            "status": self.status,
+            "system_context": self.system_context,
+            "metadata": self.conversation_metadata,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class AgentMessage(Base):
+    """Individual messages in agent chat."""
+
+    __tablename__ = "agent_messages"
+
+    message_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("agent_conversations.conversation_id"),
+        nullable=False,
+    )
+
+    # Message content
+    role = Column(String(50), nullable=False)  # user, assistant, system
+    content = Column(Text, nullable=False)
+
+    # LLM metadata (null for user messages)
+    llm_backend = Column(String(100), nullable=True)
+    llm_model = Column(String(255), nullable=True)
+    processing_time_ms = Column(Float, nullable=True)
+
+    # Suggestions (null for user messages)
+    suggested_queries = Column(JSON, nullable=True)
+
+    # Metadata
+    message_metadata = Column(JSON, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, default=utc_now)
+
+    # Relationships
+    conversation = relationship("AgentConversation", back_populates="messages")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_agent_messages_conversation_id", "conversation_id"),
+        Index("idx_agent_messages_role", "role"),
+        Index("idx_agent_messages_created_at", "created_at"),
+    )

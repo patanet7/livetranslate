@@ -36,6 +36,7 @@ DEFAULT_STREAMS: dict[str, str] = {
     "config_sync": _env("EVENT_STREAM_CONFIG", "stream:config-sync"),
     "bot_control": _env("EVENT_STREAM_BOT", "stream:bot-control"),
     "monitoring": _env("EVENT_STREAM_MONITORING", "stream:monitoring"),
+    "intelligence": _env("EVENT_STREAM_INTELLIGENCE", "stream:intelligence"),
 }
 
 

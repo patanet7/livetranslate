@@ -2,8 +2,10 @@
 """
 Fireflies Mock Server
 
-Simulates Fireflies.ai GraphQL API and WebSocket Realtime API for testing.
+Simulates Fireflies.ai GraphQL API and Socket.IO Realtime API for testing.
 Provides configurable scenarios for integration testing without real API calls.
+
+Uses Socket.IO protocol (matching the real Fireflies API), NOT raw WebSocket.
 
 Usage:
     # Start the mock server
@@ -13,11 +15,12 @@ Usage:
     # Configure test scenarios
     server.add_scenario(MockTranscriptScenario(...))
 
-    # Connect client to mock server
+    # Connect client to mock server (Socket.IO)
     client = FirefliesRealtimeClient(
         api_key="test-key",
         transcript_id="test-transcript",
-        endpoint=f"ws://localhost:8080/realtime"
+        endpoint="http://localhost:8080",
+        socketio_path="/ws/realtime",
     )
 
     # Clean up
@@ -33,7 +36,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from aiohttp import WSMsgType, web
+import socketio
+from aiohttp import web
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +87,7 @@ class MockChunk:
     is_final: bool = True
 
     def to_websocket_dict(self, transcript_id: str) -> dict[str, Any]:
-        """Convert to WebSocket message format."""
+        """Convert to raw WebSocket message format (legacy, for backward compat)."""
         return {
             "type": "transcription.broadcast",
             "data": {
@@ -96,6 +100,19 @@ class MockChunk:
                 "confidence": self.confidence,
                 "is_final": self.is_final,
             },
+        }
+
+    def to_socketio_dict(self, transcript_id: str) -> dict[str, Any]:
+        """Convert to Socket.IO event data (no 'type' wrapper — event name is separate)."""
+        return {
+            "transcript_id": transcript_id,
+            "chunk_id": self.chunk_id,
+            "text": self.text,
+            "speaker_name": self.speaker_name,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "confidence": self.confidence,
+            "is_final": self.is_final,
         }
 
 
@@ -232,7 +249,7 @@ class MockTranscriptScenario:
 
 
 # =============================================================================
-# Mock Server
+# Mock Server (Socket.IO)
 # =============================================================================
 
 
@@ -240,10 +257,17 @@ class FirefliesMockServer:
     """
     Mock server for Fireflies.ai API testing.
 
-    Provides:
-    - GraphQL endpoint for active_meetings queries
-    - WebSocket endpoint for realtime transcript streaming
-    - Configurable scenarios for different test cases
+    Uses Socket.IO protocol (matching the real Fireflies API):
+    - Socket.IO endpoint at /ws/realtime for realtime transcript streaming
+    - GraphQL endpoint at /graphql for active_meetings queries
+    - Health check at /health
+
+    Authentication: Token and transcriptId are passed in the Socket.IO
+    auth payload (matching fireflies_client.py:522-525):
+        auth = {
+            "token": "Bearer <api_key>",
+            "transcriptId": "<transcript_id>",
+        }
     """
 
     def __init__(
@@ -252,14 +276,6 @@ class FirefliesMockServer:
         port: int = 8080,
         valid_api_keys: set[str] | None = None,
     ):
-        """
-        Initialize the mock server.
-
-        Args:
-            host: Server host
-            port: Server port
-            valid_api_keys: Set of valid API keys (default: accepts any)
-        """
         self.host = host
         self.port = port
         self.valid_api_keys = valid_api_keys or {"test-api-key", "ff-test-key"}
@@ -270,13 +286,14 @@ class FirefliesMockServer:
         # Active meetings (for GraphQL queries)
         self._meetings: list[MockMeeting] = []
 
-        # Connected WebSocket clients by transcript ID
-        self._ws_clients: dict[str, set[web.WebSocketResponse]] = {}
+        # Connected Socket.IO clients: sid -> transcript_id
+        self._sid_to_transcript: dict[str, str] = {}
 
         # Server state
         self._app: web.Application | None = None
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
+        self._sio: socketio.AsyncServer | None = None
 
         # Statistics
         self._stats = {
@@ -296,8 +313,8 @@ class FirefliesMockServer:
 
     @property
     def websocket_url(self) -> str:
-        """WebSocket endpoint URL."""
-        return f"ws://{self.host}:{self.port}/realtime"
+        """Socket.IO endpoint URL (use http:// for Socket.IO clients)."""
+        return f"http://{self.host}:{self.port}"
 
     @property
     def stats(self) -> dict[str, int]:
@@ -309,15 +326,7 @@ class FirefliesMockServer:
     # =========================================================================
 
     def add_scenario(self, scenario: MockTranscriptScenario) -> str:
-        """
-        Add a test scenario.
-
-        Args:
-            scenario: The scenario to add
-
-        Returns:
-            Transcript ID for the scenario
-        """
+        """Add a test scenario. Returns transcript ID."""
         self._scenarios[scenario.transcript_id] = scenario
         self._meetings.append(scenario.meeting)
         logger.info(f"Added scenario: {scenario.transcript_id}")
@@ -345,10 +354,26 @@ class FirefliesMockServer:
     # =========================================================================
 
     async def start(self):
-        """Start the mock server."""
+        """Start the mock server with Socket.IO."""
+        # Create Socket.IO server (async mode = aiohttp)
+        self._sio = socketio.AsyncServer(
+            async_mode="aiohttp",
+            cors_allowed_origins="*",
+            logger=False,
+            engineio_logger=False,
+        )
+
+        # Register Socket.IO event handlers
+        self._register_socketio_handlers()
+
+        # Create aiohttp app
         self._app = web.Application()
+
+        # Attach Socket.IO to aiohttp app at /ws/realtime path
+        self._sio.attach(self._app, socketio_path="/ws/realtime")
+
+        # Add HTTP routes (GraphQL + health)
         self._app.router.add_post("/graphql", self._handle_graphql)
-        self._app.router.add_get("/realtime", self._handle_websocket)
         self._app.router.add_get("/health", self._handle_health)
 
         self._runner = web.AppRunner(self._app)
@@ -359,16 +384,23 @@ class FirefliesMockServer:
 
         logger.info(f"Fireflies mock server started at {self.host}:{self.port}")
         logger.info(f"  GraphQL: {self.graphql_url}")
-        logger.info(f"  WebSocket: {self.websocket_url}")
+        logger.info(f"  Socket.IO: {self.websocket_url} (path=/ws/realtime)")
 
     async def stop(self):
         """Stop the mock server."""
-        # Close all WebSocket connections (copy to avoid modification during iteration)
-        for _transcript_id, clients in list(self._ws_clients.items()):
-            for ws in list(clients):
+        # Cancel background tasks
+        for task in list(self._background_tasks):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        self._background_tasks.clear()
+
+        # Disconnect all Socket.IO clients
+        if self._sio:
+            for sid in list(self._sid_to_transcript.keys()):
                 with contextlib.suppress(Exception):
-                    await ws.close()
-        self._ws_clients.clear()
+                    await self._sio.disconnect(sid)
+        self._sid_to_transcript.clear()
 
         # Stop the server
         if self._site:
@@ -379,11 +411,129 @@ class FirefliesMockServer:
         self._site = None
         self._runner = None
         self._app = None
+        self._sio = None
 
         logger.info("Fireflies mock server stopped")
 
     # =========================================================================
-    # Request Handlers
+    # Socket.IO Event Handlers
+    # =========================================================================
+
+    def _register_socketio_handlers(self):
+        """Register Socket.IO event handlers on the server."""
+        sio = self._sio
+
+        @sio.event
+        async def connect(sid, environ, auth):
+            """Handle Socket.IO connection with auth payload."""
+            self._stats["websocket_connections"] += 1
+
+            # Auth payload from FirefliesRealtimeClient:
+            #   {"token": "Bearer <api_key>", "transcriptId": "<transcript_id>"}
+            if not auth or not isinstance(auth, dict):
+                logger.warning(f"Socket.IO connect: no auth payload from {sid}")
+                await sio.emit("auth.failed", {"message": "Missing auth payload"}, to=sid)
+                await sio.disconnect(sid)
+                return False
+
+            token = auth.get("token", "")
+            transcript_id = auth.get("transcriptId", "")
+
+            # Validate API key
+            if not self._validate_api_key(token):
+                logger.warning(f"Socket.IO auth failed for {sid}: invalid token")
+                await sio.emit("auth.failed", {"message": "Invalid API key"}, to=sid)
+                await sio.disconnect(sid)
+                return False
+
+            # Validate transcript_id
+            if not transcript_id:
+                logger.warning(f"Socket.IO auth failed for {sid}: missing transcriptId")
+                await sio.emit("auth.failed", {"message": "Missing transcriptId"}, to=sid)
+                await sio.disconnect(sid)
+                return False
+
+            # Auth success
+            self._sid_to_transcript[sid] = transcript_id
+            logger.info(f"Socket.IO client {sid} authenticated for transcript: {transcript_id}")
+
+            # Emit auth success + connection established
+            await sio.emit("auth.success", {}, to=sid)
+            await sio.emit("connection.established", {}, to=sid)
+
+            # Start streaming scenario if available
+            scenario = self._scenarios.get(transcript_id)
+            if scenario:
+                task = asyncio.create_task(self._stream_scenario(sid, scenario))
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
+
+            return True
+
+        @sio.event
+        async def disconnect(sid):
+            """Handle Socket.IO disconnection."""
+            transcript_id = self._sid_to_transcript.pop(sid, None)
+            logger.info(
+                f"Socket.IO client {sid} disconnected"
+                + (f" (transcript: {transcript_id})" if transcript_id else "")
+            )
+
+        @sio.on("ping")
+        async def on_ping(sid, data=None):
+            """Handle ping/pong for keepalive."""
+            await sio.emit("pong", {}, to=sid)
+
+    # =========================================================================
+    # Scenario Streaming
+    # =========================================================================
+
+    async def _stream_scenario(
+        self,
+        sid: str,
+        scenario: MockTranscriptScenario,
+    ):
+        """Stream a scenario's chunks to a Socket.IO client."""
+        sio = self._sio
+        try:
+            for i, chunk in enumerate(scenario.chunks):
+                # Check if client still connected
+                if sid not in self._sid_to_transcript:
+                    break
+
+                # Check for disconnect simulation
+                if (
+                    scenario.simulate_disconnect_after_chunks
+                    and i >= scenario.simulate_disconnect_after_chunks
+                ):
+                    await sio.disconnect(sid)
+                    break
+
+                # Emit as Socket.IO event (event name = "transcription.broadcast")
+                data = chunk.to_socketio_dict(scenario.transcript_id)
+                await sio.emit("transcription.broadcast", data, to=sid)
+                self._stats["chunks_sent"] += 1
+
+                # Delay based on stream mode
+                if scenario.stream_mode == "words":
+                    await asyncio.sleep(scenario.word_delay_ms / 1000.0)
+                else:
+                    await asyncio.sleep(scenario.chunk_delay_ms / 1000.0)
+
+            # Send error if configured
+            if scenario.simulate_error_message and sid in self._sid_to_transcript:
+                await sio.emit(
+                    "connection.error",
+                    {"message": scenario.simulate_error_message},
+                    to=sid,
+                )
+
+        except Exception as e:
+            logger.error(f"Error streaming scenario to {sid}: {e}")
+            self._stats["errors"] += 1
+
+    # =========================================================================
+    # HTTP Request Handlers
     # =========================================================================
 
     async def _handle_health(self, request: web.Request) -> web.Response:
@@ -392,7 +542,7 @@ class FirefliesMockServer:
             {
                 "status": "ok",
                 "scenarios": len(self._scenarios),
-                "active_connections": sum(len(c) for c in self._ws_clients.values()),
+                "active_connections": len(self._sid_to_transcript),
             }
         )
 
@@ -441,14 +591,10 @@ class FirefliesMockServer:
         # Filter meetings
         filtered_meetings = []
         for meeting in self._meetings:
-            # Apply email filter
             if email_filter and meeting.organizer_email != email_filter:
                 continue
-
-            # Apply state filter
             if meeting.state not in states_filter:
                 continue
-
             filtered_meetings.append(meeting.to_graphql_dict())
 
         return web.json_response(
@@ -459,157 +605,33 @@ class FirefliesMockServer:
             }
         )
 
-    async def _handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
-        """
-        Handle WebSocket connections.
-
-        Authentication follows the REAL Fireflies API contract:
-        - Token and transcript_id are passed as URL query parameters
-        - URL format: /realtime?token={api_key}&transcript_id={transcript_id}
-
-        Reference: https://docs.fireflies.ai/realtime-api/overview
-        """
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
-
-        self._stats["websocket_connections"] += 1
-
-        # Extract auth from URL query parameters (REAL Fireflies contract)
-        token = request.query.get("token", "")
-        transcript_id = request.query.get("transcript_id", "")
-
-        # Validate API key
-        if not self._validate_api_key(f"Bearer {token}"):
-            await ws.send_json(
-                {
-                    "type": "auth.failed",
-                    "message": "Invalid API key",
-                }
-            )
-            await ws.close()
-            return ws
-
-        # Validate transcript_id
-        if not transcript_id:
-            await ws.send_json(
-                {
-                    "type": "auth.failed",
-                    "message": "Missing transcript_id",
-                }
-            )
-            await ws.close()
-            return ws
-
-        # Authentication successful
-        await ws.send_json({"type": "auth.success"})
-        await ws.send_json({"type": "connection.established"})
-
-        # Register client
-        if transcript_id not in self._ws_clients:
-            self._ws_clients[transcript_id] = set()
-        self._ws_clients[transcript_id].add(ws)
-
-        logger.info(f"WebSocket client authenticated for transcript: {transcript_id}")
-
-        # Start streaming scenario if available
-        scenario = self._scenarios.get(transcript_id)
-        if scenario:
-            task = asyncio.create_task(self._stream_scenario(ws, scenario))
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
-
-        try:
-            async for msg in ws:
-                if msg.type == WSMsgType.TEXT:
-                    try:
-                        data = json.loads(msg.data)
-                        msg_type = data.get("type", "")
-
-                        # Handle ping/pong for keepalive
-                        if msg_type == "ping":
-                            await ws.send_json({"type": "pong"})
-
-                    except json.JSONDecodeError:
-                        logger.warning("Received invalid JSON on WebSocket")
-
-                elif msg.type == WSMsgType.ERROR:
-                    logger.error(f"WebSocket error: {ws.exception()}")
-                    self._stats["errors"] += 1
-
-        finally:
-            # Cleanup
-            if transcript_id and transcript_id in self._ws_clients:
-                self._ws_clients[transcript_id].discard(ws)
-                if not self._ws_clients[transcript_id]:
-                    del self._ws_clients[transcript_id]
-
-        return ws
-
-    async def _stream_scenario(
-        self,
-        ws: web.WebSocketResponse,
-        scenario: MockTranscriptScenario,
-    ):
-        """Stream a scenario's chunks to a WebSocket client."""
-        try:
-            for i, chunk in enumerate(scenario.chunks):
-                if ws.closed:
-                    break
-
-                # Check for disconnect simulation
-                if (
-                    scenario.simulate_disconnect_after_chunks
-                    and i >= scenario.simulate_disconnect_after_chunks
-                ):
-                    await ws.close()
-                    break
-
-                # Send chunk
-                message = chunk.to_websocket_dict(scenario.transcript_id)
-                await ws.send_json(message)
-                self._stats["chunks_sent"] += 1
-
-                # Delay based on stream mode
-                if scenario.stream_mode == "words":
-                    await asyncio.sleep(scenario.word_delay_ms / 1000.0)
-                else:
-                    await asyncio.sleep(scenario.chunk_delay_ms / 1000.0)
-
-            # Send error if configured
-            if scenario.simulate_error_message:
-                await ws.send_json(
-                    {
-                        "type": "error",
-                        "message": scenario.simulate_error_message,
-                    }
-                )
-
-        except Exception as e:
-            logger.error(f"Error streaming scenario: {e}")
-            self._stats["errors"] += 1
-
     # =========================================================================
     # Utility Methods
     # =========================================================================
 
-    def _validate_api_key(self, auth_header: str) -> bool:
-        """Validate API key from Authorization header."""
-        if not auth_header.startswith("Bearer "):
+    def _validate_api_key(self, auth_value: str) -> bool:
+        """Validate API key from Authorization header or Socket.IO auth token."""
+        if not auth_value:
             return False
-
-        api_key = auth_header[7:]  # Remove "Bearer " prefix
+        # Strip "Bearer " prefix if present
+        if auth_value.startswith("Bearer "):
+            api_key = auth_value[7:]
+        else:
+            api_key = auth_value
         return api_key in self.valid_api_keys
 
     async def broadcast_to_transcript(
         self,
         transcript_id: str,
-        message: dict[str, Any],
+        event_name: str,
+        data: dict[str, Any],
     ):
-        """Broadcast a message to all clients connected to a transcript."""
-        clients = self._ws_clients.get(transcript_id, set())
-        for ws in clients:
-            if not ws.closed:
-                await ws.send_json(message)
+        """Broadcast a Socket.IO event to all clients connected to a transcript."""
+        if not self._sio:
+            return
+        for sid, tid in list(self._sid_to_transcript.items()):
+            if tid == transcript_id:
+                await self._sio.emit(event_name, data, to=sid)
 
     async def inject_chunk(
         self,
@@ -617,14 +639,7 @@ class FirefliesMockServer:
         text: str,
         speaker_name: str = "Speaker",
     ):
-        """
-        Inject a chunk into an active session (for testing).
-
-        Args:
-            transcript_id: Transcript to inject into
-            text: Chunk text
-            speaker_name: Speaker name
-        """
+        """Inject a chunk into an active session (for testing)."""
         chunk = MockChunk(
             text=text,
             speaker_name=speaker_name,
@@ -632,8 +647,8 @@ class FirefliesMockServer:
             end_time=len(text.split()) * 0.3,
         )
 
-        message = chunk.to_websocket_dict(transcript_id)
-        await self.broadcast_to_transcript(transcript_id, message)
+        data = chunk.to_socketio_dict(transcript_id)
+        await self.broadcast_to_transcript(transcript_id, "transcription.broadcast", data)
         self._stats["chunks_sent"] += 1
 
 
@@ -687,7 +702,7 @@ if __name__ == "__main__":
         await server.start()
 
         print(f"GraphQL URL: {server.graphql_url}")
-        print(f"WebSocket URL: {server.websocket_url}")
+        print(f"Socket.IO URL: {server.websocket_url}")
         print(f"Transcript ID: {scenario.transcript_id}")
         print("\nPress Ctrl+C to stop...")
 

@@ -3,13 +3,13 @@
 Test Mock Server and V3 API Contract
 
 This test verifies:
-1. Fireflies mock server works correctly
+1. Fireflies mock server works correctly (Socket.IO protocol)
 2. V3 translation API contract works
 3. The integration between mock server -> translation service
 
 Run with:
     cd modules/orchestration-service
-    poetry run python tests/fireflies/integration/test_mock_server_api_contract.py
+    pdm run python tests/fireflies/integration/test_mock_server_api_contract.py
 """
 
 import asyncio
@@ -25,6 +25,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 sys.path.insert(0, str(TEST_DIR))
 
 import aiohttp
+import socketio
 
 # Import fixtures
 from fireflies.fixtures.meeting_transcript_5min import (
@@ -157,7 +158,7 @@ async def test_mock_server_graphql():
 
 
 async def test_mock_server_websocket():
-    """Test WebSocket endpoint streams chunks using REAL Fireflies auth contract."""
+    """Test Socket.IO endpoint streams chunks using auth payload contract."""
     server = FirefliesMockServer(host="localhost", port=8092)
 
     # Create a short scenario
@@ -173,23 +174,37 @@ async def test_mock_server_websocket():
     try:
         await server.start()
 
-        async with aiohttp.ClientSession() as session:
-            # REAL Fireflies API: Auth via URL query parameters
-            ws_url = (
-                f"ws://localhost:8092/realtime?token=test-api-key&transcript_id={transcript_id}"
-            )
-            async with session.ws_connect(ws_url) as ws:
-                # Receive messages (auth happens automatically via URL params)
-                timeout = asyncio.get_event_loop().time() + 3.0
-                while asyncio.get_event_loop().time() < timeout:
-                    try:
-                        msg = await asyncio.wait_for(ws.receive_json(), timeout=0.5)
-                        if msg.get("type") == "transcription.broadcast":
-                            received_chunks.append(msg["data"]["text"])
-                        if len(received_chunks) >= 2:
-                            break
-                    except TimeoutError:
-                        continue
+        # Use Socket.IO client (matches real FirefliesRealtimeClient)
+        sio_client = socketio.AsyncClient(
+            reconnection=False,
+            logger=False,
+            engineio_logger=False,
+        )
+
+        @sio_client.on("transcription.broadcast")
+        async def on_chunk(data):
+            received_chunks.append(data["text"])
+
+        # Connect with auth payload (same format as fireflies_client.py:522-525)
+        auth = {
+            "token": "Bearer test-api-key",
+            "transcriptId": transcript_id,
+        }
+        await sio_client.connect(
+            "http://localhost:8092",
+            socketio_path="/ws/realtime",
+            auth=auth,
+            transports=["websocket"],
+            wait_timeout=5,
+        )
+
+        # Wait for chunks
+        for _ in range(30):
+            await asyncio.sleep(0.1)
+            if len(received_chunks) >= 2:
+                break
+
+        await sio_client.disconnect()
 
         if len(received_chunks) == 2:
             return True, f"Received {len(received_chunks)} chunks: {received_chunks}"
@@ -203,7 +218,7 @@ async def test_mock_server_websocket():
 
 
 async def test_mock_server_with_transcript_fixture():
-    """Test mock server with our meeting transcript fixture using REAL Fireflies auth."""
+    """Test mock server with our meeting transcript fixture using Socket.IO."""
     server = FirefliesMockServer(host="localhost", port=8093)
 
     # Convert first 5 entries from our fixture to MockChunks
@@ -225,27 +240,40 @@ async def test_mock_server_with_transcript_fixture():
     try:
         await server.start()
 
-        async with aiohttp.ClientSession() as session:
-            # REAL Fireflies API: Auth via URL query parameters
-            ws_url = (
-                f"ws://localhost:8093/realtime?token=test-api-key&transcript_id={transcript_id}"
+        sio_client = socketio.AsyncClient(
+            reconnection=False,
+            logger=False,
+            engineio_logger=False,
+        )
+
+        @sio_client.on("transcription.broadcast")
+        async def on_chunk(data):
+            received_chunks.append(
+                {
+                    "text": data["text"],
+                    "speaker": data["speaker_name"],
+                }
             )
-            async with session.ws_connect(ws_url) as ws:
-                timeout = asyncio.get_event_loop().time() + 3.0
-                while asyncio.get_event_loop().time() < timeout:
-                    try:
-                        msg = await asyncio.wait_for(ws.receive_json(), timeout=0.5)
-                        if msg.get("type") == "transcription.broadcast":
-                            received_chunks.append(
-                                {
-                                    "text": msg["data"]["text"],
-                                    "speaker": msg["data"]["speaker_name"],
-                                }
-                            )
-                        if len(received_chunks) >= 5:
-                            break
-                    except TimeoutError:
-                        continue
+
+        auth = {
+            "token": "Bearer test-api-key",
+            "transcriptId": transcript_id,
+        }
+        await sio_client.connect(
+            "http://localhost:8093",
+            socketio_path="/ws/realtime",
+            auth=auth,
+            transports=["websocket"],
+            wait_timeout=5,
+        )
+
+        # Wait for chunks
+        for _ in range(30):
+            await asyncio.sleep(0.1)
+            if len(received_chunks) >= 5:
+                break
+
+        await sio_client.disconnect()
 
         if len(received_chunks) >= 5:
             return (
@@ -420,7 +448,7 @@ Provide ONLY the Spanish translation."""
 
 
 async def test_mock_to_translation_integration():
-    """Test full flow: Mock server -> (simulate) -> V3 Translation using REAL Fireflies auth."""
+    """Test full flow: Mock server -> Socket.IO -> V3 Translation."""
     server = FirefliesMockServer(host="localhost", port=8094)
 
     # Use first 3 entries from our fixture
@@ -443,24 +471,39 @@ async def test_mock_to_translation_integration():
     try:
         await server.start()
 
-        async with aiohttp.ClientSession() as session:
-            # REAL Fireflies API: Auth via URL query parameters
-            ws_url = (
-                f"ws://localhost:8094/realtime?token=test-api-key&transcript_id={transcript_id}"
-            )
-            async with session.ws_connect(ws_url) as ws:
-                timeout = asyncio.get_event_loop().time() + 3.0
-                while asyncio.get_event_loop().time() < timeout:
-                    try:
-                        msg = await asyncio.wait_for(ws.receive_json(), timeout=0.5)
-                        if msg.get("type") == "transcription.broadcast":
-                            received_chunks.append(msg["data"])
-                        if len(received_chunks) >= 3:
-                            break
-                    except TimeoutError:
-                        continue
+        # Receive chunks via Socket.IO
+        sio_client = socketio.AsyncClient(
+            reconnection=False,
+            logger=False,
+            engineio_logger=False,
+        )
 
-            # Now translate each received chunk via V3 API
+        @sio_client.on("transcription.broadcast")
+        async def on_chunk(data):
+            received_chunks.append(data)
+
+        auth = {
+            "token": "Bearer test-api-key",
+            "transcriptId": transcript_id,
+        }
+        await sio_client.connect(
+            "http://localhost:8094",
+            socketio_path="/ws/realtime",
+            auth=auth,
+            transports=["websocket"],
+            wait_timeout=5,
+        )
+
+        # Wait for chunks
+        for _ in range(30):
+            await asyncio.sleep(0.1)
+            if len(received_chunks) >= 3:
+                break
+
+        await sio_client.disconnect()
+
+        # Now translate each received chunk via V3 API
+        async with aiohttp.ClientSession() as session:
             for chunk in received_chunks:
                 prompt = f"""Translate to Spanish: "{chunk['text']}"
 
@@ -548,11 +591,12 @@ async def test_mock_with_real_fireflies_client():
     try:
         await server.start()
 
-        # Use the REAL Fireflies client to connect to our mock
+        # Use the REAL Fireflies client to connect to our mock (Socket.IO)
         client = FirefliesRealtimeClient(
             api_key="test-api-key",
             transcript_id=transcript_id,
-            endpoint="ws://localhost:8095/realtime",
+            endpoint="http://localhost:8095",
+            socketio_path="/ws/realtime",
             on_transcript=on_transcript,
             auto_reconnect=False,
         )
@@ -600,7 +644,7 @@ async def main():
     print("\nContract Reference: https://docs.fireflies.ai/realtime-api/overview")
 
     # Mock Server Tests
-    print("\n--- Mock Server Tests ---")
+    print("\n--- Mock Server Tests (Socket.IO) ---")
 
     passed, details = await test_mock_server_health()
     results_logger.log("Mock Server Health Check", passed, details)
@@ -609,16 +653,16 @@ async def main():
     results_logger.log("Mock Server GraphQL Endpoint", passed, details)
 
     passed, details = await test_mock_server_websocket()
-    results_logger.log("Mock Server WebSocket Streaming (URL Auth)", passed, details)
+    results_logger.log("Mock Server Socket.IO Streaming", passed, details)
 
     passed, details = await test_mock_server_with_transcript_fixture()
-    results_logger.log("Mock Server with Transcript Fixture", passed, details)
+    results_logger.log("Mock Server with Transcript Fixture (Socket.IO)", passed, details)
 
     # Contract Verification with REAL Client
     print("\n--- REAL Fireflies Client Contract Test ---")
 
     passed, details = await test_mock_with_real_fireflies_client()
-    results_logger.log("Mock Server <-> REAL FirefliesRealtimeClient", passed, details)
+    results_logger.log("Mock Server <-> REAL FirefliesRealtimeClient (Socket.IO)", passed, details)
 
     # V3 API Contract Tests
     print("\n--- V3 API Contract Tests ---")
@@ -627,11 +671,11 @@ async def main():
     results_logger.log("V3 Translation Service Health", passed, details)
 
     if not passed:
-        print("\n⚠️  Translation service not available. Skipping V3 API tests.")
+        print("\n  Translation service not available. Skipping V3 API tests.")
         print("    Start translation service with:")
         print("    cd modules/translation-service/src")
         print(
-            "    OLLAMA_ENABLE=true OLLAMA_BASE_URL=http://localhost:11434/v1 poetry run uvicorn api_server_fastapi:app --port 5003"
+            "    OLLAMA_ENABLE=true OLLAMA_BASE_URL=http://localhost:11434/v1 pdm run uvicorn api_server_fastapi:app --port 5003"
         )
     else:
         passed, details = await test_v3_translate_simple()
@@ -647,7 +691,7 @@ async def main():
         print("\n--- Full Integration Tests ---")
 
         passed, details = await test_mock_to_translation_integration()
-        results_logger.log("Mock Server -> V3 Translation Integration", passed, details)
+        results_logger.log("Mock Server -> V3 Translation Integration (Socket.IO)", passed, details)
 
     # Write results
     print("\n" + "=" * 60)

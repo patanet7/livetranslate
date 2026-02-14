@@ -656,16 +656,16 @@ async def _process_uploaded_file(
             # Get translation client for pipeline
             import os
 
-            from clients.simple_translation_client import SimpleTranslationClient
+            from clients.llm_client import LLMClient
 
             translation_base_url = os.getenv("TRANSLATION_SERVICE_URL", "http://localhost:5003")
-            simple_translation_client = SimpleTranslationClient(base_url=translation_base_url)
+            llm_client = LLMClient(base_url=translation_base_url, proxy_mode=True)
 
             # Create pipeline coordinator
             coordinator = TranscriptionPipelineCoordinator(
                 config=pipeline_config,
                 adapter=adapter,
-                simple_translation_client=simple_translation_client,
+                llm_client=llm_client,
             )
 
             # Initialize pipeline

@@ -16,6 +16,7 @@ The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 
 import asyncio
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
@@ -584,16 +585,22 @@ class FirefliesRealtimeClient:
                 logger.warning(f"Unexpected transcript data format: {type(chunk_data)}")
                 return
 
-            chunk_id = chunk_data.get("chunk_id")
+            chunk_id = chunk_data.get("chunk_id") or chunk_data.get("id") or uuid.uuid4().hex[:12]
+
+            # Log raw data for debugging (first few chunks per session)
+            logger.info(
+                f"Fireflies chunk received: keys={list(chunk_data.keys())}, "
+                f"chunk_id={chunk_id}, text={str(chunk_data.get('text', ''))[:80]}"
+            )
 
             # Create FirefliesChunk model
             chunk = FirefliesChunk(
                 transcript_id=chunk_data.get("transcript_id", self.transcript_id),
                 chunk_id=chunk_id,
-                text=chunk_data.get("text", ""),
-                speaker_name=chunk_data.get("speaker_name", "Unknown"),
-                start_time=float(chunk_data.get("start_time", 0.0)),
-                end_time=float(chunk_data.get("end_time", 0.0)),
+                text=chunk_data.get("text", chunk_data.get("content", "")),
+                speaker_name=chunk_data.get("speaker_name", chunk_data.get("speaker", "Unknown")),
+                start_time=float(chunk_data.get("start_time", chunk_data.get("startTime", 0.0))),
+                end_time=float(chunk_data.get("end_time", chunk_data.get("endTime", 0.0))),
             )
 
             # Track last chunk for deduplication reference

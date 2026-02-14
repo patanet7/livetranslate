@@ -1,0 +1,140 @@
+---
+# Default Insight Prompt Templates
+# These are seeded into the database on startup with is_builtin=True
+# Uses $variable syntax (Python string.Template) for safe substitution.
+
+templates:
+  - name: meeting_summary
+    description: Generate a concise summary of the entire meeting
+    category: summary
+    expected_output_format: markdown
+    default_temperature: 0.3
+    default_max_tokens: 1024
+    system_prompt: >
+      You are a meeting analyst. Provide clear, concise, and accurate summaries.
+      Use professional language and organize information logically.
+    prompt_template: >
+      Provide a concise summary of this meeting transcript.
+      Include the main topics discussed, key points raised, and overall outcome.
+
+      Meeting Duration: $duration
+      Speakers: $speakers
+      Language: $language
+
+      Transcript:
+      $transcript
+
+      $custom_instructions
+
+  - name: action_items
+    description: Extract all action items, tasks, and commitments
+    category: action_items
+    expected_output_format: bullets
+    default_temperature: 0.2
+    default_max_tokens: 1024
+    system_prompt: >
+      You are a meeting analyst specializing in task extraction.
+      Be thorough and precise when identifying commitments and action items.
+    prompt_template: >
+      Extract all action items, tasks, and commitments from this meeting transcript.
+      For each action item, identify:
+      - What needs to be done
+      - Who is responsible (if mentioned)
+      - Any deadline or timeline mentioned
+      - Priority level (if inferable)
+
+      Speakers: $speakers
+
+      Transcript:
+      $transcript
+
+      $custom_instructions
+
+  - name: key_decisions
+    description: Identify all decisions that were made during the meeting
+    category: analysis
+    expected_output_format: bullets
+    default_temperature: 0.2
+    default_max_tokens: 1024
+    system_prompt: >
+      You are a meeting analyst focused on decision tracking.
+      Clearly distinguish between decisions made and items still under discussion.
+    prompt_template: >
+      Identify all decisions that were made during this meeting.
+      For each decision, note:
+      - The decision itself
+      - Who made or proposed it
+      - Any context or reasoning provided
+      - Whether it was unanimous or contentious
+
+      Speakers: $speakers
+
+      Transcript:
+      $transcript
+
+      $custom_instructions
+
+  - name: speaker_analysis
+    description: Analyze each speaker's contributions and speaking patterns
+    category: analysis
+    expected_output_format: markdown
+    default_temperature: 0.4
+    default_max_tokens: 1500
+    system_prompt: >
+      You are a meeting analyst specializing in communication patterns.
+      Be objective and constructive in your analysis.
+    prompt_template: >
+      Analyze each speaker's contributions in this meeting.
+      For each speaker, provide:
+      - Main topics they discussed
+      - Key points they raised
+      - Their apparent role or perspective
+      - Notable contributions or suggestions
+
+      Speakers: $speakers
+      Duration: $duration
+
+      Transcript:
+      $transcript
+
+      $custom_instructions
+
+  - name: follow_up_questions
+    description: Identify unresolved questions and suggested follow-ups
+    category: analysis
+    expected_output_format: bullets
+    default_temperature: 0.4
+    default_max_tokens: 1024
+    system_prompt: >
+      You are a meeting analyst focused on completeness and follow-through.
+      Identify gaps and open items that need attention.
+    prompt_template: >
+      Based on this meeting transcript, identify:
+      1. Questions that were raised but not fully answered
+      2. Topics that need further discussion
+      3. Suggested follow-up actions
+      4. Information gaps that should be addressed
+
+      Speakers: $speakers
+
+      Transcript:
+      $transcript
+
+      $custom_instructions
+
+  - name: auto_note
+    description: Summarize key points from a segment of the meeting (used by real-time auto-notes)
+    category: summary
+    expected_output_format: text
+    default_temperature: 0.3
+    default_max_tokens: 256
+    system_prompt: >
+      You are a real-time meeting note-taker. Be extremely concise.
+      Capture only the most important point from this segment.
+    prompt_template: >
+      Summarize the key point from the following meeting segment in 1-2 sentences:
+
+      Speakers: $speakers
+
+      Segment:
+      $transcript

@@ -31,6 +31,7 @@ Usage:
         await coordinator.process_raw_chunk(raw_chunk)
 """
 
+import asyncio
 import contextlib
 import logging
 from collections.abc import Callable
@@ -77,11 +78,13 @@ class TranscriptionPipelineCoordinator:
         # Injected dependencies (shared services)
         glossary_service: Any = None,
         translation_client: Any = None,  # TranslationServiceClient
-        simple_translation_client: Any = None,  # SimpleTranslationClient for V3 API
+        llm_client: Any = None,  # LLMClientProtocol for prompt-based translation
         caption_buffer: CaptionBuffer | None = None,
         # Optional
         db_manager: Any = None,
         obs_output: Any = None,
+        meeting_intelligence: Any = None,  # MeetingIntelligenceService
+        event_publisher: Any = None,  # EventPublisher for decoupled events
     ):
         """
         Initialize the pipeline coordinator.
@@ -91,10 +94,12 @@ class TranscriptionPipelineCoordinator:
             adapter: Source-specific chunk adapter
             glossary_service: Optional GlossaryService for term injection
             translation_client: Optional TranslationServiceClient (legacy)
-            simple_translation_client: Optional SimpleTranslationClient (V3 API)
+            llm_client: Optional LLMClientProtocol for prompt-based translation
             caption_buffer: CaptionBuffer for display output
             db_manager: Optional database manager for persistence
             obs_output: Optional OBS output for streaming
+            meeting_intelligence: Optional MeetingIntelligenceService
+            event_publisher: Optional EventPublisher for intelligence events
         """
         self.config = config
         self.adapter = adapter
@@ -102,10 +107,15 @@ class TranscriptionPipelineCoordinator:
         # Shared services (DRY - same for all sources)
         self.glossary_service = glossary_service
         self.translation_client = translation_client
-        self.simple_translation_client = simple_translation_client
+        self.llm_client = llm_client
         self.caption_buffer = caption_buffer
         self.db_manager = db_manager
         self.obs_output = obs_output
+        self.meeting_intelligence = meeting_intelligence
+        self.event_publisher = event_publisher
+
+        # Auto-notes buffer
+        self._auto_note_buffer: list[dict[str, Any]] = []
 
         # Internal components (created in initialize)
         self._sentence_aggregator: SentenceAggregator | None = None
@@ -165,14 +175,14 @@ class TranscriptionPipelineCoordinator:
                 self._glossary_terms = await self._load_glossary()
 
             # 4. Create rolling window translator
-            if self.translation_client or self.simple_translation_client:
+            if self.translation_client or self.llm_client:
                 self._rolling_translator = RollingWindowTranslator(
                     translation_client=self.translation_client,
                     glossary_service=self.glossary_service,
                     window_size=self.config.speaker_context_window,
                     include_cross_speaker_context=self.config.include_cross_speaker_context,
                     max_cross_speaker_sentences=self.config.global_context_window,
-                    simple_client=self.simple_translation_client,
+                    llm_client=self.llm_client,
                 )
 
             # 5. Register caption callbacks if caption buffer provided
@@ -254,8 +264,6 @@ class TranscriptionPipelineCoordinator:
 
         Wraps the async handler for compatibility with sync callback API.
         """
-        import asyncio
-
         try:
             # Get or create event loop
             try:
@@ -312,6 +320,25 @@ class TranscriptionPipelineCoordinator:
                         await self._on_translation_ready(unit, translation_result)
                     except Exception as e:
                         logger.error(f"Error in on_translation_ready callback: {e}")
+
+            # Step 5: Auto-notes accumulation (non-blocking)
+            if self.config.enable_auto_notes and self.meeting_intelligence:
+                self._auto_note_buffer.append(
+                    {
+                        "text": unit.text,
+                        "speaker_name": unit.speaker_name,
+                        "start_time": unit.start_time,
+                        "end_time": unit.end_time,
+                    }
+                )
+                if len(self._auto_note_buffer) >= self.config.auto_notes_interval:
+                    # Snapshot buffer and clear immediately so pipeline is not blocked
+                    buffer_snapshot = list(self._auto_note_buffer)
+                    self._auto_note_buffer.clear()
+                    # Fire-and-forget: LLM call runs in background
+                    task = asyncio.create_task(self._generate_auto_note(buffer_snapshot))
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
 
         except Exception as e:
             self._stats.errors += 1
@@ -489,6 +516,90 @@ class TranscriptionPipelineCoordinator:
             except Exception as e:
                 logger.error(f"Error in caption callback: {e}")
 
+    async def _generate_auto_note(self, sentences: list[dict[str, Any]] | None = None) -> None:
+        """
+        Generate auto-note from sentences. Runs as a background task.
+
+        Publishes an 'auto_note_requested' event via EventPublisher for
+        observability and future external consumers. The actual LLM call
+        is still handled in-process for reliability.
+
+        Args:
+            sentences: Snapshot of sentence buffer. If None, uses and clears
+                       self._auto_note_buffer (for flush() calls).
+        """
+        if not self.meeting_intelligence:
+            return
+
+        # If no snapshot provided (called from flush), take current buffer
+        if sentences is None:
+            if not self._auto_note_buffer:
+                return
+            sentences = list(self._auto_note_buffer)
+            self._auto_note_buffer.clear()
+
+        if not sentences:
+            return
+
+        # Publish event for decoupled observability / external consumers
+        if self.event_publisher:
+            await self.event_publisher.publish(
+                "intelligence",
+                "auto_note_requested",
+                {
+                    "session_id": self.config.session_id,
+                    "sentence_count": len(sentences),
+                    "speakers": list({s.get("speaker_name", "Unknown") for s in sentences}),
+                    "template": self.config.auto_notes_template,
+                },
+                source="pipeline-coordinator",
+            )
+
+        try:
+            note = await self.meeting_intelligence.generate_auto_note(
+                session_id=self.config.session_id,
+                sentences=sentences,
+            )
+            self._stats.auto_notes_generated += 1
+            logger.info(
+                f"Auto-note generated for session {self.config.session_id}: "
+                f"{note.get('content', '')[:80]}..."
+            )
+
+            # Publish completion event
+            if self.event_publisher:
+                await self.event_publisher.publish(
+                    "intelligence",
+                    "auto_note_generated",
+                    {
+                        "session_id": self.config.session_id,
+                        "note_id": note.get("note_id"),
+                        "sentence_count": len(sentences),
+                    },
+                    source="pipeline-coordinator",
+                )
+
+        except Exception as e:
+            # Re-queue failed sentences so they aren't lost
+            self._auto_note_buffer.extend(sentences)
+            logger.error(
+                f"Failed to generate auto-note ({len(sentences)} sentences re-queued): {e}"
+            )
+            self._stats.errors += 1
+
+            # Publish failure event
+            if self.event_publisher:
+                await self.event_publisher.publish(
+                    "intelligence",
+                    "auto_note_failed",
+                    {
+                        "session_id": self.config.session_id,
+                        "sentence_count": len(sentences),
+                        "error": str(e),
+                    },
+                    source="pipeline-coordinator",
+                )
+
     async def flush(self) -> None:
         """
         Flush any remaining buffered content.
@@ -499,6 +610,10 @@ class TranscriptionPipelineCoordinator:
             remaining = self._sentence_aggregator.flush_all()
             for unit in remaining:
                 await self._handle_sentence_ready(unit)
+
+        # Flush any remaining auto-notes
+        if self._auto_note_buffer and self.meeting_intelligence:
+            await self._generate_auto_note()
 
     def get_stats(self) -> dict[str, Any]:
         """Get pipeline statistics."""

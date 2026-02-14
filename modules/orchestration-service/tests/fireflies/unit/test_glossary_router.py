@@ -1,7 +1,7 @@
 """
 Glossary Router Tests
 
-Tests for the glossary API endpoints using real database.
+Tests for the glossary API endpoints using real PostgreSQL database.
 """
 
 import sys
@@ -16,7 +16,6 @@ src_path = orchestration_root / "src"
 sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(orchestration_root))
 
-from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from routers.glossary import (
     BulkImportRequest,
@@ -93,23 +92,26 @@ class TestRequestModels:
 
 
 @pytest.fixture
-def test_app():
-    """Create test app with real database connection."""
-    from main_fastapi import app
+async def async_client(db_session_factory):
+    """Create async test client with real PostgreSQL-backed glossary service.
 
-    return app
+    Uses the shared db_session_factory from fireflies conftest.py to provide
+    a real PostgreSQL database. Overrides get_db_session so the glossary router
+    uses our async session.
+    """
+    from fastapi import FastAPI
+    from routers.glossary import get_db_session, router
 
+    app = FastAPI()
+    app.include_router(router, prefix="/api")
 
-@pytest.fixture
-def client(test_app):
-    """Create test client."""
-    return TestClient(test_app)
+    async def _override_db_session():
+        async with db_session_factory() as session:
+            yield session
 
+    app.dependency_overrides[get_db_session] = _override_db_session
 
-@pytest.fixture
-async def async_client(test_app):
-    """Create async test client."""
-    transport = ASGITransport(app=test_app)
+    transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
