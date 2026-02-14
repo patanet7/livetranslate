@@ -40,6 +40,22 @@ BATCH_TRANSLATION_TIMEOUT_MS = 3000  # 3 seconds for 3 languages (allows for net
 SINGLE_TRANSLATION_TIMEOUT_MS = 1500  # 1.5 seconds for single translation
 
 
+def _translation_service_reachable() -> bool:
+    import socket
+
+    try:
+        with socket.create_connection(("localhost", 5003), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+_skip_no_translation = pytest.mark.skipif(
+    not _translation_service_reachable(),
+    reason="Translation service not running on localhost:5003",
+)
+
+
 class TestAudioCoordinatorCacheIntegration:
     """Test AudioCoordinator with translation caching"""
 
@@ -75,11 +91,12 @@ class TestAudioCoordinatorCacheIntegration:
 
         # Cache should be initialized if Redis available
         if coordinator.translation_cache:
-            assert coordinator.translation_cache.redis_url == REDIS_URL
+            assert coordinator.translation_cache.redis_url == os.getenv("REDIS_URL", REDIS_URL)
             assert coordinator.translation_cache.ttl > 0
 
         await coordinator.cleanup()
 
+    @_skip_no_translation
     @pytest.mark.asyncio
     async def test_coordinator_uses_cache_for_duplicate_translations(self):
         """
@@ -169,6 +186,7 @@ class TestAudioCoordinatorCacheIntegration:
 
         await coordinator.cleanup()
 
+    @_skip_no_translation
     @pytest.mark.asyncio
     async def test_coordinator_multi_language_batching(self):
         """
@@ -237,6 +255,7 @@ class TestAudioCoordinatorCacheIntegration:
 
         await coordinator.cleanup()
 
+    @_skip_no_translation
     @pytest.mark.asyncio
     async def test_coordinator_cache_hit_rate_measurement(self):
         """
@@ -415,6 +434,7 @@ class TestAudioCoordinatorCacheIntegration:
         await coordinator.cleanup()
 
     @pytest.mark.asyncio
+    @_skip_no_translation
     async def test_coordinator_cache_with_different_languages(self):
         """
         TEST: Cache should properly differentiate between language pairs.
@@ -521,7 +541,7 @@ async def cleanup_test_data():
     try:
         import redis.asyncio as redis
 
-        r = redis.from_url(REDIS_URL)
+        r = redis.from_url(os.getenv("REDIS_URL", REDIS_URL))
         async for key in r.scan_iter(match="trans:v1:*"):
             await r.delete(key)
         await r.aclose()

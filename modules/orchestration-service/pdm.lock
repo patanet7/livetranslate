@@ -5,7 +5,7 @@
 groups = ["default", "dev", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:0acd9647f8f232fa63975b8138263388ac68df106f13dd66bdfba30e7be96db0"
+content_hash = "sha256:e5b9d021cb99f580c503b0837ddddbf1e9bcd71969e402252e8c1971bdbe43e7"
 
 [[metadata.targets]]
 requires_python = ">=3.12,<3.15"
@@ -2791,7 +2791,7 @@ name = "redis"
 version = "6.4.0"
 requires_python = ">=3.9"
 summary = "Python client for Redis database and key-value store"
-groups = ["default"]
+groups = ["default", "test"]
 dependencies = [
     "async-timeout>=4.0.3; python_full_version < \"3.11.3\"",
 ]
@@ -3287,8 +3287,8 @@ files = [
 
 [[package]]
 name = "testcontainers"
-version = "4.14.1"
-requires_python = ">=3.10"
+version = "4.13.3"
+requires_python = ">=3.9.2"
 summary = "Python library for throwaway instances of anything that can run in a Docker container"
 groups = ["test"]
 dependencies = [
@@ -3299,23 +3299,39 @@ dependencies = [
     "wrapt",
 ]
 files = [
-    {file = "testcontainers-4.14.1-py3-none-any.whl", hash = "sha256:03dfef4797b31c82e7b762a454b6afec61a2a512ad54af47ab41e4fa5415f891"},
-    {file = "testcontainers-4.14.1.tar.gz", hash = "sha256:316f1bb178d829c003acd650233e3ff3c59a833a08d8661c074f58a4fbd42a64"},
+    {file = "testcontainers-4.13.3-py3-none-any.whl", hash = "sha256:063278c4805ffa6dd85e56648a9da3036939e6c0ac1001e851c9276b19b05970"},
+    {file = "testcontainers-4.13.3.tar.gz", hash = "sha256:9d82a7052c9a53c58b69e1dc31da8e7a715e8b3ec1c4df5027561b47e2efe646"},
 ]
 
 [[package]]
 name = "testcontainers"
-version = "4.14.1"
+version = "4.13.3"
 extras = ["postgres"]
-requires_python = ">=3.10"
+requires_python = ">=3.9.2"
 summary = "Python library for throwaway instances of anything that can run in a Docker container"
 groups = ["test"]
 dependencies = [
-    "testcontainers==4.14.1",
+    "testcontainers==4.13.3",
 ]
 files = [
-    {file = "testcontainers-4.14.1-py3-none-any.whl", hash = "sha256:03dfef4797b31c82e7b762a454b6afec61a2a512ad54af47ab41e4fa5415f891"},
-    {file = "testcontainers-4.14.1.tar.gz", hash = "sha256:316f1bb178d829c003acd650233e3ff3c59a833a08d8661c074f58a4fbd42a64"},
+    {file = "testcontainers-4.13.3-py3-none-any.whl", hash = "sha256:063278c4805ffa6dd85e56648a9da3036939e6c0ac1001e851c9276b19b05970"},
+    {file = "testcontainers-4.13.3.tar.gz", hash = "sha256:9d82a7052c9a53c58b69e1dc31da8e7a715e8b3ec1c4df5027561b47e2efe646"},
+]
+
+[[package]]
+name = "testcontainers"
+version = "4.13.3"
+extras = ["redis"]
+requires_python = ">=3.9.2"
+summary = "Python library for throwaway instances of anything that can run in a Docker container"
+groups = ["test"]
+dependencies = [
+    "redis",
+    "testcontainers==4.13.3",
+]
+files = [
+    {file = "testcontainers-4.13.3-py3-none-any.whl", hash = "sha256:063278c4805ffa6dd85e56648a9da3036939e6c0ac1001e851c9276b19b05970"},
+    {file = "testcontainers-4.13.3.tar.gz", hash = "sha256:9d82a7052c9a53c58b69e1dc31da8e7a715e8b3ec1c4df5027561b47e2efe646"},
 ]
 
 [[package]]

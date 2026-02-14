@@ -307,7 +307,7 @@ async def test_transcription_storage(pipeline, test_session):
     assert transcript.language_code == "en"
     assert transcript.speaker_id == "SPEAKER_00"
     assert transcript.speaker_name == "John Doe"
-    assert transcript.confidence_score == 0.95
+    assert transcript.confidence_score == pytest.approx(0.95, abs=1e-5)
 
 
 @pytest.mark.asyncio
@@ -699,10 +699,11 @@ async def test_speaker_statistics(pipeline, test_session):
     assert len(stats) == 3
 
     # Verify statistics for each speaker
+    expected = {sid: (name, segs) for sid, name, segs in speakers_data}
     for stat in stats:
-        expected_segments = dict(speakers_data)[stat.speaker_id][1]
+        _, expected_segments = expected[stat.speaker_id]
         assert stat.total_segments == expected_segments
-        assert stat.total_speaking_time == expected_segments * 2.0  # 2 seconds per segment
+        assert stat.total_speaking_time == pytest.approx(expected_segments * 2.0, abs=1e-5)
         assert stat.total_translations > 0
 
 

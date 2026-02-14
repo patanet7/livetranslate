@@ -59,9 +59,14 @@ def reset_singletons():
         pass
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def verify_backend_running():
-    """Verify backend is running before tests"""
+    """Verify backend is running (only used by tests that need HTTP endpoints).
+
+    NOT autouse -- database-only tests (TestDatabaseIntegration, TestAudioChunking,
+    TestSessionMetrics) do not need the backend running.  Tests that hit the live
+    HTTP API should request this fixture explicitly.
+    """
     import time
 
     import httpx
@@ -74,14 +79,14 @@ def verify_backend_running():
         try:
             response = httpx.get(backend_url, timeout=5.0)
             if response.status_code == 200:
-                print("\n✅ Backend is running at http://localhost:3000")
+                print("\nBackend is running at http://localhost:3000")
                 return
         except Exception:
             if attempt < max_retries - 1:
-                print(f"⏳ Waiting for backend... (attempt {attempt + 1}/{max_retries})")
+                print(f"Waiting for backend... (attempt {attempt + 1}/{max_retries})")
                 time.sleep(retry_delay)
             else:
-                pytest.exit(
-                    "❌ Backend not running at http://localhost:3000\n"
-                    "Start backend: cd modules/orchestration-service && python src/main_fastapi.py"
+                pytest.skip(
+                    "Backend not running at http://localhost:3000 -- "
+                    "skipping HTTP-dependent tests"
                 )
