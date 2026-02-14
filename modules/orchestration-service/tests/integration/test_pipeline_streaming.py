@@ -150,8 +150,21 @@ class PipelineStreamingIntegrationTest:
         return _create
 
 
+def _orchestration_reachable() -> bool:
+    import socket
+
+    try:
+        with socket.create_connection(("localhost", 3000), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not _orchestration_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
     """Test WebSocket streaming functionality"""
 
@@ -458,6 +471,9 @@ class TestPipelineWebSocketStreaming(PipelineStreamingIntegrationTest):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not _orchestration_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
     """Test batch pipeline processing"""
 
@@ -560,6 +576,9 @@ class TestPipelineBatchProcessing(PipelineStreamingIntegrationTest):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not _orchestration_reachable(), reason="Orchestration service not running on localhost:3000"
+)
 class TestPipelinePerformance(PipelineStreamingIntegrationTest):
     """Performance and stress tests"""
 

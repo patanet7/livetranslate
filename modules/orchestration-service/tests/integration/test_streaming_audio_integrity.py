@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pytest
 import soundfile as sf
 
 # Test audio segments with known content and timing
@@ -248,6 +249,7 @@ def test_audio_chunking():
     assert abs(total_duration - expected_duration) < 0.1, "Duration mismatch!"
 
 
+@pytest.mark.skip(reason="Requires running whisper service for real transcription")
 def test_orchestration_upload_endpoint():
     """Test the orchestration service /api/audio/upload endpoint."""
     print("\n" + "=" * 80)
@@ -320,6 +322,7 @@ def test_orchestration_upload_endpoint():
         print(f"Response: {json.dumps(result, indent=2)}")
 
 
+@pytest.mark.skip(reason="Requires running whisper service for real transcription")
 def test_full_streaming_pipeline():
     """Test the complete streaming pipeline with chunked upload."""
     print("\n" + "=" * 80)

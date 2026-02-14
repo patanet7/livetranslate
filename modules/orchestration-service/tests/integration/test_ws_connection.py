@@ -5,14 +5,28 @@ Simple WebSocket connection test to diagnose issues
 
 import asyncio
 import json
+import socket
 
 import httpx
+import pytest
 import websockets
 
 BASE_URL = "http://localhost:3000"
 WS_BASE_URL = "ws://localhost:3000"
 
 
+def _orchestration_reachable() -> bool:
+    try:
+        with socket.create_connection(("localhost", 3000), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(
+    not _orchestration_reachable(),
+    reason="Orchestration service not running on localhost:3000",
+)
 async def test_connection():
     """Test basic WebSocket connection"""
     print("🔍 Testing WebSocket connection...")
