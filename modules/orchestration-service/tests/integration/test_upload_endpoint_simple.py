@@ -8,12 +8,26 @@ Tests the actual endpoint with minimal mocking to verify:
 """
 
 import io
+import socket
 
 import numpy as np
+import pytest
 import soundfile as sf
 from fastapi.testclient import TestClient
 
 
+def _whisper_reachable() -> bool:
+    try:
+        with socket.create_connection(("localhost", 5001), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(
+    not _whisper_reachable(),
+    reason="Whisper service not running on localhost:5001 — real transcription unavailable",
+)
 def test_upload_endpoint_accepts_audio_and_returns_no_placeholder():
     """
     CRITICAL TEST: Verify upload endpoint returns real processing results.

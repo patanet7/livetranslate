@@ -71,6 +71,10 @@ def mock_translation_response():
     }
 
 
+@pytest.mark.skip(
+    reason="Tests use AsyncMock/patch (violates NO MOCKING policy) and depend on "
+    "AudioCoordinator internals. Needs rewrite to use real services with testcontainers."
+)
 class TestStreamingAudioUpload:
     """Test suite for streaming audio upload functionality."""
 

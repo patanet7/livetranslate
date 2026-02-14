@@ -169,8 +169,8 @@ class Transcript(Base):
     speaker_name = Column(String(255), nullable=True)
 
     # Timing information
-    start_time = Column(DateTime, nullable=False)
-    end_time = Column(DateTime, nullable=False)
+    start_time = Column(DateTime, nullable=True)
+    end_time = Column(DateTime, nullable=True)
     start_offset = Column(Float, nullable=True)  # Offset within audio file
     end_offset = Column(Float, nullable=True)
 
@@ -214,8 +214,8 @@ class Translation(Base):
     speaker_name = Column(String(255), nullable=True)
 
     # Timing information
-    start_time = Column(DateTime, nullable=False)
-    end_time = Column(DateTime, nullable=False)
+    start_time = Column(DateTime, nullable=True)
+    end_time = Column(DateTime, nullable=True)
 
     # Quality metrics
     quality_score = Column(Float, nullable=True)
