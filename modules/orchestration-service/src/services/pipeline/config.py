@@ -74,6 +74,12 @@ class PipelineConfig:
     enable_websocket: bool = True
     enable_obs: bool = False
 
+    # Meeting Intelligence - Auto-Notes
+    enable_auto_notes: bool = False
+    auto_notes_interval: int = 10  # Generate auto-note every N sentences
+    auto_notes_template: str = "auto_note"
+    intelligence_llm_backend: str = ""  # Empty = use session default
+
     # Source-specific metadata (adapter uses this)
     source_metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -88,6 +94,7 @@ class PipelineStats:
     translations_failed: int = 0
     captions_displayed: int = 0
     errors: int = 0
+    auto_notes_generated: int = 0
     speakers_seen: int = 0
     speaker_names: list[str] = field(default_factory=list)
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -119,6 +126,7 @@ class PipelineStats:
             "translations_failed": self.translations_failed,
             "captions_displayed": self.captions_displayed,
             "errors": self.errors,
+            "auto_notes_generated": self.auto_notes_generated,
             "speakers_seen": self.speakers_seen,
             "speaker_names": self.speaker_names,
             "started_at": self.started_at.isoformat() if self.started_at else None,

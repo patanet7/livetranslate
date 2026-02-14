@@ -197,6 +197,16 @@ try:
         "routes": len(fireflies_router.routes) if hasattr(fireflies_router, "routes") else 0,
     }
 
+    # Import insights_router (Meeting Intelligence)
+    import_logger.debug("Importing insights_router...")
+    from routers.insights import router as insights_router
+
+    import_logger.info("[OK] insights_router imported successfully")
+    routers_status["insights_router"] = {
+        "status": "success",
+        "routes": len(insights_router.routes) if hasattr(insights_router, "routes") else 0,
+    }
+
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
@@ -318,6 +328,19 @@ async def lifespan(app: FastAPI):
         await startup_dependencies()
 
         logger.info("[OK] All managers started successfully")
+
+        # Load default insight templates
+        try:
+            from dependencies import get_meeting_intelligence_service
+
+            intelligence_service = get_meeting_intelligence_service()
+            seeded = await intelligence_service.load_default_templates()
+            if seeded:
+                logger.info(f"[OK] Seeded {seeded} default insight templates")
+            else:
+                logger.info("[OK] Default insight templates already loaded")
+        except Exception as e:
+            logger.warning(f"[WARN] Could not load insight templates: {e}")
 
         yield
 
@@ -566,6 +589,14 @@ conflicts = check_route_conflicts("/fireflies", "fireflies_router", registered_r
 app.include_router(fireflies_router, tags=["Fireflies"])
 registered_routes.append(("/fireflies", "fireflies_router"))
 router_logger.info(" fireflies_router registered successfully")
+
+# Register insights_router (Meeting Intelligence)
+router_logger.info("[16] Registering insights_router...")
+log_router_details("insights_router", insights_router, "/api/intelligence")
+conflicts = check_route_conflicts("/api/intelligence", "insights_router", registered_routes)
+app.include_router(insights_router, prefix="/api/intelligence", tags=["Meeting Intelligence"])
+registered_routes.append(("/api/intelligence", "insights_router"))
+router_logger.info(" insights_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")

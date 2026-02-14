@@ -387,6 +387,75 @@ class FirefliesSettings(BaseSettings):
     model_config = ConfigDict(env_prefix="FIREFLIES_", env_file=".env", extra="ignore")
 
 
+class MeetingIntelligenceSettings(BaseSettings):
+    """Meeting intelligence configuration"""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable meeting intelligence features",
+    )
+    auto_notes_enabled: bool = Field(
+        default=True,
+        description="Enable auto-generated notes during meetings",
+    )
+    auto_notes_interval_sentences: int = Field(
+        default=10,
+        description="Generate auto-note every N sentences",
+    )
+    auto_notes_template: str = Field(
+        default="auto_note",
+        description="Template name to use for auto-notes",
+    )
+    default_llm_backend: str = Field(
+        default="ollama",
+        description="Default LLM backend for intelligence features",
+    )
+    default_temperature: float = Field(
+        default=0.3,
+        description="Default temperature for LLM calls",
+    )
+    default_max_tokens: int = Field(
+        default=1024,
+        description="Default max tokens for LLM calls",
+    )
+    insights_llm_backend: str = Field(
+        default="",
+        description="LLM backend for insights (empty = use default)",
+    )
+    templates_config_path: str = Field(
+        default="config/insight_templates.yaml",
+        description="Path to default insight templates YAML",
+    )
+    max_transcript_chars_for_insight: int = Field(
+        default=100000,
+        description="Safety limit on transcript size for insight generation",
+    )
+
+    # Direct LLM (bypass Translation Service for intelligence features)
+    direct_llm_enabled: bool = Field(
+        default=False,
+        description="Use direct LLM client instead of Translation Service",
+    )
+    direct_llm_base_url: str = Field(
+        default="http://localhost:11434/v1",
+        description="OpenAI-compatible API base URL (Ollama default)",
+    )
+    direct_llm_api_key: str = Field(
+        default="",
+        description="API key for direct LLM (empty for Ollama)",
+    )
+    direct_llm_model: str = Field(
+        default="gemma3:4b",
+        description="Model to use for direct LLM calls",
+    )
+    agent_max_context_tokens: int = Field(
+        default=8192,
+        description="Max tokens for agent conversation context window",
+    )
+
+    model_config = ConfigDict(env_prefix="INTELLIGENCE_", env_file=".env", extra="ignore")
+
+
 class OBSSettings(BaseSettings):
     """OBS WebSocket output configuration"""
 
@@ -500,6 +569,7 @@ class Settings(BaseSettings):
     monitoring: MonitoringSettings = MonitoringSettings()
     bot: BotSettings = BotSettings()
     fireflies: FirefliesSettings = FirefliesSettings()
+    intelligence: MeetingIntelligenceSettings = MeetingIntelligenceSettings()
     obs: OBSSettings = OBSSettings()
 
     # Feature flags

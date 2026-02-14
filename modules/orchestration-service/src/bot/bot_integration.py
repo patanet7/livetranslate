@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 import httpx
-from clients.simple_translation_client import SimpleTranslationClient
+from clients.llm_client import LLMClient
 from services.caption_buffer import CaptionBuffer
 
 # Import pipeline components for DRY processing
@@ -548,7 +548,7 @@ class GoogleMeetBotIntegration:
             translation_base_url = os.getenv(
                 "TRANSLATION_SERVICE_URL", self.config.service_endpoints.translation_service
             )
-            simple_translation_client = SimpleTranslationClient(base_url=translation_base_url)
+            llm_client = LLMClient(base_url=translation_base_url, proxy_mode=True)
 
             # Create adapter for Google Meet transcripts
             adapter = GoogleMeetChunkAdapter()
@@ -557,7 +557,7 @@ class GoogleMeetBotIntegration:
             self.pipeline_coordinator = TranscriptionPipelineCoordinator(
                 config=pipeline_config,
                 adapter=adapter,
-                simple_translation_client=simple_translation_client,
+                llm_client=llm_client,
                 caption_buffer=self.caption_buffer,
                 db_manager=self.database_manager,
             )

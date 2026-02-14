@@ -430,6 +430,7 @@
       <button class="tab" onclick="showTab('data')">Data & Logs</button>
       <button class="tab" onclick="showTab('translation')">Translation</button>
       <button class="tab" onclick="showTab('settings')">Settings</button>
+      <button class="tab" onclick="showTab('intelligence')">Intelligence</button>
     </div>
 
     <div id="alertContainer"></div>
@@ -891,6 +892,78 @@
         <button class="btn-secondary" onclick="closeTranscriptViewer()">Close</button>
       </div>
     </div>
+
+    <!-- Intelligence Tab -->
+    <div id="tab-intelligence" class="tab-content">
+
+      <!-- Real-Time Notes Section -->
+      <div class="card">
+        <h2>Meeting Notes</h2>
+        <p style="color: #999; margin-bottom: 12px;">Auto-generated and manual notes for active sessions</p>
+
+        <div style="margin-bottom: 16px;">
+          <select id="intelSessionSelect" style="width: 100%; padding: 8px; background: #2d2d2d; color: #e0e0e0; border: 1px solid #555; border-radius: 6px;">
+            <option value="">-- Select a session --</option>
+          </select>
+        </div>
+
+        <div id="notesList" style="max-height: 300px; overflow-y: auto; margin-bottom: 16px;">
+          <p style="color: #666;">Select a session to view notes</p>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <input type="text" id="manualNoteInput" placeholder="Add a manual note..." style="flex: 1; padding: 8px; background: #2d2d2d; color: #e0e0e0; border: 1px solid #555; border-radius: 6px;">
+          <button class="btn" onclick="addManualNote()">Add Note</button>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="analyzePromptInput" placeholder="Ask the AI to analyze... (e.g., 'What were the main concerns?')" style="flex: 1; padding: 8px; background: #2d2d2d; color: #e0e0e0; border: 1px solid #555; border-radius: 6px;">
+          <button class="btn" onclick="analyzeNote()" style="background: #9C27B0;">Analyze</button>
+        </div>
+      </div>
+
+      <!-- Post-Meeting Insights Section -->
+      <div class="card">
+        <h2>Post-Meeting Insights</h2>
+        <p style="color: #999; margin-bottom: 12px;">Generate analysis from templates</p>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+          <select id="insightTemplateSelect" style="flex: 1; min-width: 200px; padding: 8px; background: #2d2d2d; color: #e0e0e0; border: 1px solid #555; border-radius: 6px;">
+            <option value="">Loading templates...</option>
+          </select>
+          <input type="text" id="customInstructions" placeholder="Additional instructions (optional)" style="flex: 1; min-width: 200px; padding: 8px; background: #2d2d2d; color: #e0e0e0; border: 1px solid #555; border-radius: 6px;">
+          <button class="btn" onclick="generateInsight()" style="background: #4CAF50;">Generate Insight</button>
+          <button class="btn" onclick="generateAllInsights()" style="background: #FF9800;">Generate All</button>
+        </div>
+
+        <div id="insightResults" style="max-height: 500px; overflow-y: auto;">
+          <p style="color: #666;">Select a session and template, then click Generate</p>
+        </div>
+      </div>
+
+      <!-- Agent Chat Section (Placeholder) -->
+      <div class="card">
+        <h2>Meeting Q&A Agent</h2>
+        <p style="color: #999; margin-bottom: 12px;">Ask questions about the meeting transcript</p>
+
+        <div id="agentChatMessages" style="max-height: 300px; overflow-y: auto; margin-bottom: 12px; padding: 12px; background: #1a1a1a; border-radius: 8px; min-height: 100px;">
+          <div style="color: #666; text-align: center; padding: 20px;">
+            <p>Start a conversation about your meeting</p>
+            <p style="font-size: 12px; margin-top: 8px;">Full AI-powered responses coming soon</p>
+          </div>
+        </div>
+
+        <div id="suggestedQueries" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;">
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="agentChatInput" placeholder="Ask a question about the meeting..." style="flex: 1; padding: 8px; background: #2d2d2d; color: #e0e0e0; border: 1px solid #555; border-radius: 6px;" onkeypress="if(event.key==='Enter')sendAgentMessage()">
+          <button class="btn" onclick="sendAgentMessage()" style="background: #2196F3;">Send</button>
+        </div>
+      </div>
+
+    </div>
+
   </div>
 
 
@@ -3128,7 +3201,312 @@ Translation:`,
       if (tabName === 'livefeed') updateFeedSessionSelect();
       if (tabName === 'glossary') refreshGlossaries();
       if (tabName === 'history') loadSavedTranscripts();
+      if (tabName === 'intelligence') initIntelligenceTab();
     };
+
+    // ==========================================================================
+    // Meeting Intelligence Functions
+    // ==========================================================================
+    let intelConversationId = null;
+
+    async function initIntelligenceTab() {
+      // Populate session select
+      const select = document.getElementById('intelSessionSelect');
+      select.innerHTML = '<option value="">-- Select a session --</option>';
+      for (const s of currentSessions) {
+        const opt = document.createElement('option');
+        opt.value = s.session_id;
+        opt.textContent = `${s.session_id} (${s.chunks_received} chunks, ${s.translations_completed} translations)`;
+        select.appendChild(opt);
+      }
+      select.onchange = () => { loadNotes(); loadInsights(); loadSuggestions(); };
+
+      // Load templates
+      await loadInsightTemplates();
+    }
+
+    async function loadInsightTemplates() {
+      try {
+        const resp = await fetch(`${baseUrl}/api/intelligence/templates`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const select = document.getElementById('insightTemplateSelect');
+        select.innerHTML = '';
+        (data.templates || []).forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.name;
+          opt.textContent = `${t.name} - ${t.description || t.category}`;
+          select.appendChild(opt);
+        });
+      } catch (e) {
+        console.warn('Could not load insight templates:', e);
+      }
+    }
+
+    async function loadNotes() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      const container = document.getElementById('notesList');
+      if (!sessionId) { container.innerHTML = '<p style="color:#666">Select a session</p>'; return; }
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/notes`);
+        if (!resp.ok) { container.innerHTML = '<p style="color:#f44">Failed to load notes</p>'; return; }
+        const data = await resp.json();
+        const notes = data.notes || [];
+
+        if (notes.length === 0) {
+          container.innerHTML = '<p style="color:#666">No notes yet</p>';
+          return;
+        }
+
+        container.innerHTML = notes.map(n => `
+          <div style="border-left: 3px solid ${n.note_type === 'auto' ? '#FF9800' : n.note_type === 'annotation' ? '#9C27B0' : '#4CAF50'}; padding: 8px 12px; margin-bottom: 8px; background: #1a1a1a; border-radius: 0 6px 6px 0;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <span style="color:#888; font-size:11px;">${n.note_type.toUpperCase()}${n.speaker_name ? ' - ' + n.speaker_name : ''}</span>
+              <span style="color:#555; font-size:11px;">${n.created_at ? new Date(n.created_at).toLocaleTimeString() : ''}</span>
+            </div>
+            <div style="color:#e0e0e0;">${escapeHtml(n.content)}</div>
+            ${n.processing_time_ms ? '<div style="color:#555; font-size:11px; margin-top:4px;">' + n.llm_model + ' - ' + Math.round(n.processing_time_ms) + 'ms</div>' : ''}
+          </div>
+        `).join('');
+      } catch (e) {
+        container.innerHTML = '<p style="color:#f44">Error: ' + e.message + '</p>';
+      }
+    }
+
+    async function addManualNote() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      const input = document.getElementById('manualNoteInput');
+      if (!sessionId || !input.value.trim()) { showAlert('Select a session and enter note text', 'error'); return; }
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/notes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: input.value.trim() }),
+        });
+        if (resp.ok) { input.value = ''; loadNotes(); showAlert('Note added', 'success'); }
+        else showAlert('Failed to add note', 'error');
+      } catch (e) { showAlert('Error: ' + e.message, 'error'); }
+    }
+
+    async function analyzeNote() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      const input = document.getElementById('analyzePromptInput');
+      if (!sessionId || !input.value.trim()) { showAlert('Select a session and enter a prompt', 'error'); return; }
+
+      try {
+        showAlert('Analyzing...', 'info');
+        const resp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/notes/analyze`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: input.value.trim() }),
+        });
+        if (resp.ok) { input.value = ''; loadNotes(); showAlert('Analysis complete', 'success'); }
+        else { const err = await resp.json(); showAlert(err.detail || 'Analysis failed', 'error'); }
+      } catch (e) { showAlert('Error: ' + e.message, 'error'); }
+    }
+
+    async function generateInsight() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      const templateName = document.getElementById('insightTemplateSelect').value;
+      const custom = document.getElementById('customInstructions').value.trim();
+      if (!sessionId) { showAlert('Select a session first', 'error'); return; }
+      if (!templateName) { showAlert('Select a template', 'error'); return; }
+
+      try {
+        showAlert('Generating insight...', 'info');
+        const resp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/insights/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_names: [templateName],
+            custom_instructions: custom || null,
+          }),
+        });
+        if (resp.ok) { loadInsights(); showAlert('Insight generated', 'success'); }
+        else { const err = await resp.json(); showAlert(err.detail || 'Generation failed', 'error'); }
+      } catch (e) { showAlert('Error: ' + e.message, 'error'); }
+    }
+
+    async function generateAllInsights() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      if (!sessionId) { showAlert('Select a session first', 'error'); return; }
+
+      const select = document.getElementById('insightTemplateSelect');
+      const allNames = Array.from(select.options).map(o => o.value).filter(v => v);
+      if (allNames.length === 0) { showAlert('No templates available', 'error'); return; }
+
+      try {
+        showAlert('Generating all insights...', 'info');
+        const resp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/insights/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template_names: allNames }),
+        });
+        if (resp.ok) { loadInsights(); showAlert('All insights generated', 'success'); }
+        else { const err = await resp.json(); showAlert(err.detail || 'Generation failed', 'error'); }
+      } catch (e) { showAlert('Error: ' + e.message, 'error'); }
+    }
+
+    async function loadInsights() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      const container = document.getElementById('insightResults');
+      if (!sessionId) { container.innerHTML = '<p style="color:#666">Select a session</p>'; return; }
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/insights`);
+        if (!resp.ok) { container.innerHTML = '<p style="color:#f44">Failed to load</p>'; return; }
+        const data = await resp.json();
+        const insights = data.insights || [];
+
+        if (insights.length === 0) {
+          container.innerHTML = '<p style="color:#666">No insights generated yet</p>';
+          return;
+        }
+
+        container.innerHTML = insights.map(i => `
+          <div style="border: 1px solid #444; border-radius: 8px; padding: 16px; margin-bottom: 12px; background: #1a1a1a;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+              <h3 style="margin:0; color:#4ECDC4;">${escapeHtml(i.title)}</h3>
+              <span style="color:#888; font-size:11px;">${i.insight_type} - ${Math.round(i.processing_time_ms || 0)}ms</span>
+            </div>
+            <div style="color:#e0e0e0; white-space: pre-wrap; line-height: 1.6;">${escapeHtml(i.content)}</div>
+            <div style="color:#555; font-size:11px; margin-top:8px;">${i.llm_model || ''} | ${i.transcript_length || 0} chars | ${i.created_at ? new Date(i.created_at).toLocaleString() : ''}</div>
+          </div>
+        `).join('');
+      } catch (e) { container.innerHTML = '<p style="color:#f44">Error: ' + e.message + '</p>'; }
+    }
+
+    async function loadSuggestions() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      const container = document.getElementById('suggestedQueries');
+      if (!sessionId) { container.innerHTML = ''; return; }
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/agent/suggestions`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        container.innerHTML = (data.queries || []).map(q =>
+          `<button style="padding: 4px 10px; font-size: 12px; background: #333; color: #4ECDC4; border: 1px solid #4ECDC4; border-radius: 12px; cursor: pointer;" onclick="document.getElementById('agentChatInput').value='${escapeHtml(q)}';sendAgentMessage()">${escapeHtml(q)}</button>`
+        ).join('');
+      } catch (e) { console.warn('Could not load suggestions:', e); }
+    }
+
+    async function sendAgentMessage() {
+      const sessionId = document.getElementById('intelSessionSelect').value;
+      const input = document.getElementById('agentChatInput');
+      const container = document.getElementById('agentChatMessages');
+      if (!sessionId || !input.value.trim()) { showAlert('Select a session and type a message', 'error'); return; }
+
+      const userText = input.value.trim();
+      input.value = '';
+
+      // Show user message
+      container.innerHTML += `<div style="text-align:right; margin-bottom:8px;"><span style="background:#2196F3; color:white; padding:6px 12px; border-radius:12px; display:inline-block; max-width:80%;">${escapeHtml(userText)}</span></div>`;
+      container.scrollTop = container.scrollHeight;
+
+      try {
+        // Create conversation if needed
+        if (!intelConversationId) {
+          const createResp = await fetch(`${baseUrl}/api/intelligence/sessions/${sessionId}/agent/conversations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'Dashboard Q&A' }),
+          });
+          if (createResp.ok) {
+            const convData = await createResp.json();
+            intelConversationId = convData.conversation_id;
+          }
+        }
+
+        if (!intelConversationId) { showAlert('Failed to create conversation', 'error'); return; }
+
+        // Add typing indicator
+        const typingId = 'typing-' + Date.now();
+        container.innerHTML += `<div id="${typingId}" style="text-align:left; margin-bottom:8px;"><span style="background:#333; color:#e0e0e0; padding:6px 12px; border-radius:12px; display:inline-block; max-width:80%;"><span class="typing-dots">Thinking</span></span></div>`;
+        container.scrollTop = container.scrollHeight;
+
+        // Try streaming endpoint first
+        const resp = await fetch(`${baseUrl}/api/intelligence/agent/conversations/${intelConversationId}/messages/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: userText }),
+        });
+
+        if (resp.ok && resp.headers.get('content-type')?.includes('text/event-stream')) {
+          // Remove typing indicator and create response bubble
+          const typingEl = document.getElementById(typingId);
+          if (typingEl) typingEl.remove();
+
+          const bubbleId = 'bubble-' + Date.now();
+          container.innerHTML += `<div style="text-align:left; margin-bottom:8px;"><span id="${bubbleId}" style="background:#333; color:#e0e0e0; padding:6px 12px; border-radius:12px; display:inline-block; max-width:80%; white-space:pre-wrap;"></span></div>`;
+          const bubble = document.getElementById(bubbleId);
+
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.error) {
+                  bubble.textContent += '\n[Error: ' + data.error + ']';
+                } else if (data.chunk) {
+                  bubble.textContent += data.chunk;
+                  container.scrollTop = container.scrollHeight;
+                }
+                if (data.done && data.suggested_queries) {
+                  // Show follow-up suggestions
+                  const suggestionsHtml = data.suggested_queries.map(q =>
+                    `<button style="padding:3px 8px; font-size:11px; background:#222; color:#4ECDC4; border:1px solid #4ECDC4; border-radius:10px; cursor:pointer; margin:2px;" onclick="document.getElementById('agentChatInput').value='${escapeHtml(q)}';sendAgentMessage()">${escapeHtml(q)}</button>`
+                  ).join('');
+                  container.innerHTML += `<div style="text-align:left; margin-bottom:8px; margin-left:4px;">${suggestionsHtml}</div>`;
+                  container.scrollTop = container.scrollHeight;
+                }
+              } catch (parseErr) { /* skip unparsable lines */ }
+            }
+          }
+        } else {
+          // Fallback to non-streaming endpoint
+          const typingEl = document.getElementById(typingId);
+          if (typingEl) typingEl.remove();
+
+          const fallbackResp = await fetch(`${baseUrl}/api/intelligence/agent/conversations/${intelConversationId}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: userText }),
+          });
+
+          if (fallbackResp.ok) {
+            const msg = await fallbackResp.json();
+            container.innerHTML += `<div style="text-align:left; margin-bottom:8px;"><span style="background:#333; color:#e0e0e0; padding:6px 12px; border-radius:12px; display:inline-block; max-width:80%; white-space:pre-wrap;">${escapeHtml(msg.content)}</span></div>`;
+            if (msg.suggested_queries && msg.suggested_queries.length > 0) {
+              const suggestionsHtml = msg.suggested_queries.map(q =>
+                `<button style="padding:3px 8px; font-size:11px; background:#222; color:#4ECDC4; border:1px solid #4ECDC4; border-radius:10px; cursor:pointer; margin:2px;" onclick="document.getElementById('agentChatInput').value='${escapeHtml(q)}';sendAgentMessage()">${escapeHtml(q)}</button>`
+              ).join('');
+              container.innerHTML += `<div style="text-align:left; margin-bottom:8px; margin-left:4px;">${suggestionsHtml}</div>`;
+            }
+            container.scrollTop = container.scrollHeight;
+          }
+        }
+      } catch (e) {
+        // Remove any typing indicator
+        const typingEls = container.querySelectorAll('[id^="typing-"]');
+        typingEls.forEach(el => el.remove());
+        container.innerHTML += `<div style="text-align:left; margin-bottom:8px;"><span style="background:#5a1a1a; color:#f44; padding:6px 12px; border-radius:12px; display:inline-block;">Error: ${e.message}</span></div>`;
+      }
+    }
+
   </script>
 </body>
 </html>
