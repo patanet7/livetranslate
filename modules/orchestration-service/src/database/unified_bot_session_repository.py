@@ -12,20 +12,24 @@ that replaces the 5 separate manager classes:
 
 This unified approach reduces complexity while maintaining all functionality
 through a clean repository pattern with specialized method groups.
+
+All methods use SQLAlchemy ORM for PostgreSQL compatibility (no raw SQL
+with SQLite-style ? placeholders).
 """
 
+import hashlib
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
-from audio.models import SpeakerCorrelation  # Pydantic model
+from sqlalchemy import select, text
 
 from .database import DatabaseManager
 from .models import (
     AudioFile,
     BotSession,
+    Correlation,
     Transcript,
     Translation,
 )
@@ -48,20 +52,15 @@ class UnifiedBotSessionRepository:
     def __init__(self, database_manager: DatabaseManager):
         """Initialize with database manager."""
         self.db = database_manager
-        self._connection_pool = None
 
         logger.info("UnifiedBotSessionRepository initialized")
 
     async def initialize(self) -> bool:
         """Initialize the repository and database connections."""
         try:
-            # Ensure database manager is initialized
-            if not await self.db.initialize():
-                logger.error("Failed to initialize database manager")
-                return False
-
-            # Create connection pool if needed
-            self._connection_pool = await self.db.get_connection_pool()
+            # Ensure database manager is initialized (sync method)
+            if not self.db._initialized:
+                self.db.initialize()
 
             logger.info("Unified bot session repository initialized successfully")
             return True
@@ -85,20 +84,35 @@ class UnifiedBotSessionRepository:
 
     async def session_create(
         self,
-        session_id: str,
-        meeting_url: str,
-        bot_config: dict[str, Any],
+        session_id: str | None = None,
+        meeting_url: str = "",
+        bot_config: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
+        bot_id: str | None = None,
+        meeting_id: str | None = None,
     ) -> BotSession | None:
-        """Create a new bot session."""
+        """Create a new bot session.
+
+        Maps convenience parameters to the actual ORM model columns:
+        - meeting_url -> meeting_uri
+        - bot_config + metadata -> session_metadata
+        - Auto-generates bot_id and meeting_id if not provided
+        """
         try:
+            now = datetime.now(UTC).replace(tzinfo=None)
+
             session = BotSession(
-                session_id=session_id,
-                meeting_url=meeting_url,
+                bot_id=bot_id or f"bot-{uuid.uuid4().hex[:8]}",
+                meeting_id=meeting_id or f"meet-{uuid.uuid4().hex[:8]}",
+                meeting_uri=meeting_url,
+                bot_type="google_meet",
                 status="initializing",
-                bot_config=bot_config,
-                metadata=metadata or {},
-                created_at=datetime.now(UTC),
+                created_at=now,
+                started_at=now,
+                session_metadata={
+                    **(metadata or {}),
+                    "bot_config": bot_config or {},
+                },
             )
 
             async with self.db.get_session() as db_session:
@@ -106,75 +120,109 @@ class UnifiedBotSessionRepository:
                 await db_session.commit()
                 await db_session.refresh(session)
 
-            logger.info(f"Created bot session: {session_id}")
+            logger.info(f"Created bot session: {session.session_id}")
             return session
 
         except Exception as e:
-            logger.error(f"Failed to create bot session {session_id}: {e}")
+            logger.error(f"Failed to create bot session: {e}")
             return None
 
-    async def session_get(self, session_id: str) -> BotSession | None:
-        """Get bot session by ID."""
+    async def session_get(self, session_id: str | uuid.UUID) -> BotSession | None:
+        """Get bot session by ID using SQLAlchemy ORM."""
         try:
-            async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT * FROM bot_sessions WHERE session_id = ?", (session_id,)
-                )
-                row = result.fetchone()
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
 
-                if row:
-                    return BotSession(**dict(row))
-                return None
+            async with self.db.get_session() as db_session:
+                stmt = select(BotSession).where(BotSession.session_id == session_id)
+                result = await db_session.execute(stmt)
+                return result.scalar_one_or_none()
 
         except Exception as e:
             logger.error(f"Failed to get bot session {session_id}: {e}")
             return None
 
-    async def session_update_status(self, session_id: str, status: str) -> bool:
-        """Update bot session status."""
-        try:
-            async with self.db.get_session() as db_session:
-                await db_session.execute(
-                    "UPDATE bot_sessions SET status = ?, updated_at = ? WHERE session_id = ?",
-                    (status, datetime.now(UTC), session_id),
-                )
-                await db_session.commit()
+    async def session_update(
+        self,
+        session_id: str | uuid.UUID,
+        status: str | None = None,
+        **kwargs: Any,
+    ) -> bool:
+        """Update bot session fields using ORM.
 
-            logger.debug(f"Updated session {session_id} status to {status}")
+        Supports updating status and any other model fields passed as kwargs.
+        Automatically sets ended_at when status is 'completed'.
+        """
+        try:
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
+
+            async with self.db.get_session() as db_session:
+                stmt = select(BotSession).where(BotSession.session_id == session_id)
+                result = await db_session.execute(stmt)
+                session = result.scalar_one_or_none()
+
+                if not session:
+                    logger.warning(f"Session {session_id} not found for update")
+                    return False
+
+                if status is not None:
+                    session.status = status
+                    if status == "completed":
+                        session.ended_at = datetime.now(UTC).replace(tzinfo=None)
+
+                for key, value in kwargs.items():
+                    if hasattr(session, key):
+                        setattr(session, key, value)
+
+                await db_session.commit()
+                await db_session.refresh(session)
+
+            logger.debug(f"Updated session {session_id}")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update session status: {e}")
+            logger.error(f"Failed to update session {session_id}: {e}")
             return False
 
+    async def session_update_status(self, session_id: str | uuid.UUID, status: str) -> bool:
+        """Update bot session status (convenience wrapper around session_update)."""
+        return await self.session_update(session_id=session_id, status=status)
+
     async def session_list_active(self) -> list[BotSession]:
-        """List all active bot sessions."""
+        """List all active bot sessions using ORM."""
         try:
             async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT * FROM bot_sessions WHERE status IN ('active', 'recording', 'processing')"
+                stmt = select(BotSession).where(
+                    BotSession.status.in_(["active", "recording", "processing"])
                 )
-                rows = result.fetchall()
-
-                return [BotSession(**dict(row)) for row in rows]
+                result = await db_session.execute(stmt)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to list active sessions: {e}")
             return []
 
     async def session_cleanup_old(self, older_than_hours: int = 24) -> int:
-        """Clean up old completed sessions."""
+        """Clean up old completed sessions using ORM."""
         try:
-            cutoff_time = datetime.now(UTC) - timedelta(hours=older_than_hours)
+            cutoff_time = datetime.now(UTC).replace(tzinfo=None) - timedelta(hours=older_than_hours)
 
             async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "DELETE FROM bot_sessions WHERE status = 'completed' AND updated_at < ?",
-                    (cutoff_time,),
+                stmt = select(BotSession).where(
+                    BotSession.status == "completed",
+                    BotSession.created_at < cutoff_time,
                 )
+                result = await db_session.execute(stmt)
+                sessions = result.scalars().all()
+
+                deleted_count = 0
+                for session in sessions:
+                    await db_session.delete(session)
+                    deleted_count += 1
+
                 await db_session.commit()
 
-                deleted_count = result.rowcount
                 logger.info(f"Cleaned up {deleted_count} old bot sessions")
                 return deleted_count
 
@@ -186,6 +234,71 @@ class UnifiedBotSessionRepository:
     # AUDIO FILE METHODS (replaces AudioFileManager)
     # =============================================================================
 
+    async def audio_create(
+        self,
+        session_id: str | uuid.UUID,
+        audio_data: bytes,
+        metadata: dict[str, Any] | None = None,
+        filename: str | None = None,
+        file_path: str | None = None,
+        mime_type: str = "audio/wav",
+    ) -> AudioFile | None:
+        """Create an audio file record from raw audio data.
+
+        This method creates the AudioFile ORM record with computed fields
+        (file_size, file_hash) and stores metadata including audio properties
+        like sample_rate and duration extracted from the metadata dict.
+        """
+        try:
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
+
+            now = datetime.now(UTC).replace(tzinfo=None)
+            file_hash = hashlib.sha256(audio_data).hexdigest()
+            meta = metadata or {}
+
+            audio_file = AudioFile(
+                session_id=session_id,
+                filename=filename or f"audio_{uuid.uuid4().hex[:8]}.wav",
+                file_path=file_path or f"/tmp/audio_{uuid.uuid4().hex[:8]}.wav",
+                file_size=len(audio_data),
+                file_hash=file_hash,
+                mime_type=mime_type,
+                duration=meta.get("duration"),
+                sample_rate=meta.get("sample_rate"),
+                channels=meta.get("channels", 1),
+                bit_depth=meta.get("bit_depth", 16),
+                created_at=now,
+                session_metadata=meta,
+            )
+
+            async with self.db.get_session() as db_session:
+                db_session.add(audio_file)
+                await db_session.commit()
+                await db_session.refresh(audio_file)
+
+            logger.debug(f"Created audio file {audio_file.file_id} for session {session_id}")
+            return audio_file
+
+        except Exception as e:
+            logger.error(f"Failed to create audio file: {e}")
+            return None
+
+    async def audio_get(self, file_id: str | uuid.UUID) -> AudioFile | None:
+        """Get audio file by ID using ORM."""
+        try:
+            if isinstance(file_id, str):
+                file_id = uuid.UUID(file_id)
+
+            async with self.db.get_session() as db_session:
+                stmt = select(AudioFile).where(AudioFile.file_id == file_id)
+                result = await db_session.execute(stmt)
+                return result.scalar_one_or_none()
+
+        except Exception as e:
+            logger.error(f"Failed to get audio file {file_id}: {e}")
+            return None
+
     async def audio_store_file(
         self,
         session_id: str,
@@ -193,70 +306,85 @@ class UnifiedBotSessionRepository:
         file_type: str = "wav",
         metadata: dict[str, Any] | None = None,
     ) -> str | None:
-        """Store audio file information in database."""
+        """Store audio file information in database (legacy interface)."""
         try:
-            file_id = str(uuid.uuid4())
+            from pathlib import Path as FilePath
+
+            file_size = FilePath(file_path).stat().st_size if FilePath(file_path).exists() else 0
+            file_hash = hashlib.sha256(
+                FilePath(file_path).read_bytes() if FilePath(file_path).exists() else b""
+            ).hexdigest()
+
+            if isinstance(session_id, str):
+                session_id_uuid = uuid.UUID(session_id)
+            else:
+                session_id_uuid = session_id
 
             audio_file = AudioFile(
-                file_id=file_id,
-                session_id=session_id,
+                session_id=session_id_uuid,
+                filename=FilePath(file_path).name,
                 file_path=file_path,
-                file_type=file_type,
-                file_size=Path(file_path).stat().st_size if Path(file_path).exists() else 0,
-                metadata=metadata or {},
-                created_at=datetime.now(UTC),
+                file_size=file_size,
+                file_hash=file_hash,
+                mime_type=f"audio/{file_type}",
+                session_metadata=metadata or {},
+                created_at=datetime.now(UTC).replace(tzinfo=None),
             )
 
             async with self.db.get_session() as db_session:
                 db_session.add(audio_file)
                 await db_session.commit()
+                await db_session.refresh(audio_file)
 
-            logger.debug(f"Stored audio file {file_id} for session {session_id}")
-            return file_id
+            logger.debug(f"Stored audio file {audio_file.file_id} for session {session_id}")
+            return str(audio_file.file_id)
 
         except Exception as e:
             logger.error(f"Failed to store audio file: {e}")
             return None
 
-    async def audio_get_files(self, session_id: str) -> list[AudioFile]:
-        """Get all audio files for a session."""
+    async def audio_get_files(self, session_id: str | uuid.UUID) -> list[AudioFile]:
+        """Get all audio files for a session using ORM."""
         try:
-            async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT * FROM audio_files WHERE session_id = ? ORDER BY created_at",
-                    (session_id,),
-                )
-                rows = result.fetchall()
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
 
-                return [AudioFile(**dict(row)) for row in rows]
+            async with self.db.get_session() as db_session:
+                stmt = (
+                    select(AudioFile)
+                    .where(AudioFile.session_id == session_id)
+                    .order_by(AudioFile.created_at)
+                )
+                result = await db_session.execute(stmt)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to get audio files for session {session_id}: {e}")
             return []
 
-    async def audio_delete_file(self, file_id: str) -> bool:
+    async def audio_delete_file(self, file_id: str | uuid.UUID) -> bool:
         """Delete audio file record and optionally the file itself."""
         try:
-            # Get file info first
+            from pathlib import Path as FilePath
+
+            if isinstance(file_id, str):
+                file_id = uuid.UUID(file_id)
+
             async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT file_path FROM audio_files WHERE file_id = ?", (file_id,)
-                )
-                row = result.fetchone()
+                stmt = select(AudioFile).where(AudioFile.file_id == file_id)
+                result = await db_session.execute(stmt)
+                audio_file = result.scalar_one_or_none()
 
-                if row:
-                    file_path = row["file_path"]
+                if audio_file:
+                    file_path = audio_file.file_path
 
-                    # Delete database record
-                    await db_session.execute(
-                        "DELETE FROM audio_files WHERE file_id = ?", (file_id,)
-                    )
+                    await db_session.delete(audio_file)
                     await db_session.commit()
 
                     # Optionally delete physical file
                     try:
-                        if Path(file_path).exists():
-                            Path(file_path).unlink()
+                        if file_path and FilePath(file_path).exists():
+                            FilePath(file_path).unlink()
                     except Exception as file_e:
                         logger.warning(f"Failed to delete physical file {file_path}: {file_e}")
 
@@ -273,78 +401,153 @@ class UnifiedBotSessionRepository:
     # TRANSCRIPT METHODS (replaces TranscriptManager)
     # =============================================================================
 
+    async def transcript_create(
+        self,
+        audio_id: str | uuid.UUID,
+        transcription_text: str,
+        language: str = "en",
+        confidence: float = 1.0,
+        segments: list[dict[str, Any]] | None = None,
+        speakers: list[dict[str, Any]] | None = None,
+        speaker_id: str | None = None,
+        speaker_name: str | None = None,
+    ) -> Transcript | None:
+        """Create a transcript record linked to an audio file.
+
+        Maps convenience parameters to ORM model columns:
+        - transcription_text -> text
+        - audio_id -> audio_file_id
+        - segments, speakers -> stored in session_metadata
+        - session_id is looked up from the audio file
+        """
+        try:
+            if isinstance(audio_id, str):
+                audio_id = uuid.UUID(audio_id)
+
+            now = datetime.now(UTC).replace(tzinfo=None)
+
+            # Look up the audio file to get session_id
+            async with self.db.get_session() as db_session:
+                audio_stmt = select(AudioFile).where(AudioFile.file_id == audio_id)
+                audio_result = await db_session.execute(audio_stmt)
+                audio_file = audio_result.scalar_one_or_none()
+
+                if not audio_file:
+                    logger.error(f"Audio file {audio_id} not found for transcript creation")
+                    return None
+
+                transcript = Transcript(
+                    session_id=audio_file.session_id,
+                    text=transcription_text,
+                    language=language,
+                    confidence=confidence,
+                    source="whisper",
+                    audio_file_id=audio_id,
+                    speaker_id=speaker_id or (speakers[0].get("speaker_id") if speakers else None),
+                    speaker_name=speaker_name,
+                    start_time=now,
+                    end_time=now,
+                    session_metadata={
+                        "segments": segments or [],
+                        "speakers": speakers or [],
+                    },
+                )
+
+                db_session.add(transcript)
+                await db_session.commit()
+                await db_session.refresh(transcript)
+
+            logger.debug(f"Created transcript {transcript.transcript_id} " f"for audio {audio_id}")
+            return transcript
+
+        except Exception as e:
+            logger.error(f"Failed to create transcript: {e}")
+            return None
+
     async def transcript_store(
         self,
-        session_id: str,
-        text: str,
+        session_id: str | uuid.UUID,
+        text_content: str,
         speaker_id: str | None = None,
         timestamp: datetime | None = None,
         confidence: float = 1.0,
         metadata: dict[str, Any] | None = None,
     ) -> str | None:
-        """Store transcript segment."""
+        """Store transcript segment (legacy interface)."""
         try:
-            transcript_id = str(uuid.uuid4())
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
+
+            now = datetime.now(UTC).replace(tzinfo=None)
 
             transcript = Transcript(
-                transcript_id=transcript_id,
                 session_id=session_id,
-                text=text,
-                speaker_id=speaker_id,
-                timestamp=timestamp or datetime.now(UTC),
+                text=text_content,
+                language="en",
                 confidence=confidence,
-                metadata=metadata or {},
-                created_at=datetime.now(UTC),
+                source="whisper",
+                speaker_id=speaker_id,
+                start_time=timestamp or now,
+                end_time=timestamp or now,
+                session_metadata=metadata or {},
             )
 
             async with self.db.get_session() as db_session:
                 db_session.add(transcript)
                 await db_session.commit()
+                await db_session.refresh(transcript)
 
-            logger.debug(f"Stored transcript {transcript_id} for session {session_id}")
-            return transcript_id
+            logger.debug(f"Stored transcript {transcript.transcript_id} for session {session_id}")
+            return str(transcript.transcript_id)
 
         except Exception as e:
             logger.error(f"Failed to store transcript: {e}")
             return None
 
     async def transcript_get_by_session(
-        self, session_id: str, speaker_id: str | None = None
+        self, session_id: str | uuid.UUID, speaker_id: str | None = None
     ) -> list[Transcript]:
         """Get transcripts for a session, optionally filtered by speaker."""
         try:
-            query = "SELECT * FROM transcripts WHERE session_id = ?"
-            params = [session_id]
-
-            if speaker_id:
-                query += " AND speaker_id = ?"
-                params.append(speaker_id)
-
-            query += " ORDER BY timestamp"
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
 
             async with self.db.get_session() as db_session:
-                result = await db_session.execute(query, params)
-                rows = result.fetchall()
+                stmt = select(Transcript).where(Transcript.session_id == session_id)
 
-                return [Transcript(**dict(row)) for row in rows]
+                if speaker_id:
+                    stmt = stmt.where(Transcript.speaker_id == speaker_id)
+
+                stmt = stmt.order_by(Transcript.start_time)
+
+                result = await db_session.execute(stmt)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to get transcripts for session {session_id}: {e}")
             return []
 
-    async def transcript_get_recent(self, session_id: str, minutes: int = 5) -> list[Transcript]:
+    async def transcript_get_recent(
+        self, session_id: str | uuid.UUID, minutes: int = 5
+    ) -> list[Transcript]:
         """Get recent transcripts from the last N minutes."""
         try:
-            cutoff_time = datetime.now(UTC) - timedelta(minutes=minutes)
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
+
+            cutoff_time = datetime.now(UTC).replace(tzinfo=None) - timedelta(minutes=minutes)
 
             async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT * FROM transcripts WHERE session_id = ? AND timestamp > ? ORDER BY timestamp",
-                    (session_id, cutoff_time),
+                stmt = (
+                    select(Transcript)
+                    .where(
+                        Transcript.session_id == session_id,
+                        Transcript.start_time > cutoff_time,
+                    )
+                    .order_by(Transcript.start_time)
                 )
-                rows = result.fetchall()
-
-                return [Transcript(**dict(row)) for row in rows]
+                result = await db_session.execute(stmt)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to get recent transcripts: {e}")
@@ -354,73 +557,132 @@ class UnifiedBotSessionRepository:
     # TRANSLATION METHODS (replaces TranslationManager)
     # =============================================================================
 
+    async def translation_create(
+        self,
+        transcript_id: str | uuid.UUID,
+        translated_text: str,
+        target_language: str,
+        confidence: float = 1.0,
+        source_language: str = "en",
+    ) -> Translation | None:
+        """Create a translation record linked to a transcript.
+
+        Looks up the transcript to get session_id and original text.
+        """
+        try:
+            if isinstance(transcript_id, str):
+                transcript_id = uuid.UUID(transcript_id)
+
+            now = datetime.now(UTC).replace(tzinfo=None)
+
+            async with self.db.get_session() as db_session:
+                # Look up transcript for session_id and original text
+                t_stmt = select(Transcript).where(Transcript.transcript_id == transcript_id)
+                t_result = await db_session.execute(t_stmt)
+                transcript = t_result.scalar_one_or_none()
+
+                if not transcript:
+                    logger.error(f"Transcript {transcript_id} not found for translation")
+                    return None
+
+                translation = Translation(
+                    session_id=transcript.session_id,
+                    transcript_id=transcript_id,
+                    original_text=transcript.text,
+                    translated_text=translated_text,
+                    source_language=source_language,
+                    target_language=target_language,
+                    confidence=confidence,
+                    start_time=now,
+                    end_time=now,
+                    word_count=len(translated_text.split()),
+                    character_count=len(translated_text),
+                )
+
+                db_session.add(translation)
+                await db_session.commit()
+                await db_session.refresh(translation)
+
+            logger.debug(
+                f"Created translation {translation.translation_id} "
+                f"for transcript {transcript_id}"
+            )
+            return translation
+
+        except Exception as e:
+            logger.error(f"Failed to create translation: {e}")
+            return None
+
     async def translation_store(
         self,
-        transcript_id: str,
+        transcript_id: str | uuid.UUID,
         target_language: str,
         translated_text: str,
         confidence: float = 1.0,
         metadata: dict[str, Any] | None = None,
     ) -> str | None:
-        """Store translation for a transcript."""
-        try:
-            translation_id = str(uuid.uuid4())
+        """Store translation for a transcript (legacy interface)."""
+        translation = await self.translation_create(
+            transcript_id=transcript_id,
+            translated_text=translated_text,
+            target_language=target_language,
+            confidence=confidence,
+        )
+        return str(translation.translation_id) if translation else None
 
-            translation = Translation(
-                translation_id=translation_id,
-                transcript_id=transcript_id,
-                target_language=target_language,
-                translated_text=translated_text,
-                confidence=confidence,
-                metadata=metadata or {},
-                created_at=datetime.now(UTC),
-            )
+    async def translation_get_by_transcript(
+        self, transcript_id: str | uuid.UUID
+    ) -> list[Translation]:
+        """Get all translations for a transcript using ORM."""
+        try:
+            if isinstance(transcript_id, str):
+                transcript_id = uuid.UUID(transcript_id)
 
             async with self.db.get_session() as db_session:
-                db_session.add(translation)
-                await db_session.commit()
-
-            logger.debug(f"Stored translation {translation_id} for transcript {transcript_id}")
-            return translation_id
-
-        except Exception as e:
-            logger.error(f"Failed to store translation: {e}")
-            return None
-
-    async def translation_get_by_transcript(self, transcript_id: str) -> list[Translation]:
-        """Get all translations for a transcript."""
-        try:
-            async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT * FROM translations WHERE transcript_id = ? ORDER BY created_at",
-                    (transcript_id,),
+                stmt = (
+                    select(Translation)
+                    .where(Translation.transcript_id == transcript_id)
+                    .order_by(Translation.start_time)
                 )
-                rows = result.fetchall()
-
-                return [Translation(**dict(row)) for row in rows]
+                result = await db_session.execute(stmt)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to get translations for transcript {transcript_id}: {e}")
             return []
 
     async def translation_get_by_language(
-        self, session_id: str, target_language: str
+        self, session_id: str | uuid.UUID, target_language: str
     ) -> list[dict[str, Any]]:
-        """Get all translations for a session in a specific language."""
+        """Get all translations for a session in a specific language using ORM."""
         try:
-            query = """
-            SELECT t.*, tr.text as original_text, tr.speaker_id, tr.timestamp
-            FROM translations t
-            JOIN transcripts tr ON t.transcript_id = tr.transcript_id
-            WHERE tr.session_id = ? AND t.target_language = ?
-            ORDER BY tr.timestamp
-            """
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
 
             async with self.db.get_session() as db_session:
-                result = await db_session.execute(query, (session_id, target_language))
-                rows = result.fetchall()
+                stmt = (
+                    select(Translation, Transcript.text.label("original_text"))
+                    .join(Transcript, Translation.transcript_id == Transcript.transcript_id)
+                    .where(
+                        Transcript.session_id == session_id,
+                        Translation.target_language == target_language,
+                    )
+                    .order_by(Transcript.start_time)
+                )
+                result = await db_session.execute(stmt)
+                rows = result.all()
 
-                return [dict(row) for row in rows]
+                return [
+                    {
+                        "translation_id": str(row.Translation.translation_id),
+                        "transcript_id": str(row.Translation.transcript_id),
+                        "translated_text": row.Translation.translated_text,
+                        "target_language": row.Translation.target_language,
+                        "confidence": row.Translation.confidence,
+                        "original_text": row.original_text,
+                    }
+                    for row in rows
+                ]
 
         except Exception as e:
             logger.error(f"Failed to get translations by language: {e}")
@@ -432,66 +694,83 @@ class UnifiedBotSessionRepository:
 
     async def correlation_store(
         self,
-        session_id: str,
+        session_id: str | uuid.UUID,
         whisper_speaker_id: str,
         meet_speaker_name: str,
         confidence: float = 1.0,
         metadata: dict[str, Any] | None = None,
     ) -> str | None:
-        """Store speaker correlation between Whisper and Google Meet."""
+        """Store speaker correlation between Whisper and Google Meet using ORM."""
         try:
-            correlation_id = str(uuid.uuid4())
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
 
-            correlation = SpeakerCorrelation(
-                correlation_id=correlation_id,
+            now = datetime.now(UTC).replace(tzinfo=None)
+
+            correlation = Correlation(
                 session_id=session_id,
-                whisper_speaker_id=whisper_speaker_id,
-                meet_speaker_name=meet_speaker_name,
+                external_source="google_meet",
+                external_text=meet_speaker_name,
+                external_timestamp=now,
+                internal_source="whisper",
+                internal_text=whisper_speaker_id,
+                internal_timestamp=now,
                 confidence=confidence,
-                metadata=metadata or {},
-                created_at=datetime.now(UTC),
+                session_metadata=metadata or {},
             )
 
             async with self.db.get_session() as db_session:
                 db_session.add(correlation)
                 await db_session.commit()
+                await db_session.refresh(correlation)
 
-            logger.debug(f"Stored speaker correlation {correlation_id}")
-            return correlation_id
+            logger.debug(f"Stored speaker correlation {correlation.correlation_id}")
+            return str(correlation.correlation_id)
 
         except Exception as e:
             logger.error(f"Failed to store speaker correlation: {e}")
             return None
 
-    async def correlation_get_by_session(self, session_id: str) -> list[SpeakerCorrelation]:
-        """Get all speaker correlations for a session."""
+    async def correlation_get_by_session(self, session_id: str | uuid.UUID) -> list[Correlation]:
+        """Get all speaker correlations for a session using ORM."""
         try:
-            async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT * FROM speaker_correlations WHERE session_id = ? ORDER BY created_at",
-                    (session_id,),
-                )
-                rows = result.fetchall()
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
 
-                return [SpeakerCorrelation(**dict(row)) for row in rows]
+            async with self.db.get_session() as db_session:
+                stmt = (
+                    select(Correlation)
+                    .where(Correlation.session_id == session_id)
+                    .order_by(Correlation.external_timestamp)
+                )
+                result = await db_session.execute(stmt)
+                return list(result.scalars().all())
 
         except Exception as e:
             logger.error(f"Failed to get correlations for session {session_id}: {e}")
             return []
 
     async def correlation_resolve_speaker(
-        self, session_id: str, whisper_speaker_id: str
+        self, session_id: str | uuid.UUID, whisper_speaker_id: str
     ) -> str | None:
-        """Resolve Whisper speaker ID to Google Meet speaker name."""
+        """Resolve Whisper speaker ID to Google Meet speaker name using ORM."""
         try:
-            async with self.db.get_session() as db_session:
-                result = await db_session.execute(
-                    "SELECT meet_speaker_name FROM speaker_correlations WHERE session_id = ? AND whisper_speaker_id = ? ORDER BY confidence DESC LIMIT 1",
-                    (session_id, whisper_speaker_id),
-                )
-                row = result.fetchone()
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
 
-                return row["meet_speaker_name"] if row else None
+            async with self.db.get_session() as db_session:
+                stmt = (
+                    select(Correlation.external_text)
+                    .where(
+                        Correlation.session_id == session_id,
+                        Correlation.internal_text == whisper_speaker_id,
+                    )
+                    .order_by(Correlation.confidence.desc())
+                    .limit(1)
+                )
+                result = await db_session.execute(stmt)
+                row = result.scalar_one_or_none()
+                return row if row else None
 
         except Exception as e:
             logger.error(f"Failed to resolve speaker: {e}")
@@ -501,11 +780,16 @@ class UnifiedBotSessionRepository:
     # UTILITY AND ANALYTICS METHODS
     # =============================================================================
 
-    async def get_session_statistics(self, session_id: str) -> dict[str, Any]:
-        """Get comprehensive statistics for a session."""
+    async def get_session_statistics(self, session_id: str | uuid.UUID) -> dict[str, Any]:
+        """Get comprehensive statistics for a session using ORM."""
         try:
-            stats = {
-                "session_id": session_id,
+            if isinstance(session_id, str):
+                session_id = uuid.UUID(session_id)
+
+            from sqlalchemy import func
+
+            stats: dict[str, Any] = {
+                "session_id": str(session_id),
                 "audio_files_count": 0,
                 "transcripts_count": 0,
                 "translations_count": 0,
@@ -518,35 +802,33 @@ class UnifiedBotSessionRepository:
             async with self.db.get_session() as db_session:
                 # Audio files count
                 result = await db_session.execute(
-                    "SELECT COUNT(*) as count FROM audio_files WHERE session_id = ?",
-                    (session_id,),
+                    select(func.count(AudioFile.file_id)).where(AudioFile.session_id == session_id)
                 )
-                stats["audio_files_count"] = result.fetchone()["count"]
+                stats["audio_files_count"] = result.scalar() or 0
 
                 # Transcripts count
                 result = await db_session.execute(
-                    "SELECT COUNT(*) as count FROM transcripts WHERE session_id = ?",
-                    (session_id,),
+                    select(func.count(Transcript.transcript_id)).where(
+                        Transcript.session_id == session_id
+                    )
                 )
-                stats["transcripts_count"] = result.fetchone()["count"]
+                stats["transcripts_count"] = result.scalar() or 0
 
-                # Translations count and languages
+                # Translations count
                 result = await db_session.execute(
-                    "SELECT COUNT(*) as count, target_language FROM translations t JOIN transcripts tr ON t.transcript_id = tr.transcript_id WHERE tr.session_id = ? GROUP BY target_language",
-                    (session_id,),
+                    select(func.count(Translation.translation_id)).where(
+                        Translation.session_id == session_id
+                    )
                 )
-                translation_data = result.fetchall()
-                stats["translations_count"] = sum(row["count"] for row in translation_data)
-                stats["languages"] = [row["target_language"] for row in translation_data]
+                stats["translations_count"] = result.scalar() or 0
 
-                # Correlations count and speakers
+                # Correlations count
                 result = await db_session.execute(
-                    "SELECT COUNT(*) as count, meet_speaker_name FROM speaker_correlations WHERE session_id = ? GROUP BY meet_speaker_name",
-                    (session_id,),
+                    select(func.count(Correlation.correlation_id)).where(
+                        Correlation.session_id == session_id
+                    )
                 )
-                correlation_data = result.fetchall()
-                stats["correlations_count"] = sum(row["count"] for row in correlation_data)
-                stats["speakers"] = [row["meet_speaker_name"] for row in correlation_data]
+                stats["correlations_count"] = result.scalar() or 0
 
             return stats
 
@@ -557,7 +839,7 @@ class UnifiedBotSessionRepository:
     async def health_check(self) -> dict[str, Any]:
         """Perform health check on the repository."""
         try:
-            health_status = {
+            health_status: dict[str, Any] = {
                 "status": "healthy",
                 "database_connected": False,
                 "tables_accessible": False,
@@ -566,19 +848,15 @@ class UnifiedBotSessionRepository:
 
             # Check database connection
             async with self.db.get_session() as db_session:
-                await db_session.execute("SELECT 1")
+                await db_session.execute(text("SELECT 1"))
                 health_status["database_connected"] = True
 
-                # Check table accessibility
-                tables = [
-                    "bot_sessions",
-                    "audio_files",
-                    "transcripts",
-                    "translations",
-                    "speaker_correlations",
-                ]
-                for table in tables:
-                    await db_session.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")  # nosec B608 - table names are hardcoded internal constants
+                # Check table accessibility via ORM
+                from sqlalchemy import func
+
+                for model in [BotSession, AudioFile, Transcript, Translation, Correlation]:
+                    pk_col = next(iter(model.__table__.primary_key.columns))
+                    await db_session.execute(select(func.count(pk_col)))
 
                 health_status["tables_accessible"] = True
 
@@ -603,7 +881,7 @@ async def get_unified_bot_session_repository() -> UnifiedBotSessionRepository:
     if _unified_repository is None:
         from .database import get_database_manager
 
-        db_manager = await get_database_manager()
+        db_manager = get_database_manager()
         _unified_repository = UnifiedBotSessionRepository(db_manager)
         await _unified_repository.initialize()
 

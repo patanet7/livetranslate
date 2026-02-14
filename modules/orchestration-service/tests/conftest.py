@@ -140,6 +140,7 @@ logger = logging.getLogger(__name__)
 # Testcontainers + SQLAlchemy async imports
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
 
 # Test configuration constants
 TEST_TIMEOUT = 30  # seconds
@@ -769,6 +770,24 @@ def postgres_container():
 
 
 @pytest.fixture(scope="session")
+def redis_container():
+    """Start Redis testcontainer for entire test session.
+
+    Sets the REDIS_URL environment variable so that:
+    - src/audio/audio_coordinator.py picks it up when creating TranslationResultCache
+    - tests/integration/test_audio_coordinator_optimization.py reads it for cache tests
+    - The cleanup_test_data fixture in the test file connects to the right instance
+    """
+    with RedisContainer(image="redis:7-alpine") as redis:
+        host = redis.get_container_host_ip()
+        port = redis.get_exposed_port(6379)
+        redis_url = f"redis://{host}:{port}/1"
+        os.environ["REDIS_URL"] = redis_url
+        logger.info(f"Redis testcontainer started: {redis_url}")
+        yield redis
+
+
+@pytest.fixture(scope="session")
 def database_url(postgres_container):
     """Get URL from testcontainer and set env vars globally.
 
@@ -914,7 +933,9 @@ def bot_sessions_schema(database_url, run_migrations):
         """)
 
         # 5. Replace speaker_statistics view to include identification columns
+        #    Must DROP first because column structure differs from the base schema view.
         cur.execute("""
+            DROP VIEW IF EXISTS bot_sessions.speaker_statistics;
             CREATE OR REPLACE VIEW bot_sessions.speaker_statistics AS
             SELECT
                 t.session_id,
@@ -1072,7 +1093,7 @@ def verify_database_connection(database_url, run_migrations):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def setup_test_environment(verify_database_connection, database_url):
+def setup_test_environment(verify_database_connection, database_url, redis_container):
     """Setup the test environment at the start of the session."""
     logger.info("=" * 60)
     logger.info("TEST ENVIRONMENT SETUP")
@@ -1080,6 +1101,9 @@ def setup_test_environment(verify_database_connection, database_url):
     logger.info(f"DATABASE_URL: {database_url.split('@')[1]}")  # Hide credentials
     logger.info(f"REDIS_URL: {os.environ.get('REDIS_URL', 'not set')}")
     logger.info(f"Database connected: {verify_database_connection}")
+    logger.info(
+        f"Redis container: {redis_container.get_container_host_ip()}:{redis_container.get_exposed_port(6379)}"
+    )
     logger.info("=" * 60)
 
     yield

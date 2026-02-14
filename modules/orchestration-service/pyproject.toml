@@ -100,6 +100,7 @@ test = [
     "timecode>=1.4.1",
     "hypothesis>=6.145.1",
     "testcontainers[postgres]>=4.9.0",
+    "testcontainers[redis]>=4.9.0",
 ]
 monitoring = [
     "grafana-api>=1.0.3",
