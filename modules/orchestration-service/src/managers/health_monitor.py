@@ -9,7 +9,7 @@ import logging
 import ssl
 import time
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -366,7 +366,7 @@ class HealthMonitor:
             **system_health,
             "detailed": True,
             "service_count": len(self.services),
-            "last_updated": datetime.now().isoformat(),
+            "last_updated": datetime.now(UTC).isoformat(),
         }
 
     async def restart_service(self, service_name: str) -> dict[str, Any]:

@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 
 import yaml
 from watchdog.events import FileSystemEventHandler
@@ -147,7 +147,7 @@ class OrchestrationConfig:
     services: dict[str, ServiceConfig] = field(default_factory=dict)
 
     # Runtime info
-    loaded_at: datetime = field(default_factory=datetime.now)
+    loaded_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     config_file: str | None = None
 
 
@@ -223,7 +223,7 @@ class ConfigManager:
         config = self._load_from_env(config)
 
         # Set loaded timestamp
-        config.loaded_at = datetime.now()
+        config.loaded_at = datetime.now(UTC)
 
         self._config = config
 

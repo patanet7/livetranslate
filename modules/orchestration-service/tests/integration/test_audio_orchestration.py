@@ -14,7 +14,6 @@ Service responses use fixtures that match actual response formats
 """
 
 import asyncio
-import os
 import wave
 from datetime import UTC, datetime
 from pathlib import Path
@@ -36,93 +35,29 @@ except ImportError:
 
 # Database imports
 from src.database import (
-    Base,
     DatabaseManager,
 )
 from src.database.unified_bot_session_repository import UnifiedBotSessionRepository
 
 # Test Configuration
 BASE_URL = "http://localhost:3000"
-# Use PostgreSQL for integration tests - SQLite doesn't support JSONB types
-# Port 5433 is the livetranslate-postgres container
-# Sync URL for SQLAlchemy create_engine (psycopg2)
-TEST_DB_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
-)
-# Async URL for async operations (asyncpg)
-TEST_DB_URL_ASYNC = os.getenv(
-    "TEST_DATABASE_URL_ASYNC",
-    "postgresql+asyncpg://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
-)
 
 
 # =============================================================================
-# TEST DATABASE SETUP
+# TEST DATABASE SETUP — uses shared testcontainer + Alembic from root conftest
 # =============================================================================
 
 
 @pytest.fixture(scope="session")
-def test_database():
-    """
-    Create a real test database for integration testing.
-    Uses PostgreSQL to match production and support JSONB types.
-    """
-    from sqlalchemy import text
-
-    # Create test database
-    engine = create_engine(TEST_DB_URL, echo=False)
-
-    # Use raw SQL to cleanly drop ALL objects in public schema
-    # This avoids issues with partial drops and index conflicts
-    with engine.connect() as conn:
-        # Drop all indexes first
-        conn.execute(
-            text("""
-            DO $$ DECLARE
-                idx RECORD;
-            BEGIN
-                FOR idx IN (
-                    SELECT indexname FROM pg_indexes
-                    WHERE schemaname = 'public'
-                    AND indexname NOT LIKE 'pg_%'
-                ) LOOP
-                    EXECUTE 'DROP INDEX IF EXISTS public.' || quote_ident(idx.indexname) || ' CASCADE';
-                END LOOP;
-            END $$;
-        """)
-        )
-
-        # Then drop all tables
-        conn.execute(
-            text("""
-            DO $$ DECLARE
-                r RECORD;
-            BEGIN
-                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-                    EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
-                END LOOP;
-            END $$;
-        """)
-        )
-        conn.commit()
-
-    # Now create all tables fresh
-    Base.metadata.create_all(bind=engine)
-
+def test_database(database_url, run_migrations):
+    """Use shared testcontainer + Alembic schema (no create_all/drop_all)."""
+    engine = create_engine(database_url, echo=False)
     session_local = sessionmaker(bind=engine)
-
     yield {
         "engine": engine,
         "session_factory": session_local,
-        "url": TEST_DB_URL,
+        "url": database_url,
     }
-
-    # Cleanup after all tests - just drop tables, don't dispose engine yet
-    try:
-        Base.metadata.drop_all(bind=engine)
-    except Exception:
-        pass  # Ignore cleanup errors
     engine.dispose()
 
 
@@ -142,15 +77,19 @@ async def db_session(test_database):
 
 
 @pytest.fixture(scope="function")
-async def bot_repository(test_database):
+async def bot_repository(test_database, database_url):
     """
     Create UnifiedBotSessionRepository with test database.
     Uses async URL for asyncpg driver.
     """
     from config import DatabaseSettings
 
-    # Use async URL for asyncpg driver
-    db_config = DatabaseSettings(url=TEST_DB_URL_ASYNC)
+    # Convert sync URL to async URL for asyncpg driver
+    async_url = database_url
+    if database_url.startswith("postgresql://"):
+        async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    db_config = DatabaseSettings(url=async_url)
     db_manager = DatabaseManager(db_config)
     db_manager.initialize()  # Sync method, not async
 

@@ -10,7 +10,7 @@ FastAPI router for system-wide management endpoints including:
 
 import logging
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import psutil
@@ -630,7 +630,7 @@ async def get_system_status(
     try:
         return {
             "status": "ok",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "version": "2.0.0",
             "service": "orchestration-service",
         }

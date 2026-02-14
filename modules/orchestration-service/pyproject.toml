@@ -32,7 +32,6 @@ dependencies = [
     "psycopg2-binary>=2.9.11",
     "sqlalchemy>=2.0.21,<3.0.0",
     "alembic>=1.12.0,<2.0.0",
-    "aiosqlite>=0.19.0,<1.0.0",
     # JWT and security
     "pyjwt>=2.8.0,<3.0.0",
     "cryptography>=41.0.4,<42.0.0",
@@ -100,6 +99,7 @@ test = [
     "faker>=37.11.0",
     "timecode>=1.4.1",
     "hypothesis>=6.145.1",
+    "testcontainers[postgres]>=4.9.0",
 ]
 monitoring = [
     "grafana-api>=1.0.3",
