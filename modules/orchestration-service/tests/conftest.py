@@ -11,13 +11,13 @@ The environment variables below configure the real PostgreSQL database.
 
 import os
 import sys
+from contextlib import asynccontextmanager
 
 # =============================================================================
 # ENVIRONMENT SETUP - Must be done BEFORE any other imports
-# Configure real database connection for all tests
+# Placeholder URL prevents import failures; overridden by postgres_container fixture.
 # =============================================================================
 
-# PostgreSQL on port 5433 (livetranslate-postgres container)
 if "DATABASE_URL" not in os.environ:
     os.environ["DATABASE_URL"] = (
         "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test"
@@ -136,6 +136,10 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Testcontainers + SQLAlchemy async imports
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from testcontainers.postgres import PostgresContainer
 
 # Test configuration constants
 TEST_TIMEOUT = 30  # seconds
@@ -614,7 +618,7 @@ def reset_dependency_singletons():
 
 
 @pytest.fixture(scope="function")
-def initialized_app():
+def initialized_app(database_url, run_migrations):
     """
     Create FastAPI app with dependencies initialized.
 
@@ -656,10 +660,6 @@ def initialized_app():
     try:
         # Initialize the global database_manager in database/database.py
         # This is required by get_db_session() which routers use
-        database_url = os.environ.get(
-            "DATABASE_URL",
-            "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
-        )
         db_settings = DatabaseSettings(url=database_url)
         initialize_database(db_settings)
         logger.info("Database module initialized")
@@ -742,57 +742,306 @@ def assert_processing_time(actual_time: float, max_time: float, audio_duration: 
 
 
 # =============================================================================
-# REAL DATABASE FIXTURES - For integrated testing
+# REAL DATABASE FIXTURES - Testcontainers + Alembic + Savepoint isolation
 # =============================================================================
 
 
 @pytest.fixture(scope="session")
-def database_url():
-    """Get the database URL from environment."""
-    return os.environ.get(
-        "DATABASE_URL",
-        "postgresql://livetranslate:livetranslate_dev_password@localhost:5433/livetranslate_test",
-    )
+def postgres_container():
+    """Start PostgreSQL testcontainer for entire test session."""
+    with PostgresContainer(
+        image="postgres:16-alpine",
+        username="livetranslate",
+        password="test_password",  # pragma: allowlist secret
+        dbname="livetranslate_test",
+    ) as pg:
+        # Enable extensions required by migrations
+        from sqlalchemy import create_engine, text
+
+        url = pg.get_connection_url()
+        engine = create_engine(url)
+        with engine.connect() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+            conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
+            conn.commit()
+        engine.dispose()
+        yield pg
 
 
 @pytest.fixture(scope="session")
-def db_engine(database_url):
-    """Create a real database engine for the test session."""
-    from sqlalchemy import create_engine, text
+def database_url(postgres_container):
+    """Get URL from testcontainer and set env vars globally.
+
+    Normalises the URL to plain ``postgresql://`` so that downstream code
+    (Alembic env.py, DatabaseSettings, etc.) can convert it to the async
+    driver (``postgresql+asyncpg://``) as expected.
+
+    Also sets individual POSTGRES_*/DB_* env vars for code that reads
+    them directly (e.g. test_data_pipeline_integration.py).
+    """
+    url = postgres_container.get_connection_url()
+    # testcontainers returns postgresql+psycopg2:// — strip the driver suffix
+    url = url.replace("postgresql+psycopg2://", "postgresql://", 1)
+    os.environ["DATABASE_URL"] = url
+    os.environ["TEST_DATABASE_URL"] = url
+
+    # Parse URL and set individual env vars for direct-connect code
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    os.environ["POSTGRES_HOST"] = parsed.hostname or "localhost"
+    os.environ["POSTGRES_PORT"] = str(parsed.port or 5432)
+    os.environ["POSTGRES_DB"] = (parsed.path or "/livetranslate_test").lstrip("/")
+    os.environ["POSTGRES_USER"] = parsed.username or "livetranslate"
+    os.environ["POSTGRES_PASSWORD"] = parsed.password or ""
+    os.environ["DB_HOST"] = parsed.hostname or "localhost"
+    os.environ["DB_PORT"] = str(parsed.port or 5432)
+    os.environ["DB_NAME"] = (parsed.path or "/livetranslate_test").lstrip("/")
+    os.environ["DB_USER"] = parsed.username or "livetranslate"
+    os.environ["DB_PASSWORD"] = parsed.password or ""
+
+    return url
+
+
+@pytest.fixture(scope="session")
+def run_migrations(database_url):
+    """Run Alembic migrations once per session (sync — no event loop needed)."""
+    from alembic import command
+    from alembic.config import Config
+
+    alembic_ini = Path(__file__).parent.parent / "alembic.ini"
+    cfg = Config(str(alembic_ini))
+    async_url = database_url
+    if database_url.startswith("postgresql://"):
+        async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    cfg.set_main_option("sqlalchemy.url", async_url)
+    command.upgrade(cfg, "head")
+
+
+@pytest.fixture(scope="session")
+def bot_sessions_schema(database_url, run_migrations):
+    """Create the bot_sessions PostgreSQL schema and tables.
+
+    The BotSessionDatabaseManager and data_pipeline module use raw asyncpg
+    queries against a ``bot_sessions`` schema (separate from the Alembic-managed
+    ``public`` schema).  This fixture executes the base SQL schema script,
+    then adds enhanced tables (speaker_identities, segment continuity columns)
+    that ``database-init-complete.sql`` provides but with corrected ordering.
+
+    Uses raw psycopg2 because the scripts contain multi-statement SQL with
+    ``$$`` delimited function bodies that SQLAlchemy ``text()`` cannot handle.
+    """
+    import psycopg2
+
+    scripts_dir = Path(__file__).parent.parent.parent.parent / "scripts"
+    base_sql_file = scripts_dir / "bot-sessions-schema.sql"
+
+    if not base_sql_file.exists():
+        pytest.skip("bot-sessions-schema.sql not found — skipping bot_sessions tests")
+
+    conn = psycopg2.connect(database_url)
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        # 1. Run base schema (sessions, audio_files, transcripts, translations,
+        #    correlations, participants, events, session_statistics + indexes/views/functions)
+        # Strip GRANT lines that reference the 'postgres' role (doesn't exist in testcontainer)
+        base_sql = "\n".join(
+            line
+            for line in base_sql_file.read_text().splitlines()
+            if not line.strip().upper().startswith("GRANT ")
+        )
+        cur.execute(base_sql)
+
+        # 2. Add segment continuity columns to transcripts (from database-init-complete.sql)
+        cur.execute("""
+            ALTER TABLE bot_sessions.transcripts
+                ADD COLUMN IF NOT EXISTS previous_segment_id VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS next_segment_id VARCHAR(100),
+                ADD COLUMN IF NOT EXISTS is_segment_boundary BOOLEAN DEFAULT FALSE;
+
+            CREATE INDEX IF NOT EXISTS idx_transcripts_previous_segment
+                ON bot_sessions.transcripts (previous_segment_id);
+            CREATE INDEX IF NOT EXISTS idx_transcripts_next_segment
+                ON bot_sessions.transcripts (next_segment_id);
+        """)
+
+        # 3. Add speaker_identities table (participants table already exists from step 1)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS bot_sessions.speaker_identities (
+                identity_id VARCHAR(100) PRIMARY KEY,
+                session_id VARCHAR(100) NOT NULL
+                    REFERENCES bot_sessions.sessions (session_id) ON DELETE CASCADE,
+                speaker_label VARCHAR(100) NOT NULL,
+                participant_id VARCHAR(100)
+                    REFERENCES bot_sessions.participants (participant_id),
+                identified_name VARCHAR(255),
+                identification_method VARCHAR(50) NOT NULL
+                    DEFAULT 'manual',
+                identification_confidence REAL DEFAULT 0.0,
+                identification_timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
+                metadata JSONB DEFAULT '{}'::JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                UNIQUE (session_id, speaker_label)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_speaker_identities_session
+                ON bot_sessions.speaker_identities (session_id);
+            CREATE INDEX IF NOT EXISTS idx_speaker_identities_label
+                ON bot_sessions.speaker_identities (speaker_label);
+        """)
+
+        # 4. Add search_vector column + trigger for full-text search
+        cur.execute("""
+            ALTER TABLE bot_sessions.transcripts
+                ADD COLUMN IF NOT EXISTS search_vector TSVECTOR;
+
+            CREATE OR REPLACE FUNCTION bot_sessions.update_transcript_search_vector()
+            RETURNS TRIGGER AS $fn$
+            BEGIN
+                NEW.search_vector := to_tsvector('english', COALESCE(NEW.transcript_text, ''));
+                RETURN NEW;
+            END;
+            $fn$ LANGUAGE plpgsql;
+
+            DROP TRIGGER IF EXISTS trg_transcript_search ON bot_sessions.transcripts;
+            CREATE TRIGGER trg_transcript_search
+                BEFORE INSERT OR UPDATE OF transcript_text ON bot_sessions.transcripts
+                FOR EACH ROW EXECUTE FUNCTION bot_sessions.update_transcript_search_vector();
+
+            ALTER TABLE bot_sessions.translations
+                ADD COLUMN IF NOT EXISTS search_vector TSVECTOR;
+        """)
+
+        # 5. Replace speaker_statistics view to include identification columns
+        cur.execute("""
+            CREATE OR REPLACE VIEW bot_sessions.speaker_statistics AS
+            SELECT
+                t.session_id,
+                t.speaker_id,
+                COALESCE(si.identified_name, t.speaker_name) AS speaker_name,
+                COALESCE(si.identification_method, 'unknown') AS identification_method,
+                COALESCE(si.identification_confidence, 0.0) AS identification_confidence,
+                COUNT(*) AS transcript_segments,
+                SUM(t.end_timestamp - t.start_timestamp) AS total_speaking_time,
+                AVG(t.confidence_score) AS avg_confidence,
+                COUNT(DISTINCT tr.target_language) AS languages_translated_to,
+                COUNT(DISTINCT tr.translation_id) AS total_translations
+            FROM bot_sessions.transcripts AS t
+            LEFT JOIN bot_sessions.translations AS tr
+                ON t.transcript_id = tr.source_transcript_id
+            LEFT JOIN bot_sessions.speaker_identities AS si
+                ON t.session_id = si.session_id AND t.speaker_id = si.speaker_label
+            WHERE t.speaker_id IS NOT NULL
+            GROUP BY t.session_id, t.speaker_id, t.speaker_name,
+                     si.identified_name, si.identification_method,
+                     si.identification_confidence;
+        """)
+    conn.close()
+
+
+@pytest.fixture(scope="session")
+def async_db_engine(database_url, run_migrations):
+    """Session-scoped async engine (created synchronously, no I/O at init).
+
+    Uses NullPool to avoid stale-connection issues when pytest-asyncio
+    creates a fresh event loop per test function.
+    """
+    from sqlalchemy.pool import NullPool
+
+    async_url = database_url
+    if database_url.startswith("postgresql://"):
+        async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    engine = create_async_engine(async_url, poolclass=NullPool)
+    yield engine
+    # Testcontainer destruction handles cleanup
+
+
+@pytest.fixture
+async def db_session_factory(async_db_engine):
+    """Function-scoped async session factory with table-truncation cleanup.
+
+    Each session gets its own connection from the engine, supporting
+    concurrent operations (e.g. asyncio.gather) where the savepoint
+    pattern would cause conflicts. Committed data is immediately
+    visible across sessions within the same test.
+
+    At teardown, all user tables are truncated (preserving
+    alembic_version) for clean per-test isolation.
+    """
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    session_factory = async_sessionmaker(
+        async_db_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    @asynccontextmanager
+    async def _factory():
+        async with session_factory() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+
+    yield _factory
+
+    # Truncate all user tables for test isolation
+    async with async_db_engine.connect() as conn:
+        await conn.execute(
+            text(
+                "DO $$ DECLARE r RECORD; BEGIN "
+                "FOR r IN (SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' "
+                "AND tablename != 'alembic_version') LOOP "
+                "EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE'; "
+                "END LOOP; END $$;"
+            )
+        )
+        await conn.commit()
+
+
+@pytest.fixture
+async def db_session(async_db_engine):
+    """Function-scoped single async session with table-truncation cleanup."""
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    session_factory = async_sessionmaker(
+        async_db_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    async with session_factory() as session:
+        yield session
+
+    # Truncate all user tables for test isolation
+    async with async_db_engine.connect() as conn:
+        await conn.execute(
+            text(
+                "DO $$ DECLARE r RECORD; BEGIN "
+                "FOR r IN (SELECT tablename FROM pg_tables "
+                "WHERE schemaname = 'public' "
+                "AND tablename != 'alembic_version') LOOP "
+                "EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE'; "
+                "END LOOP; END $$;"
+            )
+        )
+        await conn.commit()
+
+
+@pytest.fixture(scope="session")
+def db_engine(database_url, run_migrations):
+    """Sync engine for legacy tests that need psycopg2."""
+    from sqlalchemy import create_engine
 
     engine = create_engine(database_url, echo=False, pool_pre_ping=True)
-
-    # Verify connection
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        logger.info(f"Database connection verified: {database_url.split('@')[1]}")
-    except Exception as e:
-        logger.error(f"Database connection failed: {e}")
-        pytest.skip(f"Database not available: {e}")
-
     yield engine
-
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
-def db_session(db_engine):
-    """Create a database session for each test."""
-    from sqlalchemy.orm import sessionmaker
-
-    session_local = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
-    session = session_local()
-
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
-
-
 @pytest.fixture(scope="session")
-def verify_database_connection(database_url):
+def verify_database_connection(database_url, run_migrations):
     """Verify database is accessible at session start using SQLAlchemy."""
     from sqlalchemy import create_engine, text
 
