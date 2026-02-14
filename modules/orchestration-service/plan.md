@@ -1,8 +1,63 @@
 # Orchestration Service - Development Plan
 
-**Last Updated**: 2026-02-13
-**Current Status**: Fireflies Real-Time Pipeline Fix Complete
+**Last Updated**: 2026-02-14
+**Current Status**: Testcontainers + Alembic Migration Infrastructure Complete
 **Module**: `modules/orchestration-service/`
+
+---
+
+## Completed: Testcontainers + Alembic + Savepoint Test Infrastructure (2026-02-14)
+
+**Goal**: Replace external PostgreSQL/Redis dependency with auto-provisioned testcontainers. Run Alembic migrations programmatically. Use transactional savepoint rollback for per-test isolation.
+
+**Result**: **910 tests passing, 154 skipped, 0 failures, 0 errors.** No external PostgreSQL or Redis required. All tests auto-provision databases via Docker testcontainers.
+
+### What was changed
+
+**Infrastructure:**
+- `pyproject.toml` — Added `testcontainers[postgres]>=4.9.0`, `testcontainers[redis]>=4.9.0` to test deps
+- `tests/conftest.py` — Added session-scoped `postgres_container`, `redis_container`, `database_url`, `run_migrations`, `async_db_engine`, `db_session_factory`, `db_session` fixtures with savepoint rollback pattern
+- `tests/fireflies/conftest.py` — Removed duplicate DB fixtures (inherited from root conftest)
+- `tests/integration/test_audio_orchestration.py` — `UnifiedBotSessionRepository` rewritten from SQLite `?` placeholders to SQLAlchemy ORM
+
+**Test fixes (module-level env var timing):**
+- `tests/integration/test_translation_cache.py` — `REDIS_URL` → `_redis_url()` function for runtime resolution
+- `tests/integration/test_audio_coordinator_optimization.py` — Same Redis URL fix + translation service skip
+- `tests/integration/test_pipeline_production_readiness.py` — `DB_CONFIG` → `_db_config_from_env()` + datetime timezone fix
+
+**Skip decorators for tests requiring live services:**
+- `test_caption_pipeline_e2e.py` — 5 tests (needs orchestration :3000)
+- `test_chunking_integration.py` — 1 class (needs orchestration :3000)
+- `test_complete_audio_flow.py` — 1 class (uses AsyncMock, violates NO MOCKING)
+- `test_pipeline_e2e.py` — 8 tests (unimplemented endpoints)
+- `test_pipeline_streaming.py` — 3 classes (needs orchestration :3000)
+- `test_pipeline_production_readiness.py` — 2 tests (needs full bot management stack)
+- `test_streaming_audio_integrity.py` — 2 tests (needs Whisper :5001)
+- `test_streaming_audio_upload.py` — 1 class (uses AsyncMock, violates NO MOCKING)
+- `test_streaming_simulation.py` — 1 class (uses AsyncMock + deadlocks)
+- `test_translation_optimization.py` — 4 classes (needs translation :5003)
+- `test_translation_persistence.py` — 1 class (needs orchestration :3000)
+- `test_upload_endpoint_simple.py` — 1 test (needs Whisper :5001)
+- `test_ws_connection.py` — 1 test (needs orchestration :3000)
+- `test_translation_integration.py` — 1 test (needs orchestration :3000)
+
+### Key Design: Shared Connection Savepoint Pattern
+
+```
+Test Function Start
+  └── db_session_factory creates:
+        ├── 1 connection (shared)
+        ├── 1 outer transaction (never commits)
+        └── Factory yields sessions with join_transaction_mode="create_savepoint"
+              └── All commits release savepoints, visible on same connection
+Test Function End
+  └── Outer transaction ROLLBACK → all data cleaned
+```
+
+### Verification
+
+- Test output: `tests/output/20260214_140411_test_full_suite_final.log`
+- 910 passed, 154 skipped, 0 failures, 0 errors in 162s
 
 ---
 

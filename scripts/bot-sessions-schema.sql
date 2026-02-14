@@ -55,8 +55,8 @@ CREATE TABLE IF NOT EXISTS bot_sessions.transcripts (
     source_type VARCHAR(50) NOT NULL, -- 'google_meet', 'whisper_service', 'manual'
     transcript_text TEXT NOT NULL,
     language_code VARCHAR(10) NOT NULL,
-    start_timestamp REAL NOT NULL,
-    end_timestamp REAL NOT NULL,
+    start_timestamp REAL,
+    end_timestamp REAL,
     speaker_id VARCHAR(100),
     speaker_name VARCHAR(255),
     confidence_score REAL,
@@ -81,8 +81,8 @@ CREATE TABLE IF NOT EXISTS bot_sessions.translations (
     translation_service VARCHAR(100) NOT NULL,
     speaker_id VARCHAR(100),
     speaker_name VARCHAR(255),
-    start_timestamp REAL NOT NULL,
-    end_timestamp REAL NOT NULL,
+    start_timestamp REAL,
+    end_timestamp REAL,
     processing_metadata JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
@@ -100,8 +100,8 @@ CREATE TABLE IF NOT EXISTS bot_sessions.correlations (
     correlation_type VARCHAR(50) NOT NULL, -- 'exact', 'interpolated', 'inferred'
     correlation_method VARCHAR(100) NOT NULL,
     speaker_id VARCHAR(100),
-    start_timestamp REAL NOT NULL,
-    end_timestamp REAL NOT NULL,
+    start_timestamp REAL,
+    end_timestamp REAL,
     correlation_metadata JSONB DEFAULT '{}'::JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

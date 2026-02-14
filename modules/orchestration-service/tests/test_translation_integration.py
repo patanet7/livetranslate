@@ -12,11 +12,13 @@ Tests the complete flow:
 import asyncio
 
 # Import database components
+import socket
 import sys
 import uuid
 from pathlib import Path
 
 import httpx
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -82,6 +84,18 @@ async def create_test_session(db: AsyncSession) -> str:
     return str(session.session_id)
 
 
+def _orchestration_reachable() -> bool:
+    try:
+        with socket.create_connection(("localhost", 3000), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(
+    not _orchestration_reachable(),
+    reason="Orchestration service not running on localhost:3000",
+)
 async def test_translation_with_session(session_id: str, text: str, target_lang: str) -> dict:
     """Test translation API with session ID"""
     async with httpx.AsyncClient(timeout=30.0) as client:

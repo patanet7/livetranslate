@@ -12,6 +12,7 @@ from ._shared import (
     CORRELATION_CONFIG_FILE,
     SYSTEM_CONFIG_FILE,
     TRANSLATION_CONFIG_FILE,
+    UTC,
     Any,
     APIRouter,
     AudioProcessingConfig,
@@ -75,7 +76,7 @@ async def get_user_settings(
             default_translation_language=settings.get("default_translation_language", "es"),
             transcription_model=settings.get("transcription_model", "base"),
             custom_settings=settings.get("custom_settings", {}),
-            updated_at=settings.get("updated_at", datetime.now()),
+            updated_at=settings.get("updated_at", datetime.now(UTC)),
         )
 
     except Exception as e:
@@ -162,7 +163,7 @@ async def update_user_settings(
             default_translation_language=updated_settings.get("default_translation_language", "es"),
             transcription_model=updated_settings.get("transcription_model", "base"),
             custom_settings=updated_settings.get("custom_settings", {}),
-            updated_at=updated_settings.get("updated_at", datetime.now()),
+            updated_at=updated_settings.get("updated_at", datetime.now(UTC)),
         )
 
     except Exception as e:

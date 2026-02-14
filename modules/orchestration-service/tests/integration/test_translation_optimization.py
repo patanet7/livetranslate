@@ -25,6 +25,24 @@ ORCHESTRATION_SERVICE_URL = "http://localhost:3000"
 REDIS_URL = "redis://localhost:6379/1"
 
 
+def _translation_service_reachable() -> bool:
+    """Check if the translation service is reachable on localhost:5003."""
+    import socket
+
+    try:
+        with socket.create_connection(("localhost", 5003), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+_skip_no_translation = pytest.mark.skipif(
+    not _translation_service_reachable(),
+    reason="Translation service not running on localhost:5003",
+)
+
+
+@_skip_no_translation
 class TestMultiLanguageTranslation:
     """Test multi-language translation endpoint"""
 
@@ -200,6 +218,7 @@ class TestMultiLanguageTranslation:
             ), f"Multi-language ({duration_multi:.2f}s) should be faster than sequential ({duration_sequential:.2f}s)"
 
 
+@_skip_no_translation
 class TestTranslationCaching:
     """Test translation result caching"""
 
@@ -270,6 +289,7 @@ class TestTranslationCaching:
                 pytest.skip("Cache statistics endpoint not yet implemented")
 
 
+@_skip_no_translation
 class TestOrchestrationIntegration:
     """Test orchestration service integration with optimized translation"""
 
@@ -337,6 +357,7 @@ class TestOrchestrationIntegration:
             pytest.skip("Translation cache not yet integrated into AudioCoordinator")
 
 
+@_skip_no_translation
 class TestEndToEndOptimization:
     """End-to-end tests for complete optimization pipeline"""
 

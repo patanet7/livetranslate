@@ -683,8 +683,9 @@ async def startup_dependencies():
         _ = get_config_manager()
         logger.info(" ConfigManager initialized")
 
-        # Initialize database components
-        _ = get_database_manager()
+        # Initialize database components and auto-create tables from models
+        db_mgr = get_database_manager()
+        await db_mgr.create_tables()
         _ = get_unified_repository()
         logger.info(" Database components initialized")
 

@@ -23,7 +23,7 @@ import time
 import uuid
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -412,7 +412,7 @@ class AdvancedRecoveryManager:
                 attempt_id=attempt_id,
                 bot_id=bot_id,
                 strategy=strategy,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 reason=f"Health: {health_metrics.health_status.value}, Prediction: {prediction_analysis.get('recommendation', 'unknown')}",
                 success=success,
                 duration_seconds=duration,
@@ -442,7 +442,7 @@ class AdvancedRecoveryManager:
                 attempt_id=attempt_id,
                 bot_id=bot_id,
                 strategy=strategy,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 reason=f"Recovery failed: {e!s}",
                 success=False,
                 duration_seconds=duration,
@@ -466,7 +466,7 @@ class AdvancedRecoveryManager:
         # Get bot's recovery history
         history = self.recovery_history.get(bot_id, [])
         recent_attempts = [
-            a for a in history if (datetime.now() - a.timestamp).seconds < 300
+            a for a in history if (datetime.now(UTC) - a.timestamp).seconds < 300
         ]  # Last 5 minutes
 
         # Check if we've tried too many times recently
@@ -548,7 +548,7 @@ class AdvancedRecoveryManager:
             if success:
                 with self.bot_manager.lock:
                     bot.status = self.bot_manager.BotStatus.ACTIVE
-                    bot.last_activity = datetime.now()
+                    bot.last_activity = datetime.now(UTC)
                     bot.error_count = 0  # Reset error count on successful restart
 
                 logger.info(f"Successfully restarted bot: {bot_id}")
@@ -774,7 +774,7 @@ class BotLifecycleManager:
 
             return HealthMetrics(
                 bot_id=bot.bot_id,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 health_status=health_status,
                 performance_score=performance_score,
                 resource_usage=resource_usage,
@@ -790,7 +790,7 @@ class BotLifecycleManager:
             logger.error(f"Error collecting health metrics for bot {bot.bot_id}: {e}")
             return HealthMetrics(
                 bot_id=bot.bot_id,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 health_status=HealthStatus.UNKNOWN,
                 performance_score=0.0,
                 resource_usage={},
@@ -816,7 +816,7 @@ class BotLifecycleManager:
 
         # Factor in activity
         if bot.last_activity:
-            seconds_since_activity = (datetime.now() - bot.last_activity).total_seconds()
+            seconds_since_activity = (datetime.now(UTC) - bot.last_activity).total_seconds()
             if seconds_since_activity > 300:  # 5 minutes
                 score *= 0.5  # Penalize inactivity
 
@@ -858,7 +858,7 @@ class BotLifecycleManager:
         if not bot.created_at:
             return 0.0
 
-        total_time = (datetime.now() - bot.created_at).total_seconds()
+        total_time = (datetime.now(UTC) - bot.created_at).total_seconds()
         if total_time <= 0:
             return 100.0
 
@@ -931,7 +931,7 @@ class BotLifecycleManager:
             bot_id=bot_id,
             stage_from=LifecycleStage.ACTIVE,
             stage_to=LifecycleStage.RECOVERING,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             metadata={
                 "health_status": health_metrics.health_status.value,
                 "analysis": analysis,

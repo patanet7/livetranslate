@@ -14,6 +14,7 @@ Requirements:
 """
 
 import os
+import socket
 import uuid
 
 import httpx
@@ -29,6 +30,18 @@ DATABASE_URL = os.getenv(
 )
 
 
+def _orchestration_reachable() -> bool:
+    try:
+        with socket.create_connection(("localhost", 3000), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(
+    not _orchestration_reachable(),
+    reason="Orchestration service not running on localhost:3000",
+)
 class TestTranslationPersistence:
     """Test translation persistence to database"""
 
