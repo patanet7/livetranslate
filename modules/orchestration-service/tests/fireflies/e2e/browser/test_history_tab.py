@@ -15,7 +15,7 @@ class TestHistoryTab:
     def test_history_tab_loads(self, browser, dashboard_url):
         """History tab shows historical transcripts section."""
         browser.open(dashboard_url)
-        browser.click("text=History")
+        browser.click("button.tab[onclick*=\"showTab('history')\"]")
         browser.wait("500")
 
         assert browser.wait_for_text("Historical Transcripts from Fireflies", timeout=5)
@@ -23,7 +23,7 @@ class TestHistoryTab:
     def test_date_range_inputs(self, browser, dashboard_url):
         """Date range inputs for From and To are present."""
         browser.open(dashboard_url)
-        browser.click("text=History")
+        browser.click("button.tab[onclick*=\"showTab('history')\"]")
         browser.wait("500")
 
         assert browser.is_visible("#historyDateFrom")
@@ -32,7 +32,7 @@ class TestHistoryTab:
     def test_past_meetings_table_columns(self, browser, dashboard_url):
         """Past meetings table has Date, Title, Duration, Speakers, Actions columns."""
         browser.open(dashboard_url)
-        browser.click("text=History")
+        browser.click("button.tab[onclick*=\"showTab('history')\"]")
         browser.wait("500")
 
         table_html = browser.get_html("#pastMeetingsTable")
@@ -45,7 +45,7 @@ class TestHistoryTab:
     def test_saved_transcripts_section(self, browser, dashboard_url):
         """Saved transcripts table is present with correct columns."""
         browser.open(dashboard_url)
-        browser.click("text=History")
+        browser.click("button.tab[onclick*=\"showTab('history')\"]")
         browser.wait("500")
 
         assert browser.wait_for_text("Saved Transcripts", timeout=5)
@@ -57,7 +57,7 @@ class TestHistoryTab:
     def test_fetch_past_meetings_button(self, browser, dashboard_url):
         """Fetch Past Meetings button exists and is clickable."""
         browser.open(dashboard_url)
-        browser.click("text=History")
+        browser.click("button.tab[onclick*=\"showTab('history')\"]")
         browser.wait("500")
 
         snap = browser.snapshot()

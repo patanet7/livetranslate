@@ -15,7 +15,7 @@ class TestDataLogsTab:
     def test_data_tab_loads(self, browser, dashboard_url):
         """Data & Logs tab shows session data viewer."""
         browser.open(dashboard_url)
-        browser.click("text=Data & Logs")
+        browser.click("button.tab[onclick*=\"showTab('data')\"]")
         browser.wait("500")
 
         assert browser.wait_for_text("Session Data Viewer", timeout=5)
@@ -23,7 +23,7 @@ class TestDataLogsTab:
     def test_session_dropdown(self, browser, dashboard_url):
         """Session selector dropdown exists."""
         browser.open(dashboard_url)
-        browser.click("text=Data & Logs")
+        browser.click("button.tab[onclick*=\"showTab('data')\"]")
         browser.wait("500")
 
         assert browser.is_visible("#dataSessionSelect")
@@ -31,7 +31,7 @@ class TestDataLogsTab:
     def test_dual_panels(self, browser, dashboard_url):
         """Transcripts and Translations panels are both present."""
         browser.open(dashboard_url)
-        browser.click("text=Data & Logs")
+        browser.click("button.tab[onclick*=\"showTab('data')\"]")
         browser.wait("500")
 
         assert browser.wait_for_text("Transcripts", timeout=5)
@@ -40,7 +40,7 @@ class TestDataLogsTab:
     def test_empty_state_messages(self, browser, dashboard_url):
         """Empty state messages shown when no session selected."""
         browser.open(dashboard_url)
-        browser.click("text=Data & Logs")
+        browser.click("button.tab[onclick*=\"showTab('data')\"]")
         browser.wait("500")
 
         transcripts_text = browser.get_text("#transcriptsPanel")
