@@ -26,15 +26,17 @@ def _connect_and_get_session_id(browser, dashboard_url, mock_fireflies_server):
     browser.open(dashboard_url)
     browser.wait("1000")
 
-    # Save API key
-    browser.click("text=Settings")
-    browser.wait("300")
-    browser.fill("#apiKeyInput", mock_fireflies_server["api_key"])
-    browser.click("text=Save API Key")
+    # Save API key via JS (bypasses async Fireflies validation)
+    api_key = mock_fireflies_server["api_key"]
+    browser.eval_js(f"""
+        apiKey = '{api_key}';
+        localStorage.setItem('fireflies_api_key', '{api_key}');
+        updateApiStatus(true);
+    """)
     browser.wait("300")
 
     # Connect
-    browser.click("text=Connect")
+    browser.click("button.tab[onclick*=\"showTab('connect')\"]")
     browser.wait("300")
     browser.fill("#transcriptId", mock_fireflies_server["transcript_id"])
     browser.click("#connectBtn")
@@ -48,9 +50,9 @@ def _connect_and_get_session_id(browser, dashboard_url, mock_fireflies_server):
     browser.wait("1000")
 
     # Go to Sessions tab to find the session ID
-    browser.click("text=Sessions")
+    browser.click("button.tab[onclick*=\"showTab('sessions')\"]")
     browser.wait("1000")
-    browser.click("text=Refresh")
+    browser.click("button[onclick*='refreshSessions']")
     browser.wait("1000")
 
     # Extract session ID from the sessions list HTML

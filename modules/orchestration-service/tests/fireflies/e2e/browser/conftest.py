@@ -24,7 +24,7 @@ import pytest
 import uvicorn
 
 # Add src + tests to path
-orchestration_root = Path(__file__).parent.parent.parent.parent
+orchestration_root = Path(__file__).parent.parent.parent.parent.parent
 src_path = orchestration_root / "src"
 tests_root = orchestration_root / "tests"
 sys.path.insert(0, str(orchestration_root))
@@ -80,7 +80,7 @@ def _run_uvicorn(port: int):
     so the test process can control its lifecycle.
     """
     # Re-add src to path in the child process
-    child_src = Path(__file__).parent.parent.parent.parent / "src"
+    child_src = Path(__file__).parent.parent.parent.parent.parent / "src"
     sys.path.insert(0, str(child_src))
 
     from main_fastapi import app
