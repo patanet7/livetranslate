@@ -72,7 +72,7 @@ repos:
         name: Tests should be named test_*.py
         args: ['--pytest-test-first']
         files: '^modules/.*/tests/.*\.py$'
-        exclude: '^(.*run_.*tests\.py$|.*/fixtures\.py$|.*/conftest\.py$|.*/utils\.py$|.*/mocks/.*\.py$|.*debug_hooks\.py$|.*check_npu_standalone\.py$|.*meeting_transcript_5min\.py$|.*audio_test_data\.py$|.*quick_model_switch_test\.py$)'
+        exclude: '^(.*run_.*tests\.py$|.*/fixtures\.py$|.*/conftest\.py$|.*/utils\.py$|.*/mocks/.*\.py$|.*_helpers\.py$|.*debug_hooks\.py$|.*check_npu_standalone\.py$|.*meeting_transcript_5min\.py$|.*audio_test_data\.py$|.*quick_model_switch_test\.py$)'
       - id: requirements-txt-fixer
         name: Fix requirements.txt
 
