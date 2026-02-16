@@ -352,15 +352,24 @@ async def lifespan(app: FastAPI):
         # Shutdown managers
         logger.info("[STOP] Shutting down FastAPI Orchestration Service...")
 
-        # Stop demo server if running
+        # Stop demo server if running (must catch BaseException for CancelledError)
         try:
             from services.demo_manager import get_demo_manager
 
             demo = get_demo_manager()
             if demo.active:
+                # Disconnect the Fireflies session first
+                if demo.session_id:
+                    try:
+                        from routers.fireflies import get_session_manager
+
+                        mgr = get_session_manager()
+                        await mgr.disconnect_session(demo.session_id)
+                    except BaseException:
+                        pass
                 await demo.stop()
                 logger.info("[OK] Demo server stopped during shutdown")
-        except Exception as e:
+        except BaseException as e:
             logger.warning(f"[WARN] Demo cleanup error: {e}")
 
         # Cleanup dependencies
