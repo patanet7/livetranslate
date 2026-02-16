@@ -49,8 +49,10 @@ class MockMeeting:
             "title": self.title,
             "organizer_email": self.organizer_email,
             "meeting_link": self.meeting_link,
-            "start_time": self.start_time.isoformat() + "Z" if self.start_time else None,
-            "end_time": self.end_time.isoformat() + "Z" if self.end_time else None,
+            "start_time": self.start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            if self.start_time
+            else None,
+            "end_time": self.end_time.strftime("%Y-%m-%dT%H:%M:%SZ") if self.end_time else None,
             "privacy": self.privacy,
             "state": self.state,
         }

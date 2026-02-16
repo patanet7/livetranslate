@@ -7,6 +7,7 @@ Starts a mock Fireflies server in-process so the full pipeline
 without a real Fireflies account.
 """
 
+import asyncio
 import logging
 
 from services.demo_server import FirefliesDemoServer, MockTranscriptScenario
@@ -26,6 +27,7 @@ class DemoManager:
         self.transcript_id: str | None = None
         self.active: bool = False
         self._speakers: list[str] = []
+        self._lock = asyncio.Lock()
 
     async def start(
         self,
@@ -39,53 +41,69 @@ class DemoManager:
         Returns dict with transcript_id, speakers, and base_url for
         the router to create a real Fireflies session against.
         """
-        if self.active:
-            raise RuntimeError("Demo is already running")
+        async with self._lock:
+            if self.active:
+                raise RuntimeError("Demo is already running")
 
-        if speakers is None:
-            speakers = ["Alice Chen", "Bob Martinez", "Charlie Kim"]
+            if speakers is None:
+                speakers = ["Alice Chen", "Bob Martinez", "Charlie Kim"]
 
-        self.server = FirefliesDemoServer(host="localhost", port=DEMO_PORT)
+            self.server = FirefliesDemoServer(
+                host="localhost",
+                port=DEMO_PORT,
+                valid_api_keys={DEMO_API_KEY},
+            )
 
-        scenario = MockTranscriptScenario.conversation_scenario(
-            speakers=speakers,
-            num_exchanges=num_exchanges,
-            chunk_delay_ms=chunk_delay_ms,
-        )
+            scenario = MockTranscriptScenario.conversation_scenario(
+                speakers=speakers,
+                num_exchanges=num_exchanges,
+                chunk_delay_ms=chunk_delay_ms,
+            )
 
-        self.server.add_scenario(scenario)
+            self.server.add_scenario(scenario)
 
-        await self.server.start()
+            try:
+                await self.server.start()
+            except OSError as e:
+                self.server = None
+                raise RuntimeError(
+                    f"Cannot start demo server on port {DEMO_PORT}: {e}. "
+                    "Is another demo or process already using this port?"
+                ) from e
 
-        self.transcript_id = scenario.transcript_id
-        self._speakers = speakers
-        self.active = True
+            self.transcript_id = scenario.transcript_id
+            self._speakers = speakers
+            self.active = True
 
-        logger.info(
-            f"Demo started: transcript_id={self.transcript_id}, "
-            f"speakers={speakers}, exchanges={num_exchanges}"
-        )
+            logger.info(
+                f"Demo started: transcript_id={self.transcript_id}, "
+                f"speakers={speakers}, exchanges={num_exchanges}"
+            )
 
-        return {
-            "transcript_id": self.transcript_id,
-            "speakers": speakers,
-            "base_url": self.server.base_url,
-            "num_exchanges": num_exchanges,
-            "chunk_delay_ms": chunk_delay_ms,
-        }
+            return {
+                "transcript_id": self.transcript_id,
+                "speakers": speakers,
+                "base_url": self.server.base_url,
+                "num_exchanges": num_exchanges,
+                "chunk_delay_ms": chunk_delay_ms,
+            }
 
     async def stop(self):
         """Stop the demo server and reset state."""
-        if self.server:
-            await self.server.stop()
-            self.server = None
+        async with self._lock:
+            if self.server:
+                try:
+                    await self.server.stop()
+                except BaseException as e:
+                    logger.warning(f"Demo server stop error (ignored): {e}")
+                self.server = None
 
-        self.session_id = None
-        self.transcript_id = None
-        self._speakers = []
-        self.active = False
+            self.session_id = None
+            self.transcript_id = None
+            self._speakers = []
+            self.active = False
 
-        logger.info("Demo stopped")
+            logger.info("Demo stopped")
 
     def get_status(self) -> dict:
         """Return current demo status."""
