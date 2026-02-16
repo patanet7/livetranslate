@@ -207,7 +207,7 @@ class LLMClient:
 
         except aiohttp.ClientError as e:
             self._circuit_breaker.record_failure()
-            logger.error(f"LLM chat request failed: {e}")
+            logger.warning(f"LLM chat request failed: {e}")
             raise ConnectionError(f"LLM chat request failed: {e}") from e
 
     async def chat_stream(
