@@ -3654,7 +3654,7 @@ Translation:`,
         // Show demo panel
         showDemoPanel(data);
 
-        log(`Demo started: session=${data.session_id}, speakers=${data.speakers.join(', ')}`, 'info');
+        log(`Demo started: session=${data.session_id}, speakers=${(data.speakers || []).join(', ')}`, 'info');
         showAlert('Demo mode started! Live captions are streaming below.', 'success');
 
       } catch (e) {
@@ -3672,7 +3672,11 @@ Translation:`,
       btn.textContent = 'Stopping...';
 
       try {
-        await fetch(`${baseUrl}/fireflies/demo/stop`, { method: 'POST' });
+        const resp = await fetch(`${baseUrl}/fireflies/demo/stop`, { method: 'POST' });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.detail || `Server returned ${resp.status}`);
+        }
 
         demoActive = false;
         demoSessionId = null;
@@ -3693,6 +3697,7 @@ Translation:`,
         btn.textContent = 'Stop Demo';
         btn.disabled = false;
         log(`Demo stop failed: ${e.message}`, 'error');
+        showAlert(`Failed to stop demo: ${e.message}`, 'error');
       }
     }
 
