@@ -31,21 +31,16 @@ class TestConnectTab:
         self,
         browser,
         dashboard_url,
+        setup_api_key,
         mock_fireflies_server,
-        test_output_dir,
+        browser_output_dir,
         timestamp,
     ):
         """Fill transcript ID, connect, and verify success."""
         browser.open(dashboard_url)
         browser.wait("1000")
 
-        # Save API key via JS (bypasses async validation)
-        api_key = mock_fireflies_server["api_key"]
-        browser.eval_js(f"""
-            apiKey = '{api_key}';
-            localStorage.setItem('fireflies_api_key', '{api_key}');
-            updateApiStatus(true);
-        """)
+        setup_api_key(browser)
 
         # Go to Connect tab
         browser.click("button.tab[onclick*=\"showTab('connect')\"]")
@@ -55,34 +50,26 @@ class TestConnectTab:
         browser.fill("#transcriptId", mock_fireflies_server["transcript_id"])
 
         # Click Connect button
-        browser.screenshot(str(test_output_dir / f"{timestamp}_connect_before_click.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_connect_before_click.png"))
         browser.click("#connectBtn")
 
         # Wait for the connection response (dialog or redirect)
         browser.wait("2000")
-        browser.screenshot(str(test_output_dir / f"{timestamp}_connect_after_click.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_connect_after_click.png"))
 
     def test_fetch_active_meetings(
         self,
         browser,
         dashboard_url,
-        mock_fireflies_server,
-        test_output_dir,
+        setup_api_key,
+        browser_output_dir,
         timestamp,
     ):
         """Clicking Refresh Meetings triggers the fetch flow."""
         browser.open(dashboard_url)
         browser.wait("1000")
 
-        # Save API key via JS (bypasses async validation)
-        api_key = mock_fireflies_server["api_key"]
-        browser.eval_js(f"""
-            apiKey = '{api_key}';
-            localStorage.setItem('fireflies_api_key', '{api_key}');
-            document.getElementById('savedKeyDisplay').classList.remove('hidden');
-            updateApiStatus(true);
-        """)
-        browser.wait("300")
+        setup_api_key(browser)
 
         # Ensure we're on Connect tab
         browser.click("button.tab[onclick*=\"showTab('connect')\"]")
@@ -92,7 +79,9 @@ class TestConnectTab:
         browser.click("#fetchMeetingsBtn")
         browser.wait("2000")
 
-        browser.screenshot(str(test_output_dir / f"{timestamp}_connect_meetings_list.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_connect_meetings_list.png"))
 
-        # Verify meetings list element exists (content depends on API availability)
-        assert browser.is_visible("#meetingsList")
+        # Verify meetings list renders (either empty state or meeting items)
+        html = browser.get_html("#meetingsList")
+        has_content = "empty-state" in html or "meeting-item" in html or html.strip() != ""
+        assert has_content, "Meetings list should render after fetch"

@@ -6,6 +6,8 @@ Tests session stats display, active session list, and session management.
 
 import pytest
 
+from fireflies.e2e.browser.browser_helpers import AgentBrowserError
+
 pytestmark = [pytest.mark.e2e, pytest.mark.browser]
 
 
@@ -39,22 +41,16 @@ class TestSessionsTab:
         self,
         browser,
         dashboard_url,
+        setup_api_key,
         mock_fireflies_server,
-        test_output_dir,
+        browser_output_dir,
         timestamp,
     ):
         """After connecting a meeting, session appears in the list."""
         browser.open(dashboard_url)
         browser.wait("1000")
 
-        # Save API key via JS (bypasses async Fireflies validation)
-        api_key = mock_fireflies_server["api_key"]
-        browser.eval_js(f"""
-            apiKey = '{api_key}';
-            localStorage.setItem('fireflies_api_key', '{api_key}');
-            updateApiStatus(true);
-        """)
-        browser.wait("300")
+        setup_api_key(browser)
 
         # Connect to meeting
         browser.click("button.tab[onclick*=\"showTab('connect')\"]")
@@ -66,8 +62,8 @@ class TestSessionsTab:
         # Handle potential confirm dialog by pressing Enter
         try:
             browser.press("Enter")
-        except Exception:
-            pass
+        except AgentBrowserError:
+            pass  # No dialog to dismiss
         browser.wait("500")
 
         # Navigate to Sessions tab
@@ -78,19 +74,18 @@ class TestSessionsTab:
         browser.click("button[onclick*='refreshSessions']")
         browser.wait("1000")
 
-        browser.screenshot(str(test_output_dir / f"{timestamp}_sessions_after_connect.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_sessions_after_connect.png"))
 
-    def test_stats_show_nonzero_after_connect(self, browser, dashboard_url, mock_fireflies_server):
+    def test_stats_show_nonzero_after_connect(
+        self, browser, dashboard_url, setup_api_key, mock_fireflies_server
+    ):
         """Stats counters increment after connecting and receiving chunks."""
         browser.open(dashboard_url)
         browser.wait("1000")
 
-        # Setup + connect
-        browser.click("button.tab[onclick*=\"showTab('settings')\"]")
-        browser.wait("300")
-        browser.fill("#apiKeyInput", mock_fireflies_server["api_key"])
-        browser.click("button[onclick*='saveApiKey']")
-        browser.wait("300")
+        setup_api_key(browser)
+
+        # Connect to meeting
         browser.click("button.tab[onclick*=\"showTab('connect')\"]")
         browser.wait("300")
         browser.fill("#transcriptId", mock_fireflies_server["transcript_id"])
@@ -98,8 +93,8 @@ class TestSessionsTab:
         browser.wait("3000")
         try:
             browser.press("Enter")
-        except Exception:
-            pass
+        except AgentBrowserError:
+            pass  # No dialog to dismiss
         browser.wait("500")
 
         # Go to Sessions, check stats
@@ -107,6 +102,5 @@ class TestSessionsTab:
         browser.wait("2000")
 
         total = browser.get_text("#statTotalSessions")
-        # After connecting, total sessions should be >= 1
-        # (may be "0" if connection hasn't propagated yet, that's OK for first pass)
-        assert total is not None
+        # After connecting, total sessions stat should have a displayed value
+        assert total.strip() != "", f"Total sessions stat should have a value, got: '{total}'"
