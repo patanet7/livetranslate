@@ -66,6 +66,7 @@ dependencies = [
     "docker>=7.1.0,<8.0.0",
     "pillow>=12.0.0,<13.0.0",
     "opencv-python>=4.12.0.88,<5.0.0.0",
+    "greenlet>=3.3.1",
 ]
 
 [project.scripts]
@@ -86,7 +87,7 @@ livetranslate-common = { workspace = true }
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
+    "pytest-asyncio>=0.25.0,<1.0",
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
     "black>=23.9.1",
