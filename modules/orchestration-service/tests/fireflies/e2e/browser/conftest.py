@@ -5,12 +5,13 @@ Provides:
 - orchestration_server: Real uvicorn serving the FastAPI app on port 3001
 - mock_fireflies: FirefliesMockServer with Spanish conversation scenario
 - browser: AgentBrowser instance (headed or streaming based on env)
-- test_output_dir: Path for screenshots and logs
+- browser_output_dir: Path for screenshots and logs
 
 Inherits from root conftest: PostgreSQL testcontainer, Redis, Alembic migrations.
 """
 
 import asyncio
+import json
 import logging
 import multiprocessing
 import os
@@ -85,7 +86,7 @@ def _run_uvicorn(port: int):
 
     from main_fastapi import app
 
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
 # =============================================================================
@@ -94,7 +95,7 @@ def _run_uvicorn(port: int):
 
 
 @pytest.fixture(scope="session")
-def test_output_dir():
+def browser_output_dir():
     """Create and return the test output directory."""
     output_dir = orchestration_root / "tests" / "output"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -110,7 +111,10 @@ def orchestration_server():
     Tears down on session end.
     """
     if _port_is_open("localhost", ORCHESTRATION_PORT):
-        logger.info(f"Orchestration server already running on port {ORCHESTRATION_PORT}")
+        logger.warning(
+            f"Port {ORCHESTRATION_PORT} already in use — reusing existing server. "
+            "Tests may behave differently if this is not the expected test server."
+        )
         yield f"http://localhost:{ORCHESTRATION_PORT}"
         return
 
@@ -186,7 +190,7 @@ def base_url(orchestration_server):
 
 
 @pytest.fixture
-def browser(test_output_dir):
+def browser(browser_output_dir):
     """
     Launch agent-browser instance.
 
@@ -227,6 +231,28 @@ def captions_url(base_url):
         return url
 
     return _build
+
+
+@pytest.fixture
+def setup_api_key(mock_fireflies_server):
+    """
+    Returns a callable that configures the Fireflies API key in the browser.
+
+    Uses json.dumps for safe JS string escaping. Must be called after
+    browser.open(dashboard_url).
+    """
+
+    def _setup(browser):
+        api_key = mock_fireflies_server["api_key"]
+        safe_key = json.dumps(api_key)
+        browser.eval_js(f"""
+            apiKey = {safe_key};
+            localStorage.setItem('fireflies_api_key', {safe_key});
+            updateApiStatus(true);
+        """)
+        browser.wait("300")
+
+    return _setup
 
 
 @pytest.fixture
