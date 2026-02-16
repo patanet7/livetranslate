@@ -180,6 +180,9 @@ class RollingWindowTranslator:
         # Session state tracking
         self._sessions: dict[str, SessionTranslationState] = {}
 
+        # Suppress repetitive backend-unavailable warnings after first occurrence
+        self._backend_warned: bool = False
+
         logger.info(
             f"RollingWindowTranslator initialized: "
             f"window_size={window_size}, "
@@ -283,7 +286,9 @@ class RollingWindowTranslator:
             translation_time_ms = (time.time() - start_time) * 1000
             session_state.update_stats(translation_time_ms, success=False)
 
-            logger.warning(f"Translation unavailable, using original text: {e}")
+            log = logger.warning if not self._backend_warned else logger.debug
+            log(f"Translation unavailable, using original text: {e}")
+            self._backend_warned = True
 
             # Return result with original text as passthrough
             return TranslationResult(
@@ -553,21 +558,27 @@ class RollingWindowTranslator:
                 confidence = 0.9 if result.text else 0.5
                 return result.text, confidence
             except Exception as e:
-                logger.warning(f"LLM client failed, falling back to legacy: {e}")
+                log = logger.warning if not self._backend_warned else logger.debug
+                log(f"LLM client failed, falling back to legacy: {e}")
                 # Fall through to legacy API
 
         # Legacy fallback - NOTE: this still doesn't send the prompt!
         # This is kept for backwards compatibility but the LLM client should be used
         if self.translation_client is None:
-            logger.warning(
-                "No translation backend available — returning original text as passthrough"
-            )
+            if not self._backend_warned:
+                logger.warning(
+                    "No translation backend available — returning original text as passthrough"
+                )
+                self._backend_warned = True
+            else:
+                logger.debug("Translation passthrough (no backend)")
             return text, 0.0
 
-        logger.warning(
-            "Using legacy translation API - prompt context/glossary will NOT be applied! "
-            "Configure llm_client to use prompt-based translation for full functionality."
-        )
+        if not self._backend_warned:
+            logger.warning(
+                "Using legacy translation API - prompt context/glossary will NOT be applied! "
+                "Configure llm_client to use prompt-based translation for full functionality."
+            )
 
         request = TranslationRequest(
             text=text,
@@ -593,9 +604,13 @@ class RollingWindowTranslator:
             Tuple of (translated_text, confidence)
         """
         if self.translation_client is None:
-            logger.warning(
-                "No translation backend available — returning original text as passthrough"
-            )
+            if not self._backend_warned:
+                logger.warning(
+                    "No translation backend available — returning original text as passthrough"
+                )
+                self._backend_warned = True
+            else:
+                logger.debug("Translation passthrough (no backend)")
             return text, 0.0
 
         request = TranslationRequest(
