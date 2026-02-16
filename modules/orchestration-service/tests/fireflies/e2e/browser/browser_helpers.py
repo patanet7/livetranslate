@@ -47,7 +47,10 @@ class AgentBrowser:
 
     def _run(self, *args: str, timeout: int | None = None) -> str:
         """Run an agent-browser CLI command and return stdout."""
-        cmd = ["agent-browser", *args]
+        cmd = ["agent-browser"]
+        if self.headed:
+            cmd.append("--headed")
+        cmd.extend(args)
         env = os.environ.copy()
 
         if self.stream_port and not self.headed:
