@@ -5,16 +5,16 @@ Centralized configuration management for the orchestration service.
 """
 
 import json
-import logging
 import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import yaml
+from livetranslate_common.logging import get_logger
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

@@ -24,17 +24,12 @@ from pathlib import Path
 # Add the src directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("whisper-service.log", encoding="utf-8"),
-    ],
-)
+from livetranslate_common.logging import get_logger, setup_logging
 
-logger = logging.getLogger(__name__)
+# Configure structured logging (must happen before any get_logger calls)
+setup_logging(service_name="whisper")
+
+logger = get_logger()
 
 
 def check_dependencies():
@@ -297,7 +292,7 @@ Examples:
         os.environ["WHISPER_MODELS_DIR"] = args.models_dir
     if args.debug:
         os.environ["DEBUG"] = "true"
-        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)  # lower stdlib root for third-party libs
     if args.workers:
         os.environ["WORKERS"] = str(args.workers)
 

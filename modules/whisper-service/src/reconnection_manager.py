@@ -6,7 +6,6 @@ Handles client reconnections gracefully with session persistence,
 message buffering, and state recovery for WebSocket connections.
 """
 
-import logging
 import threading
 import time
 import uuid
@@ -15,7 +14,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class SessionState(Enum):

@@ -4,7 +4,6 @@ LiveTranslate Translation Service - FastAPI Version
 OpenAI-Compatible Translation with Ollama, Groq, vLLM, etc.
 """
 
-import logging
 import os
 import time
 import uuid
@@ -17,18 +16,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import structlog
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from livetranslate_common.logging import get_logger, setup_logging
 from pydantic import BaseModel, Field
 
-# Initialize structured logging
-structlog.configure(
-    processors=[structlog.processors.TimeStamper(fmt="iso"), structlog.processors.JSONRenderer()]
-)
+# Initialize structured logging for the translation service
+setup_logging(service_name="translation")
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger = get_logger()
 
 # Import translation backends
 from model_manager import RuntimeModelManager, get_model_manager

@@ -10,7 +10,6 @@ This module handles integration with other LiveTranslate services:
 """
 
 import json
-import logging
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -19,9 +18,10 @@ from typing import Any
 
 import aiohttp
 import websockets
+from livetranslate_common.logging import get_logger
 from translation_service import TranslationRequest, TranslationService
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

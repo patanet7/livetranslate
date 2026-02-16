@@ -12,7 +12,6 @@ All transcripts are stored in the existing bot_sessions database
 with source_type='fireflies'.
 """
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -29,6 +28,7 @@ from dependencies import (
     get_meeting_intelligence_service,
 )
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from livetranslate_common.logging import get_logger
 from models.fireflies import (
     ActiveMeetingsResponse,
     FirefliesChunk,
@@ -49,7 +49,7 @@ from services.pipeline import (
     TranscriptionPipelineCoordinator,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Create router
 router = APIRouter(prefix="/fireflies", tags=["fireflies"])

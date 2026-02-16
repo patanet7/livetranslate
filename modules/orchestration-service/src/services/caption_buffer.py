@@ -15,7 +15,6 @@ Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Caption Output"
 """
 
 import asyncio
-import logging
 import threading
 from collections import OrderedDict
 from collections.abc import Callable
@@ -23,7 +22,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 # =============================================================================

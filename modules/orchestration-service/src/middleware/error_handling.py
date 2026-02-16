@@ -4,18 +4,18 @@ Error Handling Middleware
 Provides comprehensive error handling and recovery for FastAPI applications.
 """
 
-import logging
 import time
 import traceback
 from collections.abc import Callable
 from typing import Any
 
 from fastapi import HTTPException, Request, Response
+from livetranslate_common.logging import get_logger
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):

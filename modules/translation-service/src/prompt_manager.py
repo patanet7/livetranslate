@@ -10,7 +10,6 @@ This module provides comprehensive prompt template management with:
 """
 
 import json
-import logging
 import threading
 import time
 from collections import defaultdict
@@ -18,7 +17,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

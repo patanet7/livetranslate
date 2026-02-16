@@ -6,14 +6,14 @@ Adds real-time pipeline integration endpoints to the Whisper service.
 """
 
 import json
-import logging
 import os
 import tempfile
 from datetime import datetime
 
 from flask import jsonify, request
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 def add_pipeline_routes(app, whisper_service):

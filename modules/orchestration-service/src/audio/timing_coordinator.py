@@ -17,7 +17,6 @@ Key Features:
 
 import asyncio
 import json
-import logging
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -25,7 +24,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class TimingAccuracy(str, Enum):

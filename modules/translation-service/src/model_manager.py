@@ -27,15 +27,15 @@ Usage:
 """
 
 import asyncio
-import logging
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from livetranslate_common.logging import get_logger
 from openai_compatible_translator import OpenAICompatibleConfig, OpenAICompatibleTranslator
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

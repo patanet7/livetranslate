@@ -15,7 +15,6 @@ Features:
 """
 
 import json
-import logging
 import threading
 import time
 from collections import defaultdict
@@ -24,9 +23,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

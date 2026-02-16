@@ -21,13 +21,13 @@ Moved from standalone routers/websocket_audio.py for package consolidation.
 
 import asyncio
 import base64
-import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from livetranslate_common.logging import get_logger
 from socketio_whisper_client import SocketIOWhisperClient
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Create router
 router = APIRouter()

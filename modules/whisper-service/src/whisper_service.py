@@ -25,7 +25,6 @@ Key Features:
 """
 
 import asyncio
-import logging
 import threading
 import time
 from collections.abc import AsyncGenerator
@@ -41,6 +40,7 @@ import whisper
 # Phase 2: SimulStreaming components
 from audio import VADProcessor, ensure_sample_rate, load_audio_from_bytes
 from config import load_whisper_config
+from livetranslate_common.logging import get_logger
 
 # Phase 1 Refactoring: Import PyTorch ModelManager from models package
 from models.pytorch_manager import PyTorchModelManager
@@ -61,9 +61,7 @@ from transcription import (
 )
 from vad_detector import get_vad
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # CRITICAL: Disable SDPA to get attention weights for AlignAtt streaming
 # PyTorch's scaled_dot_product_attention doesn't return attention weights (qk=None)

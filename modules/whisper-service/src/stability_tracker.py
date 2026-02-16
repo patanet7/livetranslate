@@ -17,13 +17,14 @@ Key Concept from SimulStreaming:
 Reference: modules/whisper-service/buffer_plan.md Phase 2 (lines 69-257)
 """
 
-import logging
 import math
 import time
 from dataclasses import dataclass
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

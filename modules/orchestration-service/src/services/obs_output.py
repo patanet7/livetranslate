@@ -9,10 +9,11 @@ https://github.com/obsproject/obs-websocket/blob/master/docs/generated/protocol.
 """
 
 import asyncio
-import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+
+from livetranslate_common.logging import get_logger
 
 try:
     import obsws_python as obsws
@@ -21,7 +22,7 @@ except ImportError:
 
 from models.fireflies import CaptionEntry
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # =============================================================================

@@ -3,7 +3,6 @@ Local translation implementation using vLLM and Ollama inference.
 Provides privacy-focused, high-performance translation without external API calls.
 """
 
-import logging
 import os
 
 # Import shared inference module
@@ -16,8 +15,9 @@ from typing import Any
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../shared/src"))
 
 from inference import InferenceRequest, get_inference_client_async
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

@@ -19,7 +19,6 @@ Features:
 
 import asyncio
 import json
-import logging
 import threading
 import time
 import uuid
@@ -29,6 +28,7 @@ from typing import Any
 
 import httpx
 from clients.llm_client import LLMClient
+from livetranslate_common.logging import get_logger
 from services.caption_buffer import CaptionBuffer
 
 # Import pipeline components for DRY processing
@@ -55,9 +55,7 @@ from .time_correlation import (
 )
 from .virtual_webcam import VirtualWebcamManager, WebcamConfig
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

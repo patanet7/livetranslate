@@ -11,11 +11,12 @@ Strategy:
 3. For code-switching: Use TEXT language for labeling, audio language for SOT reset logic
 """
 
-import logging
 import re
 from typing import ClassVar
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class TextLanguageDetector:

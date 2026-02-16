@@ -37,11 +37,12 @@ Usage:
     # }
 """
 
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class SegmentTimestamper:

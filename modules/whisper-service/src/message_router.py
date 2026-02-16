@@ -8,7 +8,6 @@ and extensible message processing pipeline.
 """
 
 import inspect
-import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -24,8 +23,9 @@ from error_handler import (
     create_validation_error,
     error_handler,
 )
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class MessageType(Enum):

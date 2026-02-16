@@ -7,11 +7,12 @@ Shared data types used across all LLM client implementations:
 - StreamChunk: Streaming chunk from LLM response
 """
 
-import logging
 import time
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 # =============================================================================

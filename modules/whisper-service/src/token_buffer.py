@@ -14,10 +14,11 @@ Target: +25-40% quality improvement on long-form content
 Reference: SimulStreaming/token_buffer.py
 """
 
-import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class TokenBuffer:

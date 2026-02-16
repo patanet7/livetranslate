@@ -11,7 +11,6 @@ import asyncio
 import contextlib
 import io
 import json
-import logging
 import os
 import subprocess
 import time
@@ -21,6 +20,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
 try:
     import sounddevice as sd
@@ -36,7 +36,7 @@ try:
 except ImportError:
     SELENIUM_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

@@ -12,10 +12,11 @@ Reference: SimulStreaming paper (IWSLT 2025) - Section 4.2
 - Previous context carryover: 223 tokens max
 """
 
-import logging
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

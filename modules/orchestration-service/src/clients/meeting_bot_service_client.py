@@ -5,10 +5,10 @@ Python client for calling the Node.js meeting-bot-service API.
 Uses ScreenApp's battle-tested GoogleMeetBot via HTTP.
 """
 
-import logging
 from typing import Any
 
 import httpx
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel
 
 
@@ -62,7 +62,7 @@ class MeetingBotServiceClient:
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger()
 
     async def join_meeting(
         self,

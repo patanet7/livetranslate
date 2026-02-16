@@ -12,7 +12,6 @@ importing test code in production.
 import asyncio
 import contextlib
 import json
-import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -20,8 +19,9 @@ from typing import Any
 
 import socketio
 from aiohttp import web
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # =============================================================================

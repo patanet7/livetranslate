@@ -15,7 +15,6 @@ Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Rolling Window Translation"
 """
 
 import asyncio
-import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -27,6 +26,7 @@ from clients.translation_service_client import (
     TranslationRequest,
     TranslationServiceClient,
 )
+from livetranslate_common.logging import get_logger
 from models.fireflies import (
     TranslationContext,
     TranslationResult,
@@ -38,7 +38,7 @@ from services.translation_prompt_builder import (
     create_prompt_builder,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # =============================================================================

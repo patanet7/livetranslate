@@ -4,10 +4,10 @@ Shared components for bot router modules
 Common imports, utilities, and configurations used across all bot router components.
 """
 
-import logging
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, status
+from livetranslate_common.logging import get_logger
 
 # Dependencies
 # Models
@@ -18,7 +18,7 @@ from models.bot import (
 from pydantic import BaseModel
 
 # Shared logger
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # Shared response models

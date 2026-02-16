@@ -14,7 +14,6 @@ LLM calls go through the unified LLMClient, which supports:
 
 import asyncio
 import json
-import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -33,9 +32,10 @@ from database.models import (
     MeetingInsight,
     MeetingNote,
 )
+from livetranslate_common.logging import get_logger
 from sqlalchemy import select
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class MeetingIntelligenceService:

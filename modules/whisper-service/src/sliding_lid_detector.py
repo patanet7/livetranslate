@@ -8,11 +8,12 @@ Does NOT affect the decoder - this is passive tracking only.
 Phase 3: Multi-Language Code-Switching Implementation
 """
 
-import logging
 import time
 from collections import Counter
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class LanguageDetection:

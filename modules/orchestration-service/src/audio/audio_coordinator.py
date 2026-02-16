@@ -18,7 +18,6 @@ Features:
 
 import asyncio
 import json
-import logging
 import os
 import time
 from collections import defaultdict
@@ -80,7 +79,9 @@ try:
 except ImportError:
     TranslationOptimizationAdapter = None
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class ServiceClientPool:

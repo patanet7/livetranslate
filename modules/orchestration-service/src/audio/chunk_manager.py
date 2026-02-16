@@ -17,7 +17,6 @@ Features:
 
 import asyncio
 import hashlib
-import logging
 import time
 from collections import deque
 from collections.abc import Callable
@@ -27,6 +26,7 @@ from typing import Any
 
 import numpy as np
 import soundfile as sf
+from livetranslate_common.logging import get_logger
 
 from .database_adapter import AudioDatabaseAdapter
 from .models import (
@@ -38,7 +38,7 @@ from .models import (
     create_audio_chunk_metadata,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class AudioBuffer:

@@ -10,11 +10,12 @@ Per FEEDBACK.md lines 157-167:
 This prevents language flapping and ensures stable language switches.
 """
 
-import logging
 from collections import deque
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

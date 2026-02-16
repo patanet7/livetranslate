@@ -18,6 +18,13 @@ from typing import Any
 
 import uvicorn
 from dotenv import load_dotenv
+
+load_dotenv()
+
+from livetranslate_common.logging import get_logger, setup_logging
+
+setup_logging(service_name="orchestration")
+
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -25,18 +32,16 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.security import HTTPBearer
 from fastapi.staticfiles import StaticFiles
 
-load_dotenv()
+logger = get_logger()
+router_logger = get_logger()
+import_logger = get_logger()
+route_logger = get_logger()
+startup_logger = get_logger()
 
-logger = logging.getLogger(__name__)
-router_logger = logging.getLogger("router_registration")
-import_logger = logging.getLogger("import_analysis")
-route_logger = logging.getLogger("route_conflicts")
-startup_logger = logging.getLogger("startup_process")
-
-router_logger.setLevel(logging.WARNING)
-import_logger.setLevel(logging.WARNING)
-route_logger.setLevel(logging.WARNING)
-startup_logger.setLevel(logging.INFO)
+logging.getLogger("router_registration").setLevel(logging.WARNING)
+logging.getLogger("import_analysis").setLevel(logging.WARNING)
+logging.getLogger("route_conflicts").setLevel(logging.WARNING)
+logging.getLogger("startup_process").setLevel(logging.INFO)
 
 # Add the src directory to the Python path
 src_path = Path(__file__).parent
@@ -245,9 +250,9 @@ except ImportError as e:
 # Import middleware with logging
 try:
     import_logger.debug("Importing middleware...")
+    from livetranslate_common import RequestIDMiddleware, RequestLoggingMiddleware
     from middleware import (
         ErrorHandlingMiddleware,
-        LoggingMiddleware,
         SecurityMiddleware,
     )
 
@@ -394,8 +399,12 @@ app = FastAPI(
 
 # Register centralized exception handlers for consistent error responses
 from errors import register_exception_handlers
+from livetranslate_common.errors.handlers import (
+    register_error_handlers as register_common_error_handlers,
+)
 
 register_exception_handlers(app)
+register_common_error_handlers(app)
 startup_logger.info("[OK] Registered centralized exception handlers")
 
 # Middleware setup
@@ -412,7 +421,8 @@ app.add_middleware(
 
 # Add custom middleware
 app.add_middleware(SecurityMiddleware)
-app.add_middleware(LoggingMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(ErrorHandlingMiddleware)
 
 # Mount static files for React build
@@ -851,13 +861,11 @@ async def websocket_endpoint_direct(websocket: WebSocket):
     Provides the same functionality as /api/websocket/connect
     """
     import json
-    import logging
     from datetime import datetime
 
     from dependencies import get_websocket_manager
     from utils.rate_limiting import RateLimiter
 
-    logger = logging.getLogger(__name__)
     connection_id = None
 
     try:

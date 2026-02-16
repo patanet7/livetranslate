@@ -19,7 +19,6 @@ Features:
 import asyncio
 import hashlib
 import json
-import logging
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -29,10 +28,9 @@ from typing import Any
 
 import aiofiles
 import asyncpg
+from livetranslate_common.logging import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

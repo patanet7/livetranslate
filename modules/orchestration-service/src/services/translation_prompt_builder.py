@@ -13,10 +13,11 @@ which just forwards it to the LLM without modification.
 Reference: API Contract - Translation Service is DUMB
 """
 
-import logging
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 # =============================================================================

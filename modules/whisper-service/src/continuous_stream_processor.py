@@ -15,16 +15,14 @@ Key Features:
 """
 
 import asyncio
-import logging
 import time
 from collections import deque
 
 import httpx
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ContinuousStreamProcessor:

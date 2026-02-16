@@ -4,11 +4,12 @@ Audio Processing Utilities
 Provides audio validation and processing utilities.
 """
 
-import logging
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class AudioProcessor:

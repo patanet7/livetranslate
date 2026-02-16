@@ -15,10 +15,10 @@ Key improvements over custom implementation:
 Pedalboard reference: https://github.com/spotify/pedalboard
 """
 
-import logging
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
 try:
     from pedalboard import Limiter, Pedalboard
@@ -32,7 +32,7 @@ except ImportError:
 from ..config import LimiterConfig
 from ..stage_components import BaseAudioStage
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class LimiterStageEnhanced(BaseAudioStage):

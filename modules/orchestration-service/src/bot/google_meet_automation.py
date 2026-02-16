@@ -6,13 +6,14 @@ capturing audio, and extracting captions in real-time.
 """
 
 import asyncio
-import logging
 import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
+from livetranslate_common.logging import get_logger
 
 # Browser automation imports
 try:
@@ -27,7 +28,7 @@ try:
 except ImportError:
     SELENIUM_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class MeetingState(Enum):
