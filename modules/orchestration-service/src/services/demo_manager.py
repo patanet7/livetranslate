@@ -147,10 +147,10 @@ class DemoManager:
                             },
                         )
 
-                        if i < 3 or i % 10 == 0:
-                            logger.info(
-                                f"Injected caption {i+1}/{len(self._scenario.chunks)}: {chunk.speaker_name}"
-                            )
+                        if i == 0:
+                            logger.info(f"First caption injected: {chunk.speaker_name}")
+                        elif i % 10 == 0:
+                            logger.debug(f"Injected {i+1}/{len(self._scenario.chunks)} captions")
 
                     await asyncio.sleep(self._scenario.chunk_delay_ms / 1000.0)
 
