@@ -5,9 +5,14 @@ Singleton managing the Fireflies demo server lifecycle.
 Starts a mock Fireflies server in-process so the full pipeline
 (Socket.IO → orchestration → captions WebSocket → overlay) runs
 without a real Fireflies account.
+
+Supports two modes:
+- passthrough: full pipeline runs, text passes through translator as-is
+- pretranslated: pre-translated Spanish captions injected directly into CaptionBuffer
 """
 
 import asyncio
+import contextlib
 import logging
 
 from services.demo_server import FirefliesDemoServer, MockTranscriptScenario
@@ -25,8 +30,11 @@ class DemoManager:
         self.server: FirefliesDemoServer | None = None
         self.session_id: str | None = None
         self.transcript_id: str | None = None
+        self.mode: str = "passthrough"
         self.active: bool = False
         self._speakers: list[str] = []
+        self._scenario: MockTranscriptScenario | None = None
+        self._pretranslated_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
 
     async def start(
@@ -34,12 +42,15 @@ class DemoManager:
         speakers: list[str] | None = None,
         num_exchanges: int = 30,
         chunk_delay_ms: float = 2000.0,
+        mode: str = "passthrough",
     ) -> dict:
         """
         Start the demo server with a conversation scenario.
 
-        Returns dict with transcript_id, speakers, and base_url for
-        the router to create a real Fireflies session against.
+        Args:
+            mode: "passthrough" (full pipeline) or "pretranslated" (inject Spanish captions)
+
+        Returns dict with transcript_id, speakers, base_url, and mode.
         """
         async with self._lock:
             if self.active:
@@ -47,6 +58,8 @@ class DemoManager:
 
             if speakers is None:
                 speakers = ["Alice Chen", "Bob Martinez", "Charlie Kim"]
+
+            self.mode = mode
 
             self.server = FirefliesDemoServer(
                 host="localhost",
@@ -58,7 +71,9 @@ class DemoManager:
                 speakers=speakers,
                 num_exchanges=num_exchanges,
                 chunk_delay_ms=chunk_delay_ms,
+                include_translations=(mode == "pretranslated"),
             )
+            self._scenario = scenario
 
             self.server.add_scenario(scenario)
 
@@ -76,7 +91,7 @@ class DemoManager:
             self.active = True
 
             logger.info(
-                f"Demo started: transcript_id={self.transcript_id}, "
+                f"Demo started: mode={mode}, transcript_id={self.transcript_id}, "
                 f"speakers={speakers}, exchanges={num_exchanges}"
             )
 
@@ -86,11 +101,65 @@ class DemoManager:
                 "base_url": self.server.base_url,
                 "num_exchanges": num_exchanges,
                 "chunk_delay_ms": chunk_delay_ms,
+                "mode": mode,
             }
+
+    def start_pretranslated_injection(self, caption_buffer, ws_manager) -> None:
+        """Start background task to inject pre-translated captions.
+
+        Called by the router after session creation when mode == "pretranslated".
+        Reads chunks from the scenario and injects captions directly into the
+        CaptionBuffer, bypassing the translation pipeline entirely.
+        """
+        if not self._scenario or self.mode != "pretranslated":
+            return
+
+        async def _inject():
+            try:
+                for chunk in self._scenario.chunks:
+                    if not self.active:
+                        break
+
+                    if chunk.translated_text:
+                        caption, was_updated = caption_buffer.add_caption(
+                            translated_text=chunk.translated_text,
+                            speaker_name=chunk.speaker_name,
+                            original_text=chunk.text,
+                            target_language="es",
+                            confidence=0.95,
+                        )
+
+                        # Broadcast to WebSocket clients
+                        event_type = "caption_updated" if was_updated else "caption_added"
+                        await ws_manager.broadcast_to_session(
+                            self.session_id,
+                            {
+                                "event": event_type,
+                                "caption": caption.to_dict(),
+                            },
+                            target_language="es",
+                        )
+
+                    await asyncio.sleep(self._scenario.chunk_delay_ms / 1000.0)
+
+                logger.info("Pre-translated caption injection complete")
+            except asyncio.CancelledError:
+                logger.debug("Pre-translated injection cancelled")
+            except Exception as e:
+                logger.warning(f"Pre-translated injection error: {e}")
+
+        self._pretranslated_task = asyncio.create_task(_inject())
 
     async def stop(self):
         """Stop the demo server and reset state."""
         async with self._lock:
+            # Cancel pretranslated injection
+            if self._pretranslated_task and not self._pretranslated_task.done():
+                self._pretranslated_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self._pretranslated_task
+                self._pretranslated_task = None
+
             if self.server:
                 try:
                     await self.server.stop()
@@ -101,6 +170,8 @@ class DemoManager:
             self.session_id = None
             self.transcript_id = None
             self._speakers = []
+            self._scenario = None
+            self.mode = "passthrough"
             self.active = False
 
             logger.info("Demo stopped")
@@ -112,6 +183,7 @@ class DemoManager:
             "session_id": self.session_id,
             "transcript_id": self.transcript_id,
             "speakers": self._speakers,
+            "mode": self.mode,
             "server_stats": self.server.stats if self.server else None,
         }
 

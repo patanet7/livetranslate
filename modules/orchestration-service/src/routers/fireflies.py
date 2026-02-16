@@ -1227,6 +1227,7 @@ async def get_dashboard_config():
     description="Launch a mock Fireflies server and create a live session with simulated conversation",
 )
 async def start_demo(
+    mode: str = "passthrough",
     manager: FirefliesSessionManager = Depends(get_session_manager),
     ff_config: FirefliesSettings = Depends(get_fireflies_config),
 ):
@@ -1235,6 +1236,10 @@ async def start_demo(
     1. Launches a mock Fireflies server on port 8090
     2. Creates a real Fireflies session pointing to the local mock
     3. The full pipeline runs: mock → Socket.IO → orchestration → captions WebSocket
+
+    Args:
+        mode: "passthrough" (pipeline runs, text passes through) or
+              "pretranslated" (inject pre-translated Spanish captions directly)
     """
     from services.demo_manager import DEMO_API_KEY, get_demo_manager
 
@@ -1247,6 +1252,7 @@ async def start_demo(
             "session_id": demo.session_id,
             "transcript_id": demo.transcript_id,
             "speakers": demo.get_status()["speakers"],
+            "mode": demo.mode,
         }
 
     try:
@@ -1255,6 +1261,7 @@ async def start_demo(
             speakers=["Alice Chen", "Bob Martinez", "Charlie Kim"],
             num_exchanges=30,
             chunk_delay_ms=2000.0,
+            mode=mode,
         )
 
         # Create a real Fireflies session pointing to the local mock
@@ -1296,7 +1303,14 @@ async def start_demo(
 
         demo.session_id = session.session_id
 
-        logger.info(f"Demo session created: {session.session_id}")
+        # For pretranslated mode, start caption injection using the session's buffer
+        if mode == "pretranslated":
+            caption_buffer = manager.get_caption_buffer(session.session_id)
+            ws_manager = get_ws_manager()
+            if caption_buffer:
+                demo.start_pretranslated_injection(caption_buffer, ws_manager)
+
+        logger.info(f"Demo session created: {session.session_id}, mode={mode}")
 
         return {
             "success": True,
@@ -1306,6 +1320,7 @@ async def start_demo(
             "speakers": demo_info["speakers"],
             "num_exchanges": demo_info["num_exchanges"],
             "chunk_delay_ms": demo_info["chunk_delay_ms"],
+            "mode": mode,
         }
 
     except Exception as e:
