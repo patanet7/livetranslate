@@ -116,8 +116,16 @@ class DemoManager:
 
         async def _inject():
             try:
-                for chunk in self._scenario.chunks:
+                logger.info(
+                    f"Pre-translated injection starting: "
+                    f"session={self.session_id}, chunks={len(self._scenario.chunks)}, "
+                    f"delay={self._scenario.chunk_delay_ms}ms"
+                )
+                for i, chunk in enumerate(self._scenario.chunks):
                     if not self.active:
+                        logger.info(
+                            f"Pre-translated injection stopped: demo no longer active (after {i} chunks)"
+                        )
                         break
 
                     if chunk.translated_text:
@@ -129,7 +137,7 @@ class DemoManager:
                             confidence=0.95,
                         )
 
-                        # Broadcast to WebSocket clients
+                        # Broadcast to WebSocket clients (no language filter — send to all)
                         event_type = "caption_updated" if was_updated else "caption_added"
                         await ws_manager.broadcast_to_session(
                             self.session_id,
@@ -137,8 +145,12 @@ class DemoManager:
                                 "event": event_type,
                                 "caption": caption.to_dict(),
                             },
-                            target_language="es",
                         )
+
+                        if i < 3 or i % 10 == 0:
+                            logger.info(
+                                f"Injected caption {i+1}/{len(self._scenario.chunks)}: {chunk.speaker_name}"
+                            )
 
                     await asyncio.sleep(self._scenario.chunk_delay_ms / 1000.0)
 
@@ -146,7 +158,7 @@ class DemoManager:
             except asyncio.CancelledError:
                 logger.debug("Pre-translated injection cancelled")
             except Exception as e:
-                logger.warning(f"Pre-translated injection error: {e}")
+                logger.warning(f"Pre-translated injection error: {e}", exc_info=True)
 
         self._pretranslated_task = asyncio.create_task(_inject())
 

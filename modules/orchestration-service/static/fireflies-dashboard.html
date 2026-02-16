@@ -1152,6 +1152,14 @@
         // Clear existing options
         select.innerHTML = '';
 
+        // Add "All Languages" option for Live Feed (no filter)
+        if (selectId === 'feedTargetLang') {
+          const allOpt = document.createElement('option');
+          allOpt.value = '';
+          allOpt.textContent = 'All Languages';
+          select.appendChild(allOpt);
+        }
+
         // Add options from backend config
         languages.forEach(lang => {
           const option = document.createElement('option');
@@ -1601,6 +1609,7 @@
         renderSessions(currentSessions);
         updateStats(currentSessions);
         updateSessionSelect();
+        updateFeedSessionSelect();
 
       } catch (e) {
         log(`Error loading sessions: ${e.message}`, 'error');
@@ -2258,7 +2267,8 @@ Translation:`,
       }
 
       const targetLang = document.getElementById('feedTargetLang').value;
-      document.getElementById('feedTargetLangLabel').textContent = document.querySelector('#feedTargetLang option:checked').textContent;
+      const langLabel = document.querySelector('#feedTargetLang option:checked').textContent;
+      document.getElementById('feedTargetLangLabel').textContent = targetLang ? langLabel : 'All';
 
       // Close existing connection
       if (feedWebSocket) {
@@ -2266,7 +2276,9 @@ Translation:`,
       }
 
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/api/captions/stream/${sessionId}?target_language=${targetLang}`;
+      // Include language filter only when a specific language is selected
+      const langParam = targetLang ? `?target_language=${targetLang}` : '';
+      const wsUrl = `${wsProtocol}//${window.location.host}/api/captions/stream/${sessionId}${langParam}`;
 
       log(`Connecting to feed: ${wsUrl}`, 'info');
       updateFeedStatus('connecting');
@@ -3627,7 +3639,17 @@ Translation:`,
         // Add demo session to the session dropdown and auto-select it
         await refreshSessions();
         const feedSelect = document.getElementById('feedSessionSelect');
+        // If session not yet in dropdown (race), add it manually
+        if (!feedSelect.querySelector(`option[value="${data.session_id}"]`)) {
+          const opt = document.createElement('option');
+          opt.value = data.session_id;
+          opt.textContent = `${data.session_id} (${data.transcript_id || 'Demo'})`;
+          feedSelect.appendChild(opt);
+        }
         feedSelect.value = data.session_id;
+
+        // Default to "All Languages" for demo so both original + translated flow through
+        document.getElementById('feedTargetLang').value = '';
 
         // Auto-connect the Live Feed WebSocket
         connectToFeed();
@@ -3702,7 +3724,14 @@ Translation:`,
           // Wait for sessions to load, then auto-connect
           await refreshSessions();
           const feedSelect = document.getElementById('feedSessionSelect');
+          if (!feedSelect.querySelector(`option[value="${data.session_id}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = data.session_id;
+            opt.textContent = `${data.session_id} (Demo)`;
+            feedSelect.appendChild(opt);
+          }
           feedSelect.value = data.session_id;
+          document.getElementById('feedTargetLang').value = '';
           connectToFeed();
 
           log('Demo mode is active (restored from server)', 'info');
