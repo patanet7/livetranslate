@@ -580,25 +580,19 @@ class TranscriptionPipelineCoordinator:
                 )
 
         except Exception as e:
-            # Re-queue failed sentences so they aren't lost
-            self._auto_note_buffer.extend(sentences)
-            logger.warning(
-                f"Auto-note generation unavailable ({len(sentences)} sentences re-queued): {e}"
-            )
-            self._stats.errors += 1
-
-            # Publish failure event
-            if self.event_publisher:
-                await self.event_publisher.publish(
-                    "intelligence",
-                    "auto_note_failed",
-                    {
-                        "session_id": self.config.session_id,
-                        "sentence_count": len(sentences),
-                        "error": str(e),
-                    },
-                    source="pipeline-coordinator",
+            # Don't re-queue — if LLM is unavailable, retrying just creates noise.
+            # Sentences are dropped; they'll be captured in future auto-notes
+            # once the backend becomes available.
+            if not hasattr(self, "_auto_note_warned"):
+                logger.warning(
+                    f"Auto-note generation unavailable ({len(sentences)} sentences dropped): {e}"
                 )
+                self._auto_note_warned = True
+            else:
+                logger.debug(
+                    f"Auto-note generation still unavailable ({len(sentences)} sentences dropped)"
+                )
+            self._stats.errors += 1
 
     async def flush(self) -> None:
         """

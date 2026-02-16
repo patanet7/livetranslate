@@ -14,6 +14,7 @@ visual styling.
 Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Caption Output"
 """
 
+import asyncio
 import logging
 import threading
 from collections import OrderedDict
@@ -216,10 +217,33 @@ class CaptionBuffer:
         # Thread safety
         self._lock = threading.RLock()
 
+        # Background task tracking for async callbacks
+        self._bg_tasks: set[asyncio.Task] = set()
+
         logger.info(
             f"CaptionBuffer initialized: max_captions={max_captions}, "
             f"duration={default_duration}s, aggregate={aggregate_speaker_text}"
         )
+
+    # =========================================================================
+    # Callback Helpers
+    # =========================================================================
+
+    def _fire_callback(self, callback: Callable, *args) -> None:
+        """Fire a callback, scheduling it as a task if it's async."""
+        try:
+            result = callback(*args)
+            if asyncio.iscoroutine(result):
+                try:
+                    loop = asyncio.get_running_loop()
+                    task = loop.create_task(result)
+                    # prevent GC of fire-and-forget tasks
+                    self._bg_tasks.add(task)
+                    task.add_done_callback(self._bg_tasks.discard)
+                except RuntimeError:
+                    logger.warning("Async caption callback dropped: no running event loop")
+        except Exception as e:
+            logger.warning(f"Caption callback error: {e}")
 
     # =========================================================================
     # Public API
@@ -321,10 +345,7 @@ class CaptionBuffer:
 
                     # Callback for update
                     if self.on_caption_updated:
-                        try:
-                            self.on_caption_updated(existing_caption)
-                        except Exception as e:
-                            logger.warning(f"Caption updated callback error: {e}")
+                        self._fire_callback(self.on_caption_updated, existing_caption)
 
                     return (existing_caption, True)
 
@@ -365,10 +386,7 @@ class CaptionBuffer:
 
             # Callback
             if self.on_caption_added:
-                try:
-                    self.on_caption_added(caption)
-                except Exception as e:
-                    logger.warning(f"Caption added callback error: {e}")
+                self._fire_callback(self.on_caption_added, caption)
 
             logger.debug(
                 f"Caption added: id={caption.id}, speaker={speaker_name}, "
@@ -660,10 +678,7 @@ class CaptionBuffer:
             self._stats.total_captions_expired += 1
 
             if self.on_caption_expired:
-                try:
-                    self.on_caption_expired(caption)
-                except Exception as e:
-                    logger.warning(f"Caption expired callback error: {e}")
+                self._fire_callback(self.on_caption_expired, caption)
 
         if expired_ids:
             self._stats.current_caption_count = len(self._captions)

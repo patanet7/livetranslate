@@ -95,6 +95,7 @@ class LLMClient:
 
         self._session: aiohttp.ClientSession | None = None
         self._circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0)
+        self._request_warned: bool = False
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -207,7 +208,11 @@ class LLMClient:
 
         except aiohttp.ClientError as e:
             self._circuit_breaker.record_failure()
-            logger.warning(f"LLM chat request failed: {e}")
+            if not self._request_warned:
+                logger.warning(f"LLM chat request failed: {e}")
+                self._request_warned = True
+            else:
+                logger.debug(f"LLM chat request failed: {e}")
             raise ConnectionError(f"LLM chat request failed: {e}") from e
 
     async def chat_stream(
