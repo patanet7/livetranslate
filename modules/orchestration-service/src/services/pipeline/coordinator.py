@@ -401,7 +401,7 @@ class TranscriptionPipelineCoordinator:
             return result
 
         except Exception as e:
-            logger.error(f"Translation failed: {e}")
+            logger.warning(f"Translation unavailable: {e}")
             self._stats.translations_failed += 1
             return None
 
@@ -582,8 +582,8 @@ class TranscriptionPipelineCoordinator:
         except Exception as e:
             # Re-queue failed sentences so they aren't lost
             self._auto_note_buffer.extend(sentences)
-            logger.error(
-                f"Failed to generate auto-note ({len(sentences)} sentences re-queued): {e}"
+            logger.warning(
+                f"Auto-note generation unavailable ({len(sentences)} sentences re-queued): {e}"
             )
             self._stats.errors += 1
 

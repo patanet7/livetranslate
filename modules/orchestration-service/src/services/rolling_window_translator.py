@@ -283,12 +283,12 @@ class RollingWindowTranslator:
             translation_time_ms = (time.time() - start_time) * 1000
             session_state.update_stats(translation_time_ms, success=False)
 
-            logger.error(f"Translation failed: {e}", exc_info=True)
+            logger.warning(f"Translation unavailable, using original text: {e}")
 
-            # Return error result with original text
+            # Return result with original text as passthrough
             return TranslationResult(
                 original=unit.text,
-                translated=f"[Translation Error: {str(e)[:50]}]",
+                translated=unit.text,
                 speaker_name=unit.speaker_name,
                 source_language=source_language,
                 target_language=target_language,
