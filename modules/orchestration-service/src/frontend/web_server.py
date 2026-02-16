@@ -7,16 +7,16 @@ for the orchestration service dashboard. Built upon the extracted frontend-servi
 functionality from the legacy whisper-npu-server.
 """
 
-import logging
 import os
 import time
 from pathlib import Path
 from typing import Any
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
+from livetranslate_common.logging import get_logger
 from werkzeug.exceptions import NotFound
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class WebServer:

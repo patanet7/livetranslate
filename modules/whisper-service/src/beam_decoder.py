@@ -9,11 +9,12 @@ Target: +20-30% quality improvement over greedy decoding
 Reference: SimulStreaming paper (IWSLT 2025)
 """
 
-import logging
 from dataclasses import dataclass
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

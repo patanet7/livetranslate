@@ -11,17 +11,17 @@ Provides REST API endpoints for:
 Integrates with the GlossaryService for business logic.
 """
 
-import logging
 from uuid import UUID
 
 from database.database import DatabaseManager
 from dependencies import get_database_manager
 from fastapi import APIRouter, Depends, HTTPException, status
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, Field
 from services.glossary_service import GlossaryService
 from sqlalchemy.orm import Session as DBSession
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 router = APIRouter(prefix="/glossaries", tags=["glossaries"])
 

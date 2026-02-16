@@ -12,11 +12,12 @@ INTEGRATION INSTRUCTIONS:
 5. Add cleanup method
 """
 
-import logging
 import time
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 # =============================================================================
 # STEP 1: ADD THESE IMPORTS TO audio_coordinator.py

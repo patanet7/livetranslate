@@ -6,9 +6,9 @@ Prepares domain-specific prompts for Whisper transcription.
 Extracted from whisper_service.py for better modularity and testability.
 """
 
-import logging
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 def prepare_domain_prompt(

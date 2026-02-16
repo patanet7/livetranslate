@@ -15,10 +15,11 @@ from typing import Any
 
 import aiohttp
 import psutil
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 # Set health monitor to only show warnings and errors to reduce console noise
-logger.setLevel(logging.WARNING)
+logging.getLogger("managers.health_monitor").setLevel(logging.WARNING)
 
 
 class HealthStatus(Enum):

@@ -16,8 +16,9 @@ from enum import Enum
 from typing import Any
 
 import requests
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class HealthStatus(Enum):

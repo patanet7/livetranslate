@@ -13,15 +13,15 @@ All these services expose the same OpenAI chat completions API format.
 
 import asyncio
 import json
-import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 import httpx
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

@@ -7,14 +7,15 @@ Designed to be simple and lightweight while providing basic security.
 """
 
 import hashlib
-import logging
 import secrets
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class UserRole(Enum):

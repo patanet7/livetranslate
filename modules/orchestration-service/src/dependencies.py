@@ -7,7 +7,6 @@ Manages lifecycle of managers, clients, and shared resources across the applicat
 """
 
 import asyncio
-import logging
 import os
 from functools import lru_cache
 from typing import Any, Optional
@@ -52,10 +51,11 @@ except ImportError:
 from datetime import UTC
 
 from fastapi import Depends, HTTPException, Request, status
+from livetranslate_common.logging import get_logger
 from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # ============================================================================
 # Singleton Instances (Global State Management)

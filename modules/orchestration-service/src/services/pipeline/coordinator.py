@@ -33,11 +33,12 @@ Usage:
 
 import asyncio
 import contextlib
-import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
+
+from livetranslate_common.logging import get_logger
 
 # Import existing models (using Fireflies models as canonical internal format)
 from models.fireflies import (
@@ -55,7 +56,7 @@ from services.sentence_aggregator import SentenceAggregator
 from .adapters.base import ChunkAdapter, TranscriptChunk
 from .config import PipelineConfig, PipelineStats
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TranscriptionPipelineCoordinator:

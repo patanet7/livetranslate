@@ -18,7 +18,6 @@ import asyncio
 import copy
 import hashlib
 import json
-import logging
 import os
 import threading
 from collections import deque
@@ -30,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+from livetranslate_common.logging import get_logger
 
 from .models import AudioChunkingConfig
 from .whisper_compatibility import (
@@ -38,7 +38,7 @@ from .whisper_compatibility import (
     get_frontend_compatible_config,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # ---------------------------------------------------------------------------

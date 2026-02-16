@@ -11,7 +11,6 @@ degrade gracefully instead of crashing on import errors.
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import sys
 from datetime import UTC, datetime
@@ -60,7 +59,9 @@ try:
 except ImportError:
     _MODEL_REGISTRY_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 # ---------------------------------------------------------------------------
 # Attempt to import whisper-service components. We keep this optional so the

@@ -10,7 +10,6 @@ the facade falls back to lightweight mock responses rather than crashing.
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import sys
 from datetime import UTC, datetime
@@ -19,7 +18,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 # ---------------------------------------------------------------------------
 # Locate translation-service source and attempt to import it. We keep this

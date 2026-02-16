@@ -9,7 +9,6 @@ Enhanced with REST endpoints for service integration.
 
 import asyncio
 import json
-import logging
 import threading
 import time
 import traceback
@@ -18,14 +17,13 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import websockets
+from livetranslate_common.logging import get_logger
 from transformers import AutoTokenizer
 
 # Direct vLLM imports
 from vllm import LLM, SamplingParams
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TranslationHTTPHandler(BaseHTTPRequestHandler):

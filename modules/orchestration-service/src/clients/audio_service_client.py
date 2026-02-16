@@ -8,7 +8,6 @@ Provides methods for transcription, speaker diarization, and audio analysis.
 import asyncio
 import builtins
 import json
-import logging
 import mimetypes
 import os
 import ssl
@@ -53,7 +52,9 @@ _DEFAULT_WHISPER_MODEL = (
     ModelRegistry.DEFAULT_WHISPER_MODEL if _MODEL_REGISTRY_AVAILABLE else "whisper-base"
 )
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 # Audio format detection and content-type mapping

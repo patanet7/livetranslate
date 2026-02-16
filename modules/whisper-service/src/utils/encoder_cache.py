@@ -22,15 +22,15 @@ Usage:
 """
 
 import hashlib
-import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
 import torch
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

@@ -7,14 +7,15 @@ Uses the translation optimization schema (migration-translation-optimization.sql
 
 import hashlib
 import json
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from livetranslate_common.logging import get_logger
+
 from .database import DatabaseManager
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TranslationOptimizationAdapter:

@@ -19,7 +19,6 @@ import asyncio
 import base64
 import io
 import json
-import logging
 import os
 import threading
 import time
@@ -31,11 +30,10 @@ from enum import Enum
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 from PIL import Image, ImageDraw, ImageFont
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class DisplayMode(Enum):

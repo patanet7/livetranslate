@@ -4,8 +4,9 @@ Shared components for audio router modules
 Common imports, utilities, and configurations used across all audio router components.
 """
 
-import logging
 from typing import Any
+
+from livetranslate_common.logging import get_logger
 
 __all__ = [
     "APIRouter",
@@ -50,7 +51,7 @@ from utils.rate_limiting import RateLimiter
 from utils.security import SecurityUtils
 
 # Shared logger
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Shared utilities (initialized once)
 rate_limiter = RateLimiter()

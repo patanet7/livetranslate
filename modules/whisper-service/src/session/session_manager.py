@@ -7,15 +7,16 @@ Extracted from whisper_service.py for better modularity.
 """
 
 import json
-import logging
 import os
 from collections import deque
 from datetime import datetime
 
+from livetranslate_common.logging import get_logger
+
 # Import TranscriptionResult from transcription package
 from transcription.request_models import TranscriptionResult
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class SessionManager:

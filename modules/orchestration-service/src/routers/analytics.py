@@ -14,7 +14,6 @@ FastAPI router for comprehensive system analytics and monitoring including:
 
 import csv
 import io
-import logging
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
@@ -28,10 +27,11 @@ from dependencies import (
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse, StreamingResponse
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, Field
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # ============================================================================
 # Request/Response Models

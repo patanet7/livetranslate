@@ -8,11 +8,11 @@ without a real Fireflies account.
 """
 
 import asyncio
-import logging
 
+from livetranslate_common.logging import get_logger
 from services.demo_server import FirefliesDemoServer, MockTranscriptScenario
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 DEMO_PORT = 8090
 DEMO_API_KEY = "demo-api-key"  # pragma: allowlist secret

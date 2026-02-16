@@ -18,7 +18,6 @@ Tables:
 import asyncio
 import hashlib
 import json
-import logging
 import time
 import uuid
 from collections.abc import AsyncGenerator
@@ -27,6 +26,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import asyncpg
+from livetranslate_common.logging import get_logger
 
 from .models import (
     AudioChunkMetadata,
@@ -34,7 +34,7 @@ from .models import (
     SpeakerCorrelation,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class DatabaseConnectionPool:

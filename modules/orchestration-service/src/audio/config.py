@@ -17,7 +17,6 @@ Features:
 
 import asyncio
 import contextlib
-import logging
 import os
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -28,8 +27,9 @@ from typing import Any
 
 import numpy as np
 import yaml
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class AudioPreset(str, Enum):

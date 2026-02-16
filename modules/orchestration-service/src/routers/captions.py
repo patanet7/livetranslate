@@ -14,15 +14,15 @@ Integrates with CaptionBuffer for caption management.
 
 import asyncio
 import json
-import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
+from livetranslate_common.logging import get_logger
 from models.fireflies import CaptionEntry
 from pydantic import BaseModel, Field
 from services.caption_buffer import CaptionBuffer, create_caption_buffer
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 router = APIRouter(prefix="/captions", tags=["captions"])
 

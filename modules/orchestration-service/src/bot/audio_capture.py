@@ -17,7 +17,6 @@ Features:
 import asyncio
 import io
 import json
-import logging
 import threading
 import time
 from collections import deque
@@ -30,10 +29,9 @@ import httpx
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+from livetranslate_common.logging import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

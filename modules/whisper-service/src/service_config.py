@@ -17,7 +17,9 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass
@@ -238,20 +240,18 @@ class SessionConfig:
         )
 
     def configure_logging(self):
-        """Configure logging based on settings"""
-        logging.basicConfig(
-            level=getattr(logging, self.log_level),
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        )
+        """Configure logging based on settings.
 
-        # Adjust specific loggers for high-frequency operations
+        Note: structlog setup_logging() should be called once at process startup
+        (in main.py). This method only adjusts third-party stdlib logger levels.
+        """
+        # Adjust specific third-party loggers for high-frequency operations
         if self.log_level == "INFO":
-            # Reduce noise from high-frequency loggers
             logging.getLogger("vad_detector").setLevel(logging.WARNING)
             logging.getLogger("sustained_detector").setLevel(logging.INFO)
             logging.getLogger("lid_detector").setLevel(logging.INFO)
 
-        logger.info(f"Logging configured: level={self.log_level}")
+        logger.info("logging_configured", log_level=self.log_level)
 
 
 # Convenience function for quick setup

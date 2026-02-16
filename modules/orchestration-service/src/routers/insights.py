@@ -10,13 +10,13 @@ API endpoints for the Meeting Intelligence system:
 All endpoints are prefixed with /api/intelligence (set in main_fastapi.py).
 """
 
-import logging
 import uuid
 
 from database.models import BotSession, Transcript
 from dependencies import get_database_manager
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from livetranslate_common.logging import get_logger
 from models.insights import (
     AgentConversationCreateRequest,
     AgentConversationResponse,
@@ -38,7 +38,7 @@ from models.insights import (
 )
 from sqlalchemy import select
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 router = APIRouter(tags=["Meeting Intelligence"])
 

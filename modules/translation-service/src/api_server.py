@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 import time
 from datetime import datetime
@@ -27,6 +26,7 @@ import uuid
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
+from livetranslate_common.logging import get_logger, setup_logging
 from prompt_manager import PromptManager, PromptPerformanceMetric, PromptTemplate
 from translation_service import TranslationRequest, TranslationService, create_translation_service
 
@@ -61,9 +61,9 @@ except ImportError:
     OpenAICompatibleTranslator = None
     OpenAICompatibleConfig = None
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Configure structured logging
+setup_logging(service_name="translation")
+logger = get_logger()
 
 # Flask app configuration
 app = Flask(__name__)

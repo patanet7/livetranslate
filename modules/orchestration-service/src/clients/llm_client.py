@@ -16,14 +16,14 @@ Replaces both the former SimpleTranslationClient and DirectLLMClient.
 """
 
 import json
-import logging
 import time
 from collections.abc import AsyncIterator
 
 import aiohttp
 from clients.models import CircuitBreaker, PromptTranslationResult, StreamChunk
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class LLMClient:

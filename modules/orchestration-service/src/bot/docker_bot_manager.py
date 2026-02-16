@@ -18,12 +18,15 @@ Reduction: -60% complexity
 
 import asyncio
 import json
-import logging
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any
+
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 try:
     import docker
@@ -33,7 +36,6 @@ try:
 except ImportError:
     DOCKER_AVAILABLE = False
     Container = None  # Type hint placeholder
-    logger = logging.getLogger(__name__)
     logger.warning("Docker SDK not available - install with: pip install docker")
 
 try:
@@ -42,11 +44,7 @@ try:
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
-    logger = logging.getLogger(__name__)
     logger.warning("Redis asyncio not available - install with: pip install redis")
-
-# Configure logging
-logger = logging.getLogger(__name__)
 
 
 class BotStatus(Enum):
@@ -736,7 +734,4 @@ async def example_usage():
 
 
 if __name__ == "__main__":
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(example_usage())

@@ -5,7 +5,6 @@ FastAPI router for handling translation requests and proxying them to the transl
 Provides comprehensive translation endpoints with proper error handling and validation.
 """
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -23,10 +22,11 @@ from dependencies import (
     rate_limit_api,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Create router
 router = APIRouter()

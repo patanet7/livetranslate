@@ -5,10 +5,11 @@ Validates that all required and optional dependencies are available
 and provides informative warnings about missing optional features.
 """
 
-import logging
 import sys
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class DependencyChecker:

@@ -18,12 +18,12 @@ Architecture:
 See WHISPER_LID_ARCHITECTURE.md for complete technical design.
 """
 
-import logging
 from dataclasses import dataclass
 
 import torch
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

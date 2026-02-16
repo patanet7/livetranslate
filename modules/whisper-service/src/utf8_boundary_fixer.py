@@ -19,9 +19,9 @@ Remove � characters that appear at chunk boundaries (start/end of text),
 as they represent incomplete multi-byte characters from the split.
 """
 
-import logging
+from livetranslate_common.logging import get_logger, setup_logging
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Unicode replacement character (used when UTF-8 decoding fails)
 REPLACEMENT_CHAR = "\ufffd"  # �
@@ -128,7 +128,7 @@ class UTF8BoundaryFixer:
 
 # Example usage and testing
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    setup_logging(service_name="whisper", log_format="dev")
 
     print("\n" + "=" * 80)
     print("UTF8BoundaryFixer - Example Usage")

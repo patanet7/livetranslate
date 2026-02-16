@@ -7,7 +7,6 @@ or as part of the complete pipeline. This enables frontend testing of
 individual stages and flexible pipeline configuration.
 """
 
-import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -15,8 +14,9 @@ from enum import Enum
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class StageStatus(str, Enum):
