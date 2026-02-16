@@ -35,6 +35,7 @@ class DemoManager:
         self._speakers: list[str] = []
         self._scenario: MockTranscriptScenario | None = None
         self._pretranslated_task: asyncio.Task | None = None
+        self._injection_delay_ms: float = 2000.0
         self._lock = asyncio.Lock()
 
     async def start(
@@ -74,8 +75,14 @@ class DemoManager:
                 include_translations=(mode == "pretranslated"),
             )
             self._scenario = scenario
+            self._injection_delay_ms = chunk_delay_ms
 
-            self.server.add_scenario(scenario)
+            if mode == "pretranslated":
+                # Only register the meeting for GraphQL — don't stream chunks
+                # via Socket.IO. The injection task handles caption delivery.
+                self.server._meetings.append(scenario.meeting)
+            else:
+                self.server.add_scenario(scenario)
 
             try:
                 await self.server.start()
@@ -152,7 +159,7 @@ class DemoManager:
                         elif i % 10 == 0:
                             logger.debug(f"Injected {i+1}/{len(self._scenario.chunks)} captions")
 
-                    await asyncio.sleep(self._scenario.chunk_delay_ms / 1000.0)
+                    await asyncio.sleep(self._injection_delay_ms / 1000.0)
 
                 logger.info("Pre-translated caption injection complete")
             except asyncio.CancelledError:
@@ -183,6 +190,7 @@ class DemoManager:
             self.transcript_id = None
             self._speakers = []
             self._scenario = None
+            self._injection_delay_ms = 2000.0
             self.mode = "passthrough"
             self.active = False
 
