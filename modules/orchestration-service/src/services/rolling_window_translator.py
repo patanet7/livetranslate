@@ -558,6 +558,12 @@ class RollingWindowTranslator:
 
         # Legacy fallback - NOTE: this still doesn't send the prompt!
         # This is kept for backwards compatibility but the LLM client should be used
+        if self.translation_client is None:
+            logger.warning(
+                "No translation backend available — returning original text as passthrough"
+            )
+            return text, 0.0
+
         logger.warning(
             "Using legacy translation API - prompt context/glossary will NOT be applied! "
             "Configure llm_client to use prompt-based translation for full functionality."
@@ -586,6 +592,12 @@ class RollingWindowTranslator:
         Returns:
             Tuple of (translated_text, confidence)
         """
+        if self.translation_client is None:
+            logger.warning(
+                "No translation backend available — returning original text as passthrough"
+            )
+            return text, 0.0
+
         request = TranslationRequest(
             text=text,
             source_language=source_language,
