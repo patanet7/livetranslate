@@ -153,7 +153,11 @@ class EventPublisher:
                 message_id=message_id,
             )
         except Exception as exc:
-            logger.warning("Failed to publish event %s to %s: %s", event_type, stream_name, exc)
+            if not hasattr(self, "_publish_warned"):
+                logger.warning("Failed to publish event %s to %s: %s", event_type, stream_name, exc)
+                self._publish_warned = True
+            else:
+                logger.debug("Failed to publish event %s to %s: %s", event_type, stream_name, exc)
             return QueuePublishResult(
                 succeeded=False,
                 stream=stream_name,
