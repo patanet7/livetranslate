@@ -4,6 +4,8 @@ Browser E2E: Settings Tab
 Tests API key management, service status display, and activity log.
 """
 
+import json
+
 import pytest
 
 pytestmark = [pytest.mark.e2e, pytest.mark.browser]
@@ -12,13 +14,13 @@ pytestmark = [pytest.mark.e2e, pytest.mark.browser]
 class TestSettingsTab:
     """Tests for the Settings tab of the Fireflies dashboard."""
 
-    def test_dashboard_loads(self, browser, dashboard_url, test_output_dir, timestamp):
+    def test_dashboard_loads(self, browser, dashboard_url, browser_output_dir, timestamp):
         """Dashboard loads and shows the correct title."""
         browser.open(dashboard_url)
         title = browser.get_title()
         assert "Fireflies Dashboard" in title
 
-        browser.screenshot(str(test_output_dir / f"{timestamp}_settings_dashboard_loaded.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_settings_dashboard_loaded.png"))
 
     def test_navigate_to_settings(self, browser, dashboard_url):
         """Can navigate to the Settings tab."""
@@ -29,7 +31,7 @@ class TestSettingsTab:
         assert browser.wait_for_text("Fireflies API Configuration", timeout=5)
 
     def test_save_api_key(
-        self, browser, dashboard_url, mock_fireflies_server, test_output_dir, timestamp
+        self, browser, dashboard_url, mock_fireflies_server, browser_output_dir, timestamp
     ):
         """Fill API key via JS and verify masked display appears."""
         browser.open(dashboard_url)
@@ -37,13 +39,14 @@ class TestSettingsTab:
         browser.wait("500")
 
         api_key = mock_fireflies_server["api_key"]
+        safe_key = json.dumps(api_key)
 
         # Save the API key directly via JS (bypasses async validation against Fireflies API)
         browser.eval_js(f"""
-            apiKey = '{api_key}';
-            localStorage.setItem('fireflies_api_key', '{api_key}');
+            apiKey = {safe_key};
+            localStorage.setItem('fireflies_api_key', {safe_key});
             document.getElementById('savedKeyDisplay').classList.remove('hidden');
-            document.getElementById('maskedKey').textContent = maskApiKey('{api_key}');
+            document.getElementById('maskedKey').textContent = maskApiKey({safe_key});
             updateApiStatus(true);
             log('API key saved (test)', 'success');
         """)
@@ -52,7 +55,7 @@ class TestSettingsTab:
         # Verify the saved key display is visible
         assert browser.is_visible("#savedKeyDisplay")
 
-        browser.screenshot(str(test_output_dir / f"{timestamp}_settings_api_key_saved.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_settings_api_key_saved.png"))
 
     def test_clear_api_key(self, browser, dashboard_url, mock_fireflies_server):
         """Clearing API key removes the saved display."""
@@ -62,11 +65,12 @@ class TestSettingsTab:
 
         # First save a key via JS
         api_key = mock_fireflies_server["api_key"]
+        safe_key = json.dumps(api_key)
         browser.eval_js(f"""
-            apiKey = '{api_key}';
-            localStorage.setItem('fireflies_api_key', '{api_key}');
+            apiKey = {safe_key};
+            localStorage.setItem('fireflies_api_key', {safe_key});
             document.getElementById('savedKeyDisplay').classList.remove('hidden');
-            document.getElementById('maskedKey').textContent = maskApiKey('{api_key}');
+            document.getElementById('maskedKey').textContent = maskApiKey({safe_key});
         """)
         browser.wait("300")
 

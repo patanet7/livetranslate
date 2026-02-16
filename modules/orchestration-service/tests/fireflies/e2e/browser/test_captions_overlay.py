@@ -11,67 +11,18 @@ Tests the captions.html overlay page for:
 - Multi-speaker attribution
 """
 
+import time
+
 import pytest
 
 pytestmark = [pytest.mark.e2e, pytest.mark.browser]
-
-
-def _connect_and_get_session_id(browser, dashboard_url, mock_fireflies_server):
-    """
-    Helper: connect via the dashboard and return the session ID.
-
-    Navigates to dashboard, saves API key, connects to the mock transcript,
-    and extracts the session ID from the URL or page.
-    """
-    browser.open(dashboard_url)
-    browser.wait("1000")
-
-    # Save API key via JS (bypasses async Fireflies validation)
-    api_key = mock_fireflies_server["api_key"]
-    browser.eval_js(f"""
-        apiKey = '{api_key}';
-        localStorage.setItem('fireflies_api_key', '{api_key}');
-        updateApiStatus(true);
-    """)
-    browser.wait("300")
-
-    # Connect
-    browser.click("button.tab[onclick*=\"showTab('connect')\"]")
-    browser.wait("300")
-    browser.fill("#transcriptId", mock_fireflies_server["transcript_id"])
-    browser.click("#connectBtn")
-    browser.wait("3000")
-
-    # Handle confirm dialog if present
-    try:
-        browser.press("Enter")
-    except Exception:
-        pass
-    browser.wait("1000")
-
-    # Go to Sessions tab to find the session ID
-    browser.click("button.tab[onclick*=\"showTab('sessions')\"]")
-    browser.wait("1000")
-    browser.click("button[onclick*='refreshSessions']")
-    browser.wait("1000")
-
-    # Extract session ID from the sessions list HTML
-    sessions_html = browser.get_html("#sessionsList")
-    # The session ID is typically in a data attribute or text content
-    # We'll look for it in the page snapshot
-    snap = browser.snapshot()
-
-    # Return a session ID — the Fireflies router generates one like "ff_<uuid>"
-    # For now, we can also construct the captions URL with a known pattern
-    # The session_id is returned in the connect response
-    return sessions_html, snap
 
 
 class TestCaptionsOverlay:
     """Full validation suite for the captions overlay."""
 
     def test_captions_page_loads_with_session(
-        self, browser, captions_url, mock_fireflies_server, test_output_dir, timestamp
+        self, browser, captions_url, mock_fireflies_server, browser_output_dir, timestamp
     ):
         """Captions page loads when given a valid session ID."""
         # Use a test session ID — even without active WebSocket, page should load
@@ -81,7 +32,7 @@ class TestCaptionsOverlay:
 
         title = browser.get_title()
         assert "LiveTranslate Captions" in title
-        browser.screenshot(str(test_output_dir / f"{timestamp}_captions_loaded.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_captions_loaded.png"))
 
     def test_setup_help_shown_without_session(self, browser, base_url):
         """Without session param, setup help screen is displayed."""
@@ -99,7 +50,7 @@ class TestCaptionsOverlay:
         # Status element should exist
         assert browser.is_visible("#status")
 
-    def test_caption_box_structure(self, browser, captions_url, test_output_dir, timestamp):
+    def test_caption_box_structure(self, browser, captions_url, browser_output_dir, timestamp):
         """
         Inject a caption via JS and verify the DOM structure.
 
@@ -127,7 +78,7 @@ class TestCaptionsOverlay:
         count = browser.get_count(".caption-box")
         assert count >= 1, "At least one caption box should be rendered"
 
-        browser.screenshot(str(test_output_dir / f"{timestamp}_captions_box_structure.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_captions_box_structure.png"))
 
     def test_speaker_name_rendered(self, browser, captions_url):
         """Speaker name element contains the correct name."""
@@ -214,7 +165,7 @@ class TestCaptionsOverlay:
         translated = browser.get_text(".translated-text")
         assert "Good morning everyone" in translated
 
-    def test_caption_auto_expiry(self, browser, captions_url, test_output_dir, timestamp):
+    def test_caption_auto_expiry(self, browser, captions_url, browser_output_dir, timestamp):
         """Caption fades and is removed after its duration expires."""
         url = captions_url(
             "test-expiry",
@@ -241,19 +192,18 @@ class TestCaptionsOverlay:
         # Verify it's present
         count_before = browser.get_count(".caption-box")
         assert count_before >= 1
-        browser.screenshot(str(test_output_dir / f"{timestamp}_captions_before_expiry.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_captions_before_expiry.png"))
 
-        # Wait for expiry (3s duration - 1s fade = 2s delay, then 1s fade)
-        browser.wait("2500")
+        # Poll until caption is removed (generous timeout for slow CI)
+        deadline = time.time() + 10
+        count_after = count_before
+        while time.time() < deadline:
+            count_after = browser.get_count(".caption-box")
+            if count_after < count_before:
+                break
+            browser.wait("500")
 
-        # Check for fading class (may or may not be present depending on timing)
-        browser.screenshot(str(test_output_dir / f"{timestamp}_captions_during_fade.png"))
-
-        # Wait for full removal
-        browser.wait("2000")
-        count_after = browser.get_count(".caption-box")
-        browser.screenshot(str(test_output_dir / f"{timestamp}_captions_after_expiry.png"))
-
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_captions_after_expiry.png"))
         assert count_after < count_before, "Caption should be removed after expiry"
 
     def test_max_caption_count(self, browser, captions_url):
@@ -286,7 +236,7 @@ class TestCaptionsOverlay:
         count = browser.get_count(".caption-box")
         assert count <= 3, f"Should have at most 3 captions, got {count}"
 
-    def test_multi_speaker_captions(self, browser, captions_url, test_output_dir, timestamp):
+    def test_multi_speaker_captions(self, browser, captions_url, browser_output_dir, timestamp):
         """Multiple speakers each get their own caption with distinct names."""
         url = captions_url("test-multi", showSpeaker="true", showOriginal="true")
         browser.open(url)
@@ -322,17 +272,16 @@ class TestCaptionsOverlay:
         assert "Alice" in snap, "Alice's caption should be visible"
         assert "Bob" in snap, "Bob's caption should be visible"
 
-        browser.screenshot(str(test_output_dir / f"{timestamp}_captions_multi_speaker.png"))
+        browser.screenshot(str(browser_output_dir / f"{timestamp}_captions_multi_speaker.png"))
 
-    def test_connection_status_green_on_connect(self, browser, captions_url):
-        """Status indicator turns green when WebSocket connects."""
+    def test_connection_status_indicator_state(self, browser, captions_url):
+        """Status indicator shows a connection state (connected or disconnected)."""
         url = captions_url("test-status", showStatus="true")
         browser.open(url)
         browser.wait("2000")
 
-        # Check status element class
-        # When connected, it should have status-connected class
-        # When not connected (no real server), it will be status-disconnected
-        status_html = browser.get_html("#status")
-        # The status should exist and have one of the expected classes
-        assert "status" in status_html.lower() or browser.is_visible("#status")
+        # Status element's class attribute should contain a recognized state
+        status_class = browser.get_attr("#status", "class")
+        assert (
+            "status-connected" in status_class or "status-disconnected" in status_class
+        ), f"Status should have connected/disconnected class, got: '{status_class}'"
