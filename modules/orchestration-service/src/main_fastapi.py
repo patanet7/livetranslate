@@ -352,6 +352,17 @@ async def lifespan(app: FastAPI):
         # Shutdown managers
         logger.info("[STOP] Shutting down FastAPI Orchestration Service...")
 
+        # Stop demo server if running
+        try:
+            from services.demo_manager import get_demo_manager
+
+            demo = get_demo_manager()
+            if demo.active:
+                await demo.stop()
+                logger.info("[OK] Demo server stopped during shutdown")
+        except Exception as e:
+            logger.warning(f"[WARN] Demo cleanup error: {e}")
+
         # Cleanup dependencies
         from dependencies import shutdown_dependencies
 
