@@ -723,6 +723,39 @@
       </div>
 
       <div class="card">
+        <h2>🎬 Demo Mode</h2>
+        <p style="color: #999; margin-bottom: 12px;">Launch a demo using the built-in mock Fireflies server. No API key required.</p>
+
+        <div class="form-row" style="margin-bottom: 12px;">
+          <div class="form-group" style="flex:1;">
+            <label>Mode</label>
+            <select id="settingsDemoMode">
+              <option value="passthrough">Live Passthrough</option>
+              <option value="pretranslated">Pre-translated (ES)</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Speakers</label>
+            <input type="number" id="settingsDemoSpeakers" value="3" min="2" max="6" style="width:60px;" />
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Exchanges</label>
+            <input type="number" id="settingsDemoExchanges" value="30" min="5" max="100" style="width:60px;" />
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Delay (ms)</label>
+            <input type="number" id="settingsDemoDelay" value="2000" min="500" max="10000" step="500" style="width:80px;" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <button class="btn-demo" onclick="launchDemoFromSettings()" id="settingsDemoBtn">Launch Demo</button>
+          <button class="btn-secondary btn-sm" onclick="openCaptionsOverlay()" id="settingsOverlayBtn" style="display:none;">Open Captions Overlay</button>
+          <span id="settingsDemoStatus" style="margin-left:12px; font-size:13px; color:#888;"></span>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>🩺 Service Status</h2>
         <div id="serviceStatus">
           <p>Checking services...</p>
@@ -747,9 +780,14 @@
           <span>Mode: <strong id="demoBannerMode">-</strong></span>
           <span>Speakers: <strong id="demoBannerSpeakers">-</strong></span>
         </div>
-        <button class="btn-demo running" onclick="toggleDemo()" style="font-size:12px; padding:6px 12px;">
-          Stop Demo
-        </button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn-primary" onclick="openCaptionsOverlay()" style="font-size:12px; padding:6px 12px;">
+            Open Captions Overlay
+          </button>
+          <button class="btn-demo running" onclick="toggleDemo()" style="font-size:12px; padding:6px 12px;">
+            Stop Demo
+          </button>
+        </div>
       </div>
       <div class="card">
         <h2>📡 Live Transcript & Translation Feed</h2>
@@ -963,6 +1001,7 @@
         <button class="btn-secondary" onclick="closeTranscriptViewer()">Close</button>
       </div>
     </div>
+  </div>
 
     <!-- Intelligence Tab -->
     <div id="tab-intelligence" class="tab-content">
@@ -2408,6 +2447,15 @@ Translation:`,
       log('Disconnected from feed', 'info');
     }
 
+    function clearFeedPanels() {
+      feedEntries = [];
+      document.getElementById('originalFeed').innerHTML =
+        '<div class="empty-state">Connect to a session to see live transcripts</div>';
+      document.getElementById('translatedFeed').innerHTML =
+        '<div class="empty-state">Connect to a session to see live translations</div>';
+      updateFeedStats();
+    }
+
     function saveFeedToLocal() {
       const sessionId = document.getElementById('feedSessionSelect').value || 'unknown';
       const key = `fireflies_feed_${sessionId}_${Date.now()}`;
@@ -3600,6 +3648,64 @@ Translation:`,
     let demoActive = false;
     let demoSessionId = null;
 
+    function openCaptionsOverlay() {
+      if (!demoSessionId) {
+        showAlert('No active demo session', 'error');
+        return;
+      }
+      const url = `/static/captions.html?session=${demoSessionId}&showOriginal=true&showStatus=true&position=bottom&fontSize=28`;
+      window.open(url, '_blank', 'width=960,height=400');
+    }
+
+    async function launchDemoFromSettings() {
+      if (demoActive) {
+        await stopDemo();
+        updateSettingsDemoUI();
+        return;
+      }
+      // Sync the header mode selector from settings values
+      const mode = document.getElementById('settingsDemoMode').value;
+      document.getElementById('demoModeSelect').value = mode;
+
+      const btn = document.getElementById('settingsDemoBtn');
+      btn.disabled = true;
+      btn.textContent = 'Starting...';
+      document.getElementById('settingsDemoStatus').textContent = '';
+
+      try {
+        const exchanges = parseInt(document.getElementById('settingsDemoExchanges').value) || 30;
+        const delay = parseInt(document.getElementById('settingsDemoDelay').value) || 2000;
+        await startDemo();
+        document.getElementById('settingsDemoStatus').innerHTML =
+          `<span style="color:#4CAF50;">Active</span> — Session: ${demoSessionId}`;
+        document.getElementById('settingsOverlayBtn').style.display = '';
+        btn.textContent = 'Stop Demo';
+        btn.classList.add('running');
+      } catch (e) {
+        document.getElementById('settingsDemoStatus').innerHTML =
+          `<span style="color:#e74c3c;">Error: ${e.message}</span>`;
+        btn.textContent = 'Launch Demo';
+      }
+      btn.disabled = false;
+    }
+
+    function updateSettingsDemoUI() {
+      const btn = document.getElementById('settingsDemoBtn');
+      const status = document.getElementById('settingsDemoStatus');
+      const overlayBtn = document.getElementById('settingsOverlayBtn');
+      if (demoActive) {
+        btn.textContent = 'Stop Demo';
+        btn.classList.add('running');
+        status.innerHTML = `<span style="color:#4CAF50;">Active</span> — Session: ${demoSessionId}`;
+        overlayBtn.style.display = '';
+      } else {
+        btn.textContent = 'Launch Demo';
+        btn.classList.remove('running');
+        status.textContent = '';
+        overlayBtn.style.display = 'none';
+      }
+    }
+
     async function toggleDemo() {
       if (demoActive) {
         await stopDemo();
@@ -3634,6 +3740,9 @@ Translation:`,
         // Show demo banner in Live Feed
         showDemoBanner(data);
 
+        // Clear previous feed content
+        clearFeedPanels();
+
         // Switch to Live Feed tab
         showTab('livefeed');
 
@@ -3654,6 +3763,8 @@ Translation:`,
 
         // Auto-connect the Live Feed WebSocket
         connectToFeed();
+
+        updateSettingsDemoUI();
 
         const modeLabel = mode === 'pretranslated' ? 'Pre-translated (ES)' : 'Live Passthrough';
         log(`Demo started [${modeLabel}]: session=${data.session_id}, speakers=${(data.speakers || []).join(', ')}`, 'info');
@@ -3694,6 +3805,7 @@ Translation:`,
 
         log('Demo stopped', 'info');
         showAlert('Demo mode stopped.', 'info');
+        updateSettingsDemoUI();
 
         await refreshSessions();
 
@@ -3736,6 +3848,7 @@ Translation:`,
           connectToFeed();
 
           log('Demo mode is active (restored from server)', 'info');
+          updateSettingsDemoUI();
         }
       } catch (e) {
         // Silently ignore - demo status check is optional
