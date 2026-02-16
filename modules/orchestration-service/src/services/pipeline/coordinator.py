@@ -186,7 +186,7 @@ class TranscriptionPipelineCoordinator:
                 )
 
             # 5. Register caption callbacks if caption buffer provided
-            if self.caption_buffer:
+            if self.caption_buffer is not None:
                 self.caption_buffer.on_caption_added = self._handle_caption_added_async
                 self.caption_buffer.on_caption_updated = self._handle_caption_updated_async
                 self.caption_buffer.on_caption_expired = self._handle_caption_expired_async
@@ -311,7 +311,7 @@ class TranscriptionPipelineCoordinator:
                     await self._store_translation(transcript_id, translation_result)
 
                 # Step 4: Add to caption buffer (triggers display callbacks)
-                if self.caption_buffer:
+                if self.caption_buffer is not None:
                     self._add_caption(unit, translation_result)
 
                 # Notify external callback
@@ -456,7 +456,7 @@ class TranscriptionPipelineCoordinator:
 
     def _add_caption(self, unit: TranslationUnit, result: TranslationResult) -> None:
         """Add translation to caption buffer."""
-        if not self.caption_buffer:
+        if self.caption_buffer is None:
             return
 
         self.caption_buffer.add_caption(
