@@ -1307,12 +1307,6 @@ async def start_demo(
         if mode == "pretranslated":
             caption_buffer = manager.get_caption_buffer(session.session_id)
             ws_manager = get_ws_manager()
-            logger.info(
-                f"Pretranslated setup: session={session.session_id}, "
-                f"buffer={caption_buffer is not None}, ws_manager={ws_manager is not None}, "
-                f"demo.session_id={demo.session_id}, demo.mode={demo.mode}, "
-                f"scenario={demo._scenario is not None}"
-            )
             if caption_buffer is not None:
                 demo.start_pretranslated_injection(caption_buffer, ws_manager)
             else:
