@@ -117,8 +117,16 @@ class FirefliesSessionManager:
             connection_status=FirefliesConnectionStatus.CONNECTING,
         )
 
-        # Create Fireflies client
-        client = FirefliesClient(api_key=config.api_key)
+        # Create Fireflies client (use api_base_url override for demo mode)
+        if config.api_base_url:
+            client = FirefliesClient(
+                api_key=config.api_key,
+                graphql_endpoint=f"{config.api_base_url}/graphql",
+                websocket_endpoint=config.api_base_url,
+                socketio_path="/ws/realtime",
+            )
+        else:
+            client = FirefliesClient(api_key=config.api_key)
 
         # Store session and client
         self._sessions[session_id] = session
@@ -1205,3 +1213,147 @@ async def get_dashboard_config():
         config["prompts_error"] = str(e)
 
     return config
+
+
+# =============================================================================
+# Demo Mode Endpoints
+# =============================================================================
+
+
+@router.post(
+    "/demo/start",
+    status_code=status.HTTP_200_OK,
+    summary="Start Fireflies demo mode",
+    description="Launch a mock Fireflies server and create a live session with simulated conversation",
+)
+async def start_demo(
+    manager: FirefliesSessionManager = Depends(get_session_manager),
+    ff_config: FirefliesSettings = Depends(get_fireflies_config),
+):
+    """
+    Start demo mode:
+    1. Launches a mock Fireflies server on port 8090
+    2. Creates a real Fireflies session pointing to the local mock
+    3. The full pipeline runs: mock → Socket.IO → orchestration → captions WebSocket
+    """
+    from services.demo_manager import DEMO_API_KEY, get_demo_manager
+
+    demo = get_demo_manager()
+
+    if demo.active:
+        return {
+            "success": True,
+            "message": "Demo already running",
+            "session_id": demo.session_id,
+            "transcript_id": demo.transcript_id,
+            "speakers": demo.get_status()["speakers"],
+        }
+
+    try:
+        # Start mock server with conversation scenario
+        demo_info = await demo.start(
+            speakers=["Alice Chen", "Bob Martinez", "Charlie Kim"],
+            num_exchanges=30,
+            chunk_delay_ms=2000.0,
+        )
+
+        # Create a real Fireflies session pointing to the local mock
+        config = FirefliesSessionConfig(
+            api_key=DEMO_API_KEY,
+            transcript_id=demo_info["transcript_id"],
+            target_languages=ff_config.default_target_languages or ["es"],
+            api_base_url=demo_info["base_url"],
+        )
+
+        # Get optional services for the pipeline
+        data_pipeline = get_data_pipeline()
+        db_manager = data_pipeline.db_manager if data_pipeline else None
+
+        llm_client = None
+        try:
+            llm_client = get_fireflies_llm_client()
+            await llm_client.connect()
+        except Exception as e:
+            logger.warning(f"LLM client unavailable for demo: {e}")
+
+        try:
+            meeting_intelligence = get_meeting_intelligence_service()
+        except Exception:
+            meeting_intelligence = None
+
+        try:
+            event_publisher = get_event_publisher()
+        except Exception:
+            event_publisher = None
+
+        session = await manager.create_session(
+            config,
+            db_manager=db_manager,
+            llm_client=llm_client,
+            meeting_intelligence=meeting_intelligence,
+            event_publisher=event_publisher,
+        )
+
+        demo.session_id = session.session_id
+
+        logger.info(f"Demo session created: {session.session_id}")
+
+        return {
+            "success": True,
+            "message": "Demo started successfully",
+            "session_id": session.session_id,
+            "transcript_id": demo_info["transcript_id"],
+            "speakers": demo_info["speakers"],
+            "num_exchanges": demo_info["num_exchanges"],
+            "chunk_delay_ms": demo_info["chunk_delay_ms"],
+        }
+
+    except Exception as e:
+        # Clean up on failure
+        await demo.stop()
+        logger.exception(f"Failed to start demo: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start demo: {e!s}",
+        ) from e
+
+
+@router.post(
+    "/demo/stop",
+    status_code=status.HTTP_200_OK,
+    summary="Stop Fireflies demo mode",
+    description="Disconnect the demo session and stop the mock server",
+)
+async def stop_demo(
+    manager: FirefliesSessionManager = Depends(get_session_manager),
+):
+    """Stop demo mode: disconnect session and shut down mock server."""
+    from services.demo_manager import get_demo_manager
+
+    demo = get_demo_manager()
+
+    if not demo.active:
+        return {"success": True, "message": "Demo is not running"}
+
+    # Disconnect the Fireflies session
+    if demo.session_id:
+        await manager.disconnect_session(demo.session_id)
+
+    # Stop the mock server
+    await demo.stop()
+
+    return {"success": True, "message": "Demo stopped"}
+
+
+@router.get(
+    "/demo/status",
+    status_code=status.HTTP_200_OK,
+    summary="Get demo mode status",
+    description="Check if demo mode is active and get session info",
+)
+async def get_demo_status():
+    """Get current demo status."""
+    from services.demo_manager import get_demo_manager
+
+    demo = get_demo_manager()
+    return demo.get_status()

@@ -409,6 +409,85 @@
       padding-top: 16px;
       border-top: 1px solid rgba(255,255,255,0.1);
     }
+    /* Demo Mode Styles */
+    .btn-demo {
+      padding: 8px 18px;
+      background: linear-gradient(135deg, #ff6b35, #f7931e);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-demo:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    .btn-demo:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-demo.running { background: linear-gradient(135deg, #c0392b, #e74c3c); }
+
+    .demo-panel {
+      background: linear-gradient(135deg, rgba(255,107,53,0.08), rgba(247,147,30,0.08));
+      border: 1px solid rgba(255,107,53,0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+      display: none;
+    }
+    .demo-panel.active { display: block; }
+
+    .demo-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #ff6b35, #f7931e);
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      animation: demoPulse 2s ease-in-out infinite;
+    }
+    @keyframes demoPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .demo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .demo-header-left { display: flex; align-items: center; gap: 12px; }
+
+    .demo-info {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .demo-info-item {
+      font-size: 12px;
+      color: #aaa;
+    }
+    .demo-info-item strong { color: #ff6b35; }
+
+    .demo-iframe-container {
+      background: #0a0a0a;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .demo-iframe-container iframe {
+      width: 100%;
+      height: 300px;
+      border: none;
+    }
+
+    .demo-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
   </style>
 </head>
 <body>
@@ -416,6 +495,7 @@
     <header>
       <h1>🔥 Fireflies Dashboard</h1>
       <div class="header-status">
+        <button id="demoBtn" class="btn-demo" onclick="toggleDemo()">Launch Demo</button>
         <span id="apiStatus" class="status-badge status-disconnected">API Not Connected</span>
         <span id="translationStatus" class="status-badge status-disconnected">Translation Offline</span>
       </div>
@@ -434,6 +514,32 @@
     </div>
 
     <div id="alertContainer"></div>
+
+    <!-- Demo Mode Panel -->
+    <div id="demoPanel" class="demo-panel">
+      <div class="demo-header">
+        <div class="demo-header-left">
+          <span class="demo-badge">DEMO MODE</span>
+          <span id="demoSessionInfo" style="font-size:12px; color:#aaa;"></span>
+        </div>
+        <div class="demo-actions">
+          <button class="btn-secondary" onclick="openDemoCaptions()" style="font-size:12px; padding:6px 12px;">
+            Open in New Tab
+          </button>
+          <button class="btn-demo running" onclick="toggleDemo()" style="font-size:12px; padding:6px 12px;">
+            Stop Demo
+          </button>
+        </div>
+      </div>
+      <div class="demo-info">
+        <div class="demo-info-item">Speakers: <strong id="demoSpeakers">-</strong></div>
+        <div class="demo-info-item">Session: <strong id="demoSessionId">-</strong></div>
+        <div class="demo-info-item">Transcript: <strong id="demoTranscriptId">-</strong></div>
+      </div>
+      <div class="demo-iframe-container">
+        <iframe id="demoCaptionsIframe" src="about:blank"></iframe>
+      </div>
+    </div>
 
     <!-- Connect Tab -->
     <div id="tab-connect" class="tab-content active">
@@ -1011,6 +1117,9 @@
 
       // Check for pending translation jobs
       showPendingJobBanner();
+
+      // Restore demo UI if demo is already running
+      await checkDemoStatus();
 
       log('Dashboard ready', 'info');
     }
@@ -3504,6 +3613,137 @@ Translation:`,
         const typingEls = container.querySelectorAll('[id^="typing-"]');
         typingEls.forEach(el => el.remove());
         container.innerHTML += `<div style="text-align:left; margin-bottom:8px;"><span style="background:#5a1a1a; color:#f44; padding:6px 12px; border-radius:12px; display:inline-block;">Error: ${e.message}</span></div>`;
+      }
+    }
+
+    // ==========================================================================
+    // Demo Mode
+    // ==========================================================================
+    let demoActive = false;
+    let demoSessionId = null;
+
+    async function toggleDemo() {
+      if (demoActive) {
+        await stopDemo();
+      } else {
+        await startDemo();
+      }
+    }
+
+    async function startDemo() {
+      const btn = document.getElementById('demoBtn');
+      btn.disabled = true;
+      btn.textContent = 'Starting...';
+
+      try {
+        const resp = await fetch(`${baseUrl}/fireflies/demo/start`, { method: 'POST' });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+          throw new Error(data.detail || 'Failed to start demo');
+        }
+
+        demoActive = true;
+        demoSessionId = data.session_id;
+
+        // Update button
+        btn.textContent = 'Stop Demo';
+        btn.classList.add('running');
+        btn.disabled = false;
+
+        // Show demo panel
+        showDemoPanel(data);
+
+        log(`Demo started: session=${data.session_id}, speakers=${data.speakers.join(', ')}`, 'info');
+        showAlert('Demo mode started! Live captions are streaming below.', 'success');
+
+      } catch (e) {
+        btn.textContent = 'Launch Demo';
+        btn.classList.remove('running');
+        btn.disabled = false;
+        log(`Demo start failed: ${e.message}`, 'error');
+        showAlert(`Failed to start demo: ${e.message}`, 'error');
+      }
+    }
+
+    async function stopDemo() {
+      const btn = document.getElementById('demoBtn');
+      btn.disabled = true;
+      btn.textContent = 'Stopping...';
+
+      try {
+        await fetch(`${baseUrl}/fireflies/demo/stop`, { method: 'POST' });
+
+        demoActive = false;
+        demoSessionId = null;
+
+        btn.textContent = 'Launch Demo';
+        btn.classList.remove('running');
+        btn.disabled = false;
+
+        hideDemoPanel();
+
+        log('Demo stopped', 'info');
+        showAlert('Demo mode stopped.', 'info');
+
+        // Refresh sessions list
+        await refreshSessions();
+
+      } catch (e) {
+        btn.textContent = 'Stop Demo';
+        btn.disabled = false;
+        log(`Demo stop failed: ${e.message}`, 'error');
+      }
+    }
+
+    async function checkDemoStatus() {
+      try {
+        const resp = await fetch(`${baseUrl}/fireflies/demo/status`);
+        const data = await resp.json();
+
+        if (data.active) {
+          demoActive = true;
+          demoSessionId = data.session_id;
+
+          const btn = document.getElementById('demoBtn');
+          btn.textContent = 'Stop Demo';
+          btn.classList.add('running');
+
+          showDemoPanel(data);
+          log('Demo mode is active (restored from server)', 'info');
+        }
+      } catch (e) {
+        // Silently ignore - demo status check is optional
+      }
+    }
+
+    function showDemoPanel(data) {
+      const panel = document.getElementById('demoPanel');
+      panel.classList.add('active');
+
+      document.getElementById('demoSpeakers').textContent = (data.speakers || []).join(', ') || '-';
+      document.getElementById('demoSessionId').textContent = data.session_id || '-';
+      document.getElementById('demoTranscriptId').textContent = data.transcript_id || '-';
+      document.getElementById('demoSessionInfo').textContent = `Session: ${data.session_id || '-'}`;
+
+      // Load captions iframe
+      const sessionId = data.session_id;
+      if (sessionId) {
+        const captionsUrl = `${baseUrl}/static/captions.html?session=${sessionId}`;
+        document.getElementById('demoCaptionsIframe').src = captionsUrl;
+      }
+    }
+
+    function hideDemoPanel() {
+      const panel = document.getElementById('demoPanel');
+      panel.classList.remove('active');
+      document.getElementById('demoCaptionsIframe').src = 'about:blank';
+    }
+
+    function openDemoCaptions() {
+      if (demoSessionId) {
+        const captionsUrl = `${baseUrl}/static/captions.html?session=${demoSessionId}`;
+        window.open(captionsUrl, '_blank');
       }
     }
 
