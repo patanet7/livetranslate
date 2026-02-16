@@ -221,6 +221,11 @@ class FirefliesSessionConfig(BaseModel):
         default=True, description="Include other speakers' sentences in context"
     )
 
+    # API base URL override (for demo mode pointing to local mock server)
+    api_base_url: str | None = Field(
+        default=None, description="Override API base URL (for demo mode)"
+    )
+
     # Glossary
     glossary_id: str | None = Field(default=None, description="Glossary ID to use for this session")
     domain: str | None = Field(
