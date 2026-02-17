@@ -240,7 +240,13 @@ class CaptionBuffer:
                     task = loop.create_task(result)
                     # prevent GC of fire-and-forget tasks
                     self._bg_tasks.add(task)
-                    task.add_done_callback(self._bg_tasks.discard)
+
+                    def _task_done(t: asyncio.Task) -> None:
+                        self._bg_tasks.discard(t)
+                        if not t.cancelled() and t.exception():
+                            logger.error(f"Caption callback task failed: {t.exception()}")
+
+                    task.add_done_callback(_task_done)
                 except RuntimeError:
                     logger.warning("Async caption callback dropped: no running event loop")
         except Exception as e:
