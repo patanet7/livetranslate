@@ -69,6 +69,7 @@ class MockChunk:
     end_time: float = 0.0
     confidence: float = 0.95
     is_final: bool = True
+    translated_text: str | None = None
 
     def to_socketio_dict(self, transcript_id: str) -> dict[str, Any]:
         """Convert to Socket.IO event data."""
@@ -103,8 +104,14 @@ class MockTranscriptScenario:
         speakers: list[str] | None = None,
         num_exchanges: int = 10,
         chunk_delay_ms: float = 500.0,
+        include_translations: bool = False,
     ) -> "MockTranscriptScenario":
-        """Create a realistic conversation scenario."""
+        """Create a realistic conversation scenario.
+
+        Args:
+            include_translations: If True, populate translated_text on chunks
+                with pre-translated Spanish text.
+        """
         if speakers is None:
             speakers = ["Alice", "Bob", "Charlie"]
 
@@ -141,6 +148,40 @@ class MockTranscriptScenario:
             "Excellent progress this week. Keep up the great work!",
         ]
 
+        # Pre-translated Spanish versions (used when include_translations=True)
+        translated_templates = [
+            "Hola a todos, gracias por unirse a la reunión de hoy.",
+            "¡Buenos días! Encantado de estar aquí. Hagamos esto productivo.",
+            "Comencemos con la agenda de hoy.",
+            "Tengo una pregunta sobre las proyecciones del presupuesto trimestral.",
+            "Es un gran punto. Creo que deberíamos explorarlo más.",
+            "¿Podrías elaborar sobre el cronograma del lanzamiento?",
+            "Creo que deberíamos considerar las alternativas antes de decidir.",
+            "La fecha límite es el próximo viernes, así que necesitamos movernos rápido.",
+            "¿Alguien tiene preocupaciones sobre el enfoque propuesto?",
+            "Estoy de acuerdo con ese enfoque. Se alinea con nuestros objetivos.",
+            "Déjame compartir mi pantalla para que todos puedan ver los datos.",
+            "¿Todos pueden ver este gráfico? Los números se ven prometedores.",
+            "Los números del tercer trimestre muestran una mejora del quince por ciento.",
+            "Necesitamos abordar el cuello de botella en el rendimiento del pipeline.",
+            "¿Cuáles son los próximos pasos para la fase de implementación?",
+            "Haré seguimiento con el equipo de ingeniería sobre ese tema.",
+            "¿Alguna otra pregunta antes de pasar al siguiente tema?",
+            "Gracias por la actualización. Fue muy informativa.",
+            "Programemos una reunión de seguimiento para la próxima semana.",
+            "¡Gran reunión todos! Gracias por su tiempo hoy.",
+            "Una cosa más — ¿podemos alinear la estrategia de pruebas?",
+            "Enviaré las notas de la reunión antes del fin del día.",
+            "Los comentarios del cliente han sido abrumadoramente positivos.",
+            "Deberíamos priorizar la auditoría de seguridad antes del lanzamiento.",
+            "Prepararé una propuesta detallada para la próxima sesión.",
+            "Asegurémonos de documentar todos los puntos de acción.",
+            "La fase de pruebas beta comienza el lunes por la mañana.",
+            "Hemos visto una reducción significativa en las tasas de error.",
+            "Coordinaré con el equipo de diseño sobre los mockups.",
+            "¡Excelente progreso esta semana. Sigan con el gran trabajo!",
+        ]
+
         chunks = []
         current_time = 0.0
 
@@ -150,12 +191,17 @@ class MockTranscriptScenario:
             word_count = len(text.split())
             duration = word_count * 0.3
 
+            translation = None
+            if include_translations:
+                translation = translated_templates[i % len(translated_templates)]
+
             chunk = MockChunk(
                 chunk_id=f"chunk_{i + 1:04d}",
                 text=text,
                 speaker_name=speaker,
                 start_time=current_time,
                 end_time=current_time + duration,
+                translated_text=translation,
             )
             chunks.append(chunk)
             current_time += duration + 0.2

@@ -425,16 +425,6 @@
     .btn-demo:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     .btn-demo.running { background: linear-gradient(135deg, #c0392b, #e74c3c); }
 
-    .demo-panel {
-      background: linear-gradient(135deg, rgba(255,107,53,0.08), rgba(247,147,30,0.08));
-      border: 1px solid rgba(255,107,53,0.3);
-      border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 24px;
-      display: none;
-    }
-    .demo-panel.active { display: block; }
-
     .demo-badge {
       display: inline-block;
       background: linear-gradient(135deg, #ff6b35, #f7931e);
@@ -451,42 +441,28 @@
       50% { opacity: 0.7; }
     }
 
-    .demo-header {
-      display: flex;
+    .demo-feed-banner {
+      background: linear-gradient(135deg, rgba(255,107,53,0.1), rgba(247,147,30,0.1));
+      border: 1px solid rgba(255,107,53,0.3);
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      display: none;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 16px;
     }
-    .demo-header-left { display: flex; align-items: center; gap: 12px; }
+    .demo-feed-banner.active { display: flex; }
+    .demo-feed-banner-left { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #ccc; }
+    .demo-feed-banner-left strong { color: #ff6b35; }
 
-    .demo-info {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-    .demo-info-item {
+    #demoModeSelect {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #e0e0e0;
+      padding: 6px 10px;
+      border-radius: 6px;
       font-size: 12px;
-      color: #aaa;
-    }
-    .demo-info-item strong { color: #ff6b35; }
-
-    .demo-iframe-container {
-      background: #0a0a0a;
-      border-radius: 8px;
-      overflow: hidden;
-      margin-bottom: 12px;
-    }
-    .demo-iframe-container iframe {
-      width: 100%;
-      height: 300px;
-      border: none;
-    }
-
-    .demo-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -495,6 +471,10 @@
     <header>
       <h1>🔥 Fireflies Dashboard</h1>
       <div class="header-status">
+        <select id="demoModeSelect">
+          <option value="passthrough">Live Passthrough</option>
+          <option value="pretranslated">Pre-translated (ES)</option>
+        </select>
         <button id="demoBtn" class="btn-demo" onclick="toggleDemo()">Launch Demo</button>
         <span id="apiStatus" class="status-badge status-disconnected">API Not Connected</span>
         <span id="translationStatus" class="status-badge status-disconnected">Translation Offline</span>
@@ -514,32 +494,6 @@
     </div>
 
     <div id="alertContainer"></div>
-
-    <!-- Demo Mode Panel -->
-    <div id="demoPanel" class="demo-panel">
-      <div class="demo-header">
-        <div class="demo-header-left">
-          <span class="demo-badge">DEMO MODE</span>
-          <span id="demoSessionInfo" style="font-size:12px; color:#aaa;"></span>
-        </div>
-        <div class="demo-actions">
-          <button class="btn-secondary" onclick="openDemoCaptions()" style="font-size:12px; padding:6px 12px;">
-            Open in New Tab
-          </button>
-          <button class="btn-demo running" onclick="toggleDemo()" style="font-size:12px; padding:6px 12px;">
-            Stop Demo
-          </button>
-        </div>
-      </div>
-      <div class="demo-info">
-        <div class="demo-info-item">Speakers: <strong id="demoSpeakers">-</strong></div>
-        <div class="demo-info-item">Session: <strong id="demoSessionId">-</strong></div>
-        <div class="demo-info-item">Transcript: <strong id="demoTranscriptId">-</strong></div>
-      </div>
-      <div class="demo-iframe-container">
-        <iframe id="demoCaptionsIframe" src="about:blank"></iframe>
-      </div>
-    </div>
 
     <!-- Connect Tab -->
     <div id="tab-connect" class="tab-content active">
@@ -769,6 +723,39 @@
       </div>
 
       <div class="card">
+        <h2>🎬 Demo Mode</h2>
+        <p style="color: #999; margin-bottom: 12px;">Launch a demo using the built-in mock Fireflies server. No API key required.</p>
+
+        <div class="form-row" style="margin-bottom: 12px;">
+          <div class="form-group" style="flex:1;">
+            <label>Mode</label>
+            <select id="settingsDemoMode">
+              <option value="passthrough">Live Passthrough</option>
+              <option value="pretranslated">Pre-translated (ES)</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Speakers</label>
+            <input type="number" id="settingsDemoSpeakers" value="3" min="2" max="6" style="width:60px;" />
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Exchanges</label>
+            <input type="number" id="settingsDemoExchanges" value="30" min="5" max="100" style="width:60px;" />
+          </div>
+          <div class="form-group" style="flex:1;">
+            <label>Delay (ms)</label>
+            <input type="number" id="settingsDemoDelay" value="2000" min="500" max="10000" step="500" style="width:80px;" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <button class="btn-demo" onclick="launchDemoFromSettings()" id="settingsDemoBtn">Launch Demo</button>
+          <button class="btn-secondary btn-sm" onclick="openCaptionsOverlay()" id="settingsOverlayBtn" style="display:none;">Open Captions Overlay</button>
+          <span id="settingsDemoStatus" style="margin-left:12px; font-size:13px; color:#888;"></span>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>🩺 Service Status</h2>
         <div id="serviceStatus">
           <p>Checking services...</p>
@@ -786,6 +773,22 @@
 
     <!-- Live Feed Tab -->
     <div id="tab-livefeed" class="tab-content">
+      <div id="demoFeedBanner" class="demo-feed-banner">
+        <div class="demo-feed-banner-left">
+          <span class="demo-badge">DEMO MODE</span>
+          <span>Session: <strong id="demoBannerSession">-</strong></span>
+          <span>Mode: <strong id="demoBannerMode">-</strong></span>
+          <span>Speakers: <strong id="demoBannerSpeakers">-</strong></span>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="btn-primary" onclick="openCaptionsOverlay()" style="font-size:12px; padding:6px 12px;">
+            Open Captions Overlay
+          </button>
+          <button class="btn-demo running" onclick="toggleDemo()" style="font-size:12px; padding:6px 12px;">
+            Stop Demo
+          </button>
+        </div>
+      </div>
       <div class="card">
         <h2>📡 Live Transcript & Translation Feed</h2>
         <div class="form-row" style="margin-bottom: 16px;">
@@ -998,6 +1001,7 @@
         <button class="btn-secondary" onclick="closeTranscriptViewer()">Close</button>
       </div>
     </div>
+  </div>
 
     <!-- Intelligence Tab -->
     <div id="tab-intelligence" class="tab-content">
@@ -1186,6 +1190,14 @@
 
         // Clear existing options
         select.innerHTML = '';
+
+        // Add "All Languages" option for Live Feed (no filter)
+        if (selectId === 'feedTargetLang') {
+          const allOpt = document.createElement('option');
+          allOpt.value = '';
+          allOpt.textContent = 'All Languages';
+          select.appendChild(allOpt);
+        }
 
         // Add options from backend config
         languages.forEach(lang => {
@@ -1636,6 +1648,7 @@
         renderSessions(currentSessions);
         updateStats(currentSessions);
         updateSessionSelect();
+        updateFeedSessionSelect();
 
       } catch (e) {
         log(`Error loading sessions: ${e.message}`, 'error');
@@ -2293,7 +2306,8 @@ Translation:`,
       }
 
       const targetLang = document.getElementById('feedTargetLang').value;
-      document.getElementById('feedTargetLangLabel').textContent = document.querySelector('#feedTargetLang option:checked').textContent;
+      const langLabel = document.querySelector('#feedTargetLang option:checked').textContent;
+      document.getElementById('feedTargetLangLabel').textContent = targetLang ? langLabel : 'All';
 
       // Close existing connection
       if (feedWebSocket) {
@@ -2301,7 +2315,9 @@ Translation:`,
       }
 
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${wsProtocol}//${window.location.host}/api/captions/stream/${sessionId}?target_language=${targetLang}`;
+      // Include language filter only when a specific language is selected
+      const langParam = targetLang ? `?target_language=${targetLang}` : '';
+      const wsUrl = `${wsProtocol}//${window.location.host}/api/captions/stream/${sessionId}${langParam}`;
 
       log(`Connecting to feed: ${wsUrl}`, 'info');
       updateFeedStatus('connecting');
@@ -2356,6 +2372,7 @@ Translation:`,
 
         case 'caption_updated':
           updateCaptionInFeed(message.caption);
+          updateFeedStats();
           break;
       }
     }
@@ -2428,6 +2445,15 @@ Translation:`,
       }
       updateFeedStatus('disconnected');
       log('Disconnected from feed', 'info');
+    }
+
+    function clearFeedPanels() {
+      feedEntries = [];
+      document.getElementById('originalFeed').innerHTML =
+        '<div class="empty-state">Connect to a session to see live transcripts</div>';
+      document.getElementById('translatedFeed').innerHTML =
+        '<div class="empty-state">Connect to a session to see live translations</div>';
+      updateFeedStats();
     }
 
     function saveFeedToLocal() {
@@ -3617,10 +3643,68 @@ Translation:`,
     }
 
     // ==========================================================================
-    // Demo Mode
+    // Demo Mode — auto-switches to Live Feed tab
     // ==========================================================================
     let demoActive = false;
     let demoSessionId = null;
+
+    function openCaptionsOverlay() {
+      if (!demoSessionId) {
+        showAlert('No active demo session', 'error');
+        return;
+      }
+      const url = `/static/captions.html?session=${demoSessionId}&showOriginal=true&showStatus=true&position=bottom&fontSize=28`;
+      window.open(url, '_blank', 'width=960,height=400');
+    }
+
+    async function launchDemoFromSettings() {
+      if (demoActive) {
+        await stopDemo();
+        updateSettingsDemoUI();
+        return;
+      }
+      // Sync the header mode selector from settings values
+      const mode = document.getElementById('settingsDemoMode').value;
+      document.getElementById('demoModeSelect').value = mode;
+
+      const btn = document.getElementById('settingsDemoBtn');
+      btn.disabled = true;
+      btn.textContent = 'Starting...';
+      document.getElementById('settingsDemoStatus').textContent = '';
+
+      try {
+        const exchanges = parseInt(document.getElementById('settingsDemoExchanges').value) || 30;
+        const delay = parseInt(document.getElementById('settingsDemoDelay').value) || 2000;
+        await startDemo();
+        document.getElementById('settingsDemoStatus').innerHTML =
+          `<span style="color:#4CAF50;">Active</span> — Session: ${demoSessionId}`;
+        document.getElementById('settingsOverlayBtn').style.display = '';
+        btn.textContent = 'Stop Demo';
+        btn.classList.add('running');
+      } catch (e) {
+        document.getElementById('settingsDemoStatus').innerHTML =
+          `<span style="color:#e74c3c;">Error: ${e.message}</span>`;
+        btn.textContent = 'Launch Demo';
+      }
+      btn.disabled = false;
+    }
+
+    function updateSettingsDemoUI() {
+      const btn = document.getElementById('settingsDemoBtn');
+      const status = document.getElementById('settingsDemoStatus');
+      const overlayBtn = document.getElementById('settingsOverlayBtn');
+      if (demoActive) {
+        btn.textContent = 'Stop Demo';
+        btn.classList.add('running');
+        status.innerHTML = `<span style="color:#4CAF50;">Active</span> — Session: ${demoSessionId}`;
+        overlayBtn.style.display = '';
+      } else {
+        btn.textContent = 'Launch Demo';
+        btn.classList.remove('running');
+        status.textContent = '';
+        overlayBtn.style.display = 'none';
+      }
+    }
 
     async function toggleDemo() {
       if (demoActive) {
@@ -3635,8 +3719,10 @@ Translation:`,
       btn.disabled = true;
       btn.textContent = 'Starting...';
 
+      const mode = document.getElementById('demoModeSelect').value;
+
       try {
-        const resp = await fetch(`${baseUrl}/fireflies/demo/start`, { method: 'POST' });
+        const resp = await fetch(`${baseUrl}/fireflies/demo/start?mode=${mode}`, { method: 'POST' });
         const data = await resp.json();
 
         if (!resp.ok) {
@@ -3646,16 +3732,43 @@ Translation:`,
         demoActive = true;
         demoSessionId = data.session_id;
 
-        // Update button
+        // Update header button
         btn.textContent = 'Stop Demo';
         btn.classList.add('running');
         btn.disabled = false;
 
-        // Show demo panel
-        showDemoPanel(data);
+        // Show demo banner in Live Feed
+        showDemoBanner(data);
 
-        log(`Demo started: session=${data.session_id}, speakers=${(data.speakers || []).join(', ')}`, 'info');
-        showAlert('Demo mode started! Live captions are streaming below.', 'success');
+        // Clear previous feed content
+        clearFeedPanels();
+
+        // Switch to Live Feed tab
+        showTab('livefeed');
+
+        // Add demo session to the session dropdown and auto-select it
+        await refreshSessions();
+        const feedSelect = document.getElementById('feedSessionSelect');
+        // If session not yet in dropdown (race), add it manually
+        if (!feedSelect.querySelector(`option[value="${data.session_id}"]`)) {
+          const opt = document.createElement('option');
+          opt.value = data.session_id;
+          opt.textContent = `${data.session_id} (${data.transcript_id || 'Demo'})`;
+          feedSelect.appendChild(opt);
+        }
+        feedSelect.value = data.session_id;
+
+        // Default to "All Languages" for demo so both original + translated flow through
+        document.getElementById('feedTargetLang').value = '';
+
+        // Auto-connect the Live Feed WebSocket
+        connectToFeed();
+
+        updateSettingsDemoUI();
+
+        const modeLabel = mode === 'pretranslated' ? 'Pre-translated (ES)' : 'Live Passthrough';
+        log(`Demo started [${modeLabel}]: session=${data.session_id}, speakers=${(data.speakers || []).join(', ')}`, 'info');
+        showAlert(`Demo started in ${modeLabel} mode! Live feed is streaming.`, 'success');
 
       } catch (e) {
         btn.textContent = 'Launch Demo';
@@ -3672,6 +3785,9 @@ Translation:`,
       btn.textContent = 'Stopping...';
 
       try {
+        // Disconnect feed WebSocket first
+        disconnectFeed();
+
         const resp = await fetch(`${baseUrl}/fireflies/demo/stop`, { method: 'POST' });
         if (!resp.ok) {
           const data = await resp.json().catch(() => ({}));
@@ -3685,12 +3801,12 @@ Translation:`,
         btn.classList.remove('running');
         btn.disabled = false;
 
-        hideDemoPanel();
+        hideDemoBanner();
 
         log('Demo stopped', 'info');
         showAlert('Demo mode stopped.', 'info');
+        updateSettingsDemoUI();
 
-        // Refresh sessions list
         await refreshSessions();
 
       } catch (e) {
@@ -3714,42 +3830,43 @@ Translation:`,
           btn.textContent = 'Stop Demo';
           btn.classList.add('running');
 
-          showDemoPanel(data);
+          // Restore demo banner and auto-connect Live Feed
+          showDemoBanner(data);
+          showTab('livefeed');
+
+          // Wait for sessions to load, then auto-connect
+          await refreshSessions();
+          const feedSelect = document.getElementById('feedSessionSelect');
+          if (!feedSelect.querySelector(`option[value="${data.session_id}"]`)) {
+            const opt = document.createElement('option');
+            opt.value = data.session_id;
+            opt.textContent = `${data.session_id} (Demo)`;
+            feedSelect.appendChild(opt);
+          }
+          feedSelect.value = data.session_id;
+          document.getElementById('feedTargetLang').value = '';
+          connectToFeed();
+
           log('Demo mode is active (restored from server)', 'info');
+          updateSettingsDemoUI();
         }
       } catch (e) {
         // Silently ignore - demo status check is optional
       }
     }
 
-    function showDemoPanel(data) {
-      const panel = document.getElementById('demoPanel');
-      panel.classList.add('active');
-
-      document.getElementById('demoSpeakers').textContent = (data.speakers || []).join(', ') || '-';
-      document.getElementById('demoSessionId').textContent = data.session_id || '-';
-      document.getElementById('demoTranscriptId').textContent = data.transcript_id || '-';
-      document.getElementById('demoSessionInfo').textContent = `Session: ${data.session_id || '-'}`;
-
-      // Load captions iframe
-      const sessionId = data.session_id;
-      if (sessionId) {
-        const captionsUrl = `${baseUrl}/static/captions.html?session=${sessionId}`;
-        document.getElementById('demoCaptionsIframe').src = captionsUrl;
-      }
+    function showDemoBanner(data) {
+      const banner = document.getElementById('demoFeedBanner');
+      banner.classList.add('active');
+      document.getElementById('demoBannerSession').textContent = data.session_id || '-';
+      document.getElementById('demoBannerMode').textContent =
+        (data.mode === 'pretranslated') ? 'Pre-translated (ES)' : 'Live Passthrough';
+      document.getElementById('demoBannerSpeakers').textContent = (data.speakers || []).join(', ') || '-';
     }
 
-    function hideDemoPanel() {
-      const panel = document.getElementById('demoPanel');
-      panel.classList.remove('active');
-      document.getElementById('demoCaptionsIframe').src = 'about:blank';
-    }
-
-    function openDemoCaptions() {
-      if (demoSessionId) {
-        const captionsUrl = `${baseUrl}/static/captions.html?session=${demoSessionId}`;
-        window.open(captionsUrl, '_blank');
-      }
+    function hideDemoBanner() {
+      const banner = document.getElementById('demoFeedBanner');
+      banner.classList.remove('active');
     }
 
   </script>
