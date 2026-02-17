@@ -6,15 +6,15 @@ This replaces WebSocketWhisperClient with proper Socket.IO protocol support.
 """
 
 import base64
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 import socketio
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

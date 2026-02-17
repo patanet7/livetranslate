@@ -27,15 +27,15 @@ Usage:
     print(f"VAD p95: {stats['vad_processing']['p95']:.2f}ms")
 """
 
-import logging
 import time
 from collections import defaultdict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

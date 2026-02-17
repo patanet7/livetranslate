@@ -6,13 +6,14 @@ Provides real-time performance metrics, analytics, and visualization
 for the orchestration service dashboard.
 """
 
-import logging
 import threading
 import time
 from collections import defaultdict, deque
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class MetricsCollector:

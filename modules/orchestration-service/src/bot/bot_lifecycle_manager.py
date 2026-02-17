@@ -17,7 +17,6 @@ Features:
 import asyncio
 import contextlib
 import json
-import logging
 import statistics
 import time
 import uuid
@@ -28,10 +27,9 @@ from enum import Enum
 from typing import Any
 
 import psutil
+from livetranslate_common.logging import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class LifecycleStage(Enum):

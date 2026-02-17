@@ -18,11 +18,11 @@ with SQLite-style ? placeholders).
 """
 
 import hashlib
-import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from livetranslate_common.logging import get_logger
 from sqlalchemy import select, text
 
 from .database import DatabaseManager
@@ -34,7 +34,7 @@ from .models import (
     Translation,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class UnifiedBotSessionRepository:

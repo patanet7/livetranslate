@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 
 from audio.config_sync import (
@@ -12,9 +11,10 @@ from audio.config_sync import (
     get_config_sync_mode,
 )
 from infrastructure.queue import DEFAULT_STREAMS
+from livetranslate_common.logging import get_logger
 from worker.redis_consumer import ConsumerConfig, RedisStreamConsumer
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 async def handle_config_event(event: dict[str, str]) -> None:

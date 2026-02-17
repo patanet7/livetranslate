@@ -6,15 +6,15 @@ Uses transformers library directly for Llama models for more reliable translatio
 without vLLM compatibility issues.
 """
 
-import logging
 import time
 from datetime import datetime
 from typing import Any
 
 import torch
 import transformers
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class LlamaTranslator:

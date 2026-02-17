@@ -8,17 +8,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+
+from livetranslate_common.logging import get_logger
 
 try:
     import redis.asyncio as redis
 except ImportError:  # pragma: no cover - optional dependency at import time
     redis = None  # type: ignore
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

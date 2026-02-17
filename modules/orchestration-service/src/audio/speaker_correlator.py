@@ -16,11 +16,12 @@ Key Features:
 
 import asyncio
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+from livetranslate_common.logging import get_logger
 
 from .models import (
     CorrelationType,
@@ -28,7 +29,7 @@ from .models import (
     create_speaker_correlation,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class CorrelationMethod(str, Enum):

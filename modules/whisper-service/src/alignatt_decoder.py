@@ -11,13 +11,13 @@ Reference: SimulStreaming paper (IWSLT 2025) - Section 3.2
 by setting a frame threshold offset τ, where l = k - τ"
 """
 
-import logging
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

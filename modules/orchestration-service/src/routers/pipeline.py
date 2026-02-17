@@ -25,10 +25,10 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, ValidationError
-from utils.logger import get_logger
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 router = APIRouter()
 

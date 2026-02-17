@@ -9,9 +9,8 @@ Device Priority: GPU/MPS → NPU → CPU
 Phase 2 Refactoring: Created 2025-10-25
 """
 
-import logging
-
 import torch
+from livetranslate_common.logging import get_logger
 
 from .base_model import WhisperModel
 from .pytorch_manager import PyTorchModelManager
@@ -27,7 +26,7 @@ except ImportError:
     OPENVINO_AVAILABLE = False
     OpenVINOModelManager = None  # type: ignore
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ModelFactory:

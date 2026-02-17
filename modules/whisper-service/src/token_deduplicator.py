@@ -22,9 +22,9 @@ Track recent tokens and deduplicate overlaps at chunk boundaries.
 Reference: Common pattern in streaming ASR systems
 """
 
-import logging
+from livetranslate_common.logging import get_logger, setup_logging
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TokenDeduplicator:
@@ -180,7 +180,7 @@ class TokenDeduplicator:
 
 # Example usage and testing
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    setup_logging(service_name="whisper", log_format="dev")
 
     print("\n" + "=" * 80)
     print("TokenDeduplicator - Example Usage")

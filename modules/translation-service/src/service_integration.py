@@ -12,13 +12,13 @@ This shows the complete pipeline for live translation.
 
 import asyncio
 import json
-import logging
 from datetime import datetime
 
 import requests
 import websockets
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ServiceIntegration:
@@ -407,5 +407,7 @@ def main():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    from livetranslate_common.logging import setup_logging
+
+    setup_logging(service_name="translation")
     main()

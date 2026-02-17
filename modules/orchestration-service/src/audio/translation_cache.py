@@ -16,14 +16,14 @@ Key Features:
 import asyncio
 import hashlib
 import json
-import logging
 import time
 from datetime import UTC, datetime
 from typing import Any
 
 import redis.asyncio as redis
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TranslationResultCache:

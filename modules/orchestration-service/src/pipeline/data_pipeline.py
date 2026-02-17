@@ -27,7 +27,6 @@ Version: 1.0
 """
 
 import asyncio
-import logging
 import sys
 import uuid
 from collections import OrderedDict
@@ -35,6 +34,8 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from livetranslate_common.logging import get_logger
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -44,9 +45,7 @@ from database.bot_session_manager import (
     TranscriptRecord,
 )
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

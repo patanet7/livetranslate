@@ -5,7 +5,6 @@ FastAPI router for conversation history management.
 Provides CRUD endpoints for conversations, messages, and full-text search.
 """
 
-import logging
 import uuid
 from datetime import datetime
 
@@ -17,12 +16,13 @@ from database import (
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Create router
 router = APIRouter()

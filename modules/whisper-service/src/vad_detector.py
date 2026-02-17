@@ -8,13 +8,13 @@ Based on SimulStreaming reference: whisper_streaming/silero_vad_iterator.py
 Implements FixedVADIterator pattern for chunk-by-chunk filtering.
 """
 
-import logging
 from pathlib import Path
 
 import numpy as np
 import torch
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class VADIterator:

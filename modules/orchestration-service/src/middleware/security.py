@@ -10,7 +10,6 @@ Provides security features including:
 Uses centralized error handling from errors module.
 """
 
-import logging
 import time
 from collections.abc import Callable
 
@@ -21,9 +20,10 @@ from errors import (
     error_response,
 )
 from fastapi import HTTPException, Request, Response
+from livetranslate_common.logging import get_logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class SecurityMiddleware(BaseHTTPMiddleware):

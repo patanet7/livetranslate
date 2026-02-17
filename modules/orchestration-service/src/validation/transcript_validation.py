@@ -24,11 +24,12 @@ Usage:
     )
 """
 
-import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 # =============================================================================

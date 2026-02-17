@@ -131,13 +131,15 @@ class MultiHeadAttention(nn.Module):
 
         # SAFETY CHECK: Handle empty query tensor (edge case after many tokens)
         if n_ctx == 0:
-            import logging
+            from livetranslate_common.logging import get_logger
 
-            logger = logging.getLogger(__name__)
+            logger = get_logger()
             logger.warning(
-                f"⚠️  Empty query tensor in qkv_attention: q.shape={q.shape}, "
-                f"k.shape={k.shape}, v.shape={v.shape}. This usually means context was "
-                f"fully trimmed or decoder reached max tokens. Returning empty output."
+                "empty_query_tensor_in_qkv_attention",
+                q_shape=str(q.shape),
+                k_shape=str(k.shape),
+                v_shape=str(v.shape),
+                detail="Context was fully trimmed or decoder reached max tokens",
             )
             # Return empty output matching expected shape
             empty_out = torch.zeros(n_batch, 0, n_state, dtype=q.dtype, device=q.device)

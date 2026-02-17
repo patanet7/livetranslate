@@ -8,7 +8,6 @@ Optimized for Qwen2.5-14B-Instruct-AWQ model.
 
 import asyncio
 import json
-import logging
 import os
 import time
 from dataclasses import dataclass
@@ -24,6 +23,8 @@ except ImportError:
     HF_AVAILABLE = False
     print("Warning: huggingface_hub not available. Install with: pip install huggingface_hub")
 
+from livetranslate_common.logging import get_logger
+
 # Transformers for model validation
 try:
     from transformers import AutoConfig
@@ -33,7 +34,7 @@ except ImportError:
     TRANSFORMERS_AVAILABLE = False
     print("Warning: transformers not available. Install with: pip install transformers")
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass
@@ -411,7 +412,9 @@ async def main():
     args = parser.parse_args()
 
     # Set up logging
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    from livetranslate_common.logging import setup_logging
+
+    setup_logging(service_name="translation")
 
     # Create downloader
     downloader = ModelDownloader(cache_dir=args.cache_dir)

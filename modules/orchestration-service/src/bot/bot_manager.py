@@ -15,7 +15,6 @@ Features:
 
 import asyncio
 import json
-import logging
 import threading
 import time
 import uuid
@@ -35,6 +34,7 @@ from bot.bot_lifecycle_manager import create_lifecycle_manager
 from database.bot_session_manager import (
     create_bot_session_manager,
 )
+from livetranslate_common.logging import get_logger
 
 # Import data pipeline
 from pipeline.data_pipeline import (
@@ -47,9 +47,7 @@ from .google_meet_client import (
     create_google_meet_client,
 )
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class BotStatus(Enum):

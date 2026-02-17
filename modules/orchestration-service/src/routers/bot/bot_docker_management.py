@@ -12,14 +12,14 @@ Public API for Docker-based bot management operations:
 Moved from standalone routers/bot_management.py for package consolidation.
 """
 
-import logging
 from typing import Any
 
 from bot.docker_bot_manager import BotStatus, DockerBotManager, get_bot_manager
 from fastapi import APIRouter, Depends, HTTPException, Query
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, Field, HttpUrl
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 router = APIRouter(tags=["bot-docker-management"])
 

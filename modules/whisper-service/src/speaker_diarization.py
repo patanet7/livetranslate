@@ -14,7 +14,6 @@ Features:
 - Memory-efficient processing
 """
 
-import logging
 import threading
 import time
 import warnings
@@ -70,7 +69,9 @@ try:
 except ImportError:
     SPEECHBRAIN_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

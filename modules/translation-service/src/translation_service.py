@@ -8,7 +8,6 @@ Integrates with the shared inference infrastructure for efficient model manageme
 
 import asyncio
 import json
-import logging
 import os
 
 # Import shared inference clients
@@ -22,11 +21,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "shared", "s
 from collections import deque
 
 from inference import BaseInferenceClient, get_inference_client_async
+from livetranslate_common.logging import get_logger
 from local_translation import LocalTranslationService
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TranslationContinuityManager:

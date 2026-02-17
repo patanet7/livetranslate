@@ -16,7 +16,6 @@ Features:
 """
 
 import io
-import logging
 import os
 import tempfile
 from contextlib import contextmanager
@@ -53,7 +52,9 @@ try:
 except ImportError:
     FFMPEG_PYTHON_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class AudioFormatError(Exception):

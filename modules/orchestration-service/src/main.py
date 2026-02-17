@@ -13,7 +13,6 @@ It handles:
 - Monitoring and health checks
 """
 
-import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -21,6 +20,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel
 
 # Add the src directory to the path
@@ -29,11 +29,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # Import orchestration service components
 from main_fastapi import app as fastapi_app
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class HealthResponse(BaseModel):

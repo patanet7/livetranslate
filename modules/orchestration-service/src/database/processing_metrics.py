@@ -7,11 +7,11 @@ performance metrics and statistics for long-term analysis.
 """
 
 import json
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 from sqlalchemy import (
     Boolean,
     Column,
@@ -25,7 +25,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 Base = declarative_base()
 

@@ -6,7 +6,6 @@ Comprehensive error handling system for real-time audio streaming WebSocket serv
 Provides standardized error responses, categorization, logging, and recovery mechanisms.
 """
 
-import logging
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -15,7 +14,9 @@ from enum import Enum
 from functools import wraps
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class ErrorCategory(Enum):

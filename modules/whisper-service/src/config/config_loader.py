@@ -7,10 +7,11 @@ Extracted from whisper_service.py for better modularity and testability.
 """
 
 import json
-import logging
 import os
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 def load_whisper_config(config_file_path: str | None = None) -> dict:

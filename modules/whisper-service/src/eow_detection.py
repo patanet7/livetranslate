@@ -13,13 +13,13 @@ License: MIT
 This is how SimulStreaming eliminates re-translations!
 """
 
-import logging
 from pathlib import Path
 
 import torch
 import torch.nn as nn
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 def load_cif(

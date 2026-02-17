@@ -18,7 +18,6 @@ Features:
 
 import asyncio
 import json
-import logging
 import threading
 import time
 from collections import deque
@@ -27,10 +26,9 @@ from datetime import datetime
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

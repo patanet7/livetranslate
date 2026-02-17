@@ -16,11 +16,10 @@ Usage:
     audio_data = buffer.read_all()
 """
 
-import logging
-
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class RingBuffer:

@@ -19,7 +19,6 @@ API Documentation: https://developers.google.com/workspace/meet/api
 
 import asyncio
 import json
-import logging
 import os
 import time
 from collections.abc import Callable
@@ -31,10 +30,9 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from livetranslate_common.logging import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Required OAuth 2.0 scopes for Google Meet API
 REQUIRED_SCOPES = [

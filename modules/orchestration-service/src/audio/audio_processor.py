@@ -14,10 +14,10 @@ Features:
 - Database aggregation of performance metrics
 """
 
-import logging
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
 from .config import (
     AudioProcessingConfig,
@@ -50,7 +50,7 @@ except ImportError:
         return None
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class AudioPipelineProcessor:

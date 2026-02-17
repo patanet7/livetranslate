@@ -15,16 +15,16 @@ Key Features:
 Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Glossary & Context System"
 """
 
-import logging
 import re
 from uuid import UUID
 
 from database.models import Glossary, GlossaryEntry
+from livetranslate_common.logging import get_logger
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # =============================================================================

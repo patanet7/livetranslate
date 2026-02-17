@@ -4,18 +4,18 @@ Database Configuration and Connection Management
 SQLAlchemy async database setup and connection management.
 """
 
-import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC
 
 from config import DatabaseSettings as DatabaseConfig
+from livetranslate_common.logging import get_logger
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from .models import Base
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class DatabaseManager:

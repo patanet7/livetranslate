@@ -6,7 +6,6 @@ circuit breaker patterns, retry mechanisms, and error recovery strategies.
 """
 
 import asyncio
-import logging
 import uuid
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -15,7 +14,9 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class ErrorSeverity(Enum):
@@ -403,7 +404,7 @@ class ErrorLogger:
     """Centralized error logging with correlation IDs"""
 
     def __init__(self, logger_name: str = "audio_errors"):
-        self.logger = logging.getLogger(logger_name)
+        self.logger = get_logger()
 
     def log_error(
         self,

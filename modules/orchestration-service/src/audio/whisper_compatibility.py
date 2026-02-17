@@ -12,14 +12,15 @@ This module provides:
 - Seamless transition support
 """
 
-import logging
 import os
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from livetranslate_common.logging import get_logger
+
 from .models import AudioChunkingConfig
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

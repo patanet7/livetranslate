@@ -18,16 +18,14 @@ Author: LiveTranslate Team
 Version: 1.0
 """
 
-import logging
 from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Create router
 router = APIRouter(prefix="/api/data", tags=["data-query"])

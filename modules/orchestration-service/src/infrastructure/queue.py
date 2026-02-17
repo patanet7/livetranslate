@@ -10,19 +10,20 @@ intact.
 from __future__ import annotations
 
 import json
-import logging
 import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+from livetranslate_common.logging import get_logger
+
 try:
     import redis.asyncio as redis
 except ImportError:  # pragma: no cover - redis optional at import time
     redis = None  # type: ignore
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 def _env(name: str, default: str) -> str:

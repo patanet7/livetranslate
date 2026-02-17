@@ -24,16 +24,16 @@ Usage:
 import asyncio
 import base64
 import json
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
 import websockets
+from livetranslate_common.logging import get_logger
 from segment_timestamper import SegmentTimestamper
 from stream_session_manager import StreamSessionManager
 from websockets.asyncio.server import ServerConnection
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class WebSocketStreamServer:

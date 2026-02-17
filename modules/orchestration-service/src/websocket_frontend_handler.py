@@ -21,16 +21,16 @@ import asyncio
 import base64
 import contextlib
 import json
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 import websockets
+from livetranslate_common.logging import get_logger
 from websockets.asyncio.server import ServerConnection
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass
@@ -540,5 +540,4 @@ async def example_usage():
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(example_usage())

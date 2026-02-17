@@ -19,7 +19,6 @@ Usage:
     translate_span.end()
 """
 
-import logging
 import time
 import uuid
 from collections.abc import Generator
@@ -28,7 +27,9 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Optional
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass
