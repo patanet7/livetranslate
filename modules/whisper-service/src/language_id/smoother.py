@@ -11,12 +11,12 @@ Language switching has a cost (transition penalty), so the Viterbi algorithm
 will prefer staying in the same language unless there's strong evidence for a switch.
 """
 
-import logging
 from dataclasses import dataclass
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

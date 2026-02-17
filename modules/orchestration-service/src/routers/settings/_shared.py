@@ -6,7 +6,6 @@ Common imports, utilities, models, and configurations used across all settings r
 
 import asyncio
 import json
-import logging
 import os
 from datetime import UTC, datetime, timezone
 from enum import Enum
@@ -17,10 +16,11 @@ import aiofiles
 import aiohttp
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, Field
 
 # Initialize logger
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # ============================================================================
 # Configuration Sync Imports with Fallbacks

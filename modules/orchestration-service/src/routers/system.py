@@ -8,7 +8,6 @@ FastAPI router for system-wide management endpoints including:
 - System configuration
 """
 
-import logging
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -19,6 +18,7 @@ from dependencies import (
     get_websocket_manager,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
+from livetranslate_common.logging import get_logger
 from models.system import (
     ServiceHealth,
     SystemMetrics,
@@ -26,7 +26,7 @@ from models.system import (
 from pydantic import BaseModel
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # ============================================================================
 # Request/Response Models

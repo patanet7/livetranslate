@@ -10,7 +10,6 @@ import asyncio
 import contextlib
 import io
 import json
-import logging
 import os
 import tempfile
 import threading
@@ -43,6 +42,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from heartbeat_manager import HeartbeatState, heartbeat_manager
+from livetranslate_common.logging import get_logger
 from message_router import MessageContext, MessageType, RoutePermission, message_router
 from pydub import AudioSegment
 from pydub.utils import which
@@ -65,9 +65,7 @@ from utils.audio_errors import (
 from vac_online_processor import VACOnlineASRProcessor
 from whisper_service import TranscriptionRequest, WhisperService, create_whisper_service
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 # Set up ffmpeg path for pydub
 ffmpeg_path = Path(__file__).parent.parent / "ffmpeg" / "bin"

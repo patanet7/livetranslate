@@ -5,7 +5,6 @@ Comprehensive error handling system for whisper audio processing with specific e
 circuit breaker patterns, retry mechanisms, and error recovery strategies.
 """
 
-import logging
 import uuid
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -14,7 +13,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class ErrorSeverity(Enum):
@@ -314,7 +315,7 @@ class ErrorLogger:
     """Centralized error logging with correlation IDs"""
 
     def __init__(self, logger_name: str = "whisper_errors"):
-        self.logger = logging.getLogger(logger_name)
+        self.logger = get_logger(logger_name=logger_name)
 
     def log_error(
         self,

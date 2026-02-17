@@ -7,7 +7,6 @@ continuous transcription -> translation pipeline.
 """
 
 import json
-import logging
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Any
@@ -15,9 +14,10 @@ from typing import Any
 import aiohttp
 import websockets
 from flask import jsonify, request
+from livetranslate_common.logging import get_logger
 from translation_service import TranslationRequest, TranslationService
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class WhisperTranslationBridge:

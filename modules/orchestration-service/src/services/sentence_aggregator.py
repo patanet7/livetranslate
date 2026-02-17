@@ -14,11 +14,11 @@ Produces TranslationUnit objects ready for the RollingWindowTranslator.
 Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Sentence Aggregation System"
 """
 
-import logging
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 
+from livetranslate_common.logging import get_logger
 from models.fireflies import (
     FirefliesChunk,
     FirefliesSessionConfig,
@@ -26,7 +26,7 @@ from models.fireflies import (
     TranslationUnit,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # =============================================================================

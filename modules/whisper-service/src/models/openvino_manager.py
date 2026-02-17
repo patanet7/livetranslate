@@ -15,7 +15,6 @@ Features:
 """
 
 import gc
-import logging
 import os
 import threading
 import time
@@ -25,6 +24,8 @@ from pathlib import Path
 from queue import Queue
 from typing import Any
 
+from livetranslate_common.logging import get_logger
+
 try:
     import openvino as ov
     import openvino_genai
@@ -33,7 +34,7 @@ try:
 except ImportError:
     OPENVINO_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class NPUError(Exception):

@@ -6,7 +6,6 @@ Provides intelligent request routing, load balancing, and circuit breaking
 for backend services. Integrates with the frontend service proxy functionality.
 """
 
-import logging
 import threading
 import time
 from collections import defaultdict
@@ -15,8 +14,9 @@ from typing import Any
 
 import requests
 from flask import Response, jsonify
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ServiceStatus(Enum):

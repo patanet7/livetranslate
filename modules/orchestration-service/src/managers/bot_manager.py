@@ -5,7 +5,6 @@ Central bot lifecycle management for the orchestration service.
 """
 
 import asyncio
-import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -14,7 +13,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class BotStatus(Enum):

@@ -16,7 +16,6 @@ Features:
 
 import asyncio
 import json
-import logging
 import re
 import threading
 import time
@@ -25,9 +24,9 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 @dataclass

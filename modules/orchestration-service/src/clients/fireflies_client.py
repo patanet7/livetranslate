@@ -15,7 +15,6 @@ The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 """
 
 import asyncio
-import logging
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -23,6 +22,7 @@ from typing import Any
 
 import aiohttp
 import socketio
+from livetranslate_common.logging import get_logger
 from models.fireflies import (
     FirefliesChunk,
     FirefliesConnectionStatus,
@@ -30,7 +30,7 @@ from models.fireflies import (
     MeetingState,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # =============================================================================

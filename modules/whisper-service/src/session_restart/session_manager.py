@@ -14,7 +14,6 @@ This is the production-ready approach for code-switching that:
 3. Avoids mid-utterance KV cache clearing (violates FEEDBACK.md line 6)
 """
 
-import logging
 import os
 import re
 
@@ -52,9 +51,10 @@ utils_module = importlib.util.module_from_spec(spec)
 sys.modules["utils"] = utils_module
 spec.loader.exec_module(utils_module)
 
+from livetranslate_common.logging import get_logger
 from utils import EncoderCache, PerformanceMetrics, RingBuffer
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

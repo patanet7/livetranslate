@@ -31,14 +31,14 @@ Usage:
 """
 
 import asyncio
-import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @dataclass

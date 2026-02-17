@@ -22,7 +22,7 @@ LiveTranslate is a real-time speech-to-text transcription and translation system
 
 ## Service Architecture
 # NEVER USE MOCK DATA!!!! ALWAYS COMPREHENSIVE AND INTEGRATED!!!
-# ALWAYS USE PDM FOR DEPENDENCY MANAGEMENT - NOT PIP!
+# ALWAYS USE UV FOR DEPENDENCY MANAGEMENT - NOT PIP OR PDM!
 ### 4 Core Services
 
 1. **Whisper Service** (`modules/whisper-service/`) - **[NPU OPTIMIZED]** ✅
@@ -96,27 +96,28 @@ just dev                      # Start development environment
 
 ### Service-Specific Commands
 
-> **IMPORTANT**: Always use `pdm install -G dev` (not just `pdm install`) to install dev dependencies including pytest, pytest-timeout, and code quality tools.
+> **IMPORTANT**: Use `uv sync --group dev` to install dev dependencies including pytest, pytest-timeout, and code quality tools.
 > **Python Version**: Services require Python >=3.12,<3.14. Python 3.14+ is not supported due to ML package compatibility (grpcio, onnxruntime).
+> **Workspace**: This is a UV workspace monorepo. Run `uv sync` from the root to install all packages including the shared `livetranslate-common` library.
 
 ```bash
+# Install all dependencies (from repo root)
+uv sync --group dev
+
 # Whisper Service (NPU/GPU optimized)
-cd modules/whisper-service
-pdm install -G dev  # Includes pytest, pytest-timeout, code quality tools
-pdm run python src/main.py --device=npu
-pdm run pytest tests/ -v  # Run tests
+uv run python modules/whisper-service/src/main.py --device=npu
+uv run pytest modules/whisper-service/tests/ -v
 
 # Translation Service (GPU optimized)
-cd modules/translation-service
-pdm install -G dev  # Includes pytest, pytest-timeout, code quality tools
-pdm run python src/api_server.py
-pdm run pytest tests/ -v  # Run tests
+uv run python modules/translation-service/src/api_server.py
+uv run pytest modules/translation-service/tests/ -v
 
 # Orchestration Service with bot management
-cd modules/orchestration-service
-pdm install -G dev  # Includes pytest, pytest-timeout, code quality tools
-pdm run python src/main_fastapi.py
-pdm run pytest tests/ -v  # Run tests
+uv run python modules/orchestration-service/src/main_fastapi.py
+uv run pytest modules/orchestration-service/tests/ -v
+
+# Shared Library tests
+uv run pytest modules/shared/tests/ -v
 
 # Frontend Service (React/TypeScript)
 cd modules/frontend-service
@@ -145,6 +146,36 @@ just db-up / db-down       # Database management
 - `requirements*.txt` - Python dependencies (service-specific)
 - `docker-compose*.yml` - Docker deployment configurations
 - `static/` - Static web assets (orchestration service)
+
+## Structured Logging (structlog)
+
+All services use **structlog** via the shared `livetranslate-common` package. Do NOT use `import logging` / `logging.getLogger(__name__)`.
+
+### Usage Pattern
+```python
+from livetranslate_common.logging import setup_logging, get_logger
+
+# In service entry point (once):
+setup_logging(service_name="orchestration")  # or "whisper", "translation"
+
+# In all modules:
+logger = get_logger()
+logger.info("event_name", key="value", count=42)
+```
+
+### Key Points
+- **JSON output** (production): `LOG_FORMAT=json` or default
+- **Dev output** (colored): `LOG_FORMAT=dev` or `setup_logging(..., log_format="dev")`
+- **Sensitive data** automatically redacted (passwords, tokens, API keys)
+- **Request ID** middleware injects `request_id` into all log lines via contextvars
+- **Performance logging**: `from livetranslate_common.logging.performance import log_performance`
+- **stdlib bridging**: Third-party library logs (uvicorn, httpx, etc.) are captured and formatted through structlog
+- **Exception**: `import logging` is OK only for `logging.getLogger("third_party").setLevel(...)` to control third-party log levels
+
+### Shared Library Location
+- Package: `modules/shared/src/livetranslate_common/`
+- Modules: `logging/`, `errors/`, `middleware/`, `config/`, `health/`
+- Tests: `modules/shared/tests/`
 
 ## Development Notes
 
@@ -249,13 +280,16 @@ async def test_audio_upload_and_transcription():
 # Full system testing
 python tests/run_all_tests.py --comprehensive
 
-# Service-specific (using PDM)
-cd modules/orchestration-service && pdm run pytest -m "behavioral"
-cd modules/whisper-service && pdm run pytest -m "integration"
-cd modules/translation-service && pdm run pytest -m "behavioral"
+# Service-specific (using UV)
+uv run pytest modules/orchestration-service/tests/ -m "behavioral"
+uv run pytest modules/whisper-service/tests/ -m "integration"
+uv run pytest modules/translation-service/tests/ -m "behavioral"
+
+# Shared library tests
+uv run pytest modules/shared/tests/ -v
 
 # Run with coverage
-pdm run pytest --cov=src --cov-report=html
+uv run pytest --cov=src --cov-report=html
 
 # Using just commands
 just test-orchestration
@@ -275,7 +309,7 @@ just coverage-backend
 ## Important Notes
 
 - **Cross-platform support**: Bash scripts (`.sh`) for macOS/Linux, PowerShell (`.ps1`) for Windows
-- **Dependency management**: Use PDM (not Poetry or pip directly)
+- **Dependency management**: Use UV workspaces (not PDM, Poetry, or pip directly)
 - **Audio resampling**: Fixed 48kHz to 16kHz conversion with librosa fallback
 - **Production deployment**: Services can run on separate machines
 - **Real-time processing**: < 100ms latency target

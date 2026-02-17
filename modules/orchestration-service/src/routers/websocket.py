@@ -6,7 +6,6 @@ bot management, and system notifications.
 """
 
 import json
-import logging
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,6 +19,7 @@ from fastapi import (
     status,
 )
 from fastapi.websockets import WebSocketState
+from livetranslate_common.logging import get_logger
 from models.websocket import (
     BroadcastMessage,
     ConnectionInfo,
@@ -31,7 +31,7 @@ from models.websocket import (
 )
 from utils.rate_limiting import RateLimiter
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 router = APIRouter()
 

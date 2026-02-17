@@ -6,15 +6,15 @@ Provides audio preprocessing utilities for the Whisper service.
 Extracted from whisper_service.py for better modularity and testability.
 """
 
-import logging
 import os
 import tempfile
 
 import librosa
 import numpy as np
 import soundfile as sf
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 def load_audio_from_bytes(audio_bytes: bytes) -> tuple[np.ndarray, int]:

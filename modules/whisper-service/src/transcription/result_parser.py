@@ -8,10 +8,11 @@ and extracts text, segments, language, and confidence scores.
 Extracted from whisper_service.py for better modularity and testability.
 """
 
-import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 def parse_whisper_result(result: Any) -> tuple[str, list, str, float]:

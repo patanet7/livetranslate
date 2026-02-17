@@ -14,7 +14,6 @@ Key Features:
 - Thread-safe concurrent inference
 """
 
-import logging
 import os
 import threading
 import time
@@ -31,8 +30,9 @@ from alignatt_decoder import AlignAttDecoder
 
 # Phase 2: SimulStreaming components
 from domain_prompt_manager import DomainPromptManager
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class PyTorchModelManager:

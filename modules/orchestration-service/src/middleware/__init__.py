@@ -1,11 +1,11 @@
 """
 Middleware Components
 
-FastAPI middleware for security, logging, and error handling.
+FastAPI middleware for security and error handling.
+Logging middleware is now provided by livetranslate_common (RequestLoggingMiddleware).
 """
 
 from .error_handling import ErrorHandlingMiddleware
-from .logging import LoggingMiddleware
 from .security import SecurityMiddleware
 
-__all__ = ["ErrorHandlingMiddleware", "LoggingMiddleware", "SecurityMiddleware"]
+__all__ = ["ErrorHandlingMiddleware", "SecurityMiddleware"]

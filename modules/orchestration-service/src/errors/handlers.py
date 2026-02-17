@@ -13,7 +13,6 @@ Usage:
     return error_response(NotFoundError("Session", "abc123"))
 """
 
-import logging
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
@@ -21,11 +20,12 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from livetranslate_common.logging import get_logger
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .exceptions import APIError, ValidationError
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ErrorCode(str, Enum):

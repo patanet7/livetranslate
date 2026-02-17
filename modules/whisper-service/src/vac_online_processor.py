@@ -14,16 +14,16 @@ License: MIT
 This is how SimulStreaming achieves computational efficiency!
 """
 
-import logging
 import time
 from typing import Any
 
 import numpy as np
 import torch
+from livetranslate_common.logging import get_logger
 from sentence_segmenter import SentenceSegmenter
 from silero_vad_iterator import FixedVADIterator
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 # Helper functions for numpy/torch conversion

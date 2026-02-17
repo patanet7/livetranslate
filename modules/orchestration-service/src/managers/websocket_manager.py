@@ -6,7 +6,6 @@ Enterprise-grade WebSocket connection management for the orchestration service.
 
 import asyncio
 import json
-import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -16,8 +15,9 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import WebSocket
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class ConnectionState(Enum):

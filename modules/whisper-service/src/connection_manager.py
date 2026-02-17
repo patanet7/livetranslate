@@ -7,7 +7,6 @@ Provides connection tracking, timeout handling, session management, and health m
 """
 
 import gc
-import logging
 import threading
 import time
 import weakref
@@ -17,7 +16,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from livetranslate_common.logging import get_logger
+
+logger = get_logger()
 
 
 class ConnectionState(Enum):

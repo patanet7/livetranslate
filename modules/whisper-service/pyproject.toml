@@ -59,6 +59,7 @@ dependencies = [
     # Configuration
     "pydantic>=2.6.0",
     "pydantic-settings>=2.2.0",
+    "livetranslate-common",
 ]
 
 [project.optional-dependencies]
@@ -68,17 +69,19 @@ onnx = [
 ]
 
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.pdm]
-distribution = true
-package-dir = "."
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
-[tool.pdm.dev-dependencies]
+[tool.uv.sources]
+livetranslate-common = { workspace = true }
+
+[dependency-groups]
 dev = [
     "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
+    "pytest-asyncio>=0.25.0,<1.0",
     "pytest-cov>=7.0.0",
     "pytest-mock>=3.15.1",
     "pytest-xdist>=3.8.0",

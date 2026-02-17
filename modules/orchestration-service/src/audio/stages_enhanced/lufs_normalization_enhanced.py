@@ -15,10 +15,10 @@ Key improvements over custom implementation:
 pyloudnorm reference: https://github.com/csteinmetz1/pyloudnorm
 """
 
-import logging
 from typing import Any
 
 import numpy as np
+from livetranslate_common.logging import get_logger
 
 try:
     import pyloudnorm as pyln
@@ -31,7 +31,7 @@ except ImportError:
 from ..config import LUFSNormalizationConfig, LUFSNormalizationMode
 from ..stage_components import BaseAudioStage
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class LUFSNormalizationStageEnhanced(BaseAudioStage):

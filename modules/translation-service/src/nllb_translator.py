@@ -6,15 +6,15 @@ Uses transformers library directly for NLLB models since they are encoder-decode
 models that are not compatible with vLLM.
 """
 
-import logging
 import time
 from datetime import datetime
 from typing import Any
 
 import torch
+from livetranslate_common.logging import get_logger
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class NLLBTranslator:

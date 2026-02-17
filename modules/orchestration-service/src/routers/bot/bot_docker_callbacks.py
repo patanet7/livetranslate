@@ -14,14 +14,14 @@ Bot containers send status updates via HTTP POST:
 Moved from standalone routers/bot_callbacks.py for package consolidation.
 """
 
-import logging
 from typing import Any
 
 from bot.docker_bot_manager import DockerBotManager, get_bot_manager
 from fastapi import APIRouter, Depends, HTTPException
+from livetranslate_common.logging import get_logger
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 router = APIRouter(tags=["bot-docker-callbacks"])
 

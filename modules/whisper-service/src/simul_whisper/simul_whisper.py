@@ -1,11 +1,11 @@
 # This code was originally in simul_whisper/transcriber/simul_whisper.py . It is adapted a lot for SimulStreaming.
 
-import logging
 import os
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+from livetranslate_common.logging import get_logger
 from token_buffer import TokenBuffer
 
 from .beam import BeamPyTorchInference
@@ -18,7 +18,7 @@ from .whisper.decoding import BeamSearchDecoder, GreedyDecoder, SuppressTokens
 from .whisper.timing import median_filter
 
 DEC_PAD = 50257
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 import wave
 
