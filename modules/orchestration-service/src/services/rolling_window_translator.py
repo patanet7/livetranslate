@@ -11,7 +11,8 @@ The key insight: provide context for understanding, but only translate
 the current sentence. This avoids re-translating previous content while
 maintaining coherent translations.
 
-Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Rolling Window Translation"
+Reference: docs/archive/root-reports/status-plans/FIREFLIES_ADAPTATION_PLAN.md
+Section "Rolling Window Translation"
 """
 
 import asyncio

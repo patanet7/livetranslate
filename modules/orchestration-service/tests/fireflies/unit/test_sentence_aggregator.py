@@ -9,7 +9,7 @@ Tests all boundary detection methods:
 4. NLP sentence boundary detection
 5. Buffer limit enforcement
 
-Reference: FIREFLIES_ADAPTATION_PLAN.md
+Reference: docs/archive/root-reports/status-plans/FIREFLIES_ADAPTATION_PLAN.md
 """
 
 import os

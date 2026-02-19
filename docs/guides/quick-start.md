@@ -1,46 +1,93 @@
 # Quick Start Guide
 
-Get LiveTranslate running in 5 minutes.
+This guide uses current repository workflows and avoids legacy commands.
 
 ## Prerequisites
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 14+ (optional, for persistence)
 
-## Start Services (3 Terminals)
+- Docker + Docker Compose
+- Python 3.12+
+- Node.js 20+ and `pnpm`
+- `just` (recommended) or direct `docker compose` commands
+- `pdm` (primary Python workflow in this repo) or Poetry fallback
 
-### Terminal 1: Orchestration
+## Option A: Local Compose Profiles (Recommended)
+
+```bash
+cp -n env.template .env.local
+just bootstrap-env
+just compose-up profiles="core,inference,ui,infra"
+```
+
+No `just` installed:
+
+```bash
+cp -n env.template .env.local
+COMPOSE_PROFILES="core,inference,ui,infra" docker compose -f compose.local.yml up --build
+```
+
+## Option B: Frontend + Orchestration Local Scripts
+
+```bash
+./start-development.sh
+```
+
+On Windows:
+
+```powershell
+./start-development.ps1
+```
+
+If you use this mode, run Whisper and Translation separately.
+
+## Option C: Service-by-Service (Manual)
+
+Terminal 1, orchestration:
+
 ```bash
 cd modules/orchestration-service
-python src/main.py
+(pdm install --no-self || poetry install --no-root)
+(pdm run uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload || poetry run uvicorn src.main:app --host 0.0.0.0 --port 3000 --reload)
 ```
 
-### Terminal 2: Whisper
+Terminal 2, whisper:
+
 ```bash
 cd modules/whisper-service
-python src/main.py
+(pdm install --no-self || poetry install --no-root)
+(pdm run python src/main.py || poetry run python src/main.py)
 ```
 
-### Terminal 3: Translation
+Terminal 3, translation:
+
 ```bash
 cd modules/translation-service
-pip install python-dotenv fastapi uvicorn httpx langdetect structlog
-python src/api_server_fastapi.py
+(pdm install --no-self || poetry install --no-root)
+(pdm run python src/api_server_fastapi.py || poetry run python src/api_server_fastapi.py)
 ```
 
-## Test Translation
+Terminal 4, frontend:
 
-### Option 1: Chinese → English Subtitles
 ```bash
-python simple_cn_to_en_subtitles.py
+cd modules/frontend-service
+pnpm install
+pnpm dev --host 0.0.0.0 --port 5173
 ```
 
-### Option 2: Full-Stack Test
+## Health Checks
+
 ```bash
-python test_loopback_fullstack.py
+curl http://localhost:3000/api/health
+curl http://localhost:5001/health
+curl http://localhost:5003/api/health
 ```
 
-## Next Steps
-- [Database Setup](./database-setup.md) - Configure PostgreSQL
-- [Translation Testing](./translation-testing.md) - Advanced testing
-- [Architecture](../02-containers/README.md) - Understand the system
+## URLs
+
+- Frontend: `http://localhost:5173`
+- Orchestration API: `http://localhost:3000`
+- API Docs: `http://localhost:3000/docs`
+
+## Next Guides
+
+- [Database Setup](./database-setup.md)
+- [Translation Testing](./translation-testing.md)

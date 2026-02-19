@@ -11,7 +11,8 @@ boundary detection:
 
 Produces TranslationUnit objects ready for the RollingWindowTranslator.
 
-Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Sentence Aggregation System"
+Reference: docs/archive/root-reports/status-plans/FIREFLIES_ADAPTATION_PLAN.md
+Section "Sentence Aggregation System"
 """
 
 import re
