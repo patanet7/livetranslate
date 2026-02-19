@@ -1,30 +1,19 @@
 # Level 3: Component Details
 
-Component-level documentation for each service.
+This level maps each service to its main implementation areas and service-specific docs.
 
-## Orchestration Service Components
-- [AudioCoordinator](./orchestration/audio-coordinator.md) - Audio processing coordination
-- [BotManager](./orchestration/bot-manager.md) - Google Meet bot lifecycle
-- [VirtualWebcam](./orchestration/virtual-webcam.md) - Subtitle overlay generation
-- [DataPipeline](./orchestration/data-pipeline.md) - Complete audio → translation pipeline
-- [ConfigSync](./orchestration/config-sync.md) - Configuration synchronization
+## Orchestration Components
 
-## Whisper Service Components
-- [TranscriptionEngine](./whisper/transcription-engine.md) - Core Whisper transcription
-- [SpeakerDiarization](./whisper/speaker-diarization.md) - Speaker identification
-- [VADDetector](./whisper/vad-detector.md) - Voice activity detection
-- [SessionManager](./whisper/session-manager.md) - Session state management
+- [Orchestration Component Map](./orchestration/README.md)
 
-## Translation Service Components
-- [TranslationEngine](./translation/translation-engine.md) - Core translation logic
-- [BackendManager](./translation/backend-manager.md) - Multi-backend (Ollama, OpenAI, vLLM)
-- [QualityScorer](./translation/quality-scorer.md) - Translation quality assessment
+## Whisper Components
 
-## Frontend Service Components
-- [AudioProcessing](./frontend/audio-processing.md) - useAudioProcessing hook
-- [BotDashboard](./frontend/bot-dashboard.md) - Bot management UI
-- [SettingsSync](./frontend/settings-sync.md) - Real-time settings
+- [Whisper Component Map](./whisper/README.md)
 
----
+## Translation Components
 
-**Note**: Detailed component documentation is maintained in each service's `modules/[service]/docs/` directory. This index provides cross-service navigation.
+- [Translation Component Map](./translation/README.md)
+
+## Frontend Components
+
+- [Frontend Component Map](./frontend/README.md)

@@ -12,7 +12,8 @@ Key Features:
 - Term matching with whole-word and case-sensitivity options
 - Priority-based conflict resolution
 
-Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Glossary & Context System"
+Reference: docs/archive/root-reports/status-plans/FIREFLIES_ADAPTATION_PLAN.md
+Section "Glossary & Context System"
 """
 
 import re

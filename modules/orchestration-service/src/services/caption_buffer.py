@@ -11,7 +11,8 @@ The CaptionBuffer bridges RollingWindowTranslator output to UI display,
 ensuring captions appear and disappear at the right times with proper
 visual styling.
 
-Reference: FIREFLIES_ADAPTATION_PLAN.md Section "Caption Output"
+Reference: docs/archive/root-reports/status-plans/FIREFLIES_ADAPTATION_PLAN.md
+Section "Caption Output"
 """
 
 import asyncio

@@ -60,15 +60,16 @@ The system is organized into **4 core services** optimized for specific hardware
 
 ## 📚 Documentation
 
-Complete documentation organized using the **C4 Model**:
+Documentation is organized around current operational usage and C4 architecture levels:
 
-- **[Documentation Index](./docs/README.md)** - Full documentation navigation
-- **[Quick Start Guide](./docs/guides/quick-start.md)** - 5-minute setup
-- **[System Context](./docs/01-context/README.md)** - What LiveTranslate does and who uses it
-- **[Container Architecture](./docs/02-containers/README.md)** - Services, technology stack, deployment
-- **[Component Details](./docs/03-components/README.md)** - Individual component documentation
-- **[Translation Testing](./docs/guides/translation-testing.md)** - Test translation pipeline
-- **[Database Setup](./docs/guides/database-setup.md)** - PostgreSQL configuration
+- **[Documentation Hub](./docs/README.md)** - Canonical navigation for active docs
+- **[Quick Start Guide](./docs/guides/quick-start.md)** - Local startup workflows
+- **[Database Setup Guide](./docs/guides/database-setup.md)** - PostgreSQL/Redis bootstrap
+- **[Translation Testing Guide](./docs/guides/translation-testing.md)** - End-to-end and integration checks
+- **[C4 Level 1: Context](./docs/01-context/README.md)**
+- **[C4 Level 2: Containers](./docs/02-containers/README.md)**
+- **[C4 Level 3: Components](./docs/03-components/README.md)**
+- **[Documentation Maintenance Standards](./docs/MAINTENANCE.md)** - Keep docs current and clean
 
 ## 🚀 Quick Start
 
@@ -829,31 +830,12 @@ const constraints = {
 **Complete Pipeline**: Frontend → Orchestration → Whisper → Translation → Response
 **Features Working**: Real-time streaming, dynamic models, hardware acceleration, error recovery
 
-## 🚀 Future Roadmap
+## 🚀 Planning
 
-### Phase 1: Core Functionality (Q1 2024)
-- ✅ Docker infrastructure
-- 🔄 Audio processing pipeline
-- 🔄 Whisper transcription
-- 📋 Speaker diarization
+Current implementation planning should be tracked in active issues/PRs and the docs hub.
+Historical planning snapshots remain in:
 
-### Phase 2: AI Enhancement (Q2 2024)
-- 📋 NPU acceleration optimization
-- 📋 Multi-model support
-- 📋 Translation pipeline
-- 📋 Performance optimization
-
-### Phase 3: Enterprise Features (Q3 2024)
-- 📋 Meeting bot framework
-- 📋 Google Meet integration
-- 📋 Advanced security
-- 📋 Scalability features
-
-### Phase 4: Advanced AI (Q4 2024)
-- 📋 Advanced analytics
-- 📋 Custom model training
-- 📋 Enterprise deployment
-- 📋 API ecosystem
+- [`docs/archive/planning/`](docs/archive/planning/)
 
 ## 📝 License
 
@@ -864,20 +846,20 @@ This project is licensed under the terms of the included license file.
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run tests: `docker-compose -f docker-compose.test.yml up`
+4. Run relevant checks: `just test-all` (or module-specific test commands)
 5. Submit a pull request
 
 ## 🆘 Support
 
 ### Documentation
-- [Service Documentation](modules/README.md)
-- [Deployment Guide](docs/deployment.md)
-- [API Reference](docs/api.md)
+- [Documentation Hub](docs/README.md)
+- [Modules Index](modules/README.md)
+- [Quick Start](docs/guides/quick-start.md)
 
 ### Troubleshooting
-- [Common Issues](docs/troubleshooting.md)
-- [Performance Tuning](docs/performance.md)
-- [Development Setup](docs/development.md)
+- [Debugging Guide](docs/debugging.md)
+- [Translation Testing](docs/guides/translation-testing.md)
+- [Database Setup](docs/guides/database-setup.md)
 
 ### Community
 - Issues: GitHub Issues
