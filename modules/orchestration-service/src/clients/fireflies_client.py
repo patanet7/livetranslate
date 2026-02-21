@@ -108,6 +108,92 @@ query Transcript($id: String!) {
 }
 """
 
+TRANSCRIPT_FULL_QUERY = """
+query TranscriptFull($id: String!) {
+  transcript(id: $id) {
+    id
+    title
+    date
+    duration
+    transcript_url
+    audio_url
+    video_url
+    meeting_link
+    host_email
+    organizer_email
+    participants
+
+    sentences {
+      index
+      text
+      raw_text
+      start_time
+      end_time
+      speaker_name
+      ai_filters {
+        task
+        pricing
+        metric
+        question
+        date_and_time
+        text_cleanup
+        sentiment
+      }
+    }
+
+    summary {
+      overview
+      action_items
+      outline
+      shorthand_bullet
+      keywords
+      bullet_gist
+      gist
+      short_summary
+      short_overview
+      meeting_type
+      topics_discussed
+      transcript_chapters
+    }
+
+    meeting_attendees {
+      displayName
+      email
+      phoneNumber
+      location
+    }
+
+    meeting_attendance {
+      name
+      join_time
+      leave_time
+    }
+
+    analytics {
+      sentiments {
+        negative_pct
+        neutral_pct
+        positive_pct
+      }
+      categories {
+        questions
+        date_times
+        metrics
+        tasks
+      }
+      speakers {
+        duration
+        word_count
+        longest_monologue
+        filler_words
+        questions
+        words_per_minute
+      }
+    }
+  }
+}
+"""
+
 
 # =============================================================================
 # Event Callback Types
@@ -314,6 +400,67 @@ class FirefliesGraphQLClient:
 
         except Exception as e:
             logger.error(f"Failed to get transcript detail: {e}")
+            raise
+
+    async def download_full_transcript(self, transcript_id: str) -> dict[str, Any] | None:
+        """Download full transcript with all Fireflies AI data.
+
+        Returns structured dict with transcript metadata, insights, and sentences,
+        ready for storage via MeetingStore.
+        """
+        variables = {"id": transcript_id}
+        try:
+            data = await self.execute_query(TRANSCRIPT_FULL_QUERY, variables)
+            transcript = data.get("transcript")
+            if not transcript:
+                logger.warning("transcript_not_found", transcript_id=transcript_id)
+                return None
+
+            # Structure insights by type for MeetingStore.store_insight()
+            insights: list[dict[str, Any]] = []
+
+            if transcript.get("summary"):
+                insights.append({"type": "summary", "content": transcript["summary"]})
+
+            if transcript.get("analytics"):
+                analytics = transcript["analytics"]
+                if analytics.get("sentiments"):
+                    insights.append({"type": "sentiment", "content": analytics["sentiments"]})
+                if analytics.get("speakers"):
+                    insights.append({"type": "speaker_analytics", "content": analytics["speakers"]})
+                if analytics.get("categories"):
+                    insights.append({"type": "ai_filters", "content": analytics["categories"]})
+
+            if transcript.get("meeting_attendees") or transcript.get("meeting_attendance"):
+                insights.append({
+                    "type": "attendance",
+                    "content": {
+                        "attendees": transcript.get("meeting_attendees", []),
+                        "attendance": transcript.get("meeting_attendance", []),
+                    },
+                })
+
+            media: dict[str, str] = {}
+            for key in ("transcript_url", "audio_url", "video_url"):
+                if transcript.get(key):
+                    media[key] = transcript[key]
+            if media:
+                insights.append({"type": "media", "content": media})
+
+            logger.info(
+                "full_transcript_downloaded",
+                transcript_id=transcript_id,
+                sentence_count=len(transcript.get("sentences", [])),
+                insight_count=len(insights),
+            )
+
+            return {
+                "transcript": transcript,
+                "insights": insights,
+                "sentences": transcript.get("sentences", []),
+            }
+        except Exception as e:
+            logger.error("full_transcript_download_failed", transcript_id=transcript_id, error=str(e))
             raise
 
 
@@ -822,6 +969,22 @@ class FirefliesClient:
             Transcript detail with sentences
         """
         return await self._graphql.get_transcript_detail(transcript_id)
+
+    async def download_full_transcript(
+        self,
+        transcript_id: str,
+    ) -> dict[str, Any] | None:
+        """
+        Download full transcript with all Fireflies AI data.
+
+        Args:
+            transcript_id: Transcript ID to fetch
+
+        Returns:
+            Structured dict with transcript, insights, and sentences,
+            or None if not found
+        """
+        return await self._graphql.download_full_transcript(transcript_id)
 
     # -------------------------------------------------------------------------
     # Realtime Methods
