@@ -15,6 +15,7 @@ The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 """
 
 import asyncio
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -47,6 +48,10 @@ MAX_RECONNECTION_ATTEMPTS = 5
 INITIAL_RECONNECTION_DELAY = 1.0  # seconds
 MAX_RECONNECTION_DELAY = 60.0  # seconds
 RECONNECTION_BACKOFF_MULTIPLIER = 2.0
+
+# Chunk deduplication
+# Fireflies sends ~16 interim updates per chunk_id as ASR refines text. We buffer by chunk_id
+# and only forward to the pipeline when a chunk is finalized (new chunk_id arrives).
 
 
 # =============================================================================
@@ -116,6 +121,10 @@ StatusCallback = Callable[[FirefliesConnectionStatus, str | None], Awaitable[Non
 
 # Callback for errors
 ErrorCallback = Callable[[str, Exception | None], Awaitable[None]]
+
+# Callback for live interim updates (word-by-word captions)
+# Second param is_final: True when chunk is being finalized
+LiveUpdateCallback = Callable[[FirefliesChunk, bool], Awaitable[None]]
 
 
 # =============================================================================
@@ -340,6 +349,7 @@ class FirefliesRealtimeClient:
         on_transcript: TranscriptCallback | None = None,
         on_status_change: StatusCallback | None = None,
         on_error: ErrorCallback | None = None,
+        on_live_update: LiveUpdateCallback | None = None,
         auto_reconnect: bool = True,
         max_reconnect_attempts: int = MAX_RECONNECTION_ATTEMPTS,
     ):
@@ -351,9 +361,10 @@ class FirefliesRealtimeClient:
             transcript_id: Transcript ID to connect to (from active_meetings)
             endpoint: Socket.IO endpoint URL (wss://api.fireflies.ai)
             socketio_path: Socket.IO path (/ws/realtime)
-            on_transcript: Callback for transcript chunks
+            on_transcript: Callback for transcript chunks (finalized only)
             on_status_change: Callback for connection status changes
             on_error: Callback for errors
+            on_live_update: Callback for live interim updates (word-by-word captions)
             auto_reconnect: Whether to automatically reconnect on disconnect
             max_reconnect_attempts: Maximum reconnection attempts
         """
@@ -366,6 +377,7 @@ class FirefliesRealtimeClient:
         self.on_transcript = on_transcript
         self.on_status_change = on_status_change
         self.on_error = on_error
+        self.on_live_update = on_live_update
 
         # Reconnection settings
         self.auto_reconnect = auto_reconnect
@@ -390,9 +402,11 @@ class FirefliesRealtimeClient:
         # Register event handlers
         self._register_handlers()
 
-        # Chunk tracking for deduplication
-        self._last_chunk_id: str | None = None
-        self._processed_chunk_ids: set = set()
+        # Chunk deduplication state
+        self._pending_chunks: dict[str, FirefliesChunk] = {}
+        self._pending_text: dict[str, str] = {}  # chunk_id -> last text for pure-dup detection
+        self._forwarded_chunks: set[str] = set()
+        self._raw_messages_received: int = 0
 
     def _register_handlers(self):
         """Register Socket.IO event handlers"""
@@ -558,7 +572,7 @@ class FirefliesRealtimeClient:
             self._running = False
             return False
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from Fireflies Socket.IO"""
         self._running = False
         self.auto_reconnect = False  # Prevent reconnection
@@ -572,51 +586,126 @@ class FirefliesRealtimeClient:
         except Exception as e:
             logger.warning(f"Error during disconnect: {e}")
 
+        # Flush any remaining buffered chunks before finalizing disconnect
+        await self._flush_pending_chunks()
+
         await self._set_status(FirefliesConnectionStatus.DISCONNECTED)
         logger.info("Disconnected from Fireflies")
 
-    async def _handle_transcript(self, message: dict[str, Any]):
-        """Handle transcription.broadcast event"""
+    async def _handle_transcript(self, message: dict[str, Any]) -> None:
+        """Handle transcription.broadcast event with chunk deduplication.
+
+        Fireflies sends ~16 interim updates per chunk_id as ASR refines.
+        We buffer by chunk_id and finalize when a new chunk_id arrives.
+        Flow:
+          Same chunk_id, same text -> SKIP (pure duplicate)
+          Same chunk_id, different text -> UPDATE pending, emit on_live_update
+          New chunk_id -> FINALIZE all other pending chunks, start new buffer
+        """
         try:
-            # Extract chunk data - may be nested in 'data' or at top level
-            chunk_data = message.get("data", message) if isinstance(message, dict) else message
+            self._raw_messages_received += 1
+
+            # Extract chunk data - nested in 'payload' (production) or 'data' (legacy)
+            chunk_data = (
+                message.get("payload", message.get("data", message))
+                if isinstance(message, dict)
+                else message
+            )
 
             if not isinstance(chunk_data, dict):
-                logger.warning(f"Unexpected transcript data format: {type(chunk_data)}")
+                logger.warning("unexpected_transcript_format", data_type=type(chunk_data).__name__)
                 return
 
-            chunk_id = chunk_data.get("chunk_id") or chunk_data.get("id") or uuid.uuid4().hex[:12]
-
-            # Log raw data for debugging (first few chunks per session)
-            logger.info(
-                f"Fireflies chunk received: keys={list(chunk_data.keys())}, "
-                f"chunk_id={chunk_id}, text={str(chunk_data.get('text', ''))[:80]}"
+            chunk_id = str(
+                chunk_data.get("chunk_id") or chunk_data.get("id") or uuid.uuid4().hex[:12]
             )
+            text = chunk_data.get("text", chunk_data.get("content", ""))
+
+            # === DEDUP: Skip pure duplicates (same chunk_id, same text) ===
+            if chunk_id in self._pending_text and self._pending_text[chunk_id] == text:
+                return
 
             # Create FirefliesChunk model
             chunk = FirefliesChunk(
                 transcript_id=chunk_data.get("transcript_id", self.transcript_id),
                 chunk_id=chunk_id,
-                text=chunk_data.get("text", chunk_data.get("content", "")),
-                speaker_name=chunk_data.get("speaker_name", chunk_data.get("speaker", "Unknown")),
-                start_time=float(chunk_data.get("start_time", chunk_data.get("startTime", 0.0))),
-                end_time=float(chunk_data.get("end_time", chunk_data.get("endTime", 0.0))),
+                text=text,
+                speaker_name=chunk_data.get(
+                    "speaker_name", chunk_data.get("speaker", "Unknown")
+                ),
+                start_time=float(
+                    chunk_data.get("start_time", chunk_data.get("startTime", 0.0))
+                ),
+                end_time=float(
+                    chunk_data.get("end_time", chunk_data.get("endTime", 0.0))
+                ),
             )
 
-            # Track last chunk for deduplication reference
-            self._last_chunk_id = chunk_id
+            is_new_chunk = chunk_id not in self._pending_text
 
-            logger.debug(
-                f"Transcript chunk: [{chunk.speaker_name}] {chunk.text[:50]}... "
-                f"({chunk.start_time:.2f}s - {chunk.end_time:.2f}s)"
-            )
+            # === Update pending buffer ===
+            self._pending_chunks[chunk_id] = chunk
+            self._pending_text[chunk_id] = text
 
-            # Call transcript callback
+            # === Emit live update (word-by-word captions) ===
+            if self.on_live_update:
+                try:
+                    await self.on_live_update(chunk, False)  # is_final=False
+                except Exception as e:
+                    logger.error("live_update_callback_error", error=str(e))
+
+            # === FINALIZE: When a new chunk_id arrives, finalize all other pending chunks ===
+            if is_new_chunk:
+                await self._finalize_other_chunks(chunk_id)
+
+        except Exception as e:
+            logger.error("transcript_chunk_processing_error", error=str(e))
+
+    async def _finalize_other_chunks(self, current_chunk_id: str) -> None:
+        """Forward all pending chunks except the current one as final."""
+        to_finalize = [
+            cid
+            for cid in self._pending_chunks
+            if cid != current_chunk_id and cid not in self._forwarded_chunks
+        ]
+
+        for cid in to_finalize:
+            chunk = self._pending_chunks.pop(cid)
+            self._pending_text.pop(cid, None)
+            self._forwarded_chunks.add(cid)
+
+            logger.debug("finalizing_chunk", chunk_id=cid, text_preview=chunk.text[:50])
+
+            # Emit final live update
+            if self.on_live_update:
+                try:
+                    await self.on_live_update(chunk, True)  # is_final=True
+                except Exception as e:
+                    logger.error("live_update_final_callback_error", error=str(e))
+
+            # Forward to pipeline via on_transcript
             if self.on_transcript:
                 await self.on_transcript(chunk)
 
-        except Exception as e:
-            logger.error(f"Error processing transcript chunk: {e}")
+    async def _flush_pending_chunks(self) -> None:
+        """Flush all remaining pending chunks as final (called on disconnect)."""
+        for cid in list(self._pending_chunks.keys()):
+            if cid not in self._forwarded_chunks:
+                chunk = self._pending_chunks.pop(cid)
+                self._pending_text.pop(cid, None)
+                self._forwarded_chunks.add(cid)
+
+                if self.on_live_update:
+                    try:
+                        await self.on_live_update(chunk, True)
+                    except Exception:
+                        pass
+
+                if self.on_transcript:
+                    await self.on_transcript(chunk)
+
+        self._pending_chunks.clear()
+        self._pending_text.clear()
 
 
 # =============================================================================
@@ -744,6 +833,7 @@ class FirefliesClient:
         on_transcript: TranscriptCallback | None = None,
         on_status_change: StatusCallback | None = None,
         on_error: ErrorCallback | None = None,
+        on_live_update: LiveUpdateCallback | None = None,
         auto_reconnect: bool = True,
     ) -> FirefliesRealtimeClient:
         """
@@ -751,9 +841,10 @@ class FirefliesClient:
 
         Args:
             transcript_id: Transcript ID to connect to
-            on_transcript: Callback for transcript chunks
+            on_transcript: Callback for transcript chunks (finalized only)
             on_status_change: Callback for status changes
             on_error: Callback for errors
+            on_live_update: Callback for live interim updates (word-by-word captions)
             auto_reconnect: Whether to auto-reconnect on disconnect
 
         Returns:
@@ -778,6 +869,7 @@ class FirefliesClient:
             on_transcript=on_transcript,
             on_status_change=on_status_change,
             on_error=on_error,
+            on_live_update=on_live_update,
             auto_reconnect=auto_reconnect,
         )
 
