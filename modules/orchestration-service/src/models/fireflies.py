@@ -259,6 +259,7 @@ class FirefliesSession(TimestampMixin):
     session_id: str = Field(description="Internal session ID")
     fireflies_transcript_id: str = Field(description="Fireflies transcript ID")
     fireflies_meeting_id: str | None = Field(default=None, description="Fireflies meeting ID")
+    meeting_db_id: str | None = Field(default=None, description="PostgreSQL meeting record ID")
 
     # Connection state
     connection_status: FirefliesConnectionStatus = Field(
