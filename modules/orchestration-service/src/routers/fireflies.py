@@ -12,6 +12,7 @@ All transcripts are stored in the existing bot_sessions database
 with source_type='fireflies'.
 """
 
+import os
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -20,7 +21,6 @@ from clients.fireflies_client import (
     FirefliesAPIError,
     FirefliesClient,
 )
-from config import FirefliesSettings, get_settings
 from dependencies import (
     get_data_pipeline,
     get_event_publisher,
@@ -40,6 +40,7 @@ from models.fireflies import (
 from pydantic import BaseModel, Field
 from routers.captions import get_connection_manager as get_ws_manager
 from services.caption_buffer import CaptionBuffer
+from services.meeting_store import MeetingStore
 
 # Pipeline imports (DRY coordinator)
 from services.pipeline import (
@@ -48,6 +49,8 @@ from services.pipeline import (
     PipelineConfig,
     TranscriptionPipelineCoordinator,
 )
+
+from config import FirefliesSettings, get_settings
 
 logger = get_logger()
 
@@ -77,6 +80,22 @@ class FirefliesSessionManager:
         # Pipeline coordinators (DRY - same for all sources)
         self._coordinators: dict[str, TranscriptionPipelineCoordinator] = {}
         self._caption_buffers: dict[str, CaptionBuffer] = {}
+        # Meeting persistence (lazily initialized)
+        self._meeting_store: MeetingStore | None = None
+
+    async def _get_meeting_store(self) -> MeetingStore | None:
+        """Get or create MeetingStore instance (lazy initialization).
+
+        Returns None if DATABASE_URL is not configured, allowing the system
+        to run without persistence.
+        """
+        db_url = os.environ.get("DATABASE_URL", "")
+        if not db_url:
+            return None
+        if self._meeting_store is None:
+            self._meeting_store = MeetingStore(db_url)
+            await self._meeting_store.initialize()
+        return self._meeting_store
 
     def get_session(self, session_id: str) -> FirefliesSession | None:
         """Get session by ID"""
@@ -131,6 +150,25 @@ class FirefliesSessionManager:
         # Store session and client
         self._sessions[session_id] = session
         self._clients[session_id] = client
+
+        # Create meeting record in DB if persistence is enabled
+        if os.environ.get("MEETING_AUTO_SAVE", "true").lower() == "true":
+            meeting_store = await self._get_meeting_store()
+            if meeting_store:
+                try:
+                    meeting_id = await meeting_store.create_meeting(
+                        fireflies_transcript_id=config.transcript_id,
+                        title=None,  # Updated later from Fireflies data
+                        source="fireflies",
+                    )
+                    session.meeting_db_id = meeting_id
+                    logger.info(
+                        "meeting_record_created",
+                        meeting_id=meeting_id,
+                        transcript_id=config.transcript_id,
+                    )
+                except Exception as e:
+                    logger.error("meeting_record_creation_failed", error=str(e))
 
         # =====================================================================
         # Pipeline Setup (DRY - shared coordinator for all sources)
@@ -248,6 +286,26 @@ class FirefliesSessionManager:
                 logger.error(f"Pipeline error for session {session_id}: {e}")
                 session.error_count += 1
 
+            # Store chunk to DB if persistence is enabled (non-blocking)
+            if session.meeting_db_id:
+                meeting_store = await self._get_meeting_store()
+                if meeting_store:
+                    try:
+                        await meeting_store.store_chunk(
+                            meeting_id=session.meeting_db_id,
+                            chunk_id=chunk.chunk_id,
+                            text=chunk.text,
+                            speaker_name=chunk.speaker_name,
+                            start_time=chunk.start_time,
+                            end_time=chunk.end_time,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "chunk_storage_failed",
+                            error=str(e),
+                            chunk_id=chunk.chunk_id,
+                        )
+
             # Call user callback (after pipeline processing)
             if on_transcript:
                 await on_transcript(session_id, chunk)
@@ -312,6 +370,20 @@ class FirefliesSessionManager:
         # Update session status
         session = self._sessions.pop(session_id)
         session.connection_status = FirefliesConnectionStatus.DISCONNECTED
+
+        # Mark meeting as complete in DB if persistence was active
+        if session.meeting_db_id:
+            meeting_store = await self._get_meeting_store()
+            if meeting_store:
+                try:
+                    await meeting_store.complete_meeting(session.meeting_db_id)
+                    logger.info(
+                        "meeting_completed",
+                        meeting_id=session.meeting_db_id,
+                        session_id=session_id,
+                    )
+                except Exception as e:
+                    logger.error("meeting_completion_failed", error=str(e))
 
         logger.info(f"Disconnected Fireflies session: {session_id}")
         return True
@@ -1225,6 +1297,7 @@ async def get_dashboard_config():
     # Fetch prompts from translation service (NO FALLBACK)
     try:
         import aiohttp
+
         from config import get_settings
 
         settings = get_settings()
