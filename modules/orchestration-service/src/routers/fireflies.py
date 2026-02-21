@@ -88,6 +88,8 @@ class FirefliesSessionManager:
         self._caption_buffers: dict[str, CaptionBuffer] = {}
         # Meeting persistence (lazily initialized)
         self._meeting_store: MeetingStore | None = None
+        # Runtime translation backend configuration (hot-swappable)
+        self.translation_config: dict[str, Any] | None = None
 
     async def _get_meeting_store(self) -> MeetingStore | None:
         """Get or create MeetingStore instance (lazy initialization).
@@ -695,6 +697,27 @@ async def _stop_auto_connect() -> None:
 # =============================================================================
 
 
+class TranslationConfigRequest(BaseModel):
+    """Runtime translation backend configuration."""
+
+    backend: str = Field(
+        default="ollama",
+        description="Translation backend: ollama, vllm, openai, groq",
+    )
+    model: str = Field(default="qwen2.5:3b", description="Model name/identifier")
+    base_url: str = Field(
+        default="http://localhost:11434/v1",
+        description="Backend API base URL",
+    )
+    target_language: str = Field(default="zh", description="Target language code")
+    temperature: float = Field(
+        default=0.3, ge=0.0, le=2.0, description="Sampling temperature"
+    )
+    max_tokens: int = Field(
+        default=2048, ge=1, le=8192, description="Maximum tokens per translation"
+    )
+
+
 class ConnectRequest(BaseModel):
     """Request to connect to Fireflies realtime"""
 
@@ -1074,6 +1097,93 @@ async def health_check(
             }
             for s in sessions
         ],
+    }
+
+
+# =============================================================================
+# Runtime Translation Config (Hot-Swap Backend)
+# =============================================================================
+
+
+@router.put(
+    "/config/translation",
+    summary="Update translation backend configuration at runtime",
+    description="Hot-swap between Ollama, vLLM, OpenAI, Groq without restart",
+)
+async def update_translation_config(config: TranslationConfigRequest) -> dict[str, Any]:
+    """Update translation backend configuration at runtime.
+
+    Changes take effect immediately. Optionally forwards config to
+    the translation service for hot-reload.
+    """
+    manager = get_session_manager()
+    config_dict = config.model_dump()
+
+    # Store config on session manager for future sessions
+    manager.translation_config = config_dict
+
+    # Attempt to forward to translation service for hot-reload
+    translation_url = os.environ.get("TRANSLATION_SERVICE_URL", "http://localhost:5003")
+    forwarded = False
+    try:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=5.0) as http_client:
+            resp = await http_client.post(
+                f"{translation_url}/api/config/update",
+                json=config_dict,
+            )
+            if resp.status_code == 200:
+                forwarded = True
+                logger.info(
+                    "translation_config_forwarded",
+                    backend=config.backend,
+                    model=config.model,
+                )
+    except Exception as e:
+        logger.warning("translation_config_forward_failed", error=str(e))
+
+    logger.info(
+        "translation_config_updated",
+        backend=config.backend,
+        model=config.model,
+        forwarded=forwarded,
+    )
+
+    result: dict[str, Any] = {"success": True, "config": config_dict}
+    if not forwarded:
+        result["warning"] = (
+            "Translation service not updated (may not be running or endpoint not available)"
+        )
+    return result
+
+
+@router.get(
+    "/config/translation",
+    summary="Get current translation configuration",
+    description="Returns the active translation backend configuration",
+)
+async def get_translation_config() -> dict[str, Any]:
+    """Get current translation configuration."""
+    manager = get_session_manager()
+
+    # Return stored config or derive from environment
+    stored_config = getattr(manager, "translation_config", None)
+    if stored_config:
+        return {"config": stored_config}
+
+    # Default from environment
+    return {
+        "config": {
+            "backend": "ollama"
+            if os.environ.get("OLLAMA_ENABLE", "true").lower() == "true"
+            else "none",
+            "model": os.environ.get("OLLAMA_MODEL", "qwen2.5:3b"),
+            "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            "target_language": os.environ.get("DEFAULT_TARGET_LANGUAGE", "zh"),
+            "temperature": float(os.environ.get("TRANSLATION_TEMPERATURE", "0.3")),
+            "max_tokens": int(os.environ.get("TRANSLATION_MAX_TOKENS", "2048")),
+        }
     }
 
 
