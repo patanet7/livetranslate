@@ -87,6 +87,44 @@ class MeetingStore:
         logger.info("meeting_created", meeting_id=meeting_id, source=source)
         return meeting_id
 
+    async def update_meeting(
+        self,
+        meeting_id: str,
+        title: str | None = None,
+        meeting_link: str | None = None,
+        organizer_email: str | None = None,
+        participants: list[str] | None = None,
+    ) -> None:
+        """Update meeting metadata (title, link, organizer, participants)."""
+        await self._ensure_pool()
+        updates: list[str] = []
+        params: list[Any] = []
+        idx = 1
+
+        if title is not None:
+            idx += 1
+            updates.append(f"title = ${idx}")
+            params.append(title)
+        if meeting_link is not None:
+            idx += 1
+            updates.append(f"meeting_link = ${idx}")
+            params.append(meeting_link)
+        if organizer_email is not None:
+            idx += 1
+            updates.append(f"organizer_email = ${idx}")
+            params.append(organizer_email)
+        if participants is not None:
+            idx += 1
+            updates.append(f"participants = ${idx}::jsonb")
+            params.append(json.dumps(participants))
+
+        if not updates:
+            return
+
+        query = f"UPDATE meetings SET {', '.join(updates)} WHERE id = $1::uuid"
+        await self._pool.execute(query, meeting_id, *params)
+        logger.info("meeting_updated", meeting_id=meeting_id, fields=list(updates))
+
     async def get_meeting_by_ff_id(self, fireflies_transcript_id: str) -> dict[str, Any] | None:
         """Find meeting by Fireflies transcript ID."""
         await self._ensure_pool()

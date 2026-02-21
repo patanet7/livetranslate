@@ -131,6 +131,7 @@ class FirefliesSessionManager:
         obs_output=None,
         meeting_intelligence=None,
         event_publisher=None,
+        meeting_title: str | None = None,
     ) -> FirefliesSession:
         """Create and connect a new Fireflies session with full pipeline"""
 
@@ -166,7 +167,7 @@ class FirefliesSessionManager:
                 try:
                     meeting_id = await meeting_store.create_meeting(
                         fireflies_transcript_id=config.transcript_id,
-                        title=None,  # Updated later from Fireflies data
+                        title=meeting_title,
                         source="fireflies",
                     )
                     session.meeting_db_id = meeting_id
@@ -252,6 +253,29 @@ class FirefliesSessionManager:
                 )
 
         coordinator.on_caption_event(_broadcast_caption_to_ws)
+
+        # Persist completed sentences to DB during live sessions
+        if session.meeting_db_id:
+            _meeting_db_id = session.meeting_db_id  # capture for closure
+
+            async def _persist_sentence(unit) -> None:
+                """Store completed sentence from pipeline to meeting DB."""
+                meeting_store = await self._get_meeting_store()
+                if meeting_store:
+                    try:
+                        await meeting_store.store_sentence(
+                            meeting_id=_meeting_db_id,
+                            text=unit.text,
+                            speaker_name=unit.speaker_name,
+                            start_time=unit.start_time,
+                            end_time=unit.end_time,
+                            boundary_type=unit.boundary_type,
+                            chunk_ids=unit.chunk_ids,
+                        )
+                    except Exception as e:
+                        logger.error("sentence_storage_failed", error=str(e))
+
+            coordinator.on_sentence_ready(_persist_sentence)
 
         # Bridge interim (word-by-word) caption updates to WebSocket clients
         async def handle_live_update(chunk: FirefliesChunk, is_final: bool) -> None:
@@ -636,6 +660,7 @@ async def _auto_connect_loop(manager: FirefliesSessionManager) -> None:
                             llm_client=llm_client,
                             meeting_intelligence=meeting_intelligence,
                             event_publisher=event_publisher,
+                            meeting_title=meeting.title,
                         )
                     except Exception as exc:
                         logger.error(
@@ -886,6 +911,34 @@ async def connect_to_fireflies(
             f"Created Fireflies session: {session.session_id} "
             f"for transcript: {request.transcript_id}"
         )
+
+        # Fetch transcript metadata and update meeting title in background
+        if session.meeting_db_id:
+            _bg_meeting_id = session.meeting_db_id
+            _bg_transcript_id = request.transcript_id
+
+            async def _update_meeting_title():
+                client = FirefliesClient(api_key=api_key)
+                try:
+                    detail = await client.get_transcript_detail(_bg_transcript_id)
+                    title = detail.get("title") if detail else None
+                    if title:
+                        meeting_store = await manager._get_meeting_store()
+                        if meeting_store:
+                            await meeting_store.update_meeting(
+                                _bg_meeting_id, title=title
+                            )
+                            logger.info(
+                                "meeting_title_updated",
+                                meeting_id=_bg_meeting_id,
+                                title=title,
+                            )
+                except Exception as e:
+                    logger.warning("meeting_title_fetch_failed", error=str(e))
+                finally:
+                    await client.close()
+
+            background_tasks.add_task(_update_meeting_title)
 
         return FirefliesConnectResponse(
             success=True,
