@@ -1004,8 +1004,38 @@
 
     <!-- History Tab -->
     <div id="tab-history" class="tab-content">
+
+      <!-- Search bar -->
+      <div class="card" style="padding: 16px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="meetingSearchInput" placeholder="Search meetings by title, speaker, or content..."
+                 style="flex: 1;"
+                 onkeydown="if(event.key==='Enter') searchMeetings()">
+          <button class="btn-primary" onclick="searchMeetings()">Search</button>
+          <button class="btn-secondary" onclick="loadMeetingHistory()">Refresh</button>
+        </div>
+      </div>
+
+      <!-- Upload area -->
+      <div class="card" id="uploadArea" style="padding: 24px; text-align: center; cursor: pointer; border: 2px dashed rgba(255,255,255,0.15);"
+           ondragover="event.preventDefault(); this.style.borderColor='#4CAF50';"
+           ondragleave="this.style.borderColor='rgba(255,255,255,0.15)';"
+           ondrop="handleFileDrop(event)">
+        <div style="color: #888;">
+          <span style="font-size: 28px;">&#128193;</span><br>
+          <span style="margin-top: 8px; display: inline-block;">Drag &amp; drop transcript files here, or
+            <label style="color: #64B5F6; cursor: pointer; text-decoration: underline;">
+              <input type="file" id="uploadInput" style="display: none;" accept=".json,.txt,.srt" onchange="uploadTranscriptFile(this.files[0])">
+              browse
+            </label>
+          </span>
+          <br><small style="color: #666;">Supports JSON, TXT, SRT formats</small>
+        </div>
+      </div>
+
+      <!-- Fireflies Past Meetings -->
       <div class="card">
-        <h2>📅 Historical Transcripts from Fireflies</h2>
+        <h2>&#128197; Fireflies Meetings</h2>
         <div class="form-row" style="margin-bottom: 16px;">
           <div class="form-group">
             <label>Date Range</label>
@@ -1015,12 +1045,8 @@
               <input type="date" id="historyDateTo">
             </div>
           </div>
-          <button class="btn-primary" onclick="fetchPastMeetings()">Fetch Past Meetings</button>
+          <button class="btn-primary" onclick="fetchPastMeetings()">Fetch from Fireflies</button>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>📋 Past Meetings</h2>
         <div style="overflow-x: auto;">
           <table class="data-table" id="pastMeetingsTable">
             <thead>
@@ -1033,14 +1059,23 @@
               </tr>
             </thead>
             <tbody id="pastMeetingsBody">
-              <tr><td colspan="5" class="empty-state">Click "Fetch Past Meetings" to load</td></tr>
+              <tr><td colspan="5" class="empty-state">Click "Fetch from Fireflies" to load</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
+      <!-- Database Meeting History -->
       <div class="card">
-        <h2>💾 Saved Transcripts (Local)</h2>
+        <h2>&#128218; Meeting History (Database)</h2>
+        <div id="meetingHistoryList" style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="empty-state">Loading meetings...</div>
+        </div>
+      </div>
+
+      <!-- Saved Transcripts (Local) -->
+      <div class="card">
+        <h2>&#128190; Saved Transcripts (Local)</h2>
         <div style="overflow-x: auto;">
           <table class="data-table" id="savedTranscriptsTable">
             <thead>
@@ -1216,6 +1251,9 @@
 
       // Check for pending translation jobs
       showPendingJobBanner();
+
+      // Pre-load meeting history (available when user switches to History tab)
+      loadMeetingHistory();
 
       // Restore demo UI if demo is already running
       await checkDemoStatus();
@@ -3503,6 +3541,295 @@ Translation:`,
     }
 
     // ==========================================================================
+    // Meeting History (Database) Functions
+    // ==========================================================================
+
+    async function loadMeetingHistory() {
+      const container = document.getElementById('meetingHistoryList');
+      if (!container) return;
+
+      container.innerHTML = '<div class="empty-state">Loading meetings...</div>';
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/meetings/?limit=50`);
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+
+        if (!data.meetings || data.meetings.length === 0) {
+          container.innerHTML = '<div class="empty-state">No meetings found in database</div>';
+          return;
+        }
+
+        container.innerHTML = data.meetings.map(m => {
+          const title = escapeHtml(m.title || 'Untitled Meeting');
+          const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : 'Unknown date';
+          const source = escapeHtml(m.source || 'fireflies');
+          const durationStr = m.duration ? Math.round(m.duration / 60) + ' min' : '';
+          const statusColor = m.status === 'completed' ? '#4CAF50' : '#FFC107';
+          const statusText = escapeHtml(m.status || 'unknown');
+          const chunkCount = m.chunk_count || 0;
+          const sentenceCount = m.sentence_count || 0;
+          const meetingId = escapeHtml(m.id);
+
+          return `
+            <div class="meeting-item" style="cursor: pointer; flex-direction: column; align-items: stretch;"
+                 onclick="toggleMeetingDetail('${meetingId}')">
+              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div class="meeting-info">
+                  <div class="meeting-title">${title}</div>
+                  <div class="meeting-meta">
+                    <span>${dateStr}</span>
+                    <span>${source}</span>
+                    ${durationStr ? '<span>' + durationStr + '</span>' : ''}
+                  </div>
+                </div>
+                <div class="actions" style="flex-shrink: 0;">
+                  <span class="status-badge" style="background: rgba(${m.status === 'completed' ? '76,175,80' : '255,193,7'},0.2); color: ${statusColor};">${statusText}</span>
+                  <span style="color: #666; font-size: 12px;">${chunkCount} chunks &middot; ${sentenceCount} sentences</span>
+                </div>
+              </div>
+              <div id="meeting-detail-${meetingId}" style="display: none; margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px; width: 100%;">
+                <div class="empty-state" style="padding: 16px;">Loading details...</div>
+              </div>
+            </div>`;
+        }).join('');
+
+        log(`Loaded ${data.meetings.length} meetings from database`, 'success');
+      } catch (e) {
+        container.innerHTML = '<div class="empty-state" style="color:#f44336;">Failed to load meetings: ' + escapeHtml(e.message) + '</div>';
+        log('Failed to load meeting history: ' + e.message, 'error');
+      }
+    }
+
+    async function toggleMeetingDetail(meetingId) {
+      const el = document.getElementById('meeting-detail-' + meetingId);
+      if (!el) return;
+
+      if (el.style.display === 'none') {
+        el.style.display = 'block';
+
+        // Load details only if showing the placeholder text
+        const loadingIndicator = el.querySelector('.empty-state');
+        if (loadingIndicator) {
+          try {
+            const [insightsResp, transcriptResp] = await Promise.all([
+              fetch(`${baseUrl}/api/meetings/${encodeURIComponent(meetingId)}/insights`),
+              fetch(`${baseUrl}/api/meetings/${encodeURIComponent(meetingId)}/transcript`)
+            ]);
+
+            let html = '';
+
+            // Insights section
+            if (insightsResp.ok) {
+              const insightsData = await insightsResp.json();
+              const insights = insightsData.insights || [];
+              if (insights.length > 0) {
+                html += '<div style="margin-bottom: 16px;"><h3 style="color: #64B5F6; font-size: 14px; margin-bottom: 8px;">Insights</h3>';
+                insights.forEach(i => {
+                  const content = typeof i.content === 'object' ? JSON.stringify(i.content, null, 2) : String(i.content || '');
+                  html += '<div style="background: rgba(0,0,0,0.2); padding: 12px; margin-bottom: 8px; border-radius: 8px;">'
+                    + '<span style="color: #FFC107; font-size: 12px; text-transform: uppercase;">' + escapeHtml(i.insight_type || 'insight') + '</span>'
+                    + '<pre style="color: #ccc; white-space: pre-wrap; margin: 6px 0 0; font-size: 13px; font-family: inherit;">' + escapeHtml(content) + '</pre>'
+                    + '</div>';
+                });
+                html += '</div>';
+              }
+            }
+
+            // Transcript section
+            if (transcriptResp.ok) {
+              const transcriptData = await transcriptResp.json();
+              const sentences = transcriptData.sentences || [];
+              const totalCount = transcriptData.count || sentences.length;
+
+              if (sentences.length > 0) {
+                html += '<div><h3 style="color: #64B5F6; font-size: 14px; margin-bottom: 8px;">Transcript (' + totalCount + ' sentences)</h3>';
+                html += '<div style="max-height: 300px; overflow-y: auto;">';
+                const displaySentences = sentences.slice(0, 50);
+                displaySentences.forEach(s => {
+                  const speaker = escapeHtml(s.speaker_name || 'Unknown');
+                  const text = escapeHtml(s.text || '');
+                  html += '<div style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">'
+                    + '<span style="color: #4CAF50; font-size: 12px; font-weight: 500;">' + speaker + '</span>: '
+                    + '<span style="color: #ddd;">' + text + '</span>'
+                    + '</div>';
+                });
+                if (sentences.length > 50) {
+                  html += '<div style="color: #888; padding: 12px; text-align: center;">... and ' + (totalCount - 50) + ' more sentences</div>';
+                }
+                html += '</div></div>';
+              }
+            }
+
+            // Show placeholder if no data was loaded
+            if (!html.trim()) {
+              html = '<div class="empty-state" style="padding: 16px;">No transcript or insight data yet.</div>';
+            }
+
+            // Action buttons (always shown)
+            const safeId = escapeHtml(meetingId);
+            html += '<div style="margin-top: 16px; display: flex; gap: 8px;">'
+              + '<button class="btn-primary btn-sm" onclick="event.stopPropagation(); generateMeetingInsights(\'' + safeId + '\')">Generate Insights</button>'
+              + '<button class="btn-secondary btn-sm" onclick="event.stopPropagation(); downloadMeetingData(\'' + safeId + '\')">Download JSON</button>'
+              + '</div>';
+
+            el.innerHTML = html;
+          } catch (e) {
+            el.innerHTML = '<div class="empty-state" style="color: #f44336; padding: 16px;">Failed to load details: ' + escapeHtml(e.message) + '</div>';
+          }
+        }
+      } else {
+        el.style.display = 'none';
+      }
+    }
+
+    async function searchMeetings() {
+      const input = document.getElementById('meetingSearchInput');
+      const query = input ? input.value.trim() : '';
+      if (!query) { loadMeetingHistory(); return; }
+
+      const container = document.getElementById('meetingHistoryList');
+      if (!container) return;
+
+      container.innerHTML = '<div class="empty-state">Searching...</div>';
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/meetings/search?q=${encodeURIComponent(query)}&limit=20`);
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP ${resp.status}`);
+        }
+        const data = await resp.json();
+
+        if (!data.results || data.results.length === 0) {
+          container.innerHTML = '<div class="empty-state">No results for &quot;' + escapeHtml(query) + '&quot;</div>';
+          return;
+        }
+
+        container.innerHTML = data.results.map(m => {
+          const title = escapeHtml(m.title || 'Untitled Meeting');
+          const dateStr = m.created_at ? new Date(m.created_at).toLocaleString() : '';
+          const source = escapeHtml(m.source || '');
+          return `
+            <div class="meeting-item" style="cursor: pointer;" onclick="toggleMeetingDetail('${escapeHtml(m.id)}')">
+              <div class="meeting-info">
+                <div class="meeting-title">${title}</div>
+                <div class="meeting-meta">
+                  <span>${dateStr}</span>
+                  ${source ? '<span>' + source + '</span>' : ''}
+                </div>
+              </div>
+              <div id="meeting-detail-${escapeHtml(m.id)}" style="display: none; margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
+                <div class="empty-state" style="padding: 16px;">Loading details...</div>
+              </div>
+            </div>`;
+        }).join('');
+
+        log(`Search found ${data.results.length} results for "${query}"`, 'success');
+      } catch (e) {
+        container.innerHTML = '<div class="empty-state" style="color: #f44336;">Search failed: ' + escapeHtml(e.message) + '</div>';
+        log('Meeting search failed: ' + e.message, 'error');
+      }
+    }
+
+    async function uploadTranscriptFile(file) {
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      log(`Uploading transcript: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`, 'info');
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/meetings/upload?title=${encodeURIComponent(file.name)}`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await resp.json();
+
+        if (resp.ok && data.success) {
+          showAlert('Transcript uploaded successfully!', 'success');
+          log(`Upload complete: ${file.name} -> meeting ${data.meeting_id}`, 'success');
+          loadMeetingHistory();
+        } else {
+          showAlert('Upload failed: ' + (data.detail || 'Unknown error'), 'error');
+          log('Upload failed: ' + (data.detail || 'Unknown error'), 'error');
+        }
+      } catch (e) {
+        showAlert('Upload error: ' + e.message, 'error');
+        log('Upload error: ' + e.message, 'error');
+      }
+
+      // Reset file input so the same file can be selected again
+      const uploadInput = document.getElementById('uploadInput');
+      if (uploadInput) uploadInput.value = '';
+    }
+
+    function handleFileDrop(event) {
+      event.preventDefault();
+      const uploadArea = event.target.closest('#uploadArea');
+      if (uploadArea) uploadArea.style.borderColor = 'rgba(255,255,255,0.15)';
+      const file = event.dataTransfer.files[0];
+      if (file) uploadTranscriptFile(file);
+    }
+
+    async function generateMeetingInsights(meetingId) {
+      showAlert('Generating insights...', 'info');
+      log(`Generating insights for meeting ${meetingId}`, 'info');
+
+      try {
+        const resp = await fetch(`${baseUrl}/api/meetings/${encodeURIComponent(meetingId)}/insights/generate`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({insight_types: ['summary', 'action_items', 'keywords']})
+        });
+
+        if (!resp.ok) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.detail || `HTTP ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        if (data.generated) {
+          showAlert('Generated ' + (data.count || data.generated.length || 0) + ' insights!', 'success');
+          log(`Insights generated for ${meetingId}`, 'success');
+          // Reload the detail view by resetting its content and toggling
+          const el = document.getElementById('meeting-detail-' + meetingId);
+          if (el) {
+            el.innerHTML = '<div class="empty-state" style="padding: 16px;">Loading details...</div>';
+            el.style.display = 'none';
+          }
+          toggleMeetingDetail(meetingId);
+        }
+      } catch (e) {
+        showAlert('Insight generation failed: ' + e.message, 'error');
+        log('Insight generation failed: ' + e.message, 'error');
+      }
+    }
+
+    async function downloadMeetingData(meetingId) {
+      try {
+        const resp = await fetch(`${baseUrl}/api/meetings/${encodeURIComponent(meetingId)}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'meeting-' + meetingId + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        log('Downloaded meeting data: ' + meetingId, 'success');
+      } catch (e) {
+        showAlert('Download failed: ' + e.message, 'error');
+        log('Download failed: ' + e.message, 'error');
+      }
+    }
+
+    // ==========================================================================
     // Tab-specific initialization
     // ==========================================================================
     const originalShowTab = showTab;
@@ -3521,7 +3848,7 @@ Translation:`,
       if (tabName === 'data') updateSessionSelect();
       if (tabName === 'livefeed') updateFeedSessionSelect();
       if (tabName === 'glossary') refreshGlossaries();
-      if (tabName === 'history') loadSavedTranscripts();
+      if (tabName === 'history') { loadSavedTranscripts(); loadMeetingHistory(); }
       if (tabName === 'intelligence') initIntelligenceTab();
     };
 
