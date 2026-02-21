@@ -15,7 +15,6 @@ The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 """
 
 import asyncio
-import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime
