@@ -49,6 +49,20 @@
       opacity: 0;
     }
 
+    .interim-caption {
+      opacity: 0.8;
+      border-left: 3px solid #FFC107; /* Yellow accent for interim */
+    }
+
+    .interim-caption .caption-text {
+      font-style: italic;
+      color: #e0e0e0;
+    }
+
+    .final-caption {
+      border-left: 3px solid #4CAF50; /* Green accent for final */
+    }
+
     .speaker-name {
       font-size: 20px;
       font-weight: 600;
@@ -169,6 +183,7 @@
         <li><span class="param">fadeTime</span> - Fade out time in seconds (default: 2)</li>
         <li><span class="param">bg</span> - Background color (CSS rgba)</li>
         <li><span class="param">showStatus</span> - Show connection status (true/false)</li>
+        <li><span class="param">mode</span> - Display mode: both, english, or translated</li>
       </ul>
     </div>
   </div>
@@ -190,7 +205,10 @@
       fadeTime: parseFloat(params.get('fadeTime')) || 2,
       bgColor: params.get('bg') || 'rgba(0, 0, 0, 0.75)',
       showStatus: params.get('showStatus') === 'true',
+      displayMode: params.get('mode') || 'both',
     };
+
+    let currentDisplayMode = config.displayMode;
 
     // Show setup help if no session
     if (!config.sessionId) {
@@ -214,7 +232,7 @@
 
     function createCaptionElement(caption) {
       const box = document.createElement('div');
-      box.className = 'caption-box';
+      box.className = 'caption-box final-caption';
       box.dataset.id = caption.id;
       box.style.backgroundColor = config.bgColor;
 
@@ -248,6 +266,22 @@
     function addCaption(caption) {
       console.log('addCaption:', caption.speaker_name, caption.id?.substring(0,8), 'map size:', captions.size);
 
+      // Remove corresponding interim captions when final arrives
+      if (caption.chunk_ids && Array.isArray(caption.chunk_ids)) {
+        caption.chunk_ids.forEach(function(cid) {
+          const interim = document.getElementById('interim-' + cid);
+          if (interim) interim.remove();
+        });
+      } else if (caption.speaker_name) {
+        // Fallback: remove all interim captions from the same speaker
+        container.querySelectorAll('.interim-caption').forEach(function(el) {
+          const speakerEl = el.querySelector('.speaker-name');
+          if (speakerEl && speakerEl.textContent === caption.speaker_name) {
+            el.remove();
+          }
+        });
+      }
+
       // Remove existing if same ID
       if (captions.has(caption.id)) {
         removeCaption(caption.id, false);
@@ -255,6 +289,12 @@
 
       // Create element
       const element = createCaptionElement(caption);
+
+      // Hide final captions in english-only mode
+      if (currentDisplayMode === 'english') {
+        element.style.display = 'none';
+      }
+
       container.appendChild(element);
 
       // Set fade timeout based on time_remaining_seconds from server
@@ -354,6 +394,55 @@
 
     function clearAllCaptions() {
       captions.forEach((_, id) => removeCaption(id, false));
+      // Also remove any interim captions not tracked in the map
+      container.querySelectorAll('.interim-caption').forEach(function(el) {
+        el.remove();
+      });
+    }
+
+    // ==========================================================================
+    // Interim Caption Support
+    // ==========================================================================
+
+    function handleInterimCaption(data) {
+      if (currentDisplayMode === 'translated') return; // Skip interim in translated-only mode
+
+      const chunkId = data.chunk_id;
+      let el = document.getElementById('interim-' + chunkId);
+
+      if (el) {
+        // Update existing interim caption (grow in place)
+        el.querySelector('.caption-text').textContent = data.text;
+      } else {
+        // Create new interim caption
+        el = document.createElement('div');
+        el.id = 'interim-' + chunkId;
+        el.className = 'caption-box interim-caption';
+        el.style.backgroundColor = config.bgColor;
+
+        const speaker = document.createElement('span');
+        speaker.className = 'speaker-name';
+        speaker.style.color = data.speaker_color || '#4CAF50';
+        speaker.textContent = data.speaker_name || 'Speaker';
+
+        const captionText = document.createElement('div');
+        captionText.className = 'caption-text';
+        captionText.textContent = data.text;
+
+        el.appendChild(speaker);
+        el.appendChild(captionText);
+        container.appendChild(el);
+        enforceMaxCaptions();
+      }
+    }
+
+    function applyDisplayMode() {
+      container.querySelectorAll('.interim-caption').forEach(function(el) {
+        el.style.display = (currentDisplayMode === 'translated') ? 'none' : '';
+      });
+      container.querySelectorAll('.final-caption').forEach(function(el) {
+        el.style.display = (currentDisplayMode === 'english') ? 'none' : '';
+      });
     }
 
     // ==========================================================================
@@ -472,6 +561,15 @@
 
           case 'ping':
             ws.send(JSON.stringify({ event: 'pong' }));
+            break;
+
+          case 'interim_caption':
+            handleInterimCaption(data);
+            break;
+
+          case 'set_display_mode':
+            currentDisplayMode = data.mode;
+            applyDisplayMode();
             break;
 
           case 'pong':
