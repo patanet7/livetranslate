@@ -135,6 +135,24 @@ async def get_meeting_transcript(meeting_id: str) -> dict[str, Any]:
         meeting_id,
     )
 
+    # Fall back to raw chunks if no sentences exist yet (e.g. live session still in progress)
+    if not sentences:
+        chunks = await pool.fetch(
+            """
+            SELECT id, chunk_id, text, speaker_name, start_time, end_time, created_at
+            FROM meeting_chunks
+            WHERE meeting_id = $1::uuid
+            ORDER BY start_time, created_at
+            """,
+            meeting_id,
+        )
+        return {
+            "meeting_id": meeting_id,
+            "sentences": [dict(c) for c in chunks],
+            "count": len(chunks),
+            "source": "chunks",
+        }
+
     return {
         "meeting_id": meeting_id,
         "sentences": [dict(s) for s in sentences],
