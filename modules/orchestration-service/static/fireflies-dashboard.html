@@ -397,6 +397,34 @@
       color: #f44336;
     }
 
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .mode-toggle button {
+      padding: 8px 16px;
+      font-size: 12px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(0,0,0,0.3);
+      color: #888;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-toggle button:hover {
+      color: #fff;
+      border-color: rgba(255,255,255,0.4);
+    }
+
+    .mode-toggle button.active {
+      background-color: #4CAF50;
+      color: white;
+      border-color: #4CAF50;
+    }
+
     .modal-body {
       flex: 1;
       overflow-y: auto;
@@ -812,6 +840,12 @@
           <span id="feedStats" style="font-size: 12px; color: #888;"></span>
           <button class="btn-secondary btn-sm" onclick="saveFeedToLocal()">💾 Save Feed</button>
           <button class="btn-secondary btn-sm" onclick="exportFeedJson()">📤 Export JSON</button>
+        </div>
+        <div class="mode-toggle">
+          <label style="font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; align-self: center; margin-right: 4px;">Display Mode</label>
+          <button onclick="setDisplayMode('english')" id="mode-english">English</button>
+          <button onclick="setDisplayMode('both')" id="mode-both" class="active">Both</button>
+          <button onclick="setDisplayMode('translated')" id="mode-translated">Translated</button>
         </div>
       </div>
 
@@ -2291,6 +2325,29 @@ Translation:`,
     // ==========================================================================
     let feedWebSocket = null;
     let feedEntries = [];
+
+    async function setDisplayMode(mode) {
+      // Update button UI
+      document.querySelectorAll('.mode-toggle button').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('mode-' + mode);
+      if (btn) btn.classList.add('active');
+
+      // Broadcast to all caption clients via backend
+      const sessionId = document.getElementById('feedSessionSelect').value;
+      if (sessionId) {
+        try {
+          await fetch(`${baseUrl}/fireflies/sessions/${sessionId}/display-mode`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: mode})
+          });
+          log(`Display mode set to: ${mode}`, 'info');
+        } catch (e) {
+          console.error('Failed to set display mode:', e);
+          log(`Failed to set display mode: ${e.message}`, 'error');
+        }
+      }
+    }
 
     function updateFeedSessionSelect() {
       const select = document.getElementById('feedSessionSelect');
