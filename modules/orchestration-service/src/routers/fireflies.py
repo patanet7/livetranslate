@@ -12,6 +12,7 @@ All transcripts are stored in the existing bot_sessions database
 with source_type='fireflies'.
 """
 
+import asyncio
 import os
 import uuid
 from datetime import UTC, datetime
@@ -57,6 +58,10 @@ logger = get_logger()
 
 # Create router
 router = APIRouter(prefix="/fireflies", tags=["fireflies"])
+
+# Auto-connect polling state
+_auto_connect_task: asyncio.Task[None] | None = None
+_known_meeting_ids: set[str] = set()
 
 
 # =============================================================================
@@ -547,6 +552,142 @@ def get_api_key_from_config() -> str | None:
     """Get API key from config if available"""
     config = get_fireflies_config()
     return config.api_key if config.has_api_key() else None
+
+
+# =============================================================================
+# Auto-Connect Polling Loop
+# =============================================================================
+
+
+async def _auto_connect_loop(manager: FirefliesSessionManager) -> None:
+    """Poll for active Fireflies meetings and auto-connect new ones.
+
+    Runs continuously until cancelled.  On each poll cycle:
+    - Fetches the active meeting list from Fireflies GraphQL.
+    - Connects to any meeting not yet tracked in ``_known_meeting_ids``.
+    - Triggers ``_download_meeting_data`` for meetings that disappeared
+      (i.e. ended) since the last poll.
+
+    Environment variables:
+        FIREFLIES_API_KEY         - Required. Fireflies API key.
+        FIREFLIES_POLL_INTERVAL   - Seconds between polls (default 30).
+        DEFAULT_TARGET_LANGUAGE   - Target language for auto-sessions (default "zh").
+        MEETING_DOWNLOAD_ON_COMPLETE - "true" to download full data on end (default "true").
+    """
+    global _known_meeting_ids
+
+    api_key = os.environ.get("FIREFLIES_API_KEY", "")
+    poll_interval = int(os.environ.get("FIREFLIES_POLL_INTERVAL", "30"))
+    target_language = os.environ.get("DEFAULT_TARGET_LANGUAGE", "zh")
+
+    logger.info("auto_connect_loop_started", poll_interval=poll_interval)
+
+    while True:
+        try:
+            client = FirefliesGraphQLClient(api_key=api_key)
+            try:
+                meetings = await client.get_active_meetings()
+            finally:
+                await client.close()
+
+            current_ids = {m.id for m in meetings} if meetings else set()
+
+            # New meetings: auto-connect
+            for meeting in meetings or []:
+                if meeting.id not in _known_meeting_ids:
+                    logger.info(
+                        "auto_connect_new_meeting",
+                        meeting_id=meeting.id,
+                        title=meeting.title,
+                    )
+                    try:
+                        config = FirefliesSessionConfig(
+                            api_key=api_key,
+                            transcript_id=meeting.id,
+                            target_languages=[target_language],
+                        )
+
+                        # Get optional services for the pipeline
+                        data_pipeline = get_data_pipeline()
+                        db_manager = data_pipeline.db_manager if data_pipeline else None
+
+                        llm_client = None
+                        try:
+                            llm_client = get_fireflies_llm_client()
+                            await llm_client.connect()
+                        except Exception:
+                            pass  # Translation will be skipped
+
+                        try:
+                            meeting_intelligence = get_meeting_intelligence_service()
+                        except Exception:
+                            meeting_intelligence = None
+
+                        try:
+                            event_publisher = get_event_publisher()
+                        except Exception:
+                            event_publisher = None
+
+                        await manager.create_session(
+                            config,
+                            db_manager=db_manager,
+                            llm_client=llm_client,
+                            meeting_intelligence=meeting_intelligence,
+                            event_publisher=event_publisher,
+                        )
+                    except Exception as exc:
+                        logger.error(
+                            "auto_connect_failed",
+                            meeting_id=meeting.id,
+                            error=str(exc),
+                        )
+
+            # Ended meetings: trigger full download
+            ended_ids = _known_meeting_ids - current_ids
+            for ended_id in ended_ids:
+                logger.info("auto_connect_meeting_ended", meeting_id=ended_id)
+                if os.environ.get("MEETING_DOWNLOAD_ON_COMPLETE", "true").lower() == "true":
+                    asyncio.create_task(_download_meeting_data(ended_id))
+
+            _known_meeting_ids = current_ids
+
+        except Exception as exc:
+            logger.error("auto_connect_poll_error", error=str(exc))
+
+        await asyncio.sleep(poll_interval)
+
+
+@router.on_event("startup")
+async def _start_auto_connect() -> None:
+    """Start auto-connect polling if FIREFLIES_AUTO_CONNECT=true."""
+    global _auto_connect_task
+
+    if os.environ.get("FIREFLIES_AUTO_CONNECT", "false").lower() != "true":
+        return
+
+    api_key = os.environ.get("FIREFLIES_API_KEY")
+    if not api_key:
+        logger.warning("fireflies_auto_connect_no_api_key")
+        return
+
+    manager = get_session_manager()
+    _auto_connect_task = asyncio.create_task(_auto_connect_loop(manager))
+    logger.info("fireflies_auto_connect_enabled")
+
+
+@router.on_event("shutdown")
+async def _stop_auto_connect() -> None:
+    """Cancel the auto-connect polling task on shutdown."""
+    global _auto_connect_task
+
+    if _auto_connect_task is not None:
+        _auto_connect_task.cancel()
+        try:
+            await _auto_connect_task
+        except asyncio.CancelledError:
+            pass
+        _auto_connect_task = None
+        logger.info("fireflies_auto_connect_stopped")
 
 
 # =============================================================================
