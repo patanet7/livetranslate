@@ -207,6 +207,21 @@ class FirefliesSessionManager:
 
         coordinator.on_caption_event(_broadcast_caption_to_ws)
 
+        # Bridge interim (word-by-word) caption updates to WebSocket clients
+        async def handle_live_update(chunk: FirefliesChunk, is_final: bool) -> None:
+            """Broadcast interim caption updates to WebSocket clients."""
+            await ws_manager.broadcast_to_session(
+                session_id,
+                {
+                    "event": "interim_caption",
+                    "chunk_id": chunk.chunk_id,
+                    "text": chunk.text,
+                    "speaker_name": chunk.speaker_name,
+                    "speaker_color": None,  # CaptionBuffer assigns colors for final captions
+                    "is_final": is_final,
+                },
+            )
+
         logger.info(f"Pipeline coordinator initialized for session {session_id}")
 
         # =====================================================================
@@ -261,6 +276,7 @@ class FirefliesSessionManager:
                 on_transcript=handle_transcript,
                 on_status_change=handle_status,
                 on_error=handle_error,
+                on_live_update=handle_live_update,
                 auto_reconnect=True,
             )
         except Exception as e:
