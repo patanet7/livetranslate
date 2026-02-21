@@ -752,6 +752,28 @@ async def get_session(
     )
 
 
+class DisplayModeRequest(BaseModel):
+    """Request to change caption display mode"""
+
+    mode: str = Field(default="both", description="Display mode: english, translated, both")
+
+
+@router.put(
+    "/sessions/{session_id}/display-mode",
+    summary="Set caption display mode",
+    description="Broadcast display mode change to all caption clients in a session",
+)
+async def set_display_mode(session_id: str, body: DisplayModeRequest) -> dict[str, Any]:
+    """Broadcast display mode change to all caption clients in a session."""
+    ws_manager = get_ws_manager()
+    await ws_manager.broadcast_to_session(
+        session_id,
+        {"event": "set_display_mode", "mode": body.mode},
+    )
+    logger.info("display_mode_changed", session_id=session_id, mode=body.mode)
+    return {"success": True, "mode": body.mode}
+
+
 @router.post(
     "/meetings",
     response_model=ActiveMeetingsResponse,
