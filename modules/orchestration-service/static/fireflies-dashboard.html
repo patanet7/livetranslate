@@ -528,6 +528,21 @@
       <div class="card">
         <h2>🎯 Connect to Fireflies Meeting</h2>
 
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label>Paste Meeting Link</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="meetingLink" placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                   style="flex: 1;" />
+            <button onclick="inviteBot()" class="btn-secondary" style="white-space: nowrap;">Invite Bot</button>
+          </div>
+          <small style="color: #666; margin-top: 4px; display: block;">Sends Fireflies bot to join the meeting. Auto-connects when ready.</small>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 15px;">
+          <label>Meeting Title (optional)</label>
+          <input type="text" id="meetingTitle" placeholder="e.g. Weekly Standup" />
+        </div>
+
         <div class="form-row" style="margin-bottom: 16px;">
           <div class="form-group">
             <label>Meeting/Transcript ID</label>
@@ -784,6 +799,42 @@
       </div>
 
       <div class="card">
+        <h2>🌐 Translation Backend</h2>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label>Backend</label>
+          <select id="translationBackend">
+            <option value="ollama">Ollama (Local)</option>
+            <option value="vllm">vLLM (GPU)</option>
+            <option value="openai">OpenAI</option>
+            <option value="groq">Groq</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label>Model</label>
+          <input type="text" id="translationModelInput" value="qwen2.5:3b" />
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label>Target Language</label>
+          <select id="translationLanguage">
+            <option value="zh">Chinese (中文)</option>
+            <option value="es">Spanish (Espanol)</option>
+            <option value="fr">French (Francais)</option>
+            <option value="de">German (Deutsch)</option>
+            <option value="ja">Japanese (日本語)</option>
+            <option value="ko">Korean (한국어)</option>
+            <option value="pt">Portuguese (Portugues)</option>
+            <option value="ar">Arabic (العربية)</option>
+            <option value="hi">Hindi (हिन्दी)</option>
+            <option value="ru">Russian (Русский)</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button onclick="saveTranslationBackendConfig()" class="btn-primary">Save Translation Config</button>
+          <button onclick="loadTranslationBackendConfig()" class="btn-secondary">Refresh</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>🩺 Service Status</h2>
         <div id="serviceStatus">
           <p>Checking services...</p>
@@ -846,6 +897,13 @@
           <button onclick="setDisplayMode('english')" id="mode-english">English</button>
           <button onclick="setDisplayMode('both')" id="mode-both" class="active">Both</button>
           <button onclick="setDisplayMode('translated')" id="mode-translated">Translated</button>
+        </div>
+      </div>
+
+      <div id="captionPreview" class="card" style="margin-bottom: 20px;">
+        <h2>💬 Caption Preview</h2>
+        <div id="captionPreviewContent" style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 16px; min-height: 80px; font-size: 16px; color: #fff;">
+          <span style="color: #666; font-style: italic;">Captions will appear here when connected...</span>
         </div>
       </div>
 
@@ -1149,6 +1207,9 @@
 
       // Load translation config
       await loadTranslationConfig();
+
+      // Load translation backend config (Settings tab)
+      await loadTranslationBackendConfig();
 
       // Load active sessions
       await refreshSessions();
@@ -1665,6 +1726,50 @@
       } finally {
         btn.disabled = false;
         btn.textContent = 'Connect';
+      }
+    }
+
+    // ==========================================================================
+    // Invite Bot to Meeting
+    // ==========================================================================
+    async function inviteBot() {
+      const link = document.getElementById('meetingLink').value.trim();
+      if (!link) {
+        showAlert('Please enter a meeting link', 'error');
+        return;
+      }
+
+      const titleEl = document.getElementById('meetingTitle');
+      const title = titleEl ? titleEl.value.trim() : null;
+
+      log(`Inviting bot to meeting: ${link}`, 'info');
+      apiLog('POST', '/fireflies/invite-bot', { meeting_link: link, title: title || '(none)' });
+
+      try {
+        const resp = await fetch(`${baseUrl}/fireflies/invite-bot`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            meeting_link: link,
+            title: title || undefined,
+            duration: 60
+          })
+        });
+        const data = await resp.json();
+        if (data.success) {
+          showAlert('Fireflies bot invited! Auto-connecting when ready...', 'success');
+          log('Bot invite sent successfully', 'success');
+          apiLog('RESPONSE', '/fireflies/invite-bot', data, true);
+          document.getElementById('meetingLink').value = '';
+          if (titleEl) titleEl.value = '';
+        } else {
+          showAlert('Failed: ' + (data.detail || data.message || 'Unknown error'), 'error');
+          log(`Bot invite failed: ${data.detail || data.message}`, 'error');
+          apiLog('RESPONSE', '/fireflies/invite-bot', data, false);
+        }
+      } catch (e) {
+        showAlert('Error inviting bot: ' + e.message, 'error');
+        log(`Bot invite error: ${e.message}`, 'error');
       }
     }
 
@@ -2469,6 +2574,25 @@ Translation:`,
       transEntry.innerHTML = `<span style="color:#4CAF50;">[${caption.speaker_name || 'Speaker'}]</span> ${escapeHtml(caption.translated_text || '')} <span style="color:#888; font-size:10px;">${confPercent}</span>`;
       translatedDiv.appendChild(transEntry);
       translatedDiv.scrollTop = translatedDiv.scrollHeight;
+
+      // Update caption preview with the latest caption
+      updateCaptionPreview(caption);
+    }
+
+    function updateCaptionPreview(caption) {
+      const previewEl = document.getElementById('captionPreviewContent');
+      if (!previewEl) return;
+
+      const speaker = caption.speaker_name || 'Speaker';
+      const original = caption.original_text || '';
+      const translated = caption.translated_text || '';
+
+      let html = `<div style="margin-bottom: 6px;"><span style="color:#64B5F6; font-weight: 600;">${escapeHtml(speaker)}:</span> ${escapeHtml(original)}</div>`;
+      if (translated) {
+        html += `<div style="color: #4CAF50; font-size: 14px;">${escapeHtml(translated)}</div>`;
+      }
+
+      previewEl.innerHTML = html;
     }
 
     function updateCaptionInFeed(caption) {
@@ -2510,6 +2634,11 @@ Translation:`,
         '<div class="empty-state">Connect to a session to see live transcripts</div>';
       document.getElementById('translatedFeed').innerHTML =
         '<div class="empty-state">Connect to a session to see live translations</div>';
+      // Reset caption preview
+      const previewEl = document.getElementById('captionPreviewContent');
+      if (previewEl) {
+        previewEl.innerHTML = '<span style="color: #666; font-style: italic;">Captions will appear here when connected...</span>';
+      }
       updateFeedStats();
     }
 
@@ -3696,6 +3825,65 @@ Translation:`,
         const typingEls = container.querySelectorAll('[id^="typing-"]');
         typingEls.forEach(el => el.remove());
         container.innerHTML += `<div style="text-align:left; margin-bottom:8px;"><span style="background:#5a1a1a; color:#f44; padding:6px 12px; border-radius:12px; display:inline-block;">Error: ${e.message}</span></div>`;
+      }
+    }
+
+    // ==========================================================================
+    // Translation Backend Configuration (Settings tab)
+    // ==========================================================================
+    async function saveTranslationBackendConfig() {
+      const backend = document.getElementById('translationBackend').value;
+      const config = {
+        backend: backend,
+        model: document.getElementById('translationModelInput').value,
+        target_language: document.getElementById('translationLanguage').value,
+        temperature: 0.3,
+        max_tokens: 2048,
+        base_url: backend === 'ollama' ? 'http://localhost:11434/v1' : ''
+      };
+
+      log(`Saving translation config: backend=${config.backend}, model=${config.model}, lang=${config.target_language}`, 'info');
+      apiLog('PUT', '/fireflies/config/translation', config);
+
+      try {
+        const resp = await fetch(`${baseUrl}/fireflies/config/translation`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(config)
+        });
+        const data = await resp.json();
+        if (data.success) {
+          const msg = 'Translation config saved' + (data.warning ? ' (warning: ' + data.warning + ')' : '');
+          showAlert(msg, 'success');
+          log(msg, 'success');
+          apiLog('RESPONSE', '/fireflies/config/translation', data, true);
+        } else {
+          showAlert('Failed to save: ' + (data.detail || data.message || 'Unknown error'), 'error');
+          apiLog('RESPONSE', '/fireflies/config/translation', data, false);
+        }
+      } catch (e) {
+        showAlert('Error saving config: ' + e.message, 'error');
+        log(`Translation config save error: ${e.message}`, 'error');
+      }
+    }
+
+    async function loadTranslationBackendConfig() {
+      try {
+        const resp = await fetch(`${baseUrl}/fireflies/config/translation`);
+        const data = await resp.json();
+        if (data.config) {
+          const backendEl = document.getElementById('translationBackend');
+          const modelEl = document.getElementById('translationModelInput');
+          const langEl = document.getElementById('translationLanguage');
+
+          if (backendEl) backendEl.value = data.config.backend || 'ollama';
+          if (modelEl) modelEl.value = data.config.model || 'qwen2.5:3b';
+          if (langEl) langEl.value = data.config.target_language || 'zh';
+
+          log('Translation backend config loaded', 'info');
+        }
+      } catch (e) {
+        console.error('Failed to load translation backend config:', e);
       }
     }
 
