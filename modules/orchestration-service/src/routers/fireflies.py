@@ -20,6 +20,7 @@ from typing import Any
 from clients.fireflies_client import (
     FirefliesAPIError,
     FirefliesClient,
+    FirefliesGraphQLClient,
 )
 from dependencies import (
     get_data_pipeline,
@@ -27,7 +28,7 @@ from dependencies import (
     get_fireflies_llm_client,
     get_meeting_intelligence_service,
 )
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from livetranslate_common.logging import get_logger
 from models.fireflies import (
     ActiveMeetingsResponse,
@@ -925,6 +926,165 @@ async def health_check(
             for s in sessions
         ],
     }
+
+
+# =============================================================================
+# Post-Meeting Webhook & Full Data Download
+# =============================================================================
+
+
+async def _download_meeting_data(fireflies_transcript_id: str) -> None:
+    """Download full transcript and insights from Fireflies after meeting completes.
+
+    Called as a background task when the Fireflies webhook fires or when
+    auto-connect polling detects a meeting has ended.  Downloads all data
+    via the expanded GraphQL query and stores everything in PostgreSQL
+    via MeetingStore.
+    """
+    api_key = os.environ.get("FIREFLIES_API_KEY", "")
+    db_url = os.environ.get("DATABASE_URL", "")
+
+    if not api_key or not db_url:
+        logger.error(
+            "download_meeting_data_missing_config",
+            has_api_key=bool(api_key),
+            has_db_url=bool(db_url),
+        )
+        return
+
+    try:
+        # Download full transcript from Fireflies
+        client = FirefliesGraphQLClient(api_key=api_key)
+        try:
+            result = await client.download_full_transcript(fireflies_transcript_id)
+        finally:
+            await client.close()
+
+        if not result:
+            logger.error(
+                "download_meeting_data_no_result",
+                transcript_id=fireflies_transcript_id,
+            )
+            return
+
+        # Initialize meeting store
+        store = MeetingStore(db_url)
+        await store.initialize()
+
+        try:
+            # Find or create meeting record
+            meeting = await store.get_meeting_by_ff_id(fireflies_transcript_id)
+            if meeting:
+                meeting_db_id = str(meeting["id"])
+                await store.complete_meeting(meeting_db_id)
+            else:
+                transcript_data = result["transcript"]
+                meeting_db_id = await store.create_meeting(
+                    fireflies_transcript_id=fireflies_transcript_id,
+                    title=transcript_data.get("title"),
+                    meeting_link=transcript_data.get("meeting_link"),
+                    organizer_email=transcript_data.get("organizer_email"),
+                    participants=transcript_data.get("participants"),
+                    source="fireflies",
+                    status="completed",
+                )
+
+            # Store all insights
+            for insight in result.get("insights", []):
+                await store.store_insight(
+                    meeting_id=meeting_db_id,
+                    insight_type=insight["type"],
+                    content=insight["content"],
+                    source="fireflies",
+                )
+
+            # Store sentences with ai_filters
+            for sentence in result.get("sentences", []):
+                sentence_id = await store.store_sentence(
+                    meeting_id=meeting_db_id,
+                    text=sentence.get("text", ""),
+                    speaker_name=sentence.get("speaker_name", "Unknown"),
+                    start_time=float(sentence.get("start_time", 0)),
+                    end_time=float(sentence.get("end_time", 0)),
+                    boundary_type="fireflies_download",
+                )
+                # Store ai_filters as per-sentence insight
+                if sentence.get("ai_filters"):
+                    await store.store_insight(
+                        meeting_id=meeting_db_id,
+                        insight_type="sentence_ai_filter",
+                        content={
+                            "sentence_id": sentence_id,
+                            "filters": sentence["ai_filters"],
+                        },
+                        source="fireflies",
+                    )
+
+            # Store speaker analytics
+            for insight in result.get("insights", []):
+                if insight.get("type") == "speaker_analytics":
+                    for speaker_data in insight.get("content") or []:
+                        if isinstance(speaker_data, dict):
+                            await store.store_speaker(
+                                meeting_id=meeting_db_id,
+                                speaker_name=speaker_data.get("name", "Unknown"),
+                                talk_time_seconds=float(
+                                    speaker_data.get("duration", 0)
+                                ),
+                                word_count=int(speaker_data.get("word_count", 0)),
+                                analytics=speaker_data,
+                            )
+
+            logger.info(
+                "meeting_data_downloaded",
+                transcript_id=fireflies_transcript_id,
+                meeting_db_id=meeting_db_id,
+                insight_count=len(result.get("insights", [])),
+                sentence_count=len(result.get("sentences", [])),
+            )
+        finally:
+            await store.close()
+
+    except Exception as e:
+        logger.error(
+            "download_meeting_data_failed",
+            transcript_id=fireflies_transcript_id,
+            error=str(e),
+        )
+
+
+@router.post(
+    "/webhook",
+    summary="Handle Fireflies post-meeting webhook",
+    description="Receives Fireflies webhook notifications when transcription completes and triggers background data download",
+)
+async def fireflies_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict[str, str]:
+    """Handle Fireflies post-meeting webhook.
+
+    Fireflies POSTs here when transcription completes. Payload:
+    {"meetingId": "xxx", "eventType": "Transcription completed", "clientReferenceId": "..."}
+
+    The endpoint returns immediately (200) and processes the download in a
+    background task so Fireflies does not time out waiting for our response.
+    """
+    body = await request.json()
+    event_type = body.get("eventType")
+    meeting_id = body.get("meetingId")
+
+    if event_type == "Transcription completed" and meeting_id:
+        logger.info(
+            "fireflies_webhook_received",
+            event_type=event_type,
+            meeting_id=meeting_id,
+        )
+        background_tasks.add_task(_download_meeting_data, meeting_id)
+        return {"status": "accepted"}
+
+    logger.debug("fireflies_webhook_ignored", event_type=event_type)
+    return {"status": "ignored"}
 
 
 # =============================================================================
