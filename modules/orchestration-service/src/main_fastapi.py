@@ -212,6 +212,16 @@ try:
         "routes": len(insights_router.routes) if hasattr(insights_router, "routes") else 0,
     }
 
+    # Import meetings_router (Meeting History & Search)
+    import_logger.debug("Importing meetings_router...")
+    from routers.meetings import router as meetings_router
+
+    import_logger.info("[OK] meetings_router imported successfully")
+    routers_status["meetings_router"] = {
+        "status": "success",
+        "routes": len(meetings_router.routes) if hasattr(meetings_router, "routes") else 0,
+    }
+
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
@@ -627,6 +637,14 @@ conflicts = check_route_conflicts("/api/intelligence", "insights_router", regist
 app.include_router(insights_router, prefix="/api/intelligence", tags=["Meeting Intelligence"])
 registered_routes.append(("/api/intelligence", "insights_router"))
 router_logger.info(" insights_router registered successfully")
+
+# Register meetings_router (Meeting History & Search)
+router_logger.info("[17] Registering meetings_router...")
+log_router_details("meetings_router", meetings_router, "/api/meetings")
+conflicts = check_route_conflicts("/api/meetings", "meetings_router", registered_routes)
+app.include_router(meetings_router, prefix="/api", tags=["Meetings"])
+registered_routes.append(("/api/meetings", "meetings_router"))
+router_logger.info(" meetings_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
