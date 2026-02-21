@@ -19,8 +19,9 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 # Import shared Base from base.py to ensure all models share the same MetaData
@@ -841,3 +842,250 @@ class AgentMessage(Base):
         Index("idx_agent_messages_role", "role"),
         Index("idx_agent_messages_created_at", "created_at"),
     )
+
+
+# =============================================================================
+# Fireflies Meeting Persistence Models (Migration 005)
+# =============================================================================
+
+
+class Meeting(Base):
+    """Core meeting record — one row per Fireflies meeting session."""
+
+    __tablename__ = "meetings"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fireflies_transcript_id = Column(Text, nullable=True, index=True)
+    title = Column(Text, nullable=True)
+    meeting_link = Column(Text, nullable=True)
+    organizer_email = Column(Text, nullable=True)
+    participants = Column(JSONB, nullable=False, default=list)
+    start_time = Column(DateTime(timezone=True), nullable=True)
+    end_time = Column(DateTime(timezone=True), nullable=True)
+    duration = Column(Integer, nullable=True)  # seconds
+    source = Column(Text, nullable=False, default="fireflies")
+    status = Column(Text, nullable=False, default="live")
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    # Relationships
+    chunks = relationship("MeetingChunk", back_populates="meeting", cascade="all, delete-orphan")
+    sentences = relationship(
+        "MeetingSentence", back_populates="meeting", cascade="all, delete-orphan"
+    )
+    data_insights = relationship(
+        "MeetingDataInsight", back_populates="meeting", cascade="all, delete-orphan"
+    )
+    speakers = relationship(
+        "MeetingSpeaker", back_populates="meeting", cascade="all, delete-orphan"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_meetings_ff_id", "fireflies_transcript_id"),
+        Index("idx_meetings_status", "status"),
+        Index("idx_meetings_source", "source"),
+        Index("idx_meetings_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "id": str(self.id),
+            "fireflies_transcript_id": self.fireflies_transcript_id,
+            "title": self.title,
+            "meeting_link": self.meeting_link,
+            "organizer_email": self.organizer_email,
+            "participants": self.participants,
+            "start_time": self.start_time.isoformat() if self.start_time else None,
+            "end_time": self.end_time.isoformat() if self.end_time else None,
+            "duration": self.duration,
+            "source": self.source,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class MeetingChunk(Base):
+    """Deduplicated raw transcript chunks from the real-time stream."""
+
+    __tablename__ = "meeting_chunks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    chunk_id = Column(Text, nullable=False)
+    text = Column(Text, nullable=False)
+    speaker_name = Column(Text, nullable=True)
+    start_time = Column(Float, nullable=True)
+    end_time = Column(Float, nullable=True)
+    is_command = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    # Relationships
+    meeting = relationship("Meeting", back_populates="chunks")
+
+    # Indexes and unique constraint
+    __table_args__ = (
+        Index("idx_chunks_meeting", "meeting_id"),
+        UniqueConstraint("meeting_id", "chunk_id", name="uq_meeting_chunks_meeting_chunk"),
+    )
+
+
+class MeetingSentence(Base):
+    """Aggregated sentences assembled from transcript chunks."""
+
+    __tablename__ = "meeting_sentences"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    text = Column(Text, nullable=False)
+    speaker_name = Column(Text, nullable=True)
+    start_time = Column(Float, nullable=True)
+    end_time = Column(Float, nullable=True)
+    boundary_type = Column(Text, nullable=True)  # period, question, pause, timeout
+    chunk_ids = Column(JSONB, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    # Relationships
+    meeting = relationship("Meeting", back_populates="sentences")
+    translations = relationship(
+        "MeetingTranslation", back_populates="sentence", cascade="all, delete-orphan"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_sentences_meeting", "meeting_id"),
+        Index("idx_sentences_speaker", "speaker_name"),
+        Index("idx_sentences_start_time", "start_time"),
+    )
+
+
+class MeetingTranslation(Base):
+    """Translations of aggregated sentences into target languages."""
+
+    __tablename__ = "meeting_translations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sentence_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("meeting_sentences.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    translated_text = Column(Text, nullable=False)
+    target_language = Column(Text, nullable=False)
+    source_language = Column(Text, nullable=False, default="en")
+    confidence = Column(Float, nullable=True)
+    translation_time_ms = Column(Float, nullable=True)
+    model_used = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    # Relationships
+    sentence = relationship("MeetingSentence", back_populates="translations")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_mtrans_sentence", "sentence_id"),
+        Index("idx_mtrans_target_language", "target_language"),
+    )
+
+
+class MeetingDataInsight(Base):
+    """AI-generated insights stored as flexible JSONB content.
+
+    Named MeetingDataInsight / meeting_data_insights to avoid collision with
+    the existing MeetingInsight / meeting_insights table (migration 004) which
+    stores LLM-generated structured text linked to bot_sessions.
+    """
+
+    __tablename__ = "meeting_data_insights"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    insight_type = Column(Text, nullable=False)
+    content = Column(JSONB, nullable=False)
+    source = Column(Text, nullable=False, default="fireflies")
+    model_used = Column(Text, nullable=True)
+    generated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
+
+    # Relationships
+    meeting = relationship("Meeting", back_populates="data_insights")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_data_insights_meeting", "meeting_id"),
+        Index("idx_data_insights_type", "insight_type"),
+        Index("idx_data_insights_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "id": str(self.id),
+            "meeting_id": str(self.meeting_id),
+            "insight_type": self.insight_type,
+            "content": self.content,
+            "source": self.source,
+            "model_used": self.model_used,
+            "generated_at": self.generated_at.isoformat() if self.generated_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class MeetingSpeaker(Base):
+    """Per-meeting speaker analytics and metadata."""
+
+    __tablename__ = "meeting_speakers"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    meeting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    speaker_name = Column(Text, nullable=False)
+    email = Column(Text, nullable=True)
+    talk_time_seconds = Column(Float, nullable=False, default=0.0)
+    word_count = Column(Integer, nullable=False, default=0)
+    sentiment_score = Column(Float, nullable=True)
+    analytics = Column(JSONB, nullable=True)
+
+    # Relationships
+    meeting = relationship("Meeting", back_populates="speakers")
+
+    # Indexes and unique constraint
+    __table_args__ = (
+        Index("idx_speakers_meeting", "meeting_id"),
+        Index("idx_speakers_name", "speaker_name"),
+        UniqueConstraint(
+            "meeting_id", "speaker_name", name="uq_meeting_speakers_meeting_speaker"
+        ),
+    )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "id": str(self.id),
+            "meeting_id": str(self.meeting_id),
+            "speaker_name": self.speaker_name,
+            "email": self.email,
+            "talk_time_seconds": self.talk_time_seconds,
+            "word_count": self.word_count,
+            "sentiment_score": self.sentiment_score,
+            "analytics": self.analytics,
+        }

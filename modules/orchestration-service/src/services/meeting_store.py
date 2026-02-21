@@ -121,7 +121,7 @@ class MeetingStore:
                    (SELECT COUNT(*) FROM meeting_translations mt
                     JOIN meeting_sentences ms ON mt.sentence_id = ms.id
                     WHERE ms.meeting_id = m.id) as translation_count,
-                   (SELECT COUNT(*) FROM meeting_insights WHERE meeting_id = m.id) as insight_count
+                   (SELECT COUNT(*) FROM meeting_data_insights WHERE meeting_id = m.id) as insight_count
             FROM meetings m WHERE m.id = $1::uuid
             """,
             meeting_id,
@@ -265,8 +265,8 @@ class MeetingStore:
 
         await self._pool.execute(
             """
-            INSERT INTO meeting_insights (id, meeting_id, insight_type, content,
-                                          source, model_used)
+            INSERT INTO meeting_data_insights (id, meeting_id, insight_type, content,
+                                               source, model_used)
             VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, $5, $6)
             """,
             str(uuid.uuid4()),
@@ -355,7 +355,7 @@ class MeetingStore:
         await self._ensure_pool()
         rows = await self._pool.fetch(
             """
-            SELECT * FROM meeting_insights
+            SELECT * FROM meeting_data_insights
             WHERE meeting_id = $1::uuid
             ORDER BY created_at
             """,
