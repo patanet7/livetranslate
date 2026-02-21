@@ -3,7 +3,16 @@
 -- including transcript chunks, aggregated sentences, translations, AI insights,
 -- and speaker metadata. Designed for the Fireflies Real-Time Enhancement project.
 --
+-- NOTE: This file uses meeting_data_insights (not meeting_insights) to avoid
+-- collision with the bot-sessions meeting_insights table managed by Alembic
+-- migration 004. The meeting_insights table (migration 004) is linked to
+-- bot_sessions via session_id and stores LLM-generated structured text insights.
+-- The meeting_data_insights table stores Fireflies AI insights as JSONB content
+-- linked to meetings via meeting_id.
+--
 -- This schema is idempotent: safe to re-apply with CREATE TABLE IF NOT EXISTS.
+-- However, production schema changes MUST go through Alembic migrations.
+-- See: modules/orchestration-service/alembic/versions/005_add_fireflies_meeting_persistence.py
 
 -- Enable uuid-ossp extension for UUID generation (idempotent)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -82,17 +91,21 @@ CREATE TABLE IF NOT EXISTS meeting_translations (
 );
 
 -- ============================================================================
--- meeting_insights: AI-generated insights with JSONB content
+-- meeting_data_insights: AI-generated insights with JSONB content
 -- Deliberately schema-flexible via JSONB to accommodate the many types of
 -- insights Fireflies produces (summaries, action items, sentiment, etc.)
 -- without requiring schema migrations for each new insight type.
+--
+-- Named meeting_data_insights (not meeting_insights) to avoid collision with
+-- the existing meeting_insights table from Alembic migration 004 which is
+-- linked to bot_sessions and stores LLM-generated structured text.
 --
 -- insight_type values:
 --   'summary', 'action_items', 'keywords', 'topics', 'sentiment',
 --   'speaker_analytics', 'ai_filters', 'attendance', 'media',
 --   'outline', 'questions', 'decisions', 'custom'
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS meeting_insights (
+CREATE TABLE IF NOT EXISTS meeting_data_insights (
     id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     meeting_id    UUID NOT NULL REFERENCES meetings (id) ON DELETE CASCADE,
     insight_type  TEXT NOT NULL,
@@ -141,14 +154,14 @@ CREATE INDEX IF NOT EXISTS idx_sentences_meeting
     ON meeting_sentences (meeting_id);
 
 -- meeting_translations indexes
-CREATE INDEX IF NOT EXISTS idx_translations_sentence
+CREATE INDEX IF NOT EXISTS idx_mtrans_sentence
     ON meeting_translations (sentence_id);
 
--- meeting_insights indexes
+-- meeting_data_insights indexes
 CREATE INDEX IF NOT EXISTS idx_insights_meeting
-    ON meeting_insights (meeting_id);
+    ON meeting_data_insights (meeting_id);
 CREATE INDEX IF NOT EXISTS idx_insights_type
-    ON meeting_insights (insight_type);
+    ON meeting_data_insights (insight_type);
 
 -- meeting_speakers indexes
 CREATE INDEX IF NOT EXISTS idx_speakers_meeting
@@ -184,7 +197,7 @@ COMMENT ON TABLE meetings IS 'Core meeting record — one row per Fireflies meet
 COMMENT ON TABLE meeting_chunks IS 'Raw transcript chunks deduplicated by (meeting_id, chunk_id)';
 COMMENT ON TABLE meeting_sentences IS 'Aggregated sentences assembled from transcript chunks';
 COMMENT ON TABLE meeting_translations IS 'Translations of aggregated sentences into target languages';
-COMMENT ON TABLE meeting_insights IS 'AI-generated insights stored as flexible JSONB content';
+COMMENT ON TABLE meeting_data_insights IS 'AI-generated insights stored as flexible JSONB content (named meeting_data_insights to avoid collision with migration 004 meeting_insights)';
 COMMENT ON TABLE meeting_speakers IS 'Speaker-level metadata and analytics per meeting';
 
 COMMENT ON COLUMN meetings.fireflies_transcript_id IS 'Links to the Fireflies.ai transcript ID';
@@ -196,8 +209,8 @@ COMMENT ON COLUMN meeting_chunks.is_command IS 'Whether this chunk is a voice co
 COMMENT ON COLUMN meeting_sentences.boundary_type IS 'Sentence boundary detection type: period, question, pause, timeout';
 COMMENT ON COLUMN meeting_sentences.chunk_ids IS 'JSON array of chunk IDs that compose this sentence';
 COMMENT ON COLUMN meeting_translations.translation_time_ms IS 'Time taken to produce this translation in milliseconds';
-COMMENT ON COLUMN meeting_insights.insight_type IS 'Type of insight: summary, action_items, keywords, topics, sentiment, speaker_analytics, ai_filters, attendance, media, outline, questions, decisions, custom';
-COMMENT ON COLUMN meeting_insights.content IS 'Flexible JSONB payload — structure varies by insight_type';
+COMMENT ON COLUMN meeting_data_insights.insight_type IS 'Type of insight: summary, action_items, keywords, topics, sentiment, speaker_analytics, ai_filters, attendance, media, outline, questions, decisions, custom';
+COMMENT ON COLUMN meeting_data_insights.content IS 'Flexible JSONB payload — structure varies by insight_type';
 COMMENT ON COLUMN meeting_speakers.analytics IS 'Flexible JSONB for speaker-level analytics from Fireflies';
 
 -- ============================================================================
@@ -206,7 +219,7 @@ COMMENT ON COLUMN meeting_speakers.analytics IS 'Flexible JSONB for speaker-leve
 DO $$
 BEGIN
     RAISE NOTICE 'Meeting persistence schema created successfully!';
-    RAISE NOTICE 'Tables: meetings, meeting_chunks, meeting_sentences, meeting_translations, meeting_insights, meeting_speakers';
+    RAISE NOTICE 'Tables: meetings, meeting_chunks, meeting_sentences, meeting_translations, meeting_data_insights, meeting_speakers';
     RAISE NOTICE 'Indexes: 10 B-tree indexes + 2 full-text search (GIN) indexes';
     RAISE NOTICE 'Trigger: auto-update updated_at on meetings';
 END
