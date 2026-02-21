@@ -108,6 +108,15 @@ query Transcript($id: String!) {
 }
 """
 
+ADD_TO_LIVE_MEETING_MUTATION = """
+mutation AddToLiveMeeting($meeting_link: String!, $title: String, $duration: Int) {
+  addToLiveMeeting(meeting_link: $meeting_link, title: $title, duration: $duration) {
+    success
+    message
+  }
+}
+"""
+
 TRANSCRIPT_FULL_QUERY = """
 query TranscriptFull($id: String!) {
   transcript(id: $id) {
@@ -462,6 +471,33 @@ class FirefliesGraphQLClient:
         except Exception as e:
             logger.error("full_transcript_download_failed", transcript_id=transcript_id, error=str(e))
             raise
+
+    async def add_to_live_meeting(
+        self,
+        meeting_link: str,
+        title: str | None = None,
+        duration: int = 60,
+    ) -> dict[str, Any]:
+        """Invite Fireflies bot to join a live meeting.
+
+        Args:
+            meeting_link: Meeting URL (Google Meet, Zoom, etc.)
+            title: Optional meeting title (max 256 chars)
+            duration: Expected duration in minutes (15-120, default 60)
+
+        Returns:
+            {"success": True/False, "message": "..."}
+
+        Note: Rate limited to 3 requests per 20 minutes.
+        """
+        variables: dict[str, Any] = {"meeting_link": meeting_link}
+        if title:
+            variables["title"] = title[:256]
+        if duration:
+            variables["duration"] = max(15, min(120, duration))
+
+        data = await self.execute_query(ADD_TO_LIVE_MEETING_MUTATION, variables)
+        return data.get("addToLiveMeeting", {})
 
 
 # =============================================================================
@@ -985,6 +1021,15 @@ class FirefliesClient:
             or None if not found
         """
         return await self._graphql.download_full_transcript(transcript_id)
+
+    async def add_to_live_meeting(
+        self,
+        meeting_link: str,
+        title: str | None = None,
+        duration: int = 60,
+    ) -> dict[str, Any]:
+        """Invite Fireflies bot to a live meeting. Delegates to GraphQL client."""
+        return await self._graphql.add_to_live_meeting(meeting_link, title, duration)
 
     # -------------------------------------------------------------------------
     # Realtime Methods

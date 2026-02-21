@@ -741,6 +741,14 @@ class DisconnectRequest(BaseModel):
     session_id: str = Field(..., description="Session ID to disconnect")
 
 
+class InviteBotRequest(BaseModel):
+    """Request to invite Fireflies bot to a meeting."""
+
+    meeting_link: str = Field(description="Google Meet, Zoom, or Teams URL")
+    title: str | None = Field(default=None, description="Optional meeting title (max 256 chars)")
+    duration: int = Field(default=60, ge=15, le=120, description="Expected duration in minutes")
+
+
 class GetMeetingsRequest(BaseModel):
     """Request to get active meetings"""
 
@@ -1226,6 +1234,146 @@ async def fireflies_webhook(
 
     logger.debug("fireflies_webhook_ignored", event_type=event_type)
     return {"status": "ignored"}
+
+
+# =============================================================================
+# Invite Bot (Paste Meeting Link)
+# =============================================================================
+
+
+@router.post(
+    "/invite-bot",
+    summary="Invite Fireflies bot to a meeting",
+    description="Paste a meeting link to invite Fireflies bot and auto-connect when ready",
+)
+async def invite_fireflies_bot(
+    request: InviteBotRequest,
+    background_tasks: BackgroundTasks,
+    ff_config: FirefliesSettings = Depends(get_fireflies_config),
+) -> dict[str, Any]:
+    """Invite Fireflies bot to a meeting and auto-connect when ready.
+
+    Rate limit: 3 requests per 20 minutes (Fireflies API limit).
+    """
+    api_key = ff_config.api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="FIREFLIES_API_KEY not configured",
+        )
+
+    client = FirefliesGraphQLClient(api_key=api_key)
+    try:
+        result = await client.add_to_live_meeting(
+            meeting_link=request.meeting_link,
+            title=request.title,
+            duration=request.duration,
+        )
+    finally:
+        await client.close()
+
+    if result.get("success"):
+        logger.info(
+            "fireflies_bot_invited",
+            meeting_link=request.meeting_link,
+            title=request.title,
+        )
+        # Poll for the meeting to appear in active_meetings, then auto-connect
+        background_tasks.add_task(
+            _wait_and_connect_meeting,
+            api_key,
+            request.meeting_link,
+            request.title,
+        )
+        return {
+            "success": True,
+            "message": "Fireflies bot invited. Will auto-connect when ready.",
+        }
+
+    logger.warning("fireflies_bot_invite_failed", result=result)
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=result.get("message", "Failed to invite bot"),
+    )
+
+
+async def _wait_and_connect_meeting(
+    api_key: str,
+    meeting_link: str,
+    title: str | None,
+) -> None:
+    """Wait for Fireflies to join the meeting, then auto-connect our session."""
+    target_language = os.environ.get("DEFAULT_TARGET_LANGUAGE", "zh")
+    max_attempts = 20  # 20 * 15s = 5 minutes max wait
+
+    for attempt in range(max_attempts):
+        await asyncio.sleep(15)  # Poll every 15 seconds
+
+        try:
+            client = FirefliesGraphQLClient(api_key=api_key)
+            try:
+                meetings = await client.get_active_meetings()
+            finally:
+                await client.close()
+
+            if not meetings:
+                continue
+
+            # Look for a meeting matching our link
+            for meeting in meetings:
+                if meeting.meeting_link and meeting_link in meeting.meeting_link:
+                    logger.info(
+                        "wait_and_connect_found",
+                        meeting_id=meeting.id,
+                        attempt=attempt + 1,
+                    )
+
+                    # Build session config matching the auto-connect pattern
+                    config = FirefliesSessionConfig(
+                        api_key=api_key,
+                        transcript_id=meeting.id,
+                        target_languages=[target_language],
+                    )
+
+                    # Get optional services for the pipeline
+                    data_pipeline = get_data_pipeline()
+                    db_manager = data_pipeline.db_manager if data_pipeline else None
+
+                    llm_client = None
+                    try:
+                        llm_client = get_fireflies_llm_client()
+                        await llm_client.connect()
+                    except Exception:
+                        pass  # Translation will be skipped
+
+                    try:
+                        meeting_intelligence = get_meeting_intelligence_service()
+                    except Exception:
+                        meeting_intelligence = None
+
+                    try:
+                        event_publisher = get_event_publisher()
+                    except Exception:
+                        event_publisher = None
+
+                    manager = get_session_manager()
+                    await manager.create_session(
+                        config,
+                        db_manager=db_manager,
+                        llm_client=llm_client,
+                        meeting_intelligence=meeting_intelligence,
+                        event_publisher=event_publisher,
+                    )
+                    return
+
+        except Exception as e:
+            logger.error(
+                "wait_and_connect_poll_error",
+                attempt=attempt + 1,
+                error=str(e),
+            )
+
+    logger.warning("wait_and_connect_timeout", meeting_link=meeting_link)
 
 
 # =============================================================================
