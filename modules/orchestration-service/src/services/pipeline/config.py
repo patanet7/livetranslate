@@ -38,6 +38,11 @@ class PipelineConfig:
         speaker_aggregation_window_seconds: Window for aggregating same-speaker text
         enable_websocket: Enable WebSocket caption output
         enable_obs: Enable OBS text source output
+        display_mode: Caption display mode ("english", "translated", "both")
+        enable_interim_captions: Show word-by-word interim text during refinement
+        enable_persistence: Save chunks/sentences/translations to PostgreSQL
+        voice_commands_enabled: Enable experimental spoken command recognition
+        voice_command_prefix: Spoken prefix to trigger voice commands
         source_metadata: Source-specific metadata (e.g., Fireflies API key)
     """
 
@@ -79,6 +84,17 @@ class PipelineConfig:
     auto_notes_interval: int = 10  # Generate auto-note every N sentences
     auto_notes_template: str = "auto_note"
     intelligence_llm_backend: str = ""  # Empty = use session default
+
+    # Display modes
+    display_mode: str = "both"  # "english", "translated", "both"
+    enable_interim_captions: bool = True  # Word-by-word interim display
+
+    # Persistence
+    enable_persistence: bool = True  # Save chunks/sentences/translations to DB
+
+    # Voice commands (experimental)
+    voice_commands_enabled: bool = False
+    voice_command_prefix: str = "LiveTranslate"  # Spoken prefix to trigger commands
 
     # Source-specific metadata (adapter uses this)
     source_metadata: dict[str, Any] = field(default_factory=dict)
