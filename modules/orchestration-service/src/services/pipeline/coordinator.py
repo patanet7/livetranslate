@@ -132,6 +132,7 @@ class TranscriptionPipelineCoordinator:
         # State
         self._stats = PipelineStats()
         self._initialized = False
+        self._paused = False
 
         # Background task tracking (prevents fire-and-forget)
         self._background_tasks: set = set()
@@ -218,6 +219,9 @@ class TranscriptionPipelineCoordinator:
         """
         if not self._initialized:
             raise RuntimeError("Pipeline not initialized. Call initialize() first.")
+
+        if self._paused:
+            return
 
         self._stats.chunks_received += 1
         self._stats.last_chunk_at = datetime.now(UTC)
@@ -610,12 +614,28 @@ class TranscriptionPipelineCoordinator:
         if self._auto_note_buffer and self.meeting_intelligence:
             await self._generate_auto_note()
 
+    @property
+    def paused(self) -> bool:
+        """Whether the pipeline is paused."""
+        return self._paused
+
+    def pause(self) -> None:
+        """Pause chunk processing. Chunks received while paused are dropped."""
+        self._paused = True
+        logger.info("pipeline_paused", session_id=self.config.session_id)
+
+    def resume(self) -> None:
+        """Resume chunk processing."""
+        self._paused = False
+        logger.info("pipeline_resumed", session_id=self.config.session_id)
+
     def get_stats(self) -> dict[str, Any]:
         """Get pipeline statistics."""
         stats = self._stats.to_dict()
         stats["source_type"] = self.adapter.source_type
         stats["session_id"] = self.config.session_id
         stats["initialized"] = self._initialized
+        stats["paused"] = self._paused
 
         # Add aggregator stats if available
         if self._sentence_aggregator:

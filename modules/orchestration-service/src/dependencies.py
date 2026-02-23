@@ -243,6 +243,24 @@ def get_data_pipeline() -> Optional["TranscriptionDataPipeline"]:
 
 
 # ============================================================================
+# Glossary Pipeline Adapter
+# ============================================================================
+
+
+def get_glossary_pipeline_adapter():
+    """Get a GlossaryPipelineAdapter for long-lived pipeline coordinators.
+
+    Unlike the request-scoped GlossaryService used in the glossary router,
+    this adapter manages its own DB sessions per call, making it safe for
+    long-lived Fireflies session coordinators.
+    """
+    from services.glossary_service import GlossaryPipelineAdapter
+
+    db_manager = get_database_manager()
+    return GlossaryPipelineAdapter(session_factory=db_manager.get_session)
+
+
+# ============================================================================
 # Meeting Intelligence Service
 # ============================================================================
 

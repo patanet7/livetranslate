@@ -1,8 +1,113 @@
 # Orchestration Service - Development Plan
 
-**Last Updated**: 2026-02-14
-**Current Status**: Testcontainers + Alembic Migration Infrastructure Complete
+**Last Updated**: 2026-02-23
+**Current Status**: Quality hardening COMPLETE — all tasks #39-#49 done, 66 behavioral tests passing
 **Module**: `modules/orchestration-service/`
+
+---
+
+## Completed: Fireflies Real-Time Enhancement — Full Implementation (2026-02-20/21)
+
+**Goal**: Comprehensive enhancement of the Fireflies integration with chunk deduplication, interim captions, display modes, meeting persistence, auto-connect, invite bot, translation config, dashboard UX overhaul, meetings API, history tab, and proper Alembic migration.
+
+**Result**: All 18 implementation tasks completed across 6 waves, plus bug fixes found during browser testing. 24 commits. Comprehensive browser testing of all 9 dashboard tabs verified.
+
+## In Progress: Post-Implementation Quality Hardening (2026-02-20)
+
+**Goal**: Fix gaps found during design doc audit — silent failures, missing features, dead code.
+
+### Completed Fixes
+1. **Task #39**: Fixed all 11 silent `except Exception: pass` blocks with proper structlog warnings
+2. **Task #40**: Converted ~38 f-string logger calls to structlog key=value pattern across fireflies.py and fireflies_client.py
+3. **Task #41**: Made critical DB persistence failures fail hard — `create_meeting` now raises on failure; live callbacks track `persistence_failures` + `persistence_healthy` on session; session status API exposes these fields
+4. **Task #43**: Fixed glossary injection — created `GlossaryPipelineAdapter` that manages its own DB sessions (long-lived safe), wired into all 4 `create_session()` call sites (connect, auto-connect, invite-bot, demo)
+5. **Task #44**: Added pause/resume endpoints — `POST /sessions/{id}/pause` and `/resume`, coordinator gate skips chunks when paused, WebSocket notifications to caption clients, `is_paused` flag on session model
+6. **Task #45**: Fixed import to use `TRANSCRIPT_FULL_QUERY` — now downloads ai_filters, analytics, summary, attendance; stores insights to DB
+7. **Task #46**: Added runtime language switching — `PUT /sessions/{id}/target-languages` updates coordinator config and reloads glossary
+8. **Task #47**: Added missing DB schema index — `idx_mtrans_target_lang` on `meeting_translations(target_language)` (12 indexes now)
+
+### Completed (continued)
+9. **Task #42**: Implemented `CommandInterceptor` and `LiveCaptionManager` — voice command detection/execution (pause, resume, language, display mode), config-driven caption display filtering, wired into router + dashboard UI with pause/resume buttons, language switching, interim caption display
+10. **Task #48**: Wrote 27 behavioral tests for quality hardening (Tasks #39-47)
+11. **Task #49**: Updated Fireflies mock server to match real API (5 fields only: chunk_id, text, speaker_name, start_time, end_time; same chunk_id for word-streaming; captured_realtime_scenario from real log data)
+12. **Task #42 tests**: 39 behavioral tests for CommandInterceptor + LiveCaptionManager — check/execute, display mode filtering, interim caption gating, config-driven live updates, end-to-end integration
+
+**All tasks complete. Total: 66 behavioral tests passing across 2 test files.**
+
+### Key Deliverables
+
+1. **Chunk Deduplication Layer** — UPSERT on (meeting_id, chunk_id) prevents duplicate ingestion
+2. **Interim Captions** — Word-by-word live updates in captions.html via WebSocket `interim_caption` events
+3. **Display Mode Switching** — `mode` param: both/english/translated for captions overlay and Live Feed tab
+4. **Meeting Persistence** — Full lifecycle: create on connect → store chunks + sentences → complete on disconnect
+5. **Auto-Connect on Startup** — Polls Fireflies for active meetings, auto-connects with configurable interval
+6. **Invite Bot** — `addToLiveMeeting` mutation via meeting link input on Connect tab
+7. **Runtime Translation Config API** — Hot-swap backend/model/language without restart
+8. **Dashboard UX Overhaul** — Meeting link input, caption preview, translation config panel
+9. **Meetings API Router** — CRUD, search, upload, transcript, insights, and Ollama insight generation
+10. **Meeting History Tab** — Database section with expandable detail view, search, file upload
+11. **Alembic Migration 005** — Proper migration for 6 Fireflies persistence tables (meeting_data_insights avoids collision with migration 004)
+12. **ORM Models** — 6 SQLAlchemy models for Meeting, MeetingChunk, MeetingSentence, MeetingTranslation, MeetingDataInsight, MeetingSpeaker
+
+### Bug Fixes During Browser Testing
+
+- **Missing meeting titles**: Added `update_meeting()` to MeetingStore, background title fetch from Fireflies API on connect, `meeting_title` param in `create_session()`
+- **Empty transcript view**: Wired `on_sentence_ready` callback to persist sentences during live sessions; transcript API falls back to raw chunks when no sentences exist
+
+### Key Commits
+
+- `4a99c5b` - feat: add Alembic migration 005 for Fireflies meeting persistence
+- `3fe95d0` - fix: persist meeting titles and sentences during live Fireflies sessions
+- Plus 22 prior commits for all 18 implementation tasks
+
+### Browser Testing Summary (agent-browser)
+
+All 9 dashboard tabs verified:
+| Tab | Status | Notes |
+|-----|--------|-------|
+| Connect | ✅ | Meeting link invite, transcript ID, multi-language selector |
+| Live Feed | ✅ | Session selector, display mode buttons (English/Both/Translated), caption preview |
+| Sessions | ✅ | Stats cards, active sessions list |
+| Glossary | ✅ | Vocabulary libraries, entries table |
+| History | ✅ | Search, upload, Fireflies fetch, DB meetings with expandable detail view |
+| Data & Logs | ✅ | Session data viewer, transcripts/translations panes |
+| Translation | ✅ | Model selector, prompt template editor, test translation |
+| Settings | ✅ | API key config, demo mode, translation backend config, service status |
+| Intelligence | ✅ | Meeting notes, AI analysis, post-meeting insights |
+
+Additional pages:
+| Page | Status | Notes |
+|------|--------|-------|
+| Captions overlay | ✅ | Parameter docs, WebSocket connected (green dot), mode support |
+
+---
+
+## Completed: Wire Meeting Persistence into Fireflies Router (2026-02-20)
+
+**Goal**: Integrate MeetingStore (Task 7) into the Fireflies session lifecycle so that live meeting data is automatically saved to PostgreSQL.
+
+**Result**: Meeting persistence is now wired into the Fireflies router with full lifecycle coverage: create on connect, store chunks during live session, mark complete on disconnect.
+
+### What was changed
+
+**Files Modified:**
+- `src/models/fireflies.py` -- Added `meeting_db_id: str | None` field to `FirefliesSession` to link in-memory sessions to PostgreSQL meeting records
+- `src/routers/fireflies.py` -- Integrated `MeetingStore` into `FirefliesSessionManager`:
+  - Added lazy `_get_meeting_store()` method (reads `DATABASE_URL` env var, returns None if not set)
+  - `create_session()`: Creates meeting record via `MeetingStore.create_meeting()` when `MEETING_AUTO_SAVE=true` (default)
+  - `handle_transcript()`: Stores each chunk via `MeetingStore.store_chunk()` with deduplication (UPSERT)
+  - `disconnect_session()`: Marks meeting complete via `MeetingStore.complete_meeting()`
+
+### Key Design Decisions
+
+- **Non-blocking**: All persistence calls are wrapped in try/except -- storage errors are logged but never interrupt the real-time pipeline
+- **Lazy initialization**: MeetingStore is created on first use, not at startup -- system works without DB
+- **Env-controlled**: `MEETING_AUTO_SAVE` (default: `true`) controls whether persistence is active; `DATABASE_URL` must be set for persistence to function
+- **Structlog logging**: All persistence events use structured logging (event names: `meeting_record_created`, `chunk_storage_failed`, `meeting_completed`, `meeting_completion_failed`)
+
+### Commit
+
+`8e1cbd7` - feat: wire meeting persistence into Fireflies session lifecycle
 
 ---
 

@@ -76,43 +76,50 @@ class MockMeeting:
 
 @dataclass
 class MockChunk:
-    """Mock transcript chunk data."""
+    """Mock transcript chunk data.
 
-    chunk_id: str = field(default_factory=lambda: f"chunk_{uuid.uuid4().hex[:8]}")
+    Matches the REAL Fireflies Realtime API payload which sends exactly 5 fields:
+      chunk_id, text, speaker_name, start_time, end_time
+
+    Real behavior discovered from captured stream data (/tmp/orchestration.log):
+    - chunk_id is an integer (e.g. 65174), converted to str by our client
+    - Same chunk_id gets progressive text updates (word-by-word ASR streaming)
+    - Text is corrected mid-stream as ASR refines ("key cat" -> "kitty cat")
+    - No confidence or is_final fields exist in the real API
+    """
+
+    chunk_id: str = field(default_factory=lambda: str(uuid.uuid4().int % 100000))
     text: str = ""
     speaker_name: str = "Speaker"
     start_time: float = 0.0
     end_time: float = 0.0
-    confidence: float = 0.95
-    is_final: bool = True
 
     def to_websocket_dict(self, transcript_id: str) -> dict[str, Any]:
         """Convert to raw WebSocket message format (legacy, for backward compat)."""
         return {
             "type": "transcription.broadcast",
             "data": {
-                "transcript_id": transcript_id,
                 "chunk_id": self.chunk_id,
                 "text": self.text,
                 "speaker_name": self.speaker_name,
                 "start_time": self.start_time,
                 "end_time": self.end_time,
-                "confidence": self.confidence,
-                "is_final": self.is_final,
             },
         }
 
     def to_socketio_dict(self, transcript_id: str) -> dict[str, Any]:
-        """Convert to Socket.IO event data (no 'type' wrapper — event name is separate)."""
+        """Convert to Socket.IO event data (no 'type' wrapper — event name is separate).
+
+        Note: Real Fireflies does NOT include transcript_id in event data.
+        It's established during Socket.IO auth handshake. We omit it here
+        to match real behavior. The client uses self.transcript_id instead.
+        """
         return {
-            "transcript_id": transcript_id,
             "chunk_id": self.chunk_id,
             "text": self.text,
             "speaker_name": self.speaker_name,
             "start_time": self.start_time,
             "end_time": self.end_time,
-            "confidence": self.confidence,
-            "is_final": self.is_final,
         }
 
 
@@ -121,7 +128,12 @@ class MockTranscriptScenario:
     """
     Defines a transcript scenario for testing.
 
-    Includes chunks to be streamed with timing information.
+    Models real Fireflies streaming behavior discovered from captured data:
+    - Same chunk_id sent repeatedly with progressively longer text
+    - ASR text corrected mid-stream (words change as model refines)
+    - Multiple chunk_ids can be active simultaneously (interleaving)
+    - New chunk_id signals the previous one is "done" (finalization trigger)
+    - Typical ~200-500ms between word updates within a chunk
     """
 
     transcript_id: str = field(default_factory=lambda: f"transcript_{uuid.uuid4().hex[:8]}")
@@ -129,9 +141,9 @@ class MockTranscriptScenario:
     chunks: list[MockChunk] = field(default_factory=list)
 
     # Timing configuration
-    chunk_delay_ms: float = 500.0  # Delay between chunks
-    word_delay_ms: float = 100.0  # Delay per word (for word-by-word streaming)
-    stream_mode: str = "chunks"  # "chunks" or "words"
+    chunk_delay_ms: float = 500.0  # Delay between chunks (when new chunk_id starts)
+    word_delay_ms: float = 300.0  # Delay per word update (same chunk_id)
+    stream_mode: str = "chunks"  # "chunks" (final text only) or "words" (word-by-word)
 
     # Error simulation
     simulate_disconnect_after_chunks: int | None = None
@@ -143,14 +155,22 @@ class MockTranscriptScenario:
         speakers: list[str] | None = None,
         num_exchanges: int = 10,
         chunk_delay_ms: float = 500.0,
+        word_stream: bool = True,
     ) -> "MockTranscriptScenario":
         """
         Create a realistic conversation scenario.
+
+        When word_stream=True (default), each sentence is streamed word-by-word
+        using the same chunk_id — matching real Fireflies behavior.
+
+        When word_stream=False, each sentence is emitted as a single chunk
+        (useful for faster tests that don't need to test dedup logic).
 
         Args:
             speakers: List of speaker names
             num_exchanges: Number of conversational exchanges
             chunk_delay_ms: Delay between chunks
+            word_stream: Whether to stream word-by-word within each chunk
 
         Returns:
             Configured MockTranscriptScenario
@@ -183,29 +203,50 @@ class MockTranscriptScenario:
 
         chunks = []
         current_time = 0.0
+        base_chunk_id = 65000  # Match real Fireflies integer chunk_id range
 
         for i in range(num_exchanges):
             speaker = speakers[i % len(speakers)]
             text = conversation_templates[i % len(conversation_templates)]
+            chunk_id = str(base_chunk_id + i)
 
-            # Estimate duration based on word count
-            word_count = len(text.split())
-            duration = word_count * 0.3  # ~300ms per word
+            if word_stream:
+                # Stream word-by-word with same chunk_id (real behavior)
+                words = text.split()
+                accumulated = ""
+                for w_idx, word in enumerate(words):
+                    accumulated = (accumulated + " " + word).strip()
+                    word_count = w_idx + 1
+                    end_time = current_time + word_count * 0.3
 
-            chunk = MockChunk(
-                chunk_id=f"chunk_{i+1:04d}",
-                text=text,
-                speaker_name=speaker,
-                start_time=current_time,
-                end_time=current_time + duration,
-            )
-            chunks.append(chunk)
+                    chunk = MockChunk(
+                        chunk_id=chunk_id,
+                        text=accumulated,
+                        speaker_name=speaker,
+                        start_time=current_time,
+                        end_time=end_time,
+                    )
+                    chunks.append(chunk)
+            else:
+                # Single chunk per sentence (faster for simple tests)
+                word_count = len(text.split())
+                duration = word_count * 0.3
 
-            current_time += duration + 0.2  # Small gap between speakers
+                chunk = MockChunk(
+                    chunk_id=chunk_id,
+                    text=text,
+                    speaker_name=speaker,
+                    start_time=current_time,
+                    end_time=current_time + duration,
+                )
+                chunks.append(chunk)
+
+            current_time += len(text.split()) * 0.3 + 0.2  # Gap between speakers
 
         return cls(
             chunks=chunks,
             chunk_delay_ms=chunk_delay_ms,
+            stream_mode="words" if word_stream else "chunks",
         )
 
     @classmethod
@@ -213,33 +254,177 @@ class MockTranscriptScenario:
         cls,
         text: str,
         speaker: str = "Speaker",
-        word_delay_ms: float = 150.0,
+        word_delay_ms: float = 300.0,
+        chunk_id: str | None = None,
     ) -> "MockTranscriptScenario":
         """
-        Create a word-by-word streaming scenario.
+        Create a word-by-word streaming scenario for a single utterance.
 
-        Simulates real-time transcription where words arrive incrementally.
+        Matches real Fireflies behavior: SAME chunk_id with progressively
+        longer text as ASR processes speech word-by-word.
+
+        Example from real Fireflies stream (chunk_id=65174):
+          "Well."
+          "Well, let's"
+          "Well, let's check."
+          "Well, let's check and see."
+          ... (up to 18 updates per chunk_id)
+
+        Args:
+            text: Full sentence to stream word-by-word
+            speaker: Speaker name
+            word_delay_ms: Delay between word updates (~300ms is realistic)
+            chunk_id: Explicit chunk_id (auto-generated if None)
         """
+        if chunk_id is None:
+            chunk_id = str(65000 + uuid.uuid4().int % 1000)
+
         words = text.split()
         chunks = []
-        current_time = 0.0
         word_duration = word_delay_ms / 1000.0
 
         accumulated_text = ""
-        for i, word in enumerate(words):
+        for word in words:
             accumulated_text = (accumulated_text + " " + word).strip()
-            is_final = i == len(words) - 1
 
             chunk = MockChunk(
-                chunk_id=f"chunk_{i+1:04d}",
+                chunk_id=chunk_id,
                 text=accumulated_text,
                 speaker_name=speaker,
                 start_time=0.0,
-                end_time=current_time + word_duration,
-                is_final=is_final,
+                end_time=len(accumulated_text.split()) * word_duration,
             )
             chunks.append(chunk)
-            current_time += word_duration
+
+        return cls(
+            chunks=chunks,
+            word_delay_ms=word_delay_ms,
+            stream_mode="words",
+        )
+
+    @classmethod
+    def captured_realtime_scenario(
+        cls,
+        word_delay_ms: float = 300.0,
+    ) -> "MockTranscriptScenario":
+        """
+        Scenario built from REAL captured Fireflies stream data.
+
+        Extracted from /tmp/orchestration.log (2026-02-20T23:13:00Z).
+        This is actual Fireflies Realtime API behavior, not synthetic.
+
+        Key behaviors this models:
+        - Word-by-word streaming with same chunk_id
+        - ASR text corrections mid-stream ("key cat" -> "kitty cat")
+        - Multiple chunk_ids active simultaneously (interleaving)
+        - ~16 interim updates per chunk before finalization
+        """
+        chunks = []
+
+        # chunk_id=65174: "Well, let's check and see what's going on..."
+        # Real progression from captured data (18 updates)
+        chunk_65174_progression = [
+            "Well.",
+            "Well, let's",
+            "Well, let's check.",
+            "Well, let's check and",
+            "Well, let's check and see.",
+            "well, let's check and see what's",
+            "Well, let's check and see what's going.",
+            "Well, let's check and see what's going on.",
+            "Well, let's check and see what's going on. What?",
+            "Well, let's check and see what's going on. What is",
+            "Well, let's check and see what's going on. What is going?",
+            "Well, let's check and see what's going on. What is going on?",
+            "Well, let's check and see what's going on. What is going on with",
+            "Well, let's check and see what's going on. What is going on with my",
+            "Well, let's check and see what's going on. What is going on with my key.",
+            "Well, let's check and see what's going on. What is going on with my key cat?",
+            "Well, let's check and see what's going on. What is going on with my key? Okay.",
+            "Well, let's check and see what's going on. What is going on with my kitty cat,",
+        ]
+
+        for text in chunk_65174_progression:
+            chunks.append(
+                MockChunk(
+                    chunk_id="65174",
+                    text=text,
+                    speaker_name="Speaker",
+                    start_time=0.0,
+                    end_time=len(text.split()) * 0.3,
+                )
+            )
+
+        # chunk_id=65175: starts while 65174 is still updating (interleaving!)
+        # Real progression: "but" -> "What is" -> "But is" -> ...
+        chunk_65175_progression = [
+            "but",
+            "What is",
+            "But is",
+            "What is going?",
+            "What is going on?",
+            "What is going on? We",
+            "What is going on with my",
+            "What is going on with my key?",
+            "What is going on with my key to",
+            "What is going on with my key to kill?",
+            "What is going on with my key to get",
+            "What is going on with my key to kill it?",
+            "What is going on with my key to get it?",
+            "What is going on with my key to kill? It should",
+            "What is going on with my key to kill? It should be",
+            "What is going on with my key to kill? It should be working",
+            "What is going on with my key to kill, it should be working in",
+            "What is going on with my key to kill? It should be working now.",
+        ]
+
+        for text in chunk_65175_progression:
+            chunks.append(
+                MockChunk(
+                    chunk_id="65175",
+                    text=text,
+                    speaker_name="Speaker",
+                    start_time=6.0,
+                    end_time=6.0 + len(text.split()) * 0.3,
+                )
+            )
+
+        # chunk_id=65176: starts while 65175 still active
+        chunk_65176_progression = [
+            "here.",
+            "here working.",
+            "here working now",
+            "here, working now, working",
+            "here, working now working again.",
+        ]
+
+        for text in chunk_65176_progression:
+            chunks.append(
+                MockChunk(
+                    chunk_id="65176",
+                    text=text,
+                    speaker_name="Speaker",
+                    start_time=14.0,
+                    end_time=14.0 + len(text.split()) * 0.3,
+                )
+            )
+
+        # chunk_id=65177: short utterance
+        chunk_65177_progression = [
+            "let's,",
+            "Let's go.",
+        ]
+
+        for text in chunk_65177_progression:
+            chunks.append(
+                MockChunk(
+                    chunk_id="65177",
+                    text=text,
+                    speaker_name="Speaker",
+                    start_time=23.0,
+                    end_time=23.0 + len(text.split()) * 0.3,
+                )
+            )
 
         return cls(
             chunks=chunks,

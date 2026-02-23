@@ -889,6 +889,8 @@
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
           <span id="feedStatus" class="status-badge status-disconnected">Disconnected</span>
           <span id="feedStats" style="font-size: 12px; color: #888;"></span>
+          <button id="btnPause" class="btn-secondary btn-sm" onclick="togglePauseResume()" disabled>⏸ Pause</button>
+          <button id="btnChangeLang" class="btn-secondary btn-sm" onclick="applyTargetLanguage()" disabled>🌐 Apply Language</button>
           <button class="btn-secondary btn-sm" onclick="saveFeedToLocal()">💾 Save Feed</button>
           <button class="btn-secondary btn-sm" onclick="exportFeedJson()">📤 Export JSON</button>
         </div>
@@ -2492,6 +2494,77 @@ Translation:`,
       }
     }
 
+    // =========================================================================
+    // Pause/Resume Controls
+    // =========================================================================
+    let feedPaused = false;
+
+    async function togglePauseResume() {
+      const sessionId = document.getElementById('feedSessionSelect').value;
+      if (!sessionId) return;
+
+      const action = feedPaused ? 'resume' : 'pause';
+      try {
+        const resp = await fetch(`${baseUrl}/fireflies/sessions/${sessionId}/${action}`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+        });
+        if (resp.ok) {
+          feedPaused = !feedPaused;
+          updatePauseButton();
+          log(`Pipeline ${action}d`, 'info');
+        } else {
+          const err = await resp.json();
+          log(`Failed to ${action}: ${err.detail || 'Unknown error'}`, 'error');
+        }
+      } catch (e) {
+        log(`Failed to ${action}: ${e.message}`, 'error');
+      }
+    }
+
+    function updatePauseButton() {
+      const btn = document.getElementById('btnPause');
+      if (!btn) return;
+      if (feedPaused) {
+        btn.textContent = '▶ Resume';
+        btn.style.background = '#388E3C';
+        btn.style.color = '#fff';
+      } else {
+        btn.textContent = '⏸ Pause';
+        btn.style.background = '';
+        btn.style.color = '';
+      }
+    }
+
+    // =========================================================================
+    // Language Switching Controls
+    // =========================================================================
+    async function applyTargetLanguage() {
+      const sessionId = document.getElementById('feedSessionSelect').value;
+      const targetLang = document.getElementById('feedTargetLang').value;
+      if (!sessionId || !targetLang) {
+        showAlert('Select a session and language first', 'error');
+        return;
+      }
+
+      try {
+        const resp = await fetch(`${baseUrl}/fireflies/sessions/${sessionId}/target-languages`, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({target_languages: [targetLang]}),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          log(`Target language switched to: ${targetLang} (was: ${data.previous})`, 'info');
+        } else {
+          const err = await resp.json();
+          log(`Failed to switch language: ${err.detail || 'Unknown error'}`, 'error');
+        }
+      } catch (e) {
+        log(`Failed to switch language: ${e.message}`, 'error');
+      }
+    }
+
     function updateFeedSessionSelect() {
       const select = document.getElementById('feedSessionSelect');
       select.innerHTML = '<option value="">-- Select a session --</option>' +
@@ -2562,6 +2635,9 @@ Translation:`,
           if (message.current_captions) {
             message.current_captions.forEach(addCaptionToFeed);
           }
+          // Enable controls now that we're connected
+          document.getElementById('btnPause').disabled = false;
+          document.getElementById('btnChangeLang').disabled = false;
           updateFeedStats();
           break;
 
@@ -2574,7 +2650,61 @@ Translation:`,
           updateCaptionInFeed(message.caption);
           updateFeedStats();
           break;
+
+        case 'pipeline_paused':
+          feedPaused = true;
+          updatePauseButton();
+          log('Pipeline paused (remote)', 'warn');
+          break;
+
+        case 'pipeline_resumed':
+          feedPaused = false;
+          updatePauseButton();
+          log('Pipeline resumed (remote)', 'info');
+          break;
+
+        case 'target_languages_changed':
+          log(`Target language changed to: ${message.target_languages}`, 'info');
+          break;
+
+        case 'voice_command':
+          log(`Voice command: ${message.command} ${JSON.stringify(message.details || {})}`, 'info');
+          break;
+
+        case 'interim_caption':
+          updateInterimCaption(message);
+          break;
       }
+    }
+
+    function updateInterimCaption(msg) {
+      // Show word-by-word updates in the original feed column
+      const originalDiv = document.getElementById('originalFeed');
+      if (originalDiv.querySelector('.empty-state')) {
+        originalDiv.innerHTML = '';
+      }
+
+      // Find or create interim entry for this chunk_id
+      let interimEl = originalDiv.querySelector(`[data-chunk-id="${msg.chunk_id}"]`);
+      if (!interimEl) {
+        interimEl = document.createElement('div');
+        interimEl.className = 'log-entry interim';
+        interimEl.dataset.chunkId = msg.chunk_id;
+        interimEl.style.opacity = '0.7';
+        interimEl.style.fontStyle = 'italic';
+        originalDiv.appendChild(interimEl);
+      }
+
+      const speaker = msg.speaker_name || 'Speaker';
+      interimEl.innerHTML = `<span style="color:#64B5F6;">[${speaker}]</span> ${escapeHtml(msg.text)}`;
+
+      if (msg.is_final) {
+        interimEl.style.opacity = '1';
+        interimEl.style.fontStyle = 'normal';
+        interimEl.classList.remove('interim');
+      }
+
+      originalDiv.scrollTop = originalDiv.scrollHeight;
     }
 
     function addCaptionToFeed(caption) {

@@ -261,6 +261,9 @@ class FirefliesSession(TimestampMixin):
     fireflies_meeting_id: str | None = Field(default=None, description="Fireflies meeting ID")
     meeting_db_id: str | None = Field(default=None, description="PostgreSQL meeting record ID")
 
+    # Pipeline state
+    is_paused: bool = Field(default=False, description="Whether the pipeline is paused")
+
     # Connection state
     connection_status: FirefliesConnectionStatus = Field(
         default=FirefliesConnectionStatus.DISCONNECTED,
@@ -287,6 +290,8 @@ class FirefliesSession(TimestampMixin):
     error_count: int = Field(default=0, description="Error count")
     last_error: str | None = Field(default=None, description="Last error message")
     reconnection_attempts: int = Field(default=0, description="Reconnection attempts")
+    persistence_failures: int = Field(default=0, description="DB persistence failure count")
+    persistence_healthy: bool = Field(default=True, description="Whether DB persistence is working")
 
     model_config = ConfigDict(
         json_schema_extra={

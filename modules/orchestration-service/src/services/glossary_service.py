@@ -643,3 +643,46 @@ class GlossaryService:
         matches.sort(key=lambda m: (m["start"], -m["priority"]))
 
         return matches
+
+
+# =============================================================================
+# Pipeline Adapter (long-lived, manages its own DB sessions)
+# =============================================================================
+
+
+class GlossaryPipelineAdapter:
+    """Adapter that bridges the pipeline coordinator's `get_terms()` interface
+    to the actual GlossaryService.  Each call creates its own DB session so the
+    adapter can live as long as the pipeline coordinator (entire Fireflies
+    session) without holding a stale SQLAlchemy session open.
+    """
+
+    def __init__(self, session_factory):
+        """
+        Args:
+            session_factory: An async callable that returns an AsyncSession
+                             (e.g. ``database_manager.get_session``).
+        """
+        self._session_factory = session_factory
+
+    async def get_terms(
+        self,
+        glossary_id: UUID | None = None,
+        source_language: str = "en",
+        target_language: str = "es",
+        domain: str | None = None,
+    ) -> dict[str, str]:
+        """Load glossary terms — matches the signature the pipeline coordinator expects."""
+        session = self._session_factory()
+        try:
+            svc = GlossaryService(session)
+            return await svc.get_glossary_terms(
+                target_language=target_language,
+                glossary_id=glossary_id,
+                domain=domain,
+            )
+        except Exception as e:
+            logger.warning("glossary_pipeline_load_failed", error=str(e))
+            return {}
+        finally:
+            await session.close()
