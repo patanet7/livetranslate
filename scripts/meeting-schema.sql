@@ -156,6 +156,8 @@ CREATE INDEX IF NOT EXISTS idx_sentences_meeting
 -- meeting_translations indexes
 CREATE INDEX IF NOT EXISTS idx_mtrans_sentence
     ON meeting_translations (sentence_id);
+CREATE INDEX IF NOT EXISTS idx_mtrans_target_lang
+    ON meeting_translations (target_language);
 
 -- meeting_data_insights indexes
 CREATE INDEX IF NOT EXISTS idx_insights_meeting

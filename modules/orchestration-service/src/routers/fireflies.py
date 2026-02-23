@@ -27,6 +27,7 @@ from dependencies import (
     get_data_pipeline,
     get_event_publisher,
     get_fireflies_llm_client,
+    get_glossary_pipeline_adapter,
     get_meeting_intelligence_service,
 )
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
@@ -51,6 +52,8 @@ from services.pipeline import (
     PipelineConfig,
     TranscriptionPipelineCoordinator,
 )
+from services.pipeline.command_interceptor import CommandInterceptor
+from services.pipeline.live_caption_manager import LiveCaptionManager
 
 from config import FirefliesSettings, get_settings
 
@@ -177,7 +180,16 @@ class FirefliesSessionManager:
                         transcript_id=config.transcript_id,
                     )
                 except Exception as e:
-                    logger.error("meeting_record_creation_failed", error=str(e))
+                    logger.error(
+                        "meeting_record_creation_failed",
+                        transcript_id=config.transcript_id,
+                        error=str(e),
+                    )
+                    # Fail hard: if we can't persist, don't start a session that silently loses data
+                    raise RuntimeError(
+                        f"Cannot start session: DB persistence is enabled but meeting "
+                        f"record creation failed: {e}"
+                    ) from e
 
         # =====================================================================
         # Pipeline Setup (DRY - shared coordinator for all sources)
@@ -238,21 +250,13 @@ class FirefliesSessionManager:
         # Bridge captions to WebSocket clients (captions.html)
         ws_manager = get_ws_manager()
 
-        async def _broadcast_caption_to_ws(event_type: str, caption) -> None:
-            """Forward caption events from pipeline to WebSocket clients."""
-            if event_type == "caption_expired":
-                await ws_manager.broadcast_to_session(
-                    session_id,
-                    {"event": "caption_expired", "caption_id": caption.id},
-                )
-            else:
-                await ws_manager.broadcast_to_session(
-                    session_id,
-                    {"event": event_type, "caption": caption.to_dict()},
-                    target_language=caption.target_language,
-                )
-
-        coordinator.on_caption_event(_broadcast_caption_to_ws)
+        # LiveCaptionManager: config-driven display filtering
+        live_caption_mgr = LiveCaptionManager(
+            config=pipeline_config,
+            broadcast=ws_manager.broadcast_to_session,
+            session_id=session_id,
+        )
+        coordinator.on_caption_event(live_caption_mgr.handle_caption_event)
 
         # Persist completed sentences to DB during live sessions
         if session.meeting_db_id:
@@ -273,26 +277,29 @@ class FirefliesSessionManager:
                             chunk_ids=unit.chunk_ids,
                         )
                     except Exception as e:
-                        logger.error("sentence_storage_failed", error=str(e))
+                        session.persistence_failures += 1
+                        session.persistence_healthy = False
+                        session.error_count += 1
+                        session.last_error = f"sentence_storage_failed: {e}"
+                        logger.error(
+                            "sentence_storage_failed",
+                            meeting_id=_meeting_db_id,
+                            session_id=session_id,
+                            persistence_failures=session.persistence_failures,
+                            error=str(e),
+                        )
 
             coordinator.on_sentence_ready(_persist_sentence)
 
-        # Bridge interim (word-by-word) caption updates to WebSocket clients
-        async def handle_live_update(chunk: FirefliesChunk, is_final: bool) -> None:
-            """Broadcast interim caption updates to WebSocket clients."""
-            await ws_manager.broadcast_to_session(
-                session_id,
-                {
-                    "event": "interim_caption",
-                    "chunk_id": chunk.chunk_id,
-                    "text": chunk.text,
-                    "speaker_name": chunk.speaker_name,
-                    "speaker_color": None,  # CaptionBuffer assigns colors for final captions
-                    "is_final": is_final,
-                },
-            )
+        # CommandInterceptor: voice command detection (config-driven)
+        command_interceptor = CommandInterceptor(
+            config=pipeline_config,
+            coordinator=coordinator,
+            ws_broadcast=ws_manager.broadcast_to_session,
+            session_id=session_id,
+        )
 
-        logger.info(f"Pipeline coordinator initialized for session {session_id}")
+        logger.info("pipeline_coordinator_initialized", session_id=session_id)
 
         # =====================================================================
         # Connect to realtime with callbacks
@@ -307,6 +314,11 @@ class FirefliesSessionManager:
             if chunk.speaker_name not in session.speakers_detected:
                 session.speakers_detected.append(chunk.speaker_name)
 
+            # CommandInterceptor: check for voice commands before pipeline processing
+            if command_interceptor.check(chunk.text):
+                await command_interceptor.execute(chunk.text)
+                return  # Don't process commands through the pipeline
+
             # Process through pipeline coordinator (DRY - handles all orchestration)
             try:
                 await coordinator.process_raw_chunk(chunk)
@@ -315,7 +327,7 @@ class FirefliesSessionManager:
                 session.sentences_produced = stats.get("sentences_produced", 0)
                 session.translations_completed = stats.get("translations_completed", 0)
             except Exception as e:
-                logger.error(f"Pipeline error for session {session_id}: {e}")
+                logger.error("pipeline_processing_error", session_id=session_id, error=str(e))
                 session.error_count += 1
 
             # Store chunk to DB if persistence is enabled (non-blocking)
@@ -332,10 +344,17 @@ class FirefliesSessionManager:
                             end_time=chunk.end_time,
                         )
                     except Exception as e:
+                        session.persistence_failures += 1
+                        session.persistence_healthy = False
+                        session.error_count += 1
+                        session.last_error = f"chunk_storage_failed: {e}"
                         logger.error(
                             "chunk_storage_failed",
-                            error=str(e),
+                            meeting_id=session.meeting_db_id,
+                            session_id=session_id,
                             chunk_id=chunk.chunk_id,
+                            persistence_failures=session.persistence_failures,
+                            error=str(e),
                         )
 
             # Call user callback (after pipeline processing)
@@ -366,13 +385,13 @@ class FirefliesSessionManager:
                 on_transcript=handle_transcript,
                 on_status_change=handle_status,
                 on_error=handle_error,
-                on_live_update=handle_live_update,
+                on_live_update=live_caption_mgr.handle_interim_update,
                 auto_reconnect=True,
             )
         except Exception as e:
             session.connection_status = FirefliesConnectionStatus.ERROR
             session.last_error = str(e)
-            logger.error(f"Failed to connect Fireflies session {session_id}: {e}")
+            logger.error("fireflies_session_connect_failed", session_id=session_id, error=str(e))
 
         return session
 
@@ -386,9 +405,9 @@ class FirefliesSessionManager:
             coordinator = self._coordinators.pop(session_id)
             try:
                 await coordinator.flush()
-                logger.info(f"Flushed pipeline for session {session_id}")
+                logger.info("pipeline_flushed", session_id=session_id)
             except Exception as e:
-                logger.error(f"Error flushing pipeline: {e}")
+                logger.error("pipeline_flush_failed", session_id=session_id, error=str(e))
 
         # Clean up caption buffer
         if session_id in self._caption_buffers:
@@ -415,9 +434,23 @@ class FirefliesSessionManager:
                         session_id=session_id,
                     )
                 except Exception as e:
-                    logger.error("meeting_completion_failed", error=str(e))
+                    session.persistence_failures += 1
+                    session.persistence_healthy = False
+                    logger.error(
+                        "meeting_completion_failed",
+                        meeting_id=session.meeting_db_id,
+                        session_id=session_id,
+                        error=str(e),
+                    )
 
-        logger.info(f"Disconnected Fireflies session: {session_id}")
+        if not session.persistence_healthy:
+            logger.warning(
+                "session_ended_with_persistence_failures",
+                session_id=session_id,
+                persistence_failures=session.persistence_failures,
+            )
+
+        logger.info("fireflies_session_disconnected", session_id=session_id)
         return True
 
     def get_coordinator(self, session_id: str) -> TranscriptionPipelineCoordinator | None:
@@ -522,7 +555,7 @@ class FirefliesSessionManager:
 
         coordinator.on_caption_event(_broadcast_import_caption_to_ws)
 
-        logger.info(f"Import session created: {session_id} for transcript {transcript_id}")
+        logger.info("import_session_created", session_id=session_id, transcript_id=transcript_id)
 
         return session_id, coordinator
 
@@ -552,7 +585,7 @@ class FirefliesSessionManager:
         self._coordinators.pop(session_id, None)
         self._caption_buffers.pop(session_id, None)
 
-        logger.info(f"Import session finalized: {session_id}, stats: {stats}")
+        logger.info("import_session_finalized", session_id=session_id, stats=stats)
 
         return stats
 
@@ -641,18 +674,42 @@ async def _auto_connect_loop(manager: FirefliesSessionManager) -> None:
                         try:
                             llm_client = get_fireflies_llm_client()
                             await llm_client.connect()
-                        except Exception:
-                            pass  # Translation will be skipped
+                        except Exception as e:
+                            logger.warning(
+                                "auto_connect_llm_client_unavailable",
+                                meeting_id=meeting.id,
+                                error=str(e),
+                            )
 
                         try:
                             meeting_intelligence = get_meeting_intelligence_service()
-                        except Exception:
+                        except Exception as e:
                             meeting_intelligence = None
+                            logger.warning(
+                                "auto_connect_meeting_intelligence_unavailable",
+                                meeting_id=meeting.id,
+                                error=str(e),
+                            )
 
                         try:
                             event_publisher = get_event_publisher()
-                        except Exception:
+                        except Exception as e:
                             event_publisher = None
+                            logger.warning(
+                                "auto_connect_event_publisher_unavailable",
+                                meeting_id=meeting.id,
+                                error=str(e),
+                            )
+
+                        glossary_service = None
+                        try:
+                            glossary_service = get_glossary_pipeline_adapter()
+                        except Exception as e:
+                            logger.warning(
+                                "auto_connect_glossary_unavailable",
+                                meeting_id=meeting.id,
+                                error=str(e),
+                            )
 
                         await manager.create_session(
                             config,
@@ -660,6 +717,7 @@ async def _auto_connect_loop(manager: FirefliesSessionManager) -> None:
                             llm_client=llm_client,
                             meeting_intelligence=meeting_intelligence,
                             event_publisher=event_publisher,
+                            glossary_service=glossary_service,
                             meeting_title=meeting.title,
                         )
                     except Exception as exc:
@@ -781,6 +839,8 @@ class SessionResponse(BaseModel):
     connected_at: datetime | None
     error_count: int
     last_error: str | None
+    persistence_failures: int = 0
+    persistence_healthy: bool = True
 
 
 class DisconnectRequest(BaseModel):
@@ -860,8 +920,9 @@ async def connect_to_fireflies(
         )
 
         logger.info(
-            f"Session config: languages={config.target_languages}, "
-            f"model={config.translation_model or 'default'}"
+            "session_config",
+            languages=config.target_languages,
+            model=config.translation_model or "default",
         )
 
         # Get database manager for transcript/translation storage
@@ -869,34 +930,48 @@ async def connect_to_fireflies(
         db_manager = data_pipeline.db_manager if data_pipeline else None
 
         if db_manager:
-            logger.info("Database manager connected - transcripts and translations will be stored")
+            logger.info("db_manager_connected")
         else:
-            logger.warning(
-                "No database manager - transcripts and translations will NOT be persisted"
-            )
+            logger.warning("db_manager_unavailable", consequence="transcripts_not_persisted")
 
         # Get optional intelligence and event publisher services
         try:
             meeting_intelligence = get_meeting_intelligence_service()
-        except Exception:
+        except Exception as e:
             meeting_intelligence = None
+            logger.warning(
+                "meeting_intelligence_unavailable",
+                error=str(e),
+            )
 
         try:
             event_publisher = get_event_publisher()
-        except Exception:
+        except Exception as e:
             event_publisher = None
+            logger.warning(
+                "event_publisher_unavailable",
+                error=str(e),
+            )
 
         # Create LLM client for translation pipeline
         llm_client = None
         try:
             llm_client = get_fireflies_llm_client()
             await llm_client.connect()
-            logger.info("LLM client connected for Fireflies translation pipeline")
+            logger.info("llm_client_connected")
         except Exception as e:
             logger.warning(
-                f"LLM client unavailable for Fireflies pipeline: {e}. "
-                "Translations will be skipped but transcripts will still be stored."
+                "llm_client_unavailable",
+                error=str(e),
+                consequence="translations_skipped",
             )
+
+        # Get glossary adapter for translation pipeline
+        glossary_service = None
+        try:
+            glossary_service = get_glossary_pipeline_adapter()
+        except Exception as e:
+            logger.warning("glossary_adapter_unavailable", error=str(e))
 
         # Create session with transcript handling and database persistence
         session = await manager.create_session(
@@ -905,11 +980,13 @@ async def connect_to_fireflies(
             meeting_intelligence=meeting_intelligence,
             event_publisher=event_publisher,
             llm_client=llm_client,
+            glossary_service=glossary_service,
         )
 
         logger.info(
-            f"Created Fireflies session: {session.session_id} "
-            f"for transcript: {request.transcript_id}"
+            "fireflies_session_created",
+            session_id=session.session_id,
+            transcript_id=request.transcript_id,
         )
 
         # Fetch transcript metadata and update meeting title in background
@@ -949,13 +1026,13 @@ async def connect_to_fireflies(
         )
 
     except FirefliesAPIError as e:
-        logger.error(f"Fireflies API error: {e}")
+        logger.error("fireflies_api_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Fireflies API error: {e!s}",
         ) from e
     except Exception as e:
-        logger.exception(f"Failed to connect to Fireflies: {e}")
+        logger.exception("fireflies_connect_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to connect: {e!s}",
@@ -1047,6 +1124,8 @@ async def get_session(
         connected_at=session.connected_at,
         error_count=session.error_count,
         last_error=session.last_error,
+        persistence_failures=session.persistence_failures,
+        persistence_healthy=session.persistence_healthy,
     )
 
 
@@ -1070,6 +1149,131 @@ async def set_display_mode(session_id: str, body: DisplayModeRequest) -> dict[st
     )
     logger.info("display_mode_changed", session_id=session_id, mode=body.mode)
     return {"success": True, "mode": body.mode}
+
+
+@router.post(
+    "/sessions/{session_id}/pause",
+    summary="Pause live pipeline",
+    description="Pause chunk processing for a session. Chunks received while paused are dropped.",
+)
+async def pause_session(
+    session_id: str,
+    manager: FirefliesSessionManager = Depends(get_session_manager),
+) -> dict[str, Any]:
+    """Pause the pipeline for a session."""
+    session = manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    coordinator = manager.get_coordinator(session_id)
+    if not coordinator:
+        raise HTTPException(status_code=400, detail="No pipeline coordinator for session")
+
+    coordinator.pause()
+    session.is_paused = True
+
+    # Notify caption clients
+    ws_manager = get_ws_manager()
+    await ws_manager.broadcast_to_session(
+        session_id,
+        {"event": "pipeline_paused", "session_id": session_id},
+    )
+
+    logger.info("session_paused", session_id=session_id)
+    return {"success": True, "paused": True}
+
+
+@router.post(
+    "/sessions/{session_id}/resume",
+    summary="Resume live pipeline",
+    description="Resume chunk processing for a paused session.",
+)
+async def resume_session(
+    session_id: str,
+    manager: FirefliesSessionManager = Depends(get_session_manager),
+) -> dict[str, Any]:
+    """Resume the pipeline for a session."""
+    session = manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    coordinator = manager.get_coordinator(session_id)
+    if not coordinator:
+        raise HTTPException(status_code=400, detail="No pipeline coordinator for session")
+
+    coordinator.resume()
+    session.is_paused = False
+
+    # Notify caption clients
+    ws_manager = get_ws_manager()
+    await ws_manager.broadcast_to_session(
+        session_id,
+        {"event": "pipeline_resumed", "session_id": session_id},
+    )
+
+    logger.info("session_resumed", session_id=session_id)
+    return {"success": True, "paused": False}
+
+
+class TargetLanguagesRequest(BaseModel):
+    """Request to change target languages for a live session"""
+
+    target_languages: list[str] = Field(
+        ..., description="New target languages (e.g. ['es', 'zh'])", min_length=1
+    )
+
+
+@router.put(
+    "/sessions/{session_id}/target-languages",
+    summary="Change target languages for a live session",
+    description="Update target languages without disconnecting. Takes effect on the next chunk.",
+)
+async def set_target_languages(
+    session_id: str,
+    body: TargetLanguagesRequest,
+    manager: FirefliesSessionManager = Depends(get_session_manager),
+) -> dict[str, Any]:
+    """Change the target languages for translation on a live session."""
+    session = manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    coordinator = manager.get_coordinator(session_id)
+    if not coordinator:
+        raise HTTPException(status_code=400, detail="No pipeline coordinator for session")
+
+    old_languages = list(coordinator.config.target_languages)
+    coordinator.config.target_languages = body.target_languages
+
+    # Reload glossary if languages changed (different language may need different terms)
+    if coordinator.glossary_service and coordinator.config.glossary_id:
+        try:
+            coordinator._glossary_terms = await coordinator._load_glossary()
+        except Exception as e:
+            logger.warning("glossary_reload_failed", error=str(e))
+
+    # Notify caption clients
+    ws_manager = get_ws_manager()
+    await ws_manager.broadcast_to_session(
+        session_id,
+        {
+            "event": "target_languages_changed",
+            "session_id": session_id,
+            "target_languages": body.target_languages,
+        },
+    )
+
+    logger.info(
+        "target_languages_changed",
+        session_id=session_id,
+        old=old_languages,
+        new=body.target_languages,
+    )
+    return {
+        "success": True,
+        "target_languages": body.target_languages,
+        "previous": old_languages,
+    }
 
 
 @router.post(
@@ -1112,13 +1316,13 @@ async def get_active_meetings(
         )
 
     except FirefliesAPIError as e:
-        logger.error(f"Fireflies API error: {e}")
+        logger.error("fireflies_api_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Fireflies API error: {e!s}",
         ) from e
     except Exception as e:
-        logger.exception(f"Failed to get active meetings: {e}")
+        logger.exception("get_active_meetings_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get meetings: {e!s}",
@@ -1506,18 +1710,42 @@ async def _wait_and_connect_meeting(
                     try:
                         llm_client = get_fireflies_llm_client()
                         await llm_client.connect()
-                    except Exception:
-                        pass  # Translation will be skipped
+                    except Exception as e:
+                        logger.warning(
+                            "wait_connect_llm_client_unavailable",
+                            meeting_id=meeting.id,
+                            error=str(e),
+                        )
 
                     try:
                         meeting_intelligence = get_meeting_intelligence_service()
-                    except Exception:
+                    except Exception as e:
                         meeting_intelligence = None
+                        logger.warning(
+                            "wait_connect_meeting_intelligence_unavailable",
+                            meeting_id=meeting.id,
+                            error=str(e),
+                        )
 
                     try:
                         event_publisher = get_event_publisher()
-                    except Exception:
+                    except Exception as e:
                         event_publisher = None
+                        logger.warning(
+                            "wait_connect_event_publisher_unavailable",
+                            meeting_id=meeting.id,
+                            error=str(e),
+                        )
+
+                    glossary_service = None
+                    try:
+                        glossary_service = get_glossary_pipeline_adapter()
+                    except Exception as e:
+                        logger.warning(
+                            "wait_connect_glossary_unavailable",
+                            meeting_id=meeting.id,
+                            error=str(e),
+                        )
 
                     manager = get_session_manager()
                     await manager.create_session(
@@ -1526,6 +1754,7 @@ async def _wait_and_connect_meeting(
                         llm_client=llm_client,
                         meeting_intelligence=meeting_intelligence,
                         event_publisher=event_publisher,
+                        glossary_service=glossary_service,
                     )
                     return
 
@@ -1601,13 +1830,13 @@ async def get_past_transcripts(
         )
 
     except FirefliesAPIError as e:
-        logger.error(f"Fireflies API error: {e}")
+        logger.error("fireflies_api_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Fireflies API error: {e!s}",
         ) from e
     except Exception as e:
-        logger.exception(f"Failed to get transcripts: {e}")
+        logger.exception("get_transcripts_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get transcripts: {e!s}",
@@ -1663,13 +1892,13 @@ async def get_transcript_detail(
     except HTTPException:
         raise
     except FirefliesAPIError as e:
-        logger.error(f"Fireflies API error: {e}")
+        logger.error("fireflies_api_error", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Fireflies API error: {e!s}",
         ) from e
     except Exception as e:
-        logger.exception(f"Failed to get transcript: {e}")
+        logger.exception("get_transcript_detail_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get transcript: {e!s}",
@@ -1733,18 +1962,21 @@ async def import_transcript_to_db(
         )
 
     try:
-        # Step 1: Fetch transcript from Fireflies
+        # Step 1: Fetch FULL transcript from Fireflies (with ai_filters, analytics, etc.)
         client = FirefliesClient(api_key=api_key)
-        transcript_data = await client.get_transcript_detail(transcript_id)
+        full_result = await client.download_full_transcript(transcript_id)
         await client.close()
 
-        if not transcript_data:
+        if not full_result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Transcript {transcript_id} not found in Fireflies",
             )
 
-        sentences = transcript_data.get("sentences", [])
+        transcript_data = full_result["transcript"]
+        sentences = full_result.get("sentences", [])
+        insights = full_result.get("insights", [])
+
         if not sentences:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1754,7 +1986,7 @@ async def import_transcript_to_db(
         transcript_title = transcript_data.get("title", f"Fireflies Import: {transcript_id}")
         target_lang = request.target_language or "en"
 
-        logger.info(f"Starting import of {len(sentences)} sentences from {transcript_id}")
+        logger.info("import_starting", sentence_count=len(sentences), transcript_id=transcript_id)
 
         # Step 2: Get database manager and translation client
         data_pipeline = get_data_pipeline()
@@ -1768,16 +2000,16 @@ async def import_transcript_to_db(
             try:
                 llm_client = get_fireflies_llm_client()
                 await llm_client.connect()
-                logger.info("LLM client connected for Fireflies import pipeline")
+                logger.info("import_llm_client_connected")
             except Exception as e:
-                logger.warning(f"LLM client unavailable for import: {e}")
+                logger.warning("import_llm_client_unavailable", error=str(e))
                 # Fall back to legacy TranslationServiceClient
                 try:
                     from clients.translation_service_client import TranslationServiceClient
 
                     translation_client = TranslationServiceClient()
                 except Exception as e2:
-                    logger.warning(f"Translation client also unavailable: {e2}")
+                    logger.warning("import_translation_client_unavailable", error=str(e2))
 
         # Step 3: Create import session (uses same pipeline as live sessions)
         session_id, coordinator = await manager.create_import_session(
@@ -1790,6 +2022,50 @@ async def import_transcript_to_db(
             translation_client=translation_client,
             llm_client=llm_client,
         )
+
+        # Step 3b: Store Fireflies insights (summary, analytics, attendance, etc.)
+        insights_stored = 0
+        if insights and db_manager:
+            db_url = os.environ.get("DATABASE_URL", "")
+            if db_url:
+                store = MeetingStore(db_url)
+                await store.initialize()
+                try:
+                    # Find or create meeting record for this import
+                    meeting = await store.get_meeting_by_ff_id(transcript_id)
+                    if meeting:
+                        meeting_db_id = str(meeting["id"])
+                    else:
+                        meeting_db_id = await store.create_meeting(
+                            fireflies_transcript_id=transcript_id,
+                            title=transcript_title,
+                            meeting_link=transcript_data.get("meeting_link"),
+                            organizer_email=transcript_data.get("organizer_email"),
+                            participants=transcript_data.get("participants"),
+                            source="fireflies",
+                            status="completed",
+                        )
+
+                    for insight in insights:
+                        await store.store_insight(
+                            meeting_id=meeting_db_id,
+                            insight_type=insight["type"],
+                            content=insight["content"],
+                            source="fireflies",
+                        )
+                        insights_stored += 1
+
+                    logger.info(
+                        "import_insights_stored",
+                        transcript_id=transcript_id,
+                        insights_stored=insights_stored,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "import_insights_storage_failed",
+                        transcript_id=transcript_id,
+                        error=str(e),
+                    )
 
         # Step 4: Process each sentence through the pipeline
         # This is the same flow as live data - DRY!
@@ -1808,19 +2084,21 @@ async def import_transcript_to_db(
 
                 # Log progress every 10 sentences
                 if (i + 1) % 10 == 0:
-                    logger.info(f"Import progress: {i + 1}/{len(sentences)} sentences")
+                    logger.info("import_progress", current=i + 1, total=len(sentences))
 
             except Exception as e:
-                logger.error(f"Error processing sentence {i}: {e}")
+                logger.error("import_sentence_processing_error", index=i, error=str(e))
                 errors += 1
 
         # Step 5: Finalize the session
         final_stats = await manager.finalize_import_session(session_id)
 
         logger.info(
-            f"Import complete for {transcript_id}: "
-            f"{processed} processed, {final_stats.get('translations_completed', 0)} translated, "
-            f"{errors} errors"
+            "import_complete",
+            transcript_id=transcript_id,
+            processed=processed,
+            translated=final_stats.get("translations_completed", 0),
+            errors=errors,
         )
 
         return {
@@ -1833,16 +2111,17 @@ async def import_transcript_to_db(
             "translations_completed": final_stats.get("translations_completed", 0),
             "sentences_stored": final_stats.get("sentences_produced", 0),
             "errors": errors,
+            "insights_stored": insights_stored,
             "target_language": target_lang,
             "glossary_id": request.glossary_id,
             "pipeline_stats": final_stats,
-            "message": f"Successfully imported {processed} sentences to local database",
+            "message": f"Successfully imported {processed} sentences and {insights_stored} insights",
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception(f"Failed to import transcript: {e}")
+        logger.exception("import_transcript_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to import transcript: {e!s}",
@@ -1901,7 +2180,7 @@ async def get_dashboard_config():
         config["translation_models"] = models
         config["translation_service_available"] = True
     except Exception as e:
-        logger.warning(f"Translation service unavailable: {e}")
+        logger.warning("translation_service_unavailable", error=str(e))
         config["translation_models"] = []
         config["translation_service_available"] = False
         config["translation_service_error"] = str(e)
@@ -1930,7 +2209,7 @@ async def get_dashboard_config():
                 config["prompts_available"] = False
                 config["prompts_error"] = f"HTTP {resp.status}"
     except Exception as e:
-        logger.warning(f"Could not fetch prompts: {e}")
+        logger.warning("prompt_fetch_failed", error=str(e))
         config["prompt_templates"] = []
         config["prompts_available"] = False
         config["prompts_error"] = str(e)
@@ -1997,17 +2276,25 @@ async def start_demo(
             llm_client = get_fireflies_llm_client()
             await llm_client.connect()
         except Exception as e:
-            logger.warning(f"LLM client unavailable for demo: {e}")
+            logger.warning("demo_llm_client_unavailable", error=str(e))
 
         try:
             meeting_intelligence = get_meeting_intelligence_service()
-        except Exception:
+        except Exception as e:
             meeting_intelligence = None
+            logger.warning("demo_meeting_intelligence_unavailable", error=str(e))
 
         try:
             event_publisher = get_event_publisher()
-        except Exception:
+        except Exception as e:
             event_publisher = None
+            logger.warning("demo_event_publisher_unavailable", error=str(e))
+
+        glossary_service = None
+        try:
+            glossary_service = get_glossary_pipeline_adapter()
+        except Exception as e:
+            logger.warning("demo_glossary_unavailable", error=str(e))
 
         session = await manager.create_session(
             config,
@@ -2015,11 +2302,12 @@ async def start_demo(
             llm_client=llm_client,
             meeting_intelligence=meeting_intelligence,
             event_publisher=event_publisher,
+            glossary_service=glossary_service,
         )
 
         demo.session_id = session.session_id
 
-        logger.info(f"Demo session created: {session.session_id}")
+        logger.info("demo_session_created", session_id=session.session_id)
 
         return {
             "success": True,
@@ -2034,7 +2322,7 @@ async def start_demo(
     except Exception as e:
         # Clean up on failure
         await demo.stop()
-        logger.exception(f"Failed to start demo: {e}")
+        logger.exception("demo_start_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start demo: {e!s}",
