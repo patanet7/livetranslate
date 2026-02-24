@@ -229,6 +229,7 @@ dev = [
     "vulture>=2.11",
     "autoflake>=2.3.0",
     "sqlfluff>=4.0.0",
+    "numpy>=2.3.5",
 ]
 test = [
     "httpx>=0.28.1",
