@@ -148,22 +148,10 @@ MAX_CONCURRENT_TESTS = 10
 TEST_AUDIO_CACHE_SIZE = 100  # MB
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the test session."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-
-    yield loop
-
-    # Clean up
-    try:
-        if not loop.is_closed():
-            loop.close()
-    except Exception as e:
-        logger.warning(f"Error closing event loop: {e}")
+# NOTE: Custom event_loop fixture removed — pytest-asyncio >=0.23 handles
+# session-scoped loops via asyncio_default_fixture_loop_scope = "session"
+# in pytest.ini.  Defining a custom event_loop fixture triggers a
+# DeprecationWarning in pytest-asyncio 0.26+.
 
 
 @pytest.fixture(scope="session")

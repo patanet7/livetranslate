@@ -194,13 +194,14 @@ def browser(browser_output_dir):
     """
     Launch agent-browser instance.
 
-    Headed mode by default. Set env BROWSER_STREAM=1 for headless + streaming.
+    Headless by default. Set env BROWSER_HEADED=1 for visible browser.
     Closes browser on teardown.
     """
+    headed = os.environ.get("BROWSER_HEADED") == "1"
     stream_mode = os.environ.get("BROWSER_STREAM") == "1"
 
     b = AgentBrowser(
-        headed=not stream_mode,
+        headed=headed,
         stream_port=STREAM_PORT if stream_mode else None,
         timeout=30,
     )

@@ -742,9 +742,11 @@ async def _auto_connect_loop(manager: FirefliesSessionManager) -> None:
         await asyncio.sleep(poll_interval)
 
 
-@router.on_event("startup")
-async def _start_auto_connect() -> None:
-    """Start auto-connect polling if FIREFLIES_AUTO_CONNECT=true."""
+async def start_auto_connect() -> None:
+    """Start auto-connect polling if FIREFLIES_AUTO_CONNECT=true.
+
+    Called from the app lifespan in main_fastapi.py.
+    """
     global _auto_connect_task
 
     if os.environ.get("FIREFLIES_AUTO_CONNECT", "false").lower() != "true":
@@ -760,9 +762,11 @@ async def _start_auto_connect() -> None:
     logger.info("fireflies_auto_connect_enabled")
 
 
-@router.on_event("shutdown")
-async def _stop_auto_connect() -> None:
-    """Cancel the auto-connect polling task on shutdown."""
+async def stop_auto_connect() -> None:
+    """Cancel the auto-connect polling task on shutdown.
+
+    Called from the app lifespan in main_fastapi.py.
+    """
     global _auto_connect_task
 
     if _auto_connect_task is not None:

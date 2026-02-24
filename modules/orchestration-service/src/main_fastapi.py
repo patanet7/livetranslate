@@ -344,6 +344,11 @@ async def lifespan(app: FastAPI):
 
         logger.info("[OK] All managers started successfully")
 
+        # Start Fireflies auto-connect polling (if enabled)
+        from routers.fireflies import start_auto_connect
+
+        await start_auto_connect()
+
         # Load default insight templates
         try:
             from dependencies import get_meeting_intelligence_service
@@ -386,6 +391,11 @@ async def lifespan(app: FastAPI):
                 logger.info("[OK] Demo server stopped during shutdown")
         except BaseException as e:
             logger.warning(f"[WARN] Demo cleanup error: {e}")
+
+        # Stop Fireflies auto-connect polling
+        from routers.fireflies import stop_auto_connect
+
+        await stop_auto_connect()
 
         # Cleanup dependencies
         from dependencies import shutdown_dependencies
