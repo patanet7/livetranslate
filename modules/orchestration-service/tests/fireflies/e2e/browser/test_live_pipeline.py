@@ -164,19 +164,19 @@ class TestLivePipeline:
             "to appear via the live pipeline"
         )
 
-        # Verify the caption contains some text
+        # Verify the caption contains non-empty text
         if caption_type == "final":
-            selector = ".final-caption"
+            caption_text = browser.eval_js(
+                "document.querySelector('.final-caption .translated-text')?.textContent || ''"
+            ).strip()
         else:
-            selector = ".interim-caption"
+            caption_text = browser.eval_js(
+                "document.querySelector('.interim-caption .caption-text')?.textContent || ''"
+            ).strip()
 
-        try:
-            caption_text = browser.get_text(selector)
-            assert len(caption_text.strip()) > 0, "Caption should contain text"
-        except Exception:
-            # Text extraction via selector may not work; the count assertion above
-            # already confirmed the element exists.
-            pass
+        assert len(caption_text) > 0, (
+            f"Caption ({caption_type}) should contain non-empty text, got: '{caption_text}'"
+        )
 
     def test_interim_captions_grow(
         self, live_session, browser, captions_url, browser_output_dir, timestamp
@@ -217,47 +217,44 @@ class TestLivePipeline:
         if not found_interim:
             # Interim captions may have already been replaced by finals, or
             # captions may be present but as a different type. Check snapshots.
-            try:
-                snap = browser.snapshot()
-                # If we see speaker names, the pipeline is working but captions
-                # may have already transitioned to finals.
-                has_content = "Alice" in snap or "Bob" in snap
-                final_count_str = browser.eval_js(
-                    "document.querySelectorAll('.final-caption').length"
+            snap = browser.snapshot()
+            # If we see speaker names, the pipeline is working but captions
+            # may have already transitioned to finals.
+            has_content = "Alice" in snap or "Bob" in snap
+            final_count_str = browser.eval_js(
+                "document.querySelectorAll('.final-caption').length"
+            )
+            final_count = int(final_count_str.strip())
+            if final_count >= 1 or has_content:
+                pytest.skip(
+                    "Pipeline delivered captions but interim captions were "
+                    "already replaced by finals before we could observe them."
                 )
-                final_count = int(final_count_str.strip())
-                if final_count >= 1 or has_content:
-                    pytest.skip(
-                        "Pipeline delivered captions but interim captions were "
-                        "already replaced by finals before we could observe them."
-                    )
-            except Exception:
-                pass
 
             pytest.fail("No interim captions appeared within the timeout")
 
-        # Wait a moment for more words to stream in, then verify text changed
+        # Poll for the interim caption text to grow as the mock streams words.
+        # The mock streams word-by-word at ~500ms per chunk, so text WILL grow.
         first_len = len(first_text)
-        time.sleep(2)
-
-        try:
+        growth_deadline = time.time() + 20
+        later_text = first_text
+        while time.time() < growth_deadline:
+            time.sleep(1)
             later_text = browser.eval_js(
                 "document.querySelector('.interim-caption .caption-text')?.textContent || ''"
-            )
-            browser.screenshot(
-                str(browser_output_dir / f"{timestamp}_live_pipeline_interim_grown.png")
-            )
-            # Text should have grown (more words) or been replaced by a different
-            # interim caption. We check that SOME text is present.
-            assert len(later_text) > 0, "Interim caption text should not be empty"
-            # If the text grew (more characters), that directly proves word streaming
+            ).strip()
             if len(later_text) > first_len:
-                pass  # Growth confirmed
-            # If text is different but same length, speaker may have changed
-            # If text is the same, the chunk hasn't updated yet (still valid)
-        except Exception:
-            # Interim may have been replaced by final — that is acceptable
-            pass
+                break
+
+        browser.screenshot(
+            str(browser_output_dir / f"{timestamp}_live_pipeline_interim_grown.png")
+        )
+
+        assert len(later_text) > first_len, (
+            f"Interim caption text should grow as words stream in. "
+            f"First length: {first_len} ({first_text!r}), "
+            f"later length: {len(later_text)} ({later_text!r})"
+        )
 
     def test_speaker_attribution_displayed(
         self, live_session, browser, captions_url
@@ -268,34 +265,23 @@ class TestLivePipeline:
 
         browser.open(url)
 
-        # Wait for captions with speaker names to appear.
+        # Wait for speaker-name elements to appear in the DOM.
         # The mock scenario uses Alice and Bob speakers.
         deadline = time.time() + 30
-        found_speaker = False
+        speaker_names_text = ""
         while time.time() < deadline:
-            try:
-                snap = browser.snapshot()
-                if "Alice" in snap or "Bob" in snap:
-                    found_speaker = True
-                    break
-            except Exception:
-                pass
+            speaker_names_text = browser.eval_js(
+                "Array.from(document.querySelectorAll('.speaker-name'))"
+                ".map(el => el.textContent).join(' ')"
+            ).strip()
+            if "Alice" in speaker_names_text or "Bob" in speaker_names_text:
+                break
             time.sleep(2)
 
-        assert found_speaker, (
-            "Expected speaker name 'Alice' or 'Bob' to appear in the caption overlay"
+        assert "Alice" in speaker_names_text or "Bob" in speaker_names_text, (
+            f"Expected .speaker-name elements to contain 'Alice' or 'Bob', "
+            f"got: '{speaker_names_text}'"
         )
-
-        # Verify the speaker-name element specifically
-        try:
-            speaker_text = browser.get_text(".speaker-name")
-            assert "Alice" in speaker_text or "Bob" in speaker_text, (
-                f"Speaker name element should contain Alice or Bob, got: '{speaker_text}'"
-            )
-        except Exception:
-            # If get_text for a specific selector fails, the snapshot assertion above
-            # already validated that the speaker name is visible on the page.
-            pass
 
     def test_session_disconnect_cleans_up(
         self, orchestration_server, mock_fireflies_server
