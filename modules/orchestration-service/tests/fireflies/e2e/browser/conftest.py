@@ -6,6 +6,8 @@ Provides:
 - mock_fireflies: FirefliesMockServer with Spanish conversation scenario
 - browser: AgentBrowser instance (headed or streaming based on env)
 - browser_output_dir: Path for screenshots and logs
+- live_session: Connect a live Fireflies session through the real pipeline
+- ws_caption_messages: Collect WebSocket caption events for assertions
 
 Inherits from root conftest: PostgreSQL testcontainer, Redis, Alembic migrations.
 """
@@ -17,12 +19,15 @@ import multiprocessing
 import os
 import socket
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
+import httpx
 import pytest
 import uvicorn
+import websockets
 
 # Add src + tests to path
 orchestration_root = Path(__file__).parent.parent.parent.parent.parent
@@ -260,3 +265,117 @@ def setup_api_key(mock_fireflies_server):
 def timestamp():
     """Current timestamp string for output file naming."""
     return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+# =============================================================================
+# Live Pipeline Fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def live_session(orchestration_server, mock_fireflies_server):
+    """
+    Connect a live Fireflies session through the real pipeline.
+
+    POSTs to /fireflies/connect with the mock server's URL as api_base_url,
+    then yields session info. On teardown, disconnects the session.
+    """
+    base = orchestration_server
+    mock = mock_fireflies_server
+
+    resp = httpx.post(
+        f"{base}/fireflies/connect",
+        json={
+            "api_key": mock["api_key"],
+            "transcript_id": mock["transcript_id"],
+            "api_base_url": mock["url"],
+            "target_languages": ["es"],
+        },
+        timeout=15,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    session_id = data["session_id"]
+
+    yield {
+        "session_id": session_id,
+        "transcript_id": mock["transcript_id"],
+    }
+
+    # Teardown: disconnect the session
+    try:
+        httpx.post(
+            f"{base}/fireflies/disconnect",
+            json={"session_id": session_id},
+            timeout=10,
+        )
+    except Exception:
+        logger.warning("live_session teardown: disconnect failed", exc_info=True)
+
+
+@pytest.fixture
+def ws_caption_messages():
+    """
+    Collect WebSocket caption messages for assertions.
+
+    Yields (messages, connect_fn, close_fn):
+    - messages: list that accumulates parsed JSON messages from the WebSocket
+    - connect_fn(base_url, session_id): opens the WebSocket in a background thread
+    - close_fn(): closes the WebSocket connection
+
+    Uses the ``websockets`` library (already a project dependency) running
+    in a dedicated asyncio event loop on a daemon thread.
+    """
+    messages: list[dict] = []
+    _ws_ref: list = [None]  # mutable ref for the websocket connection
+    _loop_ref: list = [None]  # mutable ref for the background event loop
+    _thread_ref: list = [None]  # mutable ref for the background thread
+
+    def _run_ws_loop(ws_url: str, loop: asyncio.AbstractEventLoop, ready: threading.Event):
+        """Background thread target: run an asyncio loop that listens on the WebSocket."""
+        asyncio.set_event_loop(loop)
+
+        async def _listen():
+            try:
+                async with websockets.connect(ws_url) as ws:
+                    _ws_ref[0] = ws
+                    ready.set()
+                    async for raw in ws:
+                        try:
+                            messages.append(json.loads(raw))
+                        except json.JSONDecodeError:
+                            logger.warning("ws_caption_messages: non-JSON message: %s", raw)
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.debug("ws_caption_messages: WebSocket closed", exc_info=True)
+            finally:
+                ready.set()  # ensure we unblock even on early failure
+
+        loop.run_until_complete(_listen())
+
+    def connect(base_url: str, session_id: str):
+        ws_url = base_url.replace("http://", "ws://") + f"/api/captions/stream/{session_id}"
+        loop = asyncio.new_event_loop()
+        _loop_ref[0] = loop
+        ready = threading.Event()
+        t = threading.Thread(target=_run_ws_loop, args=(ws_url, loop, ready), daemon=True)
+        t.start()
+        _thread_ref[0] = t
+        # Wait up to 5 seconds for the connection to be established
+        if not ready.wait(timeout=5):
+            logger.warning("ws_caption_messages: timed out waiting for WebSocket connection")
+
+    def close():
+        ws = _ws_ref[0]
+        loop = _loop_ref[0]
+        if ws and loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(ws.close(), loop)
+        t = _thread_ref[0]
+        if t:
+            t.join(timeout=3)
+
+    yield messages, connect, close
+
+    # Cleanup on fixture teardown
+    close()
