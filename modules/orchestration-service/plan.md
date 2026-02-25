@@ -1,8 +1,56 @@
 # Orchestration Service - Development Plan
 
 **Last Updated**: 2026-02-25
-**Current Status**: Caption Pipeline Refinement COMPLETE — 6 tasks, 7 commits, 509 unit tests passing
+**Current Status**: Behavioral E2E Tests COMPLETE — 7 tasks, 10 commits, 509 unit + 23 new E2E tests passing
 **Module**: `modules/orchestration-service/`
+
+---
+
+## Completed: Behavioral E2E Tests — Live Pipeline + Page Verification (2026-02-25)
+
+**Goal**: Add behavioral E2E tests that verify the full live pipeline (connect → mock Fireflies stream → sentence aggregation → translation → WebSocket → browser captions) and validate all pages, user flows, ordering, deduplication, and subtitle rendering.
+
+**Design Doc**: User-provided plan (Task 16)
+**Base SHA**: `f03ca5e`
+
+### Task Progress
+
+| # | Task | Status | Commit |
+|---|------|--------|--------|
+| 1 | Add `api_base_url` to ConnectRequest | ✅ Done | `e5a4dd8` |
+| 2 | Add shared live-pipeline fixtures to conftest | ✅ Done | `1b01c4e`, `bcdd1a6` |
+| 3 | Create `test_live_pipeline.py` | ✅ Done | `c1708bb`, `d922a6f` |
+| 4 | Create `test_ordering_dedup.py` | ✅ Done | `f66ca7a`, `70d76bd` |
+| 5 | Create `test_cross_page_flow.py` | ✅ Done | `0a611e8` |
+| 6 | Create `test_captions_live_rendering.py` | ✅ Done | `6118251` |
+| 7 | Run full E2E suite + update plan.md | ✅ Done | — |
+
+### What was built
+
+**1 production code change:**
+- `src/routers/fireflies.py` — Added `api_base_url` field to `ConnectRequest` and pass-through to `FirefliesSessionConfig`
+
+**4 new test files (23 E2E tests):**
+- `test_live_pipeline.py` — 6 tests: connect, WS captions, browser rendering, interim growth, speaker attribution, disconnect cleanup
+- `test_ordering_dedup.py` — 6 tests: no duplicates, chronological order, grow-only filter, ASR corrections, interleaved chunks, fragment growth
+- `test_cross_page_flow.py` — 5 tests: dashboard→captions flow, API session visibility, disconnect stops captions, session isolation, WS auto-reconnect
+- `test_captions_live_rendering.py` — 6 tests: display mode both/translated/english, speaker colors, caption expiry, max captions limit
+
+**Shared infrastructure:**
+- `conftest.py` — `live_session` fixture (connect/disconnect lifecycle), `ws_caption_messages` fixture (WebSocket caption collection), mock server event loop fix (background thread)
+
+### Key Findings
+
+1. **Mock server event loop fix** — aiohttp requires the asyncio event loop to run in a background thread (`loop.run_forever()`) for Socket.IO connections to process. Fixed in conftest.
+2. **agent-browser compound CSS selectors** — `get_count(".a.b")` unreliable; use `eval_js("document.querySelectorAll('.a.b').length")` instead.
+3. **No LLM in test env** — `caption_added` events (final translations) require sentence aggregation + LLM. Tests accept `interim_caption` events as valid pipeline proof. Display mode tests use hybrid: live pipeline interims + injected finals via `addCaption()`.
+4. **Grow-only filter verified** — Server-side `LiveCaptionManager` correctly suppresses ASR shrinks, allows corrections, and the captured realtime data confirms "key cat" → "kitty cat" correction propagation.
+
+### Test Results
+
+- 509 fireflies unit tests passing (13.7s)
+- 23 new browser E2E tests passing (208s combined)
+- 95 total browser E2E tests collected (72 existing + 23 new)
 
 ---
 
