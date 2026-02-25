@@ -55,11 +55,11 @@ class PipelineConfig:
     source_language: str = "en"
     target_languages: list[str] = field(default_factory=lambda: ["es"])
 
-    # Sentence aggregation
-    pause_threshold_ms: float = 800.0
-    max_words_per_sentence: int = 30
-    max_time_per_sentence_ms: float = 5000.0
-    min_words_for_translation: int = 3
+    # Sentence aggregation (tuned from real Fireflies data: 86 chunks, 2 speakers)
+    pause_threshold_ms: float = 600.0
+    max_words_per_sentence: int = 25
+    max_time_per_sentence_ms: float = 4000.0
+    min_words_for_translation: int = 2
     use_nlp_boundary_detection: bool = True
 
     # Context windows
