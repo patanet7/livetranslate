@@ -364,7 +364,9 @@ def ws_caption_messages():
         _thread_ref[0] = t
         # Wait up to 5 seconds for the connection to be established
         if not ready.wait(timeout=5):
-            logger.warning("ws_caption_messages: timed out waiting for WebSocket connection")
+            logger.error("ws_caption_messages: timed out waiting for WebSocket connection")
+            close()
+            raise TimeoutError("ws_caption_messages: timed out waiting for WebSocket connection")
 
     def close():
         ws = _ws_ref[0]
@@ -374,6 +376,8 @@ def ws_caption_messages():
         t = _thread_ref[0]
         if t:
             t.join(timeout=3)
+        if loop and not loop.is_closed():
+            loop.close()
 
     yield messages, connect, close
 
