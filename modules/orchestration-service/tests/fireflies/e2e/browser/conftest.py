@@ -150,8 +150,8 @@ def mock_fireflies_server():
     Start the FirefliesMockServer with a Spanish conversation scenario.
 
     The scenario has 2 speakers (Alice, Bob) with 20 exchanges.
-    Uses asyncio.run() for start/stop since this is a session-scoped sync fixture
-    (avoids event_loop fixture conflicts with pytest-asyncio).
+    Runs the aiohttp event loop in a daemon thread so the server can accept
+    Socket.IO connections while the test suite runs synchronously.
     """
     server = FirefliesMockServer(
         host="localhost",
@@ -166,9 +166,18 @@ def mock_fireflies_server():
     )
     transcript_id = server.add_scenario(scenario)
 
-    # Start server — use a dedicated event loop for the session-scoped fixture
+    # Start the server's event loop in a background thread so aiohttp can
+    # actually process incoming connections while the test suite runs.
     loop = asyncio.new_event_loop()
     loop.run_until_complete(server.start())
+
+    # run_forever() in a daemon thread keeps the event loop processing I/O
+    loop_thread = threading.Thread(target=loop.run_forever, daemon=True)
+    loop_thread.start()
+
+    # Wait for the port to be accepting connections
+    if not _wait_for_port("localhost", MOCK_FIREFLIES_PORT, timeout=10):
+        logger.error(f"Mock Fireflies server port {MOCK_FIREFLIES_PORT} not open")
 
     logger.info(
         f"Mock Fireflies server started on port {MOCK_FIREFLIES_PORT}, "
@@ -183,8 +192,12 @@ def mock_fireflies_server():
         "api_key": TEST_API_KEY,
     }
 
-    loop.run_until_complete(server.stop())
-    loop.close()
+    # Shutdown: stop the server, then the loop
+    asyncio.run_coroutine_threadsafe(server.stop(), loop).result(timeout=10)
+    loop.call_soon_threadsafe(loop.stop)
+    loop_thread.join(timeout=5)
+    if not loop.is_closed():
+        loop.close()
     logger.info("Mock Fireflies server stopped")
 
 
@@ -283,6 +296,8 @@ def live_session(orchestration_server, mock_fireflies_server):
     base = orchestration_server
     mock = mock_fireflies_server
 
+    # The /connect endpoint awaits Socket.IO handshake (wait_timeout=30s inside
+    # the Fireflies client) so we need a generous HTTP timeout.
     resp = httpx.post(
         f"{base}/fireflies/connect",
         json={
@@ -291,7 +306,7 @@ def live_session(orchestration_server, mock_fireflies_server):
             "api_base_url": mock["url"],
             "target_languages": ["es"],
         },
-        timeout=15,
+        timeout=45,
     )
     resp.raise_for_status()
     data = resp.json()
@@ -307,7 +322,7 @@ def live_session(orchestration_server, mock_fireflies_server):
         httpx.post(
             f"{base}/fireflies/disconnect",
             json={"session_id": session_id},
-            timeout=10,
+            timeout=15,
         )
     except Exception:
         logger.warning("live_session teardown: disconnect failed", exc_info=True)
