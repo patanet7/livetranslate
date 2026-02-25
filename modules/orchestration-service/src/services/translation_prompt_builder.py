@@ -28,7 +28,7 @@ logger = get_logger()
 TRANSLATION_PROMPT_TEMPLATE = """You are a professional real-time translator.
 
 Target Language: {target_language}
-
+{speaker_section}
 {glossary_section}
 
 Previous context (DO NOT translate, only use for understanding references):
@@ -174,7 +174,12 @@ class TranslationPromptBuilder:
         previous_sentences: list[str],
         glossary_terms: dict[str, str],
     ) -> str:
-        """Build prompt with context and glossary."""
+        """Build prompt with context, glossary, and speaker identity."""
+        # Format speaker section
+        speaker_section = ""
+        if context.speaker_name:
+            speaker_section = f"Current Speaker: {context.speaker_name}"
+
         # Format glossary section
         glossary_section = ""
         if glossary_terms:
@@ -188,6 +193,7 @@ class TranslationPromptBuilder:
 
         return self.full_template.format(
             target_language=context.target_language,
+            speaker_section=speaker_section,
             glossary_section=glossary_section,
             context_window=context_window,
             current_sentence=context.current_sentence,
