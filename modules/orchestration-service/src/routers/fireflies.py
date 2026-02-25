@@ -829,6 +829,11 @@ class ConnectRequest(BaseModel):
     max_buffer_words: int | None = Field(default=None)
     context_window_size: int | None = Field(default=None)
 
+    api_base_url: str | None = Field(
+        default=None,
+        description="Override Fireflies API base URL (for testing/demo mode)",
+    )
+
 
 class SessionResponse(BaseModel):
     """Response with session information"""
@@ -921,6 +926,7 @@ async def connect_to_fireflies(
             pause_threshold_ms=request.pause_threshold_ms or ff_config.pause_threshold_ms,
             max_buffer_words=request.max_buffer_words or ff_config.max_buffer_words,
             context_window_size=request.context_window_size or ff_config.context_window_size,
+            api_base_url=request.api_base_url,
         )
 
         logger.info(
