@@ -15,6 +15,7 @@ The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 """
 
 import asyncio
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -786,6 +787,7 @@ class FirefliesRealtimeClient:
         """
         try:
             self._raw_messages_received += 1
+            _received_at = time.monotonic()
 
             # Extract chunk data - nested in 'payload' (production) or 'data' (legacy)
             chunk_data = (
@@ -821,6 +823,7 @@ class FirefliesRealtimeClient:
                 end_time=float(
                     chunk_data.get("end_time", chunk_data.get("endTime", 0.0))
                 ),
+                received_at=_received_at,
             )
 
             is_new_chunk = chunk_id not in self._pending_text

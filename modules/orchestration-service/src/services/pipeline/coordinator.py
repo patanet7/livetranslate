@@ -33,6 +33,7 @@ Usage:
 
 import asyncio
 import contextlib
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -55,6 +56,7 @@ from services.sentence_aggregator import SentenceAggregator
 
 from .adapters.base import ChunkAdapter, TranscriptChunk
 from .config import PipelineConfig, PipelineStats
+from .metrics import ChunkTimeline, PipelineMetricsCollector
 
 logger = get_logger()
 
@@ -131,6 +133,7 @@ class TranscriptionPipelineCoordinator:
 
         # State
         self._stats = PipelineStats()
+        self._metrics: PipelineMetricsCollector | None = None
         self._initialized = False
         self._paused = False
 
@@ -192,6 +195,9 @@ class TranscriptionPipelineCoordinator:
                 self.caption_buffer.on_caption_added = self._handle_caption_added_async
                 self.caption_buffer.on_caption_updated = self._handle_caption_updated_async
                 self.caption_buffer.on_caption_expired = self._handle_caption_expired_async
+
+            # 6. Create metrics collector
+            self._metrics = PipelineMetricsCollector(session_id=self.config.session_id)
 
             self._initialized = True
             logger.info(
@@ -291,6 +297,24 @@ class TranscriptionPipelineCoordinator:
         This is the main pipeline processing for a sentence.
         """
         self._stats.sentences_produced += 1
+        _aggregated_at = time.monotonic()
+
+        # Create timeline for metrics tracking
+        timeline: ChunkTimeline | None = None
+        if self._metrics:
+            self._metrics.increment("sentences_produced")
+            timeline = ChunkTimeline(
+                chunk_id=getattr(unit, "chunk_id", ""),
+                speaker_name=unit.speaker_name,
+                source=self.adapter.source_type,
+                received_at=getattr(unit, "received_at", _aggregated_at),
+                dedup_decided_at=_aggregated_at,
+                dedup_result="forwarded",
+                aggregated_at=_aggregated_at,
+                text_length=len(unit.text),
+                word_count=len(unit.text.split()),
+                boundary_type=getattr(unit, "boundary_type", ""),
+            )
 
         # Notify external callback
         if self._on_sentence_ready:
@@ -307,10 +331,20 @@ class TranscriptionPipelineCoordinator:
 
             # Step 2: Translate with context + glossary
             translation_result = None
+            _translate_started_at = time.monotonic()
             if self._rolling_translator:
                 translation_result = await self._translate_sentence(unit)
+            _translate_completed_at = time.monotonic()
+
+            # Stamp translation timestamps on timeline
+            if timeline:
+                timeline.translate_started_at = _translate_started_at
+                timeline.translate_completed_at = _translate_completed_at
 
             if translation_result:
+                if self._metrics:
+                    self._metrics.increment("translations_completed")
+
                 # Step 3: Store translation to database (if configured)
                 if self.db_manager and transcript_id:
                     await self._store_translation(transcript_id, translation_result)
@@ -319,12 +353,21 @@ class TranscriptionPipelineCoordinator:
                 if self.caption_buffer is not None:
                     self._add_caption(unit, translation_result)
 
+                # Stamp display timestamp
+                if timeline:
+                    timeline.display_emitted_at = time.monotonic()
+
                 # Notify external callback
                 if self._on_translation_ready:
                     try:
                         await self._on_translation_ready(unit, translation_result)
                     except Exception as e:
                         logger.error(f"Error in on_translation_ready callback: {e}")
+            elif self.caption_buffer is not None:
+                # Fallback: show original text as final caption even without translation
+                self._add_untranslated_caption(unit)
+                if timeline:
+                    timeline.display_emitted_at = time.monotonic()
 
             # Step 5: Auto-notes accumulation (non-blocking)
             if self.config.enable_auto_notes and self.meeting_intelligence:
@@ -345,9 +388,15 @@ class TranscriptionPipelineCoordinator:
                     self._background_tasks.add(task)
                     task.add_done_callback(self._background_tasks.discard)
 
+            # Record completed timeline
+            if timeline and self._metrics:
+                self._metrics.record(timeline)
+
         except Exception as e:
             self._stats.errors += 1
             self._stats.translations_failed += 1
+            if self._metrics:
+                self._metrics.increment("translations_failed")
             logger.error(f"Pipeline error processing sentence: {e}")
             if self._on_error:
                 await self._on_error(str(e))
@@ -470,6 +519,22 @@ class TranscriptionPipelineCoordinator:
             original_text=unit.text,
             target_language=result.target_language,
             confidence=result.confidence,
+            chunk_ids=unit.chunk_ids or None,
+        )
+        self._stats.captions_displayed += 1
+
+    def _add_untranslated_caption(self, unit: TranslationUnit) -> None:
+        """Add original text as caption when translation is unavailable."""
+        if self.caption_buffer is None:
+            return
+
+        self.caption_buffer.add_caption(
+            translated_text=unit.text,
+            speaker_name=unit.speaker_name,
+            original_text=unit.text,
+            target_language=self.config.source_language,
+            confidence=0.0,
+            chunk_ids=unit.chunk_ids or None,
         )
         self._stats.captions_displayed += 1
 
@@ -644,6 +709,10 @@ class TranscriptionPipelineCoordinator:
                 "sentences_produced": self._sentence_aggregator.sentences_produced,
                 "buffers_active": len(self._sentence_aggregator.buffers),
             }
+
+        # Add pipeline metrics if available
+        if self._metrics:
+            stats["metrics"] = self._metrics.to_structured_log()
 
         return stats
 
