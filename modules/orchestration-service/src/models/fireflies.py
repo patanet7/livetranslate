@@ -91,6 +91,7 @@ class FirefliesChunk(BaseModel):
     speaker_name: str = Field(description="Speaker identification for the segment")
     start_time: float = Field(description="Segment start position in seconds")
     end_time: float = Field(description="Segment end position in seconds")
+    received_at: float = Field(default=0.0, description="time.monotonic() when message arrived at client")
 
     @property
     def duration_ms(self) -> float:

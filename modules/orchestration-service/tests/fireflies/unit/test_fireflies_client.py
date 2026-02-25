@@ -183,6 +183,19 @@ class TestFirefliesRealtimeClient:
             }
         )
 
+        # Send a second chunk to trigger finalization of the first
+        # (dedup logic only forwards chunks when a new chunk_id arrives)
+        await client._handle_transcript(
+            {
+                "transcript_id": "t1",
+                "chunk_id": "c2",
+                "text": "trigger finalize",
+                "speaker_name": "Alice",
+                "start_time": 1.5,
+                "end_time": 3.0,
+            }
+        )
+
         assert len(received_chunks) == 1
         assert received_chunks[0].text == "Hello world"
         assert received_chunks[0].speaker_name == "Alice"
@@ -219,6 +232,19 @@ class TestFirefliesRealtimeClient:
                     "speaker_name": "Bob",
                     "start_time": 5.0,
                     "end_time": 7.5,
+                }
+            }
+        )
+
+        # Send a second chunk to trigger finalization of the first
+        await client._handle_transcript(
+            {
+                "data": {
+                    "chunk_id": "c2",
+                    "text": "trigger finalize",
+                    "speaker_name": "Bob",
+                    "start_time": 7.5,
+                    "end_time": 9.0,
                 }
             }
         )
