@@ -131,10 +131,19 @@ def captured_mock_server():
         "api_key": TEST_API_KEY,
     }
 
-    # Shutdown
-    asyncio.run_coroutine_threadsafe(server.stop(), loop).result(timeout=5)
-    loop.call_soon_threadsafe(loop.stop)
-    loop_thread.join(timeout=5)
+    # Shutdown – keep individual steps short so teardown finishes quickly
+    try:
+        asyncio.run_coroutine_threadsafe(server.stop(), loop).result(timeout=3)
+    except Exception:
+        logger.warning("server.stop() timed out or failed during teardown", exc_info=True)
+    try:
+        loop.call_soon_threadsafe(loop.stop)
+    except Exception:
+        logger.warning("loop.stop() call failed during teardown", exc_info=True)
+    try:
+        loop_thread.join(timeout=3)
+    except Exception:
+        logger.warning("loop_thread.join() failed during teardown", exc_info=True)
     if not loop.is_closed():
         loop.close()
     logger.info("Captured mock server stopped")
@@ -159,6 +168,7 @@ def captured_live_session(orchestration_server, captured_mock_server):
 # =============================================================================
 
 
+@pytest.mark.timeout(180)
 class TestOrderingDedup:
     """Ordering, deduplication, and ASR correction tests with captured realtime data."""
 
