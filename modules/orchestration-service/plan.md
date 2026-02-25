@@ -1,8 +1,49 @@
 # Orchestration Service - Development Plan
 
-**Last Updated**: 2026-02-23
-**Current Status**: Quality hardening COMPLETE — all tasks #39-#49 done, 66 behavioral tests passing
+**Last Updated**: 2026-02-25
+**Current Status**: Caption Pipeline Refinement COMPLETE — 6 tasks, 7 commits, 509 unit tests passing
 **Module**: `modules/orchestration-service/`
+
+---
+
+## Completed: Caption Pipeline Refinement (2026-02-25)
+
+**Goal**: Fix interim caption jitter from Fireflies ASR, add per-chunk pipeline timing metrics, tune sentence boundaries from real captured data, and add speaker identity to translation prompts.
+
+**Design Doc**: `docs/plans/2026-02-24-caption-pipeline-refinement-design.md`
+**Implementation Plan**: `docs/plans/2026-02-24-caption-pipeline-refinement-plan.md`
+
+### What was built
+
+| Task | Component | Files | Tests | Commit |
+|------|-----------|-------|-------|--------|
+| 1 | ChunkTimeline + PipelineMetricsCollector | `src/services/pipeline/metrics.py` | 7 tests | `081bb83` |
+| 2 | Grow-only filter in LiveCaptionManager | `src/services/pipeline/live_caption_manager.py` | 12 tests | `078e6ae` |
+| 3 | Wire metrics timestamps into pipeline | `coordinator.py`, `fireflies_client.py`, `fireflies.py` | Fix 2 existing | `eeb693e` |
+| 4 | JSONL replay script + baseline comparison | `scripts/replay_captured_data.py` | Manual validation | `9e6b5ce` |
+| 5 | Tuned sentence boundary thresholds | `src/services/pipeline/config.py` | Existing | `a84f8ce` |
+| 6 | Speaker identity in translation prompt | `src/services/translation_prompt_builder.py` | 12 tests | `fe57439` |
+
+### Key Changes
+
+1. **Grow-Only Filter** — Server-side filter in `LiveCaptionManager.handle_interim_update()` suppresses ASR jitter. Only broadcasts when text grows (append), corrects to longer, or finalizes. Shrinks and duplicates suppressed. Broadcast payload includes `"type": "grow"|"correction"|"final"`.
+
+2. **Pipeline Metrics** — `ChunkTimeline` dataclass tracks per-chunk timing through all stages (receive→dedup→aggregate→translate→display). `PipelineMetricsCollector` ring buffer (`deque(maxlen=1000)`) with p50/p95/p99 percentile aggregation. Wired into coordinator and exposed via `get_stats()`.
+
+3. **Sentence Boundary Tuning** — Replay script validates thresholds against real captured JSONL (86 chunks, 2 speakers). Tuned from real data:
+   - `pause_threshold_ms`: 800→600ms (more natural sentence breaks at pauses)
+   - `max_words_per_sentence`: 30→25 (tighter sentences)
+   - `max_time_per_sentence_ms`: 5000→4000ms (faster boundary forcing)
+   - `min_words_for_translation`: 3→2 (allow shorter phrases)
+   - Result: 87 sentences (avg 7.5w) vs 75 sentences (avg 8.7w) — more natural boundaries
+
+4. **Speaker-Aware Translation** — `Current Speaker: <name>` injected into full translation prompt template when speaker_name is present. Enables LLM to maintain per-speaker tone and terminology consistency.
+
+### Test Results
+
+- 509 fireflies unit tests passing (13.7s)
+- 70 fireflies tests passing (broader suite, 2 pre-existing UI failures in history tab)
+- Pre-existing failures unrelated to this work: `test_history_tab.py` (UI text change), `test_full_pipeline_e2e.py` (pytest-asyncio deprecation + MockChunk schema), `audio/integration/` (Pydantic V1→V2 deprecation)
 
 ---
 
