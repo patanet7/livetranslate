@@ -5,7 +5,8 @@
   const sections = [
     { title: 'Audio', href: '/config/audio', description: 'Audio processing, sample rates, and device settings' },
     { title: 'Translation', href: '/config/translation', description: 'Translation models, languages, and quality settings' },
-    { title: 'System', href: '/config/system', description: 'System settings, feature flags, and service management' }
+    { title: 'System', href: '/config/system', description: 'System settings, feature flags, and service management' },
+    { title: 'Settings', href: '/config/settings', description: 'API keys, service integrations, and credential management' }
   ];
 </script>
 
