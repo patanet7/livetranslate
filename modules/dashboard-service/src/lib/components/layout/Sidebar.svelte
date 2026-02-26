@@ -41,6 +41,7 @@
 		{#each navItems as item}
 			<a
 				href={item.children ? item.children[0].href : item.href}
+				aria-current={isActive(item.href) ? 'page' : undefined}
 				class="flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors
 					{isActive(item.href)
 					? 'bg-accent text-accent-foreground font-medium'

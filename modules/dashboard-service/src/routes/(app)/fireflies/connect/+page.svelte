@@ -9,6 +9,7 @@
 	import { wsStore } from '$lib/stores/websocket.svelte';
 	import { captionStore } from '$lib/stores/captions.svelte';
 	import { WS_BASE } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { CaptionEvent } from '$lib/types';
 
 	let { data } = $props();
@@ -51,12 +52,20 @@
 	});
 
 	async function handleDisconnect() {
-		await fetch(`/api/fireflies/disconnect`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ session_id: data.session.session_id })
-		});
-		goto('/fireflies');
+		try {
+			const res = await fetch(`/api/fireflies/disconnect`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ session_id: data.session.session_id })
+			});
+			if (!res.ok) {
+				toastStore.error('Failed to disconnect session');
+				return;
+			}
+			goto('/fireflies');
+		} catch {
+			toastStore.error('Network error disconnecting session');
+		}
 	}
 </script>
 
