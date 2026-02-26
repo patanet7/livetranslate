@@ -14,9 +14,7 @@ Screenshots are saved to tests/browser/screenshots/ as visual evidence.
 """
 
 import asyncio
-import json
 import logging
-import multiprocessing
 import os
 import socket
 import subprocess
@@ -92,18 +90,6 @@ def _wait_for_port(host: str, port: int, timeout: float = 30.0, poll: float = 0.
     return False
 
 
-def _run_uvicorn(port: int):
-    """Target function for the uvicorn subprocess."""
-    import uvicorn
-
-    child_src = Path(__file__).parent.parent.parent.parent.parent / "modules" / "orchestration-service" / "src"
-    sys.path.insert(0, str(child_src))
-
-    from main_fastapi import app
-
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
-
-
 # =============================================================================
 # Session-scoped fixtures — one full stack per test session
 # =============================================================================
@@ -158,6 +144,9 @@ def orchestration_server():
 
     This is the same orchestration service that handles /fireflies/connect,
     /api/captions/stream, /fireflies/sessions, etc.
+
+    Uses subprocess.Popen instead of multiprocessing.Process for reliability
+    on macOS (spawn mode in Python 3.12+ can cause issues with forked processes).
     """
     if _port_is_open("localhost", ORCHESTRATION_PORT):
         logger.warning(
@@ -166,24 +155,43 @@ def orchestration_server():
         yield ORCHESTRATION_URL
         return
 
-    proc = multiprocessing.Process(
-        target=_run_uvicorn,
-        args=(ORCHESTRATION_PORT,),
-        daemon=True,
-    )
-    proc.start()
+    orch_src = str(ORCH_SRC)
 
-    if not _wait_for_port("localhost", ORCHESTRATION_PORT, timeout=30):
+    # Pass database + redis credentials to the subprocess so the FastAPI app can start.
+    # Uses the Docker Compose dev services running on standard ports.
+    orch_env = {
+        **os.environ,
+        "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/livetranslate",
+        "REDIS_URL": "redis://localhost:6379/0",
+    }
+
+    proc = subprocess.Popen(
+        [
+            sys.executable, "-c",
+            f"import sys; sys.path.insert(0, '{orch_src}'); "
+            f"import uvicorn; from main_fastapi import app; "
+            f"uvicorn.run(app, host='127.0.0.1', port={ORCHESTRATION_PORT}, log_level='warning')"
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=orch_src,
+        env=orch_env,
+    )
+
+    if not _wait_for_port("localhost", ORCHESTRATION_PORT, timeout=60):
         proc.terminate()
-        pytest.fail(f"Orchestration server failed to start on port {ORCHESTRATION_PORT}")
+        proc.wait(timeout=5)
+        stderr = proc.stderr.read().decode() if proc.stderr else ""
+        pytest.fail(
+            f"Orchestration server failed to start on port {ORCHESTRATION_PORT}. "
+            f"Stderr: {stderr[-500:]}"
+        )
 
     logger.info(f"Orchestration server started on port {ORCHESTRATION_PORT} (pid={proc.pid})")
     yield ORCHESTRATION_URL
 
     proc.terminate()
-    proc.join(timeout=5)
-    if proc.is_alive():
-        proc.kill()
+    proc.wait(timeout=5)
     logger.info("Orchestration server stopped")
 
 

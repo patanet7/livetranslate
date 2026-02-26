@@ -20,13 +20,12 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const transcript_id = data.get('transcript_id')?.toString()?.trim();
 		const api_key = data.get('api_key')?.toString()?.trim() || null;
-		const target_languages =
-			data
-				.get('target_languages')
-				?.toString()
-				?.split(',')
-				.filter(Boolean) ?? [];
+		const target_languages = data
+			.getAll('target_languages')
+			.map((v) => v.toString().trim())
+			.filter(Boolean);
 		const domain = data.get('domain')?.toString() || null;
+		const translation_model = data.get('translation_model')?.toString()?.trim() || null;
 
 		if (!transcript_id) {
 			return fail(400, {
@@ -41,7 +40,8 @@ export const actions: Actions = {
 				transcript_id,
 				api_key,
 				target_languages: target_languages.length > 0 ? target_languages : null,
-				domain
+				domain,
+				translation_model
 			});
 
 			redirect(303, `/fireflies/connect?session=${result.session_id}`);
