@@ -1,3 +1,5 @@
+import { browser } from '$app/environment';
+
 export interface Toast {
 	id: string;
 	message: string;
@@ -12,7 +14,7 @@ class ToastStore {
 		const id = crypto.randomUUID();
 		this.toasts = [...this.toasts, { id, message, type, duration }];
 
-		if (duration > 0) {
+		if (duration > 0 && browser) {
 			setTimeout(() => this.dismiss(id), duration);
 		}
 
