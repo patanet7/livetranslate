@@ -54,7 +54,8 @@
 			icon: SettingsIcon,
 			children: [
 				{ label: 'Audio', href: '/config/audio' },
-				{ label: 'System', href: '/config/system' }
+				{ label: 'System', href: '/config/system' },
+				{ label: 'Settings', href: '/config/settings' }
 			]
 		},
 		{ label: 'Session Manager', href: '/sessions', icon: TerminalIcon }

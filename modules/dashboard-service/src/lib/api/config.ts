@@ -1,4 +1,10 @@
-import type { UserSettings, TranslationSettings, UiConfig } from '$lib/types';
+import type {
+	UserSettings,
+	TranslationSettings,
+	UiConfig,
+	TranslationModelsResponse,
+	TranslationHealth
+} from '$lib/types';
 import { createApi } from './orchestration';
 
 export function configApi(fetch: typeof globalThis.fetch) {
@@ -25,6 +31,15 @@ export function configApi(fetch: typeof globalThis.fetch) {
 
 		getHealth: () => api.get('/api/system/health'),
 
-		getServices: () => api.get('/api/system/services')
+		getServices: () => api.get('/api/system/services'),
+
+		getTranslationModels: () =>
+			api.get<TranslationModelsResponse>('/api/translation/models'),
+
+		getTranslationHealth: () =>
+			api.get<TranslationHealth>('/api/translation/health'),
+
+		switchTranslationModel: (model: string) =>
+			api.post<{ message: string }>('/api/translation/model', { model })
 	};
 }

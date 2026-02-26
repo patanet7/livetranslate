@@ -40,6 +40,25 @@ export interface UiConfig {
 	config_version: string;
 }
 
+export interface TranslationModel {
+	name: string;
+	model: string;
+	display_name: string;
+	backend: string;
+}
+
+export interface TranslationModelsResponse {
+	models: TranslationModel[];
+}
+
+export interface TranslationHealth {
+	backend: string;
+	device: string;
+	available_backends: string[];
+	model: string;
+	status: string;
+}
+
 export interface Glossary {
 	glossary_id: string;
 	name: string;
