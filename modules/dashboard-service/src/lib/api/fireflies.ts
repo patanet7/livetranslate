@@ -1,4 +1,9 @@
-import type { ConnectRequest, ConnectResponse, FirefliesSession } from '$lib/types';
+import type {
+	ConnectRequest,
+	ConnectResponse,
+	FirefliesSession,
+	TranslationConfig
+} from '$lib/types';
 import { createApi } from './orchestration';
 
 export function firefliesApi(fetch: typeof globalThis.fetch) {
@@ -26,7 +31,8 @@ export function firefliesApi(fetch: typeof globalThis.fetch) {
 		resume: (sessionId: string) =>
 			api.post(`/fireflies/sessions/${sessionId}/resume`),
 
-		getTranslationConfig: () => api.get('/fireflies/translation-config'),
+		getTranslationConfig: () =>
+			api.get<TranslationConfig>('/fireflies/translation-config'),
 
 		updateTranslationConfig: (config: Record<string, unknown>) =>
 			api.put('/fireflies/translation-config', config)
