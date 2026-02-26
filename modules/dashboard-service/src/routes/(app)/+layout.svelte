@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { healthStore } from '$lib/stores/health.svelte';
+	import { demoStore } from '$lib/stores/demo.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import TopBar from '$lib/components/layout/TopBar.svelte';
 
@@ -9,6 +10,10 @@
 	onMount(() => {
 		healthStore.startPolling();
 		return () => healthStore.stopPolling();
+	});
+
+	$effect(() => {
+		demoStore.checkStatus();
 	});
 </script>
 

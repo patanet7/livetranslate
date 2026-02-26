@@ -2,6 +2,8 @@
 	import StatusIndicator from './StatusIndicator.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { demoStore } from '$lib/stores/demo.svelte';
+	import { goto } from '$app/navigation';
 
 	interface Props {
 		health: 'healthy' | 'degraded' | 'down' | 'unknown';
@@ -15,21 +17,26 @@
 
 	// Demo controls state
 	let demoOpen = $state(false);
-	let demoMode = $state<'live' | 'pretranslated'>('live');
-	let demoRunning = $state(false);
+	let selectedMode = $state<'passthrough' | 'pretranslated'>('passthrough');
 
 	const demoModes = [
-		{ value: 'live' as const, label: 'Live Passthrough' },
+		{ value: 'passthrough' as const, label: 'Live Passthrough' },
 		{ value: 'pretranslated' as const, label: 'Pre-translated ES' }
 	];
 
-	function toggleDemo() {
-		demoRunning = !demoRunning;
-		// Actual demo API integration will come in Batch 3 Task 3.6
+	async function launchDemo() {
+		await demoStore.start(selectedMode);
+		demoOpen = false;
+		goto('/fireflies/live-feed');
 	}
 
-	function selectMode(mode: 'live' | 'pretranslated') {
-		demoMode = mode;
+	async function stopDemo() {
+		await demoStore.stop();
+		demoOpen = false;
+	}
+
+	function selectMode(mode: 'passthrough' | 'pretranslated') {
+		selectedMode = mode;
 		demoOpen = false;
 	}
 
@@ -81,7 +88,7 @@
 				onclick={() => (demoOpen = !demoOpen)}
 			>
 				<span
-					class="h-1.5 w-1.5 rounded-full {demoRunning
+					class="h-1.5 w-1.5 rounded-full {demoStore.active
 						? 'bg-green-500 animate-pulse'
 						: 'bg-muted-foreground'}"
 				></span>
@@ -111,14 +118,14 @@
 					</div>
 					{#each demoModes as mode}
 						<button
-							class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground {demoMode ===
+							class="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-accent hover:text-accent-foreground {selectedMode ===
 							mode.value
 								? 'bg-accent/50 text-accent-foreground'
 								: 'text-foreground'}"
 							onclick={() => selectMode(mode.value)}
 						>
 							<span
-								class="h-1.5 w-1.5 rounded-full {demoMode === mode.value
+								class="h-1.5 w-1.5 rounded-full {selectedMode === mode.value
 									? 'bg-primary'
 									: 'bg-transparent'}"
 							></span>
@@ -127,12 +134,13 @@
 					{/each}
 					<div class="my-1 h-px bg-border"></div>
 					<button
-						class="flex w-full items-center justify-center rounded-sm px-2 py-1.5 text-xs font-medium transition-colors {demoRunning
+						class="flex w-full items-center justify-center rounded-sm px-2 py-1.5 text-xs font-medium transition-colors {demoStore.active
 							? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
 							: 'bg-green-500/10 text-green-400 hover:bg-green-500/20'}"
-						onclick={toggleDemo}
+						disabled={demoStore.loading}
+						onclick={demoStore.active ? stopDemo : launchDemo}
 					>
-						{demoRunning ? 'Stop Demo' : 'Launch Demo'}
+						{demoStore.active ? 'Stop Demo' : 'Launch Demo'}
 					</button>
 				</div>
 			{/if}

@@ -1,9 +1,8 @@
 import type { PageServerLoad } from './$types';
-import { firefliesApi } from '$lib/api/fireflies';
+import { configApi } from '$lib/api/config';
 
 export const load: PageServerLoad = async ({ fetch }) => {
-  const ff = firefliesApi(fetch);
-  return {
-    sessions: ff.listSessions().catch(() => [])  // streamed — not awaited
-  };
+	const cfg = configApi(fetch);
+	const uiConfig = await cfg.getUiConfig().catch(() => null);
+	return { uiConfig };
 };
