@@ -21,6 +21,6 @@
 <span class="inline-flex items-center gap-1.5">
 	<span class={`h-2 w-2 rounded-full ${colorMap[status] ?? 'bg-gray-400'}`}></span>
 	{#if label}
-		<span class="text-xs text-muted-foreground capitalize">{label ?? status}</span>
+		<span class="text-xs text-muted-foreground capitalize">{label}</span>
 	{/if}
 </span>

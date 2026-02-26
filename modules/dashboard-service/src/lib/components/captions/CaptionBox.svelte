@@ -22,7 +22,7 @@
 			{caption.speaker_name}
 		</span>
 		<span class="text-xs text-muted-foreground">{caption.target_language}</span>
-		{#if caption.confidence}
+		{#if caption.confidence != null && caption.confidence > 0}
 			<span class="text-xs text-muted-foreground ml-auto"
 				>{Math.round(caption.confidence * 100)}%</span
 			>
