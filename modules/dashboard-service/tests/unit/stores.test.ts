@@ -98,57 +98,54 @@ describe('CaptionStore', () => {
 	});
 });
 
+vi.mock('svelte-sonner', () => ({
+	toast: {
+		success: vi.fn(),
+		error: vi.fn(),
+		warning: vi.fn(),
+		info: vi.fn()
+	}
+}));
+
 describe('ToastStore', () => {
 	let toastStore: typeof import('$lib/stores/toast.svelte').toastStore;
+	let toast: typeof import('svelte-sonner').toast;
 
 	beforeEach(async () => {
-		vi.useFakeTimers();
 		const mod = await import('$lib/stores/toast.svelte');
 		toastStore = mod.toastStore;
-		// Clear any leftover toasts
-		toastStore.toasts = [];
+		const sonner = await import('svelte-sonner');
+		toast = sonner.toast;
+		vi.clearAllMocks();
 	});
 
-	it('adds a toast with default info type', () => {
+	it('add() defaults to info type and delegates to svelte-sonner', () => {
 		toastStore.add('Hello');
-		expect(toastStore.toasts.length).toBe(1);
-		expect(toastStore.toasts[0].type).toBe('info');
-		expect(toastStore.toasts[0].message).toBe('Hello');
+		expect(toast.info).toHaveBeenCalledWith('Hello', { duration: 5000 });
 	});
 
-	it('convenience methods set correct types', () => {
+	it('success() delegates to toast.success', () => {
 		toastStore.success('OK');
+		expect(toast.success).toHaveBeenCalledWith('OK', { duration: 5000 });
+	});
+
+	it('error() delegates to toast.error with 8s duration', () => {
 		toastStore.error('Fail');
+		expect(toast.error).toHaveBeenCalledWith('Fail', { duration: 8000 });
+	});
+
+	it('warning() delegates to toast.warning', () => {
 		toastStore.warning('Careful');
+		expect(toast.warning).toHaveBeenCalledWith('Careful', { duration: 5000 });
+	});
+
+	it('info() delegates to toast.info', () => {
 		toastStore.info('FYI');
-		expect(toastStore.toasts.map((t) => t.type)).toEqual([
-			'success',
-			'error',
-			'warning',
-			'info'
-		]);
+		expect(toast.info).toHaveBeenCalledWith('FYI', { duration: 5000 });
 	});
 
-	it('dismisses a toast by id', () => {
-		const id = toastStore.add('Temp');
-		expect(toastStore.toasts.length).toBe(1);
-		toastStore.dismiss(id);
-		expect(toastStore.toasts.length).toBe(0);
-	});
-
-	it('auto-dismisses after duration', () => {
-		toastStore.add('Auto', 'info', 3000);
-		expect(toastStore.toasts.length).toBe(1);
-		vi.advanceTimersByTime(3000);
-		expect(toastStore.toasts.length).toBe(0);
-	});
-
-	it('error toasts have 8s duration', () => {
-		toastStore.error('Oops');
-		expect(toastStore.toasts.length).toBe(1);
-		vi.advanceTimersByTime(5000);
-		expect(toastStore.toasts.length).toBe(1); // still visible at 5s
-		vi.advanceTimersByTime(3000);
-		expect(toastStore.toasts.length).toBe(0); // gone at 8s
+	it('add() with custom duration passes it through', () => {
+		toastStore.add('Custom', 'success', 3000);
+		expect(toast.success).toHaveBeenCalledWith('Custom', { duration: 3000 });
 	});
 });

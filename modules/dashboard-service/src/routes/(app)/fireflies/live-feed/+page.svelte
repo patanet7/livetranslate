@@ -7,6 +7,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
 	import { WS_BASE } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Caption, CaptionEvent, FirefliesSession, UiConfig } from '$lib/types';
 
 	// --- Types ---
@@ -89,6 +90,7 @@
 
 		ws.onopen = () => {
 			wsStatus = 'connected';
+			toastStore.success('Connected to live feed');
 		};
 
 		ws.onmessage = (event) => {
@@ -110,6 +112,7 @@
 
 		ws.onerror = () => {
 			wsStatus = 'error';
+			toastStore.error('WebSocket connection error');
 		};
 
 		socket = ws;
@@ -120,6 +123,7 @@
 			socket.onclose = null;
 			socket.close(1000, 'Client disconnect');
 			socket = null;
+			toastStore.info('Disconnected from live feed');
 		}
 		wsStatus = 'disconnected';
 	}
@@ -178,6 +182,7 @@
 		if (!browser || !selectedSession) return;
 		const key = `livefeed_${selectedSession}`;
 		localStorage.setItem(key, JSON.stringify(entries));
+		toastStore.success('Feed saved to local storage');
 	}
 
 	function exportJson() {
@@ -191,6 +196,7 @@
 		a.click();
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
+		toastStore.success('Feed exported as JSON');
 	}
 
 	// --- Helpers ---
@@ -248,11 +254,11 @@
 	<Card.Content class="py-4">
 		<div class="flex flex-wrap items-end gap-4">
 			<!-- Session selector -->
-			<div class="space-y-1">
+			<div class="space-y-1 w-full sm:w-auto">
 				<label for="session-select" class="text-xs font-medium text-muted-foreground">Session</label>
 				<select
 					id="session-select"
-					class="h-9 w-56 rounded-md border border-input bg-background px-3 text-sm"
+					class="h-9 w-full sm:w-56 rounded-md border border-input bg-background px-3 text-sm"
 					bind:value={selectedSession}
 				>
 					<option value="">Select a session...</option>
@@ -265,11 +271,11 @@
 			</div>
 
 			<!-- Language selector -->
-			<div class="space-y-1">
+			<div class="space-y-1 w-full sm:w-auto">
 				<label for="lang-select" class="text-xs font-medium text-muted-foreground">Language</label>
 				<select
 					id="lang-select"
-					class="h-9 w-40 rounded-md border border-input bg-background px-3 text-sm"
+					class="h-9 w-full sm:w-40 rounded-md border border-input bg-background px-3 text-sm"
 					bind:value={selectedLang}
 				>
 					<option value="all">All Languages</option>
@@ -280,7 +286,7 @@
 			</div>
 
 			<!-- Action buttons -->
-			<div class="flex gap-2">
+			<div class="flex gap-2 w-full sm:w-auto">
 				<Button
 					size="sm"
 					onclick={connect}
@@ -299,7 +305,7 @@
 			</div>
 
 			<!-- Stats -->
-			<div class="ml-auto flex items-center gap-4 text-sm text-muted-foreground">
+			<div class="flex items-center gap-4 text-sm text-muted-foreground sm:ml-auto">
 				<span>Entries: <span class="font-medium text-foreground">{entryCount}</span></span>
 				<Separator orientation="vertical" class="h-4" />
 				<span>Speakers: <span class="font-medium text-foreground">{speakerCount}</span></span>

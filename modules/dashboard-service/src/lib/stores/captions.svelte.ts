@@ -5,6 +5,8 @@ export class CaptionStore {
 	captions = $state<(Caption & { receivedAt: number })[]>([]);
 	interim = $state('');
 	maxCaptions = $state(50);
+	/** Time window in ms for aggregating consecutive captions from the same speaker. 0 = disabled. */
+	aggregateWindowMs = $state(0);
 
 	#expiryMs: number;
 	#cleanupInterval: ReturnType<typeof setInterval> | null = null;
@@ -26,7 +28,30 @@ export class CaptionStore {
 	}
 
 	addCaption(caption: Caption) {
-		const enriched = { ...caption, receivedAt: Date.now() };
+		const now = Date.now();
+
+		// Aggregation: if the last caption is from the same speaker within the time window, append text
+		if (this.aggregateWindowMs > 0 && this.captions.length > 0) {
+			const last = this.captions[this.captions.length - 1];
+			if (
+				last.speaker_name === caption.speaker_name &&
+				now - last.receivedAt < this.aggregateWindowMs
+			) {
+				this.captions = this.captions.map((c, i) =>
+					i === this.captions.length - 1
+						? {
+								...c,
+								text: c.text + ' ' + caption.text,
+								original_text: c.original_text + ' ' + caption.original_text,
+								receivedAt: now
+							}
+						: c
+				);
+				return;
+			}
+		}
+
+		const enriched = { ...caption, receivedAt: now };
 		this.captions = [...this.captions, enriched].slice(-this.maxCaptions);
 	}
 

@@ -7,6 +7,8 @@
 
 	let { children } = $props();
 
+	let sidebarOpen = $state(false);
+
 	onMount(() => {
 		healthStore.startPolling();
 		return () => healthStore.stopPolling();
@@ -18,10 +20,10 @@
 </script>
 
 <div class="flex h-screen bg-background text-foreground">
-	<Sidebar />
+	<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />
 	<div class="flex flex-col flex-1 overflow-hidden">
-		<TopBar health={healthStore.status} />
-		<main class="flex-1 overflow-y-auto p-6">
+		<TopBar health={healthStore.status} onMenuToggle={() => (sidebarOpen = !sidebarOpen)} />
+		<main class="flex-1 overflow-y-auto p-4 md:p-6">
 			{@render children()}
 		</main>
 	</div>

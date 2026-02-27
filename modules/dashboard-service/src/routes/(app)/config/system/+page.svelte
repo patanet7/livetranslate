@@ -4,15 +4,29 @@
   import * as Card from '$lib/components/ui/card';
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
+  import { toastStore } from '$lib/stores/toast.svelte';
 
   let { data, form } = $props();
+
+  let submitting = $state(false);
 </script>
 
 <PageHeader title="System Configuration" description="System preferences and feature flags" />
 
 <Card.Root class="max-w-2xl">
   <Card.Content>
-    <form method="POST" action="?/update" use:enhance class="space-y-4">
+    <form method="POST" action="?/update" use:enhance={() => {
+      submitting = true;
+      return async ({ result, update }) => {
+        await update();
+        submitting = false;
+        if (result.type === 'success') {
+          toastStore.success('System settings saved');
+        } else if (result.type === 'failure') {
+          toastStore.error('Failed to save system settings');
+        }
+      };
+    }} class="space-y-4">
       <div class="space-y-2">
         <Label for="theme">Theme</Label>
         <select id="theme" name="theme" class="w-full rounded-md border bg-background px-3 py-2 text-sm">
@@ -43,7 +57,9 @@
         <p class="text-sm text-green-600">System settings saved</p>
       {/if}
 
-      <Button type="submit">Save</Button>
+      <Button type="submit" disabled={submitting}>
+        {#if submitting}Saving...{:else}Save{/if}
+      </Button>
     </form>
   </Card.Content>
 </Card.Root>

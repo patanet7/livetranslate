@@ -3,5 +3,5 @@
 </script>
 
 <div class="flex items-center justify-center h-screen text-white">
-	<p>Error {$page.status}: {$page.error?.message}</p>
+	<p>Error {$page.status}: {$page.error?.message ?? 'Something went wrong'}</p>
 </div>

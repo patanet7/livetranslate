@@ -11,6 +11,13 @@
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import type { Component } from 'svelte';
 
+	interface Props {
+		open?: boolean;
+		onclose?: () => void;
+	}
+
+	let { open = false, onclose }: Props = $props();
+
 	interface NavChild {
 		label: string;
 		href: string;
@@ -78,9 +85,28 @@
 	function isChildExact(href: string): boolean {
 		return $page.url.pathname === href;
 	}
+
+	function handleNavClick() {
+		onclose?.();
+	}
 </script>
 
-<aside class="w-56 border-r bg-card flex flex-col h-full">
+<!-- Mobile backdrop -->
+{#if open}
+	<button
+		class="fixed inset-0 z-40 bg-black/50 md:hidden"
+		aria-label="Close sidebar"
+		onclick={onclose}
+		tabindex="-1"
+	></button>
+{/if}
+
+<aside
+	class="w-56 border-r bg-card flex flex-col h-full
+		fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-in-out
+		md:relative md:translate-x-0 md:z-auto
+		{open ? 'translate-x-0' : '-translate-x-full'}"
+>
 	<div class="p-4 border-b">
 		<h1 class="text-lg font-semibold">{APP_NAME}</h1>
 	</div>
@@ -94,6 +120,7 @@
 					{parentActive
 					? 'bg-accent text-accent-foreground font-medium'
 					: 'text-muted-foreground hover:bg-accent/50'}"
+				onclick={handleNavClick}
 			>
 				<svelte:component this={item.icon} class="size-4 shrink-0" />
 				<span class="truncate">{item.label}</span>
@@ -114,6 +141,7 @@
 								{isChildExact(child.href)
 								? 'text-foreground font-medium'
 								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={handleNavClick}
 						>
 							{child.label}
 						</a>

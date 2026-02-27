@@ -9,6 +9,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface Meeting {
 		id: string;
@@ -47,6 +48,7 @@
 		const apiKey = localStorage.getItem('fireflies_api_key');
 		if (!apiKey) {
 			fetchError = 'No Fireflies API key found. Set it on the Fireflies page first.';
+			toastStore.error(fetchError);
 			return;
 		}
 		fetchError = '';
@@ -64,11 +66,18 @@
 			const result = await res.json();
 			if (!res.ok) {
 				fetchError = result.error ?? `Request failed (${res.status})`;
+				toastStore.error(fetchError);
 				return;
 			}
 			meetings = Array.isArray(result) ? result : (result.transcripts ?? []);
+			toastStore.success(`Fetched ${meetings.length} meeting${meetings.length === 1 ? '' : 's'}`);
 		} catch (err) {
-			fetchError = err instanceof Error ? err.message : 'Unknown error';
+			if (err instanceof TypeError && err.message === 'Failed to fetch') {
+				fetchError = 'Connection error. Please check your network and try again.';
+			} else {
+				fetchError = err instanceof Error ? err.message : 'Unknown error';
+			}
+			toastStore.error(fetchError);
 		} finally {
 			fetchingMeetings = false;
 		}
@@ -127,7 +136,11 @@
 				? result
 				: (result.sentences ?? result.entries ?? []);
 		} catch (err) {
-			transcriptError = err instanceof Error ? err.message : 'Unknown error';
+			if (err instanceof TypeError && err.message === 'Failed to fetch') {
+				transcriptError = 'Connection error. Please check your network and try again.';
+			} else {
+				transcriptError = err instanceof Error ? err.message : 'Unknown error';
+			}
 		} finally {
 			loadingTranscript = false;
 		}
@@ -164,6 +177,7 @@
 			await Promise.all(promises);
 		}
 		translating = false;
+		toastStore.success(`Translation complete: ${translationDone}/${translationTotal} entries`);
 	}
 
 	function formatTimestamp(seconds: number): string {
@@ -183,20 +197,29 @@
 		};
 		localStorage.setItem(`saved_transcript_${viewerMeeting.id}`, JSON.stringify(saved));
 		refreshSavedTranscripts();
+		toastStore.success('Transcript saved locally');
 	}
 
 	async function importToDb() {
 		if (!browser || !viewerMeeting) return;
 		const apiKey = localStorage.getItem('fireflies_api_key');
-		if (!apiKey) return;
+		if (!apiKey) {
+			toastStore.error('No API key found');
+			return;
+		}
 		try {
-			await fetch(`/api/fireflies/import/${viewerMeeting.id}`, {
+			const res = await fetch(`/api/fireflies/import/${viewerMeeting.id}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ api_key: apiKey })
 			});
+			if (res.ok) {
+				toastStore.success('Transcript imported to database');
+			} else {
+				toastStore.error('Failed to import transcript');
+			}
 		} catch {
-			// import error silently handled
+			toastStore.error('Network error importing transcript');
 		}
 	}
 
@@ -253,6 +276,7 @@
 		localStorage.removeItem(`saved_transcript_${id}`);
 		deleteConfirmId = null;
 		refreshSavedTranscripts();
+		toastStore.success('Saved transcript deleted');
 	}
 </script>
 
@@ -265,15 +289,15 @@
 	</Card.Header>
 	<Card.Content>
 		<div class="flex flex-wrap items-end gap-4">
-			<div class="space-y-2">
+			<div class="space-y-2 w-full sm:w-auto">
 				<Label for="date-from">From</Label>
-				<Input id="date-from" type="date" bind:value={dateFrom} class="w-44" />
+				<Input id="date-from" type="date" bind:value={dateFrom} class="w-full sm:w-44" />
 			</div>
-			<div class="space-y-2">
+			<div class="space-y-2 w-full sm:w-auto">
 				<Label for="date-to">To</Label>
-				<Input id="date-to" type="date" bind:value={dateTo} class="w-44" />
+				<Input id="date-to" type="date" bind:value={dateTo} class="w-full sm:w-44" />
 			</div>
-			<Button onclick={fetchPastMeetings} disabled={fetchingMeetings}>
+			<Button class="w-full sm:w-auto" onclick={fetchPastMeetings} disabled={fetchingMeetings}>
 				{fetchingMeetings ? 'Fetching...' : 'Fetch Past Meetings'}
 			</Button>
 		</div>
@@ -289,49 +313,59 @@
 			<Card.Title>Past Meetings ({meetings.length})</Card.Title>
 		</Card.Header>
 		<Card.Content class="p-0">
-			<Table.Root>
-				<Table.Header>
-					<Table.Row>
-						<Table.Head>Date</Table.Head>
-						<Table.Head>Title</Table.Head>
-						<Table.Head>Duration</Table.Head>
-						<Table.Head>Speakers</Table.Head>
-						<Table.Head>Actions</Table.Head>
-					</Table.Row>
-				</Table.Header>
-				<Table.Body>
-					{#each meetings as meeting (meeting.id)}
+			<div class="overflow-x-auto">
+				<Table.Root>
+					<Table.Header>
 						<Table.Row>
-							<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">
-								{new Date(meeting.date).toLocaleDateString()}
-							</Table.Cell>
-							<Table.Cell class="font-medium">{meeting.title}</Table.Cell>
-							<Table.Cell>{formatDuration(meeting.duration)}</Table.Cell>
-							<Table.Cell>
-								{#if meeting.speakers?.length}
-									<div class="flex flex-wrap gap-1">
-										{#each meeting.speakers as speaker}
-											<Badge variant="secondary">{speaker}</Badge>
-										{/each}
-									</div>
-								{:else}
-									<span class="text-muted-foreground">--</span>
-								{/if}
-							</Table.Cell>
-							<Table.Cell>
-								<div class="flex gap-2">
-									<Button variant="outline" size="sm" onclick={() => openViewer(meeting)}>
-										View
-									</Button>
-									<Button variant="outline" size="sm" onclick={() => openViewer(meeting)}>
-										Translate
-									</Button>
-								</div>
-							</Table.Cell>
+							<Table.Head>Date</Table.Head>
+							<Table.Head>Title</Table.Head>
+							<Table.Head>Duration</Table.Head>
+							<Table.Head>Speakers</Table.Head>
+							<Table.Head>Actions</Table.Head>
 						</Table.Row>
-					{/each}
-				</Table.Body>
-			</Table.Root>
+					</Table.Header>
+					<Table.Body>
+						{#each meetings as meeting (meeting.id)}
+							<Table.Row>
+								<Table.Cell class="text-xs text-muted-foreground whitespace-nowrap">
+									{new Date(meeting.date).toLocaleDateString()}
+								</Table.Cell>
+								<Table.Cell class="font-medium">{meeting.title}</Table.Cell>
+								<Table.Cell>{formatDuration(meeting.duration)}</Table.Cell>
+								<Table.Cell>
+									{#if meeting.speakers?.length}
+										<div class="flex flex-wrap gap-1">
+											{#each meeting.speakers as speaker}
+												<Badge variant="secondary">{speaker}</Badge>
+											{/each}
+										</div>
+									{:else}
+										<span class="text-muted-foreground">--</span>
+									{/if}
+								</Table.Cell>
+								<Table.Cell>
+									<div class="flex gap-2">
+										<Button variant="outline" size="sm" onclick={() => openViewer(meeting)}>
+											View
+										</Button>
+										<Button variant="outline" size="sm" onclick={() => openViewer(meeting)}>
+											Translate
+										</Button>
+									</div>
+								</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			</div>
+		</Card.Content>
+	</Card.Root>
+{:else if !fetchingMeetings && !fetchError}
+	<Card.Root class="mb-6">
+		<Card.Content class="py-12">
+			<div class="text-center">
+				<p class="text-muted-foreground">Enter a date range and click "Fetch Past Meetings" to browse your meeting history.</p>
+			</div>
 		</Card.Content>
 	</Card.Root>
 {/if}
@@ -444,6 +478,7 @@
 		{#if savedTranscripts.length === 0}
 			<div class="p-6 text-center text-muted-foreground">No saved transcripts yet</div>
 		{:else}
+			<div class="overflow-x-auto">
 			<Table.Root>
 				<Table.Header>
 					<Table.Row>
@@ -505,6 +540,7 @@
 					{/each}
 				</Table.Body>
 			</Table.Root>
+			</div>
 		{/if}
 	</Card.Content>
 </Card.Root>
