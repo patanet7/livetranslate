@@ -824,6 +824,12 @@ class ConnectRequest(BaseModel):
         description="Translation model/service to use (ollama, groq, etc.)",
     )
 
+    # API base URL override (for testing/demo mode — points at mock server)
+    api_base_url: str | None = Field(
+        default=None,
+        description="Override Fireflies API base URL (for testing/demo mode)",
+    )
+
     # Sentence aggregation config (all optional, uses .env defaults)
     pause_threshold_ms: float | None = Field(default=None)
     max_buffer_words: int | None = Field(default=None)
