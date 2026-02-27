@@ -6,9 +6,11 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	let { data, form } = $props();
 
+	let submitting = $state(false);
 	let selectedLanguages = $state<Set<string>>(new Set());
 	let selectedModel = $state('');
 	let initialized = $state(false);
@@ -49,7 +51,18 @@
 				<Card.Title>Connect to Transcript</Card.Title>
 			</Card.Header>
 			<Card.Content>
-				<form method="POST" action="?/connect" use:enhance class="space-y-4">
+				<form method="POST" action="?/connect" use:enhance={() => {
+				submitting = true;
+				return async ({ result, update }) => {
+					await update();
+					submitting = false;
+					if (result.type === 'redirect') {
+						toastStore.success('Connected to Fireflies transcript');
+					} else if (result.type === 'failure') {
+						toastStore.error('Failed to connect to transcript');
+					}
+				};
+			}} class="space-y-4">
 					<div class="space-y-2">
 						<Label for="transcript_id">Transcript ID</Label>
 						<Input
@@ -159,7 +172,9 @@
 						<p class="text-sm text-destructive">{form.errors.form}</p>
 					{/if}
 
-					<Button type="submit">Connect</Button>
+					<Button type="submit" disabled={submitting}>
+					{#if submitting}Connecting...{:else}Connect{/if}
+				</Button>
 				</form>
 			</Card.Content>
 		</Card.Root>

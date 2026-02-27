@@ -9,6 +9,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Glossary, GlossaryEntry, UiConfig } from '$lib/types';
 
 	let { data } = $props();
@@ -81,6 +82,23 @@
 		editingEntryId = null;
 	}
 
+	// --- Helpers: API error extraction ---
+	async function extractErrorMessage(res: Response, fallback: string): Promise<string> {
+		try {
+			const body = await res.json();
+			return body?.detail ?? body?.error ?? fallback;
+		} catch {
+			return fallback;
+		}
+	}
+
+	function networkErrorMessage(err: unknown): string {
+		if (err instanceof TypeError && err.message === 'Failed to fetch') {
+			return 'Connection error. Please check your network and try again.';
+		}
+		return err instanceof Error ? err.message : 'Unknown error';
+	}
+
 	// --- API calls ---
 	async function fetchEntries(glossaryId: string) {
 		try {
@@ -135,11 +153,14 @@
 				newGlossaryName = '';
 				newGlossaryOpen = false;
 				successMessage = 'Glossary created';
+				toastStore.success(successMessage);
 			} else {
-				errorMessage = 'Failed to create glossary';
+				errorMessage = await extractErrorMessage(res, 'Failed to create glossary');
+				toastStore.error(errorMessage);
 			}
-		} catch {
-			errorMessage = 'Failed to create glossary';
+		} catch (err) {
+			errorMessage = networkErrorMessage(err);
+			toastStore.error(errorMessage);
 		} finally {
 			loading = false;
 		}
@@ -162,11 +183,14 @@
 			if (res.ok) {
 				await fetchGlossaries();
 				successMessage = 'Glossary updated';
+				toastStore.success(successMessage);
 			} else {
-				errorMessage = 'Failed to update glossary';
+				errorMessage = await extractErrorMessage(res, 'Failed to update glossary');
+				toastStore.error(errorMessage);
 			}
-		} catch {
-			errorMessage = 'Failed to update glossary';
+		} catch (err) {
+			errorMessage = networkErrorMessage(err);
+			toastStore.error(errorMessage);
 		} finally {
 			loading = false;
 		}
@@ -185,11 +209,14 @@
 			if (res.ok) {
 				await fetchGlossaries();
 				successMessage = 'Set as default glossary';
+				toastStore.success(successMessage);
 			} else {
-				errorMessage = 'Failed to set default';
+				errorMessage = await extractErrorMessage(res, 'Failed to set default');
+				toastStore.error(errorMessage);
 			}
-		} catch {
-			errorMessage = 'Failed to set default';
+		} catch (err) {
+			errorMessage = networkErrorMessage(err);
+			toastStore.error(errorMessage);
 		} finally {
 			loading = false;
 		}
@@ -213,11 +240,14 @@
 				}
 				deleteGlossaryOpen = false;
 				successMessage = 'Glossary deleted';
+				toastStore.success(successMessage);
 			} else {
-				errorMessage = 'Failed to delete glossary';
+				errorMessage = await extractErrorMessage(res, 'Failed to delete glossary');
+				toastStore.error(errorMessage);
 			}
-		} catch {
-			errorMessage = 'Failed to delete glossary';
+		} catch (err) {
+			errorMessage = networkErrorMessage(err);
+			toastStore.error(errorMessage);
 		} finally {
 			loading = false;
 		}
@@ -235,6 +265,7 @@
 
 		if (Object.keys(translations).length === 0) {
 			errorMessage = 'At least one translation is required';
+			toastStore.error(errorMessage);
 			loading = false;
 			return;
 		}
@@ -271,11 +302,14 @@
 				addTermOpen = false;
 				editTermOpen = false;
 				successMessage = isEdit ? 'Term updated' : 'Term added';
+				toastStore.success(successMessage);
 			} else {
-				errorMessage = isEdit ? 'Failed to update term' : 'Failed to add term';
+				errorMessage = await extractErrorMessage(res, isEdit ? 'Failed to update term' : 'Failed to add term');
+				toastStore.error(errorMessage);
 			}
-		} catch {
-			errorMessage = 'Failed to save term';
+		} catch (err) {
+			errorMessage = networkErrorMessage(err);
+			toastStore.error(errorMessage);
 		} finally {
 			loading = false;
 		}
@@ -306,11 +340,14 @@
 				deletingEntryId = null;
 				deleteEntryOpen = false;
 				successMessage = 'Entry deleted';
+				toastStore.success(successMessage);
 			} else {
-				errorMessage = 'Failed to delete entry';
+				errorMessage = await extractErrorMessage(res, 'Failed to delete entry');
+				toastStore.error(errorMessage);
 			}
-		} catch {
-			errorMessage = 'Failed to delete entry';
+		} catch (err) {
+			errorMessage = networkErrorMessage(err);
+			toastStore.error(errorMessage);
 		} finally {
 			loading = false;
 		}
@@ -336,11 +373,14 @@
 				await fetchEntries(selectedGlossaryId);
 				await fetchGlossaries();
 				successMessage = 'CSV imported successfully';
+				toastStore.success(successMessage);
 			} else {
-				errorMessage = 'Failed to import CSV';
+				errorMessage = await extractErrorMessage(res, 'Failed to import CSV');
+				toastStore.error(errorMessage);
 			}
-		} catch {
-			errorMessage = 'Failed to import CSV';
+		} catch (err) {
+			errorMessage = networkErrorMessage(err);
+			toastStore.error(errorMessage);
 		} finally {
 			loading = false;
 			target.value = '';
@@ -367,6 +407,7 @@
 		link.download = `${selectedGlossary?.name ?? 'glossary'}_export.csv`;
 		link.click();
 		URL.revokeObjectURL(url);
+		toastStore.success('Glossary exported as CSV');
 	}
 </script>
 
@@ -513,7 +554,7 @@
 						{/if}
 					</Card.Title>
 					{#if selectedGlossary}
-						<div class="flex items-center gap-2">
+						<div class="flex flex-wrap items-center gap-2">
 							<Button size="sm" onclick={() => { clearTermForm(); addTermOpen = true; }}>
 								Add Term
 							</Button>
@@ -546,6 +587,7 @@
 						No entries yet. Add a term to get started.
 					</div>
 				{:else}
+					<div class="overflow-x-auto">
 					<Table.Root>
 						<Table.Header>
 							<Table.Row>
@@ -590,6 +632,7 @@
 							{/each}
 						</Table.Body>
 					</Table.Root>
+					</div>
 				{/if}
 			</Card.Content>
 		</Card.Root>

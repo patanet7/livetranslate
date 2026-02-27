@@ -149,10 +149,13 @@
 				newNoteContent = '';
 				await loadNotesForSession();
 			} else {
-				toastStore.error('Failed to add note');
+				const body = await res.json().catch(() => null);
+				toastStore.error(body?.detail ?? 'Failed to add note');
 			}
-		} catch {
-			toastStore.error('Network error adding note');
+		} catch (err) {
+			toastStore.error(err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error adding note');
 		} finally {
 			addingNote = false;
 		}
@@ -175,10 +178,13 @@
 				analyzePrompt = '';
 				await loadNotesForSession();
 			} else {
-				toastStore.error('Analysis failed');
+				const body = await res.json().catch(() => null);
+				toastStore.error(body?.detail ?? 'Analysis failed');
 			}
-		} catch {
-			toastStore.error('Network error during analysis');
+		} catch (err) {
+			toastStore.error(err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error during analysis');
 		} finally {
 			analyzing = false;
 		}
@@ -238,10 +244,13 @@
 				customInstructions = '';
 				await loadInsightsForSession();
 			} else {
-				toastStore.error('Failed to generate insight');
+				const body = await res.json().catch(() => null);
+				toastStore.error(body?.detail ?? 'Failed to generate insight');
 			}
-		} catch {
-			toastStore.error('Network error generating insight');
+		} catch (err) {
+			toastStore.error(err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error generating insight');
 		} finally {
 			generatingInsight = false;
 		}
@@ -264,13 +273,16 @@
 					}
 				);
 				if (!res.ok) {
-					toastStore.error(`Failed to generate insight for ${template.name}`);
+					const body = await res.json().catch(() => null);
+					toastStore.error(body?.detail ?? `Failed to generate insight for ${template.name}`);
 				}
 			}
 			toastStore.success('All insights generated');
 			await loadInsightsForSession();
-		} catch {
-			toastStore.error('Network error generating insights');
+		} catch (err) {
+			toastStore.error(err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error generating insights');
 		} finally {
 			generatingAll = false;
 		}
@@ -403,10 +415,12 @@
 				assistantMessage.content = 'No response received.';
 				messages = [...messages.slice(0, -1), assistantMessage];
 			}
-		} catch {
-			assistantMessage.content = 'Network error. Please try again.';
+		} catch (err) {
+			assistantMessage.content = err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error. Please try again.';
 			messages = [...messages.slice(0, -1), assistantMessage];
-			toastStore.error('Network error sending message');
+			toastStore.error(assistantMessage.content);
 		} finally {
 			sending = false;
 			streaming = false;
@@ -429,10 +443,10 @@
 <!-- Session Selector -->
 <Card.Root class="mb-6">
 	<Card.Content class="pt-6">
-		<div class="flex items-center gap-4">
+		<div class="flex flex-col sm:flex-row sm:items-center gap-3">
 			<Label class="shrink-0 font-medium">Session</Label>
 			<Select.Root type="single" bind:value={selectedSessionId}>
-				<Select.Trigger class="w-full max-w-md">
+				<Select.Trigger class="w-full sm:max-w-md">
 					{#if selectedSession}
 						{selectedSession.transcript_id} ({selectedSession.session_id.slice(0, 8)}...)
 					{:else}

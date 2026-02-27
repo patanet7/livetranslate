@@ -106,8 +106,10 @@
 			} else {
 				toastStore.error('Failed to disconnect session');
 			}
-		} catch {
-			toastStore.error('Network error disconnecting session');
+		} catch (err) {
+			toastStore.error(err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error disconnecting session');
 		} finally {
 			disconnecting[sessionId] = false;
 			sessionToDisconnect = null;

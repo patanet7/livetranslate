@@ -7,6 +7,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as Table from '$lib/components/ui/table';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface TranscriptEntry {
 		timestamp: string;
@@ -84,7 +85,9 @@
 			const json = await res.json();
 			return { ok: true, data: json };
 		} catch (err) {
-			const message = err instanceof Error ? err.message : 'Network error';
+			const message = err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: err instanceof Error ? err.message : 'Network error';
 			apiLog = [...apiLog, { method, endpoint, status: `ERR: ${message}`, time }];
 			return { ok: false, data: null };
 		}
@@ -122,7 +125,14 @@
 		}
 
 		if (!transcriptsRes.ok && !translationsRes.ok && !timelineRes.ok) {
-			loadError = 'Failed to load any data for this session. The backend may be unavailable.';
+			const hasConnectionError = apiLog.some((e) => e.status.includes('Connection error'));
+			loadError = hasConnectionError
+				? 'Connection error. Please check your network and try again.'
+				: 'Failed to load any data for this session. The backend may be unavailable.';
+			toastStore.error(loadError);
+		} else {
+			const totalRows = transcripts.length + translations.length + timeline.length;
+			toastStore.success(`Loaded ${totalRows} data entries`);
 		}
 
 		loading = false;
@@ -258,7 +268,7 @@
 			{#if timeline.length === 0}
 				<p class="text-sm text-muted-foreground text-center py-6">No timeline entries found</p>
 			{:else}
-				<div class="max-h-[32rem] overflow-auto">
+				<div class="max-h-[32rem] overflow-auto overflow-x-auto">
 					<Table.Root>
 						<Table.Header>
 							<Table.Row>

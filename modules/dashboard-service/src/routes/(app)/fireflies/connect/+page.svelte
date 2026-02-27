@@ -14,6 +14,8 @@
 
 	let { data } = $props();
 
+	let disconnecting = $state(false);
+
 	onMount(() => {
 		const sessionId = data.session.session_id;
 		wsStore.connect(`${WS_BASE}/api/captions/stream/${sessionId}`);
@@ -52,6 +54,7 @@
 	});
 
 	async function handleDisconnect() {
+		disconnecting = true;
 		try {
 			const res = await fetch(`/api/fireflies/disconnect`, {
 				method: 'POST',
@@ -59,12 +62,18 @@
 				body: JSON.stringify({ session_id: data.session.session_id })
 			});
 			if (!res.ok) {
-				toastStore.error('Failed to disconnect session');
+				const errorData = await res.json().catch(() => null);
+				const message = errorData?.detail ?? errorData?.message ?? `Request failed (${res.status})`;
+				toastStore.error(message);
 				return;
 			}
 			goto('/fireflies');
-		} catch {
-			toastStore.error('Network error disconnecting session');
+		} catch (err) {
+			toastStore.error(err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: err instanceof Error ? err.message : 'Network error disconnecting session');
+		} finally {
+			disconnecting = false;
 		}
 	}
 </script>
@@ -72,7 +81,9 @@
 <PageHeader title="Live Session">
 	{#snippet actions()}
 		<StatusIndicator status={wsStore.status} label={wsStore.status} />
-		<Button variant="destructive" size="sm" onclick={handleDisconnect}>Disconnect</Button>
+		<Button variant="destructive" size="sm" disabled={disconnecting} onclick={handleDisconnect}>
+			{disconnecting ? 'Disconnecting...' : 'Disconnect'}
+		</Button>
 	{/snippet}
 </PageHeader>
 

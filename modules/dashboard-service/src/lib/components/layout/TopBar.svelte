@@ -4,12 +4,14 @@
 	import { Button } from '$lib/components/ui/button';
 	import { demoStore } from '$lib/stores/demo.svelte';
 	import { goto } from '$app/navigation';
+	import MenuIcon from '@lucide/svelte/icons/menu';
 
 	interface Props {
 		health: 'healthy' | 'degraded' | 'down' | 'unknown';
+		onMenuToggle?: () => void;
 	}
 
-	let { health }: Props = $props();
+	let { health, onMenuToggle }: Props = $props();
 
 	// Derive connection statuses from overall health
 	let apiConnected = $derived(health === 'healthy' || health === 'degraded');
@@ -51,33 +53,40 @@
 <svelte:document onclick={demoOpen ? handleClickOutside : undefined} />
 
 <header class="h-12 border-b bg-card flex items-center justify-between px-4">
-	<!-- Left: App name / breadcrumb -->
+	<!-- Left: Hamburger + App name / breadcrumb -->
 	<div class="flex items-center gap-2">
+		<button
+			class="md:hidden inline-flex items-center justify-center size-8 rounded-md hover:bg-accent transition-colors"
+			aria-label="Toggle sidebar"
+			onclick={onMenuToggle}
+		>
+			<MenuIcon class="size-5" />
+		</button>
 		<span class="text-sm font-semibold text-foreground">LiveTranslate</span>
-		<span class="text-xs text-muted-foreground">/</span>
-		<span class="text-xs text-muted-foreground">Dashboard</span>
+		<span class="text-xs text-muted-foreground hidden sm:inline">/</span>
+		<span class="text-xs text-muted-foreground hidden sm:inline">Dashboard</span>
 	</div>
 
 	<!-- Right: Status badges, demo controls, services indicator -->
-	<div class="flex items-center gap-3">
-		<!-- API status badge -->
-		<Badge variant="outline" class="gap-1.5 text-xs font-normal">
+	<div class="flex items-center gap-2 md:gap-3">
+		<!-- API status badge (hidden on small screens) -->
+		<Badge variant="outline" class="gap-1.5 text-xs font-normal hidden lg:inline-flex">
 			<span
 				class="h-1.5 w-1.5 rounded-full {apiConnected ? 'bg-green-500' : 'bg-red-500'}"
 			></span>
 			{apiConnected ? 'API Connected' : 'API Disconnected'}
 		</Badge>
 
-		<!-- Translation status badge -->
-		<Badge variant="outline" class="gap-1.5 text-xs font-normal">
+		<!-- Translation status badge (hidden on small screens) -->
+		<Badge variant="outline" class="gap-1.5 text-xs font-normal hidden lg:inline-flex">
 			<span
 				class="h-1.5 w-1.5 rounded-full {translationOnline ? 'bg-green-500' : 'bg-red-500'}"
 			></span>
 			{translationOnline ? 'Translation' : 'Translation Offline'}
 		</Badge>
 
-		<!-- Separator -->
-		<div class="h-5 w-px bg-border"></div>
+		<!-- Separator (hidden on small screens) -->
+		<div class="h-5 w-px bg-border hidden lg:block"></div>
 
 		<!-- Demo controls -->
 		<div class="relative" data-demo-menu>

@@ -3,8 +3,8 @@ import { browser } from '$app/environment';
 export class WebSocketStore {
 	url = $state('');
 	status = $state<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected');
+	reconnectAttempt = $state(0);
 	#socket: WebSocket | null = null;
-	#reconnectAttempt = 0;
 	#reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 	#maxReconnectDelay = 30_000;
 	onMessage: ((event: MessageEvent) => void) | null = null;
@@ -18,7 +18,7 @@ export class WebSocketStore {
 		this.#socket = new WebSocket(url);
 		this.#socket.onopen = () => {
 			this.status = 'connected';
-			this.#reconnectAttempt = 0;
+			this.reconnectAttempt = 0;
 		};
 		this.#socket.onmessage = (event) => this.onMessage?.(event);
 		this.#socket.onclose = (event) => {
@@ -47,12 +47,13 @@ export class WebSocketStore {
 			this.#socket = null;
 		}
 		this.status = 'disconnected';
-		this.#reconnectAttempt = 0;
+		this.reconnectAttempt = 0;
 	}
 
 	#scheduleReconnect() {
-		const delay = Math.min(1000 * 2 ** this.#reconnectAttempt, this.#maxReconnectDelay);
-		this.#reconnectAttempt++;
+		const delay = Math.min(1000 * 2 ** this.reconnectAttempt, this.#maxReconnectDelay);
+		this.reconnectAttempt++;
+		this.status = 'connecting';
 		this.#reconnectTimer = setTimeout(() => this.connect(this.url), delay);
 	}
 }

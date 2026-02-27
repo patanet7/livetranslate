@@ -7,9 +7,12 @@
   import { Label } from '$lib/components/ui/label';
   import { Badge } from '$lib/components/ui/badge';
   import { Textarea } from '$lib/components/ui/textarea';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import type { TranslationHealth, TranslationModel } from '$lib/types';
 
   let { data, form } = $props();
+
+  let submitting = $state(false);
 
   // --- Section A: Current Model state ---
   let health: TranslationHealth | null = $state(null);
@@ -31,7 +34,9 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       health = await res.json();
     } catch (err) {
-      healthError = `Failed to fetch health: ${err}`;
+      healthError = err instanceof Error && err.message === 'Failed to fetch'
+        ? 'Connection error. Please check your network and try again.'
+        : `Failed to fetch health: ${err instanceof Error ? err.message : 'Unknown error'}`;
     } finally {
       healthLoading = false;
     }
@@ -60,14 +65,23 @@
         body: JSON.stringify({ model: selectedModelId })
       });
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `HTTP ${res.status}`);
+        const body = await res.json().catch(() => null);
+        const detail = body?.detail;
+        throw new Error(detail ?? `HTTP ${res.status}`);
       }
       const result = await res.json();
-      switchMessage = result.message ?? 'Model switched successfully';
+      const msg = (result.message as string) ?? 'Model switched successfully';
+      switchMessage = msg;
+      toastStore.success(msg);
       await refreshHealth();
     } catch (err) {
-      switchError = `Failed to switch model: ${err}`;
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        switchError = 'Connection error. Please check your network and try again.';
+        toastStore.error(switchError);
+      } else {
+        switchError = `Failed to switch model: ${err instanceof Error ? err.message : 'Unknown error'}`;
+        toastStore.error(switchError);
+      }
     } finally {
       switchLoading = false;
     }
@@ -113,6 +127,7 @@
       localStorage.setItem(STORAGE_KEY, promptTemplate);
       localStorage.setItem(STYLE_STORAGE_KEY, promptStyle);
       promptSaved = true;
+      toastStore.success('Prompt template saved');
       setTimeout(() => { promptSaved = false; }, 2000);
     }
   }
@@ -125,6 +140,7 @@
     }
     promptStyle = 'simple';
     promptTemplate = PROMPT_TEMPLATES.simple;
+    toastStore.info('Prompt template reset to default');
   }
 
   // --- Status badge variant ---
@@ -166,7 +182,7 @@
       {#if healthError}
         <p class="text-sm text-destructive">{healthError}</p>
       {:else if health}
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1">
             <p class="text-xs text-muted-foreground">Model</p>
             <p class="text-sm font-medium">{health.model}</p>
@@ -259,7 +275,18 @@
       <Card.Description>Default language, temperature, and token limits</Card.Description>
     </Card.Header>
     <Card.Content>
-      <form method="POST" action="?/update" use:enhance class="space-y-4">
+      <form method="POST" action="?/update" use:enhance={() => {
+        submitting = true;
+        return async ({ result, update }) => {
+          await update();
+          submitting = false;
+          if (result.type === 'success') {
+            toastStore.success('Translation settings saved');
+          } else if (result.type === 'failure') {
+            toastStore.error('Failed to save translation settings');
+          }
+        };
+      }} class="space-y-4">
         <div class="space-y-2">
           <Label for="target_language">Default Target Language</Label>
           <select
@@ -326,7 +353,9 @@
           <p class="text-sm text-green-600">Translation settings saved</p>
         {/if}
 
-        <Button type="submit">Save Settings</Button>
+        <Button type="submit" disabled={submitting}>
+          {#if submitting}Saving...{:else}Save Settings{/if}
+        </Button>
       </form>
     </Card.Content>
   </Card.Root>

@@ -8,6 +8,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { WS_BASE } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	// --- State ---
 
@@ -89,12 +90,18 @@
 			if (res.ok) {
 				sessionCreated = true;
 				addLog('system', `Session "${sessionId}" created`);
+				toastStore.success(`Session "${sessionId}" created`);
 			} else {
 				const data = await res.json().catch(() => ({}));
 				addLog('error', `Failed to create session: ${data.error ?? res.statusText}`);
+				toastStore.error('Failed to create session');
 			}
 		} catch (err) {
-			addLog('error', `Network error creating session: ${err}`);
+			const msg = err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: `Network error creating session: ${err}`;
+			addLog('error', msg);
+			toastStore.error(msg);
 		} finally {
 			isCreating = false;
 		}
@@ -107,11 +114,17 @@
 			const res = await fetch(`/api/captions/${sessionId}`, { method: 'DELETE' });
 			if (res.ok) {
 				addLog('system', `Session "${sessionId}" cleared`);
+				toastStore.success('Session cleared');
 			} else {
 				addLog('error', `Failed to clear session: ${res.statusText}`);
+				toastStore.error('Failed to clear session');
 			}
 		} catch (err) {
-			addLog('error', `Network error clearing session: ${err}`);
+			const msg = err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: `Network error clearing session: ${err}`;
+			addLog('error', msg);
+			toastStore.error(msg);
 		} finally {
 			isClearing = false;
 		}
@@ -194,12 +207,18 @@
 			});
 			if (res.ok) {
 				addLog('sent', `[${activeSpeaker}] ${captionText}`);
+				toastStore.success('Caption sent');
 				captionText = '';
 			} else {
 				addLog('error', `Failed to send caption: ${res.statusText}`);
+				toastStore.error('Failed to send caption');
 			}
 		} catch (err) {
-			addLog('error', `Network error sending caption: ${err}`);
+			const msg = err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: `Network error sending caption: ${err}`;
+			addLog('error', msg);
+			toastStore.error(msg);
 		} finally {
 			isSending = false;
 		}
@@ -248,11 +267,15 @@
 					addLog('error', `Failed to send demo line: ${res.statusText}`);
 				}
 			} catch (err) {
-				addLog('error', `Network error in demo: ${err}`);
+				const msg = err instanceof TypeError && err.message === 'Failed to fetch'
+					? 'Connection error. Please check your network and try again.'
+					: `Network error in demo: ${err}`;
+				addLog('error', msg);
 			}
 		}
 
 		addLog('system', 'Demo conversation completed');
+		toastStore.success('Demo conversation completed');
 		isRunningDemo = false;
 	}
 

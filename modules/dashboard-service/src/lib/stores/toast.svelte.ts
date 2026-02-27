@@ -1,41 +1,35 @@
-import { browser } from '$app/environment';
-
-export interface Toast {
-	id: string;
-	message: string;
-	type: 'success' | 'error' | 'info' | 'warning';
-	duration?: number;
-}
+import { toast } from 'svelte-sonner';
 
 class ToastStore {
-	toasts = $state<Toast[]>([]);
-
-	add(message: string, type: Toast['type'] = 'info', duration = 5000) {
-		const id = crypto.randomUUID();
-		this.toasts = [...this.toasts, { id, message, type, duration }];
-
-		if (duration > 0 && browser) {
-			setTimeout(() => this.dismiss(id), duration);
+	add(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info', duration = 5000) {
+		switch (type) {
+			case 'success':
+				toast.success(message, { duration });
+				break;
+			case 'error':
+				toast.error(message, { duration });
+				break;
+			case 'warning':
+				toast.warning(message, { duration });
+				break;
+			case 'info':
+			default:
+				toast.info(message, { duration });
+				break;
 		}
-
-		return id;
 	}
 
 	success(message: string) {
-		return this.add(message, 'success');
+		this.add(message, 'success');
 	}
 	error(message: string) {
-		return this.add(message, 'error', 8000);
+		this.add(message, 'error', 8000);
 	}
 	warning(message: string) {
-		return this.add(message, 'warning');
+		this.add(message, 'warning');
 	}
 	info(message: string) {
-		return this.add(message, 'info');
-	}
-
-	dismiss(id: string) {
-		this.toasts = this.toasts.filter((t) => t.id !== id);
+		this.add(message, 'info');
 	}
 }
 

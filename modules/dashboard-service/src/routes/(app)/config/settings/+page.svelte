@@ -89,10 +89,12 @@
 				statusType = 'error';
 				toastStore.error('API key validation failed');
 			}
-		} catch {
-			statusMessage = 'Network error: could not reach validation endpoint';
+		} catch (err) {
+			statusMessage = err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error: could not reach validation endpoint';
 			statusType = 'error';
-			toastStore.error('Network error during validation');
+			toastStore.error(statusMessage);
 		} finally {
 			saving = false;
 		}
@@ -117,11 +119,13 @@
 				meetingCount = null;
 				toastStore.error('Connection test failed');
 			}
-		} catch {
-			statusMessage = 'Network error: could not reach validation endpoint';
+		} catch (err) {
+			statusMessage = err instanceof TypeError && err.message === 'Failed to fetch'
+				? 'Connection error. Please check your network and try again.'
+				: 'Network error: could not reach validation endpoint';
 			statusType = 'error';
 			meetingCount = null;
-			toastStore.error('Network error during connection test');
+			toastStore.error(statusMessage);
 		} finally {
 			testing = false;
 		}
@@ -170,7 +174,7 @@
 			<!-- Input Section -->
 			<div class="space-y-2">
 				<Label for="api-key">{hasSavedKey ? 'Replace API Key' : 'Enter API Key'}</Label>
-				<div class="flex gap-2">
+				<div class="flex flex-col sm:flex-row gap-2">
 					<div class="relative flex-1">
 						<Input
 							id="api-key"
@@ -192,7 +196,7 @@
 							{/if}
 						</button>
 					</div>
-					<Button onclick={handleSave} disabled={!canSave}>
+					<Button class="w-full sm:w-auto" onclick={handleSave} disabled={!canSave}>
 						{#if saving}
 							<Loader2Icon class="size-4 animate-spin" />
 							Validating...
