@@ -41,12 +41,13 @@ class TestDashboardRoutes:
         browser.screenshot(screenshot_path("fireflies_history"))
 
     def test_fireflies_glossary_page(self, browser, screenshot_path):
-        """Glossary page shows add form and entries table."""
+        """Glossary page renders with glossary management UI."""
         browser.open("http://localhost:5180/fireflies/glossary")
         browser.wait("text=Glossary")
         snap = browser.snapshot()
-        assert "Add Term" in snap
-        assert "Source Term" in snap
+        # Page always shows these sections regardless of data
+        assert "Glossaries" in snap
+        assert "Glossary Entries" in snap
         browser.screenshot(screenshot_path("fireflies_glossary"))
 
     def test_config_hub(self, browser, screenshot_path):
@@ -68,12 +69,12 @@ class TestDashboardRoutes:
         browser.screenshot(screenshot_path("config_audio"))
 
     def test_config_translation(self, browser, screenshot_path):
-        """Translation config page shows backend/model/language form."""
+        """Translation config page shows model/language/prompt sections."""
         browser.open("http://localhost:5180/config/translation")
         browser.wait("text=Translation Configuration")
         snap = browser.snapshot()
-        assert "Backend" in snap
-        assert "Model" in snap
+        assert "Current Model" in snap or "Switch Model" in snap
+        assert "Translation Settings" in snap or "Save" in snap
         browser.screenshot(screenshot_path("config_translation"))
 
     def test_config_system(self, browser, screenshot_path):

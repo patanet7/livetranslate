@@ -10,6 +10,9 @@ export class ApiError extends Error {
 	}
 }
 
+/** SSR fetch timeout — prevents load() from blocking page render indefinitely. */
+const SSR_TIMEOUT_MS = 5_000;
+
 async function apiRequest<T>(
 	fetch: typeof globalThis.fetch,
 	path: string,
@@ -18,6 +21,7 @@ async function apiRequest<T>(
 	const url = `${ORCHESTRATION_URL}${path}`;
 	const res = await fetch(url, {
 		headers: { 'Content-Type': 'application/json', ...options?.headers },
+		signal: options?.signal ?? AbortSignal.timeout(SSR_TIMEOUT_MS),
 		...options
 	});
 
