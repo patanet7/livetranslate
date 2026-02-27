@@ -484,6 +484,12 @@ class ConnectRequest(BaseModel):
         description="Translation model/service to use (ollama, groq, etc.)",
     )
 
+    # API base URL override (for testing/demo mode — points at mock server)
+    api_base_url: str | None = Field(
+        default=None,
+        description="Override Fireflies API base URL (for testing/demo mode)",
+    )
+
     # Sentence aggregation config (all optional, uses .env defaults)
     pause_threshold_ms: float | None = Field(default=None)
     max_buffer_words: int | None = Field(default=None)
@@ -571,6 +577,7 @@ async def connect_to_fireflies(
             pause_threshold_ms=request.pause_threshold_ms or ff_config.pause_threshold_ms,
             max_buffer_words=request.max_buffer_words or ff_config.max_buffer_words,
             context_window_size=request.context_window_size or ff_config.context_window_size,
+            api_base_url=request.api_base_url,
         )
 
         logger.info(
