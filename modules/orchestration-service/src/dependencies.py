@@ -390,7 +390,7 @@ def get_audio_service_client() -> AudioServiceClient:
             if hasattr(config_manager, "get_service_config")
             else None
         )
-        base_url = os.getenv("AUDIO_SERVICE_URL")
+        base_url = os.getenv("WHISPER_SERVICE_URL")
         if not base_url and service_config:
             base_url = service_config.url
         if not base_url:
@@ -450,7 +450,7 @@ def get_health_monitor() -> HealthMonitor:
         _health_monitor = HealthMonitor(settings=None)
 
         # Override service URLs from environment or defaults
-        audio_url = os.getenv("AUDIO_SERVICE_URL") or _health_monitor.service_configs.get(
+        audio_url = os.getenv("WHISPER_SERVICE_URL") or _health_monitor.service_configs.get(
             "whisper", {}
         ).get("url", "http://localhost:5001")
         translation_url = os.getenv(
@@ -559,7 +559,7 @@ def get_audio_coordinator() -> AudioCoordinator:
             else None
         )
 
-        whisper_url = os.getenv("AUDIO_SERVICE_URL")
+        whisper_url = os.getenv("WHISPER_SERVICE_URL")
         if not whisper_url and whisper_service_cfg:
             whisper_url = whisper_service_cfg.url
         if not whisper_url:

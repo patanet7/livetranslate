@@ -238,7 +238,7 @@ class AudioServiceClient:
         if self.settings and getattr(self.settings, "services", None):
             return getattr(
                 self.settings.services,
-                "audio_service_url",
+                "whisper_service_url",
                 "http://localhost:5001",
             )
         if self.config_manager:
@@ -248,7 +248,7 @@ class AudioServiceClient:
     def _get_timeout(self) -> int:
         """Resolve timeout configuration"""
         if self.settings and getattr(self.settings, "services", None):
-            return getattr(self.settings.services, "audio_service_timeout", 300)
+            return getattr(self.settings.services, "whisper_service_timeout", 300)
         if self.config_manager:
             return self.config_manager.get("services.whisper.timeout", 300)
         return 300

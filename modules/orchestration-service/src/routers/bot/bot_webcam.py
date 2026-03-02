@@ -19,7 +19,6 @@ from ._shared import (
     create_bot_router,
     get_error_response,
     logger,
-    validate_bot_exists,
 )
 
 # Create router for virtual webcam management
@@ -38,40 +37,10 @@ async def manage_virtual_webcam(
     Controls the virtual webcam that displays translation output.
     Actions: start, stop, update settings.
     """
-    try:
-        logger.info(
-            f"Managing virtual webcam for bot {bot_id}: {request.config.get('action', 'unknown')}"
-        )
-
-        # Validate bot exists
-        await validate_bot_exists(bot_id, bot_manager)
-
-        # Execute webcam action
-        # TODO: Implement virtual webcam methods in bot_manager
-        action = request.config.get("action", "update")
-        if action in ["start", "stop", "update"]:
-            result = {"message": f"Virtual webcam {action} not yet implemented"}
-        else:
-            raise get_error_response(
-                status.HTTP_400_BAD_REQUEST,
-                f"Invalid action: {action}",
-                {"bot_id": bot_id, "action": action},
-            )
-
-        return {
-            "message": f"Virtual webcam {action} completed",
-            "result": result,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to manage virtual webcam: {e}")
-        raise get_error_response(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to manage virtual webcam: {e!s}",
-            {"bot_id": bot_id},
-        ) from e
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Virtual webcam management not yet implemented",
+    )
 
 
 @router.get("/{bot_id}/webcam/status")
@@ -81,24 +50,10 @@ async def get_webcam_status(bot_id: str, bot_manager=Depends(get_bot_manager)) -
 
     Returns the current status and configuration of the virtual webcam.
     """
-    try:
-        # Validate bot exists
-        await validate_bot_exists(bot_id, bot_manager)
-
-        # TODO: Implement get_virtual_webcam_status method in bot_manager
-        webcam_status = {"message": "Virtual webcam status not yet implemented"}
-
-        return {"bot_id": bot_id, "webcam_status": webcam_status}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to get webcam status: {e}")
-        raise get_error_response(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to get webcam status: {e!s}",
-            {"bot_id": bot_id},
-        ) from e
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Virtual webcam status not yet implemented",
+    )
 
 
 @router.get("/virtual-webcam/frame/{bot_id}")

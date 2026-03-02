@@ -65,7 +65,7 @@ class HealthMonitor:
 
         # Get service URLs from configuration if available, otherwise use defaults
         if settings:
-            audio_service_url = settings.services.audio_service_url
+            audio_service_url = settings.services.whisper_service_url
             translation_service_url = settings.services.translation_service_url
             orchestration_url = f"http://{settings.host}:{settings.port}"
         else:

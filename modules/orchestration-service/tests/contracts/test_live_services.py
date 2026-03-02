@@ -31,8 +31,8 @@ def _make_wav_bytes(duration: float = 0.5, freq: float = 440.0, sr: int = 16000)
 
 @pytest.mark.asyncio
 async def test_whisper_live_endpoints():
-    base_url = os.getenv("AUDIO_SERVICE_URL")
-    assert base_url, "AUDIO_SERVICE_URL must be set"
+    base_url = os.getenv("WHISPER_SERVICE_URL")
+    assert base_url, "WHISPER_SERVICE_URL must be set"
 
     audio_bytes = _make_wav_bytes()
     session_id = f"contract-{uuid.uuid4().hex[:8]}"

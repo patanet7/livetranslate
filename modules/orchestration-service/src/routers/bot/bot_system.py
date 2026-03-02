@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from dependencies import get_bot_manager
-from fastapi import BackgroundTasks, Depends, status
+from fastapi import BackgroundTasks, Depends, HTTPException, status
 
 from ._shared import SystemStatsResponse, create_bot_router, get_error_response, logger
 
@@ -86,17 +86,7 @@ async def cleanup_system_bots(
     Performs system-wide cleanup of bot resources including terminated
     bots, orphaned sessions, and temporary files.
     """
-    try:
-        logger.info("Starting system bot cleanup")
-
-        # TODO: Implement cleanup_system_resources method in bot_manager
-        logger.info("System bot cleanup requested (not yet implemented)")
-
-        return {"message": "System bot cleanup started"}
-
-    except Exception as e:
-        logger.error(f"Failed to start system cleanup: {e}")
-        raise get_error_response(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            f"Failed to start system cleanup: {e!s}",
-        ) from e
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="System bot cleanup not yet implemented",
+    )
