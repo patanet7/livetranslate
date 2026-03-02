@@ -99,7 +99,7 @@ async def websocket_audio_stream(websocket: WebSocket):
                 user_id = message.get("user_id")
                 message.get("token")
 
-                # TODO: Implement actual authentication
+                # Auth: Not yet implemented (see config.auth_enabled)
                 logger.info(f"Authenticated user: {user_id}")
 
                 await websocket.send_json(

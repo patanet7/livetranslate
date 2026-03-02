@@ -62,7 +62,7 @@ async def get_user_settings(
     Returns current user settings and preferences.
     """
     try:
-        # TODO: Implement user authentication
+        # Auth: Not yet implemented (see config.auth_enabled)
         user_id = "anonymous"
 
         settings = await config_manager.get_user_settings(user_id)
@@ -99,7 +99,7 @@ async def update_user_settings(
     Updates user preferences and settings. Only provided fields are updated.
     """
     try:
-        # TODO: Implement user authentication
+        # Auth: Not yet implemented (see config.auth_enabled)
         user_id = "anonymous"
 
         # Build update data from request
