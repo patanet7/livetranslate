@@ -162,7 +162,9 @@
 							<option value="">General</option>
 							{#if data.uiConfig?.domains}
 								{#each data.uiConfig.domains as d}
-									<option value={d}>{d}</option>
+									{#if d.value}
+										<option value={d.value}>{d.label}</option>
+									{/if}
 								{/each}
 							{/if}
 						</select>

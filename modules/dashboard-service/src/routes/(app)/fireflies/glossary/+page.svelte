@@ -489,11 +489,11 @@
 								{detailDomain || 'Select domain'}
 							</Select.Trigger>
 							<Select.Content>
-								{#each uiConfig.domains as domain (domain)}
-									<Select.Item value={domain} label={domain} />
+								{#each uiConfig.domains as domain (domain.value)}
+									<Select.Item value={domain.value} label={domain.label} />
 								{/each}
-								{#if !uiConfig.domains.includes('general')}
-									<Select.Item value="general" label="general" />
+								{#if !uiConfig.domains.some((d) => d.value === 'general')}
+									<Select.Item value="general" label="General" />
 								{/if}
 							</Select.Content>
 						</Select.Root>
