@@ -143,7 +143,7 @@ class ServiceSettings(BaseSettings):
         description="Health check timeout in seconds",
     )
 
-    model_config = ConfigDict(env_prefix="SERVICE_")
+    model_config = ConfigDict()
 
 
 class SecuritySettings(BaseSettings):
@@ -661,7 +661,7 @@ class Settings(BaseSettings):
     def get_service_urls(self) -> dict[str, str]:
         """Get all service URLs"""
         return {
-            "audio": self.services.whisper_service_url,
+            "whisper": self.services.whisper_service_url,
             "translation": self.services.translation_service_url,
         }
 

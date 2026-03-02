@@ -505,7 +505,10 @@ async def update_ui_config(config: SystemConfigUpdate):
     existing = await load_config(SYSTEM_CONFIG_FILE, {})
     update_data = config.model_dump(exclude_none=True)
 
+    # Deep-merge defaults so partial updates don't erase sibling keys
     merged = {**existing, **update_data}
+    if "defaults" in update_data and "defaults" in existing:
+        merged["defaults"] = {**existing["defaults"], **update_data["defaults"]}
 
     success = await save_config(SYSTEM_CONFIG_FILE, merged)
     if not success:
