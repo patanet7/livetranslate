@@ -10,6 +10,7 @@ FastAPI router for system-wide management endpoints including:
 
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import psutil
@@ -24,9 +25,12 @@ from models.system import (
     SystemMetrics,
 )
 from pydantic import BaseModel
+from routers.settings._shared import load_config, save_config
 
 router = APIRouter()
 logger = get_logger()
+
+SYSTEM_CONFIG_PATH = Path("./config/system.json")
 
 # ============================================================================
 # Request/Response Models
@@ -62,6 +66,19 @@ class SystemMetricsResponse(BaseModel):
     services: ServiceHealthSummary
     websocket_stats: dict[str, Any]
     system_stats: SystemStatsResponse
+
+
+class DomainItem(BaseModel):
+    value: str
+    label: str
+    description: str = ""
+
+
+class SystemConfigUpdate(BaseModel):
+    enabled_languages: list[str] | None = None
+    custom_domains: list[DomainItem] | None = None
+    disabled_domains: list[str] | None = None
+    defaults: dict[str, Any] | None = None
 
 
 # ============================================================================
@@ -403,22 +420,106 @@ async def get_ui_config():
     except Exception as e:
         logger.debug(f"Could not fetch prompts: {e}")
 
+    # Load user overrides
+    overrides = await load_config(SYSTEM_CONFIG_PATH, {})
+
+    # Filter languages if enabled_languages is set
+    enabled_langs = overrides.get("enabled_languages")
+    if enabled_langs:
+        languages = [l for l in SUPPORTED_LANGUAGES if l["code"] in enabled_langs]
+    else:
+        languages = SUPPORTED_LANGUAGES
+
+    # Merge domains: start with built-in, remove disabled, add custom
+    domains = list(GLOSSARY_DOMAINS)
+    disabled_domains = overrides.get("disabled_domains", [])
+    domains = [d for d in domains if d["value"] not in disabled_domains]
+    custom_domains = overrides.get("custom_domains", [])
+    domains.extend(custom_domains)
+
+    # Merge defaults
+    defaults = {**DEFAULT_CONFIG, **overrides.get("defaults", {})}
+
     return {
-        # Core configuration
-        "languages": SUPPORTED_LANGUAGES,
-        "language_codes": [lang["code"] for lang in SUPPORTED_LANGUAGES],
-        "domains": GLOSSARY_DOMAINS,
-        "defaults": DEFAULT_CONFIG,
+        # Core configuration (merged)
+        "languages": languages,
+        "language_codes": [lang["code"] for lang in languages],
+        "domains": domains,
+        "defaults": defaults,
         "prompt_variables": PROMPT_TEMPLATE_VARIABLES,
         # Dynamic configuration (from services)
         "translation_models": translation_models,
         "translation_service_available": translation_service_available,
         "prompt_templates": prompt_templates,
         "prompts_available": prompts_available,
+        # Override metadata
+        "has_overrides": bool(overrides),
+        "enabled_language_count": len(languages),
+        "total_language_count": len(SUPPORTED_LANGUAGES),
         # Metadata
         "config_version": "1.0",
         "source": "orchestration-service",
     }
+
+
+@router.put("/ui-config")
+async def update_ui_config(config: SystemConfigUpdate):
+    """
+    Update system configuration overrides.
+
+    Saves user customizations to ./config/system.json.
+    These overrides merge on top of system_constants.py defaults.
+    """
+    from system_constants import VALID_DOMAINS, VALID_LANGUAGE_CODES
+
+    # Validate language codes
+    if config.enabled_languages is not None:
+        invalid = [c for c in config.enabled_languages if c not in VALID_LANGUAGE_CODES]
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid language codes: {invalid}",
+            )
+
+    # Validate disabled_domains reference existing built-in domains
+    if config.disabled_domains is not None:
+        invalid = [d for d in config.disabled_domains if d not in VALID_DOMAINS]
+        if invalid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid domain values: {invalid}",
+            )
+
+    # Load existing overrides and merge
+    existing = await load_config(SYSTEM_CONFIG_PATH, {})
+    update_data = config.model_dump(exclude_none=True)
+
+    # Convert custom_domains from Pydantic models to dicts
+    if "custom_domains" in update_data:
+        update_data["custom_domains"] = [d if isinstance(d, dict) else d for d in update_data["custom_domains"]]
+
+    merged = {**existing, **update_data}
+
+    success = await save_config(SYSTEM_CONFIG_PATH, merged)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save configuration",
+        )
+
+    return {"status": "ok", "message": "Configuration saved"}
+
+
+@router.post("/ui-config/reset")
+async def reset_ui_config():
+    """
+    Reset system configuration to factory defaults.
+
+    Deletes the override file, restoring system_constants.py values.
+    """
+    SYSTEM_CONFIG_PATH.unlink(missing_ok=True)
+    logger.info("System configuration reset to factory defaults")
+    return {"status": "ok", "message": "Reset to factory defaults"}
 
 
 @router.get("/config", response_model=dict[str, Any])
