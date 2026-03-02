@@ -8,9 +8,9 @@ FastAPI router for system-wide management endpoints including:
 - System configuration
 """
 
+import re
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 import psutil
@@ -24,13 +24,11 @@ from models.system import (
     ServiceHealth,
     SystemMetrics,
 )
-from pydantic import BaseModel
-from routers.settings._shared import load_config, save_config
+from pydantic import BaseModel, Field, field_validator
+from routers.settings._shared import SYSTEM_CONFIG_FILE, load_config, save_config
 
 router = APIRouter()
 logger = get_logger()
-
-SYSTEM_CONFIG_PATH = Path("./config/system.json")
 
 # ============================================================================
 # Request/Response Models
@@ -69,9 +67,16 @@ class SystemMetricsResponse(BaseModel):
 
 
 class DomainItem(BaseModel):
-    value: str
-    label: str
-    description: str = ""
+    value: str = Field(..., max_length=64)
+    label: str = Field(..., max_length=128)
+    description: str = Field(default="", max_length=512)
+
+    @field_validator("value")
+    @classmethod
+    def value_must_be_slug(cls, v: str) -> str:
+        if not re.match(r"^[a-z0-9_-]+$", v):
+            raise ValueError("value must be a lowercase alphanumeric slug (a-z, 0-9, _, -)")
+        return v
 
 
 class SystemConfigUpdate(BaseModel):
@@ -421,12 +426,12 @@ async def get_ui_config():
         logger.debug(f"Could not fetch prompts: {e}")
 
     # Load user overrides
-    overrides = await load_config(SYSTEM_CONFIG_PATH, {})
+    overrides = await load_config(SYSTEM_CONFIG_FILE, {})
 
     # Filter languages if enabled_languages is set
     enabled_langs = overrides.get("enabled_languages")
     if enabled_langs:
-        languages = [l for l in SUPPORTED_LANGUAGES if l["code"] in enabled_langs]
+        languages = [lang for lang in SUPPORTED_LANGUAGES if lang["code"] in enabled_langs]
     else:
         languages = SUPPORTED_LANGUAGES
 
@@ -472,6 +477,12 @@ async def update_ui_config(config: SystemConfigUpdate):
     """
     from system_constants import VALID_DOMAINS, VALID_LANGUAGE_CODES
 
+    if config.enabled_languages is not None and len(config.enabled_languages) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="enabled_languages must contain at least one language code, or be omitted to enable all",
+        )
+
     # Validate language codes
     if config.enabled_languages is not None:
         invalid = [c for c in config.enabled_languages if c not in VALID_LANGUAGE_CODES]
@@ -491,16 +502,12 @@ async def update_ui_config(config: SystemConfigUpdate):
             )
 
     # Load existing overrides and merge
-    existing = await load_config(SYSTEM_CONFIG_PATH, {})
+    existing = await load_config(SYSTEM_CONFIG_FILE, {})
     update_data = config.model_dump(exclude_none=True)
-
-    # Convert custom_domains from Pydantic models to dicts
-    if "custom_domains" in update_data:
-        update_data["custom_domains"] = [d if isinstance(d, dict) else d for d in update_data["custom_domains"]]
 
     merged = {**existing, **update_data}
 
-    success = await save_config(SYSTEM_CONFIG_PATH, merged)
+    success = await save_config(SYSTEM_CONFIG_FILE, merged)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -517,7 +524,7 @@ async def reset_ui_config():
 
     Deletes the override file, restoring system_constants.py values.
     """
-    SYSTEM_CONFIG_PATH.unlink(missing_ok=True)
+    SYSTEM_CONFIG_FILE.unlink(missing_ok=True)
     logger.info("System configuration reset to factory defaults")
     return {"status": "ok", "message": "Reset to factory defaults"}
 
