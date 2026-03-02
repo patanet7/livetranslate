@@ -18,7 +18,7 @@ class ConfigUpdate(BaseModel):
         json_schema_extra={
             "example": {
                 "websocket.max_connections": 2000,
-                "services.audio_service_timeout": 45,
+                "services.whisper_service_timeout": 45,
                 "logging.level": "DEBUG",
             }
         },
@@ -59,7 +59,7 @@ class ConfigUpdate(BaseModel):
             "example": {
                 "updates": {
                     "websocket.max_connections": 2000,
-                    "services.audio_service_timeout": 45,
+                    "services.whisper_service_timeout": 45,
                     "logging.level": "DEBUG",
                     "features.enable_analytics": True,
                 },

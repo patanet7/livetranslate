@@ -427,7 +427,7 @@ SECRET_KEY=change-me-in-production     # Flask secret key
 LOG_LEVEL=INFO                         # Logging level
 
 # === Backend Services ===
-AUDIO_SERVICE_URL=http://localhost:5001      # Audio/Whisper service (NPU optimized)
+WHISPER_SERVICE_URL=http://localhost:5001     # Whisper service (NPU optimized)
 TRANSLATION_SERVICE_URL=http://localhost:5003 # Translation service (GPU optimized)
 
 # Service Discovery

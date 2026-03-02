@@ -385,10 +385,10 @@ class ConfigManager:
         )
 
         # Service URLs
-        if os.getenv("AUDIO_SERVICE_URL"):
+        if os.getenv("WHISPER_SERVICE_URL"):
             config.services["audio-service"] = ServiceConfig(
                 name="audio-service",
-                url=os.getenv("AUDIO_SERVICE_URL"),
+                url=os.getenv("WHISPER_SERVICE_URL"),
                 health_endpoint=os.getenv("AUDIO_SERVICE_HEALTH_ENDPOINT", "/health"),
             )
 
