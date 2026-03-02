@@ -159,49 +159,54 @@ _pipeline_instance = None
 _background_tasks: set = set()
 
 
-def get_pipeline():
-    """Get or create data pipeline instance."""
+async def get_pipeline():
+    """Get or create data pipeline instance, ensuring DB pool is initialized."""
     global _pipeline_instance
 
     if _pipeline_instance is None:
         import os
+        from urllib.parse import urlparse
 
+        from database.bot_session_manager import BotSessionDatabaseManager, DatabaseConfig
         from pipeline.data_pipeline import create_data_pipeline
 
-        # Load configuration from environment
-        db_config = {
-            "host": os.getenv("DB_HOST", "localhost"),
-            "port": int(os.getenv("DB_PORT", "5432")),
-            "database": os.getenv("DB_NAME", "livetranslate"),
-            "username": os.getenv("DB_USER", "postgres"),
-            "password": os.getenv("DB_PASSWORD", "livetranslate"),
-        }
+        # Parse DATABASE_URL if available, otherwise fall back to individual env vars
+        database_url = os.getenv("DATABASE_URL", "")
+        if database_url:
+            parsed = urlparse(database_url)
+            db_cfg = DatabaseConfig(
+                host=parsed.hostname or "localhost",
+                port=parsed.port or 5432,
+                database=(parsed.path or "/livetranslate").lstrip("/"),
+                username=parsed.username or "postgres",
+                password=parsed.password or "postgres",
+            )
+        else:
+            db_cfg = DatabaseConfig(
+                host=os.getenv("DB_HOST", "localhost"),
+                port=int(os.getenv("DB_PORT", "5432")),
+                database=os.getenv("DB_NAME", "livetranslate"),
+                username=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "postgres"),
+            )
 
         audio_storage_path = os.getenv("AUDIO_STORAGE_PATH", "/tmp/livetranslate/audio")
 
-        # Create pipeline (synchronous initialization)
+        # Create database manager and pipeline
+        db_manager = BotSessionDatabaseManager(db_cfg, audio_storage_path)
         _pipeline_instance = create_data_pipeline(
-            db_config=db_config,
-            audio_storage_path=audio_storage_path,
+            database_manager=db_manager,
             enable_speaker_tracking=True,
             enable_segment_continuity=True,
         )
 
-        # Initialize database manager (needs to be done asynchronously)
-        import asyncio
-
+    # Ensure DB pool is initialized (idempotent — skips if already connected)
+    if _pipeline_instance.db_manager.db_pool is None:
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Schedule initialization with proper task tracking
-                task = asyncio.create_task(_pipeline_instance.db_manager.initialize())
-                _background_tasks.add(task)
-                task.add_done_callback(_background_tasks.discard)
-            else:
-                # Initialize synchronously
-                loop.run_until_complete(_pipeline_instance.db_manager.initialize())
+            await _pipeline_instance.db_manager.initialize()
         except Exception as e:
-            logger.warning(f"Could not initialize database on startup: {e}")
+            logger.warning(f"Could not initialize database: {e}")
+            raise HTTPException(status_code=503, detail="Database unavailable")
 
     return _pipeline_instance
 
