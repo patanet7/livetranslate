@@ -65,7 +65,7 @@ async def websocket_endpoint(
         authenticated_user = None
         if token:
             try:
-                # TODO: Implement WebSocket token verification
+                # Auth: Not yet implemented (see config.auth_enabled)
                 authenticated_user = {"user_id": user_id or "anonymous"}
                 user_id = authenticated_user.get("user_id", user_id)
             except Exception as e:

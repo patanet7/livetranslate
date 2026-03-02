@@ -173,7 +173,7 @@ class WebSocketFrontendHandler:
         user_id = data.get("user_id")
         data.get("token")
 
-        # TODO: Implement actual authentication
+        # Auth: Not yet implemented (see config.auth_enabled)
         # For now, accept all connections
         connection.is_authenticated = True
         connection.user_id = user_id

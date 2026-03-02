@@ -113,14 +113,14 @@ class WebSocketSettings(BaseSettings):
 class ServiceSettings(BaseSettings):
     """External service configuration"""
 
-    # Audio service
-    audio_service_url: str = Field(
+    # Whisper service
+    whisper_service_url: str = Field(
         default="http://localhost:5001",
-        description="Audio service URL",
+        description="Whisper service URL",
     )
-    audio_service_timeout: int = Field(
+    whisper_service_timeout: int = Field(
         default=30,
-        description="Audio service request timeout",
+        description="Whisper service request timeout",
     )
 
     # Translation service
@@ -573,6 +573,12 @@ class Settings(BaseSettings):
     obs: OBSSettings = OBSSettings()
 
     # Feature flags
+    # Authentication is not yet implemented. All endpoints are currently open.
+    # When auth is added, set this to True and implement token verification.
+    auth_enabled: bool = Field(
+        default=False,
+        description="Enable authentication (not yet implemented)",
+    )
     enable_audio_processing: bool = Field(
         default=True,
         description="Enable audio processing features",
@@ -655,7 +661,7 @@ class Settings(BaseSettings):
     def get_service_urls(self) -> dict[str, str]:
         """Get all service URLs"""
         return {
-            "audio": self.services.audio_service_url,
+            "audio": self.services.whisper_service_url,
             "translation": self.services.translation_service_url,
         }
 
