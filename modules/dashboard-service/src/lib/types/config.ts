@@ -28,7 +28,7 @@ export interface TranslationSettings {
 export interface UiConfig {
 	languages: Array<{ code: string; name: string; nativeName: string }>;
 	language_codes: string[];
-	domains: string[];
+	domains: Array<{ value: string; label: string; description?: string }>;
 	defaults: Record<string, unknown>;
 	translation_models: Array<{
 		name: string;
@@ -38,6 +38,19 @@ export interface UiConfig {
 	}>;
 	translation_service_available: boolean;
 	config_version: string;
+}
+
+export interface DomainItem {
+	value: string;
+	label: string;
+	description?: string;
+}
+
+export interface SystemConfigUpdate {
+	enabled_languages?: string[];
+	custom_domains?: DomainItem[];
+	disabled_domains?: string[];
+	defaults?: Record<string, unknown>;
 }
 
 export interface TranslationModel {

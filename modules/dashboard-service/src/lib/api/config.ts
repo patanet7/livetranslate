@@ -2,6 +2,7 @@ import type {
 	UserSettings,
 	TranslationSettings,
 	UiConfig,
+	SystemConfigUpdate,
 	TranslationModelsResponse,
 	TranslationHealth
 } from '$lib/types';
@@ -28,6 +29,12 @@ export function configApi(fetch: typeof globalThis.fetch) {
 			api.post('/api/settings/translation/test', { text, target_language: targetLanguage }),
 
 		getUiConfig: () => api.get<UiConfig>('/api/system/ui-config'),
+
+		updateUiConfig: (config: SystemConfigUpdate) =>
+			api.put<{ status: string; message: string }>('/api/system/ui-config', config),
+
+		resetUiConfig: () =>
+			api.post<{ status: string; message: string }>('/api/system/ui-config/reset'),
 
 		getHealth: () => api.get('/api/system/health'),
 
