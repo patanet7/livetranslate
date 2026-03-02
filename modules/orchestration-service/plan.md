@@ -1,8 +1,64 @@
 # Orchestration Service - Development Plan
 
-**Last Updated**: 2026-02-25
-**Current Status**: Behavioral E2E Tests COMPLETE — 7 tasks, 10 commits, 509 unit + 23 new E2E tests passing
-**Module**: `modules/orchestration-service/`
+**Last Updated**: 2026-02-27
+**Current Status**: Dashboard Data Wiring + Code Audit — fixing broken DB queries, domain rendering, orphaned code
+**Module**: `modules/orchestration-service/` + `modules/dashboard-service/`
+
+---
+
+## In Progress: Dashboard Data Wiring & Code Audit (2026-02-27)
+
+**Goal**: Fix multiple issues found during dashboard visual review — disconnected DB data, broken rendering, orphaned features.
+
+### Completed Fixes
+
+| Fix | Files | Issue |
+|-----|-------|-------|
+| Register `data_query` router | `src/main_fastapi.py` | Router existed but was never imported/registered — `/api/data/*` returned 404 |
+| Fix `data_query` API mismatch | `src/routers/data_query.py` | `create_data_pipeline()` signature changed to require `BotSessionDatabaseManager` instance, not raw `db_config` dict. Updated to parse `DATABASE_URL` env var. Made `get_pipeline()` async for proper DB pool initialization. |
+| Fix domain `[object Object]` | `dashboard-service: config.ts`, `+page.svelte`, `glossary/+page.svelte` | `GLOSSARY_DOMAINS` returns `list[dict]` with `{value, label, description}` but TypeScript type said `string[]`. Updated type and all Svelte templates to use `d.value`/`d.label`. |
+| Wire Data page to meetings API | `dashboard-service: data/+page.server.ts`, `data/+page.svelte`, `api/meetings/+server.ts`, `api/meetings/[meeting_id]/transcript/+server.ts` | Data page only showed active Fireflies sessions (via `/api/data/*` which queries empty `bot_sessions.transcripts`). Added "Past Meetings" tab that fetches from `/api/meetings/` which queries actual `meetings` + `meeting_sentences` tables (3 meetings, 402 sentences). |
+
+### Known Issue: `data_query.py` Schema Mismatch
+
+The `data_query.py` router's SQL queries reference columns from `bot_sessions.transcripts` schema (`source_type`, `language_code`, `transcript_text`, `start_timestamp`, `processing_metadata`) but the default search path hits `public.transcripts` which has different columns (`source`, `language`, `text`, `start_time`, `session_metadata`). The "Active Sessions" data source on the Data page will fail with column-not-found errors. This is deprioritized since the actual Fireflies data lives in `meetings`/`meeting_sentences` tables, not `transcripts`.
+
+### Code Audit Results (2026-02-27)
+
+Full audit of orchestration service completed. Key findings:
+
+**CRITICAL:**
+1. Dual-schema collision on `transcripts` table — `data_query.py` queries `public.transcripts` with `bot_sessions.transcripts` column names
+2. `ChatMessage` model missing `speaker_id`/`speaker_name` columns that `chat_history.py` router expects
+
+**HIGH:**
+3. Unregistered `seamless.py` router (disconnected feature with SQLite storage)
+4. Dead `routers/audio.py` file shadowed by `routers/audio/` package
+5. Orphaned files: `websocket_frontend_handler.py`, `websocket_whisper_client.py`
+6. Unintegrated template: `audio_coordinator_cache_integration.py`
+7. Orphaned `speaker_correlator.py`
+
+**MEDIUM:**
+8. Duplicate `/api/audio` prefix registration
+9. Unreferenced `dashboard/` and `frontend/` packages
+10. 200-line inline WebSocket handler in `main_fastapi.py` duplicating `routers/websocket.py`
+11. Debug endpoints exposed without authentication
+12. Five identical structlog logger instances
+
+### Remaining User Requests (Not Yet Addressed)
+
+- **Consolidate demo features** onto a single page (test caption sender, demo session start)
+- **Target language selection** on connect page — already has language selector from `uiConfig.languages`, but user may want easier visibility
+- **Dashboard-service audit** — the orchestration audit couldn't access dashboard files; needs separate run
+
+---
+
+## Completed: SvelteKit Dashboard Merge (2026-02-27)
+
+Merged `worktree-sveltekit-dashboard` branch to main (178 files, 15,914 lines). All 31 browser E2E tests passing (24 UI + 7 pipeline). Key fixes during merge session:
+- Mock server event loop background thread fix
+- Subprocess stderr PIPE blocking fix (redirect to file)
+- `api_base_url` passthrough to `ConnectRequest`
 
 ---
 
