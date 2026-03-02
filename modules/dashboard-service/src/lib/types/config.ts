@@ -26,7 +26,7 @@ export interface TranslationSettings {
 }
 
 export interface UiConfig {
-	languages: Array<{ code: string; name: string; nativeName: string }>;
+	languages: Array<{ code: string; name: string; native: string; rtl?: boolean }>;
 	language_codes: string[];
 	domains: Array<{ value: string; label: string; description?: string }>;
 	defaults: Record<string, unknown>;
