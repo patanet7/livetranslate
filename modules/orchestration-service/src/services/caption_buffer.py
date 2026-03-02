@@ -73,6 +73,7 @@ class Caption:
     created_at: datetime
     expires_at: datetime
     priority: int = 0  # Higher = more important, stays longer
+    chunk_ids: list[str] | None = None  # Source chunk IDs for interim caption matching
 
     @property
     def is_expired(self) -> bool:
@@ -105,6 +106,7 @@ class Caption:
             "duration_seconds": float(self.display_duration_seconds),
             "time_remaining_seconds": float(self.time_remaining_seconds),
             "priority": int(self.priority),
+            "chunk_ids": self.chunk_ids,
         }
 
 
@@ -267,6 +269,7 @@ class CaptionBuffer:
         duration: float | None = None,
         priority: int = 0,
         caption_id: str | None = None,
+        chunk_ids: list[str] | None = None,
     ) -> tuple:
         """
         Add a caption to the display queue.
@@ -284,6 +287,7 @@ class CaptionBuffer:
             duration: Custom duration (uses default if None)
             priority: Priority level (higher = stays longer)
             caption_id: Custom caption ID (auto-generated if None)
+            chunk_ids: Source chunk IDs for matching interim captions to finals
 
         Returns:
             Tuple of (Caption, was_updated: bool)
@@ -372,6 +376,7 @@ class CaptionBuffer:
                 created_at=now,
                 expires_at=now + timedelta(seconds=actual_duration),
                 priority=priority,
+                chunk_ids=chunk_ids,
             )
 
             # Handle overflow (remove oldest, non-priority captions)
