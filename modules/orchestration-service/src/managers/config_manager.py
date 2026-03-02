@@ -389,7 +389,7 @@ class ConfigManager:
             config.services["audio-service"] = ServiceConfig(
                 name="audio-service",
                 url=os.getenv("WHISPER_SERVICE_URL"),
-                health_endpoint=os.getenv("AUDIO_SERVICE_HEALTH_ENDPOINT", "/health"),
+                health_endpoint=os.getenv("WHISPER_SERVICE_HEALTH_ENDPOINT", "/health"),
             )
 
         if os.getenv("TRANSLATION_SERVICE_URL"):
