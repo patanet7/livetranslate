@@ -607,6 +607,7 @@ class FirefliesConnectResponse(ResponseMixin):
     session_id: str = Field(description="Created session ID")
     connection_status: FirefliesConnectionStatus = Field(description="Connection status")
     transcript_id: str = Field(description="Connected transcript ID")
+    meeting_id: str | None = Field(default=None, description="Database meeting ID for redirect")
     meeting_info: FirefliesMeeting | None = Field(
         default=None, description="Meeting information if available"
     )
@@ -619,6 +620,7 @@ class FirefliesConnectResponse(ResponseMixin):
                 "session_id": "session-uuid-12345",
                 "connection_status": "connected",
                 "transcript_id": "abc123",
+                "meeting_id": "meeting-uuid-67890",
             }
         }
     )

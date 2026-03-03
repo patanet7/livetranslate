@@ -102,6 +102,17 @@ async def get_meeting_insights(meeting_id: str) -> dict[str, Any]:
     return {"meeting_id": meeting_id, "insights": insights, "count": len(insights)}
 
 
+@router.get("/{meeting_id}/speakers")
+async def get_meeting_speakers(meeting_id: str) -> dict[str, Any]:
+    """Get all speakers for a meeting with analytics."""
+    store = await _get_store()
+    meeting = await store.get_meeting(meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    speakers = await store.get_meeting_speakers(meeting_id)
+    return {"meeting_id": meeting_id, "speakers": speakers, "count": len(speakers)}
+
+
 @router.get("/{meeting_id}/transcript")
 async def get_meeting_transcript(meeting_id: str) -> dict[str, Any]:
     """Get full transcript (sentences + translations) for a meeting."""
