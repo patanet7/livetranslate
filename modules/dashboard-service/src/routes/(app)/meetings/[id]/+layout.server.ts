@@ -9,7 +9,11 @@ export async function load({ params, fetch }) {
 		error(404, 'Meeting not found');
 	}
 
-	return {
-		meeting: meetingResult.meeting
-	};
+	const meeting = meetingResult.meeting;
+	// PostgreSQL JSONB columns may arrive as JSON strings
+	if (typeof meeting.participants === 'string') {
+		try { meeting.participants = JSON.parse(meeting.participants); } catch { meeting.participants = []; }
+	}
+
+	return { meeting };
 }
