@@ -138,10 +138,10 @@ async def sync_meeting(
     # Mark as syncing immediately
     await store.update_sync_status(meeting_id, "syncing")
 
-    # Trigger background download
+    # Trigger background download (pass known_meeting_id for accurate error handling)
     from routers.fireflies import _download_meeting_data
 
-    background_tasks.add_task(_download_meeting_data, ff_id)
+    background_tasks.add_task(_download_meeting_data, ff_id, meeting_id)
 
     logger.info("meeting_sync_triggered", meeting_id=meeting_id, ff_id=ff_id)
     return {"success": True, "message": "Sync started"}
