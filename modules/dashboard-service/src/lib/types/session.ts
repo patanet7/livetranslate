@@ -32,6 +32,7 @@ export interface ConnectResponse {
 	session_id: string;
 	connection_status: string;
 	transcript_id: string;
+	meeting_id: string | null;
 }
 
 export interface DisconnectRequest {
