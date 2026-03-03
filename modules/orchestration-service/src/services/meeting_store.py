@@ -441,3 +441,16 @@ class MeetingStore:
             meeting_id,
         )
         return [dict(r) for r in rows]
+
+    async def get_meeting_speakers(self, meeting_id: str) -> list[dict[str, Any]]:
+        """Get all speakers for a meeting."""
+        await self._ensure_pool()
+        rows = await self._pool.fetch(
+            """
+            SELECT * FROM meeting_speakers
+            WHERE meeting_id = $1::uuid
+            ORDER BY talk_time_seconds DESC
+            """,
+            meeting_id,
+        )
+        return [dict(r) for r in rows]

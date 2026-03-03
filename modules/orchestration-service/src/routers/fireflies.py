@@ -1039,6 +1039,7 @@ async def connect_to_fireflies(
             session_id=session.session_id,
             connection_status=session.connection_status,
             transcript_id=request.transcript_id,
+            meeting_id=session.meeting_db_id,
         )
 
     except FirefliesAPIError as e:
