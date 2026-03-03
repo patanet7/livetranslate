@@ -58,7 +58,7 @@
 		{ label: 'Session Manager', href: '/sessions' },
 		{ label: 'Translation Test', href: '/translation/test' },
 		{ label: 'Glossary', href: '/fireflies/glossary' },
-		{ label: 'History', href: '/fireflies/history' },
+		{ label: 'Meetings', href: '/meetings' },
 		{ label: 'Data & Logs', href: '/data' },
 		{ label: 'Intelligence', href: '/intelligence' },
 		{ label: 'Configuration', href: '/config' }
