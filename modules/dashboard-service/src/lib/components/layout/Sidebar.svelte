@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { APP_NAME } from '$lib/config';
 	import HomeIcon from '@lucide/svelte/icons/house';
+	import CalendarDaysIcon from '@lucide/svelte/icons/calendar-days';
 	import MicIcon from '@lucide/svelte/icons/mic';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
@@ -32,6 +33,7 @@
 
 	const navItems: NavItem[] = [
 		{ label: 'Dashboard', href: '/', icon: HomeIcon },
+		{ label: 'Meetings', href: '/meetings', icon: CalendarDaysIcon },
 		{
 			label: 'Fireflies',
 			href: '/fireflies',
@@ -39,8 +41,6 @@
 			children: [
 				{ label: 'Connect', href: '/fireflies' },
 				{ label: 'Live Feed', href: '/fireflies/live-feed' },
-				{ label: 'Sessions', href: '/fireflies/sessions' },
-				{ label: 'History', href: '/fireflies/history' },
 				{ label: 'Glossary', href: '/fireflies/glossary' }
 			]
 		},
