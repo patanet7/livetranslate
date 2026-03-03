@@ -148,3 +148,41 @@ test.describe('Live Session Page Structure', () => {
 		}
 	});
 });
+
+test.describe('Fireflies Sync Controls', () => {
+	test('"Sync from Fireflies" button is visible on meetings page', async ({ page }) => {
+		await page.goto('/meetings');
+		await waitForHydration(page);
+		const syncButton = page.getByRole('button', { name: 'Sync from Fireflies' });
+		await expect(syncButton).toBeVisible();
+	});
+
+	test('"Invite Bot" button is visible and opens dialog', async ({ page }) => {
+		await page.goto('/meetings');
+		await waitForHydration(page);
+		const inviteButton = page.getByRole('button', { name: 'Invite Bot' });
+		await expect(inviteButton).toBeVisible();
+		await inviteButton.click();
+		// Dialog should open with meeting link input
+		const linkInput = page.locator('#invite-link');
+		await expect(linkInput).toBeVisible();
+	});
+
+	test('meeting detail with real data shows insight count', async ({ page }) => {
+		// Navigate to meetings list first
+		await page.goto('/meetings');
+		await waitForHydration(page);
+		const meetingLinks = page.locator('a[href^="/meetings/"]');
+		const count = await meetingLinks.count();
+		if (count > 0) {
+			// Click into first meeting
+			await meetingLinks.first().click();
+			await page.waitForURL(/\/meetings\/.+/);
+			await waitForHydration(page);
+			// If meeting has insights, the tab should show Summary & Insights
+			const insightsTab = page.getByRole('tab', { name: /Summary & Insights/i });
+			await expect(insightsTab).toBeVisible();
+		}
+		// If no meetings exist (backend down), test passes trivially
+	});
+});

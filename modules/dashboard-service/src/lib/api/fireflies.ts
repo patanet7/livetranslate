@@ -35,6 +35,25 @@ export function firefliesApi(fetch: typeof globalThis.fetch) {
 			api.get<TranslationConfig>('/fireflies/translation-config'),
 
 		updateTranslationConfig: (config: Record<string, unknown>) =>
-			api.put('/fireflies/translation-config', config)
+			api.put('/fireflies/translation-config', config),
+
+		syncAll: (apiKey?: string) =>
+			api.post<{ synced: number; skipped: number; total: number }>(
+				'/fireflies/sync-all',
+				apiKey ? { api_key: apiKey } : {}
+			),
+
+		inviteBot: (meetingLink: string, title?: string, duration?: number) =>
+			api.post<{ success: boolean; message: string }>('/fireflies/invite-bot', {
+				meeting_link: meetingLink,
+				title,
+				duration: duration ?? 60
+			}),
+
+		listTranscripts: (limit = 20, skip = 0) =>
+			api.post<{ success: boolean; transcripts: Record<string, unknown>[]; count: number }>(
+				'/fireflies/transcripts',
+				{ limit, skip }
+			)
 	};
 }

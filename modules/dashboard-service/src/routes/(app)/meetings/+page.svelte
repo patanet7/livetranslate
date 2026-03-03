@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
@@ -14,6 +14,18 @@
 	let searchQuery = $state(data.query ?? '');
 	let statusFilter = $state<'all' | 'live' | 'completed'>('all');
 
+	// Sync All state
+	let syncing = $state(false);
+	let syncMessage = $state('');
+
+	// Invite Bot dialog state
+	let showInviteDialog = $state(false);
+	let inviteLink = $state('');
+	let inviteTitle = $state('');
+	let inviteDuration = $state(60);
+	let inviting = $state(false);
+	let inviteMessage = $state('');
+
 	const filtered = $derived(
 		statusFilter === 'all'
 			? data.meetings
@@ -25,6 +37,62 @@
 		const params = new URLSearchParams();
 		if (searchQuery.trim()) params.set('q', searchQuery.trim());
 		goto(`/meetings?${params.toString()}`);
+	}
+
+	async function handleSyncAll() {
+		syncing = true;
+		syncMessage = '';
+		try {
+			const res = await fetch('/api/fireflies/sync-all', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			});
+			const result = await res.json();
+			if (res.ok) {
+				syncMessage = `Synced ${result.synced} meetings (${result.skipped} already up-to-date)`;
+				await invalidateAll();
+			} else {
+				syncMessage = `Sync failed: ${result.detail ?? result.error ?? 'Unknown error'}`;
+			}
+		} catch (err) {
+			syncMessage = `Sync failed: ${err instanceof Error ? err.message : 'Network error'}`;
+		} finally {
+			syncing = false;
+			setTimeout(() => (syncMessage = ''), 5000);
+		}
+	}
+
+	async function handleInviteBot() {
+		if (!inviteLink.trim()) return;
+		inviting = true;
+		inviteMessage = '';
+		try {
+			const res = await fetch('/api/fireflies/invite-bot', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					meeting_link: inviteLink.trim(),
+					title: inviteTitle.trim() || undefined,
+					duration: inviteDuration
+				})
+			});
+			const result = await res.json();
+			if (res.ok && result.success) {
+				inviteMessage = 'Fireflies bot invited. Will auto-connect when ready.';
+				showInviteDialog = false;
+				inviteLink = '';
+				inviteTitle = '';
+				inviteDuration = 60;
+			} else {
+				inviteMessage = `Failed: ${result.detail ?? result.error ?? 'Unknown error'}`;
+			}
+		} catch (err) {
+			inviteMessage = `Failed: ${err instanceof Error ? err.message : 'Network error'}`;
+		} finally {
+			inviting = false;
+			setTimeout(() => (inviteMessage = ''), 5000);
+		}
 	}
 
 	function formatDate(iso: string | null): string {
@@ -47,6 +115,69 @@
 </script>
 
 <PageHeader title="Meetings" description="Browse all meeting transcripts, translations, and insights" />
+
+<!-- Action Buttons -->
+<div class="mb-4 flex flex-wrap gap-2">
+	<Button variant="outline" onclick={handleSyncAll} disabled={syncing}>
+		{syncing ? 'Syncing...' : 'Sync from Fireflies'}
+	</Button>
+	<Button variant="outline" onclick={() => (showInviteDialog = !showInviteDialog)}>
+		Invite Bot
+	</Button>
+</div>
+
+<!-- Toast messages -->
+{#if syncMessage}
+	<div class="mb-4 rounded-md border px-4 py-2 text-sm" role="status">{syncMessage}</div>
+{/if}
+{#if inviteMessage}
+	<div class="mb-4 rounded-md border px-4 py-2 text-sm" role="status">{inviteMessage}</div>
+{/if}
+
+<!-- Invite Bot Dialog -->
+{#if showInviteDialog}
+	<Card.Root class="mb-6">
+		<Card.Header>
+			<Card.Title>Invite Fireflies Bot</Card.Title>
+			<Card.Description>Paste a meeting link to invite the Fireflies bot. Rate limit: 3 invites per 20 minutes.</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<form
+				onsubmit={(e) => { e.preventDefault(); handleInviteBot(); }}
+				class="space-y-4"
+			>
+				<div>
+					<label for="invite-link" class="text-sm font-medium">Meeting Link *</label>
+					<Input id="invite-link" placeholder="https://meet.google.com/..." bind:value={inviteLink} required />
+				</div>
+				<div>
+					<label for="invite-title" class="text-sm font-medium">Title (optional)</label>
+					<Input id="invite-title" placeholder="Weekly Standup" bind:value={inviteTitle} />
+				</div>
+				<div>
+					<label for="invite-duration" class="text-sm font-medium">Duration: {inviteDuration} min</label>
+					<input
+						id="invite-duration"
+						type="range"
+						min="15"
+						max="120"
+						step="5"
+						bind:value={inviteDuration}
+						class="w-full"
+					/>
+				</div>
+				<div class="flex gap-2">
+					<Button type="submit" disabled={inviting || !inviteLink.trim()}>
+						{inviting ? 'Inviting...' : 'Send Invite'}
+					</Button>
+					<Button variant="ghost" type="button" onclick={() => (showInviteDialog = false)}>
+						Cancel
+					</Button>
+				</div>
+			</form>
+		</Card.Content>
+	</Card.Root>
+{/if}
 
 <!-- Search & Filters -->
 <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
