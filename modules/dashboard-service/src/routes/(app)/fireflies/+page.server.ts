@@ -44,7 +44,11 @@ export const actions: Actions = {
 				translation_model
 			});
 
-			redirect(303, `/fireflies/connect?session=${result.session_id}`);
+			if (result.meeting_id) {
+				redirect(303, `/meetings/${result.meeting_id}/live?session=${result.session_id}`);
+			} else {
+				redirect(303, `/fireflies/connect?session=${result.session_id}`);
+			}
 		} catch (err) {
 			return fail(500, {
 				transcript_id,
