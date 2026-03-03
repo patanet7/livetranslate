@@ -1522,6 +1522,9 @@ async def _download_meeting_data(fireflies_transcript_id: str) -> None:
                     status="completed",
                 )
 
+            # Mark sync in progress
+            await store.update_sync_status(meeting_db_id, "syncing")
+
             # Store all insights
             for insight in result.get("insights", []):
                 await store.store_insight(
@@ -1568,6 +1571,81 @@ async def _download_meeting_data(fireflies_transcript_id: str) -> None:
                                 analytics=speaker_data,
                             )
 
+            # Store Fireflies summary sub-fields as individual insights
+            try:
+                summary = result.get("summary", {})
+                if summary and isinstance(summary, dict):
+                    for insight_type in [
+                        "overview",
+                        "action_items",
+                        "outline",
+                        "keywords",
+                        "shorthand_bullet",
+                    ]:
+                        content = summary.get(insight_type)
+                        if content:
+                            await store.store_insight(
+                                meeting_id=meeting_db_id,
+                                insight_type=insight_type,
+                                content=(
+                                    {"text": content}
+                                    if isinstance(content, str)
+                                    else content
+                                ),
+                                source="fireflies",
+                            )
+            except Exception:
+                logger.warning(
+                    "store_summary_insights_failed",
+                    transcript_id=fireflies_transcript_id,
+                    meeting_db_id=meeting_db_id,
+                    exc_info=True,
+                )
+
+            # Store speakers from Fireflies analytics blob
+            try:
+                analytics = result.get("analytics", {})
+                if analytics and isinstance(analytics, dict):
+                    for speaker_data in analytics.get("speakers", []):
+                        if isinstance(speaker_data, dict):
+                            sentiment = speaker_data.get("sentiment")
+                            sentiment_score = (
+                                sentiment.get("score")
+                                if isinstance(sentiment, dict)
+                                else None
+                            )
+                            await store.store_speaker(
+                                meeting_id=meeting_db_id,
+                                speaker_name=speaker_data.get(
+                                    "name", "Unknown"
+                                ),
+                                email=speaker_data.get("email"),
+                                talk_time_seconds=float(
+                                    speaker_data.get("talk_time", 0)
+                                ),
+                                word_count=int(
+                                    speaker_data.get("word_count", 0)
+                                ),
+                                sentiment_score=sentiment_score,
+                                analytics=speaker_data,
+                            )
+            except Exception:
+                logger.warning(
+                    "store_analytics_speakers_failed",
+                    transcript_id=fireflies_transcript_id,
+                    meeting_db_id=meeting_db_id,
+                    exc_info=True,
+                )
+
+            # Mark sync as complete with media URLs
+            await store.update_sync_status(
+                meeting_db_id,
+                "synced",
+                audio_url=result.get("audio_url"),
+                video_url=result.get("video_url"),
+                transcript_url=result.get("transcript_url"),
+            )
+
             logger.info(
                 "meeting_data_downloaded",
                 transcript_id=fireflies_transcript_id,
@@ -1579,6 +1657,29 @@ async def _download_meeting_data(fireflies_transcript_id: str) -> None:
             await store.close()
 
     except Exception as e:
+        # Attempt to mark sync as failed in the database
+        try:
+            _db_url = os.environ.get("DATABASE_URL", "")
+            if _db_url:
+                _err_store = MeetingStore(_db_url)
+                await _err_store.initialize()
+                try:
+                    _meeting = await _err_store.get_meeting_by_ff_id(
+                        fireflies_transcript_id
+                    )
+                    if _meeting:
+                        await _err_store.update_sync_status(
+                            str(_meeting["id"]), "failed", sync_error=str(e)
+                        )
+                finally:
+                    await _err_store.close()
+        except Exception:
+            logger.warning(
+                "sync_status_update_on_error_failed",
+                transcript_id=fireflies_transcript_id,
+                exc_info=True,
+            )
+
         logger.error(
             "download_meeting_data_failed",
             transcript_id=fireflies_transcript_id,
