@@ -359,6 +359,14 @@ async def lifespan(app: FastAPI):
 
         await start_auto_connect()
 
+        # Boot-time Fireflies sync (download missing intelligence data)
+        try:
+            from routers.fireflies import boot_sync_fireflies
+
+            await boot_sync_fireflies()
+        except Exception as e:
+            logger.warning(f"[WARN] Fireflies boot sync failed (non-fatal): {e}")
+
         # Load default insight templates
         try:
             from dependencies import get_meeting_intelligence_service

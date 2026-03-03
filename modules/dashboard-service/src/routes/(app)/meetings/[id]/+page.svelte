@@ -76,6 +76,54 @@
 		return JSON.stringify(content, null, 2);
 	}
 
+	function getInsightItems(insight: MeetingInsight): string[] {
+		const content: unknown = insight.content;
+		if (Array.isArray(content)) {
+			return content.map((item: unknown) => {
+				if (typeof item === 'string') return item;
+				if (typeof item === 'object' && item && 'text' in item) return String((item as Record<string, unknown>).text);
+				return JSON.stringify(item);
+			});
+		}
+		if (typeof content === 'string') return content.split('\n').filter(Boolean);
+		if (typeof content === 'object' && content && 'text' in content) {
+			const text = (content as Record<string, unknown>).text;
+			if (typeof text === 'string') return text.split('\n').filter(Boolean);
+		}
+		return [];
+	}
+
+	function getKeywords(insight: MeetingInsight): string[] {
+		const content: unknown = insight.content;
+		if (Array.isArray(content)) return content.map(String);
+		if (typeof content === 'string') return content.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
+		if (typeof content === 'object' && content && 'text' in content) {
+			const text = (content as Record<string, unknown>).text;
+			if (typeof text === 'string') return text.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
+		}
+		return [];
+	}
+
+	function getSentiment(insight: MeetingInsight): { positive: number; neutral: number; negative: number } | null {
+		const content = insight.content;
+		if (typeof content === 'object' && content && !Array.isArray(content)) {
+			const c = content as Record<string, unknown>;
+			if ('positive' in c || 'neutral' in c || 'negative' in c) {
+				return {
+					positive: Number(c.positive ?? 0),
+					neutral: Number(c.neutral ?? 0),
+					negative: Number(c.negative ?? 0)
+				};
+			}
+			if ('text' in c && typeof c.text === 'string') {
+				// Try to parse sentiment from text
+				const match = c.text.match(/positive[:\s]+(\d+)/i);
+				if (match) return { positive: Number(match[1]), neutral: 0, negative: 0 };
+			}
+		}
+		return null;
+	}
+
 	let generating = $state(false);
 
 	async function generateInsights() {
@@ -326,28 +374,151 @@
 							</Card.Content>
 						</Card.Root>
 					{:else}
-						{#each ['summary', 'overview', 'action_items', 'keywords', 'decisions'] as insightType}
+						<!-- Overview / Summary — full text paragraphs -->
+						{#each ['overview', 'summary'] as insightType}
 							{@const items = getInsightsByType(insightType)}
 							{#if items.length > 0}
 								<Card.Root>
 									<Card.Header>
 										<div class="flex items-center justify-between">
-											<Card.Title class="capitalize">
-												{insightType.replace(/_/g, ' ')}
-											</Card.Title>
-											<Badge variant="outline" class="text-xs">
-												{items[0].source}
-												{#if items[0].model_used}
-													&middot; {items[0].model_used}
-												{/if}
-											</Badge>
+											<Card.Title class="capitalize">{insightType}</Card.Title>
+											<Badge variant="outline" class="text-xs">{items[0].source}</Badge>
 										</div>
 									</Card.Header>
 									<Card.Content>
 										{#each items as insight (insight.id)}
-											<div
-												class="prose prose-sm max-w-none whitespace-pre-wrap dark:prose-invert"
-											>
+											<div class="prose prose-sm max-w-none whitespace-pre-wrap dark:prose-invert">
+												{getInsightText(insight)}
+											</div>
+										{/each}
+									</Card.Content>
+								</Card.Root>
+							{/if}
+						{/each}
+
+						<!-- Action Items — bullet list -->
+						{@const actionItems = getInsightsByType('action_items')}
+						{#if actionItems.length > 0}
+							<Card.Root>
+								<Card.Header>
+									<div class="flex items-center justify-between">
+										<Card.Title>Action Items</Card.Title>
+										<Badge variant="outline" class="text-xs">{actionItems[0].source}</Badge>
+									</div>
+								</Card.Header>
+								<Card.Content>
+									{#each actionItems as insight (insight.id)}
+										{@const items = getInsightItems(insight)}
+										{#if items.length > 0}
+											<ul class="list-disc space-y-1 pl-5 text-sm">
+												{#each items as item}
+													<li>{item}</li>
+												{/each}
+											</ul>
+										{:else}
+											<p class="whitespace-pre-wrap text-sm">{getInsightText(insight)}</p>
+										{/if}
+									{/each}
+								</Card.Content>
+							</Card.Root>
+						{/if}
+
+						<!-- Keywords — tag/badge list -->
+						{@const keywordInsights = getInsightsByType('keywords')}
+						{#if keywordInsights.length > 0}
+							<Card.Root>
+								<Card.Header>
+									<Card.Title>Keywords</Card.Title>
+								</Card.Header>
+								<Card.Content>
+									{#each keywordInsights as insight (insight.id)}
+										{@const kws = getKeywords(insight)}
+										<div class="flex flex-wrap gap-2">
+											{#each kws as kw}
+												<Badge variant="secondary">{kw}</Badge>
+											{/each}
+										</div>
+									{/each}
+								</Card.Content>
+							</Card.Root>
+						{/if}
+
+						<!-- Outline / Shorthand Bullet — structured list -->
+						{#each ['outline', 'shorthand_bullet'] as insightType}
+							{@const items = getInsightsByType(insightType)}
+							{#if items.length > 0}
+								<Card.Root>
+									<Card.Header>
+										<Card.Title class="capitalize">{insightType.replace(/_/g, ' ')}</Card.Title>
+									</Card.Header>
+									<Card.Content>
+										{#each items as insight (insight.id)}
+											{@const bullets = getInsightItems(insight)}
+											{#if bullets.length > 0}
+												<ul class="list-disc space-y-1 pl-5 text-sm">
+													{#each bullets as bullet}
+														<li>{bullet}</li>
+													{/each}
+												</ul>
+											{:else}
+												<p class="whitespace-pre-wrap text-sm">{getInsightText(insight)}</p>
+											{/if}
+										{/each}
+									</Card.Content>
+								</Card.Root>
+							{/if}
+						{/each}
+
+						<!-- Sentiment — percentage bars -->
+						{@const sentimentInsights = getInsightsByType('sentiment')}
+						{#if sentimentInsights.length > 0}
+							<Card.Root>
+								<Card.Header>
+									<Card.Title>Sentiment</Card.Title>
+								</Card.Header>
+								<Card.Content>
+									{#each sentimentInsights as insight (insight.id)}
+										{@const sent = getSentiment(insight)}
+										{#if sent}
+											<div class="space-y-2">
+												{#each [
+													{ label: 'Positive', value: sent.positive, color: 'bg-green-500' },
+													{ label: 'Neutral', value: sent.neutral, color: 'bg-gray-400' },
+													{ label: 'Negative', value: sent.negative, color: 'bg-red-500' }
+												] as bar}
+													<div class="flex items-center gap-2">
+														<span class="w-16 text-sm">{bar.label}</span>
+														<div class="h-4 flex-1 overflow-hidden rounded-full bg-muted">
+															<div
+																class="h-full rounded-full {bar.color}"
+																style="width: {bar.value}%"
+															></div>
+														</div>
+														<span class="w-10 text-right text-xs text-muted-foreground">
+															{Math.round(bar.value)}%
+														</span>
+													</div>
+												{/each}
+											</div>
+										{:else}
+											<p class="whitespace-pre-wrap text-sm">{getInsightText(insight)}</p>
+										{/if}
+									{/each}
+								</Card.Content>
+							</Card.Root>
+						{/if}
+
+						<!-- Decisions / other types — fallback text display -->
+						{#each ['decisions', 'questions', 'ai_filters'] as insightType}
+							{@const items = getInsightsByType(insightType)}
+							{#if items.length > 0}
+								<Card.Root>
+									<Card.Header>
+										<Card.Title class="capitalize">{insightType.replace(/_/g, ' ')}</Card.Title>
+									</Card.Header>
+									<Card.Content>
+										{#each items as insight (insight.id)}
+											<div class="prose prose-sm max-w-none whitespace-pre-wrap dark:prose-invert">
 												{getInsightText(insight)}
 											</div>
 										{/each}
@@ -454,30 +625,43 @@
 													{speaker.email}
 												</p>
 											{/if}
+											{@const a = speaker.analytics ?? {}}
 											<div class="grid grid-cols-2 gap-2 text-sm">
 												<div>
-													<span class="text-muted-foreground"
-														>Talk time:</span
-													>
-													<span
-														>{Math.round(
-															speaker.talk_time_seconds / 60
-														)}m</span
-													>
+													<span class="text-muted-foreground">Talk time:</span>
+													<span>{Math.round(speaker.talk_time_seconds / 60)}m</span>
 												</div>
 												<div>
-													<span class="text-muted-foreground"
-														>Words:</span
-													>
-													<span
-														>{speaker.word_count.toLocaleString()}</span
-													>
+													<span class="text-muted-foreground">Words:</span>
+													<span>{speaker.word_count.toLocaleString()}</span>
 												</div>
+												{#if a.words_per_minute}
+													<div>
+														<span class="text-muted-foreground">WPM:</span>
+														<span>{Math.round(Number(a.words_per_minute))}</span>
+													</div>
+												{/if}
+												{#if a.filler_words != null}
+													<div>
+														<span class="text-muted-foreground">Fillers:</span>
+														<span>{a.filler_words}</span>
+													</div>
+												{/if}
+												{#if a.questions != null}
+													<div>
+														<span class="text-muted-foreground">Questions:</span>
+														<span>{a.questions}</span>
+													</div>
+												{/if}
+												{#if a.longest_monologue != null}
+													<div>
+														<span class="text-muted-foreground">Longest monologue:</span>
+														<span>{Math.round(Number(a.longest_monologue))}s</span>
+													</div>
+												{/if}
 												{#if speaker.sentiment_score != null}
 													<div class="col-span-2">
-														<span class="text-muted-foreground"
-															>Sentiment:</span
-														>
+														<span class="text-muted-foreground">Sentiment:</span>
 														<span>
 															{speaker.sentiment_score > 0.3
 																? 'Positive'

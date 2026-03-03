@@ -780,6 +780,89 @@ async def stop_auto_connect() -> None:
 
 
 # =============================================================================
+# Boot-time Sync
+# =============================================================================
+
+
+async def boot_sync_fireflies() -> None:
+    """Sync all Fireflies transcripts on startup.
+
+    Called from the app lifespan in main_fastapi.py.
+    Checks FIREFLIES_BOOT_SYNC env var (default: true).
+    Non-fatal — if anything fails, the service still starts.
+    """
+    if os.environ.get("FIREFLIES_BOOT_SYNC", "true").lower() != "true":
+        logger.info("fireflies_boot_sync_disabled")
+        return
+
+    api_key = os.environ.get("FIREFLIES_API_KEY")
+    db_url = os.environ.get("DATABASE_URL")
+    if not api_key or not db_url:
+        logger.info(
+            "fireflies_boot_sync_skipped",
+            has_api_key=bool(api_key),
+            has_db_url=bool(db_url),
+        )
+        return
+
+    logger.info("fireflies_boot_sync_starting")
+
+    # Paginate through all Fireflies transcripts
+    client = FirefliesGraphQLClient(api_key=api_key)
+    all_transcripts: list[dict[str, Any]] = []
+    try:
+        skip = 0
+        page_size = 50
+        while True:
+            page = await client.get_transcripts(limit=page_size, skip=skip)
+            if not page:
+                break
+            all_transcripts.extend(page)
+            if len(page) < page_size:
+                break
+            skip += page_size
+    finally:
+        await client.close()
+
+    if not all_transcripts:
+        logger.info("fireflies_boot_sync_no_transcripts")
+        return
+
+    # Check DB for existing meetings
+    store = MeetingStore(db_url)
+    await store.initialize()
+    new_count = 0
+    updated_count = 0
+    already_synced = 0
+    try:
+        for transcript in all_transcripts:
+            ff_id = transcript.get("id")
+            if not ff_id:
+                continue
+            meeting = await store.get_meeting_by_ff_id(ff_id)
+            if meeting and meeting.get("insight_count", 0) > 0:
+                already_synced += 1
+            elif meeting:
+                # Meeting exists but has no insights — re-download
+                asyncio.create_task(_download_meeting_data(ff_id))
+                updated_count += 1
+            else:
+                # New meeting — download
+                asyncio.create_task(_download_meeting_data(ff_id))
+                new_count += 1
+    finally:
+        await store.close()
+
+    logger.info(
+        "fireflies_boot_sync_complete",
+        total=len(all_transcripts),
+        new=new_count,
+        updated=updated_count,
+        already_synced=already_synced,
+    )
+
+
+# =============================================================================
 # API Request/Response Models
 # =============================================================================
 
@@ -1905,6 +1988,95 @@ class TranscriptsResponse(BaseModel):
     success: bool
     transcripts: list[dict[str, Any]]
     count: int
+
+
+class SyncAllRequest(BaseModel):
+    """Request to sync all Fireflies transcripts to local DB."""
+
+    api_key: str | None = Field(
+        default=None,
+        description="Fireflies API key (optional, uses .env if not provided)",
+    )
+
+
+@router.post(
+    "/sync-all",
+    summary="Sync all Fireflies transcripts to local database",
+    description="Fetches all past transcripts from Fireflies and downloads full data for any missing or incomplete meetings",
+)
+async def sync_all_transcripts(
+    request: SyncAllRequest,
+    background_tasks: BackgroundTasks,
+    ff_config: FirefliesSettings = Depends(get_fireflies_config),
+) -> dict[str, Any]:
+    """Sync all Fireflies transcripts to the local database.
+
+    Paginates through all past transcripts, checks which ones are
+    already stored with full intelligence, and triggers background
+    downloads for any missing or incomplete meetings.
+    """
+    api_key = request.api_key or ff_config.api_key
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Fireflies API key required. Provide in request or set FIREFLIES_API_KEY in .env",
+        )
+
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="DATABASE_URL not configured",
+        )
+
+    # Paginate through all Fireflies transcripts
+    client = FirefliesGraphQLClient(api_key=api_key)
+    all_transcripts: list[dict[str, Any]] = []
+    try:
+        skip = 0
+        page_size = 50
+        while True:
+            page = await client.get_transcripts(limit=page_size, skip=skip)
+            if not page:
+                break
+            all_transcripts.extend(page)
+            if len(page) < page_size:
+                break
+            skip += page_size
+    finally:
+        await client.close()
+
+    # Check DB for existing meetings and schedule downloads
+    store = MeetingStore(db_url)
+    await store.initialize()
+    synced = 0
+    skipped = 0
+    try:
+        for transcript in all_transcripts:
+            ff_id = transcript.get("id")
+            if not ff_id:
+                continue
+            meeting = await store.get_meeting_by_ff_id(ff_id)
+            if meeting and meeting.get("insight_count", 0) > 0:
+                skipped += 1
+            else:
+                background_tasks.add_task(_download_meeting_data, ff_id)
+                synced += 1
+    finally:
+        await store.close()
+
+    logger.info(
+        "sync_all_triggered",
+        total=len(all_transcripts),
+        synced=synced,
+        skipped=skipped,
+    )
+
+    return {
+        "synced": synced,
+        "skipped": skipped,
+        "total": len(all_transcripts),
+    }
 
 
 @router.post(

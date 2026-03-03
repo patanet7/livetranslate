@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import SyncBadge from '$lib/components/meetings/SyncBadge.svelte';
@@ -6,6 +7,40 @@
 	let { data, children } = $props();
 
 	const meeting = $derived(data.meeting);
+
+	let syncingMeeting = $state(false);
+	let syncMsg = $state('');
+
+	const needsSync = $derived(
+		meeting.source === 'fireflies' &&
+		(meeting.insight_count === 0 || meeting.sync_status === 'none' || !meeting.sync_status)
+	);
+
+	async function handleSyncMeeting() {
+		syncingMeeting = true;
+		syncMsg = '';
+		try {
+			const res = await fetch(`/api/meetings/${meeting.id}/sync`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			const result = await res.json();
+			if (res.ok && result.success) {
+				syncMsg = 'Sync started — intelligence data will appear shortly.';
+				// Poll for completion
+				setTimeout(async () => {
+					await invalidateAll();
+					syncMsg = '';
+				}, 5000);
+			} else {
+				syncMsg = `Sync failed: ${result.detail ?? result.error ?? 'Unknown error'}`;
+			}
+		} catch (err) {
+			syncMsg = `Sync failed: ${err instanceof Error ? err.message : 'Network error'}`;
+		} finally {
+			syncingMeeting = false;
+		}
+	}
 
 	function formatDate(iso: string | null): string {
 		if (!iso) return '--';
@@ -52,6 +87,11 @@
 		</div>
 
 		<div class="flex gap-2">
+			{#if needsSync}
+				<Button variant="outline" onclick={handleSyncMeeting} disabled={syncingMeeting}>
+					{syncingMeeting ? 'Syncing...' : 'Sync from Fireflies'}
+				</Button>
+			{/if}
 			{#if meeting.status === 'live'}
 				<Button href="/meetings/{meeting.id}/live" variant="default">
 					View Live
@@ -59,6 +99,9 @@
 			{/if}
 		</div>
 	</div>
+	{#if syncMsg}
+		<div class="mt-2 rounded-md border px-4 py-2 text-sm" role="status">{syncMsg}</div>
+	{/if}
 </div>
 
 {@render children()}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel, Field
 
 from livetranslate_common.logging import get_logger
@@ -111,6 +111,40 @@ async def get_meeting_speakers(meeting_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Meeting not found")
     speakers = await store.get_meeting_speakers(meeting_id)
     return {"meeting_id": meeting_id, "speakers": speakers, "count": len(speakers)}
+
+
+@router.post("/{meeting_id}/sync")
+async def sync_meeting(
+    meeting_id: str,
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
+    """Trigger a re-sync of Fireflies intelligence data for a meeting.
+
+    Looks up the meeting's fireflies_transcript_id and triggers a full
+    data download in the background.
+    """
+    store = await _get_store()
+    meeting = await store.get_meeting(meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    ff_id = meeting.get("fireflies_transcript_id")
+    if not ff_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Not a Fireflies meeting — no transcript ID to sync",
+        )
+
+    # Mark as syncing immediately
+    await store.update_sync_status(meeting_id, "syncing")
+
+    # Trigger background download
+    from routers.fireflies import _download_meeting_data
+
+    background_tasks.add_task(_download_meeting_data, ff_id)
+
+    logger.info("meeting_sync_triggered", meeting_id=meeting_id, ff_id=ff_id)
+    return {"success": True, "message": "Sync started"}
 
 
 @router.get("/{meeting_id}/transcript")

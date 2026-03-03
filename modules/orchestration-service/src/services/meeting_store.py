@@ -126,10 +126,14 @@ class MeetingStore:
         logger.info("meeting_updated", meeting_id=meeting_id, fields=list(updates))
 
     async def get_meeting_by_ff_id(self, fireflies_transcript_id: str) -> dict[str, Any] | None:
-        """Find meeting by Fireflies transcript ID."""
+        """Find meeting by Fireflies transcript ID (includes insight_count)."""
         await self._ensure_pool()
         row = await self._pool.fetchrow(
-            "SELECT * FROM meetings WHERE fireflies_transcript_id = $1",
+            """
+            SELECT m.*,
+                   (SELECT COUNT(*) FROM meeting_data_insights WHERE meeting_id = m.id) as insight_count
+            FROM meetings m WHERE m.fireflies_transcript_id = $1
+            """,
             fireflies_transcript_id,
         )
         return dict(row) if row else None
