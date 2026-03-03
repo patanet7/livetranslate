@@ -148,6 +148,47 @@ class MeetingStore:
         )
         logger.info("meeting_completed", meeting_id=meeting_id)
 
+    async def update_sync_status(
+        self,
+        meeting_id: str,
+        sync_status: str,
+        sync_error: str | None = None,
+        audio_url: str | None = None,
+        video_url: str | None = None,
+        transcript_url: str | None = None,
+    ) -> None:
+        """Update meeting sync status and media URLs."""
+        await self._ensure_pool()
+        updates: list[str] = ["sync_status = $2"]
+        params: list[Any] = [meeting_id, sync_status]
+        idx = 2
+
+        if sync_status == "synced":
+            idx += 1
+            updates.append(f"synced_at = ${idx}")
+            params.append(datetime.now(UTC))
+
+        if sync_error is not None:
+            idx += 1
+            updates.append(f"sync_error = ${idx}")
+            params.append(sync_error)
+        elif sync_status == "synced":
+            updates.append("sync_error = NULL")
+
+        for col, val in [
+            ("audio_url", audio_url),
+            ("video_url", video_url),
+            ("transcript_url", transcript_url),
+        ]:
+            if val is not None:
+                idx += 1
+                updates.append(f"{col} = ${idx}")
+                params.append(val)
+
+        query = f"UPDATE meetings SET {', '.join(updates)} WHERE id = $1::uuid"
+        await self._pool.execute(query, *params)
+        logger.info("meeting_sync_updated", meeting_id=meeting_id, sync_status=sync_status)
+
     async def get_meeting(self, meeting_id: str) -> dict[str, Any] | None:
         """Get meeting by ID with basic stats."""
         await self._ensure_pool()
