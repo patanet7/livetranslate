@@ -16,30 +16,30 @@ export function meetingsApi(fetch: typeof globalThis.fetch) {
 
 	return {
 		list: (limit = 50, offset = 0) =>
-			api.get<MeetingListResponse>(`/meetings/?limit=${limit}&offset=${offset}`),
+			api.get<MeetingListResponse>(`/api/meetings/?limit=${limit}&offset=${offset}`),
 
 		search: (q: string, limit = 20) =>
 			api.get<MeetingSearchResponse>(
-				`/meetings/search?q=${encodeURIComponent(q)}&limit=${limit}`
+				`/api/meetings/search?q=${encodeURIComponent(q)}&limit=${limit}`
 			),
 
-		get: (id: string) => api.get<{ meeting: Meeting }>(`/meetings/${id}`),
+		get: (id: string) => api.get<{ meeting: Meeting }>(`/api/meetings/${id}`),
 
 		getTranscript: (id: string) =>
-			api.get<MeetingTranscriptResponse>(`/meetings/${id}/transcript`),
+			api.get<MeetingTranscriptResponse>(`/api/meetings/${id}/transcript`),
 
 		getInsights: (id: string) =>
-			api.get<MeetingInsightsResponse>(`/meetings/${id}/insights`),
+			api.get<MeetingInsightsResponse>(`/api/meetings/${id}/insights`),
 
 		getSpeakers: (id: string) =>
-			api.get<MeetingSpeakersResponse>(`/meetings/${id}/speakers`),
+			api.get<MeetingSpeakersResponse>(`/api/meetings/${id}/speakers`),
 
 		generateInsights: (id: string, types?: string[]) =>
-			api.post<InsightGenerateResponse>(`/meetings/${id}/insights/generate`, {
+			api.post<InsightGenerateResponse>(`/api/meetings/${id}/insights/generate`, {
 				insight_types: types ?? ['summary', 'action_items', 'keywords']
 			}),
 
 		syncNow: (id: string) =>
-			api.post<{ success: boolean }>(`/meetings/${id}/sync`)
+			api.post<{ success: boolean }>(`/api/meetings/${id}/sync`)
 	};
 }
