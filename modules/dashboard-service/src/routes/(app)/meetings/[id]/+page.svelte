@@ -8,7 +8,6 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
-	import { meetingsApi } from '$lib/api/meetings';
 	import type { MeetingSpeaker, MeetingSentence, MeetingInsight } from '$lib/types';
 
 	let { data } = $props();
@@ -83,10 +82,12 @@
 		if (!browser) return;
 		generating = true;
 		try {
-			const api = meetingsApi(fetch);
-			await api.generateInsights(meeting.id);
+			const res = await fetch(`/api/meetings/${meeting.id}/insights/generate`, {
+				method: 'POST'
+			});
+			if (!res.ok) throw new Error(`${res.status}`);
 			toastStore.success('Insights generated. Refresh to view.');
-		} catch (e) {
+		} catch {
 			toastStore.error('Failed to generate insights');
 		} finally {
 			generating = false;
@@ -102,8 +103,9 @@
 		if (speakersLoaded || !browser) return;
 		loadingSpeakers = true;
 		try {
-			const api = meetingsApi(fetch);
-			const result = await api.getSpeakers(meeting.id);
+			const res = await fetch(`/api/meetings/${meeting.id}/speakers`);
+			if (!res.ok) throw new Error(`${res.status}`);
+			const result = await res.json();
 			speakersData = result.speakers;
 			speakersLoaded = true;
 		} catch {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	interface Props {
-		status: 'healthy' | 'degraded' | 'down' | 'unknown' | 'connected' | 'connecting' | 'disconnected' | 'error';
+		status: 'healthy' | 'degraded' | 'down' | 'unknown' | 'connected' | 'connecting' | 'reconnecting' | 'disconnected' | 'error';
 		label?: string;
 	}
 
@@ -11,6 +11,7 @@
 		connected: 'bg-green-500',
 		degraded: 'bg-yellow-500',
 		connecting: 'bg-yellow-500 animate-pulse',
+		reconnecting: 'bg-yellow-500 animate-pulse',
 		down: 'bg-red-500',
 		error: 'bg-red-500',
 		disconnected: 'bg-gray-400',
