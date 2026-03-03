@@ -29,6 +29,7 @@ export interface Meeting {
 
 export interface MeetingListResponse {
 	meetings: Meeting[];
+	count?: number;
 	limit: number;
 	offset: number;
 }

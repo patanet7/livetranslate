@@ -1,4 +1,4 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { fail, isRedirect, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { firefliesApi } from '$lib/api/fireflies';
 import { configApi } from '$lib/api/config';
@@ -50,6 +50,7 @@ export const actions: Actions = {
 				redirect(303, `/fireflies/connect?session=${result.session_id}`);
 			}
 		} catch (err) {
+			if (isRedirect(err)) throw err;
 			return fail(500, {
 				transcript_id,
 				errors: { transcript_id: '', form: `Connection failed: ${err}` }

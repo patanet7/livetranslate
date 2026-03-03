@@ -12,7 +12,7 @@ export async function load({ fetch, url }) {
 			return { meetings: result.results, query: q, total: result.count, limit, offset };
 		}
 		const result = await api.list(limit, offset);
-		return { meetings: result.meetings, query: null, total: result.meetings.length, limit, offset };
+		return { meetings: result.meetings, query: null, total: result.count ?? result.meetings.length, limit, offset };
 	} catch {
 		return { meetings: [], query: q, total: 0, limit, offset };
 	}

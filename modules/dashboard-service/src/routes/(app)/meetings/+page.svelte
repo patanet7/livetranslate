@@ -53,6 +53,7 @@
 	<form onsubmit={handleSearch} class="flex flex-1 gap-2">
 		<Input
 			placeholder="Search meetings..."
+			aria-label="Search meetings"
 			bind:value={searchQuery}
 			class="max-w-sm"
 		/>
@@ -62,11 +63,12 @@
 		{/if}
 	</form>
 
-	<div class="flex gap-1">
+	<div class="flex gap-1" role="group" aria-label="Filter meetings by status">
 		{#each ['all', 'live', 'completed'] as filter}
 			<Button
 				variant={statusFilter === filter ? 'default' : 'outline'}
 				size="sm"
+				aria-pressed={statusFilter === filter}
 				onclick={() => (statusFilter = filter as typeof statusFilter)}
 			>
 				{filter === 'all' ? 'All' : filter.charAt(0).toUpperCase() + filter.slice(1)}

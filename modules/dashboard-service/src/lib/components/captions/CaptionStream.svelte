@@ -22,7 +22,7 @@
 	});
 </script>
 
-<div bind:this={container} class="caption-stream space-y-2 max-h-[70vh] overflow-y-auto">
+<div bind:this={container} class="caption-stream space-y-2 max-h-[70vh] overflow-y-auto" role="log" aria-live="polite" aria-label="Live captions">
 	{#each captions as caption (caption.id)}
 		<CaptionBox {caption} {showOriginal} {showTranslated} />
 	{/each}

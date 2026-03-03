@@ -141,6 +141,7 @@
 							<div class="flex gap-2">
 								<Input
 									placeholder="Search transcript..."
+									aria-label="Search transcript"
 									bind:value={transcriptSearch}
 									class="w-48"
 								/>
@@ -156,7 +157,7 @@
 							</div>
 						</div>
 						{#if speakers.length > 0}
-							<div class="mt-2 flex flex-wrap gap-1">
+							<div class="mt-2 flex flex-wrap gap-1" role="group" aria-label="Filter by speaker">
 								{#each speakers as speaker}
 									<button
 										class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors hover:opacity-80"
@@ -164,6 +165,7 @@
 											speaker
 										)}; border: 1px solid {getSpeakerColor(speaker)}40"
 										class:ring-2={speakerFilter === speaker}
+										aria-pressed={speakerFilter === speaker}
 										onclick={() =>
 											(speakerFilter =
 												speakerFilter === speaker ? null : speaker)}
@@ -406,7 +408,12 @@
 											>
 											<div
 												class="h-5 flex-1 overflow-hidden rounded-full bg-muted"
-											>
+											role="progressbar"
+											aria-valuenow={percent}
+											aria-valuemin={0}
+											aria-valuemax={100}
+											aria-label="{speaker.speaker_name} talk time: {percent}%"
+										>
 												<div
 													class="h-full rounded-full transition-all"
 													style="width: {percent}%; background-color: {getSpeakerColor(
