@@ -1549,13 +1549,21 @@ async def get_translation_config() -> dict[str, Any]:
 # =============================================================================
 
 
-async def _download_meeting_data(fireflies_transcript_id: str) -> None:
+async def _download_meeting_data(
+    fireflies_transcript_id: str,
+    known_meeting_id: str | None = None,
+) -> None:
     """Download full transcript and insights from Fireflies after meeting completes.
 
     Called as a background task when the Fireflies webhook fires or when
     auto-connect polling detects a meeting has ended.  Downloads all data
     via the expanded GraphQL query and stores everything in PostgreSQL
     via MeetingStore.
+
+    Args:
+        fireflies_transcript_id: Fireflies transcript ID to download.
+        known_meeting_id: If provided, used for error-status updates instead
+            of looking up by fireflies_transcript_id (avoids duplicate-row bugs).
     """
     api_key = os.environ.get("FIREFLIES_API_KEY", "")
     db_url = os.environ.get("DATABASE_URL", "")
@@ -1747,13 +1755,19 @@ async def _download_meeting_data(fireflies_transcript_id: str) -> None:
                 _err_store = MeetingStore(_db_url)
                 await _err_store.initialize()
                 try:
-                    _meeting = await _err_store.get_meeting_by_ff_id(
-                        fireflies_transcript_id
-                    )
-                    if _meeting:
+                    if known_meeting_id:
+                        # Use the exact meeting ID (avoids duplicate-row bugs)
                         await _err_store.update_sync_status(
-                            str(_meeting["id"]), "failed", sync_error=str(e)
+                            known_meeting_id, "failed", sync_error=str(e)
                         )
+                    else:
+                        _meeting = await _err_store.get_meeting_by_ff_id(
+                            fireflies_transcript_id
+                        )
+                        if _meeting:
+                            await _err_store.update_sync_status(
+                                str(_meeting["id"]), "failed", sync_error=str(e)
+                            )
                 finally:
                     await _err_store.close()
         except Exception:
