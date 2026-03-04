@@ -226,22 +226,60 @@ class MeetingStore:
         )
         return dict(row) if row else None
 
-    async def list_meetings(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
-        """List meetings with pagination, newest first."""
+    async def list_meetings(
+        self, limit: int = 50, offset: int = 0, min_sentences: int = 1
+    ) -> dict[str, Any]:
+        """List meetings with pagination, newest first.
+
+        Args:
+            limit: Max meetings per page.
+            offset: Pagination offset.
+            min_sentences: Minimum sentence count to include (0 = show all).
+
+        Returns:
+            Dict with ``meetings`` list and ``total`` count for pagination.
+        """
         await self._ensure_pool()
-        rows = await self._pool.fetch(
-            """
+
+        base_query = """
             SELECT m.*,
                    (SELECT COUNT(*) FROM meeting_chunks WHERE meeting_id = m.id) as chunk_count,
                    (SELECT COUNT(*) FROM meeting_sentences WHERE meeting_id = m.id) as sentence_count
             FROM meetings m
-            ORDER BY m.created_at DESC
-            LIMIT $1 OFFSET $2
-            """,
-            limit,
-            offset,
-        )
-        return [dict(r) for r in rows]
+        """
+
+        if min_sentences > 0:
+            # Wrap to filter on computed column
+            count_row = await self._pool.fetchrow(
+                f"SELECT COUNT(*) as cnt FROM ({base_query}) sub WHERE sub.sentence_count >= $1",
+                min_sentences,
+            )
+            total = count_row["cnt"] if count_row else 0
+
+            rows = await self._pool.fetch(
+                f"""SELECT * FROM ({base_query}) sub
+                    WHERE sub.sentence_count >= $1
+                    ORDER BY sub.created_at DESC
+                    LIMIT $2 OFFSET $3""",
+                min_sentences,
+                limit,
+                offset,
+            )
+        else:
+            count_row = await self._pool.fetchrow(
+                f"SELECT COUNT(*) as cnt FROM ({base_query}) sub"
+            )
+            total = count_row["cnt"] if count_row else 0
+
+            rows = await self._pool.fetch(
+                f"""{base_query}
+                    ORDER BY m.created_at DESC
+                    LIMIT $1 OFFSET $2""",
+                limit,
+                offset,
+            )
+
+        return {"meetings": [dict(r) for r in rows], "total": total}
 
     # ------------------------------------------------------------------ #
     # Chunk Storage

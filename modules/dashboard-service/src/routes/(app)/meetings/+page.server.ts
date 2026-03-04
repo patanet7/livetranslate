@@ -21,7 +21,7 @@ export async function load({ fetch, url }) {
 			return { meetings: result.results.map(parseMeetingArrays), query: q, total: result.count, limit, offset };
 		}
 		const result = await api.list(limit, offset);
-		return { meetings: result.meetings.map(parseMeetingArrays), query: null, total: result.count ?? result.meetings.length, limit, offset };
+		return { meetings: result.meetings.map(parseMeetingArrays), query: null, total: result.total ?? result.count ?? result.meetings.length, limit, offset };
 	} catch {
 		return { meetings: [], query: q, total: 0, limit, offset };
 	}
