@@ -1,4 +1,5 @@
 import { meetingsApi } from '$lib/api/meetings';
+import { diarizationApi } from '$lib/api/diarization';
 import type { MeetingSentence } from '$lib/types';
 
 /** PostgreSQL JSONB columns sometimes arrive as JSON strings — parse them into real arrays. */
@@ -17,10 +18,14 @@ function parseSentenceArrays(sentence: MeetingSentence): MeetingSentence {
 export async function load({ params, fetch }) {
 	const api = meetingsApi(fetch);
 
-	// Load transcript and insights in parallel (non-critical — don't block on failure)
-	const [transcriptResult, insightsResult] = await Promise.all([
+	// Load transcript, insights, and diarization jobs in parallel (non-critical — don't block on failure)
+	const [transcriptResult, insightsResult, diarizationJobs] = await Promise.all([
 		api.getTranscript(params.id).catch(() => ({ meeting_id: params.id, sentences: [], count: 0 })),
-		api.getInsights(params.id).catch(() => ({ meeting_id: params.id, insights: [], count: 0 }))
+		api.getInsights(params.id).catch(() => ({ meeting_id: params.id, insights: [], count: 0 })),
+		diarizationApi(fetch)
+			.listJobs()
+			.then((jobs) => jobs.filter((j) => j.meeting_id === Number(params.id)))
+			.catch(() => [])
 	]);
 
 	// Normalize JSONB string columns to real arrays
@@ -30,6 +35,7 @@ export async function load({ params, fetch }) {
 
 	return {
 		transcript: transcriptResult,
-		insights: insightsResult
+		insights: insightsResult,
+		diarizationJobs
 	};
 }

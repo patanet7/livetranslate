@@ -10,6 +10,7 @@
 	import ErrorBoundary from '$lib/components/ErrorBoundary.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { MeetingSpeaker, MeetingSentence, MeetingInsight } from '$lib/types';
+	import type { DiarizationJob, TranscriptComparison } from '$lib/api/diarization';
 
 	let { data } = $props();
 
@@ -255,6 +256,46 @@
 
 	// --- Active tab ---
 	let activeTab = $state('transcript');
+
+	// --- Diarization tab ---
+
+	const diarizationJobs: DiarizationJob[] = $derived(data.diarizationJobs ?? []);
+	const completedDiarizationJob = $derived(
+		diarizationJobs.find((j) => j.status === 'completed') ?? null
+	);
+
+	let compareData = $state<TranscriptComparison | null>(null);
+	let loadingCompare = $state(false);
+	let applyingDiarization = $state(false);
+	let compareLoaded = $state(false);
+
+	async function loadCompare() {
+		if (compareLoaded || !completedDiarizationJob || !browser) return;
+		loadingCompare = true;
+		try {
+			const res = await fetch(`/api/diarization/meetings/${meeting.id}/compare`);
+			if (!res.ok) throw new Error(`${res.status}`);
+			compareData = await res.json();
+			compareLoaded = true;
+		} catch {
+			toastStore.error('Failed to load diarization comparison');
+		} finally {
+			loadingCompare = false;
+		}
+	}
+
+	async function applyDiarization() {
+		applyingDiarization = true;
+		try {
+			const res = await fetch(`/api/diarization/meetings/${meeting.id}/apply`, { method: 'POST' });
+			if (!res.ok) throw new Error(`${res.status}`);
+			toastStore.success('Diarization applied — transcript updated with speaker names.');
+		} catch {
+			toastStore.error('Failed to apply diarization');
+		} finally {
+			applyingDiarization = false;
+		}
+	}
 </script>
 
 <Tabs.Root bind:value={activeTab}>
@@ -263,6 +304,7 @@
 		<Tabs.Trigger value="translations">Translations</Tabs.Trigger>
 		<Tabs.Trigger value="insights">Summary & Insights</Tabs.Trigger>
 		<Tabs.Trigger value="speakers" onclick={loadSpeakers}>Speakers</Tabs.Trigger>
+		<Tabs.Trigger value="diarization" onclick={loadCompare}>Diarization</Tabs.Trigger>
 		<Tabs.Trigger value="media">Media & Links</Tabs.Trigger>
 	</Tabs.List>
 
@@ -873,7 +915,221 @@
 		</ErrorBoundary>
 	</Tabs.Content>
 
-	<!-- Tab 5: Media & Links -->
+	<!-- Tab 5: Diarization -->
+	<Tabs.Content value="diarization">
+		<ErrorBoundary>
+			{#snippet children()}
+				<div class="space-y-4">
+					{#if diarizationJobs.length === 0}
+						<Card.Root>
+							<Card.Content class="py-12">
+								<div class="space-y-4 text-center">
+									<div class="text-4xl">&#x1F3A4;</div>
+									<h3 class="font-semibold">No diarization jobs yet</h3>
+									<p class="text-sm text-muted-foreground">
+										Use the "Diarize" button in the header to run offline speaker diarization
+										with VibeVoice-ASR on this meeting's audio.
+									</p>
+								</div>
+							</Card.Content>
+						</Card.Root>
+					{:else}
+						<!-- Job Status Cards -->
+						<Card.Root>
+							<Card.Header>
+								<Card.Title>Diarization Jobs</Card.Title>
+							</Card.Header>
+							<Card.Content>
+								<div class="space-y-3">
+									{#each diarizationJobs as job (job.job_id)}
+										<div class="flex items-start justify-between rounded-md border p-3">
+											<div class="space-y-1">
+												<div class="flex items-center gap-2">
+													<Badge
+														variant={job.status === 'completed' ? 'default' : job.status === 'failed' ? 'destructive' : 'secondary'}
+														class={['processing', 'downloading', 'mapping'].includes(job.status) ? 'animate-pulse' : ''}
+													>
+														{job.status}
+													</Badge>
+													{#if job.detected_language}
+														<span class="text-xs text-muted-foreground">
+															Language: {job.detected_language}
+														</span>
+													{/if}
+													{#if job.num_speakers_detected != null}
+														<span class="text-xs text-muted-foreground">
+															{job.num_speakers_detected} speaker{job.num_speakers_detected !== 1 ? 's' : ''} detected
+														</span>
+													{/if}
+												</div>
+												{#if job.created_at}
+													<p class="text-xs text-muted-foreground">
+														Started: {new Date(job.created_at).toLocaleString()}
+													</p>
+												{/if}
+												{#if job.completed_at}
+													<p class="text-xs text-muted-foreground">
+														Completed: {new Date(job.completed_at).toLocaleString()}
+														{#if job.processing_time_seconds != null}
+															({Math.round(job.processing_time_seconds)}s)
+														{/if}
+													</p>
+												{/if}
+												{#if job.error_message}
+													<p class="text-xs text-destructive">{job.error_message}</p>
+												{/if}
+											</div>
+											{#if job.status === 'completed'}
+												<Button
+													variant="outline"
+													size="sm"
+													onclick={loadCompare}
+													disabled={loadingCompare}
+												>
+													{loadingCompare ? 'Loading...' : 'Compare'}
+												</Button>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							</Card.Content>
+						</Card.Root>
+
+						<!-- Speaker Map (if completed job has one) -->
+						{#if completedDiarizationJob?.speaker_map && Object.keys(completedDiarizationJob.speaker_map).length > 0}
+							<Card.Root>
+								<Card.Header>
+									<Card.Title>Speaker Map</Card.Title>
+								</Card.Header>
+								<Card.Content>
+									<div class="overflow-x-auto">
+										<table class="w-full text-sm">
+											<thead class="border-b">
+												<tr>
+													<th class="p-2 text-left">Diarization Label</th>
+													<th class="p-2 text-left">Matched Name</th>
+													<th class="p-2 text-left">Confidence</th>
+													<th class="p-2 text-left">Method</th>
+												</tr>
+											</thead>
+											<tbody>
+												{#each Object.entries(completedDiarizationJob.speaker_map) as [label, entry]}
+													<tr class="border-b">
+														<td class="p-2 font-mono text-xs">{label}</td>
+														<td class="p-2">{entry.name}</td>
+														<td class="p-2 text-muted-foreground">
+															{Math.round(entry.confidence * 100)}%
+														</td>
+														<td class="p-2 text-xs text-muted-foreground">{entry.method}</td>
+													</tr>
+												{/each}
+											</tbody>
+										</table>
+									</div>
+								</Card.Content>
+							</Card.Root>
+						{/if}
+
+						<!-- Compare View -->
+						{#if compareData}
+							<Card.Root>
+								<Card.Header>
+									<div class="flex items-center justify-between">
+										<Card.Title>Transcript Comparison</Card.Title>
+										<Button
+											variant="default"
+											size="sm"
+											onclick={applyDiarization}
+											disabled={applyingDiarization}
+										>
+											{applyingDiarization ? 'Applying...' : 'Apply Diarization'}
+										</Button>
+									</div>
+									<p class="text-sm text-muted-foreground">
+										Side-by-side view of Fireflies transcript vs VibeVoice-ASR diarization.
+										Click "Apply Diarization" to update the meeting transcript with the new speaker names.
+									</p>
+								</Card.Header>
+								<Card.Content>
+									<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+										<!-- Fireflies column -->
+										<div>
+											<h4 class="mb-2 text-sm font-semibold">Fireflies Transcript</h4>
+											<div class="max-h-[60vh] space-y-2 overflow-y-auto rounded-md border p-3">
+												{#if compareData.fireflies_sentences.length === 0}
+													<p class="text-sm text-muted-foreground">No Fireflies sentences available.</p>
+												{:else}
+													{#each compareData.fireflies_sentences as sentence}
+														<div class="space-y-0.5 text-sm">
+															{#if sentence.speaker_name}
+																<span class="text-xs font-medium text-primary">
+																	{String(sentence.speaker_name)}
+																</span>
+															{/if}
+															<p class="text-muted-foreground">{String(sentence.text ?? '')}</p>
+														</div>
+														<Separator />
+													{/each}
+												{/if}
+											</div>
+										</div>
+
+										<!-- VibeVoice column -->
+										<div>
+											<h4 class="mb-2 text-sm font-semibold">VibeVoice-ASR Diarization</h4>
+											<div class="max-h-[60vh] space-y-2 overflow-y-auto rounded-md border p-3">
+												{#if compareData.vibevoice_segments.length === 0}
+													<p class="text-sm text-muted-foreground">No VibeVoice segments available.</p>
+												{:else}
+													{#each compareData.vibevoice_segments as segment}
+														<div class="space-y-0.5 text-sm">
+															{#if segment.speaker}
+																<span class="text-xs font-medium text-primary">
+																	{String(segment.speaker)}
+																	{#if compareData.speaker_map?.[String(segment.speaker)]}
+																		<span class="text-muted-foreground">
+																			→ {compareData.speaker_map[String(segment.speaker)].name}
+																		</span>
+																	{/if}
+																</span>
+															{/if}
+															{#if segment.start != null || segment.end != null}
+																<span class="text-xs text-muted-foreground">
+																	{segment.start != null ? String(Math.floor(Number(segment.start) / 60)).padStart(2, '0') + ':' + String(Math.floor(Number(segment.start) % 60)).padStart(2, '0') : '--'}
+																</span>
+															{/if}
+															<p class="text-muted-foreground">{String(segment.text ?? '')}</p>
+														</div>
+														<Separator />
+													{/each}
+												{/if}
+											</div>
+										</div>
+									</div>
+								</Card.Content>
+							</Card.Root>
+						{:else if completedDiarizationJob && !loadingCompare && !compareLoaded}
+							<Card.Root>
+								<Card.Content class="py-8">
+									<div class="space-y-3 text-center">
+										<p class="text-sm text-muted-foreground">
+											A completed diarization job is available. Load the side-by-side comparison to review
+											and apply speaker names to the transcript.
+										</p>
+										<Button variant="outline" onclick={loadCompare} disabled={loadingCompare}>
+											{loadingCompare ? 'Loading comparison...' : 'Load Comparison'}
+										</Button>
+									</div>
+								</Card.Content>
+							</Card.Root>
+						{/if}
+					{/if}
+				</div>
+			{/snippet}
+		</ErrorBoundary>
+	</Tabs.Content>
+
+	<!-- Tab 6: Media & Links -->
 	<Tabs.Content value="media">
 		<ErrorBoundary>
 			{#snippet children()}
