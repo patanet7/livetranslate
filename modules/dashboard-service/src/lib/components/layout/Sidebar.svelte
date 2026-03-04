@@ -6,6 +6,7 @@
 	import MicIcon from '@lucide/svelte/icons/mic';
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
+	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
@@ -46,6 +47,7 @@
 		},
 		{ label: 'Data & Logs', href: '/data', icon: DatabaseIcon },
 		{ label: 'Intelligence', href: '/intelligence', icon: LightbulbIcon },
+		{ label: 'Diarization', href: '/diarization', icon: AudioWaveformIcon },
 		{
 			label: 'Translation',
 			href: '/translation',
