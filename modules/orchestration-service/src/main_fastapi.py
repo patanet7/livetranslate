@@ -222,16 +222,6 @@ try:
         "routes": len(meetings_router.routes) if hasattr(meetings_router, "routes") else 0,
     }
 
-    # Import data_query_router (Data Query API)
-    import_logger.debug("Importing data_query_router...")
-    from routers.data_query import router as data_query_router
-
-    import_logger.info("[OK] data_query_router imported successfully")
-    routers_status["data_query_router"] = {
-        "status": "success",
-        "routes": len(data_query_router.routes) if hasattr(data_query_router, "routes") else 0,
-    }
-
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
@@ -673,14 +663,6 @@ conflicts = check_route_conflicts("/api/meetings", "meetings_router", registered
 app.include_router(meetings_router, prefix="/api", tags=["Meetings"])
 registered_routes.append(("/api/meetings", "meetings_router"))
 router_logger.info(" meetings_router registered successfully")
-
-# Register data_query_router (Data Query API — sessions, transcripts, translations, timeline)
-router_logger.info("[18] Registering data_query_router...")
-log_router_details("data_query_router", data_query_router, "/api/data")
-conflicts = check_route_conflicts("/api/data", "data_query_router", registered_routes)
-app.include_router(data_query_router, tags=["Data Query"])
-registered_routes.append(("/api/data", "data_query_router"))
-router_logger.info(" data_query_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")

@@ -117,6 +117,92 @@ mutation AddToLiveMeeting($meeting_link: String!, $title: String, $duration: Int
 }
 """
 
+PAST_TRANSCRIPTS_FULL_QUERY = """
+query TranscriptsFull($limit: Int, $skip: Int) {
+  transcripts(limit: $limit, skip: $skip) {
+    id
+    title
+    date
+    duration
+    transcript_url
+    audio_url
+    video_url
+    meeting_link
+    host_email
+    organizer_email
+    participants
+
+    sentences {
+      index
+      text
+      raw_text
+      start_time
+      end_time
+      speaker_name
+      ai_filters {
+        task
+        pricing
+        metric
+        question
+        date_and_time
+        text_cleanup
+        sentiment
+      }
+    }
+
+    summary {
+      overview
+      action_items
+      outline
+      shorthand_bullet
+      keywords
+      bullet_gist
+      gist
+      short_summary
+      short_overview
+      meeting_type
+      topics_discussed
+      transcript_chapters
+    }
+
+    meeting_attendees {
+      displayName
+      email
+      phoneNumber
+      location
+    }
+
+    meeting_attendance {
+      name
+      join_time
+      leave_time
+    }
+
+    analytics {
+      sentiments {
+        negative_pct
+        neutral_pct
+        positive_pct
+      }
+      categories {
+        questions
+        date_times
+        metrics
+        tasks
+      }
+      speakers {
+        duration
+        word_count
+        longest_monologue
+        filler_words
+        questions
+        words_per_minute
+      }
+    }
+  }
+}
+"""
+
 TRANSCRIPT_FULL_QUERY = """
 query TranscriptFull($id: String!) {
   transcript(id: $id) {
@@ -292,16 +378,33 @@ class FirefliesGraphQLClient:
             async with session.post(self.endpoint, json=payload) as response:
                 result = await response.json()
 
+                if response.status == 429:
+                    retry_after = response.headers.get("Retry-After")
+                    raise FirefliesRateLimitError(
+                        "Fireflies API rate limit exceeded",
+                        retry_after=retry_after,
+                    )
+
                 if response.status != 200:
                     error_msg = result.get("errors", [{"message": "Unknown error"}])[0].get(
                         "message"
                     )
+                    # Detect rate limit in error message body too
+                    if "too many requests" in error_msg.lower() or "rate limit" in error_msg.lower():
+                        raise FirefliesRateLimitError(
+                            f"Fireflies API rate limit: {error_msg}",
+                            retry_after=response.headers.get("Retry-After"),
+                        )
                     raise FirefliesAPIError(
                         f"GraphQL error: {error_msg}", status_code=response.status
                     )
 
                 if "errors" in result:
                     error_msg = result["errors"][0].get("message", "Unknown GraphQL error")
+                    if "too many requests" in error_msg.lower() or "rate limit" in error_msg.lower():
+                        raise FirefliesRateLimitError(
+                            f"Fireflies API rate limit: {error_msg}",
+                        )
                     raise FirefliesAPIError(f"GraphQL error: {error_msg}")
 
                 return result.get("data", {})
@@ -386,6 +489,41 @@ class FirefliesGraphQLClient:
 
         except Exception as e:
             logger.error("get_transcripts_failed", error=str(e))
+            raise
+
+    async def get_full_transcripts(
+        self,
+        limit: int = 50,
+        skip: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Get past transcripts with ALL fields (sentences, analytics, summary, media).
+
+        Uses the bulk PAST_TRANSCRIPTS_FULL_QUERY to fetch complete transcript data
+        in a single API call per page of 50 transcripts, avoiding N+1 individual
+        download_full_transcript() calls.
+
+        Args:
+            limit: Maximum transcripts per page (max 50 per Fireflies API)
+            skip: Number of transcripts to skip (for pagination)
+
+        Returns:
+            List of fully-populated transcript dictionaries
+        """
+        variables = {"limit": min(limit, 50), "skip": skip}
+
+        try:
+            data = await self.execute_query(PAST_TRANSCRIPTS_FULL_QUERY, variables)
+            transcripts = data.get("transcripts", [])
+
+            logger.info(
+                "full_transcripts_fetched",
+                count=len(transcripts),
+                skip=skip,
+            )
+            return transcripts
+
+        except Exception as e:
+            logger.error("get_full_transcripts_failed", error=str(e))
             raise
 
     async def get_transcript_detail(
@@ -1159,3 +1297,11 @@ class FirefliesAuthError(Exception):
     """Exception for Fireflies authentication errors"""
 
     pass
+
+
+class FirefliesRateLimitError(FirefliesAPIError):
+    """Exception for Fireflies API rate limit (429 / daily quota exceeded)."""
+
+    def __init__(self, message: str, retry_after: str | None = None):
+        super().__init__(message, status_code=429)
+        self.retry_after = retry_after

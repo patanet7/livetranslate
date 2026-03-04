@@ -239,6 +239,10 @@ class ChatMessage(Base):
     # Format: {"es": "Hola mundo", "fr": "Bonjour le monde"}
     translated_content = Column(JSONB, nullable=True)
 
+    # Speaker attribution
+    speaker_id = Column(String(255), nullable=True)
+    speaker_name = Column(String(255), nullable=True)
+
     # Message metadata
     timestamp = Column(DateTime, nullable=False, server_default=func.now())
     edited_at = Column(DateTime, nullable=True)
@@ -284,6 +288,8 @@ class ChatMessage(Base):
             "original_language": self.original_language,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "confidence": self.confidence,
+            "speaker_id": self.speaker_id,
+            "speaker_name": self.speaker_name,
         }
 
         if include_translations and self.translated_content:

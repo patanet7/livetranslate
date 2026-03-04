@@ -22,6 +22,7 @@ from clients.fireflies_client import (
     FirefliesAPIError,
     FirefliesClient,
     FirefliesGraphQLClient,
+    FirefliesRateLimitError,
 )
 from dependencies import (
     get_data_pipeline,
@@ -785,10 +786,12 @@ async def stop_auto_connect() -> None:
 
 
 async def boot_sync_fireflies() -> None:
-    """Sync all Fireflies transcripts on startup.
+    """Sync all Fireflies transcripts on first boot of the day.
 
     Called from the app lifespan in main_fastapi.py.
     Checks FIREFLIES_BOOT_SYNC env var (default: true).
+    Runs once per day — subsequent restarts (including --reload) skip it
+    by checking a DB timestamp. Uses the bulk query to avoid N+1.
     Non-fatal — if anything fails, the service still starts.
     """
     if os.environ.get("FIREFLIES_BOOT_SYNC", "true").lower() != "true":
@@ -805,35 +808,82 @@ async def boot_sync_fireflies() -> None:
         )
         return
 
+    # Check if we already synced today (once-per-day guard)
+    store = MeetingStore(db_url)
+    await store.initialize()
+    try:
+        last_sync = await store._pool.fetchval(
+            """SELECT value FROM system_config WHERE key = 'last_boot_sync_at'"""
+        )
+        if last_sync:
+            from datetime import timedelta
+
+            try:
+                last_sync_time = datetime.fromisoformat(last_sync)
+                if datetime.now(UTC) - last_sync_time < timedelta(hours=24):
+                    logger.info(
+                        "fireflies_boot_sync_skipped_recent",
+                        last_sync=last_sync,
+                    )
+                    return
+            except (ValueError, TypeError):
+                pass  # Corrupted value — proceed with sync
+    except Exception:
+        # system_config table may not exist yet — create it
+        await store._pool.execute(
+            """CREATE TABLE IF NOT EXISTS system_config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )"""
+        )
+
     logger.info("fireflies_boot_sync_starting")
 
-    # Paginate through all Fireflies transcripts
+    # Use bulk query — 1 API call per 50 transcripts (with full data)
     client = FirefliesGraphQLClient(api_key=api_key)
     all_transcripts: list[dict[str, Any]] = []
     try:
         skip = 0
         page_size = 50
         while True:
-            page = await client.get_transcripts(limit=page_size, skip=skip)
+            page = await client.get_full_transcripts(limit=page_size, skip=skip)
             if not page:
                 break
             all_transcripts.extend(page)
             if len(page) < page_size:
                 break
             skip += page_size
+    except FirefliesRateLimitError as e:
+        logger.warning(
+            "fireflies_boot_sync_rate_limited",
+            retry_after=e.retry_after,
+            fetched_so_far=len(all_transcripts),
+        )
+        # Process whatever we fetched before hitting the limit
     finally:
         await client.close()
 
     if not all_transcripts:
         logger.info("fireflies_boot_sync_no_transcripts")
+        # Still record the sync attempt to avoid retrying on every restart
+        try:
+            await store._pool.execute(
+                """INSERT INTO system_config (key, value, updated_at)
+                   VALUES ('last_boot_sync_at', $1, NOW())
+                   ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()""",
+                datetime.now(UTC).isoformat(),
+            )
+        except Exception:
+            pass
+        await store.close()
         return
 
-    # Check DB for existing meetings
-    store = MeetingStore(db_url)
-    await store.initialize()
+    # Process transcripts inline (no individual API calls!)
     new_count = 0
     updated_count = 0
     already_synced = 0
+    errors = 0
     try:
         for transcript in all_transcripts:
             ff_id = transcript.get("id")
@@ -842,14 +892,30 @@ async def boot_sync_fireflies() -> None:
             meeting = await store.get_meeting_by_ff_id(ff_id)
             if meeting and meeting.get("insight_count", 0) > 0:
                 already_synced += 1
-            elif meeting:
-                # Meeting exists but has no insights — re-download
-                asyncio.create_task(_download_meeting_data(ff_id))
-                updated_count += 1
-            else:
-                # New meeting — download
-                asyncio.create_task(_download_meeting_data(ff_id))
-                new_count += 1
+                continue
+
+            # Store directly from bulk response — no extra API call needed
+            try:
+                await _store_transcript_to_db(transcript, store)
+                if meeting:
+                    updated_count += 1
+                else:
+                    new_count += 1
+            except Exception:
+                errors += 1
+                logger.warning(
+                    "boot_sync_transcript_failed",
+                    ff_id=ff_id,
+                    exc_info=True,
+                )
+
+        # Record successful sync timestamp
+        await store._pool.execute(
+            """INSERT INTO system_config (key, value, updated_at)
+               VALUES ('last_boot_sync_at', $1, NOW())
+               ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()""",
+            datetime.now(UTC).isoformat(),
+        )
     finally:
         await store.close()
 
@@ -859,6 +925,8 @@ async def boot_sync_fireflies() -> None:
         new=new_count,
         updated=updated_count,
         already_synced=already_synced,
+        errors=errors,
+        api_calls=len(all_transcripts) // 50 + 1,
     )
 
 
@@ -1545,7 +1613,178 @@ async def get_translation_config() -> dict[str, Any]:
 
 
 # =============================================================================
-# Post-Meeting Webhook & Full Data Download
+# Shared: Store Transcript Data to DB
+# =============================================================================
+
+
+async def _store_transcript_to_db(
+    transcript: dict[str, Any],
+    store: MeetingStore,
+) -> str:
+    """Store a fully-populated Fireflies transcript into the database.
+
+    Handles find-or-create for the meeting record, then stores sentences,
+    insights, speaker analytics, and media URLs. Used by both the bulk
+    sync path (inline from paginated query) and the single-transcript
+    download path (_download_meeting_data).
+
+    Args:
+        transcript: Raw transcript dict from Fireflies GraphQL (either the
+            plural `transcripts` query or `download_full_transcript` structured result).
+        store: Initialized MeetingStore instance.
+
+    Returns:
+        The database meeting ID (UUID string).
+    """
+    ff_id = transcript.get("id", "")
+
+    # --- Build structured result matching download_full_transcript() output ---
+    insights: list[dict[str, Any]] = []
+    if transcript.get("summary"):
+        insights.append({"type": "summary", "content": transcript["summary"]})
+    if transcript.get("analytics"):
+        analytics = transcript["analytics"]
+        if analytics.get("sentiments"):
+            insights.append({"type": "sentiment", "content": analytics["sentiments"]})
+        if analytics.get("speakers"):
+            insights.append({"type": "speaker_analytics", "content": analytics["speakers"]})
+        if analytics.get("categories"):
+            insights.append({"type": "ai_filters", "content": analytics["categories"]})
+    if transcript.get("meeting_attendees") or transcript.get("meeting_attendance"):
+        insights.append({
+            "type": "attendance",
+            "content": {
+                "attendees": transcript.get("meeting_attendees", []),
+                "attendance": transcript.get("meeting_attendance", []),
+            },
+        })
+
+    sentences = transcript.get("sentences", [])
+    summary = transcript.get("summary", {})
+
+    # --- Find or create meeting record ---
+    meeting = await store.get_meeting_by_ff_id(ff_id)
+    if meeting:
+        meeting_db_id = str(meeting["id"])
+        await store.complete_meeting(meeting_db_id)
+    else:
+        meeting_db_id = await store.create_meeting(
+            fireflies_transcript_id=ff_id,
+            title=transcript.get("title"),
+            meeting_link=transcript.get("meeting_link"),
+            organizer_email=transcript.get("organizer_email"),
+            participants=transcript.get("participants"),
+            source="fireflies",
+            status="completed",
+        )
+
+    # Mark sync in progress
+    await store.update_sync_status(meeting_db_id, "syncing")
+
+    # Store all structured insights
+    for insight in insights:
+        await store.store_insight(
+            meeting_id=meeting_db_id,
+            insight_type=insight["type"],
+            content=insight["content"],
+            source="fireflies",
+        )
+
+    # Store sentences with ai_filters
+    for sentence in sentences:
+        sentence_id = await store.store_sentence(
+            meeting_id=meeting_db_id,
+            text=sentence.get("text", ""),
+            speaker_name=sentence.get("speaker_name", "Unknown"),
+            start_time=float(sentence.get("start_time", 0)),
+            end_time=float(sentence.get("end_time", 0)),
+            boundary_type="fireflies_download",
+        )
+        if sentence.get("ai_filters"):
+            await store.store_insight(
+                meeting_id=meeting_db_id,
+                insight_type="sentence_ai_filter",
+                content={
+                    "sentence_id": sentence_id,
+                    "filters": sentence["ai_filters"],
+                },
+                source="fireflies",
+            )
+
+    # Store speaker analytics from insights blob
+    for insight in insights:
+        if insight.get("type") == "speaker_analytics":
+            for speaker_data in insight.get("content") or []:
+                if isinstance(speaker_data, dict):
+                    await store.store_speaker(
+                        meeting_id=meeting_db_id,
+                        speaker_name=speaker_data.get("name", "Unknown"),
+                        talk_time_seconds=float(speaker_data.get("duration", 0)),
+                        word_count=int(speaker_data.get("word_count", 0)),
+                        analytics=speaker_data,
+                    )
+
+    # Store summary sub-fields as individual insights
+    if summary and isinstance(summary, dict):
+        for insight_type in [
+            "overview",
+            "action_items",
+            "outline",
+            "keywords",
+            "shorthand_bullet",
+        ]:
+            content = summary.get(insight_type)
+            if content:
+                await store.store_insight(
+                    meeting_id=meeting_db_id,
+                    insight_type=insight_type,
+                    content=(
+                        {"text": content} if isinstance(content, str) else content
+                    ),
+                    source="fireflies",
+                )
+
+    # Store speakers from analytics blob
+    analytics = transcript.get("analytics", {})
+    if analytics and isinstance(analytics, dict):
+        for speaker_data in analytics.get("speakers", []):
+            if isinstance(speaker_data, dict):
+                sentiment = speaker_data.get("sentiment")
+                sentiment_score = (
+                    sentiment.get("score") if isinstance(sentiment, dict) else None
+                )
+                await store.store_speaker(
+                    meeting_id=meeting_db_id,
+                    speaker_name=speaker_data.get("name", "Unknown"),
+                    email=speaker_data.get("email"),
+                    talk_time_seconds=float(speaker_data.get("talk_time", 0)),
+                    word_count=int(speaker_data.get("word_count", 0)),
+                    sentiment_score=sentiment_score,
+                    analytics=speaker_data,
+                )
+
+    # Mark sync complete with media URLs
+    await store.update_sync_status(
+        meeting_db_id,
+        "synced",
+        audio_url=transcript.get("audio_url"),
+        video_url=transcript.get("video_url"),
+        transcript_url=transcript.get("transcript_url"),
+    )
+
+    logger.info(
+        "transcript_stored_to_db",
+        fireflies_id=ff_id,
+        meeting_db_id=meeting_db_id,
+        insight_count=len(insights),
+        sentence_count=len(sentences),
+    )
+
+    return meeting_db_id
+
+
+# =============================================================================
+# Post-Meeting Webhook & Full Data Download (single-transcript path)
 # =============================================================================
 
 
@@ -1553,12 +1792,11 @@ async def _download_meeting_data(
     fireflies_transcript_id: str,
     known_meeting_id: str | None = None,
 ) -> None:
-    """Download full transcript and insights from Fireflies after meeting completes.
+    """Download a single transcript from Fireflies and store to DB.
 
-    Called as a background task when the Fireflies webhook fires or when
-    auto-connect polling detects a meeting has ended.  Downloads all data
-    via the expanded GraphQL query and stores everything in PostgreSQL
-    via MeetingStore.
+    Used by per-meeting sync and webhook — makes 1 API call to fetch the
+    individual transcript via TRANSCRIPT_FULL_QUERY. For bulk sync, prefer
+    the inline path via get_full_transcripts() + _store_transcript_to_db().
 
     Args:
         fireflies_transcript_id: Fireflies transcript ID to download.
@@ -1577,7 +1815,7 @@ async def _download_meeting_data(
         return
 
     try:
-        # Download full transcript from Fireflies
+        # Download full transcript from Fireflies (1 API call)
         client = FirefliesGraphQLClient(api_key=api_key)
         try:
             result = await client.download_full_transcript(fireflies_transcript_id)
@@ -1591,159 +1829,11 @@ async def _download_meeting_data(
             )
             return
 
-        # Initialize meeting store
+        # Delegate to shared storage function
         store = MeetingStore(db_url)
         await store.initialize()
-
         try:
-            # Find or create meeting record
-            meeting = await store.get_meeting_by_ff_id(fireflies_transcript_id)
-            if meeting:
-                meeting_db_id = str(meeting["id"])
-                await store.complete_meeting(meeting_db_id)
-            else:
-                transcript_data = result["transcript"]
-                meeting_db_id = await store.create_meeting(
-                    fireflies_transcript_id=fireflies_transcript_id,
-                    title=transcript_data.get("title"),
-                    meeting_link=transcript_data.get("meeting_link"),
-                    organizer_email=transcript_data.get("organizer_email"),
-                    participants=transcript_data.get("participants"),
-                    source="fireflies",
-                    status="completed",
-                )
-
-            # Mark sync in progress
-            await store.update_sync_status(meeting_db_id, "syncing")
-
-            # Store all insights
-            for insight in result.get("insights", []):
-                await store.store_insight(
-                    meeting_id=meeting_db_id,
-                    insight_type=insight["type"],
-                    content=insight["content"],
-                    source="fireflies",
-                )
-
-            # Store sentences with ai_filters
-            for sentence in result.get("sentences", []):
-                sentence_id = await store.store_sentence(
-                    meeting_id=meeting_db_id,
-                    text=sentence.get("text", ""),
-                    speaker_name=sentence.get("speaker_name", "Unknown"),
-                    start_time=float(sentence.get("start_time", 0)),
-                    end_time=float(sentence.get("end_time", 0)),
-                    boundary_type="fireflies_download",
-                )
-                # Store ai_filters as per-sentence insight
-                if sentence.get("ai_filters"):
-                    await store.store_insight(
-                        meeting_id=meeting_db_id,
-                        insight_type="sentence_ai_filter",
-                        content={
-                            "sentence_id": sentence_id,
-                            "filters": sentence["ai_filters"],
-                        },
-                        source="fireflies",
-                    )
-
-            # Store speaker analytics
-            for insight in result.get("insights", []):
-                if insight.get("type") == "speaker_analytics":
-                    for speaker_data in insight.get("content") or []:
-                        if isinstance(speaker_data, dict):
-                            await store.store_speaker(
-                                meeting_id=meeting_db_id,
-                                speaker_name=speaker_data.get("name", "Unknown"),
-                                talk_time_seconds=float(
-                                    speaker_data.get("duration", 0)
-                                ),
-                                word_count=int(speaker_data.get("word_count", 0)),
-                                analytics=speaker_data,
-                            )
-
-            # Store Fireflies summary sub-fields as individual insights
-            try:
-                summary = result.get("summary", {})
-                if summary and isinstance(summary, dict):
-                    for insight_type in [
-                        "overview",
-                        "action_items",
-                        "outline",
-                        "keywords",
-                        "shorthand_bullet",
-                    ]:
-                        content = summary.get(insight_type)
-                        if content:
-                            await store.store_insight(
-                                meeting_id=meeting_db_id,
-                                insight_type=insight_type,
-                                content=(
-                                    {"text": content}
-                                    if isinstance(content, str)
-                                    else content
-                                ),
-                                source="fireflies",
-                            )
-            except Exception:
-                logger.warning(
-                    "store_summary_insights_failed",
-                    transcript_id=fireflies_transcript_id,
-                    meeting_db_id=meeting_db_id,
-                    exc_info=True,
-                )
-
-            # Store speakers from Fireflies analytics blob
-            try:
-                analytics = result.get("analytics", {})
-                if analytics and isinstance(analytics, dict):
-                    for speaker_data in analytics.get("speakers", []):
-                        if isinstance(speaker_data, dict):
-                            sentiment = speaker_data.get("sentiment")
-                            sentiment_score = (
-                                sentiment.get("score")
-                                if isinstance(sentiment, dict)
-                                else None
-                            )
-                            await store.store_speaker(
-                                meeting_id=meeting_db_id,
-                                speaker_name=speaker_data.get(
-                                    "name", "Unknown"
-                                ),
-                                email=speaker_data.get("email"),
-                                talk_time_seconds=float(
-                                    speaker_data.get("talk_time", 0)
-                                ),
-                                word_count=int(
-                                    speaker_data.get("word_count", 0)
-                                ),
-                                sentiment_score=sentiment_score,
-                                analytics=speaker_data,
-                            )
-            except Exception:
-                logger.warning(
-                    "store_analytics_speakers_failed",
-                    transcript_id=fireflies_transcript_id,
-                    meeting_db_id=meeting_db_id,
-                    exc_info=True,
-                )
-
-            # Mark sync as complete with media URLs
-            await store.update_sync_status(
-                meeting_db_id,
-                "synced",
-                audio_url=result.get("audio_url"),
-                video_url=result.get("video_url"),
-                transcript_url=result.get("transcript_url"),
-            )
-
-            logger.info(
-                "meeting_data_downloaded",
-                transcript_id=fireflies_transcript_id,
-                meeting_db_id=meeting_db_id,
-                insight_count=len(result.get("insights", [])),
-                sentence_count=len(result.get("sentences", [])),
-            )
+            await _store_transcript_to_db(result["transcript"], store)
         finally:
             await store.close()
 
@@ -1756,7 +1846,6 @@ async def _download_meeting_data(
                 await _err_store.initialize()
                 try:
                     if known_meeting_id:
-                        # Use the exact meeting ID (avoids duplicate-row bugs)
                         await _err_store.update_sync_status(
                             known_meeting_id, "failed", sync_error=str(e)
                         )
@@ -2016,18 +2105,23 @@ class SyncAllRequest(BaseModel):
 @router.post(
     "/sync-all",
     summary="Sync all Fireflies transcripts to local database",
-    description="Fetches all past transcripts from Fireflies and downloads full data for any missing or incomplete meetings",
+    description=(
+        "Fetches all past transcripts from Fireflies using the bulk query "
+        "(up to 50 per API call with full data) and stores them inline. "
+        "No individual per-transcript API calls needed."
+    ),
 )
 async def sync_all_transcripts(
     request: SyncAllRequest,
-    background_tasks: BackgroundTasks,
     ff_config: FirefliesSettings = Depends(get_fireflies_config),
 ) -> dict[str, Any]:
     """Sync all Fireflies transcripts to the local database.
 
-    Paginates through all past transcripts, checks which ones are
-    already stored with full intelligence, and triggers background
-    downloads for any missing or incomplete meetings.
+    Uses the bulk PAST_TRANSCRIPTS_FULL_QUERY to fetch complete transcript
+    data (sentences, analytics, summary, media) in pages of 50 — then
+    stores each directly without spawning per-transcript background tasks.
+
+    API calls: ceil(N / 50) instead of 1 + N.
     """
     api_key = request.api_key or ff_config.api_key
     if not api_key:
@@ -2043,14 +2137,33 @@ async def sync_all_transcripts(
             detail="DATABASE_URL not configured",
         )
 
-    # Paginate through all Fireflies transcripts
+    # Paginate through all Fireflies transcripts with FULL data
     client = FirefliesGraphQLClient(api_key=api_key)
     all_transcripts: list[dict[str, Any]] = []
+    api_calls = 0
     try:
         skip = 0
         page_size = 50
         while True:
-            page = await client.get_transcripts(limit=page_size, skip=skip)
+            try:
+                page = await client.get_full_transcripts(limit=page_size, skip=skip)
+            except FirefliesRateLimitError as e:
+                if not all_transcripts:
+                    raise HTTPException(
+                        status_code=429,
+                        detail={
+                            "message": "Fireflies API rate limit exceeded",
+                            "retry_after": e.retry_after,
+                        },
+                    ) from e
+                # Process whatever we fetched before the limit
+                logger.warning(
+                    "sync_all_rate_limited_partial",
+                    fetched=len(all_transcripts),
+                    retry_after=e.retry_after,
+                )
+                break
+            api_calls += 1
             if not page:
                 break
             all_transcripts.extend(page)
@@ -2060,11 +2173,12 @@ async def sync_all_transcripts(
     finally:
         await client.close()
 
-    # Check DB for existing meetings and schedule downloads
+    # Store transcripts inline (no extra API calls!)
     store = MeetingStore(db_url)
     await store.initialize()
     synced = 0
     skipped = 0
+    errors = 0
     try:
         for transcript in all_transcripts:
             ff_id = transcript.get("id")
@@ -2074,23 +2188,62 @@ async def sync_all_transcripts(
             if meeting and meeting.get("insight_count", 0) > 0:
                 skipped += 1
             else:
-                background_tasks.add_task(_download_meeting_data, ff_id)
-                synced += 1
+                try:
+                    await _store_transcript_to_db(transcript, store)
+                    synced += 1
+                except Exception:
+                    errors += 1
+                    logger.warning(
+                        "sync_all_transcript_failed",
+                        ff_id=ff_id,
+                        exc_info=True,
+                    )
     finally:
         await store.close()
 
     logger.info(
-        "sync_all_triggered",
+        "sync_all_complete",
         total=len(all_transcripts),
         synced=synced,
         skipped=skipped,
+        errors=errors,
+        api_calls=api_calls,
     )
 
     return {
         "synced": synced,
         "skipped": skipped,
+        "errors": errors,
         "total": len(all_transcripts),
+        "api_calls_used": api_calls,
     }
+
+
+@router.get(
+    "/sync-status",
+    summary="Get last sync timestamp and stats",
+    description="Returns when the last boot sync or manual sync-all ran",
+)
+async def get_sync_status() -> dict[str, Any]:
+    """Get the last Fireflies sync timestamp."""
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        return {"last_sync_at": None, "message": "DATABASE_URL not configured"}
+
+    store = MeetingStore(db_url)
+    await store.initialize()
+    try:
+        row = await store._pool.fetchrow(
+            "SELECT value, updated_at FROM system_config WHERE key = 'last_boot_sync_at'"
+        )
+        if row:
+            return {
+                "last_sync_at": row["value"],
+                "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
+            }
+        return {"last_sync_at": None, "message": "No sync has run yet"}
+    finally:
+        await store.close()
 
 
 @router.post(
