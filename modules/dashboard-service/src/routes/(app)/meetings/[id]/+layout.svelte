@@ -4,6 +4,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Select from '$lib/components/ui/select';
 	import SyncBadge from '$lib/components/meetings/SyncBadge.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
+	import type { DiarizationJob } from '$lib/api/diarization';
 
 	let { data, children } = $props();
 
@@ -11,6 +13,59 @@
 
 	let syncingMeeting = $state(false);
 	let syncMsg = $state('');
+
+	// ── Diarize state ──────────────────────────────────────────────────
+	let diarizingMeeting = $state(false);
+	let diarizationJobs = $state<DiarizationJob[]>([]);
+	let diarizationJobsLoaded = $state(false);
+
+	const activeDiarizationJob = $derived(
+		diarizationJobs.length > 0 ? diarizationJobs[0] : null
+	);
+
+	async function loadDiarizationJobs() {
+		try {
+			const res = await fetch(`/api/diarization/jobs`);
+			if (!res.ok) return;
+			const jobs: DiarizationJob[] = await res.json();
+			diarizationJobs = jobs.filter((j) => j.meeting_id === Number(meeting.id));
+		} catch {
+			// Silently ignore — diarization is optional
+		} finally {
+			diarizationJobsLoaded = true;
+		}
+	}
+
+	$effect(() => {
+		if (meeting?.id) {
+			loadDiarizationJobs();
+		}
+	});
+
+	async function handleDiarize() {
+		diarizingMeeting = true;
+		try {
+			const res = await fetch('/api/diarization/jobs', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ meeting_id: meeting.id })
+			});
+			const result = await res.json();
+			if (res.ok) {
+				toastStore.success('Diarization job queued');
+				// Reload diarization job state to show the badge
+				await loadDiarizationJobs();
+				// Also invalidate so page data refreshes
+				await invalidateAll();
+			} else {
+				toastStore.error(`Failed: ${result.detail ?? 'Unknown error'}`);
+			}
+		} catch (err) {
+			toastStore.error(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+		} finally {
+			diarizingMeeting = false;
+		}
+	}
 
 	// ── Bot state ──────────────────────────────────────────────────────
 	let sendingBot = $state(false);
@@ -168,6 +223,25 @@
 				<Button href="/meetings/{meeting.id}/live" variant="default">
 					View Live
 				</Button>
+			{/if}
+
+			{#if diarizationJobsLoaded}
+				{#if !activeDiarizationJob && !diarizingMeeting}
+					<Button variant="outline" size="sm" onclick={handleDiarize}>
+						Diarize
+					</Button>
+				{:else if diarizingMeeting}
+					<Button variant="outline" size="sm" disabled>
+						Diarizing...
+					</Button>
+				{:else if activeDiarizationJob}
+					<Badge
+						variant={activeDiarizationJob.status === 'completed' ? 'default' : 'secondary'}
+						class={activeDiarizationJob.status === 'processing' || activeDiarizationJob.status === 'downloading' || activeDiarizationJob.status === 'mapping' ? 'animate-pulse' : ''}
+					>
+						Diarization: {activeDiarizationJob.status}
+					</Badge>
+				{/if}
 			{/if}
 
 			{#if meeting.meeting_link}
