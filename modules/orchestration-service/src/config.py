@@ -387,6 +387,54 @@ class FirefliesSettings(BaseSettings):
     model_config = ConfigDict(env_prefix="FIREFLIES_", env_file=".env", extra="ignore")
 
 
+class DiarizationSettings(BaseSettings):
+    """Offline diarization with VibeVoice-ASR configuration."""
+
+    enabled: bool = Field(default=False, description="Enable offline diarization service")
+    vibevoice_url: str = Field(
+        default="http://localhost:8000/v1",
+        description="VibeVoice vLLM server URL (LAN address)",
+    )
+    hotwords: list[str] | str = Field(
+        default_factory=list,
+        description="Domain-specific hotwords for better recognition",
+    )
+    max_concurrent_jobs: int = Field(
+        default=1,
+        description="Max concurrent diarization jobs",
+    )
+    auto_apply_threshold: float = Field(
+        default=0.85,
+        description="Min speaker mapping confidence to auto-apply without manual review",
+    )
+    min_confidence_auto_assign: float = Field(
+        default=0.80,
+        description="Min confidence for auto-assigning speaker names",
+    )
+    auto_enroll_speakers: bool = Field(
+        default=True,
+        description="Auto-enroll speaker profiles from manual assignments",
+    )
+    fireflies_crossref_enabled: bool = Field(
+        default=True,
+        description="Cross-reference Fireflies participant list for speaker names",
+    )
+
+    @field_validator("hotwords", mode="before")
+    @classmethod
+    def parse_hotwords(cls, v: object) -> list[str]:
+        """Parse comma-separated hotwords string into a list."""
+        if isinstance(v, str):
+            return [w.strip() for w in v.split(",") if w.strip()]
+        return v  # type: ignore[return-value]
+
+    def has_vibevoice_url(self) -> bool:
+        """Check if VibeVoice URL is configured."""
+        return bool(self.vibevoice_url and self.vibevoice_url.strip())
+
+    model_config = ConfigDict(env_prefix="DIARIZATION_", env_file=".env", extra="ignore")
+
+
 class MeetingIntelligenceSettings(BaseSettings):
     """Meeting intelligence configuration"""
 
@@ -569,6 +617,7 @@ class Settings(BaseSettings):
     monitoring: MonitoringSettings = MonitoringSettings()
     bot: BotSettings = BotSettings()
     fireflies: FirefliesSettings = FirefliesSettings()
+    diarization: DiarizationSettings = DiarizationSettings()
     intelligence: MeetingIntelligenceSettings = MeetingIntelligenceSettings()
     obs: OBSSettings = OBSSettings()
 
