@@ -222,6 +222,16 @@ try:
         "routes": len(meetings_router.routes) if hasattr(meetings_router, "routes") else 0,
     }
 
+    # Import diarization_router
+    import_logger.debug("Importing diarization_router...")
+    from routers.diarization import router as diarization_router
+
+    import_logger.info("[OK] diarization_router imported successfully")
+    routers_status["diarization_router"] = {
+        "status": "success",
+        "routes": len(diarization_router.routes) if hasattr(diarization_router, "routes") else 0,
+    }
+
     import_logger.info("[STATS] Router import summary:")
     for router_name, status in routers_status.items():
         import_logger.info(f"  {router_name}: {status['status']} ({status['routes']} routes)")
@@ -233,6 +243,10 @@ except ImportError as e:
 
     import_logger.error("Full traceback:")
     import_logger.error(traceback.format_exc())
+
+# Ensure diarization_router is defined even if the import block above failed
+if "diarization_router" not in dir():
+    diarization_router = None  # type: ignore[assignment]
 
 # Import models with logging
 try:
@@ -663,6 +677,17 @@ conflicts = check_route_conflicts("/api/meetings", "meetings_router", registered
 app.include_router(meetings_router, prefix="/api", tags=["Meetings"])
 registered_routes.append(("/api/meetings", "meetings_router"))
 router_logger.info(" meetings_router registered successfully")
+
+# Register diarization_router
+router_logger.info("[18] Registering diarization_router...")
+if diarization_router is not None:
+    log_router_details("diarization_router", diarization_router, "/api/diarization")
+    conflicts = check_route_conflicts("/api/diarization", "diarization_router", registered_routes)
+    app.include_router(diarization_router, prefix="/api/diarization", tags=["Diarization"])
+    registered_routes.append(("/api/diarization", "diarization_router"))
+    router_logger.info(" diarization_router registered successfully")
+else:
+    router_logger.warning("[SKIP] diarization_router not registered (import failed)")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
