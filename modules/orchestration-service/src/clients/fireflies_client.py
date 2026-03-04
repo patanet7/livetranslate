@@ -124,9 +124,6 @@ query TranscriptsFull($limit: Int, $skip: Int) {
     title
     date
     duration
-    transcript_url
-    audio_url
-    video_url
     meeting_link
     host_email
     organizer_email

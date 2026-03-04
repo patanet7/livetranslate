@@ -31,6 +31,7 @@ Keep the `revision` string short (≤32 chars). Examples:
 ## Fireflies API
 
 - **Rate limits:** Free/Pro = 50 requests/day; Business/Enterprise = 60 requests/minute
-- **Bulk query:** Use `transcripts` (plural) GraphQL query with ALL fields — fetches up to 50 complete transcripts per call. Avoids N+1 pattern of listing IDs then fetching individually.
+- **Bulk query:** Use `transcripts` (plural) GraphQL query — fetches up to 50 transcripts per call. Avoids N+1 pattern.
+- **Business-only fields on bulk:** `transcript_url`, `audio_url`, `video_url` on the `transcripts` (plural) query require Business tier. These fields work fine on the singular `transcript(id)` query. All other fields (sentences, summary, analytics, attendance, ai_filters) work on all plans.
 - **Boot sync:** Runs once per day (checked via `system_config.last_boot_sync_at`). Beware: `uvicorn --reload` re-triggers lifespan on every file save during development.
 - **Webhook payload:** Only sends `{meetingId, eventType, clientReferenceId}` — no transcript data. Must call API to get details.
