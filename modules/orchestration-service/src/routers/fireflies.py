@@ -901,13 +901,16 @@ async def boot_sync_fireflies() -> None:
                     updated_count += 1
                 else:
                     new_count += 1
-            except Exception:
+            except Exception as e:
                 errors += 1
-                # Mark as failed so the meeting doesn't stay stuck at "syncing"
+                # Mark failed with retry tracking (exponential backoff)
+                is_rate_limit = "rate" in str(e).lower() or "429" in str(e)
                 try:
                     stuck = meeting or await store.get_meeting_by_ff_id(ff_id)
                     if stuck:
-                        await store.update_sync_status(str(stuck["id"]), "failed")
+                        await store.mark_sync_failed(
+                            str(stuck["id"]), str(e), is_rate_limit=is_rate_limit,
+                        )
                 except Exception:
                     pass  # best-effort status update
                 logger.warning(
@@ -923,6 +926,20 @@ async def boot_sync_fireflies() -> None:
                ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()""",
             datetime.now(UTC).isoformat(),
         )
+
+        # Clean up stuck syncing meetings and retry eligible failures
+        cleaned = await store.cleanup_stuck_syncing(older_than_minutes=30)
+        retryable = await store.get_retryable_meetings(limit=10)
+        retried_ok = 0
+        for meeting in retryable:
+            ff_id_r = meeting.get("fireflies_transcript_id")
+            if not ff_id_r:
+                continue
+            try:
+                await _download_meeting_data(ff_id_r, known_meeting_id=str(meeting["id"]))
+                retried_ok += 1
+            except Exception:
+                logger.warning("boot_retry_failed", ff_id=ff_id_r, exc_info=True)
     finally:
         await store.close()
 
@@ -933,6 +950,9 @@ async def boot_sync_fireflies() -> None:
         updated=updated_count,
         already_synced=already_synced,
         errors=errors,
+        cleaned_stuck=cleaned,
+        retried=len(retryable),
+        retried_ok=retried_ok,
         api_calls=len(all_transcripts) // 50 + 1,
     )
 
@@ -1685,92 +1705,116 @@ async def _store_transcript_to_db(
             status="completed",
         )
 
-    # Mark sync in progress
+    # Mark sync in progress (outside transaction — visible to other queries immediately)
     await store.update_sync_status(meeting_db_id, "syncing")
 
-    # Store all structured insights
-    for insight in insights:
-        await store.store_insight(
-            meeting_id=meeting_db_id,
-            insight_type=insight["type"],
-            content=insight["content"],
-            source="fireflies",
-        )
+    # All data inserts happen inside a single transaction for atomicity.
+    # If any insert fails, the entire batch rolls back — no orphaned data.
+    import json as _json
 
-    # Store sentences with ai_filters
-    for sentence in sentences:
-        sentence_id = await store.store_sentence(
-            meeting_id=meeting_db_id,
-            text=sentence.get("text", ""),
-            speaker_name=sentence.get("speaker_name", "Unknown"),
-            start_time=float(sentence.get("start_time", 0)),
-            end_time=float(sentence.get("end_time", 0)),
-            boundary_type="fireflies_download",
-        )
-        if sentence.get("ai_filters"):
-            await store.store_insight(
-                meeting_id=meeting_db_id,
-                insight_type="sentence_ai_filter",
-                content={
-                    "sentence_id": sentence_id,
-                    "filters": sentence["ai_filters"],
-                },
-                source="fireflies",
+    async with store.transaction() as conn:
+        # Store all structured insights
+        for insight in insights:
+            content_json = _json.dumps(insight["content"])
+            await conn.execute(
+                """INSERT INTO meeting_data_insights (id, meeting_id, insight_type, content, source)
+                   VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, 'fireflies')""",
+                str(uuid.uuid4()), meeting_db_id, insight["type"], content_json,
             )
 
-    # Store speaker analytics from insights blob
-    for insight in insights:
-        if insight.get("type") == "speaker_analytics":
-            for speaker_data in insight.get("content") or []:
-                if isinstance(speaker_data, dict):
-                    await store.store_speaker(
-                        meeting_id=meeting_db_id,
-                        speaker_name=speaker_data.get("name", "Unknown"),
-                        talk_time_seconds=float(speaker_data.get("duration", 0)),
-                        word_count=int(speaker_data.get("word_count", 0)),
-                        analytics=speaker_data,
+        # Store sentences with ai_filters
+        for sentence in sentences:
+            sentence_id = str(uuid.uuid4())
+            await conn.execute(
+                """INSERT INTO meeting_sentences (id, meeting_id, text, speaker_name,
+                                                   start_time, end_time, boundary_type, chunk_ids)
+                   VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, 'fireflies_download', '[]'::jsonb)""",
+                sentence_id, meeting_db_id,
+                sentence.get("text", ""),
+                sentence.get("speaker_name", "Unknown"),
+                float(sentence.get("start_time", 0)),
+                float(sentence.get("end_time", 0)),
+            )
+            if sentence.get("ai_filters"):
+                ai_content = _json.dumps({
+                    "sentence_id": sentence_id,
+                    "filters": sentence["ai_filters"],
+                })
+                await conn.execute(
+                    """INSERT INTO meeting_data_insights (id, meeting_id, insight_type, content, source)
+                       VALUES ($1::uuid, $2::uuid, 'sentence_ai_filter', $3::jsonb, 'fireflies')""",
+                    str(uuid.uuid4()), meeting_db_id, ai_content,
+                )
+
+        # Store speaker analytics from insights blob
+        for insight in insights:
+            if insight.get("type") == "speaker_analytics":
+                for speaker_data in insight.get("content") or []:
+                    if isinstance(speaker_data, dict):
+                        analytics_json = _json.dumps(speaker_data)
+                        await conn.execute(
+                            """INSERT INTO meeting_speakers (id, meeting_id, speaker_name, email,
+                                                             talk_time_seconds, word_count, sentiment_score, analytics)
+                               VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb)
+                               ON CONFLICT (meeting_id, speaker_name) DO UPDATE SET
+                                   talk_time_seconds = EXCLUDED.talk_time_seconds,
+                                   word_count = EXCLUDED.word_count,
+                                   analytics = EXCLUDED.analytics""",
+                            str(uuid.uuid4()), meeting_db_id,
+                            speaker_data.get("name", "Unknown"),
+                            speaker_data.get("email"),
+                            float(speaker_data.get("duration", 0)),
+                            int(speaker_data.get("word_count", 0)),
+                            None,
+                            analytics_json,
+                        )
+
+        # Store summary sub-fields as individual insights
+        if summary and isinstance(summary, dict):
+            for insight_type in [
+                "overview", "action_items", "outline", "keywords", "shorthand_bullet",
+            ]:
+                sub_content = summary.get(insight_type)
+                if sub_content:
+                    content_val = (
+                        {"text": sub_content} if isinstance(sub_content, str) else sub_content
+                    )
+                    await conn.execute(
+                        """INSERT INTO meeting_data_insights (id, meeting_id, insight_type, content, source)
+                           VALUES ($1::uuid, $2::uuid, $3, $4::jsonb, 'fireflies')""",
+                        str(uuid.uuid4()), meeting_db_id, insight_type, _json.dumps(content_val),
                     )
 
-    # Store summary sub-fields as individual insights
-    if summary and isinstance(summary, dict):
-        for insight_type in [
-            "overview",
-            "action_items",
-            "outline",
-            "keywords",
-            "shorthand_bullet",
-        ]:
-            content = summary.get(insight_type)
-            if content:
-                await store.store_insight(
-                    meeting_id=meeting_db_id,
-                    insight_type=insight_type,
-                    content=(
-                        {"text": content} if isinstance(content, str) else content
-                    ),
-                    source="fireflies",
-                )
+        # Store speakers from analytics blob
+        raw_analytics = transcript.get("analytics", {})
+        if raw_analytics and isinstance(raw_analytics, dict):
+            for speaker_data in raw_analytics.get("speakers", []):
+                if isinstance(speaker_data, dict):
+                    sentiment = speaker_data.get("sentiment")
+                    sentiment_score = (
+                        sentiment.get("score") if isinstance(sentiment, dict) else None
+                    )
+                    analytics_json = _json.dumps(speaker_data)
+                    await conn.execute(
+                        """INSERT INTO meeting_speakers (id, meeting_id, speaker_name, email,
+                                                         talk_time_seconds, word_count, sentiment_score, analytics)
+                           VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::jsonb)
+                           ON CONFLICT (meeting_id, speaker_name) DO UPDATE SET
+                               email = COALESCE(EXCLUDED.email, meeting_speakers.email),
+                               talk_time_seconds = EXCLUDED.talk_time_seconds,
+                               word_count = EXCLUDED.word_count,
+                               sentiment_score = EXCLUDED.sentiment_score,
+                               analytics = COALESCE(EXCLUDED.analytics, meeting_speakers.analytics)""",
+                        str(uuid.uuid4()), meeting_db_id,
+                        speaker_data.get("name", "Unknown"),
+                        speaker_data.get("email"),
+                        float(speaker_data.get("talk_time", 0)),
+                        int(speaker_data.get("word_count", 0)),
+                        sentiment_score,
+                        analytics_json,
+                    )
 
-    # Store speakers from analytics blob
-    analytics = transcript.get("analytics", {})
-    if analytics and isinstance(analytics, dict):
-        for speaker_data in analytics.get("speakers", []):
-            if isinstance(speaker_data, dict):
-                sentiment = speaker_data.get("sentiment")
-                sentiment_score = (
-                    sentiment.get("score") if isinstance(sentiment, dict) else None
-                )
-                await store.store_speaker(
-                    meeting_id=meeting_db_id,
-                    speaker_name=speaker_data.get("name", "Unknown"),
-                    email=speaker_data.get("email"),
-                    talk_time_seconds=float(speaker_data.get("talk_time", 0)),
-                    word_count=int(speaker_data.get("word_count", 0)),
-                    sentiment_score=sentiment_score,
-                    analytics=speaker_data,
-                )
-
-    # Mark sync complete with media URLs
+    # Mark sync complete with media URLs (outside transaction — only after success)
     await store.update_sync_status(
         meeting_db_id,
         "synced",
@@ -1845,25 +1889,24 @@ async def _download_meeting_data(
             await store.close()
 
     except Exception as e:
-        # Attempt to mark sync as failed in the database
+        # Attempt to mark sync as failed with retry tracking
+        is_rate_limit = "rate" in str(e).lower() or "429" in str(e)
         try:
             _db_url = os.environ.get("DATABASE_URL", "")
             if _db_url:
                 _err_store = MeetingStore(_db_url)
                 await _err_store.initialize()
                 try:
-                    if known_meeting_id:
-                        await _err_store.update_sync_status(
-                            known_meeting_id, "failed", sync_error=str(e)
-                        )
-                    else:
+                    _mid = known_meeting_id
+                    if not _mid:
                         _meeting = await _err_store.get_meeting_by_ff_id(
                             fireflies_transcript_id
                         )
-                        if _meeting:
-                            await _err_store.update_sync_status(
-                                str(_meeting["id"]), "failed", sync_error=str(e)
-                            )
+                        _mid = str(_meeting["id"]) if _meeting else None
+                    if _mid:
+                        await _err_store.mark_sync_failed(
+                            _mid, str(e), is_rate_limit=is_rate_limit,
+                        )
                 finally:
                     await _err_store.close()
         except Exception:
@@ -2198,13 +2241,16 @@ async def sync_all_transcripts(
                 try:
                     await _store_transcript_to_db(transcript, store)
                     synced += 1
-                except Exception:
+                except Exception as e:
                     errors += 1
-                    # Mark as failed so the meeting doesn't stay stuck at "syncing"
+                    # Mark failed with retry tracking (exponential backoff)
+                    is_rate_limit = "rate" in str(e).lower() or "429" in str(e)
                     try:
                         stuck = meeting or await store.get_meeting_by_ff_id(ff_id)
                         if stuck:
-                            await store.update_sync_status(str(stuck["id"]), "failed")
+                            await store.mark_sync_failed(
+                                str(stuck["id"]), str(e), is_rate_limit=is_rate_limit,
+                            )
                     except Exception:
                         pass  # best-effort status update
                     logger.warning(
@@ -2256,6 +2302,131 @@ async def get_sync_status() -> dict[str, Any]:
                 "updated_at": str(row["updated_at"]) if row["updated_at"] else None,
             }
         return {"last_sync_at": None, "message": "No sync has run yet"}
+    finally:
+        await store.close()
+
+
+@router.post(
+    "/retry-failed",
+    summary="Retry failed meeting syncs",
+    description="Retries all meetings in 'failed' state that are under the retry limit "
+    "and past their backoff window. Uses exponential backoff.",
+)
+async def retry_failed_meetings() -> dict[str, Any]:
+    """Retry eligible failed meetings with exponential backoff."""
+    db_url = os.environ.get("DATABASE_URL", "")
+    api_key = os.environ.get("FIREFLIES_API_KEY", "")
+    if not db_url or not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="DATABASE_URL and FIREFLIES_API_KEY required",
+        )
+
+    store = MeetingStore(db_url)
+    await store.initialize()
+    try:
+        # Clean up any stuck syncing meetings first
+        cleaned = await store.cleanup_stuck_syncing(older_than_minutes=30)
+
+        retryable = await store.get_retryable_meetings(limit=20)
+        if not retryable:
+            return {
+                "retried": 0,
+                "succeeded": 0,
+                "failed_again": 0,
+                "cleaned_stuck": cleaned,
+                "message": "No meetings eligible for retry",
+            }
+
+        succeeded = 0
+        failed_again = 0
+        for meeting in retryable:
+            ff_id = meeting.get("fireflies_transcript_id")
+            mid = str(meeting["id"])
+            if not ff_id:
+                continue
+            try:
+                await _download_meeting_data(ff_id, known_meeting_id=mid)
+                succeeded += 1
+            except Exception:
+                failed_again += 1
+                logger.warning(
+                    "retry_failed_again", meeting_id=mid, ff_id=ff_id, exc_info=True,
+                )
+
+        return {
+            "retried": len(retryable),
+            "succeeded": succeeded,
+            "failed_again": failed_again,
+            "cleaned_stuck": cleaned,
+        }
+    finally:
+        await store.close()
+
+
+@router.post(
+    "/reset/{meeting_id}",
+    summary="Reset a meeting for full re-sync",
+    description="Clears all sentences, insights, and speakers for a meeting "
+    "then resets its sync status so it will be re-synced on the next sync-all.",
+)
+async def reset_meeting(meeting_id: str) -> dict[str, Any]:
+    """Reset a meeting's synced data so it can be re-synced from scratch."""
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        raise HTTPException(status_code=500, detail="DATABASE_URL not configured")
+
+    store = MeetingStore(db_url)
+    await store.initialize()
+    try:
+        found = await store.reset_meeting_for_resync(meeting_id)
+        if not found:
+            raise HTTPException(status_code=404, detail=f"Meeting {meeting_id} not found")
+        return {"meeting_id": meeting_id, "status": "reset", "message": "Ready for re-sync"}
+    finally:
+        await store.close()
+
+
+@router.get(
+    "/failed",
+    summary="List failed and retryable meetings",
+    description="Returns meetings that failed to sync, including retry count and next retry time.",
+)
+async def list_failed_meetings() -> dict[str, Any]:
+    """List meetings with failed sync status."""
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        raise HTTPException(status_code=500, detail="DATABASE_URL not configured")
+
+    store = MeetingStore(db_url)
+    await store.initialize()
+    try:
+        rows = await store._pool.fetch(
+            """SELECT id, title, fireflies_transcript_id, sync_status, sync_error,
+                      retry_count, last_retry_at, next_retry_at
+               FROM meetings
+               WHERE sync_status = 'failed'
+               ORDER BY next_retry_at ASC NULLS FIRST
+               LIMIT 100"""
+        )
+        meetings = []
+        max_retries = MeetingStore._MAX_RETRIES
+        for r in rows:
+            m = dict(r)
+            m["id"] = str(m["id"])
+            m["retryable"] = (
+                m["retry_count"] < max_retries
+                and (m["next_retry_at"] is None or m["next_retry_at"] <= datetime.now(UTC))
+            )
+            m["last_retry_at"] = str(m["last_retry_at"]) if m["last_retry_at"] else None
+            m["next_retry_at"] = str(m["next_retry_at"]) if m["next_retry_at"] else None
+            meetings.append(m)
+        return {
+            "total": len(meetings),
+            "retryable": sum(1 for m in meetings if m["retryable"]),
+            "exhausted": sum(1 for m in meetings if not m["retryable"]),
+            "meetings": meetings,
+        }
     finally:
         await store.close()
 

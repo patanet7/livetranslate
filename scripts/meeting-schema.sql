@@ -35,7 +35,18 @@ CREATE TABLE IF NOT EXISTS meetings (
     source                  TEXT NOT NULL DEFAULT 'fireflies',
     status                  TEXT NOT NULL DEFAULT 'live',      -- live, completed, error, archived
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    -- Sync & media columns (migration 006)
+    audio_url               TEXT,
+    video_url               TEXT,
+    transcript_url          TEXT,
+    sync_status             TEXT NOT NULL DEFAULT 'none',        -- none|live|syncing|synced|failed
+    sync_error              TEXT,
+    synced_at               TIMESTAMPTZ,
+    -- Retry tracking columns (migration 009)
+    retry_count             INTEGER NOT NULL DEFAULT 0,
+    last_retry_at           TIMESTAMPTZ,
+    next_retry_at           TIMESTAMPTZ
 );
 
 -- ============================================================================
