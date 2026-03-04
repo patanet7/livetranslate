@@ -901,6 +901,27 @@ async def boot_sync_fireflies() -> None:
                     updated_count += 1
                 else:
                     new_count += 1
+
+                # Auto-trigger diarization if rules match
+                try:
+                    from services.diarization.auto_trigger import maybe_trigger_diarization
+                    from models.diarization import DiarizationRules
+                    _synced_meeting = await store.get_meeting_by_ff_id(ff_id)
+                    if _synced_meeting:
+                        _meeting_meta = {
+                            "id": _synced_meeting["id"],
+                            "title": transcript.get("title", ""),
+                            "participants": transcript.get("participants") or [],
+                            "duration": int((transcript.get("duration") or 0)),
+                            "sentence_count": len(transcript.get("sentences") or []),
+                        }
+                        # TODO: Read rules from system_config table
+                        # For now, use defaults (disabled) — will be enabled via dashboard
+                        await maybe_trigger_diarization(
+                            _meeting_meta, DiarizationRules(), None
+                        )
+                except Exception:
+                    pass  # Diarization not available — skip silently
             except Exception as e:
                 errors += 1
                 # Mark failed with retry tracking (exponential backoff)
@@ -1884,7 +1905,30 @@ async def _download_meeting_data(
         store = MeetingStore(db_url)
         await store.initialize()
         try:
-            await _store_transcript_to_db(result["transcript"], store)
+            _transcript_data = result["transcript"]
+            await _store_transcript_to_db(_transcript_data, store)
+
+            # Auto-trigger diarization if rules match
+            try:
+                from services.diarization.auto_trigger import maybe_trigger_diarization
+                from models.diarization import DiarizationRules
+                _ff_id = _transcript_data.get("id", fireflies_transcript_id)
+                _synced_meeting = await store.get_meeting_by_ff_id(_ff_id)
+                if _synced_meeting:
+                    _meeting_meta = {
+                        "id": _synced_meeting["id"],
+                        "title": _transcript_data.get("title", ""),
+                        "participants": _transcript_data.get("participants") or [],
+                        "duration": int((_transcript_data.get("duration") or 0)),
+                        "sentence_count": len(_transcript_data.get("sentences") or []),
+                    }
+                    # TODO: Read rules from system_config table
+                    # For now, use defaults (disabled) — will be enabled via dashboard
+                    await maybe_trigger_diarization(
+                        _meeting_meta, DiarizationRules(), None
+                    )
+            except Exception:
+                pass  # Diarization not available — skip silently
         finally:
             await store.close()
 
