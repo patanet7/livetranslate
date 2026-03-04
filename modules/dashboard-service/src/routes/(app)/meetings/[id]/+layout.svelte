@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import * as Select from '$lib/components/ui/select';
 	import SyncBadge from '$lib/components/meetings/SyncBadge.svelte';
 
 	let { data, children } = $props();
@@ -10,6 +11,13 @@
 
 	let syncingMeeting = $state(false);
 	let syncMsg = $state('');
+
+	// ── Bot state ──────────────────────────────────────────────────────
+	let sendingBot = $state(false);
+	let botConnectionId = $state<string | null>(null);
+	let botStatus = $state<string | null>(null);
+	let botStatusInterval = $state<ReturnType<typeof setInterval> | null>(null);
+	let selectedLanguage = $state<string>('auto');
 
 	const needsSync = $derived(
 		meeting.source === 'fireflies' &&
@@ -55,6 +63,70 @@
 		const m = Math.floor(seconds / 60);
 		return m > 0 ? `${m} min` : `${seconds}s`;
 	}
+
+	// ── Bot management ─────────────────────────────────────────────────
+	async function handleSendBot() {
+		if (!meeting.meeting_link) return;
+		sendingBot = true;
+		try {
+			const res = await fetch('/api/bot/start', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					meeting_url: meeting.meeting_link,
+					user_token: 'dashboard',
+					user_id: 'dashboard-user',
+					language: selectedLanguage === 'auto' ? 'en' : selectedLanguage,
+					task: 'transcribe',
+					enable_virtual_webcam: false,
+					metadata: {
+						meeting_id: meeting.id,
+						meeting_title: meeting.title,
+						source: 'dashboard',
+						auto_language: selectedLanguage === 'auto'
+					}
+				})
+			});
+			const result = await res.json();
+			if (res.ok && result.connection_id) {
+				botConnectionId = result.connection_id;
+				botStatus = 'spawning';
+				window.open(meeting.meeting_link, '_blank');
+				startBotStatusPolling(result.connection_id);
+			} else {
+				botStatus = 'error';
+				syncMsg = `Bot failed: ${result.detail ?? result.error ?? 'Unknown error'}`;
+			}
+		} catch (err) {
+			botStatus = 'error';
+			syncMsg = `Bot failed: ${err instanceof Error ? err.message : 'Network error'}`;
+		} finally {
+			sendingBot = false;
+		}
+	}
+
+	function startBotStatusPolling(connectionId: string) {
+		if (botStatusInterval) clearInterval(botStatusInterval);
+		let polls = 0;
+		botStatusInterval = setInterval(async () => {
+			if (++polls > 100) { stopBotPolling(); return; }
+			try {
+				const res = await fetch(`/api/bot/${connectionId}/status`);
+				if (!res.ok) return;
+				const data = await res.json();
+				botStatus = data.status;
+				if (['completed', 'failed', 'stopped', 'error'].includes(data.status)) {
+					stopBotPolling();
+				}
+			} catch { /* ignore polling errors */ }
+		}, 3000);
+	}
+
+	function stopBotPolling() {
+		if (botStatusInterval) { clearInterval(botStatusInterval); botStatusInterval = null; }
+	}
+
+	$effect(() => { return () => stopBotPolling(); });
 </script>
 
 <!-- Meeting Header -->
@@ -97,10 +169,59 @@
 					View Live
 				</Button>
 			{/if}
+
+			{#if meeting.meeting_link}
+				<Select.Root type="single" bind:value={selectedLanguage}>
+					<Select.Trigger size="sm" class="w-28 text-xs">
+						{selectedLanguage === 'auto' ? 'Auto Lang' : selectedLanguage.toUpperCase()}
+					</Select.Trigger>
+					<Select.Content>
+						<Select.Item value="auto" label="Auto (detect)">Auto (detect)</Select.Item>
+						<Select.Item value="en" label="English">English</Select.Item>
+						<Select.Item value="zh" label="Chinese">Chinese</Select.Item>
+						<Select.Item value="es" label="Spanish">Spanish</Select.Item>
+						<Select.Item value="fr" label="French">French</Select.Item>
+						<Select.Item value="de" label="German">German</Select.Item>
+						<Select.Item value="ja" label="Japanese">Japanese</Select.Item>
+						<Select.Item value="ko" label="Korean">Korean</Select.Item>
+					</Select.Content>
+				</Select.Root>
+
+				<Button
+					variant="default"
+					size="sm"
+					onclick={handleSendBot}
+					disabled={sendingBot || botStatus === 'spawning' || botStatus === 'active'}
+				>
+					{#if sendingBot}
+						Sending...
+					{:else if botStatus === 'spawning'}
+						Bot Joining...
+					{:else if botStatus === 'active'}
+						Bot Active
+					{:else}
+						Send Bot
+					{/if}
+				</Button>
+			{/if}
 		</div>
 	</div>
 	{#if syncMsg}
 		<div class="mt-2 rounded-md border px-4 py-2 text-sm" role="status">{syncMsg}</div>
+	{/if}
+	{#if botStatus && botStatus !== 'error'}
+		<div class="mt-2 flex items-center gap-2 rounded-md border px-4 py-2 text-sm">
+			<Badge variant={botStatus === 'active' ? 'default' : 'secondary'}
+				class={botStatus === 'active' ? 'bg-green-600' : botStatus === 'spawning' ? 'animate-pulse bg-yellow-600' : ''}>
+				{botStatus}
+			</Badge>
+			<span>
+				{#if botStatus === 'spawning'}Bot starting up and joining the meeting...
+				{:else if botStatus === 'active'}Bot is active in the meeting.
+				{:else if botStatus === 'completed'}Bot has left the meeting.
+				{:else}Bot: {botStatus}{/if}
+			</span>
+		</div>
 	{/if}
 </div>
 
