@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import UTC, datetime
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from livetranslate_common.logging import get_logger
@@ -48,6 +49,165 @@ class MeetingStore:
         """Ensure connection pool exists."""
         if self._pool is None:
             await self.initialize()
+
+    @asynccontextmanager
+    async def transaction(self):
+        """Yield an asyncpg connection inside a transaction.
+
+        Usage::
+
+            async with store.transaction() as conn:
+                await conn.execute("INSERT ...")
+                await conn.execute("INSERT ...")
+                # auto-committed on exit, rolled back on exception
+        """
+        await self._ensure_pool()
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                yield conn
+
+    # ------------------------------------------------------------------ #
+    # Retry helpers
+    # ------------------------------------------------------------------ #
+
+    # Backoff schedule: base delay × 3^retry_count
+    _BACKOFF_BASE_SECS = 300  # 5 minutes
+    _BACKOFF_RATE_LIMIT_BASE_SECS = 3600  # 1 hour for rate-limit errors
+    _MAX_RETRIES = 3
+
+    @staticmethod
+    def compute_next_retry_at(
+        retry_count: int, is_rate_limit: bool = False
+    ) -> datetime | None:
+        """Compute next retry time using exponential backoff.
+
+        Normal errors:     5min → 15min → 45min  (base × 3^n)
+        Rate-limit errors: 1hr  → 4hr  → 12hr    (base × 4^n but capped)
+
+        Returns None if retry_count >= MAX_RETRIES (no more retries).
+        """
+        if retry_count >= MeetingStore._MAX_RETRIES:
+            return None  # exhausted
+        if is_rate_limit:
+            delay = MeetingStore._BACKOFF_RATE_LIMIT_BASE_SECS * (4 ** retry_count)
+        else:
+            delay = MeetingStore._BACKOFF_BASE_SECS * (3 ** retry_count)
+        return datetime.now(UTC) + timedelta(seconds=delay)
+
+    async def mark_sync_failed(
+        self,
+        meeting_id: str,
+        error_msg: str,
+        is_rate_limit: bool = False,
+    ) -> None:
+        """Mark a meeting sync as failed with retry tracking.
+
+        Increments retry_count, sets sync_error, and computes next_retry_at
+        using exponential backoff. If retries exhausted, next_retry_at is NULL.
+        """
+        await self._ensure_pool()
+        row = await self._pool.fetchrow(
+            "SELECT retry_count FROM meetings WHERE id = $1::uuid",
+            meeting_id,
+        )
+        current_count = row["retry_count"] if row else 0
+        new_count = current_count + 1
+        next_retry = self.compute_next_retry_at(new_count, is_rate_limit)
+
+        await self._pool.execute(
+            """UPDATE meetings
+               SET sync_status = 'failed',
+                   sync_error = $2,
+                   retry_count = $3,
+                   last_retry_at = NOW(),
+                   next_retry_at = $4
+               WHERE id = $1::uuid""",
+            meeting_id,
+            error_msg[:500],  # truncate long errors
+            new_count,
+            next_retry,
+        )
+        logger.info(
+            "meeting_sync_marked_failed",
+            meeting_id=meeting_id,
+            retry_count=new_count,
+            next_retry_at=next_retry.isoformat() if next_retry else "exhausted",
+            is_rate_limit=is_rate_limit,
+        )
+
+    async def get_retryable_meetings(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Get meetings eligible for retry (failed, under max retries, past backoff)."""
+        await self._ensure_pool()
+        rows = await self._pool.fetch(
+            """SELECT id, fireflies_transcript_id, title, retry_count,
+                      sync_error, next_retry_at
+               FROM meetings
+               WHERE sync_status = 'failed'
+                 AND retry_count < $1
+                 AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+               ORDER BY next_retry_at ASC NULLS FIRST
+               LIMIT $2""",
+            self._MAX_RETRIES,
+            limit,
+        )
+        return [dict(r) for r in rows]
+
+    async def reset_meeting_for_resync(self, meeting_id: str) -> bool:
+        """Clear all synced data for a meeting and reset to 'none' for re-sync.
+
+        Deletes sentences, insights, and speakers, then resets sync columns.
+        Returns True if the meeting existed.
+        """
+        await self._ensure_pool()
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT id FROM meetings WHERE id = $1::uuid", meeting_id
+                )
+                if not row:
+                    return False
+                # CASCADE would handle this, but explicit is clearer
+                await conn.execute(
+                    "DELETE FROM meeting_sentences WHERE meeting_id = $1::uuid",
+                    meeting_id,
+                )
+                await conn.execute(
+                    "DELETE FROM meeting_data_insights WHERE meeting_id = $1::uuid",
+                    meeting_id,
+                )
+                await conn.execute(
+                    "DELETE FROM meeting_speakers WHERE meeting_id = $1::uuid",
+                    meeting_id,
+                )
+                await conn.execute(
+                    """UPDATE meetings
+                       SET sync_status = 'none', sync_error = NULL,
+                           retry_count = 0, last_retry_at = NULL,
+                           next_retry_at = NULL, synced_at = NULL
+                       WHERE id = $1::uuid""",
+                    meeting_id,
+                )
+        logger.info("meeting_reset_for_resync", meeting_id=meeting_id)
+        return True
+
+    async def cleanup_stuck_syncing(self, older_than_minutes: int = 30) -> int:
+        """Mark meetings stuck in 'syncing' for longer than threshold as 'failed'.
+
+        Returns the number of meetings cleaned up.
+        """
+        await self._ensure_pool()
+        result = await self._pool.execute(
+            """UPDATE meetings
+               SET sync_status = 'failed',
+                   sync_error = 'Stuck in syncing state (auto-cleanup)'
+               WHERE sync_status = 'syncing'
+                 AND updated_at < NOW() - ($1 || ' minutes')::interval""",
+            str(older_than_minutes),
+        )
+        count = int(result.split()[-1]) if result else 0
+        if count:
+            logger.info("stuck_syncing_cleaned_up", count=count, threshold_minutes=older_than_minutes)
+        return count
 
     # ------------------------------------------------------------------ #
     # Meeting CRUD

@@ -14,11 +14,11 @@ Work from plan.md in modules. Keep it up to date as you continue to work, update
 - **`down_revision` must exactly match the parent's `revision` value** — not the filename, not a human-friendly label. Check with `grep -n "^revision\|^down_revision" alembic/versions/*.py` before creating new migrations.
 - **Use `alembic history` and `alembic current`** to verify chain health after changes.
 
-### Current Chain (9 migrations)
+### Current Chain (10 migrations)
 ```
 <base> → 001_initial → 5f3bcf8a26da → 002_session_id_nullable → 003_consolidate_glossaries
 → 004_meeting_intelligence → 005_fireflies_persistence → 006_meeting_sync_media
-→ 007_system_config_unique_ff → 008_chat_msg_speaker_cols (head)
+→ 007_system_config_unique_ff → 008_chat_msg_speaker_cols → 009_meeting_retry_cols (head)
 ```
 
 ### Naming Convention
