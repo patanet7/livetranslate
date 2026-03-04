@@ -1,0 +1,39 @@
+# VibeVoice-ASR vLLM Inference Server
+# Run on GPU box: docker compose -f docker/docker-compose.vibevoice.yml up -d
+#
+# Requires: NVIDIA GPU with 18+ GB VRAM (BF16) or 11+ GB (8-bit) or 7+ GB (4-bit)
+# Access: http://<gpu-box-ip>:8000/v1
+
+services:
+  vibevoice:
+    image: vllm/vllm-openai:v0.14.1
+    container_name: vibevoice-asr
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"
+    environment:
+      - VIBEVOICE_FFMPEG_MAX_CONCURRENCY=64
+      - PYTORCH_ALLOC_CONF=expandable_segments:True
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - vibevoice-models:/root/.cache/huggingface
+    ipc: host
+    entrypoint: bash
+    command: -c "pip install vibevoice && python3 -m vibevoice.vllm_plugin.scripts.start_server"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  vibevoice-models:
