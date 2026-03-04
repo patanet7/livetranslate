@@ -18,6 +18,9 @@
 	let syncing = $state(false);
 	let syncMessage = $state('');
 
+	// Sync status
+	let lastSyncAt = $state<string | null>(null);
+
 	// Invite Bot dialog state
 	let showInviteDialog = $state(false);
 	let inviteLink = $state('');
@@ -25,6 +28,16 @@
 	let inviteDuration = $state(60);
 	let inviting = $state(false);
 	let inviteMessage = $state('');
+
+	// Fetch sync status on mount
+	$effect(() => {
+		fetch('/api/fireflies/sync-status')
+			.then((r) => r.json())
+			.then((d) => {
+				lastSyncAt = d.last_sync_at ?? null;
+			})
+			.catch(() => {});
+	});
 
 	const filtered = $derived(
 		statusFilter === 'all'
@@ -50,10 +63,26 @@
 			});
 			const result = await res.json();
 			if (res.ok) {
-				syncMessage = `Synced ${result.synced} meetings (${result.skipped} already up-to-date)`;
+				const parts = [`Synced ${result.synced} meetings`];
+				if (result.skipped) parts.push(`${result.skipped} already up-to-date`);
+				if (result.errors) parts.push(`${result.errors} errors`);
+				parts.push(`${result.api_calls_used ?? '?'} API calls used`);
+				syncMessage = parts.join(' · ');
+				lastSyncAt = new Date().toISOString();
 				await invalidateAll();
+			} else if (res.status === 429) {
+				const detail = result.detail;
+				const retryAfter =
+					typeof detail === 'object' ? detail?.retry_after : null;
+				syncMessage = retryAfter
+					? `Rate limited — resets ${retryAfter}`
+					: `Rate limited — try again later`;
 			} else {
-				syncMessage = `Sync failed: ${result.detail ?? result.error ?? 'Unknown error'}`;
+				const msg =
+					typeof result.detail === 'string'
+						? result.detail
+						: result.detail?.message ?? result.error ?? 'Unknown error';
+				syncMessage = `Sync failed: ${msg}`;
 			}
 		} catch (err) {
 			syncMessage = `Sync failed: ${err instanceof Error ? err.message : 'Network error'}`;
@@ -117,13 +146,18 @@
 <PageHeader title="Meetings" description="Browse all meeting transcripts, translations, and insights" />
 
 <!-- Action Buttons -->
-<div class="mb-4 flex flex-wrap gap-2">
+<div class="mb-4 flex flex-wrap items-center gap-2">
 	<Button variant="outline" onclick={handleSyncAll} disabled={syncing}>
 		{syncing ? 'Syncing...' : 'Sync from Fireflies'}
 	</Button>
 	<Button variant="outline" onclick={() => (showInviteDialog = !showInviteDialog)}>
 		Invite Bot
 	</Button>
+	{#if lastSyncAt}
+		<span class="text-xs text-muted-foreground">
+			Last synced: {formatDate(lastSyncAt)}
+		</span>
+	{/if}
 </div>
 
 <!-- Toast messages -->

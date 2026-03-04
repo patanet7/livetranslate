@@ -63,16 +63,27 @@ class MeetingStore:
         source: str = "fireflies",
         status: str = "live",
     ) -> str:
-        """Create a new meeting record. Returns meeting UUID."""
+        """Create a new meeting record. Returns meeting UUID.
+
+        If a meeting with the same fireflies_transcript_id already exists
+        (unique constraint), returns the existing meeting's ID instead of
+        crashing — handles race conditions between concurrent sync tasks.
+        """
         await self._ensure_pool()
         meeting_id = str(uuid.uuid4())
         participants_json = json.dumps(participants or [])
 
-        await self._pool.execute(
+        row = await self._pool.fetchrow(
             """
             INSERT INTO meetings (id, fireflies_transcript_id, title, meeting_link,
                                   organizer_email, participants, source, status, start_time)
             VALUES ($1::uuid, $2, $3, $4, $5, $6::jsonb, $7, $8, $9)
+            ON CONFLICT (fireflies_transcript_id)
+                WHERE fireflies_transcript_id IS NOT NULL
+            DO UPDATE SET title = COALESCE(EXCLUDED.title, meetings.title),
+                         meeting_link = COALESCE(EXCLUDED.meeting_link, meetings.meeting_link),
+                         organizer_email = COALESCE(EXCLUDED.organizer_email, meetings.organizer_email)
+            RETURNING id
             """,
             meeting_id,
             fireflies_transcript_id,
@@ -84,8 +95,12 @@ class MeetingStore:
             status,
             datetime.now(UTC),
         )
-        logger.info("meeting_created", meeting_id=meeting_id, source=source)
-        return meeting_id
+        actual_id = str(row["id"])
+        if actual_id != meeting_id:
+            logger.info("meeting_create_conflict_resolved", existing_id=actual_id, source=source)
+        else:
+            logger.info("meeting_created", meeting_id=actual_id, source=source)
+        return actual_id
 
     async def update_meeting(
         self,

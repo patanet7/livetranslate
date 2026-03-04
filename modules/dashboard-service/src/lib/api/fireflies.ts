@@ -38,10 +38,20 @@ export function firefliesApi(fetch: typeof globalThis.fetch) {
 			api.put('/fireflies/translation-config', config),
 
 		syncAll: (apiKey?: string) =>
-			api.post<{ synced: number; skipped: number; total: number }>(
-				'/fireflies/sync-all',
-				apiKey ? { api_key: apiKey } : {}
-			),
+			api.post<{
+				synced: number;
+				skipped: number;
+				errors: number;
+				total: number;
+				api_calls_used: number;
+			}>('/fireflies/sync-all', apiKey ? { api_key: apiKey } : {}),
+
+		getSyncStatus: () =>
+			api.get<{
+				last_sync_at: string | null;
+				updated_at?: string | null;
+				message?: string;
+			}>('/fireflies/sync-status'),
 
 		inviteBot: (meetingLink: string, title?: string, duration?: number) =>
 			api.post<{ success: boolean; message: string }>('/fireflies/invite-bot', {
