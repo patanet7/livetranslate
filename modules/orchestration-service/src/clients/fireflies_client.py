@@ -188,6 +188,7 @@ query TranscriptsFull($limit: Int, $skip: Int) {
         tasks
       }
       speakers {
+        name
         duration
         word_count
         longest_monologue
@@ -274,6 +275,7 @@ query TranscriptFull($id: String!) {
         tasks
       }
       speakers {
+        name
         duration
         word_count
         longest_monologue

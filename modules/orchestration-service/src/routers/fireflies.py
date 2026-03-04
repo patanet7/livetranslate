@@ -903,6 +903,13 @@ async def boot_sync_fireflies() -> None:
                     new_count += 1
             except Exception:
                 errors += 1
+                # Mark as failed so the meeting doesn't stay stuck at "syncing"
+                try:
+                    stuck = meeting or await store.get_meeting_by_ff_id(ff_id)
+                    if stuck:
+                        await store.update_sync_status(str(stuck["id"]), "failed")
+                except Exception:
+                    pass  # best-effort status update
                 logger.warning(
                     "boot_sync_transcript_failed",
                     ff_id=ff_id,
@@ -2193,6 +2200,13 @@ async def sync_all_transcripts(
                     synced += 1
                 except Exception:
                     errors += 1
+                    # Mark as failed so the meeting doesn't stay stuck at "syncing"
+                    try:
+                        stuck = meeting or await store.get_meeting_by_ff_id(ff_id)
+                        if stuck:
+                            await store.update_sync_status(str(stuck["id"]), "failed")
+                    except Exception:
+                        pass  # best-effort status update
                     logger.warning(
                         "sync_all_transcript_failed",
                         ff_id=ff_id,

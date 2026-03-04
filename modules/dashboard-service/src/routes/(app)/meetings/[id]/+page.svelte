@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { marked } from 'marked';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Card from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
@@ -122,6 +123,62 @@
 			}
 		}
 		return null;
+	}
+
+	/** Render markdown text to sanitised HTML. Content is from Fireflies API (trusted). */
+	function renderMarkdown(text: string): string {
+		if (!text) return '';
+		const html = marked.parse(text, { async: false }) as string;
+		// Strip <script> tags as a defence-in-depth precaution
+		return html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+	}
+
+	/** Extract ai_filters stats (tasks, metrics, questions, date_times). */
+	function getAiFilters(insight: MeetingInsight): { label: string; value: number }[] | null {
+		const c = insight.content;
+		if (typeof c !== 'object' || c === null || Array.isArray(c)) return null;
+		const obj = c as Record<string, unknown>;
+		const labels: Record<string, string> = {
+			tasks: 'Tasks',
+			metrics: 'Metrics',
+			questions: 'Questions',
+			date_times: 'Date/Times',
+			prices: 'Prices'
+		};
+		const items: { label: string; value: number }[] = [];
+		for (const [key, label] of Object.entries(labels)) {
+			if (key in obj && typeof obj[key] === 'number' && (obj[key] as number) > 0) {
+				items.push({ label, value: obj[key] as number });
+			}
+		}
+		return items.length > 0 ? items : null;
+	}
+
+	/** Extract attendance data (attendees list with join/leave times). */
+	function getAttendance(
+		insight: MeetingInsight
+	): { attendees: string[]; attendance: { name: string; join_time: string; leave_time: string }[] } | null {
+		const c = insight.content;
+		if (typeof c !== 'object' || c === null || Array.isArray(c)) return null;
+		const obj = c as Record<string, unknown>;
+		if (!('attendees' in obj) && !('attendance' in obj)) return null;
+		return {
+			attendees: Array.isArray(obj.attendees) ? obj.attendees.map(String) : [],
+			attendance: Array.isArray(obj.attendance)
+				? (obj.attendance as { name: string; join_time: string; leave_time: string }[])
+				: []
+		};
+	}
+
+	/** Extract gist/short_summary from summary insight. */
+	function getSummaryGist(insight: MeetingInsight): { gist: string; shortSummary: string } | null {
+		const c = insight.content;
+		if (typeof c !== 'object' || c === null || Array.isArray(c)) return null;
+		const obj = c as Record<string, unknown>;
+		const gist = typeof obj.gist === 'string' ? obj.gist : '';
+		const shortSummary = typeof obj.short_summary === 'string' ? obj.short_summary : '';
+		if (!gist && !shortSummary) return null;
+		return { gist, shortSummary };
 	}
 
 	let generating = $state(false);
@@ -374,29 +431,63 @@
 							</Card.Content>
 						</Card.Root>
 					{:else}
-						<!-- Overview / Summary — full text paragraphs -->
-						{#each ['overview', 'summary'] as insightType}
-							{@const items = getInsightsByType(insightType)}
-							{#if items.length > 0}
-								<Card.Root>
-									<Card.Header>
-										<div class="flex items-center justify-between">
-											<Card.Title class="capitalize">{insightType}</Card.Title>
-											<Badge variant="outline" class="text-xs">{items[0].source}</Badge>
-										</div>
-									</Card.Header>
-									<Card.Content>
-										{#each items as insight (insight.id)}
-											<div class="prose prose-sm max-w-none whitespace-pre-wrap dark:prose-invert">
-												{getInsightText(insight)}
+						<!-- Summary — gist quote + short summary + markdown body -->
+						{@const summaryItems = getInsightsByType('summary')}
+						{#if summaryItems.length > 0}
+							<Card.Root>
+								<Card.Header>
+									<div class="flex items-center justify-between">
+										<Card.Title>Summary</Card.Title>
+										<Badge variant="outline" class="text-xs">{summaryItems[0].source}</Badge>
+									</div>
+								</Card.Header>
+								<Card.Content class="space-y-3">
+									{#each summaryItems as insight (insight.id)}
+										{@const gistData = getSummaryGist(insight)}
+										{#if gistData}
+											{#if gistData.gist}
+												<blockquote class="border-l-4 border-primary/40 pl-4 italic text-muted-foreground">
+													{gistData.gist}
+												</blockquote>
+											{/if}
+											{#if gistData.shortSummary}
+												<div class="prose prose-sm max-w-none dark:prose-invert">
+													{@html renderMarkdown(gistData.shortSummary)}
+												</div>
+											{/if}
+										{/if}
+										{@const text = getInsightText(insight)}
+										{#if text && (!gistData || (text !== gistData.gist && text !== gistData.shortSummary))}
+											<div class="prose prose-sm max-w-none dark:prose-invert">
+												{@html renderMarkdown(text)}
 											</div>
-										{/each}
-									</Card.Content>
-								</Card.Root>
-							{/if}
-						{/each}
+										{/if}
+									{/each}
+								</Card.Content>
+							</Card.Root>
+						{/if}
 
-						<!-- Action Items — bullet list -->
+						<!-- Overview — markdown rendered -->
+						{@const overviewItems = getInsightsByType('overview')}
+						{#if overviewItems.length > 0}
+							<Card.Root>
+								<Card.Header>
+									<div class="flex items-center justify-between">
+										<Card.Title>Overview</Card.Title>
+										<Badge variant="outline" class="text-xs">{overviewItems[0].source}</Badge>
+									</div>
+								</Card.Header>
+								<Card.Content>
+									{#each overviewItems as insight (insight.id)}
+										<div class="prose prose-sm max-w-none dark:prose-invert">
+											{@html renderMarkdown(getInsightText(insight))}
+										</div>
+									{/each}
+								</Card.Content>
+							</Card.Root>
+						{/if}
+
+						<!-- Action Items — markdown rendered -->
 						{@const actionItems = getInsightsByType('action_items')}
 						{#if actionItems.length > 0}
 							<Card.Root>
@@ -408,16 +499,9 @@
 								</Card.Header>
 								<Card.Content>
 									{#each actionItems as insight (insight.id)}
-										{@const items = getInsightItems(insight)}
-										{#if items.length > 0}
-											<ul class="list-disc space-y-1 pl-5 text-sm">
-												{#each items as item}
-													<li>{item}</li>
-												{/each}
-											</ul>
-										{:else}
-											<p class="whitespace-pre-wrap text-sm">{getInsightText(insight)}</p>
-										{/if}
+										<div class="prose prose-sm max-w-none dark:prose-invert">
+											{@html renderMarkdown(getInsightText(insight))}
+										</div>
 									{/each}
 								</Card.Content>
 							</Card.Root>
@@ -443,7 +527,7 @@
 							</Card.Root>
 						{/if}
 
-						<!-- Outline / Shorthand Bullet — structured list -->
+						<!-- Outline / Shorthand Bullet — markdown rendered -->
 						{#each ['outline', 'shorthand_bullet'] as insightType}
 							{@const items = getInsightsByType(insightType)}
 							{#if items.length > 0}
@@ -453,16 +537,9 @@
 									</Card.Header>
 									<Card.Content>
 										{#each items as insight (insight.id)}
-											{@const bullets = getInsightItems(insight)}
-											{#if bullets.length > 0}
-												<ul class="list-disc space-y-1 pl-5 text-sm">
-													{#each bullets as bullet}
-														<li>{bullet}</li>
-													{/each}
-												</ul>
-											{:else}
-												<p class="whitespace-pre-wrap text-sm">{getInsightText(insight)}</p>
-											{/if}
+											<div class="prose prose-sm max-w-none dark:prose-invert">
+												{@html renderMarkdown(getInsightText(insight))}
+											</div>
 										{/each}
 									</Card.Content>
 								</Card.Root>
@@ -508,8 +585,86 @@
 							</Card.Root>
 						{/if}
 
-						<!-- Decisions / other types — fallback text display -->
-						{#each ['decisions', 'questions', 'ai_filters'] as insightType}
+						<!-- AI Filters — stat badges -->
+						{@const aiFilterInsights = getInsightsByType('ai_filters')}
+						{#if aiFilterInsights.length > 0}
+							<Card.Root>
+								<Card.Header>
+									<Card.Title>AI Filters</Card.Title>
+								</Card.Header>
+								<Card.Content>
+									{#each aiFilterInsights as insight (insight.id)}
+										{@const filters = getAiFilters(insight)}
+										{#if filters}
+											<div class="flex flex-wrap gap-3">
+												{#each filters as f}
+													<div class="flex items-center gap-1.5 rounded-lg border px-3 py-2">
+														<span class="text-lg font-semibold">{f.value}</span>
+														<span class="text-sm text-muted-foreground">{f.label}</span>
+													</div>
+												{/each}
+											</div>
+										{:else}
+											<div class="prose prose-sm max-w-none dark:prose-invert">
+												{@html renderMarkdown(getInsightText(insight))}
+											</div>
+										{/if}
+									{/each}
+								</Card.Content>
+							</Card.Root>
+						{/if}
+
+						<!-- Attendance — attendee table -->
+						{@const attendanceInsights = getInsightsByType('attendance')}
+						{#if attendanceInsights.length > 0}
+							<Card.Root>
+								<Card.Header>
+									<Card.Title>Attendance</Card.Title>
+								</Card.Header>
+								<Card.Content>
+									{#each attendanceInsights as insight (insight.id)}
+										{@const att = getAttendance(insight)}
+										{#if att}
+											{#if att.attendance.length > 0}
+												<div class="overflow-x-auto">
+													<table class="w-full text-sm">
+														<thead class="border-b">
+															<tr>
+																<th class="p-2 text-left">Name</th>
+																<th class="p-2 text-left">Joined</th>
+																<th class="p-2 text-left">Left</th>
+															</tr>
+														</thead>
+														<tbody>
+															{#each att.attendance as person}
+																<tr class="border-b">
+																	<td class="p-2">{person.name}</td>
+																	<td class="p-2 text-muted-foreground">{person.join_time ?? '—'}</td>
+																	<td class="p-2 text-muted-foreground">{person.leave_time ?? '—'}</td>
+																</tr>
+															{/each}
+														</tbody>
+													</table>
+												</div>
+											{:else if att.attendees.length > 0}
+												<div class="flex flex-wrap gap-2">
+													{#each att.attendees as name}
+														<Badge variant="outline">{name}</Badge>
+													{/each}
+												</div>
+											{/if}
+										{:else}
+											<div class="prose prose-sm max-w-none dark:prose-invert">
+												{@html renderMarkdown(getInsightText(insight))}
+											</div>
+										{/if}
+									{/each}
+								</Card.Content>
+							</Card.Root>
+						{/if}
+
+						<!-- Decisions / Questions / other types — markdown rendered -->
+						{#each ['decisions', 'questions'] as insightType}
 							{@const items = getInsightsByType(insightType)}
 							{#if items.length > 0}
 								<Card.Root>
@@ -518,8 +673,8 @@
 									</Card.Header>
 									<Card.Content>
 										{#each items as insight (insight.id)}
-											<div class="prose prose-sm max-w-none whitespace-pre-wrap dark:prose-invert">
-												{getInsightText(insight)}
+											<div class="prose prose-sm max-w-none dark:prose-invert">
+												{@html renderMarkdown(getInsightText(insight))}
 											</div>
 										{/each}
 									</Card.Content>

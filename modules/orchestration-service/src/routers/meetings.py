@@ -62,11 +62,22 @@ class InsightGenerateRequest(BaseModel):
 async def list_meetings(
     limit: int = Query(default=50, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
+    min_sentences: int = Query(default=1, ge=0),
 ) -> dict[str, Any]:
-    """List all meetings with pagination."""
+    """List all meetings with pagination.
+
+    Args:
+        min_sentences: Minimum sentence count to include (default 1 hides empty meetings).
+            Set to 0 to include all meetings.
+    """
     store = await _get_store()
-    meetings = await store.list_meetings(limit=limit, offset=offset)
-    return {"meetings": meetings, "limit": limit, "offset": offset}
+    result = await store.list_meetings(limit=limit, offset=offset, min_sentences=min_sentences)
+    return {
+        "meetings": result["meetings"],
+        "total": result["total"],
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/search")
