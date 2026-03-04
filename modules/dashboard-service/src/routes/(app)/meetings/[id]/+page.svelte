@@ -70,15 +70,30 @@
 		return insights.filter((i) => i.insight_type === type);
 	}
 
+	/** Parse insight content — handles JSONB strings from PostgreSQL. */
+	function parseContent(raw: unknown): unknown {
+		if (typeof raw === 'string') {
+			try {
+				return JSON.parse(raw);
+			} catch {
+				return raw; // plain text, not JSON
+			}
+		}
+		return raw;
+	}
+
 	function getInsightText(insight: MeetingInsight): string {
-		const content = insight.content;
+		const content = parseContent(insight.content);
 		if (typeof content === 'string') return content;
-		if (content?.text && typeof content.text === 'string') return content.text;
+		if (typeof content === 'object' && content && 'text' in content) {
+			const text = (content as Record<string, unknown>).text;
+			if (typeof text === 'string') return text;
+		}
 		return JSON.stringify(content, null, 2);
 	}
 
 	function getInsightItems(insight: MeetingInsight): string[] {
-		const content: unknown = insight.content;
+		const content: unknown = parseContent(insight.content);
 		if (Array.isArray(content)) {
 			return content.map((item: unknown) => {
 				if (typeof item === 'string') return item;
@@ -95,7 +110,7 @@
 	}
 
 	function getKeywords(insight: MeetingInsight): string[] {
-		const content: unknown = insight.content;
+		const content: unknown = parseContent(insight.content);
 		if (Array.isArray(content)) return content.map(String);
 		if (typeof content === 'string') return content.split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
 		if (typeof content === 'object' && content && 'text' in content) {
@@ -106,9 +121,17 @@
 	}
 
 	function getSentiment(insight: MeetingInsight): { positive: number; neutral: number; negative: number } | null {
-		const content = insight.content;
+		const content = parseContent(insight.content);
 		if (typeof content === 'object' && content && !Array.isArray(content)) {
 			const c = content as Record<string, unknown>;
+			// Fireflies uses _pct suffix (positive_pct, neutral_pct, negative_pct)
+			if ('positive_pct' in c || 'neutral_pct' in c || 'negative_pct' in c) {
+				return {
+					positive: Number(c.positive_pct ?? 0),
+					neutral: Number(c.neutral_pct ?? 0),
+					negative: Number(c.negative_pct ?? 0)
+				};
+			}
 			if ('positive' in c || 'neutral' in c || 'negative' in c) {
 				return {
 					positive: Number(c.positive ?? 0),
@@ -135,7 +158,7 @@
 
 	/** Extract ai_filters stats (tasks, metrics, questions, date_times). */
 	function getAiFilters(insight: MeetingInsight): { label: string; value: number }[] | null {
-		const c = insight.content;
+		const c = parseContent(insight.content);
 		if (typeof c !== 'object' || c === null || Array.isArray(c)) return null;
 		const obj = c as Record<string, unknown>;
 		const labels: Record<string, string> = {
@@ -158,7 +181,7 @@
 	function getAttendance(
 		insight: MeetingInsight
 	): { attendees: string[]; attendance: { name: string; join_time: string; leave_time: string }[] } | null {
-		const c = insight.content;
+		const c = parseContent(insight.content);
 		if (typeof c !== 'object' || c === null || Array.isArray(c)) return null;
 		const obj = c as Record<string, unknown>;
 		if (!('attendees' in obj) && !('attendance' in obj)) return null;
@@ -170,15 +193,23 @@
 		};
 	}
 
-	/** Extract gist/short_summary from summary insight. */
-	function getSummaryGist(insight: MeetingInsight): { gist: string; shortSummary: string } | null {
-		const c = insight.content;
+	/** Extract structured fields from Fireflies summary insight.
+	 *  Fireflies summary content: {gist, overview, keywords, bullet_gist, short_summary, ...} */
+	function getSummaryData(insight: MeetingInsight): {
+		gist: string;
+		shortSummary: string;
+		overview: string;
+		bulletGist: string;
+	} | null {
+		const c = parseContent(insight.content);
 		if (typeof c !== 'object' || c === null || Array.isArray(c)) return null;
 		const obj = c as Record<string, unknown>;
 		const gist = typeof obj.gist === 'string' ? obj.gist : '';
 		const shortSummary = typeof obj.short_summary === 'string' ? obj.short_summary : '';
-		if (!gist && !shortSummary) return null;
-		return { gist, shortSummary };
+		const overview = typeof obj.overview === 'string' ? obj.overview : '';
+		const bulletGist = typeof obj.bullet_gist === 'string' ? obj.bullet_gist : '';
+		if (!gist && !shortSummary && !overview && !bulletGist) return null;
+		return { gist, shortSummary, overview, bulletGist };
 	}
 
 	let generating = $state(false);
@@ -443,23 +474,26 @@
 								</Card.Header>
 								<Card.Content class="space-y-3">
 									{#each summaryItems as insight (insight.id)}
-										{@const gistData = getSummaryGist(insight)}
-										{#if gistData}
-											{#if gistData.gist}
+										{@const sd = getSummaryData(insight)}
+										{#if sd}
+											{#if sd.gist}
 												<blockquote class="border-l-4 border-primary/40 pl-4 italic text-muted-foreground">
-													{gistData.gist}
+													{sd.gist}
 												</blockquote>
 											{/if}
-											{#if gistData.shortSummary}
+											{#if sd.shortSummary}
 												<div class="prose prose-sm max-w-none dark:prose-invert">
-													{@html renderMarkdown(gistData.shortSummary)}
+													{@html renderMarkdown(sd.shortSummary)}
 												</div>
 											{/if}
-										{/if}
-										{@const text = getInsightText(insight)}
-										{#if text && (!gistData || (text !== gistData.gist && text !== gistData.shortSummary))}
+											{#if sd.overview}
+												<div class="prose prose-sm max-w-none dark:prose-invert">
+													{@html renderMarkdown(sd.overview)}
+												</div>
+											{/if}
+										{:else}
 											<div class="prose prose-sm max-w-none dark:prose-invert">
-												{@html renderMarkdown(text)}
+												{@html renderMarkdown(getInsightText(insight))}
 											</div>
 										{/if}
 									{/each}
