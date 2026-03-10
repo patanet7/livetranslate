@@ -14,7 +14,8 @@ from internal_services.translation import (
     UnifiedTranslationError,
 )
 from livetranslate_common.logging import get_logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from utils.audio_errors import CircuitBreaker, RetryConfig, RetryManager
 
 logger = get_logger()
 
@@ -52,7 +53,7 @@ class LanguageDetectionResponse(BaseModel):
 
     language: str
     confidence: float
-    alternatives: list[dict[str, float]]
+    alternatives: list[dict[str, float]] = Field(default_factory=list)
 
 
 class TranslationServiceClient:
@@ -83,6 +84,22 @@ class TranslationServiceClient:
         self._embedded_service = None
         self._prefer_embedded = False
         self._embedded_failure_logged = False
+
+        # Resilience patterns
+        self._circuit_breaker = CircuitBreaker(
+            failure_threshold=5,
+            recovery_timeout=30,
+            success_threshold=2,
+            name="translation_service",
+        )
+        self._retry_manager = RetryManager(
+            RetryConfig(
+                max_attempts=3,
+                base_delay=0.5,
+                max_delay=10.0,
+                exponential_base=2.0,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Mode helpers
@@ -301,16 +318,7 @@ class TranslationServiceClient:
         if self._embedded_enabled():
             try:
                 result = await self._embedded_service.detect_language(text)
-                alternatives_raw = result.get("alternatives", [])
-                alternatives: list[dict[str, float]] = []
-                for item in alternatives_raw:
-                    if isinstance(item, dict):
-                        alternatives.append(item)
-                return LanguageDetectionResponse(
-                    language=result.get("language", "en"),
-                    confidence=float(result.get("confidence", 0.5)),
-                    alternatives=alternatives,
-                )
+                return self._parse_language_detection_response(result)
             except Exception as exc:
                 logger.debug("Embedded language detection failed: %s", exc)
 
@@ -326,7 +334,7 @@ class TranslationServiceClient:
             async with session.post(f"{self.base_url}/api/detect", json=request_data) as response:
                 if response.status == 200:
                     result = await response.json()
-                    return LanguageDetectionResponse(**result)
+                    return self._parse_language_detection_response(result)
                 else:
                     error_text = await response.text()
                     raise Exception(
@@ -340,6 +348,26 @@ class TranslationServiceClient:
                 language="en", confidence=0.5, alternatives=[{"en": 0.5}]
             )
 
+    def _parse_language_detection_response(self, payload: dict[str, Any]) -> LanguageDetectionResponse:
+        """Normalize language-detection payloads from mixed backend contracts."""
+        alternatives: list[dict[str, float]] = []
+        for item in payload.get("alternatives", []):
+            if isinstance(item, dict):
+                alternatives.append({k: float(v) for k, v in item.items()})
+
+        language = payload.get("language", "en")
+        confidence = float(payload.get("confidence", 0.5))
+
+        # Legacy backends return only language + confidence.
+        if not alternatives:
+            alternatives = [{language: confidence}]
+
+        return LanguageDetectionResponse(
+            language=language,
+            confidence=confidence,
+            alternatives=alternatives,
+        )
+
     async def translate(self, request: TranslationRequest) -> TranslationResponse:
         """Translate text"""
         embedded_response = await self._translate_embedded(request)
@@ -350,30 +378,33 @@ class TranslationServiceClient:
             raise UnifiedTranslationError(
                 "Remote translation service unavailable and embedded translation failed"
             )
-        try:
-            session = await self._get_session()
 
-            request_data = {
-                "text": request.text,
-                "source_language": request.source_language,
-                "target_language": request.target_language,
-                "model": request.model,
-                "quality": request.quality,
-            }
+        async def _do_remote_translate() -> TranslationResponse:
+            return await self._circuit_breaker.call(self._remote_translate, request)
 
-            async with session.post(
-                f"{self.base_url}/api/translate", json=request_data
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return TranslationResponse(**result)
-                else:
-                    error_text = await response.text()
-                    raise Exception(f"Translation failed: HTTP {response.status} - {error_text}")
+        return await self._retry_manager.execute_with_retry(_do_remote_translate)
 
-        except Exception as e:
-            logger.error(f"Translation failed: {e}")
-            raise
+    async def _remote_translate(self, request: TranslationRequest) -> TranslationResponse:
+        """Execute a single remote translation HTTP call."""
+        session = await self._get_session()
+
+        request_data = {
+            "text": request.text,
+            "source_language": request.source_language,
+            "target_language": request.target_language,
+            "model": request.model,
+            "quality": request.quality,
+        }
+
+        async with session.post(
+            f"{self.base_url}/api/translate", json=request_data
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                return TranslationResponse(**result)
+            else:
+                error_text = await response.text()
+                raise Exception(f"Translation failed: HTTP {response.status} - {error_text}")
 
     async def translate_batch(
         self, requests: list[TranslationRequest]
@@ -394,26 +425,49 @@ class TranslationServiceClient:
             raise UnifiedTranslationError(
                 "Batch translation unavailable without embedded or remote backend"
             )
-        try:
-            session = await self._get_session()
 
-            request_data = {"requests": [req.dict() for req in requests]}
+        async def _do_remote_batch() -> list[TranslationResponse]:
+            return await self._circuit_breaker.call(self._remote_translate_batch, requests)
 
-            async with session.post(
-                f"{self.base_url}/api/translate/batch", json=request_data
-            ) as response:
-                if response.status == 200:
-                    results = await response.json()
-                    return [TranslationResponse(**result) for result in results["translations"]]
-                else:
-                    error_text = await response.text()
-                    raise Exception(
-                        f"Batch translation failed: HTTP {response.status} - {error_text}"
-                    )
+        return await self._retry_manager.execute_with_retry(_do_remote_batch)
 
-        except Exception as e:
-            logger.error(f"Batch translation failed: {e}")
-            raise
+    async def _remote_translate_batch(
+        self, requests: list[TranslationRequest]
+    ) -> list[TranslationResponse]:
+        """Execute a single remote batch translation HTTP call."""
+        session = await self._get_session()
+
+        request_data = {"requests": [req.model_dump() for req in requests]}
+
+        async with session.post(
+            f"{self.base_url}/api/translate/batch", json=request_data
+        ) as response:
+            if response.status == 200:
+                results = await response.json()
+                return [TranslationResponse(**result) for result in results["translations"]]
+            if response.status in {404, 405}:
+                logger.warning(
+                    "Batch endpoint unavailable on translation service, falling back to per-item calls"
+                )
+                return await self._fallback_batch_to_individual(requests)
+            else:
+                error_text = await response.text()
+                raise Exception(
+                    f"Batch translation failed: HTTP {response.status} - {error_text}"
+                )
+
+    async def _fallback_batch_to_individual(
+        self, requests: list[TranslationRequest]
+    ) -> list[TranslationResponse]:
+        """Fallback path when /api/translate/batch is not supported by remote backend."""
+        semaphore = asyncio.Semaphore(10)
+
+        async def _translate_one(req: TranslationRequest) -> TranslationResponse:
+            async with semaphore:
+                return await self.translate(req)
+
+        results = await asyncio.gather(*(_translate_one(req) for req in requests))
+        return list(results)
 
     async def get_translation_quality(
         self, original: str, translated: str, source_lang: str, target_lang: str
@@ -658,52 +712,50 @@ class TranslationServiceClient:
 
                 logger.info(f"Multi-language request: model={model}, quality={quality}")
 
-                response = await session.post(
+                async with session.post(
                     f"{self.base_url}/api/translate/multi", json=request_data
-                )
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
 
-                if response.status == 200:
-                    data = await response.json()
+                        # Convert to TranslationResponse objects
+                        result_dict = {}
+                        for lang, translation_data in data["translations"].items():
+                            if "error" in translation_data:
+                                logger.error(
+                                    f"Translation to {lang} had error: {translation_data['error']}"
+                                )
+                                result_dict[lang] = TranslationResponse(
+                                    translated_text=f"Error: {translation_data['error']}",
+                                    source_language=data.get(
+                                        "source_language", source_language or "auto"
+                                    ),
+                                    target_language=lang,
+                                    confidence=0.0,
+                                    processing_time=translation_data.get("processing_time", 0.0),
+                                    model_used="error",
+                                    backend_used="error",
+                                )
+                            else:
+                                result_dict[lang] = TranslationResponse(
+                                    translated_text=translation_data["translated_text"],
+                                    source_language=data.get(
+                                        "source_language", source_language or "auto"
+                                    ),
+                                    target_language=lang,
+                                    confidence=translation_data.get("confidence", 0.0),
+                                    processing_time=translation_data.get("processing_time", 0.0),
+                                    model_used=translation_data.get("backend_used", "unknown"),
+                                    backend_used=translation_data.get("backend_used"),
+                                    session_id=session_id,
+                                    timestamp=data.get("timestamp"),
+                                )
 
-                    # Convert to TranslationResponse objects
-                    result_dict = {}
-                    for lang, translation_data in data["translations"].items():
-                        if "error" in translation_data:
-                            logger.error(
-                                f"Translation to {lang} had error: {translation_data['error']}"
-                            )
-                            result_dict[lang] = TranslationResponse(
-                                translated_text=f"Error: {translation_data['error']}",
-                                source_language=data.get(
-                                    "source_language", source_language or "auto"
-                                ),
-                                target_language=lang,
-                                confidence=0.0,
-                                processing_time=translation_data.get("processing_time", 0.0),
-                                model_used="error",
-                                backend_used="error",
-                            )
-                        else:
-                            result_dict[lang] = TranslationResponse(
-                                translated_text=translation_data["translated_text"],
-                                source_language=data.get(
-                                    "source_language", source_language or "auto"
-                                ),
-                                target_language=lang,
-                                confidence=translation_data.get("confidence", 0.0),
-                                processing_time=translation_data.get("processing_time", 0.0),
-                                model_used=translation_data.get("backend_used", "unknown"),
-                                backend_used=translation_data.get("backend_used"),
-                                session_id=session_id,
-                                timestamp=data.get("timestamp"),
-                            )
+                        logger.info(
+                            f"Multi-language translation successful: {len(result_dict)}/{len(target_languages)} languages"
+                        )
+                        return result_dict
 
-                    logger.info(
-                        f"Multi-language translation successful: {len(result_dict)}/{len(target_languages)} languages"
-                    )
-                    return result_dict
-
-                else:
                     error_text = await response.text()
                     logger.error(
                         f"Multi-language endpoint failed with status {response.status}: {error_text}"
