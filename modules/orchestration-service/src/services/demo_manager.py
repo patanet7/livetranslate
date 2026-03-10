@@ -6,13 +6,15 @@ Starts a mock Fireflies server in-process so the full pipeline
 (Socket.IO → orchestration → captions WebSocket → overlay) runs
 without a real Fireflies account.
 
-Supports two modes:
-- passthrough: full pipeline runs, text passes through translator as-is
+Supports three modes:
+- passthrough: full pipeline with canned conversation templates
 - pretranslated: pre-translated Spanish captions injected directly into CaptionBuffer
+- replay: replay a real captured JSONL file with original ASR timing + dedup
 """
 
 import asyncio
 import contextlib
+from pathlib import Path
 
 from livetranslate_common.logging import get_logger
 from services.demo_server import FirefliesDemoServer, MockTranscriptScenario
@@ -21,6 +23,12 @@ logger = get_logger()
 
 DEMO_PORT = 8090
 DEMO_API_KEY = "demo-api-key"  # pragma: allowlist secret
+
+# Captured meeting data for replay mode
+# __file__ is src/services/demo_manager.py → parent.parent.parent = module root
+_MODULE_ROOT = Path(__file__).resolve().parent.parent.parent
+CAPTURED_DATA_DIR = _MODULE_ROOT / "captured_data"
+DEFAULT_CAPTURE_FILE = "20260224_190411_fireflies_raw_capture.jsonl"
 
 
 class DemoManager:
@@ -44,12 +52,14 @@ class DemoManager:
         num_exchanges: int = 30,
         chunk_delay_ms: float = 2000.0,
         mode: str = "passthrough",
+        speed_multiplier: float = 1.0,
     ) -> dict:
         """
         Start the demo server with a conversation scenario.
 
         Args:
-            mode: "passthrough" (full pipeline) or "pretranslated" (inject Spanish captions)
+            mode: "passthrough", "pretranslated", or "replay"
+            speed_multiplier: For replay mode, speed up playback (2.0 = 2x faster)
 
         Returns dict with transcript_id, speakers, base_url, and mode.
         """
@@ -68,12 +78,30 @@ class DemoManager:
                 valid_api_keys={DEMO_API_KEY},
             )
 
-            scenario = MockTranscriptScenario.conversation_scenario(
-                speakers=speakers,
-                num_exchanges=num_exchanges,
-                chunk_delay_ms=chunk_delay_ms,
-                include_translations=(mode == "pretranslated"),
-            )
+            if mode == "replay":
+                # Replay a real captured meeting
+                jsonl_path = CAPTURED_DATA_DIR / DEFAULT_CAPTURE_FILE
+                if not jsonl_path.exists():
+                    raise RuntimeError(
+                        f"Captured data not found: {jsonl_path}. "
+                        "Record a meeting first with capture_fireflies_raw.py"
+                    )
+                scenario = MockTranscriptScenario.replay_scenario(
+                    jsonl_path=jsonl_path,
+                    speed_multiplier=speed_multiplier,
+                )
+                # Extract speakers from the captured data
+                speakers = sorted(
+                    {c.speaker_name for c in scenario.chunks}
+                )
+            else:
+                scenario = MockTranscriptScenario.conversation_scenario(
+                    speakers=speakers,
+                    num_exchanges=num_exchanges,
+                    chunk_delay_ms=chunk_delay_ms,
+                    include_translations=(mode == "pretranslated"),
+                )
+
             self._scenario = scenario
             self._injection_delay_ms = chunk_delay_ms
 
@@ -97,16 +125,17 @@ class DemoManager:
             self._speakers = speakers
             self.active = True
 
+            num_events = len(scenario.chunks)
             logger.info(
                 f"Demo started: mode={mode}, transcript_id={self.transcript_id}, "
-                f"speakers={speakers}, exchanges={num_exchanges}"
+                f"speakers={speakers}, events={num_events}"
             )
 
             return {
                 "transcript_id": self.transcript_id,
                 "speakers": speakers,
                 "base_url": self.server.base_url,
-                "num_exchanges": num_exchanges,
+                "num_exchanges": num_events,
                 "chunk_delay_ms": chunk_delay_ms,
                 "mode": mode,
             }

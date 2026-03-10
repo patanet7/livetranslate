@@ -5,6 +5,11 @@ Production-ready copy of the mock Fireflies server for demo mode.
 Simulates Fireflies.ai GraphQL API and Socket.IO Realtime API without
 requiring a real Fireflies account.
 
+Supports three modes:
+- passthrough: canned conversation templates, one chunk per exchange
+- pretranslated: pre-translated Spanish captions injected directly
+- replay: replay a captured JSONL file with real ASR timing + dedup
+
 Copied from tests/fireflies/mocks/fireflies_mock_server.py to avoid
 importing test code in production.
 """
@@ -15,6 +20,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import socketio
@@ -211,6 +217,95 @@ class MockTranscriptScenario:
             chunk_delay_ms=chunk_delay_ms,
         )
 
+    @classmethod
+    def replay_scenario(
+        cls,
+        jsonl_path: Path,
+        speed_multiplier: float = 1.0,
+    ) -> "MockTranscriptScenario":
+        """Create a scenario from a captured JSONL file.
+
+        Loads real Fireflies events and preserves original timing.
+        Each raw event becomes a MockChunk that is emitted to Socket.IO
+        exactly as-is, including word-by-word ASR refinements (same chunk_id,
+        progressively longer text). This exercises the full dedup + aggregation
+        pipeline.
+
+        Args:
+            jsonl_path: Path to a captured JSONL file.
+            speed_multiplier: Speed up replay (2.0 = 2x faster). Default 1.0.
+        """
+        raw_events: list[dict] = []
+        with open(jsonl_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                event = json.loads(line)
+                if event.get("event") == "transcription.broadcast":
+                    raw_events.append(event)
+
+        if not raw_events:
+            raise ValueError(f"No transcription.broadcast events found in {jsonl_path}")
+
+        # Extract meeting info from the JSONL (if available)
+        meeting_title = "Captured Meeting Replay"
+        with open(jsonl_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                event = json.loads(line)
+                if event.get("event") == "graphql_active_meetings":
+                    meetings = (
+                        event.get("data", {})
+                        .get("data", {})
+                        .get("active_meetings", [])
+                    )
+                    if meetings:
+                        meeting_title = meetings[0].get("title", meeting_title)
+                    break
+
+        # Build chunks from raw events, preserving per-event timing
+        chunks: list[MockChunk] = []
+        base_ts = datetime.fromisoformat(raw_events[0]["timestamp"])
+        speakers: set[str] = set()
+
+        for raw in raw_events:
+            payload = raw.get("data", {}).get("payload", raw.get("data", {}))
+            ts = datetime.fromisoformat(raw["timestamp"])
+            delay_from_start_ms = (ts - base_ts).total_seconds() * 1000.0
+
+            speaker = payload.get("speaker_name", "Unknown")
+            speakers.add(speaker)
+
+            chunk = MockChunk(
+                chunk_id=str(payload.get("chunk_id", "")),
+                text=payload.get("text", ""),
+                speaker_name=speaker,
+                start_time=float(payload.get("start_time", 0)),
+                end_time=float(payload.get("end_time", 0)),
+                confidence=float(payload.get("confidence", 0.95)),
+                is_final=payload.get("is_final", True),
+            )
+            # Stash the delay on the chunk for replay timing
+            chunk._replay_delay_ms = delay_from_start_ms / speed_multiplier  # type: ignore[attr-defined]
+            chunks.append(chunk)
+
+        meeting = MockMeeting(title=meeting_title)
+
+        scenario = cls(
+            meeting=meeting,
+            chunks=chunks,
+            stream_mode="replay",
+        )
+        logger.info(
+            f"Loaded replay scenario: {len(chunks)} events, "
+            f"{len(speakers)} speakers ({', '.join(sorted(speakers))}), "
+            f"speed={speed_multiplier}x"
+        )
+        return scenario
+
 
 # =============================================================================
 # Demo Server (Socket.IO)
@@ -393,9 +488,15 @@ class FirefliesDemoServer:
     # =========================================================================
 
     async def _stream_scenario(self, sid: str, scenario: MockTranscriptScenario):
-        """Stream a scenario's chunks to a Socket.IO client."""
+        """Stream a scenario's chunks to a Socket.IO client.
+
+        For replay mode, uses per-event timing from the original capture.
+        For other modes, uses fixed delays (chunk_delay_ms or word_delay_ms).
+        """
         sio = self._sio
         try:
+            elapsed_ms = 0.0
+
             for i, chunk in enumerate(scenario.chunks):
                 if sid not in self._sid_to_transcript:
                     break
@@ -407,14 +508,24 @@ class FirefliesDemoServer:
                     await sio.disconnect(sid)
                     break
 
+                # For replay mode, sleep the exact inter-event gap
+                if scenario.stream_mode == "replay":
+                    target_ms = getattr(chunk, "_replay_delay_ms", 0.0)
+                    gap = target_ms - elapsed_ms
+                    if gap > 0:
+                        await asyncio.sleep(gap / 1000.0)
+                    elapsed_ms = target_ms
+
                 data = chunk.to_socketio_dict(scenario.transcript_id)
                 await sio.emit("transcription.broadcast", data, to=sid)
                 self._stats["chunks_sent"] += 1
 
+                # Fixed-delay modes
                 if scenario.stream_mode == "words":
                     await asyncio.sleep(scenario.word_delay_ms / 1000.0)
-                else:
+                elif scenario.stream_mode == "chunks":
                     await asyncio.sleep(scenario.chunk_delay_ms / 1000.0)
+                # replay mode: timing handled above
 
             if scenario.simulate_error_message and sid in self._sid_to_transcript:
                 await sio.emit(

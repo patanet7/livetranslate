@@ -3094,6 +3094,7 @@ async def start_demo(
     manager: FirefliesSessionManager = Depends(get_session_manager),
     ff_config: FirefliesSettings = Depends(get_fireflies_config),
     mode: str = "passthrough",
+    speed: float = 1.0,
 ):
     """
     Start demo mode:
@@ -3102,7 +3103,8 @@ async def start_demo(
     3. The full pipeline runs: mock → Socket.IO → orchestration → captions WebSocket
 
     Args:
-        mode: "passthrough" (full pipeline) or "pretranslated" (inject Spanish captions directly)
+        mode: "passthrough", "pretranslated", or "replay" (real captured meeting data)
+        speed: For replay mode, playback speed multiplier (2.0 = 2x faster)
     """
     from services.demo_manager import DEMO_API_KEY, get_demo_manager
 
@@ -3125,6 +3127,7 @@ async def start_demo(
             num_exchanges=30,
             chunk_delay_ms=2000.0,
             mode=mode,
+            speed_multiplier=speed,
         )
 
         # Create a real Fireflies session pointing to the local mock
