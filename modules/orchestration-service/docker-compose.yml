@@ -12,7 +12,6 @@ services:
     environment:
       # Service URLs
       - WHISPER_SERVICE_URL=http://whisper-service:5001
-      - SPEAKER_SERVICE_URL=http://speaker-service:5002
       - TRANSLATION_SERVICE_URL=http://translation-service:5003
 
       # Configuration

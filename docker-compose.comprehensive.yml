@@ -1,6 +1,6 @@
 # === LIVETRANSLATE COMPREHENSIVE DOCKER COMPOSE ===
 # This file brings up the complete LiveTranslate system including:
-# - Core services (Frontend, Whisper, Speaker, Translation)
+# - Core services (Frontend, Whisper, Translation)
 # - Data services (Redis, PostgreSQL)
 # - Monitoring stack (Prometheus, Grafana, Loki, Alertmanager)
 # - Proper networking and volume management
@@ -22,7 +22,6 @@ services:
     environment:
       - NODE_ENV=production
       - WHISPER_SERVICE_URL=http://whisper:5001
-      - SPEAKER_SERVICE_URL=http://speaker:5002
       - TRANSLATION_SERVICE_URL=http://translation:5003
       - TRITON_SERVER_URL=http://translation:8000
     networks:
@@ -69,37 +68,6 @@ services:
       retries: 3
       start_period: 60s
 
-  # Speaker Service
-  speaker:
-    build:
-      context: ./modules/speaker-service
-      dockerfile: Dockerfile
-    container_name: livetranslate-speaker-service
-    restart: unless-stopped
-    ports:
-      - "5002:5002"
-    environment:
-      - MODEL_CACHE_DIR=/app/models
-      - ENABLE_CUDA=true
-    networks:
-      - livetranslate-backend
-    volumes:
-      - livetranslate-models-speaker:/app/models
-      - livetranslate-sessions:/app/sessions
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s
-
   # Translation Service
   translation:
     build:
@@ -135,7 +103,6 @@ services:
       # Integration with other services
       - REDIS_URL=redis://translation-redis:6379
       - WHISPER_SERVICE_URL=http://whisper:5001
-      - SPEAKER_SERVICE_URL=http://speaker:5002
       - FRONTEND_SERVICE_URL=http://frontend:3000
 
       # CUDA configuration
@@ -411,8 +378,6 @@ volumes:
 
   # AI models
   livetranslate-models-whisper:
-    external: true
-  livetranslate-models-speaker:
     external: true
   livetranslate-models-translation:
     external: true
