@@ -30,6 +30,7 @@ from dependencies import (
     get_fireflies_llm_client,
     get_glossary_pipeline_adapter,
     get_meeting_intelligence_service,
+    get_translation_service_client,
 )
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from livetranslate_common.logging import get_logger
@@ -905,7 +906,9 @@ async def boot_sync_fireflies() -> None:
                 # Auto-trigger diarization if rules match
                 try:
                     from services.diarization.auto_trigger import maybe_trigger_diarization
+                    from services.diarization.db import get_diarization_rules
                     from models.diarization import DiarizationRules
+                    from database.database import get_database_manager
                     _synced_meeting = await store.get_meeting_by_ff_id(ff_id)
                     if _synced_meeting:
                         _meeting_meta = {
@@ -915,10 +918,11 @@ async def boot_sync_fireflies() -> None:
                             "duration": int((transcript.get("duration") or 0)),
                             "sentence_count": len(transcript.get("sentences") or []),
                         }
-                        # TODO: Read rules from system_config table
-                        # For now, use defaults (disabled) — will be enabled via dashboard
+                        async with get_database_manager().get_session() as _db:
+                            _rules_dict = await get_diarization_rules(_db)
+                        _rules = DiarizationRules(**_rules_dict)
                         await maybe_trigger_diarization(
-                            _meeting_meta, DiarizationRules(), None
+                            _meeting_meta, _rules, None
                         )
                 except Exception:
                     pass  # Diarization not available — skip silently
@@ -1098,6 +1102,7 @@ async def connect_to_fireflies(
     background_tasks: BackgroundTasks,
     manager: FirefliesSessionManager = Depends(get_session_manager),
     ff_config: FirefliesSettings = Depends(get_fireflies_config),
+    translation_client=Depends(get_translation_service_client),
 ):
     """
     Connect to a Fireflies realtime transcript stream.
@@ -1194,6 +1199,7 @@ async def connect_to_fireflies(
             db_manager=db_manager,
             meeting_intelligence=meeting_intelligence,
             event_publisher=event_publisher,
+            translation_client=translation_client,
             llm_client=llm_client,
             glossary_service=glossary_service,
         )
@@ -1911,7 +1917,9 @@ async def _download_meeting_data(
             # Auto-trigger diarization if rules match
             try:
                 from services.diarization.auto_trigger import maybe_trigger_diarization
+                from services.diarization.db import get_diarization_rules
                 from models.diarization import DiarizationRules
+                from database.database import get_database_manager
                 _ff_id = _transcript_data.get("id", fireflies_transcript_id)
                 _synced_meeting = await store.get_meeting_by_ff_id(_ff_id)
                 if _synced_meeting:
@@ -1922,10 +1930,11 @@ async def _download_meeting_data(
                         "duration": int((_transcript_data.get("duration") or 0)),
                         "sentence_count": len(_transcript_data.get("sentences") or []),
                     }
-                    # TODO: Read rules from system_config table
-                    # For now, use defaults (disabled) — will be enabled via dashboard
+                    async with get_database_manager().get_session() as _db:
+                        _rules_dict = await get_diarization_rules(_db)
+                    _rules = DiarizationRules(**_rules_dict)
                     await maybe_trigger_diarization(
-                        _meeting_meta, DiarizationRules(), None
+                        _meeting_meta, _rules, None
                     )
             except Exception:
                 pass  # Diarization not available — skip silently
