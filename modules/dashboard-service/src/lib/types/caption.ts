@@ -2,6 +2,7 @@ export interface Caption {
 	id: string;
 	text: string;
 	original_text: string;
+	translated_text: string;
 	speaker_name: string;
 	speaker_color: string;
 	target_language: string;

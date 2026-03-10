@@ -12,6 +12,7 @@ export function translationApi(fetch: typeof globalThis.fetch) {
 				models: Array<{
 					name: string;
 					backend: string;
+					backend_name?: string;
 					languages: string[];
 					default: boolean;
 				}>;

@@ -15,7 +15,7 @@ logger = get_logger()
 PROVIDER_FACTORIES = {
     "ollama": lambda cfg: OllamaAdapter(
         base_url=cfg.get("base_url", "http://localhost:11434"),
-        default_model=cfg.get("default_model", "llama3.2"),
+        default_model=cfg.get("default_model", "qwen3.5:4b"),
     ),
     "openai": lambda cfg: OpenAIAdapter(
         api_key=cfg["api_key"],

@@ -142,7 +142,8 @@
 				updateEntry(msg.caption);
 				break;
 			case 'caption_expired':
-				removeEntry(msg.caption_id);
+				// Live Feed is a review/monitoring view — keep all entries for full conversation history.
+				// Only the overlay removes expired captions for transient display.
 				break;
 			case 'session_cleared':
 				entries = [];
@@ -151,11 +152,15 @@
 	}
 
 	function captionToEntry(caption: Caption): FeedEntry {
+		const translatedText = caption.translated_text || caption.text;
+		const originalText = caption.original_text || caption.text;
+		// Show translation only if it differs from the original
+		const hasTranslation = translatedText && translatedText !== originalText;
 		return {
 			id: caption.id,
 			speaker: caption.speaker_name,
-			text: caption.original_text || caption.text,
-			translatedText: caption.text !== caption.original_text ? caption.text : undefined,
+			text: originalText,
+			translatedText: hasTranslation ? translatedText : undefined,
 			confidence: caption.confidence,
 			timestamp: caption.created_at,
 			targetLanguage: caption.target_language

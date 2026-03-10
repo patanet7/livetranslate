@@ -62,7 +62,7 @@
             <Label for="service">Service</Label>
             <select id="service" name="service" class="w-full rounded-md border bg-background px-3 py-2 text-sm">
               {#each data.models as model}
-                <option value={model.backend}>{model.backend} — {model.name}</option>
+                <option value={model.backend_name ?? model.backend}>{model.backend_name ?? model.backend} — {model.name}</option>
               {/each}
               {#if data.models.length === 0}
                 <option value="ollama">ollama</option>

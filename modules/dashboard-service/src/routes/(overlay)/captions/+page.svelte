@@ -275,7 +275,7 @@
             <p class="original">{caption.original_text}</p>
           {/if}
           {#if shouldShowTranslated}
-            <p class="translated">{caption.text}</p>
+            <p class="translated">{caption.translated_text || caption.text}</p>
           {/if}
         </div>
       {/each}

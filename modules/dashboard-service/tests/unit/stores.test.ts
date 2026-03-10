@@ -6,6 +6,7 @@ const makeCaption = (overrides = {}) => ({
 	id: `cap-${Math.random().toString(36).slice(2, 8)}`,
 	text: 'Hola mundo',
 	original_text: 'Hello world',
+	translated_text: 'Hola mundo',
 	speaker_name: 'Alice',
 	speaker_color: '#4CAF50',
 	target_language: 'es',
