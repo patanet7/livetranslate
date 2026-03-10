@@ -1,9 +1,16 @@
 """Database operations for diarization."""
 
+import json
 from datetime import UTC, datetime
 
-from database.models import SpeakerProfile
+from database.models import (
+    DiarizationJob,
+    MeetingSentence,
+    SpeakerProfile,
+    SystemConfig,
+)
 from livetranslate_common.logging import get_logger
+from models.diarization import DiarizationRules
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -79,6 +86,75 @@ async def delete_speaker(db: AsyncSession, speaker_id: int) -> bool:
     await db.delete(profile)
     await db.commit()
     return True
+
+
+async def get_diarization_rules(db: AsyncSession) -> dict:
+    """Read diarization rules from system_config."""
+    result = await db.execute(
+        select(SystemConfig).where(SystemConfig.key == "diarization_rules")
+    )
+    row = result.scalar_one_or_none()
+    if not row or not row.value:
+        return DiarizationRules().model_dump()
+    try:
+        return json.loads(row.value)
+    except (json.JSONDecodeError, TypeError):
+        return DiarizationRules().model_dump()
+
+
+async def save_diarization_rules(db: AsyncSession, rules: dict) -> dict:
+    """Save diarization rules to system_config."""
+    result = await db.execute(
+        select(SystemConfig).where(SystemConfig.key == "diarization_rules")
+    )
+    row = result.scalar_one_or_none()
+    value_str = json.dumps(rules)
+    if row:
+        row.value = value_str
+        row.updated_at = datetime.now(UTC)
+    else:
+        row = SystemConfig(key="diarization_rules", value=value_str)
+        db.add(row)
+    await db.commit()
+    return rules
+
+
+async def get_meeting_sentences_for_compare(
+    db: AsyncSession, meeting_id: str
+) -> tuple[list[dict], list[dict], dict]:
+    """Fetch Fireflies sentences and any VibeVoice segments for comparison."""
+    result = await db.execute(
+        select(MeetingSentence)
+        .where(MeetingSentence.meeting_id == meeting_id)
+        .order_by(MeetingSentence.start_time)
+    )
+    sentences = result.scalars().all()
+
+    fireflies_sentences = []
+    for s in sentences:
+        fireflies_sentences.append({
+            "id": str(s.id),
+            "text": s.text,
+            "speaker_name": s.speaker_name,
+            "start_time": s.start_time,
+            "end_time": s.end_time,
+        })
+
+    # Get VibeVoice segments from the latest completed diarization job
+    job_result = await db.execute(
+        select(DiarizationJob)
+        .where(
+            DiarizationJob.meeting_id == meeting_id,
+            DiarizationJob.status == "completed",
+        )
+        .order_by(DiarizationJob.completed_at.desc())
+        .limit(1)
+    )
+    job = job_result.scalar_one_or_none()
+    vibevoice_segments = job.raw_segments if job and job.raw_segments else []
+    speaker_map = job.speaker_map if job and job.speaker_map else {}
+
+    return fireflies_sentences, vibevoice_segments, speaker_map
 
 
 def _speaker_to_dict(profile: SpeakerProfile) -> dict:

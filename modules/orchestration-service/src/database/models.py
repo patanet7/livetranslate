@@ -1094,6 +1094,23 @@ class MeetingSpeaker(Base):
 
 
 # =============================================================================
+# System Configuration
+# =============================================================================
+
+
+class SystemConfig(Base):
+    """Key-value system configuration store."""
+
+    __tablename__ = "system_config"
+
+    key = Column(Text, primary_key=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+# =============================================================================
 # Diarization Models
 # =============================================================================
 
