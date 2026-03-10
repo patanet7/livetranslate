@@ -7,6 +7,7 @@ and improved performance over the legacy Flask implementation.
 """
 
 # CRITICAL: Load .env file FIRST before any other imports
+import asyncio
 import json
 import logging
 import sys
@@ -383,6 +384,15 @@ async def lifespan(app: FastAPI):
                 logger.info("[OK] Default insight templates already loaded")
         except Exception as e:
             logger.warning(f"[WARN] Could not load insight templates: {e}")
+
+        # Start diarization background worker
+        try:
+            from services.diarization.pipeline import start_diarization_worker
+
+            asyncio.create_task(start_diarization_worker())
+            logger.info("Diarization background worker started")
+        except Exception as e:
+            logger.warning(f"Diarization worker failed to start: {e}")
 
         yield
 
