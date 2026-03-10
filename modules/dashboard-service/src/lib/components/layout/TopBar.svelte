@@ -19,9 +19,10 @@
 
 	// Demo controls state
 	let demoOpen = $state(false);
-	let selectedMode = $state<'passthrough' | 'pretranslated'>('passthrough');
+	let selectedMode = $state<'passthrough' | 'pretranslated' | 'replay'>('replay');
 
 	const demoModes = [
+		{ value: 'replay' as const, label: 'Replay Real Meeting' },
 		{ value: 'passthrough' as const, label: 'Live Passthrough' },
 		{ value: 'pretranslated' as const, label: 'Pre-translated ES' }
 	];
@@ -37,7 +38,7 @@
 		demoOpen = false;
 	}
 
-	function selectMode(mode: 'passthrough' | 'pretranslated') {
+	function selectMode(mode: 'passthrough' | 'pretranslated' | 'replay') {
 		selectedMode = mode;
 		demoOpen = false;
 	}

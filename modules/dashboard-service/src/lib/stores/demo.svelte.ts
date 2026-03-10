@@ -3,7 +3,7 @@ import { browser } from '$app/environment';
 class DemoStore {
 	active = $state(false);
 	sessionId = $state('');
-	mode = $state<'passthrough' | 'pretranslated'>('passthrough');
+	mode = $state<'passthrough' | 'pretranslated' | 'replay'>('passthrough');
 	speakers = $state<string[]>([]);
 	loading = $state(false);
 
@@ -25,7 +25,7 @@ class DemoStore {
 		}
 	}
 
-	async start(mode: 'passthrough' | 'pretranslated' = 'passthrough') {
+	async start(mode: 'passthrough' | 'pretranslated' | 'replay' = 'passthrough') {
 		this.loading = true;
 		try {
 			const res = await fetch(`/api/fireflies/demo/start?mode=${mode}`, { method: 'POST' });
