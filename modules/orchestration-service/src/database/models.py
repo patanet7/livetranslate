@@ -22,6 +22,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
@@ -1176,3 +1177,70 @@ class SpeakerProfile(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+# =============================================================================
+# Chat Models
+# =============================================================================
+
+
+class ChatConversation(Base):
+    """Business insights chat conversation."""
+
+    __tablename__ = "biz_chat_conversations"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    title = Column(String(500), nullable=True)
+    provider = Column(String(50), nullable=True)
+    model = Column(String(100), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    messages = relationship(
+        "ChatMessageModel",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="ChatMessageModel.created_at",
+    )
+
+
+class ChatMessageModel(Base):
+    """Chat message in a conversation."""
+
+    __tablename__ = "biz_chat_messages"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    conversation_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("biz_chat_conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=True)
+    tool_calls = Column(JSONB, nullable=True)
+    tool_call_id = Column(String(100), nullable=True)
+    tool_name = Column(String(100), nullable=True)
+    model = Column(String(100), nullable=True)
+    provider = Column(String(50), nullable=True)
+    tokens_used = Column(Integer, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    conversation = relationship("ChatConversation", back_populates="messages")
