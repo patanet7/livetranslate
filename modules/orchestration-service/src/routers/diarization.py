@@ -22,7 +22,8 @@ Endpoints:
 from typing import Any
 
 from config import DiarizationSettings
-from fastapi import APIRouter, HTTPException, status
+from database import get_db_session
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from livetranslate_common.logging import get_logger
 from models.diarization import (
     DiarizationJobCreate,
@@ -32,7 +33,15 @@ from models.diarization import (
     SpeakerProfileCreate,
     SpeakerProfileResponse,
 )
+from services.diarization.db import (
+    create_speaker,
+    delete_speaker,
+    list_speakers,
+    merge_speakers,
+    update_speaker,
+)
 from services.diarization.pipeline import DiarizationPipeline
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger()
 
@@ -96,37 +105,59 @@ async def cancel_diarization_job(job_id: str) -> dict[str, str]:
 
 
 @router.get("/speakers")
-async def list_speakers() -> list[dict[str, Any]]:
+async def list_speakers_endpoint(
+    db: AsyncSession = Depends(get_db_session),
+    name: str | None = Query(None, description="Filter speakers by name (case-insensitive)"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> list[dict[str, Any]]:
     """List all known speaker profiles."""
-    # TODO: Query speaker_profiles table
-    return []
+    return await list_speakers(db, name_filter=name, limit=limit, offset=offset)
 
 
 @router.post("/speakers", status_code=status.HTTP_201_CREATED)
-async def create_speaker(req: SpeakerProfileCreate) -> dict[str, Any]:
+async def create_speaker_endpoint(
+    req: SpeakerProfileCreate,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     """Create a new speaker profile."""
-    # TODO: Insert into speaker_profiles table
-    return {"id": 0, "name": req.name, "email": req.email, "enrollment_source": "manual", "sample_count": 0}
+    return await create_speaker(db, name=req.name, email=req.email)
 
 
 @router.put("/speakers/{speaker_id}")
-async def update_speaker(speaker_id: int, req: SpeakerProfileCreate) -> dict[str, Any]:
+async def update_speaker_endpoint(
+    speaker_id: int,
+    req: SpeakerProfileCreate,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     """Update speaker profile name/email."""
-    # TODO: Update speaker_profiles table
-    return {"id": speaker_id, "name": req.name, "email": req.email}
+    result = await update_speaker(db, speaker_id, req.model_dump(exclude_unset=True))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Speaker not found")
+    return result
 
 
 @router.post("/speakers/merge")
-async def merge_speakers(req: SpeakerMergeRequest) -> dict[str, str]:
+async def merge_speakers_endpoint(
+    req: SpeakerMergeRequest,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     """Merge source speaker profile into target."""
-    # TODO: Merge in speaker_profiles table + update diarization_jobs speaker_maps
-    return {"status": "merged", "kept": str(req.target_id), "removed": str(req.source_id)}
+    result = await merge_speakers(db, source_id=req.source_id, target_id=req.target_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Source or target speaker not found")
+    return result
 
 
 @router.delete("/speakers/{speaker_id}")
-async def delete_speaker(speaker_id: int) -> dict[str, str]:
+async def delete_speaker_endpoint(
+    speaker_id: int,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, str]:
     """Delete a speaker profile."""
-    # TODO: Delete from speaker_profiles table
+    deleted = await delete_speaker(db, speaker_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Speaker not found")
     return {"status": "deleted"}
 
 
