@@ -9,6 +9,7 @@
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
+	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
 	import TerminalIcon from '@lucide/svelte/icons/terminal';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import type { Component } from 'svelte';
@@ -67,6 +68,7 @@
 				{ label: 'Settings', href: '/config/settings' }
 			]
 		},
+		{ label: 'Chat', href: '/chat', icon: MessageSquareIcon },
 		{ label: 'Session Manager', href: '/sessions', icon: TerminalIcon }
 	];
 
