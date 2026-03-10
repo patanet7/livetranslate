@@ -41,7 +41,8 @@ export class CaptionStore {
 					i === this.captions.length - 1
 						? {
 								...c,
-								text: c.text + ' ' + caption.text,
+								translated_text:
+									(c.translated_text || c.text) + ' ' + (caption.translated_text || caption.text),
 								original_text: c.original_text + ' ' + caption.original_text,
 								receivedAt: now
 							}

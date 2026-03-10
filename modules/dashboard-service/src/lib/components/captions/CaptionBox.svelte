@@ -31,7 +31,7 @@
 	{#if showOriginal && caption.original_text}
 		<p class="original-text text-sm text-muted-foreground">{caption.original_text}</p>
 	{/if}
-	{#if showTranslated && caption.text}
-		<p class="translated-text text-sm font-medium">{caption.text}</p>
+	{#if showTranslated && (caption.translated_text || caption.text)}
+		<p class="translated-text text-sm font-medium">{caption.translated_text || caption.text}</p>
 	{/if}
 </div>

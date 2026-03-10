@@ -29,7 +29,7 @@ class OllamaAdapter(LLMAdapter):
     def __init__(
         self,
         base_url: str = "http://localhost:11434",
-        default_model: str = "llama3.2",
+        default_model: str = "qwen3.5:4b",
     ):
         self.base_url = base_url.rstrip("/")
         self.default_model = default_model
