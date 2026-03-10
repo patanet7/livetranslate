@@ -33,14 +33,19 @@ from models.diarization import (
     SpeakerProfileCreate,
     SpeakerProfileResponse,
 )
+from database.models import MeetingSentence
 from services.diarization.db import (
     create_speaker,
     delete_speaker,
+    get_diarization_rules,
+    get_meeting_sentences_for_compare,
     list_speakers,
     merge_speakers,
+    save_diarization_rules,
     update_speaker,
 )
 from services.diarization.pipeline import DiarizationPipeline
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger()
@@ -165,31 +170,85 @@ async def delete_speaker_endpoint(
 
 
 @router.get("/rules")
-async def get_rules() -> dict[str, Any]:
+async def get_rules(db: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
     """Get current auto-trigger rules."""
-    # TODO: Read from system_config table
-    return DiarizationRules().model_dump()
+    return await get_diarization_rules(db)
 
 
 @router.put("/rules")
-async def update_rules(rules: DiarizationRules) -> dict[str, Any]:
+async def update_rules(
+    request: DiarizationRules,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     """Update auto-trigger rules."""
-    # TODO: Write to system_config table
-    return rules.model_dump()
+    return await save_diarization_rules(db, request.model_dump())
 
 
 # --- Comparison endpoints ---
 
 
 @router.get("/meetings/{meeting_id}/compare")
-async def compare_transcripts(meeting_id: int) -> dict[str, Any]:
+async def compare_transcripts(
+    meeting_id: str,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     """Side-by-side comparison of Fireflies vs VibeVoice transcript."""
-    # TODO: Fetch both transcripts from DB
-    return {"meeting_id": meeting_id, "fireflies_sentences": [], "vibevoice_segments": []}
+    from services.diarization.transcript_merge import merge_transcripts
+
+    ff_sentences, vv_segments, speaker_map = await get_meeting_sentences_for_compare(
+        db, meeting_id
+    )
+    if not ff_sentences:
+        raise HTTPException(
+            status_code=404, detail=f"No sentences found for meeting {meeting_id}"
+        )
+
+    merged = (
+        merge_transcripts(ff_sentences, vv_segments, speaker_map)
+        if vv_segments
+        else ff_sentences
+    )
+    return {
+        "meeting_id": meeting_id,
+        "fireflies_sentences": ff_sentences,
+        "vibevoice_segments": vv_segments,
+        "speaker_map": speaker_map,
+        "merged": merged,
+    }
 
 
 @router.post("/meetings/{meeting_id}/apply")
-async def apply_diarization(meeting_id: int) -> dict[str, str]:
-    """Apply diarization results to the meeting transcript."""
-    # TODO: Run transcript merge and update meeting_sentences
-    return {"status": "applied", "meeting_id": str(meeting_id)}
+async def apply_diarization(
+    meeting_id: str,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Apply diarization results to meeting sentences."""
+    from services.diarization.transcript_merge import merge_transcripts
+
+    ff_sentences, vv_segments, speaker_map = await get_meeting_sentences_for_compare(
+        db, meeting_id
+    )
+    if not vv_segments:
+        raise HTTPException(
+            status_code=400, detail="No diarization results available to apply"
+        )
+
+    merged = merge_transcripts(ff_sentences, vv_segments, speaker_map)
+
+    updated_count = 0
+    for item in merged:
+        if item.get("diarization_source"):
+            sentence_id = item.get("id")
+            if sentence_id:
+                result = await db.execute(
+                    select(MeetingSentence).where(
+                        MeetingSentence.id == sentence_id
+                    )
+                )
+                sentence = result.scalar_one_or_none()
+                if sentence:
+                    sentence.speaker_name = item["speaker_name"]
+                    updated_count += 1
+
+    await db.commit()
+    return {"meeting_id": meeting_id, "updated_sentences": updated_count}
