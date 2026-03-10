@@ -168,7 +168,7 @@ async def create_conversation(
     db.add(conv)
     await db.commit()
     await db.refresh(conv)
-    return _conv_to_response(conv)
+    return _conv_to_response(conv, msg_count=0)
 
 
 @router.get("/conversations")
@@ -422,8 +422,12 @@ async def get_suggestions(
 # -- Helpers -------------------------------------------------------------------
 
 
-def _conv_to_response(conv: ChatConversation) -> ConversationResponse:
-    msg_count = len(conv.messages) if hasattr(conv, "messages") and conv.messages else 0
+def _conv_to_response(conv: ChatConversation, msg_count: int | None = None) -> ConversationResponse:
+    if msg_count is None:
+        try:
+            msg_count = len(conv.messages) if conv.messages else 0
+        except Exception:
+            msg_count = 0
     return ConversationResponse(
         id=str(conv.id),
         title=conv.title,
