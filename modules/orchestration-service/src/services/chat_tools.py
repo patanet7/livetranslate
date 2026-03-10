@@ -4,8 +4,10 @@ Each tool queries the database to provide business analytics data
 to the LLM during conversations.
 """
 
+import time
 from typing import Any
 
+import aiohttp
 from database.models import (
     DiarizationJob,
     Meeting,
@@ -15,7 +17,7 @@ from database.models import (
     SpeakerProfile,
 )
 from livetranslate_common.logging import get_logger
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger()
@@ -285,6 +287,53 @@ async def get_usage_trends(
     }
 
 
+_SERVICE_START_TIME: float = time.time()
+
+
+async def get_system_health(db: AsyncSession) -> dict[str, Any]:
+    """Check the health of connected services.
+
+    Probes the database, translation service, and reports orchestration status.
+    """
+    services: dict[str, Any] = {}
+
+    # Orchestration: always healthy (we are executing this code)
+    services["orchestration"] = {
+        "status": "healthy",
+        "uptime_seconds": round(time.time() - _SERVICE_START_TIME, 1),
+    }
+
+    # Database: run a trivial query
+    try:
+        await db.execute(text("SELECT 1"))
+        services["database"] = {"status": "healthy"}
+    except Exception as exc:
+        services["database"] = {"status": "unhealthy", "error": str(exc)}
+
+    # Translation service: HTTP health endpoint
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                "http://localhost:5003/health", timeout=aiohttp.ClientTimeout(total=3)
+            ) as resp:
+                if resp.status == 200:
+                    services["translation"] = {"status": "healthy", "http_status": resp.status}
+                else:
+                    services["translation"] = {
+                        "status": "degraded",
+                        "http_status": resp.status,
+                    }
+    except Exception as exc:
+        services["translation"] = {"status": "unreachable", "error": str(exc)}
+
+    overall = (
+        "healthy"
+        if all(s["status"] == "healthy" for s in services.values())
+        else "degraded"
+    )
+    return {"overall": overall, "services": services}
+
+
 # ── Tool definitions (JSON Schema) ───────────────────────────────
 
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
@@ -403,6 +452,15 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
         "handler": get_usage_trends,
+    },
+    {
+        "name": "get_system_health",
+        "description": (
+            "Check the health of connected services: orchestration, database, "
+            "and translation service. Returns status and uptime."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+        "handler": get_system_health,
     },
 ]
 
