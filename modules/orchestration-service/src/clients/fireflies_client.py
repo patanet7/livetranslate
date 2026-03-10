@@ -17,6 +17,7 @@ The endpoint is wss://api.fireflies.ai with path /ws/realtime.
 import asyncio
 import time
 import uuid
+from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
@@ -52,6 +53,7 @@ RECONNECTION_BACKOFF_MULTIPLIER = 2.0
 # Chunk deduplication
 # Fireflies sends ~16 interim updates per chunk_id as ASR refines text. We buffer by chunk_id
 # and only forward to the pipeline when a chunk is finalized (new chunk_id arrives).
+MAX_FORWARDED_CHUNK_IDS = 10_000
 
 
 # =============================================================================
@@ -726,6 +728,7 @@ class FirefliesRealtimeClient:
         self._pending_chunks: dict[str, FirefliesChunk] = {}
         self._pending_text: dict[str, str] = {}  # chunk_id -> last text for pure-dup detection
         self._forwarded_chunks: set[str] = set()
+        self._forwarded_order: deque[str] = deque()
         self._raw_messages_received: int = 0
 
     def _register_handlers(self):
@@ -994,7 +997,7 @@ class FirefliesRealtimeClient:
         for cid in to_finalize:
             chunk = self._pending_chunks.pop(cid)
             self._pending_text.pop(cid, None)
-            self._forwarded_chunks.add(cid)
+            self._mark_forwarded(cid)
 
             logger.debug("finalizing_chunk", chunk_id=cid, text_preview=chunk.text[:50])
 
@@ -1015,7 +1018,7 @@ class FirefliesRealtimeClient:
             if cid not in self._forwarded_chunks:
                 chunk = self._pending_chunks.pop(cid)
                 self._pending_text.pop(cid, None)
-                self._forwarded_chunks.add(cid)
+                self._mark_forwarded(cid)
 
                 if self.on_live_update:
                     try:
@@ -1032,6 +1035,16 @@ class FirefliesRealtimeClient:
 
         self._pending_chunks.clear()
         self._pending_text.clear()
+
+    def _mark_forwarded(self, chunk_id: str) -> None:
+        """Track recently-forwarded chunk IDs with a bounded in-memory footprint."""
+        if chunk_id in self._forwarded_chunks:
+            return
+        self._forwarded_chunks.add(chunk_id)
+        self._forwarded_order.append(chunk_id)
+        if len(self._forwarded_order) > MAX_FORWARDED_CHUNK_IDS:
+            stale_chunk_id = self._forwarded_order.popleft()
+            self._forwarded_chunks.discard(stale_chunk_id)
 
 
 # =============================================================================

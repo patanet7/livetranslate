@@ -139,6 +139,7 @@ class TranscriptionPipelineCoordinator:
 
         # Background task tracking (prevents fire-and-forget)
         self._background_tasks: set = set()
+        self._sentence_chain_tail: asyncio.Task | None = None
 
     async def initialize(self) -> bool:
         """
@@ -278,9 +279,20 @@ class TranscriptionPipelineCoordinator:
         try:
             # Get or create event loop
             try:
-                asyncio.get_running_loop()
+                loop = asyncio.get_running_loop()
+
+                async def _run_in_order(
+                    current_unit: TranslationUnit, previous: asyncio.Task | None
+                ) -> None:
+                    # Preserve sentence ordering to avoid context races in rolling translation.
+                    if previous is not None:
+                        with contextlib.suppress(Exception):
+                            await previous
+                    await self._handle_sentence_ready(current_unit)
+
                 # Already in async context - schedule coroutine with proper tracking
-                task = asyncio.create_task(self._handle_sentence_ready(unit))
+                task = loop.create_task(_run_in_order(unit, self._sentence_chain_tail))
+                self._sentence_chain_tail = task
                 self._background_tasks.add(task)
                 task.add_done_callback(self._background_tasks.discard)
             except RuntimeError:
@@ -671,9 +683,16 @@ class TranscriptionPipelineCoordinator:
         Call this at session end to ensure all text is processed.
         """
         if self._sentence_aggregator:
-            remaining = self._sentence_aggregator.flush_all()
-            for unit in remaining:
-                await self._handle_sentence_ready(unit)
+            self._sentence_aggregator.flush_all()
+
+        # Wait for pending sentence processing and background work to finish.
+        if self._sentence_chain_tail is not None:
+            with contextlib.suppress(Exception):
+                await self._sentence_chain_tail
+
+        pending_tasks = [task for task in self._background_tasks if not task.done()]
+        if pending_tasks:
+            await asyncio.gather(*pending_tasks, return_exceptions=True)
 
         # Flush any remaining auto-notes
         if self._auto_note_buffer and self.meeting_intelligence:

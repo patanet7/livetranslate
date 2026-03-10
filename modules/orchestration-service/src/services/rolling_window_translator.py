@@ -180,6 +180,7 @@ class RollingWindowTranslator:
 
         # Session state tracking
         self._sessions: dict[str, SessionTranslationState] = {}
+        self._session_locks: dict[str, asyncio.Lock] = {}
 
         # Suppress repetitive backend-unavailable warnings after first occurrence
         self._backend_warned: bool = False
@@ -216,94 +217,96 @@ class RollingWindowTranslator:
         Returns:
             TranslationResult with original, translated text, and metadata
         """
-        start_time = time.time()
+        session_lock = self._session_locks.setdefault(unit.session_id, asyncio.Lock())
+        async with session_lock:
+            start_time = time.time()
 
-        # Get or create session state
-        session_state = self._get_session_state(unit.session_id)
-        speaker_context = session_state.get_speaker_context(unit.speaker_name)
+            # Get or create session state
+            session_state = self._get_session_state(unit.session_id)
+            speaker_context = session_state.get_speaker_context(unit.speaker_name)
 
-        try:
-            # Build translation context
-            context = await self._build_context(
-                unit=unit,
-                session_state=session_state,
-                speaker_context=speaker_context,
-                target_language=target_language,
-                glossary_id=glossary_id,
-                domain=domain,
-                source_language=source_language,
-            )
-
-            # Perform translation
-            if self.use_prompt_based_translation:
-                translated_text, confidence = await self._translate_with_prompt(
-                    text=unit.text,
-                    context=context,
-                )
-            else:
-                translated_text, confidence = await self._translate_direct(
-                    text=unit.text,
+            try:
+                # Build translation context
+                context = await self._build_context(
+                    unit=unit,
+                    session_state=session_state,
+                    speaker_context=speaker_context,
                     target_language=target_language,
+                    glossary_id=glossary_id,
+                    domain=domain,
                     source_language=source_language,
                 )
 
-            # Calculate translation time
-            translation_time_ms = (time.time() - start_time) * 1000
+                # Perform translation
+                if self.use_prompt_based_translation:
+                    translated_text, confidence = await self._translate_with_prompt(
+                        text=unit.text,
+                        context=context,
+                    )
+                else:
+                    translated_text, confidence = await self._translate_direct(
+                        text=unit.text,
+                        target_language=target_language,
+                        source_language=source_language,
+                    )
 
-            # Update context windows AFTER successful translation
-            speaker_context.add(unit.text)
-            session_state.add_to_global_context(unit.speaker_name, unit.text)
-            session_state.update_stats(translation_time_ms, success=True)
+                # Calculate translation time
+                translation_time_ms = (time.time() - start_time) * 1000
 
-            # Find which glossary terms were applied
-            glossary_terms_applied = self._find_applied_glossary_terms(
-                original=unit.text,
-                translated=translated_text,
-                glossary_terms=context.glossary,
-            )
+                # Update context windows AFTER successful translation
+                speaker_context.add(unit.text)
+                session_state.add_to_global_context(unit.speaker_name, unit.text)
+                session_state.update_stats(translation_time_ms, success=True)
 
-            result = TranslationResult(
-                original=unit.text,
-                translated=translated_text,
-                speaker_name=unit.speaker_name,
-                source_language=source_language,
-                target_language=target_language,
-                confidence=confidence,
-                context_sentences_used=len(context.previous_sentences),
-                glossary_terms_applied=glossary_terms_applied,
-                translation_time_ms=translation_time_ms,
-                session_id=unit.session_id,
-                translation_unit_id=f"{unit.transcript_id}_{unit.start_time}",
-            )
+                # Find which glossary terms were applied
+                glossary_terms_applied = self._find_applied_glossary_terms(
+                    original=unit.text,
+                    translated=translated_text,
+                    glossary_terms=context.glossary,
+                )
 
-            logger.debug(
-                f"Translated: '{unit.text[:50]}...' -> '{translated_text[:50]}...' "
-                f"({translation_time_ms:.1f}ms, {len(glossary_terms_applied)} terms)"
-            )
+                result = TranslationResult(
+                    original=unit.text,
+                    translated=translated_text,
+                    speaker_name=unit.speaker_name,
+                    source_language=source_language,
+                    target_language=target_language,
+                    confidence=confidence,
+                    context_sentences_used=len(context.previous_sentences),
+                    glossary_terms_applied=glossary_terms_applied,
+                    translation_time_ms=translation_time_ms,
+                    session_id=unit.session_id,
+                    translation_unit_id=f"{unit.transcript_id}_{unit.start_time}",
+                )
 
-            return result
+                logger.debug(
+                    f"Translated: '{unit.text[:50]}...' -> '{translated_text[:50]}...' "
+                    f"({translation_time_ms:.1f}ms, {len(glossary_terms_applied)} terms)"
+                )
 
-        except Exception as e:
-            translation_time_ms = (time.time() - start_time) * 1000
-            session_state.update_stats(translation_time_ms, success=False)
+                return result
 
-            log = logger.warning if not self._backend_warned else logger.debug
-            log(f"Translation unavailable, using original text: {e}")
-            self._backend_warned = True
+            except Exception as e:
+                translation_time_ms = (time.time() - start_time) * 1000
+                session_state.update_stats(translation_time_ms, success=False)
 
-            # Return result with original text as passthrough
-            return TranslationResult(
-                original=unit.text,
-                translated=unit.text,
-                speaker_name=unit.speaker_name,
-                source_language=source_language,
-                target_language=target_language,
-                confidence=0.0,
-                context_sentences_used=0,
-                glossary_terms_applied=[],
-                translation_time_ms=translation_time_ms,
-                session_id=unit.session_id,
-            )
+                log = logger.warning if not self._backend_warned else logger.debug
+                log(f"Translation unavailable, using original text: {e}")
+                self._backend_warned = True
+
+                # Return result with original text as passthrough
+                return TranslationResult(
+                    original=unit.text,
+                    translated=unit.text,
+                    speaker_name=unit.speaker_name,
+                    source_language=source_language,
+                    target_language=target_language,
+                    confidence=0.0,
+                    context_sentences_used=0,
+                    glossary_terms_applied=[],
+                    translation_time_ms=translation_time_ms,
+                    session_id=unit.session_id,
+                )
 
     async def translate_batch(
         self,
@@ -439,6 +442,7 @@ class RollingWindowTranslator:
         """
         if session_id in self._sessions:
             del self._sessions[session_id]
+            self._session_locks.pop(session_id, None)
             logger.info(f"Cleared session context: {session_id}")
             return True
         return False
@@ -501,12 +505,24 @@ class RollingWindowTranslator:
         glossary_terms: dict[str, str] = {}
         if self.glossary_service and glossary_id:
             try:
-                glossary_terms = self.glossary_service.get_glossary_terms(
-                    glossary_id=glossary_id,
-                    target_language=target_language,
-                    domain=domain,
-                    include_default=True,
-                )
+                if hasattr(self.glossary_service, "get_terms"):
+                    glossary_terms = await self.glossary_service.get_terms(
+                        glossary_id=glossary_id,
+                        source_language=source_language,
+                        target_language=target_language,
+                        domain=domain,
+                    )
+                elif hasattr(self.glossary_service, "get_glossary_terms"):
+                    terms_or_coro = self.glossary_service.get_glossary_terms(
+                        glossary_id=glossary_id,
+                        target_language=target_language,
+                        domain=domain,
+                        include_default=True,
+                    )
+                    if asyncio.iscoroutine(terms_or_coro):
+                        glossary_terms = await terms_or_coro
+                    else:
+                        glossary_terms = terms_or_coro
             except Exception as e:
                 logger.warning(f"Failed to load glossary terms: {e}")
 

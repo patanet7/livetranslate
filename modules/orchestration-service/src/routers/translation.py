@@ -12,7 +12,6 @@ from typing import Any
 from clients.translation_service_client import (
     LanguageDetectionResponse,
     TranslationRequest,
-    TranslationResponse,
     TranslationServiceClient,
 )
 from database import BotSession, SessionEvent, Translation, get_db_session
@@ -173,6 +172,61 @@ class TranslationApiResponse(BaseModel):
 # ============================================================================
 
 
+async def _translate_text_impl(
+    request: TranslateTextRequest,
+    translation_client: TranslationServiceClient,
+    db: AsyncSession,
+    endpoint_label: str,
+) -> TranslationApiResponse:
+    logger.info(
+        f"{endpoint_label} translation request: "
+        f"{request.source_language or 'auto'} -> {request.target_language}"
+    )
+
+    translation_request = TranslationRequest(
+        text=request.text,
+        source_language=request.source_language,
+        target_language=request.target_language,
+        model=request.backend_service,
+        quality=request.quality,
+        context=request.context,
+    )
+
+    try:
+        result = await translation_client.translate(translation_request)
+    except Exception as service_error:
+        logger.error("Translation service unavailable", error=str(service_error))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Translation service unavailable: {service_error!s}",
+        ) from service_error
+
+    if request.session_id:
+        await persist_translation_to_db(
+            db=db,
+            session_id=request.session_id,
+            original_text=request.text,
+            translated_text=result.translated_text,
+            source_language=result.source_language or "auto",
+            target_language=result.target_language,
+            confidence=result.confidence,
+            model_used=result.model_used,
+            backend_used=getattr(result, "backend_used", "unknown"),
+        )
+
+    return TranslationApiResponse(
+        translated_text=result.translated_text,
+        source_language=result.source_language,
+        target_language=result.target_language,
+        confidence=result.confidence,
+        processing_time=result.processing_time,
+        model_used=result.model_used,
+        backend_used=getattr(result, "backend_used", "unknown"),
+        session_id=request.session_id,
+        timestamp=datetime.now(UTC).isoformat(),
+    )
+
+
 @router.post("/", response_model=TranslationApiResponse)
 async def translate_text_root(
     request: TranslateTextRequest,
@@ -192,73 +246,7 @@ async def translate_text_root(
     - Session context support
     - Database persistence (when session_id provided)
     """
-    try:
-        logger.info(f"ROOT Translation request received: {request.model_dump()}")
-        logger.info(
-            f"Translation request: {request.source_language or 'auto'} -> {request.target_language}"
-        )
-
-        # Create translation request for the service
-        translation_request = TranslationRequest(
-            text=request.text,
-            source_language=request.source_language,
-            target_language=request.target_language,
-            model=request.backend_service,  # Use backend_service property for proper mapping
-            quality=request.quality,
-        )
-        logger.info(f"Created translation service request: {translation_request.model_dump()}")
-
-        # Call translation service
-        try:
-            result = await translation_client.translate(translation_request)
-        except Exception as service_error:
-            logger.warning(
-                f"Translation service unavailable, creating mock result: {service_error}"
-            )
-            # Create a mock response when translation service is unavailable
-            result = TranslationResponse(
-                translated_text=f"[Translation service unavailable] Original text: {request.text}",
-                source_language=request.source_language or "auto",
-                target_language=request.target_language,
-                confidence=0.0,
-                processing_time=0.0,
-                model_used=request.backend_service,
-                backend_used="fallback",
-            )
-
-        # Persist to database if session_id is provided
-        if request.session_id:
-            await persist_translation_to_db(
-                db=db,
-                session_id=request.session_id,
-                original_text=request.text,
-                translated_text=result.translated_text,
-                source_language=result.source_language or "auto",
-                target_language=result.target_language,
-                confidence=result.confidence,
-                model_used=result.model_used,
-                backend_used=getattr(result, "backend_used", "unknown"),
-            )
-
-        # Convert to API response format
-        return TranslationApiResponse(
-            translated_text=result.translated_text,
-            source_language=result.source_language,
-            target_language=result.target_language,
-            confidence=result.confidence,
-            processing_time=result.processing_time,
-            model_used=result.model_used,
-            backend_used=getattr(result, "backend_used", "unknown"),  # Default if not available
-            session_id=request.session_id,
-            timestamp=datetime.now(UTC).isoformat(),
-        )
-
-    except Exception as e:
-        logger.error(f"Translation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Translation failed: {e!s}",
-        ) from e
+    return await _translate_text_impl(request, translation_client, db, endpoint_label="root")
 
 
 @router.post("/translate", response_model=TranslationApiResponse)
@@ -280,72 +268,7 @@ async def translate_text(
     - Session context support
     - Database persistence (when session_id provided)
     """
-    try:
-        logger.info(
-            f"Translation request: {request.source_language or 'auto'} -> {request.target_language}"
-        )
-
-        # Create translation request for the service
-        translation_request = TranslationRequest(
-            text=request.text,
-            source_language=request.source_language,
-            target_language=request.target_language,
-            model=request.backend_service,  # Use backend_service property for proper mapping
-            quality=request.quality,
-            context=request.context,  # Pass context for better translation quality
-        )
-
-        # Call translation service
-        try:
-            result = await translation_client.translate(translation_request)
-        except Exception as service_error:
-            logger.warning(
-                f"Translation service unavailable, creating mock result: {service_error}"
-            )
-            # Create a mock response when translation service is unavailable
-            result = TranslationResponse(
-                translated_text=f"[Translation service unavailable] Original text: {request.text}",
-                source_language=request.source_language or "auto",
-                target_language=request.target_language,
-                confidence=0.0,
-                processing_time=0.0,
-                model_used=request.backend_service,
-                backend_used="fallback",
-            )
-
-        # Persist to database if session_id is provided
-        if request.session_id:
-            await persist_translation_to_db(
-                db=db,
-                session_id=request.session_id,
-                original_text=request.text,
-                translated_text=result.translated_text,
-                source_language=result.source_language or "auto",
-                target_language=result.target_language,
-                confidence=result.confidence,
-                model_used=result.model_used,
-                backend_used=getattr(result, "backend_used", "unknown"),
-            )
-
-        # Convert to API response format
-        return TranslationApiResponse(
-            translated_text=result.translated_text,
-            source_language=result.source_language,
-            target_language=result.target_language,
-            confidence=result.confidence,
-            processing_time=result.processing_time,
-            model_used=result.model_used,
-            backend_used=getattr(result, "backend_used", "unknown"),  # Default if not available
-            session_id=request.session_id,
-            timestamp=datetime.now(UTC).isoformat(),
-        )
-
-    except Exception as e:
-        logger.error(f"Translation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Translation failed: {e!s}",
-        ) from e
+    return await _translate_text_impl(request, translation_client, db, endpoint_label="translate")
 
 
 @router.post("/batch", response_model=list[TranslationApiResponse])
@@ -372,7 +295,7 @@ async def translate_batch(
                 text=req.text,
                 source_language=req.source_language,
                 target_language=req.target_language,
-                model=req.model,
+                model=req.backend_service,
                 quality=req.quality,
             )
             for req in request.requests
