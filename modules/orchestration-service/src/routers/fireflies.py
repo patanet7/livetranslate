@@ -1289,31 +1289,130 @@ async def disconnect_from_fireflies(
 @router.get(
     "/sessions",
     response_model=list[SessionResponse],
-    summary="Get all active Fireflies sessions",
+    summary="Get all Fireflies sessions (live + persisted)",
 )
 async def get_sessions(
     manager: FirefliesSessionManager = Depends(get_session_manager),
 ):
-    """Get all active Fireflies sessions"""
-    sessions = manager.get_all_sessions()
+    """Get all Fireflies sessions — live in-memory sessions plus persisted meetings from DB."""
+    # 1. Live in-memory sessions (currently connected)
+    live_sessions = manager.get_all_sessions()
+    live_ids: set[str] = set()
 
-    return [
-        SessionResponse(
-            session_id=s.session_id,
-            transcript_id=s.fireflies_transcript_id,
-            connection_status=s.connection_status.value
-            if hasattr(s.connection_status, "value")
-            else str(s.connection_status),
-            chunks_received=s.chunks_received,
-            sentences_produced=s.sentences_produced,
-            translations_completed=s.translations_completed,
-            speakers_detected=s.speakers_detected,
-            connected_at=s.connected_at,
-            error_count=s.error_count,
-            last_error=s.last_error,
+    results: list[SessionResponse] = []
+    for s in live_sessions:
+        live_ids.add(s.session_id)
+        results.append(
+            SessionResponse(
+                session_id=s.session_id,
+                transcript_id=s.fireflies_transcript_id,
+                connection_status=s.connection_status.value
+                if hasattr(s.connection_status, "value")
+                else str(s.connection_status),
+                chunks_received=s.chunks_received,
+                sentences_produced=s.sentences_produced,
+                translations_completed=s.translations_completed,
+                speakers_detected=s.speakers_detected,
+                connected_at=s.connected_at,
+                error_count=s.error_count,
+                last_error=s.last_error,
+            )
         )
-        for s in sessions
-    ]
+
+    # 2. Persisted meetings from database (supplements live sessions)
+    try:
+        from database import get_db_session
+        from database.models import Meeting, MeetingChunk, MeetingSentence, MeetingSpeaker, MeetingTranslation
+        from sqlalchemy import func, select
+
+        from database.database import get_database_manager
+        db_manager = get_database_manager()
+
+        async with db_manager.get_session() as db:
+            # Correlated subqueries for counts
+            chunk_count = (
+                select(func.count(MeetingChunk.id))
+                .where(MeetingChunk.meeting_id == Meeting.id)
+                .correlate(Meeting)
+                .scalar_subquery()
+                .label("chunk_count")
+            )
+            sentence_count = (
+                select(func.count(MeetingSentence.id))
+                .where(MeetingSentence.meeting_id == Meeting.id)
+                .correlate(Meeting)
+                .scalar_subquery()
+                .label("sentence_count")
+            )
+            # Translation count via sentence join
+            translation_count = (
+                select(func.count(MeetingTranslation.id))
+                .where(
+                    MeetingTranslation.sentence_id.in_(
+                        select(MeetingSentence.id).where(
+                            MeetingSentence.meeting_id == Meeting.id
+                        )
+                    )
+                )
+                .correlate(Meeting)
+                .scalar_subquery()
+                .label("translation_count")
+            )
+
+            rows = await db.execute(
+                select(Meeting, chunk_count, sentence_count, translation_count)
+                .order_by(Meeting.created_at.desc())
+                .limit(50)
+            )
+
+            for meeting, chunks, sentences, translations in rows.all():
+                meeting_id_str = str(meeting.id)
+                # Skip meetings that are already tracked as live sessions
+                if meeting_id_str in live_ids:
+                    continue
+                # Also check by fireflies transcript ID
+                if meeting.fireflies_transcript_id and meeting.fireflies_transcript_id in live_ids:
+                    continue
+
+                # Determine connection status from meeting status
+                status_str = meeting.status or "completed"
+                if status_str == "live":
+                    conn_status = "CONNECTED"
+                elif status_str in ("completed", "synced"):
+                    conn_status = "COMPLETED"
+                else:
+                    conn_status = "DISCONNECTED"
+
+                # Get speaker names from the speakers relationship
+                speaker_names: list[str] = []
+                try:
+                    speaker_rows = await db.execute(
+                        select(MeetingSpeaker.speaker_name)
+                        .where(MeetingSpeaker.meeting_id == meeting.id)
+                    )
+                    speaker_names = [r[0] for r in speaker_rows.all() if r[0]]
+                except Exception:
+                    pass
+
+                results.append(
+                    SessionResponse(
+                        session_id=meeting_id_str,
+                        transcript_id=meeting.fireflies_transcript_id or "",
+                        connection_status=conn_status,
+                        chunks_received=chunks or 0,
+                        sentences_produced=sentences or 0,
+                        translations_completed=translations or 0,
+                        speakers_detected=speaker_names,
+                        connected_at=meeting.start_time or meeting.created_at,
+                        error_count=0,
+                        last_error=None,
+                    )
+                )
+    except Exception as e:
+        # If DB is unavailable, still return live sessions
+        logger.warning("sessions_db_fallback_failed", error=str(e))
+
+    return results
 
 
 @router.get(
@@ -1325,30 +1424,98 @@ async def get_session(
     session_id: str,
     manager: FirefliesSessionManager = Depends(get_session_manager),
 ):
-    """Get details of a specific Fireflies session"""
+    """Get details of a specific Fireflies session (live or persisted)."""
+    # 1. Check in-memory live sessions first
     session = manager.get_session(session_id)
 
-    if not session:
-        from errors import NotFoundError
+    if session:
+        return SessionResponse(
+            session_id=session.session_id,
+            transcript_id=session.fireflies_transcript_id,
+            connection_status=session.connection_status.value
+            if hasattr(session.connection_status, "value")
+            else str(session.connection_status),
+            chunks_received=session.chunks_received,
+            sentences_produced=session.sentences_produced,
+            translations_completed=session.translations_completed,
+            speakers_detected=session.speakers_detected,
+            connected_at=session.connected_at,
+            error_count=session.error_count,
+            last_error=session.last_error,
+            persistence_failures=session.persistence_failures,
+            persistence_healthy=session.persistence_healthy,
+        )
 
+    # 2. Fall back to database for persisted meetings
+    from database.database import get_database_manager
+    from database.models import Meeting, MeetingChunk, MeetingSentence, MeetingSpeaker, MeetingTranslation
+    from sqlalchemy import func, select
+    import uuid as _uuid
+
+    try:
+        db_manager = get_database_manager()
+    except RuntimeError:
+        from errors import NotFoundError
         raise NotFoundError("Session", session_id)
 
-    return SessionResponse(
-        session_id=session.session_id,
-        transcript_id=session.fireflies_transcript_id,
-        connection_status=session.connection_status.value
-        if hasattr(session.connection_status, "value")
-        else str(session.connection_status),
-        chunks_received=session.chunks_received,
-        sentences_produced=session.sentences_produced,
-        translations_completed=session.translations_completed,
-        speakers_detected=session.speakers_detected,
-        connected_at=session.connected_at,
-        error_count=session.error_count,
-        last_error=session.last_error,
-        persistence_failures=session.persistence_failures,
-        persistence_healthy=session.persistence_healthy,
-    )
+    async with db_manager.get_session() as db:
+        # Try by UUID first, then by fireflies transcript ID
+        meeting = None
+        try:
+            parsed_uuid = _uuid.UUID(session_id)
+            result = await db.execute(
+                select(Meeting).where(Meeting.id == parsed_uuid)
+            )
+            meeting = result.scalar_one_or_none()
+        except ValueError:
+            pass
+
+        if not meeting:
+            result = await db.execute(
+                select(Meeting).where(Meeting.fireflies_transcript_id == session_id)
+            )
+            meeting = result.scalar_one_or_none()
+
+        if not meeting:
+            from errors import NotFoundError
+            raise NotFoundError("Session", session_id)
+
+        # Get counts
+        chunks = await db.scalar(
+            select(func.count(MeetingChunk.id)).where(MeetingChunk.meeting_id == meeting.id)
+        ) or 0
+        sentences = await db.scalar(
+            select(func.count(MeetingSentence.id)).where(MeetingSentence.meeting_id == meeting.id)
+        ) or 0
+        translations = await db.scalar(
+            select(func.count(MeetingTranslation.id)).where(
+                MeetingTranslation.sentence_id.in_(
+                    select(MeetingSentence.id).where(MeetingSentence.meeting_id == meeting.id)
+                )
+            )
+        ) or 0
+        speaker_rows = await db.execute(
+            select(MeetingSpeaker.speaker_name).where(MeetingSpeaker.meeting_id == meeting.id)
+        )
+        speaker_names = [r[0] for r in speaker_rows.all() if r[0]]
+
+        status_str = meeting.status or "completed"
+        conn_status = "CONNECTED" if status_str == "live" else (
+            "COMPLETED" if status_str in ("completed", "synced") else "DISCONNECTED"
+        )
+
+        return SessionResponse(
+            session_id=str(meeting.id),
+            transcript_id=meeting.fireflies_transcript_id or "",
+            connection_status=conn_status,
+            chunks_received=chunks,
+            sentences_produced=sentences,
+            translations_completed=translations,
+            speakers_detected=speaker_names,
+            connected_at=meeting.start_time or meeting.created_at,
+            error_count=0,
+            last_error=None,
+        )
 
 
 class DisplayModeRequest(BaseModel):
