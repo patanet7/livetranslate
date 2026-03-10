@@ -11,8 +11,12 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { MeetingSpeaker, MeetingSentence, MeetingInsight } from '$lib/types';
 	import type { DiarizationJob, TranscriptComparison } from '$lib/api/diarization';
+	import { exportApi } from '$lib/api/export';
 
 	let { data } = $props();
+
+	// --- Export dropdown state ---
+	let exportOpen = $state(false);
 
 	const meeting = $derived(data.meeting);
 	const sentences: MeetingSentence[] = $derived(data.transcript?.sentences ?? []);
@@ -297,6 +301,62 @@
 		}
 	}
 </script>
+
+<!-- Page header with title and export -->
+<div class="mb-4 flex items-center justify-between">
+	<div>
+		<h1 class="text-2xl font-bold">{meeting?.title ?? 'Meeting'}</h1>
+		{#if meeting?.date}
+			<p class="text-sm text-muted-foreground">
+				{new Date(meeting.date).toLocaleDateString(undefined, {
+					year: 'numeric',
+					month: 'long',
+					day: 'numeric'
+				})}
+			</p>
+		{/if}
+	</div>
+
+	<div class="relative">
+		<Button
+			variant="outline"
+			size="sm"
+			onclick={() => (exportOpen = !exportOpen)}
+		>
+			Export &#9662;
+		</Button>
+
+		{#if exportOpen}
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="absolute right-0 z-50 mt-1 w-56 rounded-md border bg-popover p-1 shadow-md"
+				onmouseleave={() => (exportOpen = false)}
+			>
+				<p class="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Transcript</p>
+				<a href={exportApi.transcriptUrl(meeting.id, 'srt')} download class="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent">SRT (subtitles)</a>
+				<a href={exportApi.transcriptUrl(meeting.id, 'vtt')} download class="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent">VTT (web subtitles)</a>
+				<a href={exportApi.transcriptUrl(meeting.id, 'txt')} download class="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent">Plain text</a>
+				<a href={exportApi.transcriptUrl(meeting.id, 'pdf')} download class="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent">PDF</a>
+
+				<div class="my-1 h-px bg-border"></div>
+
+				<p class="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Translations</p>
+				{#each sentences
+					.flatMap((s) => s.translations ?? [])
+					.map((t) => t.target_language)
+					.filter((v, i, a) => a.indexOf(v) === i) as lang}
+					<a href={exportApi.translationsUrl(meeting.id, lang, 'srt')} download class="block rounded-sm px-2 py-1.5 text-sm hover:bg-accent">{lang} (SRT)</a>
+				{:else}
+					<p class="px-2 py-1.5 text-xs text-muted-foreground italic">No translations available</p>
+				{/each}
+
+				<div class="my-1 h-px bg-border"></div>
+
+				<a href={exportApi.archiveUrl(meeting.id)} download class="block rounded-sm px-2 py-1.5 text-sm font-medium hover:bg-accent">Download All (ZIP)</a>
+			</div>
+		{/if}
+	</div>
+</div>
 
 <Tabs.Root bind:value={activeTab}>
 	<Tabs.List>
