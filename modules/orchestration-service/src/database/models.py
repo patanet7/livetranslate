@@ -10,6 +10,7 @@ from typing import Any
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -20,6 +21,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
@@ -1089,3 +1091,71 @@ class MeetingSpeaker(Base):
             "sentiment_score": self.sentiment_score,
             "analytics": self.analytics,
         }
+
+
+# =============================================================================
+# Diarization Models
+# =============================================================================
+
+
+class DiarizationJob(Base):
+    """Diarization job tracking."""
+
+    __tablename__ = "diarization_jobs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    meeting_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status = Column(String(20), nullable=False, default="queued", index=True)
+    triggered_by = Column(String(20), nullable=False, default="manual")
+    rule_matched = Column(JSONB, nullable=True)
+    audio_url = Column(Text, nullable=True)
+    audio_size_bytes = Column(BigInteger, nullable=True)
+    raw_segments = Column(JSONB, nullable=True)
+    detected_language = Column(String(10), nullable=True)
+    num_speakers_detected = Column(Integer, nullable=True)
+    processing_time_seconds = Column(Float, nullable=True)
+    speaker_map = Column(JSONB, nullable=True)
+    unmapped_speakers = Column(JSONB, nullable=True)
+    merge_applied = Column(Boolean, nullable=False, default=False)
+    merge_applied_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Relationships
+    meeting = relationship("Meeting", backref="diarization_jobs")
+
+
+class SpeakerProfile(Base):
+    """Speaker voice profile for cross-meeting identification."""
+
+    __tablename__ = "speaker_profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False, index=True)
+    email = Column(String(255), nullable=True, index=True)
+    embedding = Column(JSONB, nullable=True)
+    enrollment_source = Column(String(50), nullable=False, default="manual")
+    sample_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
