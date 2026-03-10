@@ -157,6 +157,103 @@ async def get_meeting_sentences_for_compare(
     return fireflies_sentences, vibevoice_segments, speaker_map
 
 
+async def create_diarization_job(
+    db: AsyncSession,
+    meeting_id: str,
+    triggered_by: str = "manual",
+    rule_matched: dict | None = None,
+) -> dict:
+    """Create a diarization job in the database."""
+    job = DiarizationJob(
+        meeting_id=meeting_id,
+        status="queued",
+        triggered_by=triggered_by,
+        rule_matched=rule_matched,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+    return _job_to_dict(job)
+
+
+async def get_diarization_job(db: AsyncSession, job_id: int) -> dict | None:
+    """Get a diarization job by ID."""
+    result = await db.execute(select(DiarizationJob).where(DiarizationJob.id == job_id))
+    job = result.scalar_one_or_none()
+    return _job_to_dict(job) if job else None
+
+
+async def list_diarization_jobs(
+    db: AsyncSession, status_filter: str | None = None, limit: int = 50
+) -> list[dict]:
+    """List diarization jobs."""
+    query = select(DiarizationJob).order_by(DiarizationJob.created_at.desc()).limit(limit)
+    if status_filter:
+        query = query.where(DiarizationJob.status == status_filter)
+    result = await db.execute(query)
+    return [_job_to_dict(j) for j in result.scalars().all()]
+
+
+async def update_job_status(
+    db: AsyncSession,
+    job_id: int,
+    status: str,
+    error_message: str | None = None,
+    **extra_fields,
+) -> dict | None:
+    """Update a diarization job status."""
+    result = await db.execute(select(DiarizationJob).where(DiarizationJob.id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        return None
+    job.status = status
+    job.updated_at = datetime.now(UTC)
+    if error_message:
+        job.error_message = error_message
+    if status in ("completed", "failed", "cancelled"):
+        job.completed_at = datetime.now(UTC)
+    for key, value in extra_fields.items():
+        if hasattr(job, key):
+            setattr(job, key, value)
+    await db.commit()
+    await db.refresh(job)
+    return _job_to_dict(job)
+
+
+async def get_next_queued_job(db: AsyncSession) -> dict | None:
+    """Get the oldest queued job for processing."""
+    result = await db.execute(
+        select(DiarizationJob)
+        .where(DiarizationJob.status == "queued")
+        .order_by(DiarizationJob.created_at)
+        .limit(1)
+    )
+    job = result.scalar_one_or_none()
+    return _job_to_dict(job) if job else None
+
+
+def _job_to_dict(job: DiarizationJob) -> dict:
+    """Convert DiarizationJob ORM object to dict."""
+    return {
+        "job_id": job.id,
+        "meeting_id": str(job.meeting_id),
+        "status": job.status,
+        "triggered_by": job.triggered_by,
+        "rule_matched": job.rule_matched,
+        "audio_url": job.audio_url,
+        "raw_segments": job.raw_segments,
+        "detected_language": job.detected_language,
+        "num_speakers_detected": job.num_speakers_detected,
+        "processing_time_seconds": job.processing_time_seconds,
+        "speaker_map": job.speaker_map,
+        "unmapped_speakers": job.unmapped_speakers,
+        "merge_applied": job.merge_applied,
+        "error_message": job.error_message,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+    }
+
+
 def _speaker_to_dict(profile: SpeakerProfile) -> dict:
     """Convert SpeakerProfile ORM object to dict."""
     return {

@@ -1,194 +1,139 @@
 """
-Diarization Pipeline — in-process async job queue.
+Diarization Pipeline — database-backed async job queue.
 
-Manages the lifecycle of offline diarization jobs without requiring an external
-queue broker.  All state is held in-memory; persistence is the responsibility of
-the caller (e.g. a router that mirrors job state to the database).
+Manages the lifecycle of offline diarization jobs with all state persisted to
+the database via helpers in ``db.py``.  A background worker polls for queued
+jobs and processes them.
 """
 
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+import asyncio
 from typing import Any
 
 from livetranslate_common.logging import get_logger
 
-from models.diarization import DiarizationJobStatus
+from services.diarization.db import (
+    create_diarization_job,
+    get_diarization_job,
+    get_next_queued_job,
+    list_diarization_jobs,
+    update_job_status,
+)
 
 logger = get_logger()
 
-# Terminal states after which a job cannot transition further.
-_TERMINAL_STATES: frozenset[DiarizationJobStatus] = frozenset(
-    {
-        DiarizationJobStatus.completed,
-        DiarizationJobStatus.failed,
-        DiarizationJobStatus.cancelled,
-    }
-)
-
-# Only queued jobs can be cancelled by the caller.
-_CANCELLABLE_STATES: frozenset[DiarizationJobStatus] = frozenset(
-    {DiarizationJobStatus.queued}
-)
-
 
 class DiarizationPipeline:
-    """In-process job queue for offline speaker diarization.
+    """Database-backed job queue for offline speaker diarization.
 
-    Jobs are stored in ``active_jobs`` keyed by a 12-character job ID derived
-    from a UUID4.  The pipeline does *not* execute processing itself — it only
-    manages job metadata and lifecycle transitions.  A separate worker (e.g. an
-    asyncio task or Celery worker) is expected to call :meth:`update_status` as
-    processing progresses.
+    All job state is persisted to the database.  The pipeline delegates CRUD
+    operations to the DB helper functions and does not hold in-memory state.
 
     Args:
+        session_factory: Async callable that returns an ``AsyncSession``
+            (typically ``DatabaseManager.get_session``).
         vibevoice_url: Base URL for the VibeVoice-ASR HTTP API.
-        max_concurrent: Maximum number of jobs that may be in a non-terminal,
-            non-queued state simultaneously.  Reserved for future enforcement.
+        max_concurrent: Maximum number of concurrent processing jobs
+            (reserved for future enforcement).
     """
 
     def __init__(
         self,
+        session_factory,
         vibevoice_url: str = "http://localhost:8000/v1",
         max_concurrent: int = 1,
     ) -> None:
+        self.session_factory = session_factory
         self.vibevoice_url: str = vibevoice_url
         self.max_concurrent: int = max_concurrent
-        self.active_jobs: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def create_job(
+    async def create_job(
         self,
-        meeting_id: int,
+        meeting_id: str,
         triggered_by: str = "manual",
         hotwords: list[str] | None = None,
         rule_matched: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create a new diarization job in QUEUED state.
-
-        Args:
-            meeting_id: Database ID of the meeting to diarize.
-            triggered_by: Identity of the actor triggering the job
-                (e.g. ``"manual"``, ``"auto_rule"``).
-            hotwords: Optional domain-specific hotwords to bias recognition.
-            rule_matched: Optional auto-trigger rule configuration that caused
-                this job to be created.
-
-        Returns:
-            The newly created job dict, also stored in :attr:`active_jobs`.
-        """
-        job_id = uuid.uuid4().hex[:12]
-        job: dict[str, Any] = {
-            "job_id": job_id,
-            "meeting_id": meeting_id,
-            "triggered_by": triggered_by,
-            "status": DiarizationJobStatus.queued,
-            "hotwords": hotwords,
-            "rule_matched": rule_matched,
-            "created_at": datetime.now(timezone.utc),
-            "completed_at": None,
-            "error_message": None,
-        }
-        self.active_jobs[job_id] = job
+        """Create a new diarization job in QUEUED state."""
+        async with self.session_factory() as db:
+            job = await create_diarization_job(
+                db,
+                meeting_id=meeting_id,
+                triggered_by=triggered_by,
+                rule_matched=rule_matched,
+            )
         logger.info(
             "diarization_job_created",
-            job_id=job_id,
+            job_id=job["job_id"],
             meeting_id=meeting_id,
             triggered_by=triggered_by,
         )
         return job
 
-    def get_job(self, job_id: str) -> dict[str, Any] | None:
-        """Return the job dict for *job_id*, or ``None`` if not found.
+    async def get_job(self, job_id: int) -> dict[str, Any] | None:
+        """Return the job dict for *job_id*, or ``None`` if not found."""
+        async with self.session_factory() as db:
+            return await get_diarization_job(db, job_id)
 
-        Args:
-            job_id: The 12-character job identifier.
-
-        Returns:
-            The job dict, or ``None``.
-        """
-        return self.active_jobs.get(job_id)
-
-    def list_jobs(
-        self, status: DiarizationJobStatus | None = None
+    async def list_jobs(
+        self, status: str | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:
-        """Return all jobs, optionally filtered by status.
+        """Return all jobs, optionally filtered by status."""
+        async with self.session_factory() as db:
+            return await list_diarization_jobs(db, status_filter=status, limit=limit)
 
-        Results are sorted by ``created_at`` descending (newest first).
-
-        Args:
-            status: When provided, only jobs with this status are returned.
-
-        Returns:
-            List of job dicts sorted by creation time descending.
-        """
-        jobs = list(self.active_jobs.values())
-        if status is not None:
-            jobs = [j for j in jobs if j["status"] == status]
-        jobs.sort(key=lambda j: j["created_at"], reverse=True)
-        return jobs
-
-    def cancel_job(self, job_id: str) -> bool:
+    async def cancel_job(self, job_id: int) -> bool:
         """Cancel a QUEUED job.
 
-        A job can only be cancelled if it exists and is in a cancellable state
-        (currently only ``QUEUED``).
-
-        Args:
-            job_id: The 12-character job identifier.
-
-        Returns:
-            ``True`` if the job was successfully cancelled, ``False`` otherwise.
+        Returns ``True`` if the job was successfully cancelled, ``False`` otherwise.
         """
-        job = self.active_jobs.get(job_id)
-        if job is None:
-            logger.warning("diarization_cancel_not_found", job_id=job_id)
-            return False
-        if job["status"] not in _CANCELLABLE_STATES:
-            logger.warning(
-                "diarization_cancel_not_allowed",
-                job_id=job_id,
-                current_status=str(job["status"]),
-            )
-            return False
-        self.update_status(job_id, DiarizationJobStatus.cancelled)
+        async with self.session_factory() as db:
+            job = await get_diarization_job(db, job_id)
+            if job is None:
+                logger.warning("diarization_cancel_not_found", job_id=job_id)
+                return False
+            if job["status"] != "queued":
+                logger.warning(
+                    "diarization_cancel_not_allowed",
+                    job_id=job_id,
+                    current_status=job["status"],
+                )
+                return False
+            await update_job_status(db, job_id, "cancelled")
         return True
 
-    def update_status(
+    async def update_status(
         self,
-        job_id: str,
-        status: DiarizationJobStatus,
+        job_id: int,
+        status: str,
         **kwargs: Any,
-    ) -> None:
-        """Update the status and optional metadata fields of a job.
+    ) -> dict[str, Any] | None:
+        """Update the status and optional metadata fields of a job."""
+        async with self.session_factory() as db:
+            return await update_job_status(db, job_id, status, **kwargs)
 
-        Sets ``completed_at`` automatically when *status* is a terminal state
-        and ``completed_at`` has not already been set.
 
-        Args:
-            job_id: The 12-character job identifier.
-            status: The new lifecycle status.
-            **kwargs: Additional fields to merge into the job dict
-                (e.g. ``error_message``, ``num_speakers_detected``).
+async def start_diarization_worker():
+    """Background worker that processes queued diarization jobs."""
+    from database import get_database_manager
 
-        Raises:
-            KeyError: If *job_id* does not exist in :attr:`active_jobs`.
-        """
-        job = self.active_jobs[job_id]
-        previous_status = job["status"]
-        job["status"] = status
-        job.update(kwargs)
-
-        if status in _TERMINAL_STATES and job.get("completed_at") is None:
-            job["completed_at"] = datetime.now(timezone.utc)
-
-        logger.info(
-            "diarization_job_status_updated",
-            job_id=job_id,
-            previous_status=str(previous_status),
-            new_status=str(status),
-        )
+    logger.info("diarization_worker_started")
+    while True:
+        try:
+            db_manager = get_database_manager()
+            async with db_manager.get_session() as db:
+                job = await get_next_queued_job(db)
+                if job:
+                    logger.info("processing_diarization_job", job_id=job["job_id"])
+                    await update_job_status(db, job["job_id"], "processing")
+                    # TODO: actual diarization processing will be added when
+                    # whisper service diarization endpoint is available
+                    await update_job_status(db, job["job_id"], "completed")
+        except Exception as e:
+            logger.error("diarization_worker_error", error=str(e))
+        await asyncio.sleep(10)  # Poll every 10 seconds

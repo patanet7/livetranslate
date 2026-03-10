@@ -21,8 +21,8 @@ Endpoints:
 
 from typing import Any
 
-from config import DiarizationSettings
-from database import get_db_session
+from database import get_database_manager, get_db_session
+from database.models import MeetingSentence
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from livetranslate_common.logging import get_logger
 from models.diarization import (
@@ -33,15 +33,18 @@ from models.diarization import (
     SpeakerProfileCreate,
     SpeakerProfileResponse,
 )
-from database.models import MeetingSentence
 from services.diarization.db import (
+    create_diarization_job,
     create_speaker,
     delete_speaker,
+    get_diarization_job,
     get_diarization_rules,
     get_meeting_sentences_for_compare,
+    list_diarization_jobs,
     list_speakers,
     merge_speakers,
     save_diarization_rules,
+    update_job_status,
     update_speaker,
 )
 from services.diarization.pipeline import DiarizationPipeline
@@ -59,8 +62,12 @@ _pipeline: DiarizationPipeline | None = None
 def get_pipeline() -> DiarizationPipeline:
     global _pipeline
     if _pipeline is None:
+        from config import DiarizationSettings
+
         settings = DiarizationSettings()
+        db_manager = get_database_manager()
         _pipeline = DiarizationPipeline(
+            session_factory=db_manager.get_session,
             vibevoice_url=settings.vibevoice_url,
             max_concurrent=settings.max_concurrent_jobs,
         )
@@ -71,38 +78,51 @@ def get_pipeline() -> DiarizationPipeline:
 
 
 @router.post("/jobs", status_code=status.HTTP_201_CREATED)
-async def create_diarization_job(req: DiarizationJobCreate) -> dict[str, Any]:
+async def create_job_endpoint(
+    req: DiarizationJobCreate,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     """Submit a meeting for offline diarization."""
-    pipeline = get_pipeline()
-    job = pipeline.create_job(
+    job = await create_diarization_job(
+        db,
         meeting_id=req.meeting_id,
         triggered_by="manual",
-        hotwords=req.hotwords,
+        rule_matched=None,
     )
     return job
 
 
 @router.get("/jobs")
-async def list_diarization_jobs(status_filter: str | None = None) -> list[dict[str, Any]]:
+async def list_jobs_endpoint(
+    status_filter: str | None = None,
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict[str, Any]]:
     """List diarization jobs, optionally filtered by status."""
-    pipeline = get_pipeline()
-    return pipeline.list_jobs(status=status_filter)
+    return await list_diarization_jobs(db, status_filter=status_filter)
 
 
 @router.get("/jobs/{job_id}")
-async def get_diarization_job(job_id: str) -> dict[str, Any]:
-    pipeline = get_pipeline()
-    job = pipeline.get_job(job_id)
+async def get_job_endpoint(
+    job_id: int,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    job = await get_diarization_job(db, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
 
 @router.post("/jobs/{job_id}/cancel")
-async def cancel_diarization_job(job_id: str) -> dict[str, str]:
-    pipeline = get_pipeline()
-    if not pipeline.cancel_job(job_id):
-        raise HTTPException(status_code=400, detail="Job not found or not cancellable")
+async def cancel_job_endpoint(
+    job_id: int,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, str]:
+    job = await get_diarization_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] != "queued":
+        raise HTTPException(status_code=400, detail="Job is not cancellable")
+    await update_job_status(db, job_id, "cancelled")
     return {"status": "cancelled"}
 
 
