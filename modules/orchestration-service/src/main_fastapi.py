@@ -223,6 +223,16 @@ try:
         "routes": len(meetings_router.routes) if hasattr(meetings_router, "routes") else 0,
     }
 
+    # Import export_router
+    import_logger.debug("Importing export_router...")
+    from routers.export import router as export_router
+
+    import_logger.info("[OK] export_router imported successfully")
+    routers_status["export_router"] = {
+        "status": "success",
+        "routes": len(export_router.routes) if hasattr(export_router, "routes") else 0,
+    }
+
     # Import diarization_router
     import_logger.debug("Importing diarization_router...")
     from routers.diarization import router as diarization_router
@@ -698,6 +708,14 @@ if diarization_router is not None:
     router_logger.info(" diarization_router registered successfully")
 else:
     router_logger.warning("[SKIP] diarization_router not registered (import failed)")
+
+# Register export_router
+router_logger.info("[19] Registering export_router...")
+log_router_details("export_router", export_router, "/api/export")
+conflicts = check_route_conflicts("/api/export", "export_router", registered_routes)
+app.include_router(export_router, prefix="/api/export", tags=["Export"])
+registered_routes.append(("/api/export", "export_router"))
+router_logger.info(" export_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
