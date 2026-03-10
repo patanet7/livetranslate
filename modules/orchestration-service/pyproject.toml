@@ -69,6 +69,7 @@ dependencies = [
     "pillow>=12.0.0,<13.0.0",
     "opencv-python>=4.12.0.88,<5.0.0.0",
     "greenlet>=3.3.1",
+    "reportlab>=4.4.10",
 ]
 
 [project.scripts]
