@@ -9,6 +9,8 @@ from .adapter import (
     ToolCall,
     ToolDefinition,
 )
+from .registry import ProviderRegistry, get_registry
+from .tool_executor import ToolExecutor
 
 __all__ = [
     "LLMAdapter",
@@ -18,4 +20,7 @@ __all__ = [
     "ToolCall",
     "ToolDefinition",
     "ModelInfo",
+    "ProviderRegistry",
+    "get_registry",
+    "ToolExecutor",
 ]
