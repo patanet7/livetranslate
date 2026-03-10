@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from "react";
-import { useAppDispatch, useAppSelector } from "@/store";
+import { useAppDispatch, useAppSelector, store } from "@/store";
 import {
   initializeConnection,
   connectionEstablished,
@@ -9,7 +9,7 @@ import {
   messageReceived,
   messageSent,
   queueMessage,
-  processMessageQueue,
+  clearMessageQueue,
   updateHeartbeat,
   addError,
   updateConfig,
@@ -371,8 +371,18 @@ export const useWebSocket = () => {
         setWsFailureCount(0);
         setUseApiMode(false);
 
-        // Process any queued messages
-        dispatch(processMessageQueue());
+        // Drain queued messages through the live WebSocket
+        const queue = store.getState().websocket.messageQueue;
+        if (queue.length > 0 && websocketRef.current?.readyState === WebSocket.OPEN) {
+          for (const msg of queue) {
+            try {
+              websocketRef.current.send(JSON.stringify(msg));
+            } catch {
+              break; // Stop draining if send fails
+            }
+          }
+        }
+        dispatch(clearMessageQueue());
 
         // Start heartbeat with longer interval
         if (heartbeatIntervalRef.current) {

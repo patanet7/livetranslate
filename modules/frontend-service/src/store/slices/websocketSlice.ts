@@ -199,12 +199,6 @@ const websocketSlice = createSlice({
     },
 
     clearMessageQueue: (state) => {
-      state.messageQueue = [];
-    },
-
-    processMessageQueue: (state) => {
-      // This would trigger processing of queued messages
-      // Implementation would be in middleware
       state.stats.messagesSent += state.messageQueue.length;
       state.messageQueue = [];
     },
@@ -299,7 +293,6 @@ export const {
   messageSent,
   queueMessage,
   clearMessageQueue,
-  processMessageQueue,
   subscribe,
   unsubscribe,
   updateConfig,
