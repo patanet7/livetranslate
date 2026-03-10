@@ -647,6 +647,7 @@ async def _process_uploaded_file(
 
             pipeline_config = PipelineConfig(
                 session_id=session_id,
+                source_type="audio_upload",
                 transcript_id=correlation_id,
                 target_languages=target_languages,
                 source_language=result.get("language", "auto"),
