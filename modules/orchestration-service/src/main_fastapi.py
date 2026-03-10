@@ -233,6 +233,16 @@ try:
         "routes": len(export_router.routes) if hasattr(export_router, "routes") else 0,
     }
 
+    # Import biz_chat_router (Business Insights Chat)
+    import_logger.debug("Importing biz_chat_router...")
+    from routers.chat import router as biz_chat_router
+
+    import_logger.info("[OK] biz_chat_router imported successfully")
+    routers_status["biz_chat_router"] = {
+        "status": "success",
+        "routes": len(biz_chat_router.routes) if hasattr(biz_chat_router, "routes") else 0,
+    }
+
     # Import diarization_router
     import_logger.debug("Importing diarization_router...")
     from routers.diarization import router as diarization_router
@@ -716,6 +726,14 @@ conflicts = check_route_conflicts("/api/export", "export_router", registered_rou
 app.include_router(export_router, prefix="/api/export", tags=["Export"])
 registered_routes.append(("/api/export", "export_router"))
 router_logger.info(" export_router registered successfully")
+
+# Register biz_chat_router (Business Insights Chat)
+router_logger.info("[20] Registering biz_chat_router...")
+log_router_details("biz_chat_router", biz_chat_router, "/api/chat")
+conflicts = check_route_conflicts("/api/chat", "biz_chat_router", registered_routes)
+app.include_router(biz_chat_router, prefix="/api/chat", tags=["Business Chat"])
+registered_routes.append(("/api/chat", "biz_chat_router"))
+router_logger.info(" biz_chat_router registered successfully")
 
 # Summary of registration
 router_logger.info(" Router registration summary:")
