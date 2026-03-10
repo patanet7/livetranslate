@@ -10,9 +10,11 @@ API endpoints for the Meeting Intelligence system:
 All endpoints are prefixed with /api/intelligence (set in main_fastapi.py).
 """
 
+import json
 import uuid
+from typing import Any
 
-from database.models import BotSession, Transcript
+from database.models import BotSession, Meeting, MeetingDataInsight, Transcript
 from dependencies import get_database_manager
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -61,6 +63,113 @@ def _validate_uuid(value: str, name: str = "ID") -> str:
 
 
 # =============================================================================
+# Helpers for meeting_data_insights fallback
+# =============================================================================
+
+# Insight types that map well to "notes" (textual content from Fireflies)
+_NOTE_INSIGHT_TYPES = {"summary", "overview", "shorthand_bullet", "action_items", "keywords"}
+# Insight types that map well to "insights" (analytical/structured data)
+_INSIGHT_TYPES = {
+    "summary", "overview", "shorthand_bullet", "action_items", "keywords",
+    "sentiment", "speaker_analytics", "ai_filters", "attendance",
+}
+# Skip per-sentence AI filters (too granular for the insights view)
+_SKIP_TYPES = {"sentence_ai_filter"}
+
+
+def _format_insight_content(content: Any) -> str:
+    """Format JSONB content to readable text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        # e.g. action_items: ["item1", "item2"]
+        return "\n".join(f"- {item}" if isinstance(item, str) else f"- {json.dumps(item)}" for item in content)
+    if isinstance(content, dict):
+        return json.dumps(content, indent=2, default=str)
+    return str(content)
+
+
+async def _get_meeting_data_insights_as_notes(
+    session_id: str, note_type: str | None = None,
+) -> list["NoteResponse"]:
+    """Query meeting_data_insights and return them shaped as NoteResponse."""
+    try:
+        db_manager = get_database_manager()
+        async with db_manager.get_session() as db:
+            # Verify it's a meetings row
+            result = await db.execute(
+                select(Meeting).where(Meeting.id == uuid.UUID(session_id))
+            )
+            meeting = result.scalar_one_or_none()
+            if not meeting:
+                return []
+
+            query = (
+                select(MeetingDataInsight)
+                .where(MeetingDataInsight.meeting_id == meeting.id)
+                .where(MeetingDataInsight.insight_type.in_(_NOTE_INSIGHT_TYPES))
+                .order_by(MeetingDataInsight.created_at.desc())
+            )
+            rows = await db.execute(query)
+            notes = []
+            for row in rows.scalars().all():
+                notes.append(NoteResponse(
+                    note_id=str(row.id),
+                    session_id=session_id,
+                    note_type="auto",
+                    content=_format_insight_content(row.content),
+                    speaker_name=row.insight_type,  # use type as label
+                    llm_backend=row.source,
+                    llm_model=row.model_used,
+                    created_at=row.created_at,
+                ))
+            return notes
+    except Exception as e:
+        logger.warning("meeting_data_insights_notes_fallback_error", error=str(e))
+        return []
+
+
+async def _get_meeting_data_insights_as_insights(
+    session_id: str,
+) -> list["InsightResponse"]:
+    """Query meeting_data_insights and return them shaped as InsightResponse."""
+    try:
+        db_manager = get_database_manager()
+        async with db_manager.get_session() as db:
+            result = await db.execute(
+                select(Meeting).where(Meeting.id == uuid.UUID(session_id))
+            )
+            meeting = result.scalar_one_or_none()
+            if not meeting:
+                return []
+
+            query = (
+                select(MeetingDataInsight)
+                .where(MeetingDataInsight.meeting_id == meeting.id)
+                .where(MeetingDataInsight.insight_type.notin_(_SKIP_TYPES))
+                .order_by(MeetingDataInsight.created_at.desc())
+            )
+            rows = await db.execute(query)
+            insights = []
+            for row in rows.scalars().all():
+                title = row.insight_type.replace("_", " ").title()
+                insights.append(InsightResponse(
+                    insight_id=str(row.id),
+                    session_id=session_id,
+                    insight_type=row.insight_type,
+                    title=title,
+                    content=_format_insight_content(row.content),
+                    llm_backend=row.source,
+                    llm_model=row.model_used,
+                    created_at=row.created_at,
+                ))
+            return insights
+    except Exception as e:
+        logger.warning("meeting_data_insights_fallback_error", error=str(e))
+        return []
+
+
+# =============================================================================
 # Dependency: MeetingIntelligenceService
 # =============================================================================
 
@@ -87,12 +196,21 @@ async def list_notes(
     note_type: str | None = Query(default=None, description="Filter: auto, manual, annotation"),
     service=Depends(get_intelligence_service),
 ):
-    """Get all notes for a session, optionally filtered by type."""
+    """Get all notes for a session (bot_sessions or meetings)."""
     _validate_uuid(session_id, "session_id")
+    # Try bot_sessions notes first
     notes = await service.get_notes(session_id, note_type=note_type)
+    if notes:
+        return NoteListResponse(
+            notes=[NoteResponse(**n) for n in notes],
+            count=len(notes),
+        )
+
+    # Fall back to meeting_data_insights for Fireflies-imported meetings
+    meeting_notes = await _get_meeting_data_insights_as_notes(session_id, note_type)
     return NoteListResponse(
-        notes=[NoteResponse(**n) for n in notes],
-        count=len(notes),
+        notes=meeting_notes,
+        count=len(meeting_notes),
     )
 
 
@@ -251,12 +369,21 @@ async def list_insights(
     session_id: str,
     service=Depends(get_intelligence_service),
 ):
-    """Get all insights for a session."""
+    """Get all insights for a session (bot_sessions or meetings)."""
     _validate_uuid(session_id, "session_id")
+    # Try bot_sessions insights first
     insights = await service.get_insights(session_id)
+    if insights:
+        return InsightListResponse(
+            insights=[InsightResponse(**i) for i in insights],
+            count=len(insights),
+        )
+
+    # Fall back to meeting_data_insights for Fireflies-imported meetings
+    meeting_insights = await _get_meeting_data_insights_as_insights(session_id)
     return InsightListResponse(
-        insights=[InsightResponse(**i) for i in insights],
-        count=len(insights),
+        insights=meeting_insights,
+        count=len(meeting_insights),
     )
 
 
