@@ -4,7 +4,7 @@
 # Stage 1: Builder
 # Install dependencies and prepare the application
 # =============================================================================
-FROM python:3.14-slim AS builder
+FROM python:3.12-slim AS builder
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -34,7 +34,7 @@ RUN pdm install ${PDM_INSTALL_ARGS}
 # Stage 2: Runtime
 # Minimal runtime image with only necessary components
 # =============================================================================
-FROM python:3.14-slim AS runtime
+FROM python:3.12-slim AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Translation Service" \
@@ -80,5 +80,5 @@ EXPOSE 5003
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5003/health || exit 1
 
-# Default command - run the Flask API server
-CMD ["python", "src/api_server.py"]
+# Default command - run the FastAPI server (includes /api/v3 and batch endpoints)
+CMD ["uvicorn", "api_server_fastapi:app", "--host", "0.0.0.0", "--port", "5003", "--app-dir", "src"]
