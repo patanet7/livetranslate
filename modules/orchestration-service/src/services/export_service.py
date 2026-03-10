@@ -5,7 +5,7 @@ Supports: SRT, VTT, TXT, JSON, PDF formats.
 
 import io
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 def format_timecode_srt(seconds: float | None) -> str:
@@ -87,7 +87,7 @@ def to_json(meeting, sentences: list[dict], translations: list[dict]) -> str:
         },
         "sentences": sentences,
         "translations": translations,
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(UTC).isoformat(),
     }
     return json.dumps(data, default=str, indent=2, ensure_ascii=False)
 
