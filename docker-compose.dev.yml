@@ -21,7 +21,6 @@ services:
     environment:
       - NODE_ENV=development
       - WHISPER_SERVICE_URL=http://whisper:5001
-      - SPEAKER_SERVICE_URL=http://speaker:5002
       - TRANSLATION_SERVICE_URL=http://translation:5003
       - TRITON_SERVER_URL=http://translation:8000
     networks:
@@ -74,42 +73,6 @@ services:
       retries: 3
       start_period: 60s
 
-  # Speaker Service (with volume mounting)
-  speaker:
-    build:
-      context: ./modules/speaker-service
-      dockerfile: Dockerfile
-    container_name: livetranslate-speaker-dev
-    restart: unless-stopped
-    ports:
-      - "5002:5002"
-    environment:
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - MODEL_CACHE_DIR=/app/models
-      - ENABLE_CUDA=true
-    networks:
-      - livetranslate-dev
-    volumes:
-      # Volume mount for live development
-      - ./modules/speaker-service/src:/app/src
-      - ./modules/speaker-service/requirements.txt:/app/requirements.txt
-      - livetranslate-models-speaker:/app/models
-      - livetranslate-sessions:/app/sessions
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s
-
   # Translation Service (with volume mounting)
   translation:
     build:
@@ -149,7 +112,6 @@ services:
       # Integration with other services
       - REDIS_URL=redis://translation-redis:6379
       - WHISPER_SERVICE_URL=http://whisper:5001
-      - SPEAKER_SERVICE_URL=http://speaker:5002
       - FRONTEND_SERVICE_URL=http://frontend:3000
 
       # CUDA configuration
@@ -259,8 +221,6 @@ volumes:
 
   # AI models (shared with production)
   livetranslate-models-whisper:
-    external: true
-  livetranslate-models-speaker:
     external: true
   livetranslate-models-translation:
     external: true

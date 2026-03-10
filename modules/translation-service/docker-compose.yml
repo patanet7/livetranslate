@@ -165,8 +165,6 @@ services:
       - TRANSLATION_PORT=8010
       - WHISPER_HOST=whisper-service
       - WHISPER_PORT=5001
-      - SPEAKER_HOST=speaker-service
-      - SPEAKER_PORT=5002
       - FRONTEND_HOST=frontend-service
       - FRONTEND_PORT=3000
       - LOG_LEVEL=INFO

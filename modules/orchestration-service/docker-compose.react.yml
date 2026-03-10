@@ -27,7 +27,6 @@ services:
       # External services
       - WHISPER_SERVICE_URL=http://whisper-service:5001
       - TRANSLATION_SERVICE_URL=http://translation-service:5003
-      - SPEAKER_SERVICE_URL=http://speaker-service:5002
 
       # WebSocket settings
       - WEBSOCKET_MAX_CONNECTIONS=10000
@@ -136,7 +135,6 @@ services:
       - REDIS_URL=redis://redis:6379
       - WHISPER_SERVICE_URL=http://whisper-service:5001
       - TRANSLATION_SERVICE_URL=http://translation-service:5003
-      - SPEAKER_SERVICE_URL=http://speaker-service:5002
     depends_on:
       - redis
     volumes:

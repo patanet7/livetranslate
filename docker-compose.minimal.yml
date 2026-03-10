@@ -16,7 +16,6 @@ services:
       - NODE_ENV=development
       - WHISPER_SERVICE_URL=http://whisper-mock:5001
       - TRANSLATION_SERVICE_URL=http://translation-mock:5003
-      - SPEAKER_SERVICE_URL=http://speaker-mock:5002
     networks:
       - livetranslate
     restart: unless-stopped
@@ -99,46 +98,6 @@ services:
             }
 
         app.run(host='0.0.0.0', port=5003, debug=True)
-        \"
-      "
-
-  # Mock Speaker Service (for testing)
-  speaker-mock:
-    image: python:3.11-slim
-    container_name: livetranslate-speaker-mock
-    ports:
-      - "5002:5002"
-    networks:
-      - livetranslate
-    working_dir: /app
-    command: >
-      sh -c "
-        pip install flask flask-cors &&
-        python -c \"
-        from flask import Flask, request, jsonify
-        from flask_cors import CORS
-        import json
-        import time
-        app = Flask(__name__)
-        CORS(app)
-
-        @app.route('/health')
-        def health(): return {'status': 'ok', 'service': 'speaker-mock'}
-
-        @app.route('/api/health')
-        def api_health(): return {'status': 'ok', 'service': 'speaker-mock'}
-
-        @app.route('/diarize', methods=['POST'])
-        def diarize():
-            time.sleep(0.4)  # Simulate processing
-            return {
-                'speakers': [
-                    {'speaker_id': 'Speaker_1', 'start': 0.0, 'end': 5.0},
-                    {'speaker_id': 'Speaker_2', 'start': 5.1, 'end': 10.0}
-                ]
-            }
-
-        app.run(host='0.0.0.0', port=5002, debug=True)
         \"
       "
 
