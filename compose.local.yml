@@ -4,8 +4,6 @@ services:
   orchestration:
     build:
       context: modules/orchestration-service
-      args:
-        POETRY_INSTALL_ARGS: "--with dev,audio"
     profiles: ["core"]
     environment:
       AUDIO_SERVICE_URL: ${AUDIO_SERVICE_URL:-http://whisper:5001}
@@ -85,6 +83,15 @@ services:
     build:
       context: modules/translation-service
     profiles: ["inference"]
+    command:
+      - uvicorn
+      - api_server_fastapi:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5003"
+      - --app-dir
+      - src
     environment:
       FLASK_ENV: development
       FLASK_DEBUG: "0"
@@ -110,9 +117,7 @@ services:
   config-worker:
     build:
       context: modules/orchestration-service
-      args:
-        POETRY_INSTALL_ARGS: "--with dev,audio"
-    command: ["poetry", "run", "python", "-m", "worker.config_sync_worker"]
+    command: ["uv", "run", "python", "-m", "worker.config_sync_worker"]
     profiles: ["workers"]
     environment:
       CONFIG_SYNC_MODE: worker
