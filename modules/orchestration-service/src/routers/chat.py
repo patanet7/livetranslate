@@ -29,7 +29,7 @@ from services.chat_tools import register_all_tools
 from services.llm.adapter import ChatMessage
 from services.llm.registry import get_registry
 from services.llm.tool_executor import ToolExecutor
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -178,14 +178,22 @@ async def list_conversations(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[ConversationResponse]:
     """List conversations ordered by most recent."""
+    # Use a subquery to count messages without lazy-loading the relationship
+    msg_count_subq = (
+        select(func.count(ChatMessageModel.id))
+        .where(ChatMessageModel.conversation_id == ChatConversation.id)
+        .correlate(ChatConversation)
+        .scalar_subquery()
+        .label("msg_count")
+    )
     result = await db.execute(
-        select(ChatConversation)
+        select(ChatConversation, msg_count_subq)
         .order_by(ChatConversation.updated_at.desc())
         .limit(limit)
         .offset(offset)
     )
-    convs = result.scalars().all()
-    return [_conv_to_response(c) for c in convs]
+    rows = result.all()
+    return [_conv_to_response(conv, msg_count=count or 0) for conv, count in rows]
 
 
 @router.get("/conversations/{conversation_id}")
