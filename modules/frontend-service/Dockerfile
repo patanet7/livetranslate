@@ -42,7 +42,7 @@ RUN pnpm build
 # Stage 3: Runtime
 # Minimal production runtime with nginx
 # =============================================================================
-FROM nginx:1.29-alpine AS runtime
+FROM nginx:1.29.6-alpine AS runtime
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Frontend Service" \
