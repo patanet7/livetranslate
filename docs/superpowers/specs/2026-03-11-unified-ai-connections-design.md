@@ -37,7 +37,7 @@ vLLM and Triton are handled as `openai_compatible` since they expose `/v1/` endp
 CREATE TABLE ai_connections (
     id              TEXT PRIMARY KEY,
     name            TEXT NOT NULL,
-    engine          TEXT NOT NULL,
+    engine          TEXT NOT NULL CHECK (engine IN ('ollama', 'openai', 'anthropic', 'openai_compatible')),
     url             TEXT NOT NULL,
     api_key         TEXT NOT NULL DEFAULT '',
     prefix          TEXT NOT NULL DEFAULT '',
@@ -51,11 +51,11 @@ CREATE TABLE ai_connections (
 );
 ```
 
-- `id`: Slug identifier (e.g., `"home-gpu"`, `"cloud-openai"`)
+- `id`: Slug identifier (e.g., `"home-gpu"`, `"cloud-openai"`). Validated: lowercase alphanumeric + hyphens, max 64 chars. Auto-generated from `name` if not provided (e.g., "Home GPU" → `"home-gpu"`). Uniqueness violations return 409.
 - `prefix`: Model namespace for disambiguation (e.g., `"home-gpu"` → `"home-gpu/llama2:7b"`)
 - `context_length`: Optional override; NULL means use model default
 - `priority`: UI ordering and fallback preference (lower = higher priority)
-- `engine`: Constrained to `ollama`, `openai`, `anthropic`, `openai_compatible`
+- `engine`: Constrained at DB level via CHECK constraint
 
 ### `system_config` rows for feature preferences
 
@@ -97,6 +97,8 @@ class ConnectionService:
     async def get_adapter(connection_id: str) -> LLMAdapter
 ```
 
+**Adapter caching:** `get_adapter()` caches adapter instances keyed by `(connection_id, updated_at)`. If a connection is updated, the next `get_adapter()` call constructs a fresh adapter. This avoids per-request overhead for providers with connection pools (OpenAI, Anthropic) while still picking up config changes.
+
 ### Model Resolution
 
 Features reference models by prefixed ID (e.g., `"home-gpu/qwen3.5:4b"`). A shared resolver parses this:
@@ -112,7 +114,7 @@ async def resolve_model(model_id: str) -> tuple[AIConnection, str]:
 ### Feature Adapter Integration
 
 - **Chat**: `ConnectionService.get_adapter(connection_id)` returns an `LLMAdapter` — same interface Chat already uses. The chat router swaps `registry.get_adapter("ollama")` for `connection_service.get_adapter("home-gpu")`.
-- **Intelligence**: `LLMClient.from_connection(conn: AIConnection)` constructs a client from the connection's url/api_key/engine.
+- **Intelligence**: `LLMClient.from_connection(conn: AIConnection)` constructs a client from the connection's url/api_key/engine. Always uses direct mode (`proxy_mode=False`) — the proxy mode path through Translation Service is retired.
 - **Translation**: Verify/aggregate endpoints delegate to `ConnectionService` methods.
 
 ### What Gets Removed
@@ -203,7 +205,7 @@ Engine-specific dialog behavior:
 
 1. Create `ai_connections` table
 2. Read existing `system_config.chat_settings` — if it has provider/base_url/api_key, insert as a connection
-3. Read `config/translation.json` — if it has `connections[]`, insert each as a connection
+3. Read `config/translation.json` — if it has `connections[]`, insert each as a connection. Map `engine: "vllm"` or `engine: "triton"` to `"openai_compatible"`.
 4. Insert per-feature preference rows into `system_config`
 5. Migrate translation settings (languages, quality, service, caching, realtime) from JSON to `system_config` rows
 6. If no connections exist after steps 2-3, seed a default Ollama connection (`localhost:11434`, prefix `local`)
