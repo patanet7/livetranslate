@@ -49,9 +49,11 @@
 	data-testid="connection-card"
 	class="flex items-center gap-3 rounded-lg border p-3 transition-opacity {connection.enabled
 		? ''
-		: 'opacity-50'}"
-	class:border-green-500/30={status === 'connected'}
-	class:border-red-500/30={status === 'error'}
+		: 'opacity-50'} {status === 'connected'
+		? 'border-green-500/30'
+		: status === 'error'
+			? 'border-red-500/30'
+			: ''}"
 >
 	<!-- Status dot -->
 	<div class="flex-shrink-0">
