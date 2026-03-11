@@ -337,6 +337,21 @@ class CorrelationConfig(BaseModel):
 class TranslationConfig(BaseModel):
     """Translation service configuration schema"""
 
+    connections: list[dict[str, Any]] = [
+        {
+            "id": "default",
+            "name": "Local Translation Service",
+            "engine": "vllm",
+            "url": "http://localhost:5003",
+            "prefix": "local",
+            "api_key": "",
+            "enabled": True,
+            "timeout_ms": 30000,
+            "max_retries": 3,
+        }
+    ]
+    active_model: str = ""
+    fallback_model: str = ""
     service: dict[str, Any] = {
         "enabled": True,
         "service_url": "http://localhost:5003",
@@ -345,6 +360,7 @@ class TranslationConfig(BaseModel):
         "fallback_model": "orca-mini-3b",
         "timeout_ms": 30000,
         "max_retries": 3,
+        "api_key": "",  # for authenticated remote endpoints
     }
     # Languages configuration - imports from centralized system constants
     # See: config/system_constants.py for the single source of truth
