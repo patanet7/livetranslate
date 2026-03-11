@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import * as Card from '$lib/components/ui/card';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -123,9 +125,22 @@
 		saveConnections();
 	}
 
+	let pendingDeleteId: string | null = $state(null);
+
 	function deleteConnection(id: string) {
-		connections = connections.filter((c) => c.id !== id);
-		saveConnections();
+		pendingDeleteId = id;
+	}
+
+	function confirmDelete() {
+		if (pendingDeleteId) {
+			connections = connections.filter((c) => c.id !== pendingDeleteId);
+			pendingDeleteId = null;
+			saveConnections();
+		}
+	}
+
+	function cancelDelete() {
+		pendingDeleteId = null;
 	}
 
 	function toggleConnection(id: string, enabled: boolean) {
@@ -145,7 +160,9 @@
 				service: fullConfig?.service ?? {},
 				languages: fullConfig?.languages ?? {},
 				quality: fullConfig?.quality ?? {},
-				model: fullConfig?.model ?? {}
+				model: fullConfig?.model ?? {},
+				realtime: fullConfig?.realtime ?? {},
+				caching: fullConfig?.caching ?? {}
 			};
 			await fetch('/api/settings/translation', {
 				method: 'POST',
@@ -157,16 +174,14 @@
 		}
 	}
 
-	// Auto-verify all enabled connections on mount
-	$effect(() => {
-		if (typeof window !== 'undefined' && connections.length > 0) {
-			for (const conn of connections) {
-				if (conn.enabled && !connectionStatuses[conn.id]) {
-					verifyConnection(conn);
-				}
+	// Auto-verify all enabled connections on mount (one-time, non-reactive)
+	onMount(() => {
+		for (const conn of connections) {
+			if (conn.enabled) {
+				verifyConnection(conn);
 			}
-			loadAggregatedModels();
 		}
+		loadAggregatedModels();
 	});
 
 	// ============================================================================
@@ -393,6 +408,27 @@
 			dialogOpen = false;
 		}}
 	/>
+
+	<!-- Delete Confirmation Dialog -->
+	<Dialog.Root
+		open={pendingDeleteId !== null}
+		onOpenChange={(open) => {
+			if (!open) cancelDelete();
+		}}
+	>
+		<Dialog.Content class="sm:max-w-md">
+			<Dialog.Header>
+				<Dialog.Title>Delete Connection</Dialog.Title>
+				<Dialog.Description>
+					Are you sure you want to remove this connection? This action cannot be undone.
+				</Dialog.Description>
+			</Dialog.Header>
+			<Dialog.Footer>
+				<Button variant="outline" onclick={cancelDelete}>Cancel</Button>
+				<Button variant="destructive" onclick={confirmDelete}>Delete</Button>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
 
 	<!-- ================================================================== -->
 	<!-- Section A: Current Model Card -->

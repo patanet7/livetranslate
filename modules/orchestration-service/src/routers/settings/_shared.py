@@ -337,7 +337,7 @@ class CorrelationConfig(BaseModel):
 class TranslationConfig(BaseModel):
     """Translation service configuration schema"""
 
-    connections: list[dict[str, Any]] = [
+    connections: list[dict[str, Any]] = Field(default_factory=lambda: [
         {
             "id": "default",
             "name": "Local Translation Service",
@@ -349,7 +349,7 @@ class TranslationConfig(BaseModel):
             "timeout_ms": 30000,
             "max_retries": 3,
         }
-    ]
+    ])
     active_model: str = ""
     fallback_model: str = ""
     service: dict[str, Any] = {
