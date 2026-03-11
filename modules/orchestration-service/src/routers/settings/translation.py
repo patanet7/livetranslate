@@ -237,11 +237,12 @@ async def verify_translation_connection(request: VerifyConnectionRequest):
                     "latency_ms": latency_ms,
                 }
             else:
-                raise aiohttp.ClientResponseError(
-                    request_info=None,  # type: ignore[arg-type]
-                    history=(),
-                    status=status_code,
-                )
+                latency_ms = int((time.monotonic() - start) * 1000)
+                return {
+                    "status": "error",
+                    "message": f"Service returned HTTP {status_code}",
+                    "latency_ms": latency_ms,
+                }
 
         elif engine in ("vllm", "openai_compatible"):
             probe_url = f"{url}/v1/models"
@@ -268,11 +269,12 @@ async def verify_translation_connection(request: VerifyConnectionRequest):
                     "latency_ms": latency_ms,
                 }
             else:
-                raise aiohttp.ClientResponseError(
-                    request_info=None,  # type: ignore[arg-type]
-                    history=(),
-                    status=status_code,
-                )
+                latency_ms = int((time.monotonic() - start) * 1000)
+                return {
+                    "status": "error",
+                    "message": f"Service returned HTTP {status_code}",
+                    "latency_ms": latency_ms,
+                }
 
         elif engine == "triton":
             probe_url = f"{url}/v2/health/ready"
@@ -295,11 +297,12 @@ async def verify_translation_connection(request: VerifyConnectionRequest):
                     "latency_ms": latency_ms,
                 }
             else:
-                raise aiohttp.ClientResponseError(
-                    request_info=None,  # type: ignore[arg-type]
-                    history=(),
-                    status=status_code,
-                )
+                latency_ms = int((time.monotonic() - start) * 1000)
+                return {
+                    "status": "error",
+                    "message": f"Service returned HTTP {status_code}",
+                    "latency_ms": latency_ms,
+                }
 
         else:
             # Generic fallback: try /api/health then /health
