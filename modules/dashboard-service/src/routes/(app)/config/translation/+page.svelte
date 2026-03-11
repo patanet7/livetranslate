@@ -1,417 +1,685 @@
 <script lang="ts">
-  import { enhance } from '$app/forms';
-  import PageHeader from '$lib/components/layout/PageHeader.svelte';
-  import * as Card from '$lib/components/ui/card';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import { toastStore } from '$lib/stores/toast.svelte';
-  import type { TranslationHealth, TranslationModel } from '$lib/types';
+	import { enhance } from '$app/forms';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
+	import * as Card from '$lib/components/ui/card';
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
+	import { Badge } from '$lib/components/ui/badge';
+	import { Textarea } from '$lib/components/ui/textarea';
+	import { toastStore } from '$lib/stores/toast.svelte';
+	import ConnectionCard from '$lib/components/ConnectionCard.svelte';
+	import ConnectionDialog from '$lib/components/ConnectionDialog.svelte';
+	import PlusIcon from '@lucide/svelte/icons/plus';
+	import type {
+		TranslationConnection,
+		TranslationHealth,
+		TranslationModel,
+		AggregatedModel,
+		FullTranslationConfig,
+		VerifyConnectionResponse,
+		AggregateModelsResponse
+	} from '$lib/types';
 
-  let { data, form } = $props();
+	let { data, form } = $props();
 
-  let submitting = $state(false);
+	let submitting = $state(false);
 
-  // --- Section A: Current Model state ---
-  let health: TranslationHealth | null = $state(null);
-  let healthLoading = $state(false);
-  let healthError: string | null = $state(null);
+	// ============================================================================
+	// Section 0: Connections Manager
+	// ============================================================================
 
-  // Sync SSR data into client state
-  $effect(() => {
-    if (data.translationHealth) {
-      health = data.translationHealth;
-    }
-  });
+	// Cast through Record to access fullConfig which the generated types don't know about yet
+	const serverData = data as Record<string, unknown>;
+	const fullConfig = serverData.fullConfig as FullTranslationConfig | null;
 
-  async function refreshHealth() {
-    healthLoading = true;
-    healthError = null;
-    try {
-      const res = await fetch('/api/translation/health');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      health = await res.json();
-    } catch (err) {
-      healthError = err instanceof Error && err.message === 'Failed to fetch'
-        ? 'Connection error. Please check your network and try again.'
-        : `Failed to fetch health: ${err instanceof Error ? err.message : 'Unknown error'}`;
-    } finally {
-      healthLoading = false;
-    }
-  }
+	const defaultConnection: TranslationConnection = {
+		id: 'default',
+		name: 'Local Translation Service',
+		engine: 'vllm',
+		url: 'http://localhost:5003',
+		prefix: 'local',
+		api_key: '',
+		enabled: true,
+		timeout_ms: 30000,
+		max_retries: 3
+	};
 
-  // --- Section B: Available Models state ---
-  let models: TranslationModel[] = $derived(data.translationModels?.models ?? []);
-  let selectedModelId = $state('');
-  let switchLoading = $state(false);
-  let switchMessage: string | null = $state(null);
-  let switchError: string | null = $state(null);
+	let connections: TranslationConnection[] = $state(
+		fullConfig?.connections?.length ? fullConfig.connections : [defaultConnection]
+	);
 
-  let selectedModelDisplay = $derived(
-    models.find((m) => m.model === selectedModelId)
-  );
+	let connectionStatuses: Record<string, 'unknown' | 'connected' | 'error' | 'verifying'> =
+		$state({});
+	let connectionModelCounts: Record<string, number> = $state({});
+	let aggregatedModels: AggregatedModel[] = $state([]);
+	let dialogOpen = $state(false);
+	let editingConnection: TranslationConnection | null = $state(null);
 
-  async function switchModel() {
-    if (!selectedModelId) return;
-    switchLoading = true;
-    switchMessage = null;
-    switchError = null;
-    try {
-      const res = await fetch('/api/translation/model', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: selectedModelId })
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        const detail = body?.detail;
-        throw new Error(detail ?? `HTTP ${res.status}`);
-      }
-      const result = await res.json();
-      const msg = (result.message as string) ?? 'Model switched successfully';
-      switchMessage = msg;
-      toastStore.success(msg);
-      await refreshHealth();
-    } catch (err) {
-      if (err instanceof TypeError && err.message === 'Failed to fetch') {
-        switchError = 'Connection error. Please check your network and try again.';
-        toastStore.error(switchError);
-      } else {
-        switchError = `Failed to switch model: ${err instanceof Error ? err.message : 'Unknown error'}`;
-        toastStore.error(switchError);
-      }
-    } finally {
-      switchLoading = false;
-    }
-  }
+	let activeModel = $state(fullConfig?.active_model ?? '');
+	let fallbackModel = $state(fullConfig?.fallback_model ?? '');
 
-  // --- Section D: Prompt Template state ---
-  const PROMPT_TEMPLATES: Record<string, string> = {
-    simple: 'Translate the following to {target_language}:\n{current_sentence}',
-    full: 'You are a professional translator. Translate to {target_language}.\n\nGlossary:\n{glossary_section}\n\nContext:\n{context_window}\n\nTranslate:\n{current_sentence}',
-    minimal: '{target_language}: {current_sentence}'
-  };
+	async function verifyConnection(conn: TranslationConnection) {
+		connectionStatuses[conn.id] = 'verifying';
+		try {
+			const res = await fetch('/api/settings/translation/verify-connection', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					url: conn.url,
+					engine: conn.engine,
+					api_key: conn.api_key || undefined
+				})
+			});
+			const result: VerifyConnectionResponse = await res.json();
+			if (result.status === 'connected') {
+				connectionStatuses[conn.id] = 'connected';
+				connectionModelCounts[conn.id] = result.models?.length ?? 0;
+				toastStore.success(`${conn.name}: Connected (${result.models?.length ?? 0} models)`);
+			} else {
+				connectionStatuses[conn.id] = 'error';
+				toastStore.error(`${conn.name}: ${result.message}`);
+			}
+		} catch {
+			connectionStatuses[conn.id] = 'error';
+			toastStore.error(`${conn.name}: Connection failed`);
+		}
+	}
 
-  const STORAGE_KEY = 'translation_prompt_template';
-  const STYLE_STORAGE_KEY = 'translation_prompt_style';
+	async function loadAggregatedModels() {
+		try {
+			const res = await fetch('/api/settings/translation/aggregate-models', {
+				method: 'POST'
+			});
+			const result: AggregateModelsResponse = await res.json();
+			aggregatedModels = result.models ?? [];
+			if (result.errors?.length) {
+				for (const err of result.errors) {
+					toastStore.error(`${err.connection_name}: ${err.message}`);
+				}
+			}
+		} catch {
+			toastStore.error('Failed to aggregate models');
+		}
+	}
 
-  let promptStyle = $state('simple');
-  let promptTemplate = $state(PROMPT_TEMPLATES.simple);
-  let promptSaved = $state(false);
+	function openAddDialog() {
+		editingConnection = null;
+		dialogOpen = true;
+	}
 
-  $effect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTemplate = localStorage.getItem(STORAGE_KEY);
-      const savedStyle = localStorage.getItem(STYLE_STORAGE_KEY);
-      if (savedStyle && savedStyle in PROMPT_TEMPLATES) {
-        promptStyle = savedStyle;
-      }
-      if (savedTemplate) {
-        promptTemplate = savedTemplate;
-      } else {
-        promptTemplate = PROMPT_TEMPLATES[promptStyle];
-      }
-    }
-  });
+	function openEditDialog(conn: TranslationConnection) {
+		editingConnection = conn;
+		dialogOpen = true;
+	}
 
-  function onStyleChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    promptStyle = target.value;
-    promptTemplate = PROMPT_TEMPLATES[promptStyle] ?? PROMPT_TEMPLATES.simple;
-  }
+	function handleSaveConnection(conn: TranslationConnection) {
+		const idx = connections.findIndex((c) => c.id === conn.id);
+		if (idx >= 0) {
+			connections[idx] = conn;
+		} else {
+			connections = [...connections, conn];
+		}
+		saveConnections();
+	}
 
-  function savePrompt() {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, promptTemplate);
-      localStorage.setItem(STYLE_STORAGE_KEY, promptStyle);
-      promptSaved = true;
-      toastStore.success('Prompt template saved');
-      setTimeout(() => { promptSaved = false; }, 2000);
-    }
-  }
+	function deleteConnection(id: string) {
+		connections = connections.filter((c) => c.id !== id);
+		saveConnections();
+	}
 
-  function resetPrompt() {
-    promptTemplate = PROMPT_TEMPLATES[promptStyle] ?? PROMPT_TEMPLATES.simple;
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(STYLE_STORAGE_KEY);
-    }
-    promptStyle = 'simple';
-    promptTemplate = PROMPT_TEMPLATES.simple;
-    toastStore.info('Prompt template reset to default');
-  }
+	function toggleConnection(id: string, enabled: boolean) {
+		const idx = connections.findIndex((c) => c.id === id);
+		if (idx >= 0) {
+			connections[idx] = { ...connections[idx], enabled };
+			saveConnections();
+		}
+	}
 
-  // --- Status badge variant ---
-  function statusVariant(status: string | undefined): 'default' | 'secondary' | 'destructive' | 'outline' {
-    if (!status) return 'outline';
-    switch (status.toLowerCase()) {
-      case 'healthy':
-      case 'active':
-      case 'ready':
-        return 'default';
-      case 'degraded':
-      case 'loading':
-        return 'secondary';
-      case 'unavailable':
-      case 'error':
-      case 'down':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
-  }
+	async function saveConnections() {
+		try {
+			const configToSave = {
+				connections,
+				active_model: activeModel,
+				fallback_model: fallbackModel,
+				service: fullConfig?.service ?? {},
+				languages: fullConfig?.languages ?? {},
+				quality: fullConfig?.quality ?? {},
+				model: fullConfig?.model ?? {}
+			};
+			await fetch('/api/settings/translation', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(configToSave)
+			});
+		} catch {
+			toastStore.error('Failed to save connections');
+		}
+	}
+
+	// Auto-verify all enabled connections on mount
+	$effect(() => {
+		if (typeof window !== 'undefined' && connections.length > 0) {
+			for (const conn of connections) {
+				if (conn.enabled && !connectionStatuses[conn.id]) {
+					verifyConnection(conn);
+				}
+			}
+			loadAggregatedModels();
+		}
+	});
+
+	// ============================================================================
+	// Section A: Current Model state
+	// ============================================================================
+
+	let health: TranslationHealth | null = $state(null);
+	let healthLoading = $state(false);
+	let healthError: string | null = $state(null);
+
+	$effect(() => {
+		if (data.translationHealth) {
+			health = data.translationHealth;
+		}
+	});
+
+	async function refreshHealth() {
+		healthLoading = true;
+		healthError = null;
+		try {
+			const res = await fetch('/api/translation/health');
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			health = await res.json();
+		} catch (err) {
+			healthError =
+				err instanceof Error && err.message === 'Failed to fetch'
+					? 'Connection error. Please check your network and try again.'
+					: `Failed to fetch health: ${err instanceof Error ? err.message : 'Unknown error'}`;
+		} finally {
+			healthLoading = false;
+		}
+	}
+
+	// ============================================================================
+	// Section B: Available Models state (legacy + aggregated)
+	// ============================================================================
+
+	let models: TranslationModel[] = $derived(data.translationModels?.models ?? []);
+	let selectedModelId = $state('');
+	let switchLoading = $state(false);
+	let switchMessage: string | null = $state(null);
+	let switchError: string | null = $state(null);
+
+	let selectedModelDisplay = $derived(models.find((m) => m.model === selectedModelId));
+
+	async function switchModel() {
+		if (!selectedModelId) return;
+		switchLoading = true;
+		switchMessage = null;
+		switchError = null;
+		try {
+			const res = await fetch('/api/translation/model', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: selectedModelId })
+			});
+			if (!res.ok) {
+				const body = await res.json().catch(() => null);
+				throw new Error(body?.detail ?? `HTTP ${res.status}`);
+			}
+			const result = await res.json();
+			const msg = (result.message as string) ?? 'Model switched successfully';
+			switchMessage = msg;
+			toastStore.success(msg);
+			await refreshHealth();
+		} catch (err) {
+			if (err instanceof TypeError && err.message === 'Failed to fetch') {
+				switchError = 'Connection error. Please check your network and try again.';
+			} else {
+				switchError = `Failed to switch model: ${err instanceof Error ? err.message : 'Unknown error'}`;
+			}
+			toastStore.error(switchError);
+		} finally {
+			switchLoading = false;
+		}
+	}
+
+	// ============================================================================
+	// Section D: Prompt Template state
+	// ============================================================================
+
+	const PROMPT_TEMPLATES: Record<string, string> = {
+		simple: 'Translate the following to {target_language}:\n{current_sentence}',
+		full: 'You are a professional translator. Translate to {target_language}.\n\nGlossary:\n{glossary_section}\n\nContext:\n{context_window}\n\nTranslate:\n{current_sentence}',
+		minimal: '{target_language}: {current_sentence}'
+	};
+
+	const STORAGE_KEY = 'translation_prompt_template';
+	const STYLE_STORAGE_KEY = 'translation_prompt_style';
+
+	let promptStyle = $state('simple');
+	let promptTemplate = $state(PROMPT_TEMPLATES.simple);
+	let promptSaved = $state(false);
+
+	$effect(() => {
+		if (typeof window !== 'undefined') {
+			const savedTemplate = localStorage.getItem(STORAGE_KEY);
+			const savedStyle = localStorage.getItem(STYLE_STORAGE_KEY);
+			if (savedStyle && savedStyle in PROMPT_TEMPLATES) {
+				promptStyle = savedStyle;
+			}
+			if (savedTemplate) {
+				promptTemplate = savedTemplate;
+			} else {
+				promptTemplate = PROMPT_TEMPLATES[promptStyle];
+			}
+		}
+	});
+
+	function onStyleChange(event: Event) {
+		const target = event.target as HTMLSelectElement;
+		promptStyle = target.value;
+		promptTemplate = PROMPT_TEMPLATES[promptStyle] ?? PROMPT_TEMPLATES.simple;
+	}
+
+	function savePrompt() {
+		if (typeof window !== 'undefined') {
+			localStorage.setItem(STORAGE_KEY, promptTemplate);
+			localStorage.setItem(STYLE_STORAGE_KEY, promptStyle);
+			promptSaved = true;
+			toastStore.success('Prompt template saved');
+			setTimeout(() => {
+				promptSaved = false;
+			}, 2000);
+		}
+	}
+
+	function resetPrompt() {
+		promptTemplate = PROMPT_TEMPLATES[promptStyle] ?? PROMPT_TEMPLATES.simple;
+		if (typeof window !== 'undefined') {
+			localStorage.removeItem(STORAGE_KEY);
+			localStorage.removeItem(STYLE_STORAGE_KEY);
+		}
+		promptStyle = 'simple';
+		promptTemplate = PROMPT_TEMPLATES.simple;
+		toastStore.info('Prompt template reset to default');
+	}
+
+	// --- Status badge variant ---
+	function statusVariant(
+		status: string | undefined
+	): 'default' | 'secondary' | 'destructive' | 'outline' {
+		if (!status) return 'outline';
+		switch (status.toLowerCase()) {
+			case 'healthy':
+			case 'active':
+			case 'ready':
+				return 'default';
+			case 'degraded':
+			case 'loading':
+				return 'secondary';
+			case 'unavailable':
+			case 'error':
+			case 'down':
+				return 'destructive';
+			default:
+				return 'outline';
+		}
+	}
 </script>
 
-<PageHeader title="Translation Configuration" description="Translation models, language settings, and prompt templates" />
+<PageHeader
+	title="Translation Configuration"
+	description="Manage translation backends, models, language settings, and prompt templates"
+/>
 
-<div class="space-y-6 max-w-3xl">
+<div class="max-w-3xl space-y-6">
+	<!-- ================================================================== -->
+	<!-- Section 0: Connections Manager -->
+	<!-- ================================================================== -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Translation Connections</Card.Title>
+			<Card.Action>
+				<Button variant="outline" size="sm" onclick={openAddDialog}>
+					<PlusIcon class="mr-1 h-4 w-4" />
+					Add Connection
+				</Button>
+			</Card.Action>
+		</Card.Header>
+		<Card.Content>
+			<div class="space-y-3">
+				{#if connections.length === 0}
+					<p class="text-sm text-muted-foreground">
+						No connections configured. Add a translation backend to get started.
+					</p>
+				{:else}
+					{#each connections as conn (conn.id)}
+						<ConnectionCard
+							connection={conn}
+							status={connectionStatuses[conn.id] ?? 'unknown'}
+							modelCount={connectionModelCounts[conn.id] ?? 0}
+							onverify={() => verifyConnection(conn)}
+							onconfigure={() => openEditDialog(conn)}
+							ondelete={() => deleteConnection(conn.id)}
+							ontoggle={(enabled: boolean) => toggleConnection(conn.id, enabled)}
+						/>
+					{/each}
+				{/if}
+			</div>
 
-  <!-- Section A: Current Model Card -->
-  <Card.Root>
-    <Card.Header>
-      <Card.Title>Current Model</Card.Title>
-      <Card.Action>
-        <Button variant="outline" size="sm" onclick={refreshHealth} disabled={healthLoading}>
-          {healthLoading ? 'Refreshing...' : 'Refresh'}
-        </Button>
-      </Card.Action>
-    </Card.Header>
-    <Card.Content>
-      {#if healthError}
-        <p class="text-sm text-destructive">{healthError}</p>
-      {:else if health}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <p class="text-xs text-muted-foreground">Model</p>
-            <p class="text-sm font-medium">{health.model}</p>
-          </div>
-          <div class="space-y-1">
-            <p class="text-xs text-muted-foreground">Backend</p>
-            <p class="text-sm font-medium">{health.backend}</p>
-          </div>
-          <div class="space-y-1">
-            <p class="text-xs text-muted-foreground">Device</p>
-            <p class="text-sm font-medium">{health.device}</p>
-          </div>
-          <div class="space-y-1">
-            <p class="text-xs text-muted-foreground">Status</p>
-            <Badge variant={statusVariant(health.status)}>{health.status}</Badge>
-          </div>
-        </div>
-        {#if health.available_backends && health.available_backends.length > 0}
-          <div class="mt-4 space-y-1">
-            <p class="text-xs text-muted-foreground">Available Backends</p>
-            <div class="flex gap-1.5 flex-wrap">
-              {#each health.available_backends as backend}
-                <Badge variant="outline">{backend}</Badge>
-              {/each}
-            </div>
-          </div>
-        {/if}
-      {:else}
-        <p class="text-sm text-muted-foreground">No health data available. Click Refresh to load.</p>
-      {/if}
-    </Card.Content>
-  </Card.Root>
+			<!-- Aggregated Models summary -->
+			{#if aggregatedModels.length > 0}
+				<div class="mt-4 rounded-md border bg-muted/50 p-3">
+					<p class="mb-2 text-xs font-medium text-muted-foreground">
+						Aggregated Models ({aggregatedModels.length})
+					</p>
+					<div class="flex flex-wrap gap-1.5">
+						{#each aggregatedModels as model}
+							<Badge variant="secondary" class="text-xs">{model.id}</Badge>
+						{/each}
+					</div>
+				</div>
+			{/if}
+		</Card.Content>
+	</Card.Root>
 
-  <!-- Section B: Available Models -->
-  <Card.Root>
-    <Card.Header>
-      <Card.Title>Switch Model</Card.Title>
-      <Card.Description>Select a model from the translation service to activate</Card.Description>
-    </Card.Header>
-    <Card.Content>
-      {#if models.length > 0}
-        <div class="space-y-4">
-          <div class="space-y-2">
-            <Label for="model-select">Available Models</Label>
-            <select
-              id="model-select"
-              class="w-full rounded-md border bg-background px-3 py-2 text-sm"
-              bind:value={selectedModelId}
-            >
-              <option value="" disabled>Select a model...</option>
-              {#each models as model}
-                <option value={model.model}>
-                  {model.display_name} ({model.backend})
-                </option>
-              {/each}
-            </select>
-          </div>
+	<!-- Connection Dialog -->
+	<ConnectionDialog
+		bind:open={dialogOpen}
+		connection={editingConnection}
+		onsave={handleSaveConnection}
+		onclose={() => {
+			dialogOpen = false;
+		}}
+	/>
 
-          {#if selectedModelDisplay}
-            <div class="rounded-md border bg-muted/50 p-3 text-sm space-y-1">
-              <p><span class="text-muted-foreground">Name:</span> {selectedModelDisplay.display_name}</p>
-              <p><span class="text-muted-foreground">Model ID:</span> {selectedModelDisplay.model}</p>
-              <p><span class="text-muted-foreground">Backend:</span> {selectedModelDisplay.backend}</p>
-            </div>
-          {/if}
+	<!-- ================================================================== -->
+	<!-- Section A: Current Model Card -->
+	<!-- ================================================================== -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Current Model</Card.Title>
+			<Card.Action>
+				<Button variant="outline" size="sm" onclick={refreshHealth} disabled={healthLoading}>
+					{healthLoading ? 'Refreshing...' : 'Refresh'}
+				</Button>
+			</Card.Action>
+		</Card.Header>
+		<Card.Content>
+			{#if healthError}
+				<p class="text-sm text-destructive">{healthError}</p>
+			{:else if health}
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+					<div class="space-y-1">
+						<p class="text-xs text-muted-foreground">Model</p>
+						<p class="text-sm font-medium">{health.model}</p>
+					</div>
+					<div class="space-y-1">
+						<p class="text-xs text-muted-foreground">Backend</p>
+						<p class="text-sm font-medium">{health.backend}</p>
+					</div>
+					<div class="space-y-1">
+						<p class="text-xs text-muted-foreground">Device</p>
+						<p class="text-sm font-medium">{health.device}</p>
+					</div>
+					<div class="space-y-1">
+						<p class="text-xs text-muted-foreground">Status</p>
+						<Badge variant={statusVariant(health.status)}>{health.status}</Badge>
+					</div>
+				</div>
+				{#if health.available_backends && health.available_backends.length > 0}
+					<div class="mt-4 space-y-1">
+						<p class="text-xs text-muted-foreground">Available Backends</p>
+						<div class="flex flex-wrap gap-1.5">
+							{#each health.available_backends as backend}
+								<Badge variant="outline">{backend}</Badge>
+							{/each}
+						</div>
+					</div>
+				{/if}
+			{:else}
+				<p class="text-sm text-muted-foreground">
+					No health data available. Click Refresh to load.
+				</p>
+			{/if}
+		</Card.Content>
+	</Card.Root>
 
-          <Button onclick={switchModel} disabled={!selectedModelId || switchLoading}>
-            {switchLoading ? 'Switching...' : 'Switch Model'}
-          </Button>
+	<!-- ================================================================== -->
+	<!-- Section B: Switch Model (legacy + aggregated) -->
+	<!-- ================================================================== -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Switch Model</Card.Title>
+			<Card.Description
+				>Select a model from the translation service to activate</Card.Description
+			>
+		</Card.Header>
+		<Card.Content>
+			{#if models.length > 0 || aggregatedModels.length > 0}
+				<div class="space-y-4">
+					<div class="space-y-2">
+						<Label for="model-select">Available Models</Label>
+						<select
+							id="model-select"
+							class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+							bind:value={selectedModelId}
+						>
+							<option value="" disabled>Select a model...</option>
+							{#if aggregatedModels.length > 0}
+								<optgroup label="Aggregated (from connections)">
+									{#each aggregatedModels as model}
+										<option value={model.id}>
+											{model.id} ({model.engine})
+										</option>
+									{/each}
+								</optgroup>
+							{/if}
+							{#if models.length > 0}
+								<optgroup label="Service Models">
+									{#each models as model}
+										<option value={model.model}>
+											{model.display_name} ({model.backend})
+										</option>
+									{/each}
+								</optgroup>
+							{/if}
+						</select>
+					</div>
 
-          {#if switchMessage}
-            <p class="text-sm text-green-600">{switchMessage}</p>
-          {/if}
-          {#if switchError}
-            <p class="text-sm text-destructive">{switchError}</p>
-          {/if}
-        </div>
-      {:else}
-        <p class="text-sm text-muted-foreground">
-          No models available from the translation service. Ensure the service is running.
-        </p>
-      {/if}
-    </Card.Content>
-  </Card.Root>
+					{#if selectedModelDisplay}
+						<div class="space-y-1 rounded-md border bg-muted/50 p-3 text-sm">
+							<p>
+								<span class="text-muted-foreground">Name:</span>
+								{selectedModelDisplay.display_name}
+							</p>
+							<p>
+								<span class="text-muted-foreground">Model ID:</span>
+								{selectedModelDisplay.model}
+							</p>
+							<p>
+								<span class="text-muted-foreground">Backend:</span>
+								{selectedModelDisplay.backend}
+							</p>
+						</div>
+					{/if}
 
-  <!-- Section C: Translation Settings (form action) -->
-  <Card.Root>
-    <Card.Header>
-      <Card.Title>Translation Settings</Card.Title>
-      <Card.Description>Default language, temperature, and token limits</Card.Description>
-    </Card.Header>
-    <Card.Content>
-      <form method="POST" action="?/update" use:enhance={() => {
-        submitting = true;
-        return async ({ result, update }) => {
-          await update();
-          submitting = false;
-          if (result.type === 'success') {
-            toastStore.success('Translation settings saved');
-          } else if (result.type === 'failure') {
-            toastStore.error('Failed to save translation settings');
-          }
-        };
-      }} class="space-y-4">
-        <div class="space-y-2">
-          <Label for="target_language">Default Target Language</Label>
-          <select
-            id="target_language"
-            name="target_language"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          >
-            {#if data.uiConfig?.languages}
-              {#each data.uiConfig.languages as lang}
-                <option
-                  value={lang.code}
-                  selected={data.translationConfig?.target_language === lang.code}
-                >
-                  {lang.name} ({lang.code})
-                </option>
-              {/each}
-            {/if}
-          </select>
-        </div>
+					<Button onclick={switchModel} disabled={!selectedModelId || switchLoading}>
+						{switchLoading ? 'Switching...' : 'Switch Model'}
+					</Button>
 
-        <div class="space-y-2">
-          <Label for="temperature">Temperature</Label>
-          <div class="flex items-center gap-3">
-            <input
-              id="temperature"
-              name="temperature"
-              type="range"
-              min="0"
-              max="2"
-              step="0.1"
-              value={data.translationConfig?.temperature ?? 0.3}
-              class="flex-1"
-              oninput={(e) => {
-                const display = document.getElementById('temperature-display');
-                if (display) display.textContent = (e.target as HTMLInputElement).value;
-              }}
-            />
-            <span
-              id="temperature-display"
-              class="w-10 text-sm text-right tabular-nums"
-            >
-              {data.translationConfig?.temperature ?? 0.3}
-            </span>
-          </div>
-        </div>
+					{#if switchMessage}
+						<p class="text-sm text-green-600">{switchMessage}</p>
+					{/if}
+					{#if switchError}
+						<p class="text-sm text-destructive">{switchError}</p>
+					{/if}
+				</div>
+			{:else}
+				<p class="text-sm text-muted-foreground">
+					No models available. Add and verify a connection above, or ensure the translation
+					service is running.
+				</p>
+			{/if}
+		</Card.Content>
+	</Card.Root>
 
-        <div class="space-y-2">
-          <Label for="max_tokens">Max Tokens</Label>
-          <Input
-            id="max_tokens"
-            name="max_tokens"
-            type="number"
-            min="64"
-            max="4096"
-            step="64"
-            value={data.translationConfig?.max_tokens ?? 512}
-          />
-        </div>
+	<!-- ================================================================== -->
+	<!-- Section C: Translation Settings (form action) -->
+	<!-- ================================================================== -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Translation Settings</Card.Title>
+			<Card.Description>Default language, temperature, and token limits</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<form
+				method="POST"
+				action="?/update"
+				use:enhance={() => {
+					submitting = true;
+					return async ({ result, update }) => {
+						await update();
+						submitting = false;
+						if (result.type === 'success') {
+							toastStore.success('Translation settings saved');
+						} else if (result.type === 'failure') {
+							toastStore.error('Failed to save translation settings');
+						}
+					};
+				}}
+				class="space-y-4"
+			>
+				<div class="space-y-2">
+					<Label for="target_language">Default Target Language</Label>
+					<select
+						id="target_language"
+						name="target_language"
+						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+					>
+						{#if data.uiConfig?.languages}
+							{#each data.uiConfig.languages as lang}
+								<option
+									value={lang.code}
+									selected={data.translationConfig?.target_language === lang.code}
+								>
+									{lang.name} ({lang.code})
+								</option>
+							{/each}
+						{/if}
+					</select>
+				</div>
 
-        {#if form?.errors?.form}
-          <p class="text-sm text-destructive">{form.errors.form}</p>
-        {/if}
-        {#if form?.success}
-          <p class="text-sm text-green-600">Translation settings saved</p>
-        {/if}
+				<div class="space-y-2">
+					<Label for="temperature">Temperature</Label>
+					<div class="flex items-center gap-3">
+						<input
+							id="temperature"
+							name="temperature"
+							type="range"
+							min="0"
+							max="2"
+							step="0.1"
+							value={data.translationConfig?.temperature ?? 0.3}
+							class="flex-1"
+							oninput={(e) => {
+								const display = document.getElementById('temperature-display');
+								if (display)
+									display.textContent = (e.target as HTMLInputElement).value;
+							}}
+						/>
+						<span id="temperature-display" class="w-10 text-right text-sm tabular-nums">
+							{data.translationConfig?.temperature ?? 0.3}
+						</span>
+					</div>
+				</div>
 
-        <Button type="submit" disabled={submitting}>
-          {#if submitting}Saving...{:else}Save Settings{/if}
-        </Button>
-      </form>
-    </Card.Content>
-  </Card.Root>
+				<div class="space-y-2">
+					<Label for="max_tokens">Max Tokens</Label>
+					<Input
+						id="max_tokens"
+						name="max_tokens"
+						type="number"
+						min="64"
+						max="4096"
+						step="64"
+						value={data.translationConfig?.max_tokens ?? 512}
+					/>
+				</div>
 
-  <!-- Section D: Prompt Template Editor -->
-  <Card.Root>
-    <Card.Header>
-      <Card.Title>Prompt Template</Card.Title>
-      <Card.Description>Customize the translation prompt sent to the model</Card.Description>
-    </Card.Header>
-    <Card.Content>
-      <div class="space-y-4">
-        <div class="space-y-2">
-          <Label for="prompt-style">Template Style</Label>
-          <select
-            id="prompt-style"
-            class="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            onchange={onStyleChange}
-            value={promptStyle}
-          >
-            <option value="simple">Simple</option>
-            <option value="full">Full</option>
-            <option value="minimal">Minimal</option>
-          </select>
-        </div>
+				{#if form?.errors?.form}
+					<p class="text-sm text-destructive">{form.errors.form}</p>
+				{/if}
+				{#if form?.success}
+					<p class="text-sm text-green-600">Translation settings saved</p>
+				{/if}
 
-        <div class="space-y-2">
-          <Label for="prompt-template">Template Content</Label>
-          <Textarea
-            id="prompt-template"
-            bind:value={promptTemplate}
-            rows={6}
-            class="font-mono text-sm"
-            placeholder="Enter your translation prompt template..."
-          />
-        </div>
+				<Button type="submit" disabled={submitting}>
+					{#if submitting}Saving...{:else}Save Settings{/if}
+				</Button>
+			</form>
+		</Card.Content>
+	</Card.Root>
 
-        <div class="rounded-md border bg-muted/50 p-3">
-          <p class="text-xs font-medium text-muted-foreground mb-1.5">Available Variables</p>
-          <div class="flex flex-wrap gap-1.5">
-            <Badge variant="secondary">{'{target_language}'}</Badge>
-            <Badge variant="secondary">{'{current_sentence}'}</Badge>
-            <Badge variant="secondary">{'{glossary_section}'}</Badge>
-            <Badge variant="secondary">{'{context_window}'}</Badge>
-          </div>
-        </div>
+	<!-- ================================================================== -->
+	<!-- Section D: Prompt Template Editor -->
+	<!-- ================================================================== -->
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Prompt Template</Card.Title>
+			<Card.Description
+				>Customize the translation prompt sent to the model</Card.Description
+			>
+		</Card.Header>
+		<Card.Content>
+			<div class="space-y-4">
+				<div class="space-y-2">
+					<Label for="prompt-style">Template Style</Label>
+					<select
+						id="prompt-style"
+						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+						onchange={onStyleChange}
+						value={promptStyle}
+					>
+						<option value="simple">Simple</option>
+						<option value="full">Full</option>
+						<option value="minimal">Minimal</option>
+					</select>
+				</div>
 
-        <div class="flex gap-2">
-          <Button onclick={savePrompt}>Save Prompt</Button>
-          <Button variant="outline" onclick={resetPrompt}>Reset to Default</Button>
-        </div>
+				<div class="space-y-2">
+					<Label for="prompt-template">Template Content</Label>
+					<Textarea
+						id="prompt-template"
+						bind:value={promptTemplate}
+						rows={6}
+						class="font-mono text-sm"
+						placeholder="Enter your translation prompt template..."
+					/>
+				</div>
 
-        {#if promptSaved}
-          <p class="text-sm text-green-600">Prompt template saved to local storage</p>
-        {/if}
-      </div>
-    </Card.Content>
-  </Card.Root>
+				<div class="rounded-md border bg-muted/50 p-3">
+					<p class="mb-1.5 text-xs font-medium text-muted-foreground">
+						Available Variables
+					</p>
+					<div class="flex flex-wrap gap-1.5">
+						<Badge variant="secondary">{'{target_language}'}</Badge>
+						<Badge variant="secondary">{'{current_sentence}'}</Badge>
+						<Badge variant="secondary">{'{glossary_section}'}</Badge>
+						<Badge variant="secondary">{'{context_window}'}</Badge>
+					</div>
+				</div>
+
+				<div class="flex gap-2">
+					<Button onclick={savePrompt}>Save Prompt</Button>
+					<Button variant="outline" onclick={resetPrompt}>Reset to Default</Button>
+				</div>
+
+				{#if promptSaved}
+					<p class="text-sm text-green-600">Prompt template saved to local storage</p>
+				{/if}
+			</div>
+		</Card.Content>
+	</Card.Root>
 </div>
