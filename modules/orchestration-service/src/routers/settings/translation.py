@@ -5,7 +5,9 @@ Handles translation service configuration, testing, and cache management.
 Also includes bulk export/import for translation-specific settings.
 """
 
+import ipaddress
 import time
+from urllib.parse import urlparse
 
 import aiohttp
 from pydantic import BaseModel
@@ -24,6 +26,31 @@ from ._shared import (
 )
 
 router = APIRouter(tags=["settings-translation"])
+
+# Blocked IP ranges for SSRF prevention
+_BLOCKED_METADATA_IPS = {
+    "169.254.169.254",  # AWS/GCP metadata
+    "100.100.100.200",  # Alibaba metadata
+    "fd00::1",          # IPv6 link-local metadata
+}
+
+
+def _validate_connection_url(url: str) -> None:
+    """Validate that a connection URL is safe to probe (SSRF prevention)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Invalid URL: no hostname")
+    if hostname in _BLOCKED_METADATA_IPS:
+        raise HTTPException(status_code=400, detail="Blocked: cloud metadata endpoint")
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_link_local:
+            raise HTTPException(status_code=400, detail="Link-local addresses are not allowed")
+    except ValueError:
+        pass  # hostname is a domain name, OK
 
 
 # ============================================================================
@@ -189,6 +216,7 @@ async def verify_translation_connection(request: VerifyConnectionRequest):
     - openai_compatible: GET {url}/v1/models  (with Authorization header if api_key provided)
     - fallback/generic: GET {url}/api/health then GET {url}/health
     """
+    _validate_connection_url(request.url)
     url = request.url.rstrip("/")
     engine = request.engine.lower()
     api_key = request.api_key or ""
@@ -401,9 +429,17 @@ async def aggregate_translation_models():
         if not url:
             continue
 
-        # Reuse verify logic to probe
-        req = VerifyConnectionRequest(url=url, engine=engine, api_key=api_key or None)
-        result = await verify_translation_connection(req)
+        # Reuse verify logic to probe (wrapped for safety)
+        try:
+            req = VerifyConnectionRequest(url=url, engine=engine, api_key=api_key or None)
+            result = await verify_translation_connection(req)
+        except Exception as verify_err:
+            errors.append({
+                "connection_id": conn_id,
+                "connection_name": conn.get("name", ""),
+                "message": f"Verify failed: {verify_err}",
+            })
+            continue
 
         if result.get("status") == "connected":
             raw_models = result.get("models", [])

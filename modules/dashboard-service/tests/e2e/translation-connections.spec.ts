@@ -105,6 +105,12 @@ test.describe('Translation Connections', () => {
 		const lastCard = page.locator('[data-testid="connection-card"]').last();
 		await lastCard.locator('button').filter({ has: page.locator('svg.lucide-trash-2') }).click();
 
+		// Confirm deletion in the confirmation dialog
+		const confirmDialog = page.getByRole('dialog');
+		await expect(confirmDialog).toBeVisible({ timeout: 3000 });
+		await expect(page.getByText('Delete Connection')).toBeVisible();
+		await confirmDialog.getByRole('button', { name: /delete/i }).click();
+
 		// Should have one fewer card
 		await expect(page.locator('[data-testid="connection-card"]')).toHaveCount(cardsBefore - 1);
 	});
