@@ -335,23 +335,13 @@ class CorrelationConfig(BaseModel):
 
 
 class TranslationConfig(BaseModel):
-    """Translation service configuration schema"""
+    """Translation service configuration schema.
 
-    connections: list[dict[str, Any]] = Field(default_factory=lambda: [
-        {
-            "id": "default",
-            "name": "Local Translation Service",
-            "engine": "vllm",
-            "url": "http://localhost:5003",
-            "prefix": "local",
-            "api_key": "",
-            "enabled": True,
-            "timeout_ms": 30000,
-            "max_retries": 3,
-        }
-    ])
-    active_model: str = ""
-    fallback_model: str = ""
+    Note: connections, active_model, fallback_model have moved to the
+    ai_connections table and system_config preference rows. See
+    /api/connections endpoints.
+    """
+
     service: dict[str, Any] = {
         "enabled": True,
         "service_url": "http://localhost:5003",
