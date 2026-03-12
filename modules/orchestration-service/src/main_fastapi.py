@@ -233,6 +233,16 @@ try:
         "routes": len(export_router.routes) if hasattr(export_router, "routes") else 0,
     }
 
+    # Import connections_router (Unified AI Connections)
+    import_logger.debug("Importing connections_router...")
+    from routers.connections import router as connections_router
+
+    import_logger.info("[OK] connections_router imported successfully")
+    routers_status["connections_router"] = {
+        "status": "success",
+        "routes": len(connections_router.routes) if hasattr(connections_router, "routes") else 0,
+    }
+
     # Import biz_chat_router (Business Insights Chat)
     import_logger.debug("Importing biz_chat_router...")
     from routers.chat import router as biz_chat_router
@@ -726,6 +736,12 @@ conflicts = check_route_conflicts("/api/export", "export_router", registered_rou
 app.include_router(export_router, prefix="/api/export", tags=["Export"])
 registered_routes.append(("/api/export", "export_router"))
 router_logger.info(" export_router registered successfully")
+
+# Register connections_router (Unified AI Connections)
+router_logger.info("[21] Registering connections_router...")
+app.include_router(connections_router)
+registered_routes.append(("/api/connections", "connections_router"))
+router_logger.info(" connections_router registered successfully")
 
 # Register biz_chat_router (Business Insights Chat)
 router_logger.info("[20] Registering biz_chat_router...")
