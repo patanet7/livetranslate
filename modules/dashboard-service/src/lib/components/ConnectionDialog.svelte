@@ -6,12 +6,14 @@
 	import EyeIcon from '@lucide/svelte/icons/eye';
 	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import type { TranslationConnection } from '$lib/types';
+	import type { AIConnection } from '$lib/api/connections';
+
+	type ConnectionFormData = AIConnection & { api_key: string };
 
 	interface Props {
 		open: boolean;
-		connection: TranslationConnection | null;
-		onsave: (connection: TranslationConnection) => void;
+		connection: ConnectionFormData | null;
+		onsave: (connection: Record<string, unknown>) => void;
 		onclose: () => void;
 	}
 
@@ -21,31 +23,31 @@
 		string,
 		{ url: string; modelPlaceholder: string; helperText: string }
 	> = {
-		vllm: {
-			url: 'http://localhost:8000',
-			modelPlaceholder: 'meta-llama/Llama-2-7b-chat-hf',
-			helperText: 'vLLM serves OpenAI-compatible endpoints at /v1/chat/completions'
-		},
 		ollama: {
 			url: 'http://localhost:11434',
 			modelPlaceholder: 'llama2:7b',
 			helperText: 'Ollama API serves models at /api/chat'
 		},
-		triton: {
-			url: 'http://localhost:8001',
-			modelPlaceholder: 'ensemble_model',
-			helperText: 'NVIDIA Triton Inference Server'
+		openai: {
+			url: 'https://api.openai.com/v1',
+			modelPlaceholder: 'gpt-4o',
+			helperText: 'OpenAI API — requires API key'
+		},
+		anthropic: {
+			url: 'https://api.anthropic.com',
+			modelPlaceholder: 'claude-sonnet-4-20250514',
+			helperText: 'Anthropic API — requires API key'
 		},
 		openai_compatible: {
-			url: 'https://api.openai.com/v1',
-			modelPlaceholder: 'gpt-4',
-			helperText: 'Any OpenAI-compatible API endpoint'
+			url: 'http://localhost:8000',
+			modelPlaceholder: 'meta-llama/Llama-2-7b-chat-hf',
+			helperText: 'Any OpenAI-compatible API (vLLM, Groq, etc.)'
 		}
 	};
 
 	// Form state
 	let name = $state('');
-	let engine = $state<TranslationConnection['engine']>('ollama');
+	let engine = $state<AIConnection['engine']>('ollama');
 	let url = $state('');
 	let prefix = $state('');
 	let api_key = $state('');
@@ -79,7 +81,7 @@
 
 	function handleEngineChange(e: Event) {
 		const target = e.target as HTMLSelectElement;
-		engine = target.value as TranslationConnection['engine'];
+		engine = target.value as AIConnection['engine'];
 		url = engineDefaults[engine]?.url ?? '';
 	}
 
@@ -93,17 +95,16 @@
 	}
 
 	function handleSave() {
-		const result: TranslationConnection = {
-			id: connection?.id ?? crypto.randomUUID(),
+		const result: Record<string, unknown> = {
 			name: name || 'Unnamed Connection',
 			engine,
 			url: url.replace(/\/+$/, ''),
 			prefix: prefix || name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-			api_key,
 			enabled: connection?.enabled ?? true,
 			timeout_ms,
 			max_retries
 		};
+		if (api_key) result.api_key = api_key;
 		onsave(result);
 		open = false;
 	}
@@ -140,9 +141,9 @@
 					onchange={handleEngineChange}
 				>
 					<option value="ollama">Ollama</option>
-					<option value="vllm">vLLM</option>
-					<option value="triton">Triton</option>
-					<option value="openai_compatible">OpenAI Compatible</option>
+					<option value="openai">OpenAI</option>
+					<option value="anthropic">Anthropic</option>
+					<option value="openai_compatible">OpenAI Compatible (vLLM, Groq, etc.)</option>
 				</select>
 				<p class="text-xs text-muted-foreground">
 					{engineDefaults[engine]?.helperText ?? ''}
@@ -173,7 +174,7 @@
 			</div>
 
 			<!-- API Key -->
-			{#if engine === 'openai_compatible' || api_key}
+			{#if engine === 'openai' || engine === 'anthropic' || engine === 'openai_compatible' || api_key}
 				<div class="space-y-2">
 					<Label for="conn-apikey">API Key</Label>
 					<div class="relative">
