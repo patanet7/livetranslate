@@ -6,15 +6,14 @@ import { configApi } from '$lib/api/config';
 export const load: PageServerLoad = async ({ fetch }) => {
 	const ff = firefliesApi(fetch);
 	const cfg = configApi(fetch);
-	const [translationConfig, fullConfig, uiConfig, translationModels, translationHealth] =
+	const [translationConfig, uiConfig, translationModels, translationHealth] =
 		await Promise.all([
 			ff.getTranslationConfig().catch(() => null),
-			cfg.getFullTranslationConfig().catch(() => null),
 			cfg.getUiConfig().catch(() => null),
 			cfg.getTranslationModels().catch(() => null),
 			cfg.getTranslationHealth().catch(() => null)
 		]);
-	return { translationConfig, fullConfig, uiConfig, translationModels, translationHealth };
+	return { translationConfig, uiConfig, translationModels, translationHealth };
 };
 
 export const actions: Actions = {

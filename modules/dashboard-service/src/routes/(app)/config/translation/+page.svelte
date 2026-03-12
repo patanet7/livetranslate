@@ -1,188 +1,18 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import PageHeader from '$lib/components/layout/PageHeader.svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { toastStore } from '$lib/stores/toast.svelte';
-	import ConnectionCard from '$lib/components/ConnectionCard.svelte';
-	import ConnectionDialog from '$lib/components/ConnectionDialog.svelte';
-	import PlusIcon from '@lucide/svelte/icons/plus';
-	import type {
-		TranslationConnection,
-		TranslationHealth,
-		TranslationModel,
-		AggregatedModel,
-		FullTranslationConfig,
-		VerifyConnectionResponse,
-		AggregateModelsResponse
-	} from '$lib/types';
+	import type { TranslationHealth, TranslationModel } from '$lib/types';
 
 	let { data, form } = $props();
 
 	let submitting = $state(false);
-
-	// ============================================================================
-	// Section 0: Connections Manager
-	// ============================================================================
-
-	// Cast through Record to access fullConfig which the generated types don't know about yet
-	const serverData = data as Record<string, unknown>;
-	const fullConfig = serverData.fullConfig as FullTranslationConfig | null;
-
-	const defaultConnection: TranslationConnection = {
-		id: 'default',
-		name: 'Local Translation Service',
-		engine: 'vllm',
-		url: 'http://localhost:5003',
-		prefix: 'local',
-		api_key: '',
-		enabled: true,
-		timeout_ms: 30000,
-		max_retries: 3
-	};
-
-	let connections: TranslationConnection[] = $state(
-		fullConfig?.connections?.length ? fullConfig.connections : [defaultConnection]
-	);
-
-	let connectionStatuses: Record<string, 'unknown' | 'connected' | 'error' | 'verifying'> =
-		$state({});
-	let connectionModelCounts: Record<string, number> = $state({});
-	let aggregatedModels: AggregatedModel[] = $state([]);
-	let dialogOpen = $state(false);
-	let editingConnection: TranslationConnection | null = $state(null);
-
-	let activeModel = $state(fullConfig?.active_model ?? '');
-	let fallbackModel = $state(fullConfig?.fallback_model ?? '');
-
-	async function verifyConnection(conn: TranslationConnection) {
-		connectionStatuses[conn.id] = 'verifying';
-		try {
-			const res = await fetch('/api/settings/translation/verify-connection', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					url: conn.url,
-					engine: conn.engine,
-					api_key: conn.api_key || undefined
-				})
-			});
-			const result: VerifyConnectionResponse = await res.json();
-			if (result.status === 'connected') {
-				connectionStatuses[conn.id] = 'connected';
-				connectionModelCounts[conn.id] = result.models?.length ?? 0;
-				toastStore.success(`${conn.name}: Connected (${result.models?.length ?? 0} models)`);
-			} else {
-				connectionStatuses[conn.id] = 'error';
-				toastStore.error(`${conn.name}: ${result.message}`);
-			}
-		} catch {
-			connectionStatuses[conn.id] = 'error';
-			toastStore.error(`${conn.name}: Connection failed`);
-		}
-	}
-
-	async function loadAggregatedModels() {
-		try {
-			const res = await fetch('/api/settings/translation/aggregate-models', {
-				method: 'POST'
-			});
-			const result: AggregateModelsResponse = await res.json();
-			aggregatedModels = result.models ?? [];
-			if (result.errors?.length) {
-				for (const err of result.errors) {
-					toastStore.error(`${err.connection_name}: ${err.message}`);
-				}
-			}
-		} catch {
-			toastStore.error('Failed to aggregate models');
-		}
-	}
-
-	function openAddDialog() {
-		editingConnection = null;
-		dialogOpen = true;
-	}
-
-	function openEditDialog(conn: TranslationConnection) {
-		editingConnection = conn;
-		dialogOpen = true;
-	}
-
-	function handleSaveConnection(conn: TranslationConnection) {
-		const idx = connections.findIndex((c) => c.id === conn.id);
-		if (idx >= 0) {
-			connections[idx] = conn;
-		} else {
-			connections = [...connections, conn];
-		}
-		saveConnections();
-	}
-
-	let pendingDeleteId: string | null = $state(null);
-
-	function deleteConnection(id: string) {
-		pendingDeleteId = id;
-	}
-
-	function confirmDelete() {
-		if (pendingDeleteId) {
-			connections = connections.filter((c) => c.id !== pendingDeleteId);
-			pendingDeleteId = null;
-			saveConnections();
-		}
-	}
-
-	function cancelDelete() {
-		pendingDeleteId = null;
-	}
-
-	function toggleConnection(id: string, enabled: boolean) {
-		const idx = connections.findIndex((c) => c.id === id);
-		if (idx >= 0) {
-			connections[idx] = { ...connections[idx], enabled };
-			saveConnections();
-		}
-	}
-
-	async function saveConnections() {
-		try {
-			const configToSave = {
-				connections,
-				active_model: activeModel,
-				fallback_model: fallbackModel,
-				service: fullConfig?.service ?? {},
-				languages: fullConfig?.languages ?? {},
-				quality: fullConfig?.quality ?? {},
-				model: fullConfig?.model ?? {},
-				realtime: fullConfig?.realtime ?? {},
-				caching: fullConfig?.caching ?? {}
-			};
-			await fetch('/api/settings/translation', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(configToSave)
-			});
-		} catch {
-			toastStore.error('Failed to save connections');
-		}
-	}
-
-	// Auto-verify all enabled connections on mount (one-time, non-reactive)
-	onMount(() => {
-		for (const conn of connections) {
-			if (conn.enabled) {
-				verifyConnection(conn);
-			}
-		}
-		loadAggregatedModels();
-	});
 
 	// ============================================================================
 	// Section A: Current Model state
@@ -350,85 +180,21 @@
 
 <div class="max-w-3xl space-y-6">
 	<!-- ================================================================== -->
-	<!-- Section 0: Connections Manager -->
+	<!-- AI Connections Link -->
 	<!-- ================================================================== -->
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>Translation Connections</Card.Title>
-			<Card.Action>
-				<Button variant="outline" size="sm" onclick={openAddDialog}>
-					<PlusIcon class="mr-1 h-4 w-4" />
-					Add Connection
-				</Button>
-			</Card.Action>
+			<Card.Title>AI Connections</Card.Title>
 		</Card.Header>
 		<Card.Content>
-			<div class="space-y-3">
-				{#if connections.length === 0}
-					<p class="text-sm text-muted-foreground">
-						No connections configured. Add a translation backend to get started.
-					</p>
-				{:else}
-					{#each connections as conn (conn.id)}
-						<ConnectionCard
-							connection={conn}
-							status={connectionStatuses[conn.id] ?? 'unknown'}
-							modelCount={connectionModelCounts[conn.id] ?? 0}
-							onverify={() => verifyConnection(conn)}
-							onconfigure={() => openEditDialog(conn)}
-							ondelete={() => deleteConnection(conn.id)}
-							ontoggle={(enabled: boolean) => toggleConnection(conn.id, enabled)}
-						/>
-					{/each}
-				{/if}
-			</div>
-
-			<!-- Aggregated Models summary -->
-			{#if aggregatedModels.length > 0}
-				<div class="mt-4 rounded-md border bg-muted/50 p-3">
-					<p class="mb-2 text-xs font-medium text-muted-foreground">
-						Aggregated Models ({aggregatedModels.length})
-					</p>
-					<div class="flex flex-wrap gap-1.5">
-						{#each aggregatedModels as model}
-							<Badge variant="secondary" class="text-xs">{model.id}</Badge>
-						{/each}
-					</div>
-				</div>
-			{/if}
+			<p class="text-sm text-muted-foreground">
+				Translation models are loaded from shared AI connections.
+			</p>
+			<a href="/config/connections">
+				<Button variant="link" class="mt-2 px-0">Manage Connections &rarr;</Button>
+			</a>
 		</Card.Content>
 	</Card.Root>
-
-	<!-- Connection Dialog -->
-	<ConnectionDialog
-		bind:open={dialogOpen}
-		connection={editingConnection}
-		onsave={handleSaveConnection}
-		onclose={() => {
-			dialogOpen = false;
-		}}
-	/>
-
-	<!-- Delete Confirmation Dialog -->
-	<Dialog.Root
-		open={pendingDeleteId !== null}
-		onOpenChange={(open) => {
-			if (!open) cancelDelete();
-		}}
-	>
-		<Dialog.Content class="sm:max-w-md">
-			<Dialog.Header>
-				<Dialog.Title>Delete Connection</Dialog.Title>
-				<Dialog.Description>
-					Are you sure you want to remove this connection? This action cannot be undone.
-				</Dialog.Description>
-			</Dialog.Header>
-			<Dialog.Footer>
-				<Button variant="outline" onclick={cancelDelete}>Cancel</Button>
-				<Button variant="destructive" onclick={confirmDelete}>Delete</Button>
-			</Dialog.Footer>
-		</Dialog.Content>
-	</Dialog.Root>
 
 	<!-- ================================================================== -->
 	<!-- Section A: Current Model Card -->
@@ -493,7 +259,7 @@
 			>
 		</Card.Header>
 		<Card.Content>
-			{#if models.length > 0 || aggregatedModels.length > 0}
+			{#if models.length > 0}
 				<div class="space-y-4">
 					<div class="space-y-2">
 						<Label for="model-select">Available Models</Label>
@@ -503,24 +269,11 @@
 							bind:value={selectedModelId}
 						>
 							<option value="" disabled>Select a model...</option>
-							{#if aggregatedModels.length > 0}
-								<optgroup label="Aggregated (from connections)">
-									{#each aggregatedModels as model}
-										<option value={model.id}>
-											{model.id} ({model.engine})
-										</option>
-									{/each}
-								</optgroup>
-							{/if}
-							{#if models.length > 0}
-								<optgroup label="Service Models">
-									{#each models as model}
-										<option value={model.model}>
-											{model.display_name} ({model.backend})
-										</option>
-									{/each}
-								</optgroup>
-							{/if}
+							{#each models as model}
+								<option value={model.model}>
+									{model.display_name} ({model.backend})
+								</option>
+							{/each}
 						</select>
 					</div>
 
