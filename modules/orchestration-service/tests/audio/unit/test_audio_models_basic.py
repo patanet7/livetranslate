@@ -178,7 +178,7 @@ class TestModelSerialization(unittest.TestCase):
         )
 
         # Serialize to JSON
-        json_data = chunk.json()
+        json_data = chunk.model_dump_json()
         assert isinstance(json_data, str)
         assert "test_session" in json_data
         assert "test.wav" in json_data

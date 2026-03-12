@@ -1099,7 +1099,7 @@ class AudioCoordinator:
             session_id = f"audio_{bot_session_id}_{int(time.time() * 1000)}"
 
             # Prepare configuration
-            config = self.config.copy()
+            config = self.config.model_copy()
             if custom_config:
                 for key, value in custom_config.items():
                     if hasattr(config, key):
@@ -1140,7 +1140,7 @@ class AudioCoordinator:
                             "bot_session_id": bot_session_id,
                             "source_type": source_type.value,
                             "target_languages": target_languages,
-                            "config": config.dict(),
+                            "config": config.model_dump(),
                         },
                     )
 
@@ -1759,7 +1759,7 @@ class AudioCoordinator:
                 "available_presets": self.get_available_audio_presets(),
                 "active_processors": len(self.audio_processors),
             },
-            "config": self.config.dict(),
+            "config": self.config.model_dump(),
         }
 
     def get_session_status(self, session_id: str) -> dict[str, Any] | None:
@@ -1772,7 +1772,7 @@ class AudioCoordinator:
             return None
 
         status = {
-            "session": session.dict(),
+            "session": session.model_dump(),
             "chunk_manager_status": chunk_manager.get_status(),
         }
 

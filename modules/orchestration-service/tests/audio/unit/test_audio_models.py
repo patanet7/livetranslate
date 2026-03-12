@@ -113,7 +113,7 @@ class TestAudioChunkMetadata:
         )
 
         # Test JSON serialization
-        json_data = metadata.json()
+        json_data = metadata.model_dump_json()
         assert "session_id" in json_data
         assert "test_session" in json_data
 
