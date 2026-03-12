@@ -16,12 +16,9 @@ export interface ModelInfo {
 }
 
 export interface ChatSettings {
-	provider: string;
-	model: string | null;
+	active_model: string;
 	temperature: number;
 	max_tokens: number;
-	has_api_key: boolean;
-	base_url: string | null;
 }
 
 export interface Conversation {
