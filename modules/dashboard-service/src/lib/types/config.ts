@@ -72,60 +72,6 @@ export interface TranslationHealth {
 	status: string;
 }
 
-// --- Translation Connections (Open WebUI-style multi-backend) ---
-
-export interface TranslationConnection {
-	id: string;
-	name: string;
-	engine: 'ollama' | 'vllm' | 'triton' | 'openai_compatible';
-	url: string;
-	prefix: string;
-	api_key: string;
-	enabled: boolean;
-	timeout_ms: number;
-	max_retries: number;
-}
-
-export interface VerifyConnectionRequest {
-	url: string;
-	engine: string;
-	api_key?: string;
-}
-
-export interface VerifyConnectionResponse {
-	status: 'connected' | 'error';
-	message: string;
-	version?: string;
-	models?: string[];
-	latency_ms?: number;
-}
-
-export interface AggregatedModel {
-	id: string;
-	name: string;
-	connection_id: string;
-	connection_name: string;
-	prefix: string;
-	engine: string;
-}
-
-export interface AggregateModelsResponse {
-	models: AggregatedModel[];
-	errors: Array<{ connection_id: string; connection_name: string; message: string }>;
-}
-
-export interface FullTranslationConfig {
-	connections: TranslationConnection[];
-	active_model: string;
-	fallback_model: string;
-	service: Record<string, unknown>;
-	languages: Record<string, unknown>;
-	quality: Record<string, unknown>;
-	model: Record<string, unknown>;
-	realtime?: Record<string, unknown>;
-	caching?: Record<string, unknown>;
-}
-
 // --- Glossary ---
 
 export interface Glossary {

@@ -4,11 +4,7 @@ import type {
 	UiConfig,
 	SystemConfigUpdate,
 	TranslationModelsResponse,
-	TranslationHealth,
-	VerifyConnectionRequest,
-	VerifyConnectionResponse,
-	AggregateModelsResponse,
-	FullTranslationConfig
+	TranslationHealth
 } from '$lib/types';
 import { createApi } from './orchestration';
 
@@ -51,23 +47,6 @@ export function configApi(fetch: typeof globalThis.fetch) {
 			api.get<TranslationHealth>('/api/translation/health'),
 
 		switchTranslationModel: (model: string) =>
-			api.post<{ message: string }>('/api/translation/model', { model }),
-
-		// --- Translation Connections ---
-
-		verifyConnection: (req: VerifyConnectionRequest) =>
-			api.post<VerifyConnectionResponse>('/api/settings/translation/verify-connection', req),
-
-		aggregateModels: () =>
-			api.post<AggregateModelsResponse>('/api/settings/translation/aggregate-models'),
-
-		getFullTranslationConfig: () =>
-			api.get<FullTranslationConfig>('/api/settings/translation'),
-
-		saveFullTranslationConfig: (config: FullTranslationConfig) =>
-			api.post<{ message: string; config: FullTranslationConfig }>(
-				'/api/settings/translation',
-				config
-			)
+			api.post<{ message: string }>('/api/translation/model', { model })
 	};
 }

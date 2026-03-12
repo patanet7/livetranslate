@@ -1,4 +1,7 @@
-"""LLM provider registry — manages configured providers."""
+"""DEPRECATED: Use services.connections.ConnectionService instead.
+
+This module is retained temporarily for any code that hasn't been migrated yet.
+"""
 
 from livetranslate_common.logging import get_logger
 
