@@ -16,6 +16,7 @@ from typing import Any
 
 from database.models import BotSession, Meeting, MeetingDataInsight, Transcript
 from dependencies import get_database_manager
+from dependencies_connections import resolve_intelligence_llm_client
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from livetranslate_common.logging import get_logger
@@ -245,9 +246,12 @@ async def analyze_note(
     session_id: str,
     request: NoteAnalyzeRequest,
     service=Depends(get_intelligence_service),
+    llm_client=Depends(resolve_intelligence_llm_client),
 ):
     """Create an LLM-analyzed note using a custom prompt."""
     _validate_uuid(session_id, "session_id")
+    if llm_client is not None:
+        service.translation_client = llm_client
     try:
         note = await service.create_analyzed_note(
             session_id=session_id,
@@ -300,6 +304,7 @@ async def generate_insights(
     session_id: str,
     request: InsightGenerateRequest,
     service=Depends(get_intelligence_service),
+    llm_client=Depends(resolve_intelligence_llm_client),
 ):
     """
     Generate insight(s) from template(s) for a session.
@@ -307,6 +312,8 @@ async def generate_insights(
     Requires transcript data to be available in the database for this session.
     """
     _validate_uuid(session_id, "session_id")
+    if llm_client is not None:
+        service.translation_client = llm_client
     try:
         # Get transcript text from database
         transcript_text, speakers, duration = await _get_session_transcript(session_id)
