@@ -63,6 +63,7 @@
 			href: '/config',
 			icon: SettingsIcon,
 			children: [
+				{ label: 'Connections', href: '/config/connections' },
 				{ label: 'Audio', href: '/config/audio' },
 				{ label: 'System', href: '/config/system' },
 				{ label: 'Settings', href: '/config/settings' }
