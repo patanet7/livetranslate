@@ -1,11 +1,10 @@
 <script lang="ts">
-	import type { Provider, ModelInfo, ChatSettings } from '$lib/api/chat';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import * as Select from '$lib/components/ui/select';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import type { AggregatedModel } from '$lib/api/connections';
 
 	interface Props {
 		open: boolean;
@@ -14,67 +13,37 @@
 
 	let { open, onclose }: Props = $props();
 
-	// ── State ──────────────────────────────────────────────────────
-
-	let providers = $state<Provider[]>([]);
-	let models = $state<ModelInfo[]>([]);
+	let models = $state<AggregatedModel[]>([]);
 	let loading = $state(false);
 	let saving = $state(false);
 
-	let selectedProvider = $state('');
-	let selectedModel = $state('');
+	let activeModel = $state('');
 	let temperature = $state(0.7);
 	let maxTokens = $state(4096);
-	let apiKey = $state('');
-	let baseUrl = $state('');
-	let hasApiKey = $state(false);
-
-	// ── Derived ────────────────────────────────────────────────────
-
-	let currentProvider = $derived(
-		providers.find((p) => p.name === selectedProvider)
-	);
-	let needsApiKey = $derived(
-		selectedProvider === 'openai' ||
-			selectedProvider === 'anthropic' ||
-			selectedProvider === 'openai_compatible'
-	);
-	let needsBaseUrl = $derived(selectedProvider === 'openai_compatible');
-
-	// ── Effects ────────────────────────────────────────────────────
 
 	$effect(() => {
-		if (open) {
-			loadSettings();
-		}
+		if (open) loadSettings();
 	});
-
-	$effect(() => {
-		if (selectedProvider && open) {
-			loadModels(selectedProvider);
-		}
-	});
-
-	// ── Functions ──────────────────────────────────────────────────
 
 	async function loadSettings() {
 		loading = true;
 		try {
-			const [providersRes, settingsRes] = await Promise.all([
-				fetch('/api/chat/providers'),
-				fetch('/api/chat/settings')
+			const [modelsRes, prefRes] = await Promise.all([
+				fetch('/api/connections/aggregate-models', { method: 'POST' }),
+				fetch('/api/connections/preferences/all')
 			]);
-			if (providersRes.ok) {
-				providers = await providersRes.json();
+			if (modelsRes.ok) {
+				const data = await modelsRes.json();
+				models = data.models ?? [];
 			}
-			if (settingsRes.ok) {
-				const s: ChatSettings = await settingsRes.json();
-				selectedProvider = s.provider;
-				selectedModel = s.model ?? '';
-				temperature = s.temperature;
-				maxTokens = s.max_tokens;
-				hasApiKey = s.has_api_key;
-				baseUrl = s.base_url ?? '';
+			if (prefRes.ok) {
+				const prefs = await prefRes.json();
+				const chat = prefs.chat;
+				if (chat) {
+					activeModel = chat.active_model ?? '';
+					temperature = chat.temperature ?? 0.7;
+					maxTokens = chat.max_tokens ?? 4096;
+				}
 			}
 		} catch {
 			toastStore.error('Failed to load chat settings');
@@ -83,39 +52,21 @@
 		}
 	}
 
-	async function loadModels(provider: string) {
-		try {
-			const res = await fetch(`/api/chat/providers/${provider}/models`);
-			if (res.ok) {
-				models = await res.json();
-			} else {
-				models = [];
-			}
-		} catch {
-			models = [];
-		}
-	}
-
 	async function save() {
 		saving = true;
 		try {
-			const body: Record<string, unknown> = {
-				provider: selectedProvider,
-				model: selectedModel || null,
-				temperature,
-				max_tokens: maxTokens
-			};
-			if (apiKey) body.api_key = apiKey;
-			if (needsBaseUrl) body.base_url = baseUrl || null;
-
-			const res = await fetch('/api/chat/settings', {
+			const res = await fetch('/api/connections/preferences/chat', {
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body)
+				body: JSON.stringify({
+					active_model: activeModel,
+					fallback_model: '',
+					temperature,
+					max_tokens: maxTokens
+				})
 			});
 			if (res.ok) {
-				toastStore.success('Settings saved');
-				apiKey = '';
+				toastStore.success('Chat settings saved');
 				onclose();
 			} else {
 				const data = await res.json().catch(() => null);
@@ -134,7 +85,7 @@
 		<Dialog.Header>
 			<Dialog.Title>Chat Settings</Dialog.Title>
 			<Dialog.Description>
-				Configure the LLM provider and model for business insights chat.
+				Select a model from your shared AI connections.
 			</Dialog.Description>
 		</Dialog.Header>
 
@@ -147,62 +98,27 @@
 			</div>
 		{:else}
 			<div class="space-y-4 py-4">
-				<!-- Provider -->
-				<div class="space-y-2">
-					<Label>Provider</Label>
-					<Select.Root type="single" bind:value={selectedProvider}>
-						<Select.Trigger class="w-full">
-							{#if selectedProvider}
-								{selectedProvider}
-							{:else}
-								Select provider
-							{/if}
-						</Select.Trigger>
-						<Select.Content>
-							{#each providers as p (p.name)}
-								<Select.Item value={p.name} label={p.name}>
-									<span class="flex items-center gap-2">
-										<span
-											class="inline-block size-2 rounded-full {p.configured
-												? p.healthy
-													? 'bg-green-500'
-													: 'bg-yellow-500'
-												: 'bg-gray-400'}"
-										></span>
-										{p.name}
-									</span>
-								</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
-				</div>
-
-				<!-- Model -->
+				<!-- Model from shared pool -->
 				<div class="space-y-2">
 					<Label>Model</Label>
-					<Select.Root type="single" bind:value={selectedModel}>
-						<Select.Trigger class="w-full">
-							{#if selectedModel}
-								{selectedModel}
-							{:else}
-								Select model
-							{/if}
-						</Select.Trigger>
-						<Select.Content>
-							{#each models as m (m.id)}
-								<Select.Item value={m.id} label={m.name}>
-									<div>
-										<div class="font-medium">{m.name}</div>
-										{#if m.context_window}
-											<div class="text-xs text-muted-foreground">
-												{m.context_window.toLocaleString()} tokens
-											</div>
-										{/if}
-									</div>
-								</Select.Item>
-							{/each}
-						</Select.Content>
-					</Select.Root>
+					<select
+						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+						bind:value={activeModel}
+					>
+						<option value="">Select a model...</option>
+						{#each models as model (model.id)}
+							<option value={model.id}>
+								{model.id} ({model.engine})
+							</option>
+						{/each}
+					</select>
+					{#if models.length === 0}
+						<p class="text-xs text-muted-foreground">
+							No models available. <a href="/config/connections" class="underline"
+								>Add a connection</a
+							> first.
+						</p>
+					{/if}
 				</div>
 
 				<!-- Temperature -->
@@ -225,46 +141,14 @@
 				<!-- Max Tokens -->
 				<div class="space-y-2">
 					<Label>Max Tokens</Label>
-					<Input type="number" bind:value={maxTokens} min={256} max={32768} />
+					<Input type="number" bind:value={maxTokens} min={256} max={128000} />
 				</div>
-
-				<!-- API Key (conditional) -->
-				{#if needsApiKey}
-					<div class="space-y-2">
-						<Label>
-							API Key
-							{#if hasApiKey}
-								<span class="text-xs text-muted-foreground ml-1">(configured)</span>
-							{/if}
-						</Label>
-						<Input
-							type="password"
-							bind:value={apiKey}
-							placeholder={hasApiKey ? 'Leave blank to keep current key' : 'Enter API key'}
-						/>
-					</div>
-				{/if}
-
-				<!-- Base URL (conditional) -->
-				{#if needsBaseUrl}
-					<div class="space-y-2">
-						<Label>Base URL</Label>
-						<Input
-							bind:value={baseUrl}
-							placeholder="https://api.example.com/v1"
-						/>
-					</div>
-				{/if}
 			</div>
 
 			<Dialog.Footer>
 				<Button variant="outline" onclick={onclose}>Cancel</Button>
-				<Button disabled={saving || !selectedProvider} onclick={save}>
-					{#if saving}
-						Saving...
-					{:else}
-						Save Settings
-					{/if}
+				<Button disabled={saving} onclick={save}>
+					{#if saving}Saving...{:else}Save Settings{/if}
 				</Button>
 			</Dialog.Footer>
 		{/if}
