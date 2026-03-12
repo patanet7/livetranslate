@@ -1244,3 +1244,7 @@ class ChatMessageModel(Base):
     )
 
     conversation = relationship("ChatConversation", back_populates="messages")
+
+
+# Unified AI Connections
+from database.ai_connection import AIConnection  # noqa: F401, E402
