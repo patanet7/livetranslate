@@ -26,9 +26,10 @@ from models.chat import (
     ToolCallInfo,
 )
 from services.chat_tools import register_all_tools
+from services.connections import ConnectionService
 from services.llm.adapter import ChatMessage
-from services.llm.registry import get_registry
 from services.llm.tool_executor import ToolExecutor
+from routers.connections import get_connection_service
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -54,38 +55,28 @@ def _get_tool_executor() -> ToolExecutor:
 
 
 @router.get("/providers")
-async def list_providers() -> list[ProviderInfo]:
-    """List available LLM providers with configuration status."""
-    registry = get_registry()
-    providers = registry.list_providers()
-    health = await registry.health_check_all()
+async def list_providers(
+    svc: ConnectionService = Depends(get_connection_service),
+) -> list[dict]:
+    """List available AI connections as providers."""
+    connections = await svc.list_connections()
     return [
-        ProviderInfo(
-            name=p["name"],
-            configured=p["configured"],
-            healthy=health.get(p["name"]),
-        )
-        for p in providers
+        {"name": c.id, "engine": c.engine, "configured": True, "enabled": c.enabled}
+        for c in connections
     ]
 
 
-@router.get("/providers/{provider}/models")
-async def list_provider_models(provider: str) -> list[ModelInfoResponse]:
-    """List available models for a provider."""
-    registry = get_registry()
-    try:
-        models = await registry.list_provider_models(provider)
-        return [
-            ModelInfoResponse(
-                id=m.id,
-                name=m.name,
-                provider=m.provider,
-                context_window=m.context_window,
-            )
-            for m in models
-        ]
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+@router.get("/providers/{connection_id}/models")
+async def list_provider_models(
+    connection_id: str,
+    svc: ConnectionService = Depends(get_connection_service),
+) -> list[ModelInfoResponse]:
+    """List available models for a connection."""
+    result = await svc.verify_connection(connection_id)
+    return [
+        ModelInfoResponse(id=m, name=m, provider=connection_id)
+        for m in result.models
+    ]
 
 
 # -- Settings endpoints --------------------------------------------------------
@@ -95,15 +86,15 @@ async def list_provider_models(provider: str) -> list[ModelInfoResponse]:
 async def get_chat_settings(
     db: AsyncSession = Depends(get_db_session),
 ) -> ChatSettingsResponse:
-    """Get current chat settings."""
+    """Get current chat settings from shared connection pool."""
     result = await db.execute(
-        select(SystemConfig).where(SystemConfig.key == "chat_settings")
+        select(SystemConfig).where(SystemConfig.key == "chat_model_preference")
     )
     row = result.scalar_one_or_none()
     if row and row.value:
         data = json.loads(row.value) if isinstance(row.value, str) else row.value
         return ChatSettingsResponse(**data)
-    return ChatSettingsResponse(provider="ollama")
+    return ChatSettingsResponse()
 
 
 @router.put("/settings")
@@ -111,47 +102,20 @@ async def update_chat_settings(
     request: ChatSettingsRequest,
     db: AsyncSession = Depends(get_db_session),
 ) -> ChatSettingsResponse:
-    """Update chat settings and configure the provider."""
-    registry = get_registry()
-
-    # Build provider config
-    config: dict = {}
-    if request.api_key:
-        config["api_key"] = request.api_key
-    if request.base_url:
-        config["base_url"] = request.base_url
-    if request.model:
-        config["default_model"] = request.model
-
-    # Configure the provider
-    try:
-        registry.configure(request.provider, config)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Failed to configure provider: {e}"
-        )
-
-    # Save settings to DB
-    settings_data = {
-        "provider": request.provider,
-        "model": request.model,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-        "has_api_key": bool(request.api_key),
-        "base_url": request.base_url,
-    }
+    """Update chat settings using shared connection pool."""
+    settings_data = request.model_dump()
+    val = json.dumps(settings_data)
     result = await db.execute(
-        select(SystemConfig).where(SystemConfig.key == "chat_settings")
+        select(SystemConfig).where(SystemConfig.key == "chat_model_preference")
     )
     row = result.scalar_one_or_none()
     if row:
-        row.value = json.dumps(settings_data)
+        row.value = val
         row.updated_at = datetime.now(UTC)
     else:
-        row = SystemConfig(key="chat_settings", value=json.dumps(settings_data))
+        row = SystemConfig(key="chat_model_preference", value=val)
         db.add(row)
     await db.commit()
-
     return ChatSettingsResponse(**settings_data)
 
 
@@ -253,15 +217,31 @@ async def send_message(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    # Determine provider/model
-    registry = get_registry()
-    provider_name = request.provider or conv.provider or "ollama"
-    model = request.model or conv.model
+    # Resolve model from shared connection pool
+    svc = ConnectionService(db)
+    active_model = request.model or conv.model or ""
+    model_name = active_model
+    adapter = None
 
-    try:
-        adapter = registry.get_adapter(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    if active_model and "/" in active_model:
+        conn_obj, model_name = await svc.resolve_model(active_model)
+        adapter = await svc.get_adapter(conn_obj.id)
+        provider_name = conn_obj.id
+    else:
+        # Fallback: get settings preference
+        pref_row = await db.execute(
+            select(SystemConfig).where(SystemConfig.key == "chat_model_preference")
+        )
+        pref = pref_row.scalar_one_or_none()
+        if pref and pref.value:
+            pref_data = json.loads(pref.value)
+            active_model = pref_data.get("active_model", "")
+        if active_model and "/" in active_model:
+            conn_obj, model_name = await svc.resolve_model(active_model)
+            adapter = await svc.get_adapter(conn_obj.id)
+            provider_name = conn_obj.id
+        else:
+            raise HTTPException(status_code=400, detail="No model configured. Set an active model in Chat settings.")
 
     # Build message history
     messages = [ChatMessage(role="system", content=SYSTEM_PROMPT)]
@@ -290,7 +270,7 @@ async def send_message(
         response, _ = await executor.run_chat_with_tools(
             adapter=adapter,
             messages=messages,
-            model=model,
+            model=model_name,
             db=db,
         )
     except Exception as e:
@@ -348,14 +328,31 @@ async def send_message_stream(
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
-    registry = get_registry()
-    provider_name = request.provider or conv.provider or "ollama"
-    model = request.model or conv.model
+    # Resolve model from shared connection pool
+    svc = ConnectionService(db)
+    active_model = request.model or conv.model or ""
+    model_name = active_model
+    adapter = None
+    provider_name = ""
 
-    try:
-        adapter = registry.get_adapter(provider_name)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    if active_model and "/" in active_model:
+        conn_obj, model_name = await svc.resolve_model(active_model)
+        adapter = await svc.get_adapter(conn_obj.id)
+        provider_name = conn_obj.id
+    else:
+        pref_row = await db.execute(
+            select(SystemConfig).where(SystemConfig.key == "chat_model_preference")
+        )
+        pref = pref_row.scalar_one_or_none()
+        if pref and pref.value:
+            pref_data = json.loads(pref.value)
+            active_model = pref_data.get("active_model", "")
+        if active_model and "/" in active_model:
+            conn_obj, model_name = await svc.resolve_model(active_model)
+            adapter = await svc.get_adapter(conn_obj.id)
+            provider_name = conn_obj.id
+        else:
+            raise HTTPException(status_code=400, detail="No model configured. Set an active model in Chat settings.")
 
     # Build messages
     messages = [ChatMessage(role="system", content=SYSTEM_PROMPT)]
@@ -373,7 +370,7 @@ async def send_message_stream(
     async def generate():
         full_content = ""
         try:
-            async for chunk in adapter.chat_stream(messages=messages, model=model):
+            async for chunk in adapter.chat_stream(messages=messages, model=model_name):
                 if chunk.delta_content:
                     full_content += chunk.delta_content
                     yield f"data: {json.dumps({'content': chunk.delta_content})}\n\n"
@@ -388,7 +385,7 @@ async def send_message_stream(
             role="assistant",
             content=full_content,
             provider=provider_name,
-            model=model,
+            model=model_name,
         )
         db.add(assistant_msg)
         conv.updated_at = datetime.now(UTC)
