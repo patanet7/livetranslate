@@ -8,10 +8,10 @@
 	import XCircleIcon from '@lucide/svelte/icons/x-circle';
 	import CircleIcon from '@lucide/svelte/icons/circle';
 	import PowerIcon from '@lucide/svelte/icons/power';
-	import type { TranslationConnection } from '$lib/types';
+	import type { AIConnection } from '$lib/api/connections';
 
 	interface Props {
-		connection: TranslationConnection;
+		connection: AIConnection;
 		status: 'unknown' | 'connected' | 'error' | 'verifying';
 		modelCount: number;
 		onverify: () => void;
@@ -31,17 +31,17 @@
 	}: Props = $props();
 
 	const engineColors: Record<string, string> = {
-		ollama: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-		vllm: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
-		triton: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-		openai_compatible: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300'
+		ollama: 'bg-green-500/10 text-green-700 dark:text-green-400',
+		openai: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
+		anthropic: 'bg-orange-500/10 text-orange-700 dark:text-orange-400',
+		openai_compatible: 'bg-purple-500/10 text-purple-700 dark:text-purple-400'
 	};
 
 	const engineLabels: Record<string, string> = {
 		ollama: 'Ollama',
-		vllm: 'vLLM',
-		triton: 'Triton',
-		openai_compatible: 'OpenAI'
+		openai: 'OpenAI',
+		anthropic: 'Anthropic',
+		openai_compatible: 'OpenAI Compatible'
 	};
 </script>
 
