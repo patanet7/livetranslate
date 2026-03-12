@@ -6,8 +6,6 @@ Basic test configuration and fixtures for audio processing components.
 Provides test data, mock services, and utility functions for available modules.
 """
 
-import asyncio
-
 # Import the audio components we're testing
 import sys
 import tempfile
@@ -93,14 +91,6 @@ class AudioTestFixtures:
 
 
 # Pytest Fixtures
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
 
 
 @pytest.fixture

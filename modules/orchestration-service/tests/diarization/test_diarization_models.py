@@ -214,33 +214,35 @@ class TestSpeakerMapEntry:
 class TestDiarizationJobCreate:
     """Test DiarizationJobCreate - payload to kick off a diarization job."""
 
+    _MEETING_UUID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
     def test_creation_with_hotwords(self):
         """Test creating a job with hotwords."""
         job = DiarizationJobCreate(
-            meeting_id=42,
+            meeting_id=self._MEETING_UUID,
             hotwords=["OpenVINO", "Whisper", "NPU"],
         )
 
-        assert job.meeting_id == 42
+        assert job.meeting_id == self._MEETING_UUID
         assert job.hotwords == ["OpenVINO", "Whisper", "NPU"]
 
     def test_creation_without_hotwords(self):
         """Test creating a job without hotwords (optional field)."""
-        job = DiarizationJobCreate(meeting_id=7)
+        job = DiarizationJobCreate(meeting_id=self._MEETING_UUID)
 
-        assert job.meeting_id == 7
+        assert job.meeting_id == self._MEETING_UUID
         assert job.hotwords is None
 
     def test_empty_hotwords_list(self):
         """Test creating a job with an empty hotwords list."""
-        job = DiarizationJobCreate(meeting_id=1, hotwords=[])
+        job = DiarizationJobCreate(meeting_id=self._MEETING_UUID, hotwords=[])
         assert job.hotwords == []
 
     def test_serialization(self):
         """Test dict serialisation for API submission."""
-        job = DiarizationJobCreate(meeting_id=99, hotwords=["keyword"])
+        job = DiarizationJobCreate(meeting_id=self._MEETING_UUID, hotwords=["keyword"])
         data = job.model_dump()
-        assert data["meeting_id"] == 99
+        assert data["meeting_id"] == self._MEETING_UUID
         assert data["hotwords"] == ["keyword"]
 
 
@@ -252,17 +254,19 @@ class TestDiarizationJobCreate:
 class TestDiarizationJobResponse:
     """Test DiarizationJobResponse - API response for a diarization job."""
 
+    _MEETING_UUID = "b2c3d4e5-f6a7-8901-bcde-f12345678901"
+
     def test_minimal_creation(self):
         """Test creating a minimal response (all optional fields absent)."""
         response = DiarizationJobResponse(
             id=1,
-            meeting_id=10,
+            meeting_id=self._MEETING_UUID,
             status=DiarizationJobStatus.queued,
             triggered_by="user",
         )
 
         assert response.id == 1
-        assert response.meeting_id == 10
+        assert response.meeting_id == self._MEETING_UUID
         assert response.status == DiarizationJobStatus.queued
         assert response.triggered_by == "user"
         assert response.speaker_map is None
@@ -276,7 +280,7 @@ class TestDiarizationJobResponse:
         }
         response = DiarizationJobResponse(
             id=2,
-            meeting_id=20,
+            meeting_id=self._MEETING_UUID,
             status=DiarizationJobStatus.completed,
             triggered_by="scheduler",
             detected_language="en",
@@ -296,7 +300,7 @@ class TestDiarizationJobResponse:
         """Test a failed job response has an error message."""
         response = DiarizationJobResponse(
             id=3,
-            meeting_id=30,
+            meeting_id=self._MEETING_UUID,
             status=DiarizationJobStatus.failed,
             triggered_by="api",
             error_message="Audio file download timed out.",

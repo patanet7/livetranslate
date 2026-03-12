@@ -39,7 +39,7 @@ async def maybe_trigger_diarization(
         matched_pattern=match["matched_pattern"],
     )
 
-    job = pipeline.create_job(
+    job = await pipeline.create_job(
         meeting_id=meeting["id"],
         triggered_by="auto_rule",
         rule_matched=match,

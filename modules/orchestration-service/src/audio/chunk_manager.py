@@ -605,7 +605,7 @@ class ChunkManager:
                             "chunk_sequence": chunk_metadata["chunk_sequence"],
                             "quality_score": quality_metrics.overall_quality_score,
                             "threshold": self.config.min_quality_threshold,
-                            "quality_metrics": quality_metrics.dict(),
+                            "quality_metrics": quality_metrics.model_dump(),
                         }
                     )
 
@@ -621,7 +621,7 @@ class ChunkManager:
                 audio_data,
                 metadata={
                     **chunk_metadata,
-                    "quality_metrics": quality_metrics.dict(),
+                    "quality_metrics": quality_metrics.model_dump(),
                 },
             )
 
@@ -647,7 +647,7 @@ class ChunkManager:
                 overlap_metadata=chunk_metadata.get("overlap_metadata", {}),
                 chunk_metadata={
                     **chunk_metadata,
-                    "quality_metrics": quality_metrics.dict(),
+                    "quality_metrics": quality_metrics.model_dump(),
                     "processing_time_ms": 0,  # Will be updated after processing
                 },
             )
@@ -715,7 +715,7 @@ class ChunkManager:
             "average_processing_time": np.mean(self.processing_times)
             if self.processing_times
             else 0,
-            "config": self.config.dict(),
+            "config": self.config.model_dump(),
             "buffer_status": self.audio_buffer.get_buffer_status(),
         }
 

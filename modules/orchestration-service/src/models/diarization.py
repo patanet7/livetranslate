@@ -228,7 +228,7 @@ class DiarizationJobCreate(BaseModel):
     VibeVoice-ASR diarization, and then attempt speaker mapping.
     """
 
-    meeting_id: int = Field(description="Database ID of the meeting to diarize")
+    meeting_id: str = Field(description="UUID of the meeting to diarize")
     hotwords: list[str] | None = Field(
         default=None,
         description=(
@@ -240,7 +240,7 @@ class DiarizationJobCreate(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "meeting_id": 42,
+                "meeting_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "hotwords": ["OpenVINO", "VibeVoice", "NPU"],
             }
         }
@@ -255,7 +255,7 @@ class DiarizationJobResponse(BaseModel):
     """
 
     id: int = Field(description="Database primary key for the diarization job")
-    meeting_id: int = Field(description="Database ID of the associated meeting")
+    meeting_id: str = Field(description="UUID of the associated meeting")
     status: DiarizationJobStatus = Field(description="Current lifecycle status of the job")
     triggered_by: str = Field(
         description="Identity of the actor that triggered the job (e.g. 'user', 'scheduler', 'api')"
@@ -302,7 +302,7 @@ class DiarizationJobResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "id": 1,
-                "meeting_id": 42,
+                "meeting_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "status": "completed",
                 "triggered_by": "user",
                 "detected_language": "en",
