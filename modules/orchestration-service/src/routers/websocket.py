@@ -93,7 +93,7 @@ async def websocket_endpoint(
             },
         )
 
-        await websocket.send_text(welcome_message.json())
+        await websocket.send_text(welcome_message.model_dump_json())
 
         # Message handling loop
         while True:
@@ -178,7 +178,7 @@ async def session_websocket_endpoint(
             },
         )
 
-        await websocket.send_text(welcome_message.json())
+        await websocket.send_text(welcome_message.model_dump_json())
 
         # Notify other session participants
         notification = WebSocketMessage(
@@ -293,7 +293,7 @@ async def broadcast_message(
 ) -> dict[str, Any]:
     """Broadcast message to multiple connections"""
     try:
-        await websocket_manager.broadcast_to_all(broadcast.dict())
+        await websocket_manager.broadcast_to_all(broadcast.model_dump())
         result = {"targets_reached": 1, "total_targets": 1}  # Simplified for now
         return {
             "status": "success",
@@ -388,7 +388,7 @@ async def _handle_websocket_message(
             pong_response = WebSocketResponse(
                 type=MessageType.PONG, data={"timestamp": datetime.now(UTC).isoformat()}
             )
-            await websocket.send_text(pong_response.json())
+            await websocket.send_text(pong_response.model_dump_json())
 
         elif message.type == MessageType.CREATE_SESSION:
             # Create new session
@@ -401,7 +401,7 @@ async def _handle_websocket_message(
                 message="Session created successfully",
                 data={"session_id": session_id},
             )
-            await websocket.send_text(response.json())
+            await websocket.send_text(response.model_dump_json())
 
         elif message.type == MessageType.JOIN_SESSION:
             # Join existing session
@@ -423,7 +423,7 @@ async def _handle_websocket_message(
                         message="Failed to join session",
                         data={"session_id": session_id},
                     )
-                await websocket.send_text(response.json())
+                await websocket.send_text(response.model_dump_json())
 
         elif message.type == MessageType.AUDIO_CHUNK:
             # Handle audio chunk for processing
@@ -514,7 +514,7 @@ async def _handle_audio_chunk(
             },
         )
 
-        await websocket.send_text(response.json())
+        await websocket.send_text(response.model_dump_json())
 
     except Exception as e:
         logger.error(f"Error processing audio chunk: {e}")
@@ -545,7 +545,7 @@ async def _handle_bot_spawn(
             data={"bot_id": bot_id, "status": "spawning", "config": bot_config},
         )
 
-        await websocket.send_text(response.json())
+        await websocket.send_text(response.model_dump_json())
 
         # Broadcast to session if applicable
         if message.session_id:
@@ -580,6 +580,6 @@ async def _send_error(websocket: WebSocket, error_message: str, error_code: str)
                 error_code=error_code,
                 data={"timestamp": datetime.now(UTC).isoformat()},
             )
-            await websocket.send_text(error_response.json())
+            await websocket.send_text(error_response.model_dump_json())
     except Exception as e:
         logger.error(f"Failed to send error message: {e}")

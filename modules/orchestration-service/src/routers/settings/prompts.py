@@ -241,7 +241,7 @@ async def create_prompt(prompt: PromptTemplateRequest):
     """Create a new prompt template"""
     try:
         async with await get_translation_service_client() as client:
-            prompt_data = prompt.dict()
+            prompt_data = prompt.model_dump()
             async with client.post(
                 f"{TRANSLATION_SERVICE_URL}/prompts", json=prompt_data
             ) as response:
@@ -346,7 +346,7 @@ async def test_prompt(prompt_id: str, test_data: PromptTestRequest):
     """Test a prompt template with sample data"""
     try:
         async with await get_translation_service_client() as client:
-            test_payload = test_data.dict()
+            test_payload = test_data.model_dump()
             async with client.post(
                 f"{TRANSLATION_SERVICE_URL}/prompts/{prompt_id}/test", json=test_payload
             ) as response:

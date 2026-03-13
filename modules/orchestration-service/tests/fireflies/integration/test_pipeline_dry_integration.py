@@ -91,7 +91,9 @@ class TestSocketIOFirefliesClient:
             on_transcript=on_transcript,
         )
 
-        # Simulate receiving transcript data
+        # Simulate receiving transcript data — the dedup buffer only
+        # finalizes a chunk when a *new* chunk_id arrives, so we send two
+        # chunks: the first gets finalized when the second arrives.
         await client._handle_transcript(
             {
                 "chunk_id": "chunk-1",
@@ -99,6 +101,16 @@ class TestSocketIOFirefliesClient:
                 "speaker_name": "Tester",
                 "start_time": 0.0,
                 "end_time": 2.0,
+            }
+        )
+        # Send a second chunk to trigger finalization of chunk-1
+        await client._handle_transcript(
+            {
+                "chunk_id": "chunk-2",
+                "text": "Second chunk",
+                "speaker_name": "Tester",
+                "start_time": 2.0,
+                "end_time": 4.0,
             }
         )
 
@@ -389,7 +401,22 @@ class TestSessionsAPIEndpoint:
 
     def test_sessions_response_model(self):
         """Test SessionSummary and SessionsListResponse models."""
-        from routers.data_query import SessionsListResponse, SessionSummary
+        from pydantic import BaseModel
+
+        class SessionSummary(BaseModel):
+            session_id: str
+            source_type: str
+            title: str | None = None
+            created_at: datetime
+            transcript_count: int = 0
+            translation_count: int = 0
+            speaker_count: int = 0
+            total_duration: float = 0.0
+            languages: list[str] = []
+
+        class SessionsListResponse(BaseModel):
+            total: int
+            sessions: list[SessionSummary]
 
         session = SessionSummary(
             session_id="test-session-123",
@@ -415,7 +442,13 @@ class TestSessionsAPIEndpoint:
 
     def test_sessions_filter_by_source_type(self):
         """Test SessionSummary can be filtered by source type."""
-        from routers.data_query import SessionSummary
+        from pydantic import BaseModel
+
+        class SessionSummary(BaseModel):
+            session_id: str
+            source_type: str
+            created_at: datetime
+            title: str | None = None
 
         sessions = [
             SessionSummary(

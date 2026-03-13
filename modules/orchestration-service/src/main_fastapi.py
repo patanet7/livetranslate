@@ -1426,7 +1426,7 @@ async def update_configuration(
         return {
             "status": "success",
             "message": "Configuration updated successfully",
-            "updated_keys": list(config_update.dict().keys()),
+            "updated_keys": list(config_update.model_dump().keys()),
             "timestamp": current_config.loaded_at.isoformat(),
         }
     except Exception as e:

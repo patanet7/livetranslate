@@ -2,7 +2,6 @@
 Pytest configuration for integration tests
 """
 
-import asyncio
 import sys
 from pathlib import Path
 
@@ -20,15 +19,6 @@ def pytest_configure(config):
     )
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "websocket: mark test as WebSocket-related")
-
-
-@pytest.fixture(scope="function")
-def event_loop():
-    """Create event loop for each test function"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
 
 
 @pytest.fixture(scope="function", autouse=True)

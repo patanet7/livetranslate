@@ -693,17 +693,17 @@ async def export_all_settings():
 
         # Load all configurations
         configs["audio_processing"] = await load_config(
-            AUDIO_CONFIG_FILE, AudioProcessingConfig().dict()
+            AUDIO_CONFIG_FILE, AudioProcessingConfig().model_dump()
         )
-        configs["chunking"] = await load_config(CHUNKING_CONFIG_FILE, ChunkingConfig().dict())
+        configs["chunking"] = await load_config(CHUNKING_CONFIG_FILE, ChunkingConfig().model_dump())
         configs["correlation"] = await load_config(
-            CORRELATION_CONFIG_FILE, CorrelationConfig().dict()
+            CORRELATION_CONFIG_FILE, CorrelationConfig().model_dump()
         )
         configs["translation"] = await load_config(
-            TRANSLATION_CONFIG_FILE, TranslationConfig().dict()
+            TRANSLATION_CONFIG_FILE, TranslationConfig().model_dump()
         )
-        configs["bot"] = await load_config(BOT_CONFIG_FILE, BotConfig().dict())
-        configs["system"] = await load_config(SYSTEM_CONFIG_FILE, SystemConfig().dict())
+        configs["bot"] = await load_config(BOT_CONFIG_FILE, BotConfig().model_dump())
+        configs["system"] = await load_config(SYSTEM_CONFIG_FILE, SystemConfig().model_dump())
 
         return {
             "export_timestamp": datetime.now(timezone.utc).isoformat(),
@@ -755,12 +755,12 @@ async def reset_all_settings():
     try:
         # Reset all configurations to defaults
         default_configs = {
-            "audio_processing": AudioProcessingConfig().dict(),
-            "chunking": ChunkingConfig().dict(),
-            "correlation": CorrelationConfig().dict(),
-            "translation": TranslationConfig().dict(),
-            "bot": BotConfig().dict(),
-            "system": SystemConfig().dict(),
+            "audio_processing": AudioProcessingConfig().model_dump(),
+            "chunking": ChunkingConfig().model_dump(),
+            "correlation": CorrelationConfig().model_dump(),
+            "translation": TranslationConfig().model_dump(),
+            "bot": BotConfig().model_dump(),
+            "system": SystemConfig().model_dump(),
         }
 
         results = {}
