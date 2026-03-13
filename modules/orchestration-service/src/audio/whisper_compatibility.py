@@ -120,7 +120,7 @@ class WhisperCompatibilityManager:
             file_retention_days=30,
         )
 
-        logger.info(f"Created compatible orchestration config: {orchestration_config.dict()}")
+        logger.info(f"Created compatible orchestration config: {orchestration_config.model_dump()}")
         return orchestration_config
 
     def validate_compatibility(self) -> dict[str, Any]:
@@ -189,7 +189,7 @@ class WhisperCompatibilityManager:
                 "chunk_metadata_support": True,
             },
             "orchestration_service": {
-                "chunking_config": self.orchestration_config.dict(),
+                "chunking_config": self.orchestration_config.model_dump(),
                 "enable_database_storage": True,
                 "enable_speaker_correlation": True,
                 "enable_chunk_lineage": True,
@@ -420,7 +420,7 @@ def apply_configuration_preset(preset_name: str) -> AudioChunkingConfig:
     manager = create_compatibility_manager()
 
     # Update orchestration config with preset values
-    config_dict = manager.orchestration_config.dict()
+    config_dict = manager.orchestration_config.model_dump()
     config_dict.update(
         {
             "chunk_duration": preset["chunk_duration"],

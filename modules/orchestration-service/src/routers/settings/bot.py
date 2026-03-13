@@ -28,7 +28,7 @@ router = APIRouter(tags=["settings-bot"])
 async def get_bot_settings():
     """Get current bot management configuration"""
     try:
-        default_config = BotConfig().dict()
+        default_config = BotConfig().model_dump()
         config = await load_config(BOT_CONFIG_FILE, default_config)
         return config
     except Exception as e:
@@ -40,7 +40,7 @@ async def get_bot_settings():
 async def save_bot_settings(config: BotConfig):
     """Save bot management configuration"""
     try:
-        config_dict = config.dict()
+        config_dict = config.model_dump()
         success = await save_config(BOT_CONFIG_FILE, config_dict)
         if success:
             return {"message": "Bot settings saved successfully", "config": config_dict}
@@ -76,7 +76,7 @@ async def get_bot_templates():
                 "id": "default",
                 "name": "Default Configuration",
                 "description": "Standard bot configuration for most meetings",
-                "config": BotConfig().dict(),
+                "config": BotConfig().model_dump(),
                 "is_default": True,
             },
             {
@@ -84,7 +84,7 @@ async def get_bot_templates():
                 "name": "High Quality Recording",
                 "description": "Optimized for high-quality audio capture and transcription",
                 "config": {
-                    **BotConfig().dict(),
+                    **BotConfig().model_dump(),
                     "audio_capture": {"sample_rate": 48000},
                 },
                 "is_default": False,

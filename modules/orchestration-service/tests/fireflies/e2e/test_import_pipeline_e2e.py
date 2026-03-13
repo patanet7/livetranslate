@@ -263,7 +263,15 @@ class TestImportTranscriptAPIIntegration:
     def mock_fireflies_client(self, sample_transcript_data):
         """Mock Fireflies client that returns sample data."""
         client = MagicMock()
-        client.get_transcript_detail = AsyncMock(return_value=sample_transcript_data)
+        # Match the actual API: download_full_transcript returns structured data
+        client.download_full_transcript = AsyncMock(return_value={
+            "transcript": {
+                "title": sample_transcript_data["title"],
+                "id": sample_transcript_data["id"],
+            },
+            "sentences": sample_transcript_data["sentences"],
+            "insights": [],
+        })
         client.close = AsyncMock()
         return client
 
@@ -355,7 +363,7 @@ class TestImportTranscriptAPIIntegration:
         )
 
         # Mock client to return None (not found)
-        mock_fireflies_client.get_transcript_detail = AsyncMock(return_value=None)
+        mock_fireflies_client.download_full_transcript = AsyncMock(return_value=None)
 
         request = ImportTranscriptRequest(
             api_key="test_key",
@@ -388,11 +396,14 @@ class TestImportTranscriptAPIIntegration:
         )
 
         # Mock client to return empty transcript
-        mock_fireflies_client.get_transcript_detail = AsyncMock(
+        mock_fireflies_client.download_full_transcript = AsyncMock(
             return_value={
-                "id": "empty_transcript",
-                "title": "Empty Meeting",
+                "transcript": {
+                    "id": "empty_transcript",
+                    "title": "Empty Meeting",
+                },
                 "sentences": [],
+                "insights": [],
             }
         )
 

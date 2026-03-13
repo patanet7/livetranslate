@@ -703,14 +703,5 @@ class TestPipelinePerformance(PipelineStreamingIntegrationTest):
         assert errors < chunks_sent * 0.05, "Error rate should be under 5%"
 
 
-# Test fixtures and helpers
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create event loop for async tests"""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s", "--tb=short"])

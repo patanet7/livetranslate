@@ -178,7 +178,7 @@ async def _validate_audio_request(request: AudioProcessingRequest, correlation_i
             correlation_id=correlation_id,
             validation_details={
                 "missing_fields": ["audio_data", "audio_url", "file_upload"],
-                "provided_fields": [k for k, v in request.dict().items() if v is not None],
+                "provided_fields": [k for k, v in request.model_dump().items() if v is not None],
             },
         )
 

@@ -644,34 +644,27 @@ def initialized_app(database_url, run_migrations):
         from config import DatabaseSettings
         from database.database import initialize_database
 
-    # Run startup in a new event loop
-    loop = asyncio.new_event_loop()
+    # Initialize the sync database module (for get_db_session() used by routers).
+    # We intentionally skip startup_dependencies() because it creates async DB
+    # connection pools on a new event loop, which conflicts with the testcontainer
+    # postgres session that runs on the pytest-asyncio event loop. The TestClient
+    # uses anyio's BlockingPortal on yet another loop, causing cross-loop errors.
+    # The testcontainer conftest already provides working DB sessions via
+    # db_session_factory, and these tests only need the sync database module init.
     try:
-        # Initialize the global database_manager in database/database.py
-        # This is required by get_db_session() which routers use
         db_settings = DatabaseSettings(url=database_url)
         initialize_database(db_settings)
-        logger.info("Database module initialized")
-
-        # Initialize all other dependencies (config manager, service clients, etc.)
-        loop.run_until_complete(startup_dependencies())
-        logger.info("Dependencies initialized for test")
+        logger.info("Database module initialized for sync TestClient tests")
     except Exception as e:
-        logger.warning(f"Failed to initialize dependencies: {e}")
-        import traceback
-
-        traceback.print_exc()
-        # Continue anyway - some tests may still work
+        logger.warning(f"Failed to initialize database module: {e}")
 
     yield app
 
-    # Cleanup: shutdown dependencies
+    # Reset dependencies to avoid stale singletons across tests
     try:
-        loop.run_until_complete(shutdown_dependencies())
+        reset_dependencies()
     except Exception as e:
-        logger.warning(f"Error during dependency shutdown: {e}")
-    finally:
-        loop.close()
+        logger.warning(f"Error during dependency reset: {e}")
 
 
 @pytest.fixture(scope="function")

@@ -589,7 +589,7 @@ class ConfigurationSyncManager:
 
         # Compare key parameters
         whisper_cfg = self._whisper_config.get("configuration", {})
-        orch_cfg = self._orchestration_config.dict()
+        orch_cfg = self._orchestration_config.model_dump()
 
         # Check timing parameters
         if (
@@ -643,7 +643,7 @@ class ConfigurationSyncManager:
                 whisper_cfg = self._whisper_config.get("configuration", {})
 
                 # Update orchestration config to match whisper settings
-                updated_config = self._orchestration_config.dict()
+                updated_config = self._orchestration_config.model_dump()
                 updated_config.update(
                     {
                         "chunk_duration": whisper_cfg.get("inference_interval", 3.0),
@@ -704,7 +704,7 @@ class ConfigurationSyncManager:
         return {
             "whisper_service": self._whisper_config,
             "orchestration_service": {
-                "chunking_config": self._orchestration_config.dict()
+                "chunking_config": self._orchestration_config.model_dump()
                 if self._orchestration_config
                 else {},
                 "service_mode": "orchestration"
@@ -840,7 +840,7 @@ class ConfigurationSyncManager:
         try:
             if self._orchestration_config:
                 # Create updated config
-                current_config = self._orchestration_config.dict()
+                current_config = self._orchestration_config.model_dump()
 
                 for key, value in config_updates.items():
                     if key in current_config:
@@ -1095,7 +1095,7 @@ class ConfigurationSyncManager:
         try:
             config_data = {
                 "whisper_config": self._whisper_config,
-                "orchestration_config": self._orchestration_config.dict()
+                "orchestration_config": self._orchestration_config.model_dump()
                 if self._orchestration_config
                 else None,
                 "translation_config": self._translation_config,

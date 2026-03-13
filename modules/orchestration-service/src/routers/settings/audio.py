@@ -32,7 +32,7 @@ router = APIRouter(tags=["settings-audio"])
 async def get_audio_processing_settings():
     """Get current audio processing configuration"""
     try:
-        default_config = AudioProcessingConfig().dict()
+        default_config = AudioProcessingConfig().model_dump()
         config = await load_config(AUDIO_CONFIG_FILE, default_config)
         return config
     except Exception as e:
@@ -46,7 +46,7 @@ async def get_audio_processing_settings():
 async def save_audio_processing_settings(config: AudioProcessingConfig):
     """Save audio processing configuration"""
     try:
-        config_dict = config.dict()
+        config_dict = config.model_dump()
         success = await save_config(AUDIO_CONFIG_FILE, config_dict)
         if success:
             return {
@@ -94,7 +94,7 @@ async def test_audio_processing(test_config: dict[str, Any]):
 async def get_chunking_settings():
     """Get current chunking configuration"""
     try:
-        default_config = ChunkingConfig().dict()
+        default_config = ChunkingConfig().model_dump()
         config = await load_config(CHUNKING_CONFIG_FILE, default_config)
         return config
     except Exception as e:
@@ -106,7 +106,7 @@ async def get_chunking_settings():
 async def save_chunking_settings(config: ChunkingConfig):
     """Save chunking configuration"""
     try:
-        config_dict = config.dict()
+        config_dict = config.model_dump()
         success = await save_config(CHUNKING_CONFIG_FILE, config_dict)
         if success:
             return {
@@ -145,7 +145,7 @@ async def get_chunking_stats():
 async def get_correlation_settings():
     """Get current correlation configuration"""
     try:
-        default_config = CorrelationConfig().dict()
+        default_config = CorrelationConfig().model_dump()
         config = await load_config(CORRELATION_CONFIG_FILE, default_config)
         return config
     except Exception as e:
@@ -157,7 +157,7 @@ async def get_correlation_settings():
 async def save_correlation_settings(config: CorrelationConfig):
     """Save correlation configuration"""
     try:
-        config_dict = config.dict()
+        config_dict = config.model_dump()
         success = await save_config(CORRELATION_CONFIG_FILE, config_dict)
         if success:
             return {

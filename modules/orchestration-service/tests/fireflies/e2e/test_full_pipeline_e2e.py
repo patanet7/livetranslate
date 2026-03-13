@@ -197,8 +197,6 @@ def create_scenario_from_transcript() -> MockTranscriptScenario:
             speaker_name=entry.speaker,
             start_time=entry.timestamp_ms / 1000.0,
             end_time=(entry.timestamp_ms / 1000.0) + duration_seconds,
-            confidence=0.95,
-            is_final=True,
         )
         chunks.append(chunk)
 
@@ -213,15 +211,6 @@ def create_scenario_from_transcript() -> MockTranscriptScenario:
 # =============================================================================
 # Test Fixtures
 # =============================================================================
-
-
-@pytest.fixture(scope="module")
-def event_loop():
-    """Create event loop for async tests."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
 
 
 @pytest.fixture
