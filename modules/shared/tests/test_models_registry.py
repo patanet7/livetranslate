@@ -107,6 +107,40 @@ class TestBackendConfig:
                 prebuffer_s=0.0,
             )
 
+    def test_vad_bounded_config(self) -> None:
+        """VAD-bounded mode: overlap_s=0, stride_s=chunk_duration_s."""
+        cfg = BackendConfig(
+            backend="faster-whisper",
+            model="large-v3-turbo",
+            compute_type="float16",
+            chunk_duration_s=8.0,
+            stride_s=8.0,
+            overlap_s=0.0,
+            vad_threshold=0.5,
+            vad_min_silence_ms=600,
+            beam_size=1,
+            prebuffer_s=0.4,
+            batch_profile="realtime",
+        )
+        assert cfg.stride_s == pytest.approx(cfg.chunk_duration_s)
+        assert cfg.overlap_s == 0.0
+        assert cfg.vad_min_silence_ms == 600
+
+    def test_chunk_duration_exceeds_30s_rejected(self) -> None:
+        """chunk_duration_s > 30 violates Whisper positional encoding limit."""
+        with pytest.raises(ValidationError):
+            BackendConfig(
+                backend="faster-whisper",
+                model="whisper-base",
+                compute_type="int8",
+                chunk_duration_s=31.0,
+                stride_s=31.0,
+                overlap_s=0.0,
+                vad_threshold=0.5,
+                beam_size=5,
+                prebuffer_s=0.0,
+            )
+
     def test_batch_profile_values(self) -> None:
         """batch_profile only accepts 'realtime' or 'batch'."""
         realtime_cfg = _english_config()

@@ -33,10 +33,14 @@ class TestClientMessages:
         assert msg.type == "start_session"
         assert msg.sample_rate == 16000
         assert msg.channels == 1
+        assert msg.encoding == "float32"
         assert msg.device_id is None
 
-        msg_with_device = StartSessionMessage(sample_rate=48000, channels=2, device_id="usb-mic-0")
+        msg_with_device = StartSessionMessage(
+            sample_rate=48000, channels=2, device_id="usb-mic-0", encoding="pcm_s16le",
+        )
         assert msg_with_device.device_id == "usb-mic-0"
+        assert msg_with_device.encoding == "pcm_s16le"
 
     def test_end_session(self) -> None:
         msg = EndSessionMessage()
@@ -93,6 +97,7 @@ class TestServerMessages:
 
     def test_segment(self) -> None:
         msg = SegmentMessage(
+            segment_id=42,
             text="Hello world",
             language="en",
             confidence=0.95,
@@ -100,10 +105,28 @@ class TestServerMessages:
             unstable_text="",
             is_final=True,
             speaker_id="SPEAKER_00",
+            start_ms=1000,
+            end_ms=2500,
         )
         assert msg.type == "segment"
+        assert msg.segment_id == 42
         assert msg.is_final is True
         assert msg.speaker_id == "SPEAKER_00"
+        assert msg.start_ms == 1000
+        assert msg.end_ms == 2500
+
+    def test_segment_without_timestamps(self) -> None:
+        msg = SegmentMessage(
+            segment_id=1,
+            text="Partial",
+            language="en",
+            confidence=0.7,
+            stable_text="Partial",
+            unstable_text="...",
+            is_final=False,
+        )
+        assert msg.start_ms is None
+        assert msg.end_ms is None
 
     def test_interim(self) -> None:
         msg = InterimMessage(text="Hel...", confidence=0.6)
