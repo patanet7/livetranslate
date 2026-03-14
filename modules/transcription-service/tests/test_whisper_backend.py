@@ -24,6 +24,16 @@ class TestWhisperBackendProtocol:
         backend = WhisperBackend()
         assert backend is not None
 
+    def test_vad_filter_default_is_false(self):
+        """vad_filter must default to False — VAD is handled externally."""
+        backend = WhisperBackend()
+        assert backend._vad_filter is False
+
+    def test_vad_parameters_default_is_none(self):
+        """vad_parameters must default to None when not supplied."""
+        backend = WhisperBackend()
+        assert backend._vad_parameters is None
+
     def test_instantiates_with_kwargs(self):
         """WhisperBackend accepts all documented keyword arguments."""
         backend = WhisperBackend(
