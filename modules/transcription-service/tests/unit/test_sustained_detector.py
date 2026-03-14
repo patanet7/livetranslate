@@ -11,7 +11,7 @@ Critical functionality:
 3. False positive prevention through confidence margin checking
 4. Adaptive thresholds based on confidence margin
 
-Reference: modules/whisper-service/src/language_id/sustained_detector.py
+Reference: modules/transcription-service/src/language_id/sustained_detector.py
 """
 
 import logging

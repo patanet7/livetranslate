@@ -54,7 +54,7 @@ services:
 
   whisper:
     build:
-      context: modules/whisper-service
+      context: modules/transcription-service
     profiles: ["inference"]
     environment:
       REDIS_URL: redis://redis:6379/1
@@ -66,7 +66,7 @@ services:
     volumes:
       - whisper-models:/app/models
       - whisper-uploads:/app/uploads
-      - ./modules/whisper-service/src:/app/src
+      - ./modules/transcription-service/src:/app/src
     ports:
       - "5001:5001"
     depends_on:

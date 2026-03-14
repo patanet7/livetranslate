@@ -11,7 +11,7 @@ Critical functionality:
 4. Speech/silence classification accuracy
 5. VAD never crashes on arbitrary audio (property test)
 
-Reference: modules/whisper-service/src/vad_detector.py
+Reference: modules/transcription-service/src/vad_detector.py
 """
 
 import logging

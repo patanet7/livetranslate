@@ -28,9 +28,9 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: whisper-service
-            path: modules/whisper-service
-            context: modules/whisper-service
+          - name: transcription-service
+            path: modules/transcription-service
+            context: modules/transcription-service
           - name: translation-service
             path: modules/translation-service
             context: modules/translation-service
@@ -135,7 +135,7 @@ jobs:
             commit: "${{ github.sha }}"
             date: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             images:
-              whisper-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-whisper-service:${VERSION}"
+              transcription-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-transcription-service:${VERSION}"
               translation-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-translation-service:${VERSION}"
               orchestration-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestration-service:${VERSION}"
               frontend-service: "${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend-service:${VERSION}"
@@ -162,7 +162,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Service | Image |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Whisper Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-whisper-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Transcription Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-transcription-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Translation Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-translation-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Orchestration Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestration-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend Service | \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend-service:${VERSION}\` |" >> $GITHUB_STEP_SUMMARY
@@ -170,7 +170,7 @@ jobs:
           echo "### Pull Commands" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-whisper-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-transcription-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-translation-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-orchestration-service:${VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend-service:${VERSION}" >> $GITHUB_STEP_SUMMARY

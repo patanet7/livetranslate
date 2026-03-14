@@ -18,7 +18,7 @@ import requests
 
 # Add modules to path
 sys.path.insert(0, "modules/orchestration-service/src")
-sys.path.insert(0, "modules/whisper-service/src")
+sys.path.insert(0, "modules/transcription-service/src")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

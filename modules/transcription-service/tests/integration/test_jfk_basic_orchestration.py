@@ -21,7 +21,7 @@ import requests
 
 ORCHESTRATION_URL = "http://localhost:3000"
 JFK_AUDIO_PATH = (
-    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/transcription-service/jfk.wav"
 )
 
 

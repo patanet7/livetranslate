@@ -24,8 +24,8 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: whisper-service
-            path: modules/whisper-service
+          - name: transcription-service
+            path: modules/transcription-service
           - name: translation-service
             path: modules/translation-service
           - name: orchestration-service
@@ -76,8 +76,8 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: whisper-service
-            path: modules/whisper-service
+          - name: transcription-service
+            path: modules/transcription-service
           - name: translation-service
             path: modules/translation-service
           - name: orchestration-service
@@ -173,8 +173,8 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: whisper-service
-            path: modules/whisper-service
+          - name: transcription-service
+            path: modules/transcription-service
             dockerfile: Dockerfile
           - name: translation-service
             path: modules/translation-service

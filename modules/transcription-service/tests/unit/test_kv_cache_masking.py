@@ -11,7 +11,7 @@ Critical edge cases:
 3. Offset calculation correctness when using KV cache
 4. Dynamic mask creation when clipping occurs beyond n_text_ctx
 
-Reference: modules/whisper-service/src/simul_whisper/whisper/model.py lines 132-208
+Reference: modules/transcription-service/src/simul_whisper/whisper/model.py lines 132-208
 """
 
 import logging
