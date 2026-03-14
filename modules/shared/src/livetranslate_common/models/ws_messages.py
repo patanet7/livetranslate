@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 PROTOCOL_VERSION = 1
 
@@ -95,7 +95,7 @@ class LanguageDetectedMessage(BaseModel):
 
     type: Literal["language_detected"] = "language_detected"
     language: str
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
 
 
 class BackendSwitchedMessage(BaseModel):
@@ -147,7 +147,7 @@ class SegmentMessage(BaseModel):
     type: Literal["segment"] = "segment"
     text: str
     language: str
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
     stable_text: str
     unstable_text: str
     is_final: bool
@@ -164,7 +164,7 @@ class InterimMessage(BaseModel):
 
     type: Literal["interim"] = "interim"
     text: str
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
 
 
 class TranslationMessage(BaseModel):
@@ -270,5 +270,5 @@ def parse_ws_message(raw: str) -> BaseModel | None:
         if model_cls is None:
             return None
         return model_cls.model_validate(data)
-    except (json.JSONDecodeError, Exception):
+    except (json.JSONDecodeError, ValueError):
         return None

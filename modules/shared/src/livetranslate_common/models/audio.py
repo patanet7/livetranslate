@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AudioChunk(BaseModel):
@@ -22,7 +22,7 @@ class AudioChunk(BaseModel):
 
     data: bytes
     timestamp_ms: int
-    sequence_number: int
+    sequence_number: int = Field(ge=0)
     source_id: str
 
 

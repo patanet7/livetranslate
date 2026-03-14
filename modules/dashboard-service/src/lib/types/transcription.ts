@@ -19,3 +19,11 @@ export interface TranscriptionResult {
   should_translate: boolean;
   context_text: string;
 }
+
+export interface ModelInfo {
+  name: string;
+  backend: string;
+  languages: string[];
+  vram_mb: number;
+  compute_type: string;
+}

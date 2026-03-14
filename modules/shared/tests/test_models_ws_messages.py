@@ -162,3 +162,9 @@ class TestParseMessage:
         result = parse_ws_message(raw)
         assert isinstance(result, ConnectedMessage)
         assert result.session_id == "s-001"
+
+    def test_parse_valid_json_invalid_payload_returns_none(self) -> None:
+        """Known type but missing required fields returns None."""
+        raw = json.dumps({"type": "start_session"})  # missing sample_rate, channels
+        result = parse_ws_message(raw)
+        assert result is None
