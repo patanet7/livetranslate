@@ -54,3 +54,25 @@ class TestWebSocketStream:
         with client.websocket_connect("/api/stream") as ws:
             ws.send_text(json.dumps({"type": "end"}))
             # Connection should close without error
+
+    def test_binary_audio_no_registry_continues(self, client):
+        """Binary audio with no registry should be silently ignored."""
+        with client.websocket_connect("/api/stream") as ws:
+            audio = np.zeros(16000, dtype=np.float32)
+            ws.send_bytes(audio.tobytes())
+            # Send end — should not have crashed
+            ws.send_text(json.dumps({"type": "end"}))
+
+    def test_malformed_json_continues(self, client):
+        """Malformed JSON control frames should not crash the connection."""
+        with client.websocket_connect("/api/stream") as ws:
+            ws.send_text("not valid json {{{")
+            # Connection should still work
+            ws.send_text(json.dumps({"type": "end"}))
+
+    def test_undersized_audio_ignored(self, client):
+        """Audio frames < 100ms (1600 samples) should be silently dropped."""
+        with client.websocket_connect("/api/stream") as ws:
+            tiny_audio = np.zeros(100, dtype=np.float32)  # ~6ms
+            ws.send_bytes(tiny_audio.tobytes())
+            ws.send_text(json.dumps({"type": "end"}))
