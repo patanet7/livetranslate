@@ -1,12 +1,19 @@
 <script lang="ts">
   import { loopbackStore } from '$lib/stores/loopback.svelte';
 
-  let captionsEndOriginal: HTMLElement;
-  let captionsEndTranslation: HTMLElement;
+  // 2d: Allow undefined before mount
+  let captionsEndOriginal: HTMLElement | undefined;
+  let captionsEndTranslation: HTMLElement | undefined;
 
+  // 1b: Extract filtered captions to $derived to avoid inline .filter() re-runs
+  const finalCaptions = $derived(loopbackStore.captions.filter(c => c.isFinal));
+
+  // 1a: Only scroll on new captions, not translation patches
+  let prevLength = 0;
   $effect(() => {
-    // Auto-scroll when new captions arrive
-    if (loopbackStore.captions.length > 0) {
+    const len = loopbackStore.captions.length;
+    if (len > prevLength) {
+      prevLength = len;
       captionsEndOriginal?.scrollIntoView({ behavior: 'smooth' });
       captionsEndTranslation?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -19,11 +26,12 @@
     <div class="panel-header">
       Original ({loopbackStore.sourceLanguage ?? 'detecting...'})
     </div>
-    <div class="panel-content">
-      {#each loopbackStore.captions as caption (caption.id)}
+    <!-- 2a: ARIA live region for streaming content -->
+    <div class="panel-content" role="log" aria-live="polite" aria-label="Original captions">
+      <!-- 2e: Only show final captions here — interim text is shown separately below -->
+      {#each finalCaptions as caption (caption.id)}
         <div
           class="caption-entry"
-          class:interim={!caption.isFinal}
           style="border-left-color: {loopbackStore.getSpeakerColor(caption.speakerId)}"
         >
           {#if caption.speakerId}
@@ -48,8 +56,8 @@
     <div class="panel-header">
       Translation ({loopbackStore.targetLanguage})
     </div>
-    <div class="panel-content">
-      {#each loopbackStore.captions.filter(c => c.isFinal) as caption (caption.id)}
+    <div class="panel-content" role="log" aria-live="polite" aria-label="Translations">
+      {#each finalCaptions as caption (caption.id)}
         <div
           class="caption-entry"
           style="border-left-color: {loopbackStore.getSpeakerColor(caption.speakerId)}"
@@ -90,8 +98,9 @@
     letter-spacing: 1px;
     border-bottom: 1px solid var(--border, #333);
   }
-  .panel-original .panel-header { color: #ffd700; }
-  .panel-translation .panel-header { color: #90ee90; }
+  /* 2b: Use CSS custom properties for theme-able colors */
+  .panel-original .panel-header { color: var(--color-original, #ffd700); }
+  .panel-translation .panel-header { color: var(--color-translation, #90ee90); }
   .panel-content {
     flex: 1;
     overflow-y: auto;
@@ -102,7 +111,7 @@
     margin-bottom: 8px;
     border-left: 3px solid;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-entry, rgba(255, 255, 255, 0.03));
   }
   .caption-entry.interim {
     opacity: 0.5;
