@@ -10,7 +10,7 @@ from api import create_app
 
 @pytest.fixture
 def app():
-    return create_app(registry_path=None, test_mode=True)
+    return create_app(registry_path=None)
 
 
 @pytest.fixture

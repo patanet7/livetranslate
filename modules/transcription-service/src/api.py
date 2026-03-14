@@ -24,7 +24,7 @@ from registry import ModelRegistry
 logger = get_logger()
 
 
-def create_app(registry_path: Path | None = None, test_mode: bool = False) -> FastAPI:
+def create_app(registry_path: Path | None = None) -> FastAPI:
     app = FastAPI(title="Transcription Service")
 
     if registry_path and registry_path.exists():
@@ -65,6 +65,7 @@ def create_app(registry_path: Path | None = None, test_mode: bool = False) -> Fa
     @app.websocket("/api/stream")
     async def stream(ws: WebSocket):
         await ws.accept()
+        logger.info("ws_connected")
         session_language: str | None = None
         session_initial_prompt: str | None = None
         session_glossary_terms: list[str] | None = None
@@ -78,65 +79,88 @@ def create_app(registry_path: Path | None = None, test_mode: bool = False) -> Fa
                 if "bytes" in data and data["bytes"]:
                     audio = np.frombuffer(data["bytes"], dtype=np.float32)
 
+                    # Fix #8: minimum frame size validation (< 100ms at 16kHz)
+                    if len(audio) < 1600:
+                        continue
+
                     if registry is None:
                         continue
 
-                    lang = session_language or lang_detector.current_language or "en"
-                    config = registry.get_config(lang)
-                    transcription_backend = await manager.get_backend(config)
+                    # Fix #1: error boundary around all per-frame inference logic
+                    try:
+                        lang = session_language or lang_detector.current_language or "en"
+                        config = registry.get_config(lang)
+                        transcription_backend = await manager.get_backend(config)
 
-                    new_backend_key = f"{config.backend}:{config.model}"
-                    if current_backend_key is not None and new_backend_key != current_backend_key:
-                        await ws.send_text(json.dumps({
-                            "type": "backend_switched",
-                            "from": current_backend_key,
-                            "to": new_backend_key,
-                            "reason": f"language changed to {lang}",
-                        }))
-                    current_backend_key = new_backend_key
+                        new_backend_key = f"{config.backend}:{config.model}"
+                        if current_backend_key is not None and new_backend_key != current_backend_key:
+                            await ws.send_text(json.dumps({
+                                "type": "backend_switched",
+                                "from": current_backend_key,
+                                "to": new_backend_key,
+                                "reason": f"language changed to {lang}",
+                            }))
+                        current_backend_key = new_backend_key
 
-                    effective_prompt = session_initial_prompt
-                    if session_glossary_terms:
-                        glossary_str = ", ".join(session_glossary_terms)
-                        if effective_prompt:
-                            effective_prompt = f"{glossary_str}. {effective_prompt}"
-                        else:
-                            effective_prompt = glossary_str
+                        effective_prompt = session_initial_prompt
+                        if session_glossary_terms:
+                            glossary_str = ", ".join(session_glossary_terms)
+                            if effective_prompt:
+                                effective_prompt = f"{glossary_str}. {effective_prompt}"
+                            else:
+                                effective_prompt = glossary_str
 
-                    result = await transcription_backend.transcribe(
-                        audio,
-                        language=session_language or lang_detector.current_language,
-                        beam_size=config.beam_size,
-                        batch_profile=config.batch_profile,
-                        initial_prompt=effective_prompt,
-                    )
-
-                    if lang_detector.current_language is None:
-                        detected = lang_detector.detect_initial(
-                            result.language, result.confidence
+                        result = await transcription_backend.transcribe(
+                            audio,
+                            language=session_language or lang_detector.current_language,
+                            beam_size=config.beam_size,
+                            batch_profile=config.batch_profile,
+                            initial_prompt=effective_prompt,
                         )
-                        await ws.send_text(json.dumps({
-                            "type": "language_detected",
-                            "language": detected,
-                            "confidence": result.confidence,
-                        }))
-                    else:
-                        chunk_duration_s = len(audio) / 16000.0
-                        switched = lang_detector.update(result.language, chunk_duration_s)
-                        if switched:
+
+                        # Fix #3: language_detected fires BEFORE segment
+                        if lang_detector.current_language is None:
+                            detected = lang_detector.detect_initial(
+                                result.language, result.confidence
+                            )
                             await ws.send_text(json.dumps({
                                 "type": "language_detected",
-                                "language": switched,
+                                "language": detected,
                                 "confidence": result.confidence,
                             }))
+                        else:
+                            chunk_duration_s = len(audio) / 16000.0
+                            switched = lang_detector.update(result.language, chunk_duration_s)
+                            if switched:
+                                await ws.send_text(json.dumps({
+                                    "type": "language_detected",
+                                    "language": switched,
+                                    "confidence": result.confidence,
+                                }))
 
-                    await ws.send_text(json.dumps({
-                        "type": "segment",
-                        **result.model_dump(),
-                    }))
+                        # Fix #4: filter model_dump() to public fields only
+                        await ws.send_text(json.dumps({
+                            "type": "segment",
+                            **result.model_dump(include={"text", "language", "confidence", "is_final", "segments"}),
+                        }))
+
+                    except Exception as exc:
+                        logger.exception("transcribe_error", error=str(exc))
+                        await ws.send_text(json.dumps({
+                            "type": "error",
+                            "message": str(exc),
+                            "recoverable": True,
+                        }))
+                        continue
 
                 elif "text" in data and data["text"]:
-                    msg = json.loads(data["text"])
+                    # Fix #5: guard against malformed JSON control frames
+                    try:
+                        msg = json.loads(data["text"])
+                    except json.JSONDecodeError:
+                        logger.warning("invalid_json_control_frame")
+                        continue
+
                     msg_type = msg.get("type")
 
                     if msg_type == "config":
@@ -148,6 +172,9 @@ def create_app(registry_path: Path | None = None, test_mode: bool = False) -> Fa
                         break
 
         except WebSocketDisconnect:
-            pass
+            logger.info("ws_disconnected")
+            return
+
+        logger.info("ws_session_ended")
 
     return app
