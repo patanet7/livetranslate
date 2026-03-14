@@ -5,6 +5,7 @@ export interface StartSessionMessage {
   type: 'start_session';
   sample_rate: number;
   channels: number;
+  encoding?: string; // default "float32" for browser Float32Array
   device_id?: string;
 }
 
@@ -50,6 +51,7 @@ export interface ConnectedMessage {
 
 export interface SegmentMessage {
   type: 'segment';
+  segment_id: number;
   text: string;
   language: string;
   confidence: number;
@@ -57,6 +59,8 @@ export interface SegmentMessage {
   unstable_text: string;
   is_final: boolean;
   speaker_id: string | null;
+  start_ms: number | null;
+  end_ms: number | null;
 }
 
 export interface InterimMessage {
@@ -70,6 +74,7 @@ export interface TranslationMessage {
   text: string;
   source_lang: string;
   target_lang: string;
+  /** Matches segment_id on SegmentMessage. BIGSERIAL in DB — safe up to 2^53 in JS number. */
   transcript_id: number;
   context_used: number;
 }

@@ -25,12 +25,14 @@ class StartSessionMessage(BaseModel):
     Args:
         sample_rate: PCM sample rate in Hz.
         channels: Number of audio channels.
+        encoding: PCM encoding format (default "float32" for browser Float32Array).
         device_id: Optional source device identifier.
     """
 
     type: Literal["start_session"] = "start_session"
     sample_rate: int
     channels: int
+    encoding: str = "float32"
     device_id: str | None = None
 
 
@@ -135,6 +137,7 @@ class SegmentMessage(BaseModel):
     """Server sends a completed (or draft) transcription segment.
 
     Args:
+        segment_id: Unique identifier for this segment (matches transcript_id on TranslationMessage).
         text: Full segment text.
         language: BCP-47 language code.
         confidence: Overall confidence in [0.0, 1.0].
@@ -142,9 +145,12 @@ class SegmentMessage(BaseModel):
         unstable_text: Still-being-refined portion of the text.
         is_final: True when the segment will not be updated further.
         speaker_id: Optional speaker diarization identifier.
+        start_ms: Segment start time in ms relative to session start (None for interim updates).
+        end_ms: Segment end time in ms relative to session start (None for interim updates).
     """
 
     type: Literal["segment"] = "segment"
+    segment_id: int
     text: str
     language: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -152,6 +158,8 @@ class SegmentMessage(BaseModel):
     unstable_text: str
     is_final: bool
     speaker_id: str | None = None
+    start_ms: int | None = None
+    end_ms: int | None = None
 
 
 class InterimMessage(BaseModel):
@@ -174,7 +182,11 @@ class TranslationMessage(BaseModel):
         text: Translated text.
         source_lang: BCP-47 source language code.
         target_lang: BCP-47 target language code.
-        transcript_id: Internal ID of the source transcription.
+        transcript_id: Internal ID of the source transcription segment
+            (matches ``segment_id`` on ``SegmentMessage``).
+            Note: stored as BIGSERIAL in PostgreSQL. JavaScript ``number``
+            is safe up to 2^53; for IDs beyond that, cast to BigInt in
+            the TypeScript consumer.
         context_used: Number of context pairs used for this translation.
     """
 
