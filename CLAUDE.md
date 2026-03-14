@@ -21,33 +21,38 @@ LiveTranslate is a real-time speech-to-text transcription and translation system
 - 16-week MLOps implementation roadmap included
 
 ## Service Architecture
+
+See `ARCHITECTURE.md` for the full system topology diagram.
+
 # NEVER USE MOCK DATA!!!! ALWAYS COMPREHENSIVE AND INTEGRATED!!!
 # ALWAYS USE UV FOR DEPENDENCY MANAGEMENT - NOT PIP OR PDM!
-### 4 Core Services
+### 3 Core Services + External LLM
 
-1. **Whisper Service** (`modules/whisper-service/`) - **[NPU OPTIMIZED]** ✅
-   - **Purpose**: Combined Whisper + Speaker Diarization + Audio Processing + VAD
-   - **Hardware**: Intel NPU (primary), GPU/CPU (fallback)
-   - **Status**: Production-ready with comprehensive WebSocket infrastructure
-
-2. **Translation Service** (`modules/translation-service/`) - **[GPU OPTIMIZED]**
-   - **Purpose**: Multi-language translation with local LLMs (vLLM, Ollama, Triton)
+1. **Transcription Service** (`modules/transcription-service/`) - **[GPU OPTIMIZED]** ✅
+   - **Purpose**: Speech-to-text using faster-whisper with Silero VAD and Language ID
    - **Hardware**: NVIDIA GPU (primary), CPU (fallback)
-   - **Status**: Solid foundation, needs GPU optimization
+   - **Status**: Production-ready with pluggable backend manager and VRAM budgeting
+   - **Features**: Authoritative language detection, Voice Activity Detection, model registry
 
-3. **Orchestration Service** (`modules/orchestration-service/`) - **[CPU OPTIMIZED]** ✅
-   - **Purpose**: Backend API coordination, bot management, configuration sync
+2. **Orchestration Service** (`modules/orchestration-service/`) - **[CPU OPTIMIZED]** ✅
+   - **Purpose**: Backend API coordination, WebSocket hub, FLAC recording, translation coordination via Ollama
    - **Hardware**: CPU-optimized (lightweight)
    - **Status**: Production-ready with integrated Google Meet bot management and config sync
+   - **Translation**: Thin integration layer calling Ollama directly with rolling context + glossary
    - **🆕 Audio Upload API**: Fixed 422 validation errors with proper FastAPI dependency injection
    - **🆕 Model Consistency**: Standardized "whisper-base" naming across all fallback mechanisms
 
-4. **Frontend Service** (`modules/frontend-service/`) - **[BROWSER OPTIMIZED]** ✅
-   - **Purpose**: Modern React user interface
-   - **Technology**: React 18 + TypeScript + Material-UI + Vite
-   - **Status**: Production-ready with comprehensive settings management
+3. **Dashboard Service** (`modules/dashboard-service/`) - **[BROWSER OPTIMIZED]** ✅
+   - **Purpose**: Modern SvelteKit user interface with real-time updates
+   - **Technology**: SvelteKit + Svelte 5 runes, TypeScript
+   - **Status**: Production-ready with comprehensive settings management and WebSocket streaming
    - **🆕 Meeting Test Dashboard**: Fully operational real-time streaming without 422 errors
-   - **🆕 Dynamic Model Loading**: Fixed model selection with proper "whisper-base" naming
+   - **🆕 Dynamic Model Loading**: Fixed model selection with proper model naming
+
+4. **External: Ollama LLM Service** (`:11434`)
+   - **Purpose**: Multi-language translation inference
+   - **Model**: qwen3.5:7b (or compatible)
+   - **Protocol**: OpenAI-compatible API
 
 ### Key Technical Components
 
@@ -64,16 +69,16 @@ LiveTranslate is a real-time speech-to-text transcription and translation system
 
 #### Configuration Synchronization System ✅
 - **ConfigurationSyncManager**: `modules/orchestration-service/src/audio/config_sync.py`
-- **Frontend Settings**: `modules/frontend-service/src/pages/Settings/`
+- **Dashboard Settings**: `modules/dashboard-service/src/pages/Settings/`
 - **API Endpoints**: `modules/orchestration-service/src/routers/settings.py`
-- **Whisper Integration**: `modules/whisper-service/src/api_server.py` (orchestration mode)
+- **Transcription Integration**: `modules/transcription-service/src/api_server.py` (orchestration mode)
 
 ## Service Ports
 
-- **Frontend**: 5173 (development), 3000 (production)
+- **Dashboard**: 5173 (development), 3000 (production)
 - **Orchestration**: 3000
-- **Whisper**: 5001
-- **Translation**: 5003
+- **Transcription**: 5001
+- **Ollama**: 11434
 - **Monitoring**: 3001
 - **Prometheus**: 9090
 
@@ -86,7 +91,7 @@ LiveTranslate is a real-time speech-to-text transcription and translation system
 ./start-development.ps1       # Windows
 
 # Individual services
-cd modules/frontend-service && ./start-frontend.sh
+cd modules/dashboard-service && ./start-dashboard.sh
 cd modules/orchestration-service && ./start-backend.sh
 
 # Using just (recommended)
@@ -104,13 +109,9 @@ just dev                      # Start development environment
 # Install all dependencies (from repo root)
 uv sync --group dev
 
-# Whisper Service (NPU/GPU optimized)
-uv run python modules/whisper-service/src/main.py --device=npu
-uv run pytest modules/whisper-service/tests/ -v
-
-# Translation Service (GPU optimized)
-uv run python modules/translation-service/src/api_server.py
-uv run pytest modules/translation-service/tests/ -v
+# Transcription Service (GPU optimized with faster-whisper)
+uv run python modules/transcription-service/src/main.py
+uv run pytest modules/transcription-service/tests/ -v
 
 # Orchestration Service with bot management
 uv run python modules/orchestration-service/src/main_fastapi.py
@@ -119,8 +120,8 @@ uv run pytest modules/orchestration-service/tests/ -v
 # Shared Library tests
 uv run pytest modules/shared/tests/ -v
 
-# Frontend Service (React/TypeScript)
-cd modules/frontend-service
+# Dashboard Service (SvelteKit)
+cd modules/dashboard-service
 npm install
 npm run dev  # Start development server
 npm test     # Run tests
@@ -130,8 +131,7 @@ npm test     # Run tests
 ```bash
 just help              # Show all available commands
 just test-orchestration    # Run orchestration tests
-just test-whisper          # Run whisper tests
-just test-translation      # Run translation tests
+just test-transcription    # Run transcription tests
 just coverage-backend      # Generate coverage reports
 just docker-build-all      # Build all Docker images
 just clean                 # Clean build artifacts
@@ -156,7 +156,7 @@ All services use **structlog** via the shared `livetranslate-common` package. Do
 from livetranslate_common.logging import setup_logging, get_logger
 
 # In service entry point (once):
-setup_logging(service_name="orchestration")  # or "whisper", "translation"
+setup_logging(service_name="orchestration")  # or "transcription"
 
 # In all modules:
 logger = get_logger()
@@ -180,9 +180,9 @@ logger.info("event_name", key="value", count=42)
 ## Development Notes
 
 ### Audio Processing Pipeline
-- **Critical Fix**: Browser audio processing features (echoCancellation, noiseSuppression, autoGainControl) disabled in `modules/orchestration-service/static/js/audio.js` to prevent loopback audio attenuation
-- **Backend Fix**: Aggressive noise reduction disabled in `modules/whisper-service/src/api_server.py` to preserve loopback audio content
-- **Voice-Specific Processing**: 10-stage pipeline with pause capability in `modules/orchestration-service/static/js/audio-processing-test.js`
+- **Critical Fix**: Browser audio processing features (echoCancellation, noiseSuppression, autoGainControl) disabled in dashboard to prevent loopback audio attenuation
+- **Backend Fix**: Aggressive noise reduction disabled in `modules/transcription-service/src/api_server.py` to preserve loopback audio content
+- **Voice-Specific Processing**: 10-stage pipeline with pause capability in orchestration service
 
 ### WebSocket Infrastructure
 - **Enterprise-grade features**: Connection pooling (1000 capacity), 20+ error categories, heartbeat monitoring
@@ -198,7 +198,7 @@ logger.info("event_name", key="value", count=42)
 
 ### Configuration Flow
 ```
-Frontend Settings ↔ Orchestration API ↔ Whisper Service Config
+Dashboard Settings ↔ Orchestration API ↔ Transcription Service Config
 ```
 - **Bidirectional sync** with real-time updates
 - **Compatibility validation** prevents breaking changes
@@ -208,11 +208,11 @@ Frontend Settings ↔ Orchestration API ↔ Whisper Service Config
 ```
 Request → Database Session → Google Meet Browser → Audio Capture → Orchestration Service
     ↓
-Whisper Service (NPU) → Speaker Diarization → Time Correlation → Translation Service
+Transcription Service → Speaker Diarization → Time Correlation → Ollama Translation
     ↓
 Virtual Webcam Generation → Real-time Display → Speaker Attribution
 ```
-- **Complete Audio Pipeline**: Google Meet browser audio → orchestration → whisper → translation → virtual webcam
+- **Complete Audio Pipeline**: Google Meet browser audio → orchestration → transcription → Ollama translation → virtual webcam
 - **Speaker Attribution**: Enhanced display with diarization info (e.g., "John Doe (SPEAKER_00)")
 - **Real-time Translation Overlay**: Professional webcam output with speaker names and confidence scores
 - **Thread-safe operations** with proper locking
@@ -220,9 +220,9 @@ Virtual Webcam Generation → Real-time Display → Speaker Attribution
 - **Performance tracking** with success rates
 
 ### Hardware Acceleration
-- **NPU**: Intel NPU support via OpenVINO (Whisper service)
-- **GPU**: NVIDIA GPU with CUDA (Translation service)
+- **GPU**: NVIDIA GPU with CUDA (Transcription service)
 - **CPU**: Automatic fallback for all services
+- **Ollama**: Runs on GPU or CPU depending on system configuration
 
 ## Testing Strategy
 
@@ -270,10 +270,9 @@ async def test_audio_upload_and_transcription():
 ```
 
 ### Service-Specific Tests
-- **Whisper**: NPU fallback, real-time performance, edge cases
-- **Translation**: GPU memory management, quality metrics
-- **Orchestration**: Service coordination, health monitoring
-- **Frontend**: Component testing, E2E tests with Playwright
+- **Transcription**: GPU memory management, VAD accuracy, LID correctness
+- **Orchestration**: Service coordination, health monitoring, Ollama integration
+- **Dashboard**: Component testing, E2E tests with Playwright, WebSocket streaming
 
 ### Test Commands
 ```bash
@@ -282,8 +281,7 @@ python tests/run_all_tests.py --comprehensive
 
 # Service-specific (using UV)
 uv run pytest modules/orchestration-service/tests/ -m "behavioral"
-uv run pytest modules/whisper-service/tests/ -m "integration"
-uv run pytest modules/translation-service/tests/ -m "behavioral"
+uv run pytest modules/transcription-service/tests/ -m "integration"
 
 # Shared library tests
 uv run pytest modules/shared/tests/ -v
@@ -293,8 +291,7 @@ uv run pytest --cov=src --cov-report=html
 
 # Using just commands
 just test-orchestration
-just test-whisper
-just test-translation
+just test-transcription
 just coverage-backend
 ```
 
@@ -303,8 +300,7 @@ just coverage-backend
 - `@pytest.mark.integration` - Integration tests
 - `@pytest.mark.e2e` - End-to-end tests
 - `@pytest.mark.slow` - Slow tests (skip with `-m "not slow"`)
-- `@pytest.mark.gpu` - Requires GPU
-- `@pytest.mark.npu` - Requires Intel NPU
+- `@pytest.mark.gpu` - Requires GPU (transcription service)
 
 ## Important Notes
 
