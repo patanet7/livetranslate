@@ -93,7 +93,9 @@ dev = [
     "ruff>=0.8.0",
 ]
 
-# Pytest configuration is in pytest.ini (includes all markers: behavioral, npu, gpu, etc.)
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
 
 [tool.black]
 line-length = 100
