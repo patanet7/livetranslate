@@ -1,270 +1,94 @@
-#!/usr/bin/env python3
+"""Language-universal sentence segmenter.
+
+Splits transcription text on sentence-ending punctuation for both
+Latin (. ! ?) and CJK (。！？) scripts. Additional scripts (Arabic,
+Thai, Devanagari) can be added via SENTENCE_ENDINGS.
 """
-Sentence Segmenter - Multi-language sentence boundary detection
+from __future__ import annotations
 
-Based on SimulStreaming reference implementation with extended language support.
-Reference: SimulStreaming/translate/sentence_segmenter.py
+import re
+from dataclasses import dataclass
 
-Supports:
-- Latin scripts: English, Spanish, French, German, Italian, Portuguese, etc. (!?.)
-- Japanese: period, exclamation, question mark (fullwidth)
-- Chinese: period, exclamation, question mark (fullwidth)
-- Arabic: question mark
-- Indic scripts: Devanagari danda (Hindi, Sanskrit, Marathi, Nepali)
-- Korean: Uses Latin period (.)
-- And many more via Unicode properties
 
-Returns: List of strings, where each string is a sentence.
-Spaces following punctuation are preserved.
-Total character count: output == input (lossless)
-"""
+# Sentence-ending punctuation across scripts
+SENTENCE_ENDINGS = re.compile(
+    r"([.!?]"             # Latin
+    r"|[。！？]"           # CJK fullwidth
+    r"|[।॥]"              # Devanagari (future-proofing)
+    r")"
+)
 
-from functools import lru_cache
+# Terminal characters for is_sentence_end() compatibility
+_TERMINALS = set(".!?\u3002\uff01\uff1f\u061f\u0964")
 
-import regex
+# Trailing quote/bracket chars to strip before terminal check
+_TRAILING_CHARS = set('"\'\u201c\u201d\u2018\u2019`\u300d\u300f\uff09\u3011\u3015])\u007d\u203a\u00bb')
+
+
+@dataclass
+class SegmentResult:
+    """Result of sentence segmentation."""
+    sentences: list[str]    # Completed sentences (including trailing punctuation)
+    remainder: str          # Incomplete tail (no sentence-ending punctuation yet)
 
 
 class SentenceSegmenter:
-    """
-    Regex-based sentence splitter for 50+ languages.
+    """Splits streaming text into sentences at punctuation boundaries.
 
-    Based on sacrebleu TokenizerV14International(BaseTokenizer).
-
-    Usage:
-        segmenter = SentenceSegmenter()
-        sentences = segmenter("Hello world. How are you?")
-        # Result: ["Hello world. ", "How are you?"]
-
-    Features:
-    - Preserves whitespace after terminals
-    - Handles multiple scripts (Latin, CJK, Arabic, Indic)
-    - LRU cache for performance (16K entries)
-    - Character-preserving (len(input) == sum(len(s) for s in output))
+    Designed for real-time transcription: accumulates text and emits
+    completed sentences while holding back the incomplete remainder.
     """
 
-    # Unique separator (won't appear in real text)
-    sep = "ŽžŽžSentenceSeparatorŽžŽž"
-
-    # Sentence terminals by script family
-    latin_terminals = "!?."  # English, Romance, Germanic languages
-    jap_zh_terminals = "\u3002\uff01\uff1f"  # Japanese, Chinese (U+3002, U+FF01, U+FF1F)
-    arabic_terminals = "\u061f"  # Arabic question mark (U+061F, period already in latin)
-    indic_terminals = "\u0964"  # Devanagari danda (U+0964, Hindi, Sanskrit, Marathi, Nepali)
-
-    # Combined terminal set (covers 50+ languages)
-    terminals = latin_terminals + jap_zh_terminals + arabic_terminals + indic_terminals
-
-    def __init__(self):
-        """
-        Initialize sentence segmenter with regex patterns.
-
-        Pattern logic:
-        1. Split when terminal preceded by non-digit, append trailing whitespace
-        2. Split when terminal followed by non-digit (BUT NOT QUOTES!)
-
-        Uses Unicode properties:
-        - \\P{N}: Non-digit (language-agnostic)
-        - \\p{Z}: Whitespace/separator (any script)
-
-        CRITICAL FIX: Don't split on terminal+quote patterns!
-        - "Hello." She → Keep quotes with sentence
-        - "Hello."She → Keep quotes with sentence
-        """
-        terminals = self.terminals
-
-        # All quote characters (Latin, CJK, typographic)
-        # Include various quote styles from different scripts
-
-        quotes = r""""\'"\'`\u201c\u201d\u2018\u2019\u00ab\u00bb\u300c\u300d\u300e\u300f\u2039\u203a\u3008\u3009\u300a\u300b\u3010\u3011\u3014\u3015\uff08\uff09()\[\]"""
-
-        self._re = [
-            # Rule 1: terminal + optional quotes + optional whitespace → separator
-            # Handles: "Hello." → split, "Hello.\" " → split, "Hello.\"" → split
-            # Pattern: (non-digit)(terminal)(quotes*)(whitespace*)
-            (
-                regex.compile(r"(\P{N})([" + terminals + r"])([" + quotes + r"]*)(\p{Z}*)"),
-                r"\1\2\3\4" + self.sep,
-            ),
-            # Rule 2: terminal + optional quotes + non-digit-non-quote → separator
-            # Handles: "Hello."She → split (but not "Hello.\"")
-            # Pattern: (terminal)(quotes*)(non-digit-non-quote-non-whitespace)
-            # CRITICAL: Use negative lookahead to exclude quotes and whitespace
-            (
-                regex.compile(
-                    r"([" + terminals + r"])([" + quotes + r"]*)([^\P{N}" + quotes + r"\p{Z}])"
-                ),
-                r"\1\2" + self.sep + r"\3",
-            ),
-        ]
-
-    @lru_cache(maxsize=2**16)  # noqa: B019 - Instance is typically a singleton; cache is intentional for performance
-    def __call__(self, line: str) -> list[str]:
-        """
-        Segment text into sentences.
+    def segment(self, text: str) -> SegmentResult:
+        """Segment text into completed sentences and a remainder.
 
         Args:
-            line: Input text (any language)
+            text: Input text, possibly containing multiple sentences.
 
         Returns:
-            List of sentences with preserved whitespace
-
-        Example:
-            >>> segmenter = SentenceSegmenter()
-            >>> segmenter("Hello world. How are you?")
-            ["Hello world. ", "How are you?"]
-
-            >>> segmenter("konnichiha. genki desuka?")  # Japanese example (ASCII equiv)
-            ["konnichiha. ", "genki desuka?"]
+            SegmentResult with completed sentences and the trailing remainder.
         """
-        # Apply regex substitutions
-        for _re, repl in self._re:
-            line = _re.sub(repl, line)
+        sentences: list[str] = []
+        remaining = text
 
-        # Split on separator and filter empty strings
-        return [t for t in line.split(self.sep) if t != ""]
+        while remaining:
+            match = SENTENCE_ENDINGS.search(remaining)
+            if match is None:
+                break
+
+            # Include the punctuation mark in the sentence
+            end_pos = match.end()
+            sentence = remaining[:end_pos].strip()
+            if sentence:
+                sentences.append(sentence)
+            remaining = remaining[end_pos:].lstrip()
+
+        return SegmentResult(sentences=sentences, remainder=remaining)
 
     def is_sentence_end(self, text: str) -> bool:
-        """
-        Check if text ends with a sentence terminal.
+        """Check if text ends with a sentence terminal.
 
         Handles trailing punctuation, quotes, and parentheses:
         - "Hello world." → True
-        - "Hello world.\"" → True (period inside quote)
+        - 'Hello world."' → True (period inside quote)
         - "Hello world?)" → True (question mark inside paren)
-        - "Hello world\"" → False (just quote, no terminal)
+        - 'Hello world"' → False (just quote, no terminal)
 
         Args:
             text: Text to check
 
         Returns:
             True if text ends with sentence terminal
-
-        Example:
-            >>> segmenter.is_sentence_end("Hello world.")
-            True
-            >>> segmenter.is_sentence_end("Hello world")
-            False
-            >>> segmenter.is_sentence_end('He said "Hello world."')
-            True
         """
-        text = text.rstrip()  # Remove trailing whitespace
+        text = text.rstrip()
         if not text:
             return False
 
         # Strip trailing quotes, parentheses, brackets
-        # Common patterns: ."  ?"  !)  etc.
-
-        trailing_chars = '"\'"\u2018\u2019`\u300d\u300f\uff09\u3011\u3015])\u007d\u203a\u00bb'
-        while text and text[-1] in trailing_chars:
+        while text and text[-1] in _TRAILING_CHARS:
             text = text[:-1]
 
         if not text:
             return False
 
-        return text[-1] in self.terminals
-
-    def get_last_sentence(self, text: str) -> str:
-        """
-        Extract the last complete sentence from text.
-
-        Useful for incremental processing - get the most recent
-        complete sentence without splitting incomplete ones.
-
-        Args:
-            text: Input text (may contain multiple sentences)
-
-        Returns:
-            Last complete sentence, or empty string if none
-
-        Example:
-            >>> segmenter.get_last_sentence("First. Second. Third")
-            "Second. "
-        """
-        sentences = self(text)
-        if not sentences:
-            return ""
-
-        # If last sentence ends with terminal, return it
-        if self.is_sentence_end(sentences[-1]):
-            return sentences[-1]
-
-        # Otherwise return second-to-last (if exists)
-        if len(sentences) >= 2:
-            return sentences[-2]
-
-        return ""
-
-    def count_complete_sentences(self, text: str) -> int:
-        """
-        Count complete sentences (ending with terminals).
-
-        Args:
-            text: Input text
-
-        Returns:
-            Number of complete sentences
-
-        Example:
-            >>> segmenter.count_complete_sentences("First. Second. Third")
-            2  # "Third" is incomplete
-        """
-        sentences = self(text)
-        return sum(1 for s in sentences if self.is_sentence_end(s))
-
-
-def test_sentence_segmenter():
-    """Test sentence segmenter with multiple languages."""
-    segmenter = SentenceSegmenter()
-
-    test_cases = [
-        # English
-        ("Hello world. How are you?", ["Hello world. ", "How are you?"]),
-        ("First! Second? Third.", ["First! ", "Second? ", "Third."]),
-        # Spanish
-        ("!Hola! ?Como estas?", ["!Hola! ", "?Como estas?"]),
-        # Japanese (using unicode escapes to avoid linter warnings)
-        ("konnichiha\u3002genki desuka\uff1f", ["konnichiha\u3002", "genki desuka\uff1f"]),
-        # Chinese (using unicode escapes to avoid linter warnings)
-        ("nihao\u3002nihao ma\uff1f", ["nihao\u3002", "nihao ma\uff1f"]),
-        # Mixed (incomplete sentence)
-        ("Complete sentence. Incomplete", ["Complete sentence. ", "Incomplete"]),
-        # Edge cases
-        ("", []),
-        ("No punctuation", ["No punctuation"]),
-        ("Multiple   spaces.  After  period.", ["Multiple   spaces.  ", "After  period."]),
-    ]
-
-    print("Testing SentenceSegmenter:")
-    print("=" * 80)
-
-    all_passed = True
-    for text, expected in test_cases:
-        result = segmenter(text)
-        passed = result == expected
-        all_passed = all_passed and passed
-
-        status = "✅" if passed else "❌"
-        print(f"\n{status} Input: '{text}'")
-        print(f"   Expected: {expected}")
-        print(f"   Got:      {result}")
-
-        # Test character preservation
-        if text:
-            char_count_input = len(text)
-            char_count_output = sum(len(s) for s in result)
-            char_preserved = char_count_input == char_count_output
-            if not char_preserved:
-                print(f"   ⚠️  Character count mismatch: {char_count_input} -> {char_count_output}")
-                all_passed = False
-
-    print("\n" + "=" * 80)
-    if all_passed:
-        print("✅ All tests passed!")
-    else:
-        print("❌ Some tests failed")
-
-    return all_passed
-
-
-if __name__ == "__main__":
-    test_sentence_segmenter()
+        return text[-1] in _TERMINALS
