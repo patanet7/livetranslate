@@ -36,10 +36,6 @@ class BackendManager:
         """Return a loaded backend for the given config, evicting LRU if needed."""
         key = self._backend_key(config)
 
-        if key in self.loaded_backends:
-            self.loaded_backends.move_to_end(key)
-            return self.loaded_backends[key]
-
         async with self._load_lock:
             if key in self.loaded_backends:
                 self.loaded_backends.move_to_end(key)
