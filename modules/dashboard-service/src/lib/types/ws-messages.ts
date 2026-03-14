@@ -132,6 +132,7 @@ export function parseServerMessage(raw: string): ServerMessage | null {
       'language_detected', 'backend_switched',
     ];
     if (!knownTypes.includes(data.type)) return null;
+    // Unsafe cast: validates `type` discriminant only, not field presence/types.
     return data as ServerMessage;
   } catch {
     return null;
