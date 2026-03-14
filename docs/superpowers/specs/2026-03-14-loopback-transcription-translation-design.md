@@ -3,7 +3,7 @@
 **Date:** 2026-03-14
 **Status:** Design
 **Approach:** Refactor In Place (Approach 1)
-**Reviewed by:** MLOps Engineer, Microservices Architect, Media Streaming Specialist
+**Reviewed by:** MLOps Engineer, Microservices Architect, Media Streaming Specialist, Architect Reviewer
 
 ## Overview
 
@@ -12,7 +12,7 @@ Build a real-time loopback system for live meetings: mic + system audio → lang
 ## Goals
 
 1. **Pluggable transcription backends** — not just Whisper. Best model per language (SenseVoice, FunASR, faster-whisper, etc.) with auto-detection and user override.
-2. **All GPU compute on thomas-pc** (RTX 4090 via Tailscale) — transcription + translation services run remotely. Local machine handles mic capture + display only.
+2. **All GPU compute on thomas-pc** (RTX 4090 via Tailscale) — transcription service runs remotely, Ollama/vLLM handles translation (already running on thomas-pc). Local machine handles mic capture, orchestration, and display.
 3. **SvelteKit loopback page** — live captions + translation with split/subtitle/transcript display modes.
 4. **Unified meeting pipeline** — one recording/persistence system that both loopback sessions and meeting bots feed into.
 5. **Translation rolling window** — context-aware translation using recent transcript history for quality.
@@ -40,14 +40,19 @@ Local Machine                          thomas-pc (RTX 4090, Tailscale)
 │ ├─ WebSocket hub     │   (~1-5ms)    │ ├─ backend manager (VRAM)    │
 │ ├─ meeting pipeline  │               │ ├─ backend: whisper          │
 │ ├─ audio recording   │               │ ├─ backend: sensevoice       │
-│ ├─ downsampling      │               │ ├─ backend: funasr           │
-│ └─ session mgmt      │               │ └─ dedup / rolling window    │
-│                      │               │                              │
-│ PostgreSQL           │               │ translation-service          │
-│ (session data)       │               │ ├─ Ollama / vLLM (GPU)       │
-└─────────────────────┘               │ └─ rolling context window    │
-                                       └──────────────────────────────┘
+│ ├─ downsampling      │               │ └─ dedup / rolling window    │
+│ ├─ translation module│               │                              │
+│ │  ├─ context window │──Tailscale───▶│ Ollama / vLLM (GPU)          │
+│ │  ├─ backpressure   │  (HTTP POST)  │ (already running, model      │
+│ │  └─ LLM client     │               │  router handles serving)     │
+│ └─ session mgmt      │               └──────────────────────────────┘
+│                      │
+│ PostgreSQL           │
+│ (session data)       │
+└─────────────────────┘
 ```
+
+**Translation service absorbed into orchestration.** The previous `modules/translation-service/` was a thin HTTP relay (~150 lines of core logic) between orchestration and Ollama/vLLM. Since thomas-pc already runs Ollama with a model router, orchestration now calls Ollama's OpenAI-compatible API directly. Rolling context, prompt construction, and backpressure all live in orchestration. `modules/translation-service/` is archived.
 
 ### Audio Flow
 
@@ -72,7 +77,7 @@ Orchestration Service (local)
             │
             ▼
         Orchestration: translate only is_final segments
-        Send to translation-service (thomas-pc, HTTP POST)
+        Translation module calls Ollama/vLLM directly (thomas-pc, HTTP POST)
             ├─ Rolling context window (last N sentences)
             └─ Return translation
             │
@@ -96,8 +101,8 @@ Orchestration Service (local)
 
 **6. Graceful degradation.**
 - Transcription service down: continue recording audio (meeting mode), show "transcription unavailable" banner, no live captions. Audio is preserved for batch processing when service recovers.
-- Translation service down: show original-language captions only, with "translation unavailable" indicator. Transcription continues normally.
-- Tailscale link drops: both services go down simultaneously. Use a single shared circuit breaker for the remote machine (not two independent breakers). Buffer audio to disk if in meeting mode.
+- Ollama/vLLM down or unreachable: show original-language captions only, with "translation unavailable" indicator. Transcription continues normally.
+- Tailscale link drops: transcription service and Ollama both unreachable. Use a single shared circuit breaker for the remote machine. Buffer audio to disk if in meeting mode.
 
 ---
 
@@ -547,13 +552,29 @@ Runs as a **background task** — "End Meeting" returns immediately to the user.
 
 ---
 
-## Plan 4: Translation Rolling Window & Benchmarking
+## Plan 4: Translation Module (Absorbed into Orchestration) & Benchmarking
+
+### Architecture Change: Translation Service Absorbed
+
+The previous `modules/translation-service/` was a thin HTTP relay (~150 lines of core logic) between orchestration and Ollama/vLLM. Since thomas-pc already runs Ollama with a model router, the translation logic is absorbed into the orchestration service. `modules/translation-service/` is archived.
+
+**What moves to orchestration (`src/translation/`):**
+- `llm_client.py` — ported from `OpenAICompatibleTranslator` (~150 lines): constructs HTTP POST to `/v1/chat/completions`, parses response, retry with exponential backoff
+- `config.py` — LLM backend configuration (Ollama URL, model name, timeout, compute type)
+- `context.py` — rolling context window (new, per this spec)
+- `service.py` — combines client + config + context into a clean interface
+
+**What is deleted:**
+- `modules/translation-service/api_server_fastapi.py` — the proxy layer
+- `clients/translation_service_client.py` (~900 lines) — the over-complex client
+- `internal_services/translation.py` (~430 lines) — the `sys.path` hack facade
+- Legacy backends (`llama_translator.py`, `nllb_translator.py`, etc.) — dead code
 
 ### Rolling Context Window
 
-Translation requests include the last N sentences as context. This gives the LLM continuity for pronouns, terminology, and tone. The context buffer lives in the **orchestration service** (per-session ring buffer of recent finalized (text, translation) pairs).
+The orchestration service maintains a per-session ring buffer of recent finalized (text, translation) pairs. Each translation request includes the last N sentences as context, giving the LLM continuity for pronouns, terminology, and tone.
 
-**Shared model (in `livetranslate-common`):**
+**Types (in `livetranslate-common`):**
 
 ```python
 @dataclass
@@ -578,7 +599,7 @@ class TranslationResponse:
     latency_ms: float
 ```
 
-**Breaking change from current API:** The current `TranslationRequest.context` is `str | None`. The new model uses `list[TranslationContext]`. This is defined as a shared Pydantic model in `livetranslate-common` so both orchestration and translation service import the same schema.
+These types are defined in `livetranslate-common` so the translation module, orchestration pipeline, and benchmarking harness all share the same schema.
 
 **Context eviction:** By count (`context_window_size`) AND by token count (`max_context_tokens`), whichever limit is hit first. Failed translations are NOT added to the context window.
 
@@ -586,12 +607,31 @@ class TranslationResponse:
 
 The LLM prompt includes prior context so "他" (he) resolves to "Manager Zhang" rather than a generic "he."
 
+### LLM Client
+
+Orchestration calls Ollama/vLLM directly via the OpenAI-compatible API:
+
+```python
+# Orchestration calls thomas-pc's Ollama directly
+POST http://thomas-pc:11434/v1/chat/completions
+{
+    "model": "qwen3.5:7b",
+    "messages": [
+        {"role": "system", "content": "You are a translator. ..."},
+        {"role": "user", "content": "Context:\n...\n\nTranslate: ..."}
+    ],
+    "temperature": 0.3
+}
+```
+
+No intermediate service. The `llm_client.py` module handles retry logic and response parsing (~150 lines, ported from `OpenAICompatibleTranslator`).
+
 ### Translation Benchmarking Harness
 
-**Location:** `modules/translation-service/benchmarks/`
-**Interface:** CLI tool — `uv run python -m benchmarks.run --model qwen2.5:7b --lang-pair zh-en --dataset flores-test`
-**Prerequisite:** Translation service should be the only GPU consumer during benchmarks for reliable results.
-**Test data:** FLORES-200 dataset for multilingual benchmarks, plus custom domain-specific test sets as source/reference text pairs in `benchmarks/data/`.
+**Location:** `tools/translation-benchmark/`
+**Interface:** CLI tool — `uv run python -m tools.translation_benchmark.run --model qwen3.5:7b --lang-pair zh-en --dataset flores-test`
+**Prerequisite:** The benchmark calls Ollama/vLLM directly — no separate service needed. Just needs Ollama running on thomas-pc.
+**Test data:** FLORES-200 dataset for multilingual benchmarks, plus custom domain-specific test sets as source/reference text pairs in `tools/translation-benchmark/data/`.
 
 Metrics collected per run:
 - **Quality**: BLEU and COMET scores against reference translations per language pair
@@ -601,18 +641,18 @@ Metrics collected per run:
 
 Each result JSON includes a `system_info` block for reproducibility (GPU, driver, CUDA, package versions, model checksum).
 
-Results written to `benchmarks/results/{model}_{lang_pair}_{timestamp}.json`.
+Results written to `tools/translation-benchmark/results/{model}_{lang_pair}_{timestamp}.json`.
 
 ### Configurable Parameters
 
-Per-model translation config in registry:
+Translation config in orchestration's environment/settings:
 
 ```python
 {
-    "model": "qwen2.5:7b",
-    "compute_type": "int4",        # quantization level
-    "context_window_size": 5,      # sentences of context
-    "max_context_tokens": 500,     # token limit for context
+    "llm_base_url": "http://thomas-pc:11434/v1",  # Ollama endpoint
+    "model": "qwen3.5:7b",           # or any model Ollama serves
+    "context_window_size": 5,         # sentences of context
+    "max_context_tokens": 500,        # token limit for context
     "temperature": 0.3,
     "timeout_s": 10
 }
@@ -626,7 +666,8 @@ Per-model translation config in registry:
 
 ```bash
 TRANSCRIPTION_SERVICE_URL=ws://thomas-pc:5001/api/stream  # WebSocket
-TRANSLATION_SERVICE_URL=http://thomas-pc:5003
+LLM_BASE_URL=http://thomas-pc:11434/v1   # Ollama (OpenAI-compatible)
+LLM_MODEL=qwen3.5:7b                     # or any model Ollama serves
 RECORDING_PATH=./recordings
 RECORDING_FORMAT=flac
 RECORDING_CHUNK_DURATION_S=30
@@ -635,7 +676,9 @@ DATABASE_URL=postgresql://localhost:5432/livetranslate
 # Timeout profiles (per-operation, not global)
 TRANSCRIPTION_STREAM_TIMEOUT_S=10    # per-chunk timeout for streaming
 TRANSCRIPTION_BATCH_TIMEOUT_S=300    # batch file transcription
-TRANSLATION_TIMEOUT_S=10             # per-request translation timeout
+LLM_TIMEOUT_S=10                     # per-request translation timeout
+LLM_CONTEXT_WINDOW_SIZE=5            # sentences of context for translation
+LLM_MAX_CONTEXT_TOKENS=500           # token limit for context
 ```
 
 ### Model Registry (Transcription Service)
@@ -718,7 +761,7 @@ language_routing:
 | Plan 1: Transcription Service Refactor | VAD/chunking pre-task (blocking first step) | Immediately |
 | Plan 2: SvelteKit Loopback Page | Pre-agreed contracts (below) | Immediately |
 | Plan 3: Unified Meeting Pipeline | Pre-agreed contracts (below) | Immediately |
-| Plan 4: Translation Rolling Window | Pre-agreed contracts (below) | Immediately |
+| Plan 4: Translation Module & Benchmarking | Pre-agreed contracts (below) | Immediately |
 
 All four plans are independent. They share interfaces (WebSocket message format, API contracts) but not implementation. Can be executed in parallel with separate worktrees/branches.
 
@@ -727,9 +770,10 @@ All four plans are independent. They share interfaces (WebSocket message format,
 After all plans complete, integration work:
 - Loopback page (Plan 2) uses meeting pipeline (Plan 3) for "Start Meeting"
 - Orchestration points at transcription service (Plan 1) via configured URL
-- Translation service (Plan 4) receives text from orchestration with rolling context
+- Translation module (Plan 4) in orchestration calls Ollama/vLLM directly with rolling context
 - Google Meet bot plugs into unified meeting pipeline (Plan 3) instead of its own session management
-- Extract `BaseServiceClient` from `AudioServiceClient` and `TranslationServiceClient` to deduplicate resilience plumbing (circuit breaker, retry, session management)
+- Archive `modules/translation-service/` and delete `clients/translation_service_client.py` + `internal_services/translation.py`
+- Extract `BaseServiceClient` from `AudioServiceClient` to consolidate resilience plumbing (circuit breaker, retry, session management)
 
 ### Pre-Agreed Contracts (Must Be Defined Before Parallel Work Begins)
 
@@ -739,7 +783,7 @@ These interfaces are shared across plans and must be stable before independent w
 2. **`MeetingAudioStream` + `AudioChunk` types** — the interface that any audio source implements to feed the pipeline (Plan 2 ↔ Plan 3)
 3. **`TranscriptionResult` + `ModelInfo` types** — transcription output shape (Plan 1 ↔ orchestration)
 4. **Transcription service WebSocket API** — binary/text frame protocol for `/api/stream` (Plan 1 ↔ orchestration)
-5. **`TranslationRequest` + `TranslationResponse` + `TranslationContext` types** — the `context` array shape in translation requests (Plan 4 ↔ orchestration)
+5. **`TranslationRequest` + `TranslationResponse` + `TranslationContext` types** — shared types used by the translation module and benchmarking harness (Plan 4)
 
 ### Implementation Notes from Reviews
 
