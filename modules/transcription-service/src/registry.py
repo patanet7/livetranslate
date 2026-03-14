@@ -27,13 +27,18 @@ class ModelRegistry:
 
     def _load(self) -> None:
         raw = yaml.safe_load(self._config_path.read_text())
-        self._data = raw
-        self.version = raw.get("version", 1)
-        self.vram_budget_mb = raw.get("vram_budget_mb", 10000)
+        version = raw.get("version", 1)
+        vram_budget_mb = raw.get("vram_budget_mb", 10000)
 
-        self._routing = {}
+        routing: dict[str, BackendConfig] = {}
         for lang, entry in raw.get("language_routing", {}).items():
-            self._routing[lang] = BackendConfig.model_validate(entry)
+            routing[lang] = BackendConfig.model_validate(entry)
+
+        # Only commit if all validation succeeded
+        self._data = raw
+        self.version = version
+        self.vram_budget_mb = vram_budget_mb
+        self._routing = routing
 
         logger.info(
             "registry_loaded",
@@ -43,7 +48,10 @@ class ModelRegistry:
         )
 
     def reload(self) -> None:
-        self._load()
+        try:
+            self._load()
+        except Exception:
+            logger.exception("registry_reload_failed", path=str(self._config_path))
 
     def get_config(self, language: str) -> BackendConfig:
         """Get the BackendConfig for a language, falling back to '*'."""

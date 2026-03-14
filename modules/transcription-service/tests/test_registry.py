@@ -1,5 +1,4 @@
 """Tests for ModelRegistry — YAML-based language→backend routing."""
-import tempfile
 from pathlib import Path
 
 import pytest
