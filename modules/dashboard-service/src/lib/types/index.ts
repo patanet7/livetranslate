@@ -3,3 +3,5 @@ export * from './session';
 export * from './config';
 export * from './api';
 export * from './meeting';
+export * from './ws-messages';
+export * from './transcription';
