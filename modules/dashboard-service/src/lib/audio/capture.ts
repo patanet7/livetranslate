@@ -28,8 +28,8 @@ export class AudioCapture {
     return this._isCapturing;
   }
 
-  get sampleRate(): number {
-    return this.context?.sampleRate ?? 48000;
+  get sampleRate(): number | null {
+    return this.context?.sampleRate ?? null;
   }
 
   async start(options: CaptureOptions): Promise<void> {
@@ -59,20 +59,21 @@ export class AudioCapture {
       }
 
       if (options.sourceType === 'both') {
-        // Capture both mic and system audio as separate streams, merge via ChannelMerger
+        // S4: Validate systemDeviceId — without it we'd capture the mic twice
+        if (!options.systemDeviceId) {
+          throw new Error('"both" mode requires systemDeviceId (loopback device for system audio)');
+        }
+
         const micConstraints: MediaStreamConstraints = {
           audio: {
             ...audioConstraints,
             ...(options.deviceId ? { deviceId: { exact: options.deviceId } } : {}),
           },
         };
-        // System audio requires a separate loopback deviceId passed via options.systemDeviceId
         const systemConstraints: MediaStreamConstraints = {
           audio: {
             ...audioConstraints,
-            ...(options.systemDeviceId
-              ? { deviceId: { exact: options.systemDeviceId } }
-              : {}),
+            deviceId: { exact: options.systemDeviceId },
           },
         };
 
@@ -81,17 +82,20 @@ export class AudioCapture {
           navigator.mediaDevices.getUserMedia(systemConstraints),
         ]);
 
-        // Store both streams for cleanup
         this.stream = micStream;
         this._systemStream = systemStream;
         this.context = new AudioContext();
 
-        // Merge both streams into a single mono source
+        // C1 fix: Use GainNode as a mono mixer instead of ChannelMerger.
+        // ChannelMerger produces stereo (mic on ch0, system on ch1) but the
+        // AudioWorklet only reads channel 0, silently dropping system audio.
+        // A GainNode sums both inputs into a single mono channel.
         const micSource = this.context.createMediaStreamSource(micStream);
         const systemSource = this.context.createMediaStreamSource(systemStream);
-        const merger = this.context.createChannelMerger(2);
-        micSource.connect(merger, 0, 0);
-        systemSource.connect(merger, 0, 1);
+        const mixer = this.context.createGain();
+        mixer.gain.value = 0.5; // prevent clipping from summing two sources
+        micSource.connect(mixer);
+        systemSource.connect(mixer);
 
         await this.context.audioWorklet.addModule('/audio-worklet-processor.js');
         this.workletNode = new AudioWorkletNode(this.context, 'audio-chunk-processor');
@@ -100,7 +104,7 @@ export class AudioCapture {
             options.onChunk(new Float32Array(event.data.data));
           }
         };
-        merger.connect(this.workletNode);
+        mixer.connect(this.workletNode);
 
         this._isCapturing = true;
         return;
@@ -132,7 +136,9 @@ export class AudioCapture {
 
       this._isCapturing = true;
     } catch (err) {
-      options.onError(err instanceof Error ? err : new Error(String(err)));
+      const error = err instanceof Error ? err : new Error(String(err));
+      options.onError(error);
+      throw error; // Re-throw so callers can await and know capture failed
     }
   }
 

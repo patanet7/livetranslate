@@ -47,6 +47,9 @@ export class LoopbackWebSocket {
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
+    // I4 fix: Reset reconnect counter so auto-reconnect works after
+    // a manual disconnect() → connect() cycle.
+    this.reconnectAttempts = 0;
     this.setState('connecting');
 
     this.ws = new WebSocket(this.options.url);
@@ -63,6 +66,10 @@ export class LoopbackWebSocket {
         if (!msg) return;
 
         if (msg.type === 'connected') {
+          // S5: Warn-and-continue on version mismatch is intentional.
+          // The protocol is designed for forward-compatibility — older clients
+          // can connect to newer servers. A hard disconnect here would break
+          // rolling deployments where server upgrades before client cache expires.
           if (msg.protocol_version !== PROTOCOL_VERSION) {
             console.warn(
               `Protocol version mismatch: expected ${PROTOCOL_VERSION}, got ${msg.protocol_version}`
@@ -102,7 +109,11 @@ export class LoopbackWebSocket {
   /** Send a binary audio chunk (Float32Array) */
   sendAudio(data: Float32Array): void {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
-    this.ws.send(data.buffer);
+    // C2 fix: Defensive slice — data.buffer could be a view on a larger
+    // ArrayBuffer or reference a detached buffer if the typed array was
+    // created from a transferred buffer. Slicing ensures we send exactly
+    // the bytes that correspond to the Float32Array.
+    this.ws.send(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
   }
 
   /** Send a JSON control message */
