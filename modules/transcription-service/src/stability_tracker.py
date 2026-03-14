@@ -14,7 +14,7 @@ Key Concept from SimulStreaming:
 - stable_prefix: Tokens confident won't change → send to MT
 - unstable_tail: Tokens that might change → hold back
 
-Reference: modules/whisper-service/buffer_plan.md Phase 2 (lines 69-257)
+Reference: modules/transcription-service/buffer_plan.md Phase 2 (lines 69-257)
 """
 
 import math

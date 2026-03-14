@@ -93,7 +93,7 @@ class RealEndToEndTest:
                 print(
                     "  Orchestration: cd modules/orchestration-service && python src/main_fastapi.py"
                 )
-                print("  Whisper: cd modules/whisper-service && python src/main.py --device=cpu")
+                print("  Whisper: cd modules/transcription-service && python src/main.py --device=cpu")
                 return False
 
             # Step 2: Create output directory

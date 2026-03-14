@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # Whisper Service - Python dependencies
+  # Transcription Service - Python dependencies
   - package-ecosystem: pip
-    directory: /modules/whisper-service
+    directory: /modules/transcription-service
     schedule:
       interval: weekly
       day: monday
@@ -10,13 +10,13 @@ updates:
       timezone: America/New_York
     open-pull-requests-limit: 5
     reviewers:
-      - livetranslate/whisper-team
+      - livetranslate/transcription-team
     labels:
       - dependencies
       - python
-      - whisper-service
+      - transcription-service
     commit-message:
-      prefix: "deps(whisper)"
+      prefix: "deps(transcription)"
     groups:
       python-minor:
         patterns:
@@ -175,7 +175,7 @@ updates:
 
   # Docker dependencies
   - package-ecosystem: docker
-    directory: /modules/whisper-service
+    directory: /modules/transcription-service
     schedule:
       interval: weekly
       day: wednesday
@@ -187,9 +187,9 @@ updates:
     labels:
       - dependencies
       - docker
-      - whisper-service
+      - transcription-service
     commit-message:
-      prefix: "deps(docker-whisper)"
+      prefix: "deps(docker-transcription)"
 
   - package-ecosystem: docker
     directory: /modules/translation-service

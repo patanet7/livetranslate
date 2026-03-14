@@ -15,7 +15,7 @@ set shell := ['bash', '-eu', '-o', 'pipefail', '-c']
 # Project directories
 project_root := justfile_directory()
 orchestration_dir := project_root / "modules/orchestration-service"
-whisper_dir := project_root / "modules/whisper-service"
+transcription_dir := project_root / "modules/transcription-service"
 translation_dir := project_root / "modules/translation-service"
 frontend_dir := project_root / "modules/frontend-service"
 
@@ -45,7 +45,7 @@ bootstrap-env:
 install-all:
     @echo "Installing all dependencies..."
     @cd {{orchestration_dir}} && (pdm install --no-self 2>/dev/null || pdm install || poetry install --no-root)
-    @cd {{whisper_dir}} && (pdm install --no-self 2>/dev/null || pdm install || poetry install --no-root)
+    @cd {{transcription_dir}} && (pdm install --no-self 2>/dev/null || pdm install || poetry install --no-root)
     @cd {{translation_dir}} && (pdm install --no-self 2>/dev/null || pdm install || poetry install --no-root)
     @cd {{frontend_dir}} && pnpm install
     @echo "All dependencies installed!"
@@ -139,13 +139,13 @@ test-orchestration mark='':
         tee tests/output/$(date +%Y%m%d_%H%M%S)_test_orchestration_results.log
     @echo "Test results saved to tests/output/"
 
-# Run whisper service tests
-test-whisper mark='':
-    @echo "Running whisper service tests..."
-    @mkdir -p {{whisper_dir}}/tests/output
-    @cd {{whisper_dir}} && \
+# Run transcription service tests
+test-transcription mark='':
+    @echo "Running transcription service tests..."
+    @mkdir -p {{transcription_dir}}/tests/output
+    @cd {{transcription_dir}} && \
         (pdm run pytest tests/ {{mark}} -v 2>&1 || poetry run pytest tests/ {{mark}} -v 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_test_whisper_results.log
+        tee tests/output/$(date +%Y%m%d_%H%M%S)_test_transcription_results.log
     @echo "Test results saved to tests/output/"
 
 # Run translation service tests
@@ -160,7 +160,7 @@ test-translation mark='':
 # Run all backend tests
 test-backend mark='':
     @just test-orchestration "{{mark}}"
-    @just test-whisper "{{mark}}"
+    @just test-transcription "{{mark}}"
     @just test-translation "{{mark}}"
 
 # Run frontend tests
@@ -186,15 +186,15 @@ coverage-orchestration:
         tee tests/output/$(date +%Y%m%d_%H%M%S)_coverage_orchestration.log
     @echo "Coverage report: {{orchestration_dir}}/htmlcov/index.html"
 
-# Generate coverage report for whisper service
-coverage-whisper:
-    @echo "Generating whisper service coverage..."
-    @mkdir -p {{whisper_dir}}/tests/output
-    @cd {{whisper_dir}} && \
+# Generate coverage report for transcription service
+coverage-transcription:
+    @echo "Generating transcription service coverage..."
+    @mkdir -p {{transcription_dir}}/tests/output
+    @cd {{transcription_dir}} && \
         (pdm run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1 || \
          poetry run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_coverage_whisper.log
-    @echo "Coverage report: {{whisper_dir}}/htmlcov/index.html"
+        tee tests/output/$(date +%Y%m%d_%H%M%S)_coverage_transcription.log
+    @echo "Coverage report: {{transcription_dir}}/htmlcov/index.html"
 
 # Generate coverage report for translation service
 coverage-translation:
@@ -209,7 +209,7 @@ coverage-translation:
 # Generate coverage reports for all backend services
 coverage-backend:
     @just coverage-orchestration
-    @just coverage-whisper
+    @just coverage-transcription
     @just coverage-translation
 
 # Generate frontend coverage report
@@ -225,9 +225,9 @@ coverage-frontend:
 fmt-backend:
     @cd {{orchestration_dir}} && (pdm run black src && pdm run isort src 2>/dev/null || poetry run black src && poetry run isort src)
 
-# Format whisper service code
-fmt-whisper:
-    @cd {{whisper_dir}} && (pdm run black src && pdm run isort src 2>/dev/null || poetry run black src && poetry run isort src)
+# Format transcription service code
+fmt-transcription:
+    @cd {{transcription_dir}} && (pdm run black src && pdm run isort src 2>/dev/null || poetry run black src && poetry run isort src)
 
 # Format translation service code
 fmt-translation:
@@ -236,7 +236,7 @@ fmt-translation:
 # Format all backend code
 fmt-all-backend:
     @just fmt-backend
-    @just fmt-whisper
+    @just fmt-transcription
     @just fmt-translation
 
 # Format frontend code
@@ -256,9 +256,9 @@ fmt-all:
 lint-backend:
     @cd {{orchestration_dir}} && (pdm run flake8 src 2>/dev/null || poetry run flake8 src)
 
-# Lint whisper service
-lint-whisper:
-    @cd {{whisper_dir}} && (pdm run flake8 src 2>/dev/null || poetry run flake8 src)
+# Lint transcription service
+lint-transcription:
+    @cd {{transcription_dir}} && (pdm run flake8 src 2>/dev/null || poetry run flake8 src)
 
 # Lint translation service
 lint-translation:
@@ -267,7 +267,7 @@ lint-translation:
 # Lint all backend code
 lint-all-backend:
     @just lint-backend
-    @just lint-whisper
+    @just lint-transcription
     @just lint-translation
 
 # Lint frontend code
@@ -290,7 +290,7 @@ mypy:
 # Run mypy on all backend services
 mypy-all:
     @cd {{orchestration_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src) || true
-    @cd {{whisper_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src) || true
+    @cd {{transcription_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src) || true
     @cd {{translation_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src) || true
 
 # ==============================================================================
@@ -303,7 +303,7 @@ docker-build service:
     @case "{{service}}" in \
         orchestration) cd {{orchestration_dir}} && docker build -t livetranslate-orchestration:latest . ;; \
         frontend) cd {{frontend_dir}} && docker build -t livetranslate-frontend:latest . ;; \
-        whisper) cd {{whisper_dir}} && docker build -t livetranslate-whisper:latest . ;; \
+        transcription) cd {{transcription_dir}} && docker build -t livetranslate-transcription:latest . ;; \
         translation) cd {{translation_dir}} && docker build -t livetranslate-translation:latest . ;; \
         *) echo "Unknown service: {{service}}"; exit 1 ;; \
     esac
@@ -314,7 +314,7 @@ docker-build-all:
     @echo "Building all Docker images..."
     @just docker-build orchestration
     @just docker-build frontend
-    @just docker-build whisper || echo "Whisper Dockerfile not found, skipping..."
+    @just docker-build transcription || echo "Transcription Dockerfile not found, skipping..."
     @just docker-build translation || echo "Translation Dockerfile not found, skipping..."
     @echo "All Docker images built!"
 

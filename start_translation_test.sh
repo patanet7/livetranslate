@@ -46,7 +46,7 @@ sleep 2
 
 # 2. Start Whisper Service
 start_service_mac "Whisper Service" \
-    "modules/whisper-service" \
+    "modules/transcription-service" \
     "python3 src/main.py"
 
 echo "   ✅ Whisper service starting on port 5001"

@@ -20,7 +20,7 @@ import socketio
 
 SERVICE_URL = "http://localhost:5001"
 JFK_AUDIO_PATH = (
-    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/transcription-service/jfk.wav"
 )
 
 

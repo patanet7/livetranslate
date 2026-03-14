@@ -11,7 +11,7 @@ Critical checks:
 3. Session history has bounded growth (doesn't grow indefinitely)
 4. No crashes or degradation after extended use
 
-Reference: modules/whisper-service/src/session_restart/session_manager.py
+Reference: modules/transcription-service/src/session_restart/session_manager.py
 """
 
 import gc

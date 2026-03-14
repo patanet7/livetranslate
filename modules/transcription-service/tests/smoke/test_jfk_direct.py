@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from whisper_service import WhisperService
 
 JFK_AUDIO_PATH = (
-    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/transcription-service/jfk.wav"
 )
 
 

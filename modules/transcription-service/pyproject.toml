@@ -1,7 +1,7 @@
 [project]
-name = "whisper-service"
+name = "transcription-service"
 version = "2.0.0"
-description = "PyTorch-based Whisper service with SimulStreaming innovations"
+description = "Transcription service with faster-whisper, Silero VAD, and pluggable backends"
 authors = [
     {name = "LiveTranslate Team", email = "team@livetranslate.com"},
 ]
