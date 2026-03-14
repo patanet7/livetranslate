@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from typing import TYPE_CHECKING, AsyncIterator
 
 import numpy as np
@@ -160,6 +161,9 @@ def _log_prob_to_confidence(avg_log_prob: float) -> float:
 class WhisperBackend:
     """Transcription backend powered by faster-whisper (CTranslate2).
 
+    VAD is handled externally by VACOnlineProcessor; ``vad_filter`` defaults
+    to ``False`` so that the backend receives pre-filtered speech chunks.
+
     Args:
         model_name: Whisper model identifier (e.g. ``"tiny"``, ``"base"``,
             ``"large-v3"``).
@@ -170,8 +174,11 @@ class WhisperBackend:
         cpu_threads: Number of CPU threads (0 = auto).
         num_workers: Number of parallel data-loading workers.
         beam_size: Beam width for decoding.
-        vad_filter: Enable Silero VAD pre-filtering in faster-whisper.
-        vad_parameters: Extra kwargs forwarded to the Silero VAD call.
+        vad_filter: Enable Silero VAD pre-filtering inside faster-whisper.
+            Defaults to ``False`` because VAD is handled externally by
+            VACOnlineProcessor.
+        vad_parameters: Extra kwargs forwarded to the Silero VAD call, or
+            ``None`` when VAD filtering is disabled.
     """
 
     def __init__(
@@ -183,7 +190,7 @@ class WhisperBackend:
         cpu_threads: int = 0,
         num_workers: int = 1,
         beam_size: int = 5,
-        vad_filter: bool = True,
+        vad_filter: bool = False,
         vad_parameters: dict | None = None,
     ) -> None:
         self._model_name = model_name
@@ -194,7 +201,7 @@ class WhisperBackend:
         self._num_workers = num_workers
         self._beam_size = beam_size
         self._vad_filter = vad_filter
-        self._vad_parameters: dict = vad_parameters or {}
+        self._vad_parameters: dict | None = vad_parameters  # None means "no VAD params"
         self._model: WhisperModel | None = None
 
     # ------------------------------------------------------------------
@@ -204,11 +211,17 @@ class WhisperBackend:
     async def load_model(self, model_name: str, device: str = "cuda") -> None:
         """Load the faster-whisper model into memory.
 
+        If a model is already loaded it is unloaded first (including CUDA
+        cache flush) before loading the new one.
+
         Args:
             model_name: Whisper model identifier to load (overrides the
                 instance-level ``model_name``).
             device: Compute device (overrides the instance-level device).
         """
+        if self._model is not None:
+            await self.unload_model()
+
         from faster_whisper import WhisperModel  # noqa: PLC0415 (deferred import)
 
         self._model_name = model_name
@@ -221,7 +234,7 @@ class WhisperBackend:
             compute_type=self._compute_type,
         )
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self._model = await loop.run_in_executor(
             None,
             lambda: WhisperModel(
@@ -242,21 +255,37 @@ class WhisperBackend:
         )
 
     async def unload_model(self) -> None:
-        """Release model memory."""
+        """Release model memory and flush the CUDA cache if available."""
         if self._model is not None:
             logger.info("whisper_backend.unload_model", model=self._model_name)
             self._model = None
+            try:
+                import torch  # noqa: PLC0415
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                pass
 
     async def warmup(self) -> None:
-        """Run a short silent inference to warm up the model / CUDA kernels."""
+        """Run a short silent inference to warm up the model / CUDA kernels.
+
+        Logs the elapsed time in milliseconds so slow warmups are visible.
+        """
         if self._model is None:
             logger.warning("whisper_backend.warmup.skipped", reason="model_not_loaded")
             return
 
         logger.info("whisper_backend.warmup.start", model=self._model_name)
+        t0 = time.perf_counter()
         silence = np.zeros(16000, dtype=np.float32)
         await self.transcribe(silence, language="en")
-        logger.info("whisper_backend.warmup.done", model=self._model_name)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.info(
+            "whisper_backend.warmup.done",
+            model=self._model_name,
+            elapsed_ms=round(elapsed_ms, 1),
+        )
 
     async def transcribe(
         self,
@@ -265,6 +294,9 @@ class WhisperBackend:
         **kwargs,
     ) -> TranscriptionResult:
         """Transcribe an audio array.
+
+        The faster-whisper generator is fully materialised inside
+        ``run_in_executor`` to avoid blocking the event loop during iteration.
 
         Args:
             audio: Float32 PCM audio at 16 kHz, shape ``(samples,)``.
@@ -281,20 +313,22 @@ class WhisperBackend:
         if self._model is None:
             raise RuntimeError("WhisperBackend: model is not loaded — call load_model() first")
 
-        loop = asyncio.get_event_loop()
-        segments_iter, info = await loop.run_in_executor(
-            None,
-            lambda: self._model.transcribe(  # type: ignore[union-attr]
+        model = self._model  # local ref avoids closure capture of self
+
+        def _run():
+            segs_iter, info = model.transcribe(
                 audio,
                 language=language,
                 beam_size=self._beam_size,
                 vad_filter=self._vad_filter,
-                vad_parameters=self._vad_parameters or None,
+                vad_parameters=self._vad_parameters,
                 **kwargs,
-            ),
-        )
+            )
+            return list(segs_iter), info
 
-        segments_list = list(segments_iter)
+        loop = asyncio.get_running_loop()
+        segments_list, info = await loop.run_in_executor(None, _run)
+
         full_text = "".join(seg.text for seg in segments_list).strip()
 
         seg_models = [
@@ -330,9 +364,9 @@ class WhisperBackend:
     ) -> AsyncIterator[TranscriptionResult]:
         """Yield incremental transcription results for a single audio chunk.
 
-        For faster-whisper this is implemented by yielding one
-        :class:`TranscriptionResult` per decoded segment so that callers
-        receive partial output as quickly as possible.
+        All segments are collected inside ``run_in_executor`` (so the event
+        loop is never blocked by generator iteration), then yielded one by one
+        with accumulated text and running-average confidence.
 
         Args:
             audio: Float32 PCM audio at 16 kHz.
@@ -341,8 +375,8 @@ class WhisperBackend:
                 :meth:`faster_whisper.WhisperModel.transcribe`.
 
         Yields:
-            :class:`~livetranslate_common.models.TranscriptionResult` per
-            segment decoded.
+            :class:`~livetranslate_common.models.TranscriptionResult` — one per
+            segment, with ``text`` and ``segments`` accumulating across yields.
 
         Raises:
             RuntimeError: If the model has not been loaded.
@@ -350,37 +384,46 @@ class WhisperBackend:
         if self._model is None:
             raise RuntimeError("WhisperBackend: model is not loaded — call load_model() first")
 
-        loop = asyncio.get_event_loop()
-        segments_iter, info = await loop.run_in_executor(
-            None,
-            lambda: self._model.transcribe(  # type: ignore[union-attr]
+        model = self._model  # local ref avoids closure capture of self
+
+        def _run():
+            segs_iter, info = model.transcribe(
                 audio,
                 language=language,
                 beam_size=self._beam_size,
                 vad_filter=self._vad_filter,
-                vad_parameters=self._vad_parameters or None,
+                vad_parameters=self._vad_parameters,
                 **kwargs,
-            ),
-        )
+            )
+            return list(segs_iter), info
+
+        loop = asyncio.get_running_loop()
+        segments_list, info = await loop.run_in_executor(None, _run)
 
         detected_language = info.language if info.language else (language or "en")
         accumulated_text = ""
+        accumulated_segments: list[Segment] = []
+        confidence_sum = 0.0
 
-        for seg in segments_iter:
+        for seg in segments_list:
             seg_text = seg.text.strip()
             accumulated_text = (accumulated_text + " " + seg_text).strip()
-            confidence = _log_prob_to_confidence(seg.avg_logprob)
+            seg_confidence = _log_prob_to_confidence(seg.avg_logprob)
             segment_model = Segment(
                 text=seg_text,
                 start_ms=int(seg.start * 1000),
                 end_ms=int(seg.end * 1000),
-                confidence=confidence,
+                confidence=seg_confidence,
             )
+            accumulated_segments.append(segment_model)
+            confidence_sum += seg_confidence
+            avg_confidence = confidence_sum / len(accumulated_segments)
+
             yield TranscriptionResult(
                 text=accumulated_text,
                 language=detected_language,
-                confidence=confidence,
-                segments=[segment_model],
+                confidence=avg_confidence,
+                segments=list(accumulated_segments),
                 is_final=False,
                 is_draft=True,
             )
