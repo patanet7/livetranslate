@@ -11,6 +11,7 @@ export type DisplayMode = 'split' | 'subtitle' | 'transcript';
 
 export interface CaptionEntry {
   id: number;
+  segmentId: number;  // Server-side segment_id for translation matching
   text: string;
   language: string;
   confidence: number;
@@ -19,6 +20,10 @@ export interface CaptionEntry {
   translation: string | null;
   timestamp: number;
 }
+
+// I2: Cap captions to prevent unbounded growth in long sessions.
+// ~2400 segments per 2-hour meeting at 1 segment/3s — 5000 gives ample headroom.
+const MAX_CAPTIONS = 5000;
 
 // Speaker color palette
 const SPEAKER_COLORS = [
@@ -54,8 +59,12 @@ function createLoopbackStore() {
   }
 
   function addSegment(msg: SegmentMessage) {
+    // I1: Guard against malformed server messages with missing fields
+    if (typeof msg.text !== 'string' || typeof msg.confidence !== 'number') return;
+
     const entry: CaptionEntry = {
       id: nextId++,
+      segmentId: msg.segment_id,  // I3: Store server-side ID for translation matching
       text: msg.stable_text || msg.text,
       language: msg.language,
       confidence: msg.confidence,
@@ -64,7 +73,8 @@ function createLoopbackStore() {
       translation: null,
       timestamp: Date.now(),
     };
-    captions = [...captions, entry];
+    // I2: Cap captions array to prevent unbounded growth
+    captions = [...captions.slice(-(MAX_CAPTIONS - 1)), entry];
 
     // Auto-detect source language on first segment
     if (!sourceLanguage) {
@@ -78,9 +88,14 @@ function createLoopbackStore() {
   }
 
   function addTranslation(msg: TranslationMessage) {
-    // Match translation to its source caption by transcript_id
+    // I1: Guard against malformed translation messages
+    if (typeof msg.text !== 'string' || typeof msg.transcript_id !== 'number') return;
+
+    // I3 fix: Match on segmentId (server-side segment_id), not the local
+    // auto-incrementing id. These are different ID spaces — local id starts
+    // at 0, transcript_id is a BIGSERIAL from the database.
     captions = captions.map((c) =>
-      c.id === msg.transcript_id ? { ...c, translation: msg.text } : c
+      c.segmentId === msg.transcript_id ? { ...c, translation: msg.text } : c
     );
   }
 

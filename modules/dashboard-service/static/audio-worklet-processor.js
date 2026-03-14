@@ -27,9 +27,22 @@ class AudioChunkProcessor extends AudioWorkletProcessor {
 
       // When buffer is full, send to main thread and reset write index
       if (this._writeIndex >= this._bufferSize) {
-        // Copy into a new buffer for transfer (original stays allocated)
-        const chunk = new Float32Array(this._ringBuffer);
-        this.port.postMessage({ type: 'audio_chunk', data: chunk.buffer }, [chunk.buffer]);
+        // S1: Skip posting silence buffers — saves CPU/battery when no audio
+        // is playing (common in 'system' mode between speakers). Check if any
+        // sample exceeds a near-zero threshold to detect non-silence.
+        let hasSamples = false;
+        for (let j = 0; j < this._bufferSize; j++) {
+          if (this._ringBuffer[j] > 0.0001 || this._ringBuffer[j] < -0.0001) {
+            hasSamples = true;
+            break;
+          }
+        }
+
+        if (hasSamples) {
+          // Copy into a new buffer for transfer (original stays allocated)
+          const chunk = new Float32Array(this._ringBuffer);
+          this.port.postMessage({ type: 'audio_chunk', data: chunk.buffer }, [chunk.buffer]);
+        }
         this._writeIndex = 0;
       }
     }
