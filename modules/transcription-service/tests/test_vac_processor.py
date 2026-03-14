@@ -26,8 +26,13 @@ class TestVACProcessorQueue:
         # Feed 1 second of audio at 16kHz
         audio = np.zeros(16000, dtype=np.float32)
         await proc.feed_audio(audio)
-        # After inference, buffer should retain last 0.5s = 8000 samples
-        # (tested via internal state after process_chunk)
+
+        # Get inference audio — this triggers overlap retention
+        inference_audio = proc.get_inference_audio()
+        assert len(inference_audio) == 16000  # full buffer returned
+
+        # After get_inference_audio, buffer should retain last overlap_s = 0.5s = 8000 samples
+        assert proc._buffer_samples == 8000
 
     @pytest.mark.asyncio
     async def test_first_inference_at_prebuffer(self):

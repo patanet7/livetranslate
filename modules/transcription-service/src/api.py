@@ -61,7 +61,9 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
     async def reload_registry():
         if registry is None:
             return {"error": "No registry loaded"}
-        registry.reload()
+        success = registry.reload()
+        if not success:
+            return {"error": "Registry reload failed — check logs for details", "version": registry.version}
         return {"status": "reloaded", "version": registry.version}
 
     @app.websocket("/api/stream")
@@ -151,7 +153,6 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                         audio,
                         language=session_language or lang_detector.current_language,
                         beam_size=config.beam_size,
-                        batch_profile=config.batch_profile,
                         initial_prompt=effective_prompt,
                     )
 

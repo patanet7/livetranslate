@@ -47,11 +47,14 @@ class ModelRegistry:
             path=str(self._config_path),
         )
 
-    def reload(self) -> None:
+    def reload(self) -> bool:
+        """Reload registry from disk. Returns True on success, False on failure."""
         try:
             self._load()
+            return True
         except Exception:
             logger.exception("registry_reload_failed", path=str(self._config_path))
+            return False
 
     def get_config(self, language: str) -> BackendConfig:
         """Get the BackendConfig for a language, falling back to '*'."""

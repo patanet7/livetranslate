@@ -19,7 +19,7 @@ SENTENCE_ENDINGS = re.compile(
 )
 
 # Terminal characters for is_sentence_end() compatibility
-_TERMINALS = set(".!?\u3002\uff01\uff1f\u061f\u0964")
+_TERMINALS = set(".!?\u3002\uff01\uff1f\u061f\u0964\u0965")
 
 # Trailing quote/bracket chars to strip before terminal check
 _TRAILING_CHARS = set('"\'\u201c\u201d\u2018\u2019`\u300d\u300f\uff09\u3011\u3015])\u007d\u203a\u00bb')
