@@ -3,12 +3,11 @@
 PyTorch Model Manager for Whisper Service
 
 Manages Whisper model loading with PyTorch GPU/MPS/CPU optimization.
-Extracted from whisper_service.py as part of Phase 1 refactoring.
 
 Key Features:
 - PyTorch device detection (CUDA GPU > MPS > CPU)
 - Per-session rolling context isolation for multi-language support
-- SimulStreaming enhancements (beam search, AlignAtt, domain prompting)
+- Beam search and domain prompting
 - Warmup system to eliminate cold start delay
 - Code-switching support with per-segment language detection
 - Thread-safe concurrent inference
@@ -26,9 +25,6 @@ import soundfile as sf
 import torch
 import torch.nn.functional as F
 import whisper
-from alignatt_decoder import AlignAttDecoder
-
-# Phase 2: SimulStreaming components
 from domain_prompt_manager import DomainPromptManager
 from livetranslate_common.logging import get_logger
 
@@ -38,7 +34,6 @@ logger = get_logger()
 class PyTorchModelManager:
     """
     Manages Whisper model loading with PyTorch GPU/CPU optimization
-    Phase 2: SimulStreaming Implementation
     """
 
     def __init__(
@@ -83,16 +78,12 @@ class PyTorchModelManager:
         )  # Use turbo model from local .models
         self.device = self._detect_best_device()
 
-        # Phase 2: Beam search configuration
+        # Beam search configuration
         self.beam_size = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
-        self.beam_decoder = None  # Lazy initialization
-
-        # Phase 2: AlignAtt streaming decoder
-        self.alignatt_decoder = None  # Lazy initialization
-        self.dec_attns = []  # Store cross-attention for AlignAtt
+        self.dec_attns = []  # Store cross-attention for attention-based features
         self.kv_cache = {}  # KV cache for incremental decoding
 
-        # Phase 2: Domain prompt manager
+        # Domain prompt manager
         self.domain_prompt_manager = DomainPromptManager()
 
         # Thread safety for concurrent inference
@@ -905,20 +896,6 @@ class PyTorchModelManager:
                             f"[TASK] Transcribing to {language or 'source language'} (beam_size={beam_size})"
                         )
 
-                    # Phase 2: AlignAtt streaming policy
-                    if streaming_policy == "alignatt":
-                        # Initialize AlignAtt decoder if not exists
-                        if self.alignatt_decoder is None:
-                            self.alignatt_decoder = AlignAttDecoder()
-
-                        # Calculate available frames from audio
-                        audio_frames = len(audio_data) // 160  # 10ms per frame at 16kHz
-                        self.alignatt_decoder.set_max_attention_frame(audio_frames)
-
-                        logger.info(
-                            f"[STREAMING] AlignAtt policy enabled (max_frame: {self.alignatt_decoder.max_frame})"
-                        )
-
                     logger.info(
                         f"[BEAM_SEARCH] PyTorch Whisper inference with beam_size={beam_size}"
                     )
@@ -931,10 +908,6 @@ class PyTorchModelManager:
 
                     logger.debug(f"[INFERENCE] Completed in {inference_time:.3f}s")
                     logger.debug(f"[INFERENCE] Transcription: {result.get('text', '')[:100]}...")
-
-                    # Phase 2: Log attention statistics if AlignAtt enabled
-                    if streaming_policy == "alignatt" and self.dec_attns:
-                        logger.info(f"[STREAMING] Captured {len(self.dec_attns)} attention layers")
 
                     # Phase 5: Tag language segments for code-switching
                     if enable_code_switching:
