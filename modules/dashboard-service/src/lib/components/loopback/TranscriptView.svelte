@@ -1,22 +1,32 @@
 <script lang="ts">
   import { loopbackStore } from '$lib/stores/loopback.svelte';
 
-  let endRef: HTMLElement;
+  // 2d: Allow undefined before mount
+  let endRef: HTMLElement | undefined;
 
+  // 1b: Extract filtered captions to $derived
+  const finalCaptions = $derived(loopbackStore.captions.filter(c => c.isFinal));
+
+  // 1a: Only scroll on new captions, not translation patches
+  let prevLength = 0;
   $effect(() => {
-    if (loopbackStore.captions.length > 0) {
+    const len = loopbackStore.captions.length;
+    if (len > prevLength) {
+      prevLength = len;
       endRef?.scrollIntoView({ behavior: 'smooth' });
     }
   });
 
+  // 3b: Use browser locale instead of hardcoded 'en-US'
   function formatTime(ts: number): string {
     const d = new Date(ts);
-    return d.toLocaleTimeString('en-US', { hour12: false });
+    return d.toLocaleTimeString(undefined, { hour12: false });
   }
 </script>
 
-<div class="transcript-view">
-  {#each loopbackStore.captions.filter(c => c.isFinal) as caption (caption.id)}
+<!-- 2a: ARIA live region for streaming transcript -->
+<div class="transcript-view" role="log" aria-live="polite" aria-label="Transcript">
+  {#each finalCaptions as caption (caption.id)}
     <div
       class="transcript-entry"
       style="border-left-color: {loopbackStore.getSpeakerColor(caption.speakerId)}"
@@ -55,7 +65,7 @@
     margin-bottom: 12px;
     border-left: 3px solid;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-entry, rgba(255, 255, 255, 0.03));
   }
   .transcript-entry.interim {
     opacity: 0.5;
@@ -71,14 +81,15 @@
     font-size: 13px;
   }
   .timestamp {
-    color: #666;
+    color: var(--color-timestamp, #666);
     font-size: 11px;
   }
+  /* 2b: Use CSS custom properties for theme-able colors */
   .original {
-    color: #ffd700;
+    color: var(--color-original, #ffd700);
     margin-bottom: 4px;
   }
   .translation {
-    color: #90ee90;
+    color: var(--color-translation, #90ee90);
   }
 </style>
