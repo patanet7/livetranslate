@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from livetranslate_common.models.translation import (
     TranslationContext,
@@ -75,6 +76,48 @@ class TestTranslationRequest:
         assert len(restored.context) == 3
         assert restored.speaker_name == "Bob"
         assert restored.glossary_terms == {"LiveTranslate": "LiveTranslate"}
+
+    def test_negative_context_window_size_rejected(self) -> None:
+        """context_window_size must be >= 0."""
+        with pytest.raises(ValidationError):
+            TranslationRequest(
+                text="test",
+                source_language="en",
+                target_language="fr",
+                context_window_size=-1,
+            )
+
+    def test_negative_max_context_tokens_rejected(self) -> None:
+        """max_context_tokens must be >= 0."""
+        with pytest.raises(ValidationError):
+            TranslationRequest(
+                text="test",
+                source_language="en",
+                target_language="fr",
+                max_context_tokens=-100,
+            )
+
+    def test_zero_context_window_size_accepted(self) -> None:
+        """context_window_size=0 disables context — must be valid."""
+        req = TranslationRequest(
+            text="test",
+            source_language="en",
+            target_language="fr",
+            context_window_size=0,
+        )
+        assert req.context_window_size == 0
+
+    def test_quality_score_out_of_range_rejected(self) -> None:
+        """quality_score must be in [0.0, 1.0]."""
+        with pytest.raises(ValidationError):
+            TranslationResponse(
+                translated_text="test",
+                source_language="en",
+                target_language="fr",
+                model_used="test",
+                latency_ms=10.0,
+                quality_score=1.5,
+            )
 
 
 class TestTranslationResponse:

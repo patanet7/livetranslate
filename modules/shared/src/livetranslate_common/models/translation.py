@@ -35,8 +35,8 @@ class TranslationRequest(BaseModel):
     source_language: str
     target_language: str
     context: list[TranslationContext] = Field(default_factory=list)
-    context_window_size: int = 5
-    max_context_tokens: int = 500
+    context_window_size: int = Field(default=5, ge=0)
+    max_context_tokens: int = Field(default=500, ge=0)
     glossary_terms: dict[str, str] = Field(default_factory=dict)
     speaker_name: str | None = None
 
