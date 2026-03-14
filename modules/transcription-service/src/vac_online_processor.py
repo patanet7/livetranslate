@@ -14,6 +14,8 @@ License: MIT
 This is how SimulStreaming achieves computational efficiency!
 """
 
+import asyncio
+import collections
 import time
 from typing import Any
 
@@ -858,6 +860,133 @@ class VACOnlineASRProcessor:
             "compute_efficiency": compute_efficiency,
             "savings_percent": (1 - 1 / compute_efficiency) * 100 if compute_efficiency > 0 else 0,
         }
+
+
+class VACOnlineProcessor:
+    """
+    Async-queue-based VAC processor for streaming audio inference.
+
+    Replaces the is_processing flag + pending_chunks list pattern with an
+    asyncio.Queue for safe concurrent audio feeding.  Retains ``overlap_s``
+    seconds of audio after each inference call so chunk boundaries don't
+    lose context.
+
+    Parameters
+    ----------
+    prebuffer_s : float
+        Seconds of audio to accumulate before the *first* inference fires.
+        Shorter values give faster time-to-first-text (default 0.3 s).
+    overlap_s : float
+        Seconds of audio retained in the buffer after each inference so that
+        chunk boundaries don't lose context (default 0.5 s).
+    stride_s : float
+        Seconds of *new* audio required before each subsequent inference
+        (default 4.5 s).
+    sampling_rate : int
+        Audio sample rate in Hz (default 16 000 Hz).
+    """
+
+    def __init__(
+        self,
+        *,
+        prebuffer_s: float = 0.3,
+        overlap_s: float = 0.5,
+        stride_s: float = 4.5,
+        sampling_rate: int = 16_000,
+    ) -> None:
+        self.prebuffer_s = prebuffer_s
+        self.overlap_s = overlap_s
+        self.stride_s = stride_s
+        self.SAMPLING_RATE = sampling_rate
+
+        # Async queue: each item is a 1-D float32 numpy array
+        self._audio_queue: asyncio.Queue[np.ndarray] = asyncio.Queue()
+
+        # Internal accumulation buffer (deque of numpy chunks)
+        self._buffer: collections.deque[np.ndarray] = collections.deque()
+        self._buffer_samples: int = 0  # total samples currently in _buffer
+
+        # Track whether the first inference has fired yet
+        self._first_inference_done: bool = False
+
+        # Overlap retention: after inference keep the last overlap_s seconds
+        self._overlap_samples: int = int(overlap_s * sampling_rate)
+        self._prebuffer_samples: int = int(prebuffer_s * sampling_rate)
+        self._stride_samples: int = int(stride_s * sampling_rate)
+
+        # New-audio counter since last inference (resets after each inference)
+        self._new_samples_since_inference: int = 0
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    async def feed_audio(self, audio: np.ndarray) -> None:
+        """Put a chunk of audio onto the internal queue and drain it into the
+        accumulation buffer.
+
+        Parameters
+        ----------
+        audio:
+            1-D float32 numpy array at ``self.SAMPLING_RATE`` Hz.
+        """
+        await self._audio_queue.put(audio)
+        # Drain queue into _buffer immediately so callers can check
+        # ready_for_inference() synchronously right after awaiting this.
+        await self._drain_queue()
+
+    def ready_for_inference(self) -> bool:
+        """Return True when enough audio has accumulated to run inference.
+
+        - Before the first inference: fires once ``prebuffer_s`` has been fed.
+        - After the first inference: fires once ``stride_s`` of *new* audio
+          has accumulated since the previous inference.
+        """
+        if not self._first_inference_done:
+            return self._buffer_samples >= self._prebuffer_samples
+        return self._new_samples_since_inference >= self._stride_samples
+
+    def get_inference_audio(self) -> np.ndarray:
+        """Return concatenated buffer audio for the next inference call.
+
+        After this method returns, the buffer is trimmed to retain only the
+        last ``overlap_s`` seconds (context for the next chunk), and the
+        new-audio counter is reset.
+
+        Returns
+        -------
+        np.ndarray
+            1-D float32 array of all buffered audio.
+        """
+        # Concatenate everything in the deque
+        audio = np.concatenate(list(self._buffer), axis=0) if self._buffer else np.array([], dtype=np.float32)
+
+        # Retain last overlap_s seconds
+        if len(audio) > self._overlap_samples:
+            retained = audio[-self._overlap_samples:]
+        else:
+            retained = audio
+
+        # Reset buffer to just the overlap tail
+        self._buffer = collections.deque([retained])
+        self._buffer_samples = len(retained)
+        self._new_samples_since_inference = 0
+        self._first_inference_done = True
+
+        return audio
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    async def _drain_queue(self) -> None:
+        """Move all pending items from the asyncio queue into _buffer."""
+        while not self._audio_queue.empty():
+            chunk: np.ndarray = self._audio_queue.get_nowait()
+            self._buffer.append(chunk)
+            self._buffer_samples += len(chunk)
+            self._new_samples_since_inference += len(chunk)
+            self._audio_queue.task_done()
 
 
 # Example usage and testing
