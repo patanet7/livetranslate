@@ -87,8 +87,6 @@ def run_benchmark(backend_name: str, language: str, data_dir: Path, output_dir: 
     import asyncio
     import soundfile as sf
 
-    setup_logging(service_name="benchmark")
-
     system_info = get_system_info()
 
     results = {
@@ -109,83 +107,86 @@ def run_benchmark(backend_name: str, language: str, data_dir: Path, output_dir: 
     device = "cuda"
 
     loop = asyncio.new_event_loop()
-    backend = loop.run_until_complete(load_backend(backend_name, model_name, compute_type, device))
+    backend = None
+    try:
+        backend = loop.run_until_complete(load_backend(backend_name, model_name, compute_type, device))
 
-    error_metric = character_error_rate if language in CJK_LANGUAGES else word_error_rate
-    error_metric_name = "cer" if language in CJK_LANGUAGES else "wer"
+        error_metric = character_error_rate if language in CJK_LANGUAGES else word_error_rate
+        error_metric_name = "cer" if language in CJK_LANGUAGES else "wer"
 
-    all_errors = []
-    all_latencies = []
-    all_ttft = []
+        all_errors = []
+        all_latencies = []
+        all_ttft = []
 
-    for audio_path in test_files:
-        ref_path = audio_path.with_suffix(".txt")
-        if not ref_path.exists():
-            continue
+        for audio_path in test_files:
+            ref_path = audio_path.with_suffix(".txt")
+            if not ref_path.exists():
+                continue
 
-        reference = ref_path.read_text().strip()
-        audio_data, sr = sf.read(str(audio_path))
+            reference = ref_path.read_text().strip()
+            audio_data, sr = sf.read(str(audio_path))
 
-        if sr != 16000:
-            import librosa
-            audio_data = librosa.resample(audio_data, orig_sr=sr, target_sr=16000)
-        if audio_data.ndim > 1:
-            audio_data = audio_data.mean(axis=1)
-        audio_data = audio_data.astype(np.float32)
+            if sr != 16000:
+                import librosa
+                audio_data = librosa.resample(audio_data, orig_sr=sr, target_sr=16000)
+            if audio_data.ndim > 1:
+                audio_data = audio_data.mean(axis=1)
+            audio_data = audio_data.astype(np.float32)
 
-        logger.info("benchmarking", file=audio_path.name, duration_s=len(audio_data) / 16000)
+            logger.info("benchmarking", file=audio_path.name, duration_s=len(audio_data) / 16000)
 
-        reset_vram_tracking()
+            reset_vram_tracking()
 
-        t0 = time.perf_counter()
-        result = loop.run_until_complete(
-            backend.transcribe(audio_data, language=language, beam_size=5, batch_profile="batch")
-        )
-        t1 = time.perf_counter()
+            t0 = time.perf_counter()
+            result = loop.run_until_complete(
+                backend.transcribe(audio_data, language=language, beam_size=5)
+            )
+            t1 = time.perf_counter()
 
-        inference_time_s = t1 - t0
-        hypothesis = result.text.strip()
-        error_rate = error_metric(reference, hypothesis)
-        peak_vram = measure_peak_vram()
+            inference_time_s = t1 - t0
+            hypothesis = result.text.strip()
+            error_rate = error_metric(reference, hypothesis)
+            peak_vram = measure_peak_vram()
 
-        reset_vram_tracking()
-        t0_stream = time.perf_counter()
-        first_token_time = None
-        async def _stream_measure():
-            nonlocal first_token_time
-            async for partial in backend.transcribe_stream(audio_data, language=language):
-                if partial.text.strip() and first_token_time is None:
-                    first_token_time = time.perf_counter() - t0_stream
-                    break
-        loop.run_until_complete(_stream_measure())
+            reset_vram_tracking()
+            t0_stream = time.perf_counter()
+            first_token_time = None
+            async def _stream_measure():
+                nonlocal first_token_time
+                async for partial in backend.transcribe_stream(audio_data, language=language):
+                    if partial.text.strip() and first_token_time is None:
+                        first_token_time = time.perf_counter() - t0_stream
+                        break
+            loop.run_until_complete(_stream_measure())
 
-        sample_result = {
-            "file": audio_path.name,
-            "reference": reference,
-            "hypothesis": hypothesis,
-            error_metric_name: round(error_rate, 4),
-            "inference_time_s": round(inference_time_s, 4),
-            "time_to_first_token_s": round(first_token_time, 4) if first_token_time else None,
-            "peak_vram_mb": peak_vram,
-            "audio_duration_s": round(len(audio_data) / 16000, 2),
-            "rtf": round(inference_time_s / (len(audio_data) / 16000), 4),
-        }
-        results["samples"].append(sample_result)
-        all_errors.append(error_rate)
-        all_latencies.append(inference_time_s)
-        if first_token_time:
-            all_ttft.append(first_token_time)
+            sample_result = {
+                "file": audio_path.name,
+                "reference": reference,
+                "hypothesis": hypothesis,
+                error_metric_name: round(error_rate, 4),
+                "inference_time_s": round(inference_time_s, 4),
+                "time_to_first_token_s": round(first_token_time, 4) if first_token_time else None,
+                "peak_vram_mb": peak_vram,
+                "audio_duration_s": round(len(audio_data) / 16000, 2),
+                "rtf": round(inference_time_s / (len(audio_data) / 16000), 4),
+            }
+            results["samples"].append(sample_result)
+            all_errors.append(error_rate)
+            all_latencies.append(inference_time_s)
+            if first_token_time:
+                all_ttft.append(first_token_time)
 
-    if all_errors:
-        results["aggregate"] = {
-            f"mean_{error_metric_name}": round(sum(all_errors) / len(all_errors), 4),
-            "mean_inference_time_s": round(sum(all_latencies) / len(all_latencies), 4),
-            "mean_ttft_s": round(sum(all_ttft) / len(all_ttft), 4) if all_ttft else None,
-            "total_samples": len(all_errors),
-        }
-
-    loop.run_until_complete(backend.unload_model())
-    loop.close()
+        if all_errors:
+            results["aggregate"] = {
+                f"mean_{error_metric_name}": round(sum(all_errors) / len(all_errors), 4),
+                "mean_inference_time_s": round(sum(all_latencies) / len(all_latencies), 4),
+                "mean_ttft_s": round(sum(all_ttft) / len(all_ttft), 4) if all_ttft else None,
+                "total_samples": len(all_errors),
+            }
+    finally:
+        if backend is not None:
+            loop.run_until_complete(backend.unload_model())
+        loop.close()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -195,6 +196,7 @@ def run_benchmark(backend_name: str, language: str, data_dir: Path, output_dir: 
 
 
 def main():
+    setup_logging(service_name="benchmark")
     parser = argparse.ArgumentParser(description="Transcription Benchmark")
     parser.add_argument("--backend", required=True)
     parser.add_argument("--language", required=True)
