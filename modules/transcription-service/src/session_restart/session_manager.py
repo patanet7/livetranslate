@@ -36,11 +36,9 @@ if src_dir not in sys.path:
 # We need to import the package first, then the submodules
 import importlib.util
 
+import whisper
+
 from language_id import FrameLevelLID, LIDSmoother, SustainedLanguageDetector
-from simul_whisper.config import AlignAttConfig
-from simul_whisper.simul_whisper import PaddedAlignAttWhisper
-from simul_whisper.whisper import load_model
-from simul_whisper.whisper.tokenizer import get_tokenizer
 
 # VAD for silence filtering (FEEDBACK.md line 12: "Keep VAD-first processing")
 from vad_detector import SileroVAD
@@ -74,7 +72,7 @@ class LanguageSession:
     """Represents one language session"""
 
     language: str
-    processor: PaddedAlignAttWhisper  # SimulStreaming instance
+    processor: Any  # Whisper model instance
     start_time: float
     end_time: float
     segments: list[SessionSegment]
@@ -147,12 +145,12 @@ class SessionRestartTranscriber:
         # DI Pattern: Model is injected into both LID detector and sessions
         logger.info(f"Loading shared Whisper model: {model_path}")
         self.shared_whisper_model = self._load_shared_model(model_path)
-        self.shared_tokenizer = get_tokenizer(
+        self.shared_tokenizer = whisper.tokenizer.get_tokenizer(
             self.shared_whisper_model.is_multilingual,
             language=None,  # No fixed language
             task="transcribe",
         )
-        logger.info(f"✅ Shared model loaded: {self.shared_whisper_model.dims}")
+        logger.info(f"Shared model loaded: {self.shared_whisper_model.dims}")
 
         # Frame-level LID with Whisper-native probe (Phase 2.1)
         # Zero-cost language detection using Whisper's encoder
@@ -273,7 +271,7 @@ class SessionRestartTranscriber:
         )
         logger.info(f"[Device] Loading shared model on {device}")
 
-        model = load_model(model_path, device=device)
+        model = whisper.load_model(model_path, device=device)
         model.eval()  # Set to evaluation mode
 
         return model
@@ -282,33 +280,16 @@ class SessionRestartTranscriber:
         """
         Create new Whisper session for given language.
 
-        Per FEEDBACK.md lines 171-184: Each session gets fresh PaddedAlignAttWhisper
-        with language-specific SOT token. This is the "sessionized SimulStreaming" approach.
+        Each session shares the loaded shared_whisper_model with a language-specific
+        configuration. The processor field holds the shared model reference.
         """
-        logger.info(f"🆕 Creating new session for language: {language}")
+        logger.info(f"Creating new session for language: {language}")
 
-        # Create AlignAttConfig for this language session
-        config = AlignAttConfig(
-            model_path=self.model_path,
-            language=language,  # Set language SOT for this session
-            task="transcribe",
-            segment_length=self.online_chunk_size,
-            audio_min_len=1.0,
-            decoder_type=self.decoder_type,
-            beam_size=self.beam_size,
-            logdir=None,  # Disable logging for production
-        )
-
-        # Create PaddedAlignAttWhisper instance (SimulStreaming)
-        # VAD filtering happens at session_manager level, NOT inside processor
-        # Per FEEDBACK.md lines 12, 106, 272: "Keep VAD-first processing"
-        whisper_processor = PaddedAlignAttWhisper(config)
-
-        # Create session
+        # Create session using the shared model (reused across sessions for efficiency)
         start_time = self.global_audio_position / self.sampling_rate
         session = LanguageSession(
             language=language,
-            processor=whisper_processor,  # PaddedAlignAttWhisper with language-specific SOT
+            processor=self.shared_whisper_model,
             start_time=start_time,
             end_time=start_time,
             segments=[],
@@ -330,27 +311,9 @@ class SessionRestartTranscriber:
             return
 
         logger.info(
-            f"⏹️  Finishing session: {self.current_session.language} "
+            f"Finishing session: {self.current_session.language} "
             f"({self.current_session.audio_samples_processed} samples)"
         )
-
-        # Call infer(is_last=True) to process any remaining audio
-        # This flushes the SimulStreaming buffers
-        final_token_ids, _ = self.current_session.processor.infer(is_last=True)
-
-        # Decode tokens to text
-        if final_token_ids:
-            final_text = self.current_session.processor.tokenizer.decode(final_token_ids)
-
-            segment = SessionSegment(
-                text=final_text,
-                language=self.current_session.language,
-                start_time=self.current_session.start_time,
-                end_time=self.current_session.end_time,
-                is_final=True,
-                confidence=1.0,
-            )
-            self.current_session.segments.append(segment)
 
         # Update end time
         self.current_session.end_time = self.global_audio_position / self.sampling_rate
@@ -358,7 +321,7 @@ class SessionRestartTranscriber:
         # Add to history
         self.all_sessions.append(self.current_session)
 
-        logger.info("✅ Session finished with final text")
+        logger.info("Session finished")
 
     def _switch_session(self, new_language: str):
         """
@@ -587,7 +550,7 @@ class SessionRestartTranscriber:
 
                 # Run LID detection with Whisper-native probe
                 # Convert audio to mel spectrogram
-                from simul_whisper.whisper.audio import log_mel_spectrogram, pad_or_trim
+                from whisper.audio import log_mel_spectrogram, pad_or_trim
 
                 # Check encoder cache first (50-60% hit rate after warmup)
                 audio_hash = self.encoder_cache.precompute_hash(lid_frame_audio)
@@ -731,59 +694,44 @@ class SessionRestartTranscriber:
                 "statistics": self.get_statistics(),
             }
 
-        # Process audio with PaddedAlignAttWhisper (SimulStreaming)
+        # Process audio with Whisper
         # VAD filtering already done above - we only reach here if speech detected
 
-        # Convert VAD buffer to torch tensor
+        # Convert VAD buffer to numpy array
         # OPTIMIZATION: Use RingBuffer.read_all() for efficient extraction
         with self.metrics.measure("whisper.buffer_read"):
             vad_buffer_data = self.vad_audio_buffer.read_all()
-            audio_tensor = torch.from_numpy(vad_buffer_data).float()
 
         # DEBUG: Log audio statistics before sending to Whisper
-        if len(audio_tensor) > 0:
-            audio_rms = torch.sqrt(torch.mean(audio_tensor**2)).item()
-            audio_max = torch.max(torch.abs(audio_tensor)).item()
+        if len(vad_buffer_data) > 0:
+            audio_rms = float(np.sqrt(np.mean(vad_buffer_data**2)))
+            audio_max = float(np.max(np.abs(vad_buffer_data)))
             logger.info(
-                f"📤 Sending {len(audio_tensor)} samples to Whisper: "
+                f"Sending {len(vad_buffer_data)} samples to Whisper: "
                 f"RMS={audio_rms:.6f}, Max={audio_max:.6f}, "
-                f"Duration={len(audio_tensor)/self.sampling_rate:.2f}s"
+                f"Duration={len(vad_buffer_data)/self.sampling_rate:.2f}s"
             )
         else:
-            logger.warning("⚠️ Empty audio buffer being sent to Whisper!")
+            logger.warning("Empty audio buffer being sent to Whisper!")
 
-        # Insert accumulated audio into SimulStreaming
-        # Reference: This is the correct pattern - feed SPEECH audio, not silence
-        with self.metrics.measure("whisper.insert_audio"):
-            self.current_session.processor.insert_audio(audio_tensor)
-
-        # Clear VAD buffer after sending to processor
+        # Clear VAD buffer after reading
         # OPTIMIZATION: Use RingBuffer.clear() instead of creating new array
         self.vad_audio_buffer.clear()
 
-        # Run inference
-        # infer() returns: (token_ids, generation_metadata)
+        # Run Whisper transcription
+        transcribed_text = ""
+        is_final_segment = is_speech_end  # Final if VAD silence detected
         with self.metrics.measure("whisper.infer"):
-            token_ids, metadata = self.current_session.processor.infer(is_last=is_speech_end)
+            result = self.current_session.processor.transcribe(
+                vad_buffer_data,
+                language=self.current_session.language,
+                task="transcribe",
+            )
+            transcribed_text = result.get("text", "").strip()
 
         # Update session
         self.current_session.audio_samples_processed += chunk_samples
         self.current_session.end_time = self.global_audio_position / self.sampling_rate
-
-        # Check if this segment completed (reached pause/EOT)
-        segment_completed = False
-        if metadata and "progress" in metadata and len(metadata["progress"]) > 0:
-            last_progress = metadata["progress"][-1]
-            segment_completed = last_progress.get("completed", False)
-
-        # Decode tokens to text
-        transcribed_text = ""
-        is_final_segment = segment_completed or is_speech_end  # Final if EOT or VAD silence
-
-        if token_ids:
-            # Decode token IDs to text using processor's tokenizer
-            with self.metrics.measure("whisper.decode"):
-                transcribed_text = self.current_session.processor.tokenizer.decode(token_ids)
 
         # Create segment if we got transcription output
         if transcribed_text:
@@ -900,28 +848,25 @@ class SessionRestartTranscriber:
                 logger.info(f"🆕 Creating final session for language: {initial_language}")
                 self.current_session = self._create_new_session(initial_language)
 
-            # Convert buffer to torch tensor
-            # OPTIMIZATION: Use RingBuffer.read_all()
+            # Read buffer
             vad_buffer_data = self.vad_audio_buffer.read_all()
-            audio_tensor = torch.from_numpy(vad_buffer_data).float()
 
             # Log audio statistics
-            audio_rms = torch.sqrt(torch.mean(audio_tensor**2)).item()
-            audio_max = torch.max(torch.abs(audio_tensor)).item()
+            audio_rms = float(np.sqrt(np.mean(vad_buffer_data**2)))
+            audio_max = float(np.max(np.abs(vad_buffer_data)))
             logger.info(
-                f"📤 Final segment: {len(audio_tensor)} samples, "
+                f"Final segment: {len(vad_buffer_data)} samples, "
                 f"RMS={audio_rms:.6f}, Max={audio_max:.6f}, "
-                f"Duration={len(audio_tensor)/self.sampling_rate:.2f}s"
+                f"Duration={len(vad_buffer_data)/self.sampling_rate:.2f}s"
             )
 
-            # Process the buffered audio
-            self.current_session.processor.insert_audio(audio_tensor)
-
-            # Run inference with is_last=True to signal end of stream
-            token_ids, _metadata = self.current_session.processor.infer(is_last=True)
-
-            # Decode tokens to text
-            transcribed_text = self.current_session.processor.tokenizer.decode(token_ids).strip()
+            # Run Whisper transcription
+            result = self.current_session.processor.transcribe(
+                vad_buffer_data,
+                language=self.current_session.language,
+                task="transcribe",
+            )
+            transcribed_text = result.get("text", "").strip()
 
             if transcribed_text:
                 logger.info(f"✅ Final transcription: {transcribed_text}")

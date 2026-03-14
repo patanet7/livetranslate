@@ -393,7 +393,7 @@ class TestLIDProbeLatency:
             pytest.skip("No active session for LID benchmarking")
 
         import torch
-        from simul_whisper.whisper.audio import log_mel_spectrogram, pad_or_trim
+        from whisper.audio import log_mel_spectrogram, pad_or_trim
 
         tracker = LatencyTracker("lid_probe")
 
