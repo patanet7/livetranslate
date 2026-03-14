@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from livetranslate_common.models.registry import BackendConfig
 
@@ -78,7 +79,7 @@ class TestBackendConfig:
 
     def test_zero_chunk_duration_rejected(self) -> None:
         """chunk_duration_s must be > 0."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             BackendConfig(
                 backend="faster-whisper",
                 model="whisper-base",
@@ -93,7 +94,7 @@ class TestBackendConfig:
 
     def test_vad_threshold_out_of_range_rejected(self) -> None:
         """vad_threshold must be in [0.0, 1.0]."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             BackendConfig(
                 backend="faster-whisper",
                 model="whisper-base",
@@ -114,7 +115,7 @@ class TestBackendConfig:
         batch_cfg = _chinese_config()
         assert batch_cfg.batch_profile == "batch"
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             BackendConfig(
                 backend="faster-whisper",
                 model="whisper-base",

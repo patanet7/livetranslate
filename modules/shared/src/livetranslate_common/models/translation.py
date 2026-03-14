@@ -58,4 +58,4 @@ class TranslationResponse(BaseModel):
     target_language: str
     model_used: str
     latency_ms: float
-    quality_score: float | None = None
+    quality_score: float | None = Field(default=None, ge=0.0, le=1.0)

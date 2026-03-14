@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Segment(BaseModel):
@@ -21,6 +21,13 @@ class Segment(BaseModel):
     end_ms: int
     confidence: float = Field(ge=0.0, le=1.0)
     speaker_id: str | None = None
+
+    @model_validator(mode="after")
+    def check_end_after_start(self) -> Segment:
+        if self.end_ms < self.start_ms:
+            msg = f"end_ms ({self.end_ms}) must be >= start_ms ({self.start_ms})"
+            raise ValueError(msg)
+        return self
 
     @property
     def duration_ms(self) -> int:

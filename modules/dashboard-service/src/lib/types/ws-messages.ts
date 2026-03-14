@@ -29,7 +29,7 @@ export interface ConfigMessage {
   glossary_terms?: string[];
 }
 
-export interface EndTranscriptionMessage {
+export interface EndMessage {
   type: 'end';
 }
 
@@ -39,7 +39,7 @@ export type ClientMessage =
   | PromoteToMeetingMessage
   | EndMeetingMessage
   | ConfigMessage
-  | EndTranscriptionMessage;
+  | EndMessage;
 
 // Server → Client
 export interface ConnectedMessage {

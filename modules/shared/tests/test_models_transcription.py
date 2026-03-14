@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from livetranslate_common.models.transcription import ModelInfo, Segment, TranscriptionResult
 
@@ -31,11 +32,15 @@ class TestSegment:
         assert seg.duration_ms == 2500
 
     def test_segment_confidence_bounds_rejected(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Segment(text="Bad", start_ms=0, end_ms=100, confidence=1.5)
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Segment(text="Bad", start_ms=0, end_ms=100, confidence=-0.1)
+
+    def test_segment_end_before_start_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="end_ms"):
+            Segment(text="Bad", start_ms=500, end_ms=100, confidence=0.9)
 
 
 class TestTranscriptionResult:
