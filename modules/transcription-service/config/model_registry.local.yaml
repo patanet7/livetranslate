@@ -14,7 +14,7 @@ vram_budget_mb: 16000
 language_routing:
   en:
     backend: mlx
-    model: medium
+    model: large-v3-turbo
     compute_type: float16
     chunk_duration_s: 5.0
     stride_s: 4.5
@@ -25,7 +25,7 @@ language_routing:
     batch_profile: realtime
   "*":
     backend: mlx
-    model: medium
+    model: large-v3-turbo
     compute_type: float16
     chunk_duration_s: 5.0
     stride_s: 4.5
