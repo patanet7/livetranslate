@@ -137,6 +137,49 @@ logger = get_logger()
 logger.info("event_name", key="value")
 ```
 
+## Benchmark Framework
+
+### Running Benchmarks
+
+```bash
+# VAC transcription sweep (finds optimal prebuffer/stride/overlap per language)
+just benchmark-vac lang=zh model=large-v3-turbo backend=vllm
+
+# Full pipeline sweep (VAC × translation: stride × overlap × context × temp × tokens)
+just benchmark-pipeline lang=zh model=qwen3.5:7b
+
+# Quick pipeline (context sweep only, fixed VAC config)
+just benchmark-pipeline-quick lang=zh
+
+# All languages in stub mode (CI dry-run)
+just benchmark-all-stub
+```
+
+### Optimal Configs (from benchmark sweep)
+
+| Language | Prebuffer | Stride | Overlap | CER/WER | Caption freq | Use case |
+|----------|-----------|--------|---------|---------|--------------|----------|
+| zh (best accuracy) | 0.5s | 6.0s | 1.5s | 9.5% CER | every 6s | Transcripts, offline |
+| zh (balanced) | 0.5s | 4.5s | 0.5s | 15.6% CER | every 4.5s | Live captions |
+| zh (fastest) | 0.5s | 1.5s | 0.5s | 20.4% CER | every 1.5s | Real-time subtitles |
+| en | 1.0s | 4.0s | 1.0s | 28.3% WER | every 4s | General |
+
+### Benchmark Output
+
+- **JSON**: Full per-segment trace with timing (`benchmarks/results/`)
+- **TSV**: Human-readable ranked table
+- **JSONL**: Append-only index for cross-run regression tracking
+- **Playback fixtures**: Saved transcription output for translation-only tuning
+
+### Translation Config
+
+`TranslationConfig` (pydantic-settings, env_prefix=`LLM_`):
+- `LLM_BASE_URL` — LLM API endpoint (default: `http://localhost:11434/v1`)
+- `LLM_MODEL` — model name (default: `qwen3.5:7b`)
+- `LLM_TEMPERATURE` — generation temperature (default: `0.3`)
+- `LLM_CONTEXT_WINDOW_SIZE` — rolling context entries (default: `5`)
+- `LLM_MAX_CONTEXT_TOKENS` — token budget for context (default: `500`)
+
 ## Gotchas
 
 - **`uv sync --group dev`** alone does NOT install workspace packages — always use `--all-packages`
