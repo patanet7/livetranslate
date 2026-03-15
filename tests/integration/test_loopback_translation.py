@@ -21,7 +21,7 @@ Usage:
     python src/api_server_fastapi.py
 
     # Start whisper service:
-    cd modules/whisper-service
+    cd modules/transcription-service
     python src/main.py
 
     # Then run this test:
@@ -335,7 +335,7 @@ async def main():
         print(
             "   1. Translation service: cd modules/translation-service && python src/api_server_fastapi.py"
         )
-        print("   2. Whisper service: cd modules/whisper-service && python src/main.py")
+        print("   2. Whisper service: cd modules/transcription-service && python src/main.py")
         return 1
 
     # Initialize audio capture

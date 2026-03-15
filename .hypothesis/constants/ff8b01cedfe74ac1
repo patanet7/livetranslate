@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/transcription/result_parser.py
+# hypothesis_version: 6.151.8
+
+[-1.0, 0.0, 0.8, 1.0, 'auto', 'avg_logprob', 'chunks', 'confidence', 'en', 'lang', 'language', 'no_speech_prob', 'prob', 'probability', 'score', 'scores', 'segments', 'text', 'texts', 'unknown', 'zh', '一', '鿿']

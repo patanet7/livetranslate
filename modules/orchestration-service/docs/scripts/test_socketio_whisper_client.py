@@ -29,7 +29,7 @@ from socketio_whisper_client import SocketIOWhisperClient
 WHISPER_HOST = "localhost"
 WHISPER_PORT = 5001
 JFK_AUDIO_PATH = (
-    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/whisper-service/jfk.wav"
+    "/Users/thomaspatane/Documents/GitHub/livetranslate/modules/transcription-service/jfk.wav"
 )
 CHUNK_DURATION = 2.0  # 2-second chunks
 

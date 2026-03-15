@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/config/config_loader.py
+# hypothesis_version: 6.151.8
+
+['..', '.models', '0.2', '10', '16000', '3.0', '4.0', 'BUFFER_DURATION', 'ENABLE_VAD', 'INFERENCE_INTERVAL', 'OPENVINO_DEVICE', 'ORCHESTRATION_MODE', 'OVERLAP_DURATION', 'SAMPLE_RATE', 'SESSION_DIR', 'WHISPER_MODELS_DIR', 'buffer_duration', 'config.json', 'default_model', 'device', 'enable_vad', 'false', 'inference_interval', 'large-v3-turbo', 'models_dir', 'orchestration_mode', 'overlap_duration', 'sample_rate', 'session_dir', 'true', '~/.whisper/models']

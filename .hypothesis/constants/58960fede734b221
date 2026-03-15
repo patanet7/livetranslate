@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/shared/src/livetranslate_common/errors/exceptions.py
+# hypothesis_version: 6.151.8
+
+[422, 500, 503, 'INTERNAL_ERROR', 'SERVICE_UNAVAILABLE', 'VALIDATION_ERROR']

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/_legacy/error_handler.py
+# hypothesis_version: 6.151.8
+
+[400, 401, 404, 408, 410, 413, 422, 429, 500, 503, 507, 1000, 3600, 'args', 'audio_format_invalid', 'audio_too_large', 'category', 'connection_failed', 'connection_id', 'connection_timeout', 'context', 'critical', 'details', 'device_error', 'error', 'error_code', 'function', 'high', 'inference_failed', 'internal_error', 'invalid_parameter', 'invalid_request', 'kwargs', 'low', 'medium', 'message', 'message_too_large', 'missing_parameter', 'model_load_failed', 'model_not_found', 'out_of_memory', 'protocol_error', 'rate_limit_exceeded', 'recent_errors_1h', 'recoverable', 'recovery_handlers', 'retry_after', 'service_unavailable', 'session_expired', 'session_id', 'session_not_found', 'severity', 'suggested_action', 'timestamp', 'total_errors', 'type', 'user_id', 'websocket_error']

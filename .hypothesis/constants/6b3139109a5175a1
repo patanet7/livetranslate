@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/_legacy/reconnection_manager.py
+# hypothesis_version: 6.151.8
+
+[100, 300, 'active', 'active_sessions', 'attempts', 'created_at', 'data', 'default_buffer_size', 'disconnected', 'disconnected_at', 'expired', 'last_activity', 'max_buffer_size', 'message_id', 'message_type', 'priority', 'reconnected_at', 'reconnecting', 'session_data', 'session_id', 'state', 'suspended', 'timestamp', 'total_reconnections', 'total_sessions', 'unique_users', 'user_id']

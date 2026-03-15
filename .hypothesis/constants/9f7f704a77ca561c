@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/silero_vad_iterator.py
+# hypothesis_version: 6.151.8
+
+[0.15, 0.5, 100, 120, 500, 512, 1000, 8000, 16000, '__main__', 'end', 'silero_vad', 'snakers4/silero-vad', 'start']

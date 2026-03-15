@@ -1,0 +1,34 @@
+version: 1
+
+backends:
+  whisper:
+    module: backends.whisper
+    class: WhisperBackend
+
+vram_budget_mb: 10000
+
+# NOTE: stride_s MUST equal chunk_duration_s - overlap_s
+# Changing chunk_duration_s or overlap_s requires updating stride_s accordingly
+language_routing:
+  en:
+    backend: whisper
+    model: large-v3-turbo
+    compute_type: float16
+    chunk_duration_s: 5.0
+    stride_s: 4.5
+    overlap_s: 0.5
+    vad_threshold: 0.5
+    beam_size: 1
+    prebuffer_s: 0.3
+    batch_profile: realtime
+  "*":
+    backend: whisper
+    model: large-v3-turbo
+    compute_type: float16
+    chunk_duration_s: 5.0
+    stride_s: 4.5
+    overlap_s: 0.5
+    vad_threshold: 0.5
+    beam_size: 1
+    prebuffer_s: 0.3
+    batch_profile: realtime

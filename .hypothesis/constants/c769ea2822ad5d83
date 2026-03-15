@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/models/pytorch_manager.py
+# hypothesis_version: 6.151.8
+
+[0.0, 0.1, 1.0, 223, 1600, 3000, 16000, '.models', '5', 'TORCH_DEVICE', 'WHISPER_BEAM_SIZE', 'WHISPER_MODELS_DIR', 'alignatt', 'base', 'beam_size', 'best_of', 'cpu', 'cross_attn', 'cuda', 'detected_language', 'device', 'en', 'end', 'eng', 'english', 'fp16', 'language', 'language_confidence', 'languages_in_audio', 'large', 'large-v2', 'large-v3', 'large-v3-turbo', 'length_penalty', 'medium', 'mps', 'out of memory', 'patience', 'prompt', 'rolling_context', 'segments', 'small', 'start', 'static_prompt', 'task', 'temperature', 'text', 'tiny', 'to', 'tokenizer', 'transcribe', 'translate', 'unknown', '~/.cache/whisper']

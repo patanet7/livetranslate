@@ -42,7 +42,7 @@ class ServiceManager:
         """Start the whisper service"""
         logger.info("Starting Whisper Service...")
 
-        whisper_dir = Path(__file__).parent / "modules" / "whisper-service"
+        whisper_dir = Path(__file__).parent / "modules" / "transcription-service"
         main_script = whisper_dir / "src" / "main.py"
 
         if not main_script.exists():
@@ -213,7 +213,7 @@ class ServiceManager:
 
         # Check if Python modules exist
         required_paths = [
-            Path(__file__).parent / "modules" / "whisper-service" / "src" / "main.py",
+            Path(__file__).parent / "modules" / "transcription-service" / "src" / "main.py",
             Path(__file__).parent
             / "modules"
             / "orchestration-service"

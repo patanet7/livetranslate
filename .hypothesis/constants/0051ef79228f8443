@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/models/model_factory.py
+# hypothesis_version: 6.151.8
+
+[223, '.models/openvino', '.models/pytorch', 'ModelFactory', 'NPU', 'OPENVINO_AVAILABLE', '__version__', 'auto', 'auto_warmup', 'available', 'count', 'cpu', 'create_model', 'cuda', 'devices', 'error', 'gpu', 'init_prompt', 'large-v3-turbo', 'max_context_tokens', 'mps', 'name', 'npu', 'openvino_version', 'reason', 'static_prompt', 'unknown', 'warmup_file']

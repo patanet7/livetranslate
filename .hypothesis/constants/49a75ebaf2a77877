@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/utils/ring_buffer.py
+# hypothesis_version: 6.151.8
+
+['_buffer', '_size', '_wrapped', '_write_pos', 'capacity', 'dtype']

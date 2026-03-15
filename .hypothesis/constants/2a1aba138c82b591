@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/shared/src/livetranslate_common/models/ws_messages.py
+# hypothesis_version: 6.151.8
+
+[0.0, 1.0, 'backend_switched', 'config', 'connected', 'down', 'end', 'end_meeting', 'end_session', 'float32', 'interim', 'language_detected', 'meeting_started', 'promote_to_meeting', 'recording_status', 'segment', 'service_status', 'start_session', 'translation', 'type', 'up']

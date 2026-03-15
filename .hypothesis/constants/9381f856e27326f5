@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/shared/src/livetranslate_common/models/__init__.py
+# hypothesis_version: 6.151.8
+
+['AudioChunk', 'BackendConfig', 'ConfigMessage', 'ConnectedMessage', 'EndMeetingMessage', 'EndMessage', 'EndSessionMessage', 'InterimMessage', 'MeetingAudioStream', 'ModelInfo', 'PROTOCOL_VERSION', 'Segment', 'SegmentMessage', 'ServiceStatusMessage', 'StartSessionMessage', 'TranscriptionResult', 'TranslationContext', 'TranslationMessage', 'TranslationRequest', 'TranslationResponse', 'parse_ws_message']

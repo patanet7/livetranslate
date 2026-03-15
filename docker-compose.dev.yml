@@ -43,9 +43,9 @@ services:
   # Whisper Service (with volume mounting)
   whisper:
     build:
-      context: ./modules/whisper-service
+      context: ./modules/transcription-service
       dockerfile: Dockerfile
-    container_name: livetranslate-whisper-dev
+    container_name: livetranslate-transcription-dev
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -60,8 +60,8 @@ services:
       - livetranslate-dev
     volumes:
       # Volume mount for live development - our enhanced code!
-      - ./modules/whisper-service/src:/app/src
-      - ./modules/whisper-service/requirements.txt:/app/requirements.txt
+      - ./modules/transcription-service/src:/app/src
+      - ./modules/transcription-service/requirements.txt:/app/requirements.txt
       - livetranslate-models-whisper:/app/models
       - livetranslate-audio-uploads:/app/uploads
     depends_on:

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/language_id/__init__.py
+# hypothesis_version: 6.151.8
+
+['FrameLevelLID', 'LIDSmoother', 'LanguageSwitchEvent']

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/.venv/bin/pytest
+# hypothesis_version: 6.151.8
+
+['-script.pyw', '.exe', '__main__']

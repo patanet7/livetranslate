@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/whisper_service.py
+# hypothesis_version: 6.151.8
+
+[0.0, 0.3, 0.5, 0.7, 0.85, 1.0, 2.0, 3.0, 30.0, 16000.0, 16000, '--audio', '--language', '--model', '--streaming', 'Language hint', 'Model to use', 'Use streaming', 'Whisper Service', '__main__', 'active_sessions', 'available_models', 'default', 'default_model', 'device', 'draft', 'enable_enhancement', 'end', 'errors', 'final', 'inference_interval', 'loaded_models', 'max_latency', 'min_hold_time', 'min_stable_words', 'models_dir', 'none', 'orchestration_mode', 'requests_processed', 'sample_rate', 'session_dir', 'sessions', 'stability_threshold', 'start', 'store_true', 'streaming_active', 'text', 'timestamp_mode', 'tokenizer', 'whisper-tiny', 'word']

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/registry.py
+# hypothesis_version: 6.151.8
+
+[10000, '*', 'backends', 'language_routing', 'registry_loaded', 'reloading_registry', 'sighup_received', 'version', 'vram_budget_mb']
