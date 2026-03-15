@@ -119,31 +119,39 @@ class LLMClient:
                     msg="TranslationPromptBuilder not available, using inline prompt with glossary",
                 )
 
-        system_prompt = (
-            f"You are a professional translator from {source_language} to {target_language}. "
-            "Translate the given text naturally and accurately. "
-            "Output ONLY the translation, nothing else. "
-            "Preserve the original meaning, tone, and style. "
-            "/nothink"
+        # Direction-specific system prompts for better register + output
+        _SYSTEM_PROMPTS = {
+            ("zh", "en"): "Translate spoken Chinese to natural English. Output only the translation.",
+            ("en", "zh"): "Translate spoken English to natural Mandarin Chinese. Use simplified characters. Output only the translation.",
+            ("ja", "en"): "Translate spoken Japanese to natural English. Output only the translation.",
+            ("en", "ja"): "Translate spoken English to natural Japanese. Output only the translation.",
+            ("es", "en"): "Translate spoken Spanish to natural English. Output only the translation.",
+            ("en", "es"): "Translate spoken English to natural Spanish. Output only the translation.",
+        }
+        system_prompt = _SYSTEM_PROMPTS.get(
+            (source_language, target_language),
+            f"Translate spoken {source_language} to natural {target_language}. Output only the translation.",
         )
 
         user_parts = []
 
-        # Glossary section (inline fallback when TranslationPromptBuilder unavailable)
+        # Glossary: compact format, sanitize newlines to prevent prompt injection
         if glossary_terms:
-            user_parts.append("Glossary (use these exact translations for the listed terms):")
-            for src_term, tgt_term in glossary_terms.items():
-                user_parts.append(f"  {src_term} -> {tgt_term}")
+            sanitized = {
+                k.replace("\n", " "): v.replace("\n", " ")
+                for k, v in glossary_terms.items()
+            }
+            terms = ", ".join(f"{k}={v}" for k, v in sanitized.items())
+            user_parts.append(f"Terms: {terms}")
             user_parts.append("")
 
+        # Context: translations only (not source text) — doubles effective context window
         if context:
-            user_parts.append("Context (previous sentences for reference):")
-            for ctx in context:
-                user_parts.append(f"  Original: {ctx.text}")
-                user_parts.append(f"  Translation: {ctx.translation}")
+            user_parts.append("Previous translations:")
+            for i, ctx in enumerate(context, 1):
+                user_parts.append(f"  {i}. {ctx.translation}")
             user_parts.append("")
 
-        user_parts.append(f"Translate the following from {source_language} to {target_language}:")
         user_parts.append(text)
 
         return [
@@ -196,6 +204,8 @@ class LLMClient:
         text = response.strip()
         # Strip Qwen3 <think>...</think> reasoning blocks
         text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+        # Strip unclosed <think> blocks (max_tokens cutoff)
+        text = re.sub(r'<think>.*$', '', text, flags=re.DOTALL).strip()
         # Remove common LLM prefix patterns (case-insensitive)
         text = re.sub(
             r'^(?:translation|translated text|output|result|the translation is|翻译|译文)\s*[:：]\s*',

@@ -29,7 +29,7 @@ class TestLLMClientUnit:
         )
         assert len(messages) == 2  # system + user
         assert messages[0]["role"] == "system"
-        assert "translator" in messages[0]["content"].lower()
+        assert "translate" in messages[0]["content"].lower()
         assert "你好世界" in messages[1]["content"]
 
     def test_extract_translation_strips_prefixes(self, config):
@@ -55,7 +55,7 @@ class TestLLMClientUnit:
             context=context,
         )
         user_msg = messages[1]["content"]
-        assert "之前的话" in user_msg
+        # Context now sends translation only (not source text)
         assert "Previous words" in user_msg
         assert "这是新的" in user_msg
 
