@@ -55,7 +55,7 @@ class TranslationService:
             source_language=request.source_language,
             target_language=request.target_language,
             context=context,
-            glossary_terms=request.glossary_terms or None,
+            glossary_terms=request.glossary_terms,
         )
 
         latency_ms = (time.monotonic() - start) * 1000
