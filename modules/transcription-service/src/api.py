@@ -224,62 +224,122 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                 else:
                     raise
 
-        async def consumer():
-            """Process audio frames from queue and send results."""
+        async def _run_inference(inference_audio: np.ndarray) -> None:
+            """Run transcription inference and send results. Runs as background task
+            so the consumer can keep feeding VAC during inference."""
             nonlocal _prev_segment_text, _session_samples_consumed
+
+            try:
+                lang = state.language or state.lang_detector.current_language or "en"
+                config = registry.get_config(lang)
+                transcription_backend = await manager.get_backend(config)
+
+                # Build prompt: glossary + user prompt + previous transcription context
+                effective_prompt = state.initial_prompt
+                if state.glossary_terms:
+                    glossary_str = ", ".join(state.glossary_terms)
+                    effective_prompt = f"{glossary_str}. {effective_prompt}" if effective_prompt else glossary_str
+                if _prev_segment_text:
+                    context_tail = _prev_segment_text[-200:]
+                    effective_prompt = f"{effective_prompt} {context_tail}" if effective_prompt else context_tail
+
+                result = await asyncio.wait_for(
+                    transcription_backend.transcribe(
+                        inference_audio,
+                        language=state.language or state.lang_detector.current_language,
+                        beam_size=config.beam_size,
+                        initial_prompt=effective_prompt,
+                    ),
+                    timeout=30.0,
+                )
+
+                # language_detected fires BEFORE segment
+                if state.lang_detector.current_language is None:
+                    detected = state.lang_detector.detect_initial(result.language, result.confidence)
+                    await ws.send_text(json.dumps({
+                        "type": "language_detected",
+                        "language": detected,
+                        "confidence": result.confidence,
+                    }))
+                else:
+                    chunk_duration_s = len(inference_audio) / 16000.0
+                    switched = state.lang_detector.update(result.language, chunk_duration_s)
+                    if switched:
+                        await ws.send_text(json.dumps({
+                            "type": "language_detected",
+                            "language": switched,
+                            "confidence": result.confidence,
+                        }))
+
+                # Filter hallucinated low-confidence short segments
+                if result.confidence < 0.4 and len(result.text.split()) <= 3:
+                    logger.debug("low_confidence_filtered", text=result.text, confidence=result.confidence)
+                    return
+
+                result_data = result.model_dump(include={
+                    "text", "language", "confidence", "is_final", "segments",
+                    "stable_text", "unstable_text", "speaker_id",
+                })
+                # Convert chunk-relative timing to session-absolute
+                chunk_offset_ms = int(_session_samples_consumed / 16)
+                if result.segments:
+                    result_data["start_ms"] = result.segments[0].start_ms + chunk_offset_ms
+                    result_data["end_ms"] = result.segments[-1].end_ms + chunk_offset_ms
+                else:
+                    result_data["start_ms"] = chunk_offset_ms
+                    result_data["end_ms"] = chunk_offset_ms
+                overlap_samples = state.vac_processor._overlap_samples if state.vac_processor else 0
+                _session_samples_consumed += max(0, len(inference_audio) - overlap_samples)
+
+                # Dedup overlap
+                deduped_text = _dedup_overlap(_prev_segment_text, result_data["text"])
+                result_data["text"] = deduped_text
+                _prev_segment_text = result.text
+
+                if deduped_text.strip():
+                    await ws.send_text(json.dumps({
+                        "type": "segment",
+                        **result_data,
+                    }))
+
+            except asyncio.TimeoutError:
+                logger.error("transcribe_timeout", session_id=session_id)
+                try:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "message": "Transcription timed out", "recoverable": True,
+                    }))
+                except Exception:
+                    pass
+            except Exception as exc:
+                logger.exception("transcribe_error", session_id=session_id, error=str(exc))
+                try:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "message": str(exc), "recoverable": True,
+                    }))
+                except Exception:
+                    pass
+
+        async def consumer():
+            """Feed audio to VAC. When ready, spawn inference as background task
+            so audio keeps flowing during model execution — real-time streaming."""
+            nonlocal _prev_segment_text, _session_samples_consumed
+            inference_task: asyncio.Task | None = None
+
             while True:
                 raw_audio = await audio_queue.get()
                 if raw_audio is None:
-                    # End of stream — flush any remaining audio in the VAC buffer
+                    # Wait for any running inference to finish
+                    if inference_task and not inference_task.done():
+                        await inference_task
+                    # End of stream — flush remaining VAC buffer
                     if state.vac_processor is not None and state.current_backend_key is not None:
                         remaining = state.vac_processor.get_inference_audio()
-                        if len(remaining) >= 4800:  # min 0.3s for meaningful transcription
-                            try:
-                                lang = state.language or state.lang_detector.current_language or "en"
-                                config = registry.get_config(lang)
-                                transcription_backend = await manager.get_backend(config)
-                                # Build prompt for flush (same as main path)
-                                flush_prompt = state.initial_prompt
-                                if state.glossary_terms:
-                                    glossary_str = ", ".join(state.glossary_terms)
-                                    flush_prompt = f"{glossary_str}. {flush_prompt}" if flush_prompt else glossary_str
-                                if _prev_segment_text:
-                                    ctx = _prev_segment_text[-200:]
-                                    flush_prompt = f"{flush_prompt} {ctx}" if flush_prompt else ctx
-                                result = await asyncio.wait_for(
-                                    transcription_backend.transcribe(
-                                        remaining,
-                                        language=state.language or state.lang_detector.current_language,
-                                        beam_size=config.beam_size,
-                                        initial_prompt=flush_prompt,
-                                    ),
-                                    timeout=30.0,
-                                )
-                                result_data = result.model_dump(include={
-                                    "text", "language", "confidence", "is_final", "segments",
-                                    "stable_text", "unstable_text", "speaker_id",
-                                })
-                                if result.segments:
-                                    result_data["start_ms"] = result.segments[0].start_ms
-                                    result_data["end_ms"] = result.segments[-1].end_ms
-                                else:
-                                    result_data["start_ms"] = None
-                                    result_data["end_ms"] = None
-                                # Dedup overlap on final flush too
-                                deduped = _dedup_overlap(_prev_segment_text, result_data["text"])
-                                result_data["text"] = deduped
-                                if deduped.strip():
-                                    await ws.send_text(json.dumps({
-                                        "type": "segment",
-                                        **result_data,
-                                    }))
-                            except Exception:
-                                logger.warning("final_flush_failed", session_id=session_id)
+                        if len(remaining) >= 4800:
+                            await _run_inference(remaining)
                     break
 
                 audio = np.frombuffer(raw_audio, dtype=np.float32)
-
-                if len(audio) < 1600:  # < 100ms at 16kHz
+                if len(audio) < 1600:
                     continue
 
                 try:
@@ -289,7 +349,6 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
                     new_backend_key = f"{config.backend}:{config.model}"
                     if state.current_backend_key is not None and new_backend_key != state.current_backend_key:
-                        # Release the old backend before switching
                         manager.release_backend(state.current_backend_key)
                         await ws.send_text(json.dumps({
                             "type": "backend_switched",
@@ -299,7 +358,6 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                         }))
                     state.current_backend_key = new_backend_key
 
-                    # Lazily initialize VACOnlineProcessor on first frame
                     if state.vac_processor is None:
                         state.vac_processor = VACOnlineProcessor(
                             prebuffer_s=config.prebuffer_s,
@@ -309,113 +367,18 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
                     await state.vac_processor.feed_audio(audio)
                     if not state.vac_processor.ready_for_inference():
-                        continue  # not enough audio yet
-
-                    inference_audio = state.vac_processor.get_inference_audio()
-
-                    # Build prompt: glossary + user prompt + previous transcription context
-                    effective_prompt = state.initial_prompt
-                    if state.glossary_terms:
-                        glossary_str = ", ".join(state.glossary_terms)
-                        if effective_prompt:
-                            effective_prompt = f"{glossary_str}. {effective_prompt}"
-                        else:
-                            effective_prompt = glossary_str
-                    # Condition on previous output for cross-chunk continuity
-                    if _prev_segment_text:
-                        context_tail = _prev_segment_text[-200:]
-                        if effective_prompt:
-                            effective_prompt = f"{effective_prompt} {context_tail}"
-                        else:
-                            effective_prompt = context_tail
-
-                    result = await asyncio.wait_for(
-                        transcription_backend.transcribe(
-                            inference_audio,
-                            language=state.language or state.lang_detector.current_language,
-                            beam_size=config.beam_size,
-                            initial_prompt=effective_prompt,
-                        ),
-                        timeout=30.0,
-                    )
-
-                    # language_detected fires BEFORE segment
-                    if state.lang_detector.current_language is None:
-                        detected = state.lang_detector.detect_initial(result.language, result.confidence)
-                        await ws.send_text(json.dumps({
-                            "type": "language_detected",
-                            "language": detected,
-                            "confidence": result.confidence,
-                        }))
-                    else:
-                        chunk_duration_s = len(inference_audio) / 16000.0
-                        switched = state.lang_detector.update(result.language, chunk_duration_s)
-                        if switched:
-                            await ws.send_text(json.dumps({
-                                "type": "language_detected",
-                                "language": switched,
-                                "confidence": result.confidence,
-                            }))
-
-                    # Filter hallucinated low-confidence short segments
-                    if result.confidence < 0.4 and len(result.text.split()) <= 3:
-                        logger.debug(
-                            "low_confidence_filtered",
-                            text=result.text,
-                            confidence=result.confidence,
-                            session_id=session_id,
-                        )
                         continue
 
-                    result_data = result.model_dump(include={
-                        "text", "language", "confidence", "is_final", "segments",
-                        "stable_text", "unstable_text", "speaker_id",
-                    })
-                    # Convert chunk-relative timing to session-absolute
-                    chunk_offset_ms = int(_session_samples_consumed / 16)  # 16 samples/ms at 16kHz
-                    if result.segments:
-                        result_data["start_ms"] = result.segments[0].start_ms + chunk_offset_ms
-                        result_data["end_ms"] = result.segments[-1].end_ms + chunk_offset_ms
-                    else:
-                        result_data["start_ms"] = chunk_offset_ms
-                        result_data["end_ms"] = chunk_offset_ms
-                    # Advance session counter (new audio only, not overlap)
-                    overlap_samples = state.vac_processor._overlap_samples if state.vac_processor else 0
-                    _session_samples_consumed += max(0, len(inference_audio) - overlap_samples)
+                    # Don't start new inference if previous is still running
+                    if inference_task and not inference_task.done():
+                        continue
 
-                    # Dedup overlap: strip repeated prefix from previous segment
-                    deduped_text = _dedup_overlap(
-                        _prev_segment_text, result_data["text"]
-                    )
-                    result_data["text"] = deduped_text
-                    _prev_segment_text = result.text  # store original for next dedup
+                    inference_audio = state.vac_processor.get_inference_audio()
+                    inference_task = asyncio.create_task(_run_inference(inference_audio))
 
-                    if deduped_text.strip():
-                        await ws.send_text(json.dumps({
-                            "type": "segment",
-                            **result_data,
-                        }))
-
-                except asyncio.TimeoutError:
-                    logger.error("transcribe_timeout", session_id=session_id)
-                    try:
-                        await ws.send_text(json.dumps({
-                            "type": "error",
-                            "message": "Transcription timed out",
-                            "recoverable": True,
-                        }))
-                    except Exception:
-                        break
                 except Exception as exc:
-                    logger.exception("transcribe_error", session_id=session_id, error=str(exc))
-                    try:
-                        await ws.send_text(json.dumps({
-                            "type": "error",
-                            "message": str(exc),
-                            "recoverable": True,
-                        }))
-                    except Exception:
-                        break  # WS already closed
+                    logger.exception("consumer_error", session_id=session_id, error=str(exc))
+                    continue  # keep processing audio
 
         try:
             await asyncio.gather(producer(), consumer())

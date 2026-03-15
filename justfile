@@ -43,7 +43,7 @@ install:
 # ==============================================================================
 
 # LLM model for translation (vllm-mlx on Mac, Ollama on thomas-pc)
-llm_model := env("LLM_MODEL", "mlx-community/Qwen3.5-4B-4bit")
+llm_model := env("LLM_MODEL", "mlx-community/Qwen3-4B-4bit")
 llm_port := "8000"
 
 # Start all services locally (vllm-mlx handles both Whisper + LLM)

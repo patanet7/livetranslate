@@ -22,6 +22,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
+    "edge-tts>=7.2.7",
+    "mlx-lm>=0.29.1",
+    "torchcodec>=0.10.0",
     "vllm-mlx>=0.2.1",
 ]
 

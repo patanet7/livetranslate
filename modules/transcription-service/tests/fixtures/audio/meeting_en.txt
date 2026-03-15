@@ -1,0 +1,8 @@
+Good morning everyone. Let us start our weekly sync. Sarah, can you give us an update on the transcription pipeline?
+Sure. We have completed the WebSocket integration between the orchestration and transcription services. The streaming pipeline is now working end to end on both Apple Silicon and CUDA.
+That is great progress. What about the translation module?
+Translation is working with Ollama locally. We are using Qwen three point five with no-think mode. Latency is about one to two seconds per segment.
+And how is the accuracy looking?
+We tested with the JFK speech sample. Eighty six percent word match on the transcription side. The overlap dedup is working correctly, no repeated phrases at chunk boundaries.
+What about the Chinese and Japanese language support?
+We have test fixtures for both. The Whisper large v three turbo model handles multilingual well. Chinese character error rate is under five percent on our test samples.
