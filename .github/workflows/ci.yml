@@ -20,7 +20,7 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      whisper: ${{ steps.changes.outputs.whisper }}
+      transcription: ${{ steps.changes.outputs.transcription }}
       translation: ${{ steps.changes.outputs.translation }}
       orchestration: ${{ steps.changes.outputs.orchestration }}
       frontend: ${{ steps.changes.outputs.frontend }}
@@ -30,8 +30,8 @@ jobs:
         id: changes
         with:
           filters: |
-            whisper:
-              - 'modules/whisper-service/**'
+            transcription:
+              - 'modules/transcription-service/**'
             translation:
               - 'modules/translation-service/**'
             orchestration:
@@ -46,9 +46,9 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: whisper-service
-            path: modules/whisper-service
-            changed: ${{ needs.detect-changes.outputs.whisper }}
+          - name: transcription-service
+            path: modules/transcription-service
+            changed: ${{ needs.detect-changes.outputs.transcription }}
           - name: translation-service
             path: modules/translation-service
             changed: ${{ needs.detect-changes.outputs.translation }}
@@ -99,9 +99,9 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: whisper-service
-            path: modules/whisper-service
-            changed: ${{ needs.detect-changes.outputs.whisper }}
+          - name: transcription-service
+            path: modules/transcription-service
+            changed: ${{ needs.detect-changes.outputs.transcription }}
           - name: translation-service
             path: modules/translation-service
             changed: ${{ needs.detect-changes.outputs.translation }}
@@ -146,9 +146,9 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - name: whisper-service
-            path: modules/whisper-service
-            changed: ${{ needs.detect-changes.outputs.whisper }}
+          - name: transcription-service
+            path: modules/transcription-service
+            changed: ${{ needs.detect-changes.outputs.transcription }}
           - name: translation-service
             path: modules/translation-service
             changed: ${{ needs.detect-changes.outputs.translation }}

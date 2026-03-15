@@ -45,7 +45,7 @@ services:
   # Whisper Service (Real NPU/GPU/CPU processing)
   whisper-test:
     build:
-      context: ../../modules/whisper-service
+      context: ../../modules/transcription-service
       dockerfile: Dockerfile
     container_name: livetranslate-whisper-test
     environment:

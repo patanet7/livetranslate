@@ -42,9 +42,9 @@ services:
   # Whisper Service
   whisper:
     build:
-      context: ./modules/whisper-service
+      context: ./modules/transcription-service
       dockerfile: Dockerfile
-    container_name: livetranslate-whisper-service
+    container_name: livetranslate-transcription-service
     restart: unless-stopped
     ports:
       - "5001:5001"

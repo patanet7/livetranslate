@@ -244,7 +244,7 @@ async def main():
         print("\n❌ Not all services ready!")
         print("\nStart services:")
         print("  Terminal 1: cd modules/orchestration-service && python src/main.py")
-        print("  Terminal 2: cd modules/whisper-service && python src/main.py")
+        print("  Terminal 2: cd modules/transcription-service && python src/main.py")
         print("  Terminal 3: cd modules/translation-service && python src/api_server_fastapi.py")
         return 1
 
