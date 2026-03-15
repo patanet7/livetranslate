@@ -12,17 +12,11 @@ from .audio import (
     UnifiedAudioService,
     get_unified_audio_service,
 )
-from .translation import (
-    UnifiedTranslationError,
-    UnifiedTranslationService,
-    get_unified_translation_service,
-)
+
+# NOTE: internal_services.translation removed — superseded by translation.service.TranslationService
 
 __all__ = [
     "UnifiedAudioError",
     "UnifiedAudioService",
-    "UnifiedTranslationError",
-    "UnifiedTranslationService",
     "get_unified_audio_service",
-    "get_unified_translation_service",
 ]

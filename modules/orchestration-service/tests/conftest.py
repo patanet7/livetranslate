@@ -56,6 +56,7 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import numpy as np
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
 
 # Add the src directory to Python path
@@ -964,8 +965,8 @@ def async_db_engine(database_url, run_migrations):
         pass
 
 
-@pytest.fixture
-async def db_session_factory(async_db_engine):
+@pytest_asyncio.fixture(loop_scope="function")
+async def db_session_factory(database_url, run_migrations):
     """Function-scoped async session factory with table-truncation cleanup.
 
     Each session gets its own connection from the engine, supporting
@@ -975,12 +976,23 @@ async def db_session_factory(async_db_engine):
 
     At teardown, all user tables are truncated (preserving
     alembic_version) for clean per-test isolation.
+
+    loop_scope="function" ensures this fixture runs in the same event loop
+    as the test function, preventing RuntimeError from asyncpg connections
+    being attached to a different loop during teardown.
     """
     from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    async_url = database_url
+    if database_url.startswith("postgresql://"):
+        async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    engine = create_async_engine(async_url, poolclass=NullPool)
 
     session_factory = async_sessionmaker(
-        async_db_engine, class_=AsyncSession, expire_on_commit=False
+        engine, class_=AsyncSession, expire_on_commit=False
     )
 
     @asynccontextmanager
@@ -995,7 +1007,7 @@ async def db_session_factory(async_db_engine):
     yield _factory
 
     # Truncate all user tables for test isolation
-    async with async_db_engine.connect() as conn:
+    async with engine.connect() as conn:
         await conn.execute(
             text(
                 "DO $$ DECLARE r RECORD; BEGIN "
@@ -1008,22 +1020,36 @@ async def db_session_factory(async_db_engine):
         )
         await conn.commit()
 
+    await engine.dispose()
 
-@pytest.fixture
-async def db_session(async_db_engine):
-    """Function-scoped single async session with table-truncation cleanup."""
+
+@pytest_asyncio.fixture(loop_scope="function")
+async def db_session(database_url, run_migrations):
+    """Function-scoped single async session with table-truncation cleanup.
+
+    loop_scope="function" ensures this fixture runs in the same event loop
+    as the test function, preventing RuntimeError from asyncpg connections
+    being attached to a different loop during teardown.
+    """
     from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
+
+    async_url = database_url
+    if database_url.startswith("postgresql://"):
+        async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    engine = create_async_engine(async_url, poolclass=NullPool)
 
     session_factory = async_sessionmaker(
-        async_db_engine, class_=AsyncSession, expire_on_commit=False
+        engine, class_=AsyncSession, expire_on_commit=False
     )
 
     async with session_factory() as session:
         yield session
 
     # Truncate all user tables for test isolation
-    async with async_db_engine.connect() as conn:
+    async with engine.connect() as conn:
         await conn.execute(
             text(
                 "DO $$ DECLARE r RECORD; BEGIN "
@@ -1035,6 +1061,8 @@ async def db_session(async_db_engine):
             )
         )
         await conn.commit()
+
+    await engine.dispose()
 
 
 @pytest.fixture(scope="session")

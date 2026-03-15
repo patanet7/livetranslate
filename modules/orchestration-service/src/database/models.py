@@ -24,7 +24,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import relationship
 
 # Import shared Base from base.py to ensure all models share the same MetaData
@@ -853,7 +853,12 @@ class AgentMessage(Base):
 
 
 class Meeting(Base):
-    """Core meeting record — one row per Fireflies meeting session."""
+    """Core meeting record — one row per meeting session (any source).
+
+    Supports Fireflies, loopback mic, and Google Meet bot sources.
+    The ``source`` column distinguishes origin; ``source_type`` is a
+    property alias for pipeline code that uses that name.
+    """
 
     __tablename__ = "meetings"
 
@@ -869,9 +874,27 @@ class Meeting(Base):
     source = Column(Text, nullable=False, default="fireflies")
     status = Column(Text, nullable=False, default="live")
 
+    # Pipeline columns added in migration 013 (loopback / gmeet support)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+    source_languages = Column("source_languages", ARRAY(Text), nullable=True)
+    target_languages = Column("target_languages", ARRAY(Text), nullable=True)
+    recording_path = Column(Text, nullable=True)
+    meeting_metadata = Column("metadata", JSONB, nullable=True)
+    last_activity_at = Column(DateTime(timezone=True), nullable=True, server_default=func.now())
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
+
+    @property
+    def source_type(self) -> str:
+        """Alias for ``source`` — used by pipeline code."""
+        return self.source
+
+    @source_type.setter
+    def source_type(self, value: str) -> None:
+        self.source = value
 
     # Relationships
     chunks = relationship("MeetingChunk", back_populates="meeting", cascade="all, delete-orphan")
@@ -913,7 +936,11 @@ class Meeting(Base):
 
 
 class MeetingChunk(Base):
-    """Deduplicated raw transcript chunks from the real-time stream."""
+    """Deduplicated raw transcript chunks from the real-time stream.
+
+    Used by both Fireflies (via chunk_id dedup) and the loopback/gmeet
+    pipeline (via timestamp_ms + is_final real-time flow).
+    """
 
     __tablename__ = "meeting_chunks"
 
@@ -931,12 +958,28 @@ class MeetingChunk(Base):
     is_command = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
+    # Pipeline columns added in migration 013 (loopback / gmeet support)
+    timestamp_ms = Column(BigInteger, nullable=True)
+    is_final = Column(Boolean, nullable=False, server_default="false")
+    confidence = Column(Float, nullable=True)
+    source_language = Column(Text, nullable=True)
+    source_id = Column(Text, nullable=True)
+    speaker_id = Column(Text, nullable=True)
+
     # Relationships
     meeting = relationship("Meeting", back_populates="chunks")
+    direct_translations = relationship(
+        "MeetingTranslation",
+        back_populates="chunk",
+        cascade="all, delete-orphan",
+        foreign_keys="MeetingTranslation.chunk_id",
+    )
 
     # Indexes and unique constraint
     __table_args__ = (
         Index("idx_chunks_meeting", "meeting_id"),
+        Index("ix_chunks_timestamp_ms", "timestamp_ms"),
+        Index("ix_chunks_is_final", "is_final"),
         UniqueConstraint("meeting_id", "chunk_id", name="uq_meeting_chunks_meeting_chunk"),
     )
 
@@ -963,7 +1006,10 @@ class MeetingSentence(Base):
     # Relationships
     meeting = relationship("Meeting", back_populates="sentences")
     translations = relationship(
-        "MeetingTranslation", back_populates="sentence", cascade="all, delete-orphan"
+        "MeetingTranslation",
+        back_populates="sentence",
+        cascade="all, delete-orphan",
+        foreign_keys="MeetingTranslation.sentence_id",
     )
 
     # Indexes
@@ -975,15 +1021,26 @@ class MeetingSentence(Base):
 
 
 class MeetingTranslation(Base):
-    """Translations of aggregated sentences into target languages."""
+    """Translations linked to either a MeetingSentence or a MeetingChunk.
+
+    - Fireflies / aggregated path: ``sentence_id`` is set, ``chunk_id`` is NULL.
+    - Loopback / gmeet pipeline path: ``chunk_id`` is set, ``sentence_id`` is NULL.
+    """
 
     __tablename__ = "meeting_translations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Nullable: sentence-path uses this, chunk-path leaves it NULL
     sentence_id = Column(
         UUID(as_uuid=True),
         ForeignKey("meeting_sentences.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
+    )
+    # Nullable: chunk-path uses this, sentence-path leaves it NULL
+    chunk_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("meeting_chunks.id", ondelete="CASCADE"),
+        nullable=True,
     )
     translated_text = Column(Text, nullable=False)
     target_language = Column(Text, nullable=False)
@@ -994,11 +1051,21 @@ class MeetingTranslation(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=utc_now)
 
     # Relationships
-    sentence = relationship("MeetingSentence", back_populates="translations")
+    sentence = relationship(
+        "MeetingSentence",
+        back_populates="translations",
+        foreign_keys=[sentence_id],
+    )
+    chunk = relationship(
+        "MeetingChunk",
+        back_populates="direct_translations",
+        foreign_keys=[chunk_id],
+    )
 
     # Indexes
     __table_args__ = (
         Index("idx_mtrans_sentence", "sentence_id"),
+        Index("ix_mtrans_chunk", "chunk_id"),
         Index("idx_mtrans_target_language", "target_language"),
     )
 
@@ -1248,3 +1315,17 @@ class ChatMessageModel(Base):
 
 # Unified AI Connections
 from database.ai_connection import AIConnection  # noqa: F401, E402
+
+# =============================================================================
+# Backward-compatibility aliases for the unified meeting pipeline.
+# These names are also exported from ``database.meeting_models`` (shim).
+# =============================================================================
+
+#: Pipeline alias: Meeting rows created by loopback/gmeet sources.
+MeetingSession = Meeting
+
+#: Pipeline alias: raw real-time transcript chunk rows.
+MeetingTranscript = MeetingChunk
+
+#: Pipeline alias: translation rows attached to a chunk (not a sentence).
+SessionTranslation = MeetingTranslation
