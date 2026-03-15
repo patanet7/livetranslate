@@ -10,6 +10,7 @@ IMPORTANT: These tests will SKIP on Mac (OpenVINO not supported).
 
 # Check OpenVINO availability
 import importlib.util
+import platform
 import sys
 import time
 from pathlib import Path
@@ -17,8 +18,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# OpenVINO is not supported on macOS — skip even if the package is importable
 OPENVINO_AVAILABLE = (
-    importlib.util.find_spec("openvino") is not None
+    platform.system() != "Darwin"
+    and importlib.util.find_spec("openvino") is not None
     and importlib.util.find_spec("openvino_genai") is not None
 )
 
@@ -32,11 +35,11 @@ if OPENVINO_AVAILABLE:
 pytestmark = [
     pytest.mark.slow,
     pytest.mark.integration,
-    pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not installed"),
+    pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not available (not installed or unsupported platform)"),
 ]
 
 
-@pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not installed")
+@pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not available (not installed or unsupported platform)")
 class TestOpenVINOModelManagerREAL:
     """
     REAL integration tests for OpenVINO - NO MOCKS!
@@ -63,7 +66,11 @@ class TestOpenVINOModelManagerREAL:
             models_dir=".models/openvino",  # Separate OpenVINO models!
         )
         print(f"✅ Model loaded on device: {manager.device}")
-        return manager
+        try:
+            yield manager
+        finally:
+            print("\n🧹 Shutting down NPU manager...")
+            manager.shutdown()
 
     @pytest.fixture(scope="class")
     def openvino_manager_cpu(self):
@@ -76,7 +83,11 @@ class TestOpenVINOModelManagerREAL:
             model_name="whisper-tiny", device="cpu", models_dir=".models/openvino"
         )
         print(f"✅ Model loaded on device: {manager.device}")
-        return manager
+        try:
+            yield manager
+        finally:
+            print("\n🧹 Shutting down CPU manager...")
+            manager.shutdown()
 
     def test_openvino_model_actually_loads(self, openvino_manager_cpu):
         """Test that OpenVINO model actually loads (NO MOCKS!)"""
@@ -139,14 +150,17 @@ class TestOpenVINOModelManagerREAL:
             models_dir=".models/openvino",
         )
 
-        detected_device = manager.device
-        print(f"✅ Auto-detected device: {detected_device}")
+        try:
+            detected_device = manager.device
+            print(f"✅ Auto-detected device: {detected_device}")
 
-        # Should have selected one of the valid devices
-        assert detected_device in ["npu", "gpu", "cpu"]
+            # Should have selected one of the valid devices
+            assert detected_device in ["npu", "gpu", "cpu"]
 
-        # Verify model is actually loaded
-        assert manager.pipeline is not None
+            # Verify model is actually loaded
+            assert manager.pipeline is not None
+        finally:
+            manager.shutdown()
 
     def test_openvino_npu_inference_if_available(self, openvino_manager_npu, hello_world_audio):
         """Test NPU inference if NPU is available"""
@@ -202,20 +216,24 @@ class TestOpenVINOModelManagerREAL:
         models = ["whisper-tiny", "whisper-base"]
         managers = []
 
-        for model_name in models:
-            try:
-                manager = ModelManager(
-                    model_name=model_name, device="cpu", models_dir=".models/openvino"
-                )
-                managers.append(manager)
-                print(f"  Loaded: {model_name}")
-            except Exception as e:
-                print(f"  Skipped {model_name}: {e}")
+        try:
+            for model_name in models:
+                try:
+                    manager = ModelManager(
+                        model_name=model_name, device="cpu", models_dir=".models/openvino"
+                    )
+                    managers.append(manager)
+                    print(f"  Loaded: {model_name}")
+                except Exception as e:
+                    print(f"  Skipped {model_name}: {e}")
 
-        # At least one should have loaded
-        assert len(managers) > 0
+            # At least one should have loaded
+            assert len(managers) > 0
 
-        print(f"✅ Loaded {len(managers)} models")
+            print(f"✅ Loaded {len(managers)} models")
+        finally:
+            for mgr in managers:
+                mgr.shutdown()
 
     def test_openvino_health_check(self, openvino_manager_cpu):
         """Test health check with real model"""
@@ -273,7 +291,7 @@ class TestOpenVINOModelManagerREAL:
         assert len(xml_files) > 0 or len(bin_files) > 0, "Should have OpenVINO model files"
 
 
-@pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not installed")
+@pytest.mark.skipif(not OPENVINO_AVAILABLE, reason="OpenVINO not available (not installed or unsupported platform)")
 class TestOpenVINOPerformanceREAL:
     """Performance tests with REAL OpenVINO models"""
 
@@ -281,7 +299,12 @@ class TestOpenVINOPerformanceREAL:
     def manager(self):
         if not OPENVINO_AVAILABLE:
             pytest.skip("OpenVINO not available")
-        return ModelManager(model_name="whisper-tiny", device="cpu", models_dir=".models/openvino")
+        mgr = ModelManager(model_name="whisper-tiny", device="cpu", models_dir=".models/openvino")
+        try:
+            yield mgr
+        finally:
+            print("\n🧹 Shutting down performance test manager...")
+            mgr.shutdown()
 
     def test_openvino_inference_performance(self, manager, hello_world_audio):
         """Measure real OpenVINO inference performance"""
