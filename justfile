@@ -285,9 +285,10 @@ benchmark-vac lang="zh" stub="false" model="large-v3-turbo" backend="vllm":
         --output-dir benchmarks/results/vac_sweep \
         $STUB_FLAG
 
-# Full pipeline benchmark — VAC × translation sweep
+# Full pipeline benchmark — VAC × translation sweep (real-time configs only)
 # Usage: just benchmark-pipeline [lang=zh] [target=en] [stub=false] [model=qwen3.5:7b]
 #   Sweeps: strides × overlaps × context_sizes × temperatures × max_context_tokens
+#   Strides capped at 6.0s — anything higher is not real-time (see benchmark-offline)
 benchmark-pipeline lang="zh" target="en" stub="false" model="qwen3.5:7b":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -297,11 +298,29 @@ benchmark-pipeline lang="zh" target="en" stub="false" model="qwen3.5:7b":
         --lang        {{lang}} \
         --target-lang {{target}} \
         --model       {{model}} \
-        --strides 4.0 6.0 \
+        --strides 3.5 4.5 6.0 \
         --overlaps 0.5 1.0 1.5 \
         --context-sizes 0 3 5 \
-        --temperatures 0.0 0.3 \
+        --temperatures 0.1 0.3 0.7 \
         --max-context-tokens 200 500 \
+        --prebuffer 0.5 \
+        $STUB_FLAG
+
+# Offline transcript quality benchmark (post-meeting refinement, stride up to 10s)
+benchmark-offline lang="zh" target="en" stub="false" model="qwen3.5:7b":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STUB_FLAG=""
+    if [ "{{stub}}" = "true" ]; then STUB_FLAG="--stub"; fi
+    cd {{transcription_dir}} && uv run python -m benchmarks.pipeline_benchmark \
+        --lang        {{lang}} \
+        --target-lang {{target}} \
+        --model       {{model}} \
+        --strides 6.0 8.0 10.0 \
+        --overlaps 1.5 2.0 2.5 \
+        --context-sizes 5 8 \
+        --temperatures 0.1 0.7 \
+        --max-context-tokens 500 800 \
         --prebuffer 0.5 \
         $STUB_FLAG
 
