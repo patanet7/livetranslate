@@ -18,7 +18,6 @@ import gc
 import os
 import threading
 import time
-import weakref
 from contextlib import contextmanager
 from pathlib import Path
 from queue import Queue
@@ -62,6 +61,26 @@ class OpenVINOModelManager:
     This class manages Whisper model loading, inference, and lifecycle with specific optimizations
     for Intel NPU devices, including automatic fallback, memory management, and thread safety.
     """
+
+    # Class-level singleton for ov.Core() to avoid repeated plugin initialization
+    _ov_core: "ov.Core | None" = None
+    _ov_core_lock = threading.Lock()
+
+    @classmethod
+    def _get_ov_core(cls) -> "ov.Core":
+        """Get or create the shared ov.Core() singleton."""
+        if cls._ov_core is None:
+            with cls._ov_core_lock:
+                if cls._ov_core is None:
+                    cls._ov_core = ov.Core()
+        return cls._ov_core
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.shutdown()
+        return False
 
     def __init__(
         self,
@@ -111,9 +130,6 @@ class OpenVINOModelManager:
         self.memory_pressure_threshold = 0.8  # 80% memory usage triggers cleanup
         self.max_cached_models = 3  # Maximum models to keep in memory
 
-        # Weak references for automatic cleanup
-        self._pipeline_refs = weakref.WeakValueDictionary()
-
         logger.info("ModelManager initialized:")
         logger.info(f"  Device: {self.device}")
         logger.info(f"  Models directory: {self.models_dir}")
@@ -140,8 +156,8 @@ class OpenVINOModelManager:
                 logger.info(f"Using device from environment: {env_device}")
                 return env_device.upper()
 
-            # Auto-detect available devices
-            core = ov.Core()
+            # Auto-detect available devices (use shared singleton)
+            core = self._get_ov_core()
             available_devices = core.available_devices
             logger.info(f"Available OpenVINO devices: {available_devices}")
 
@@ -304,7 +320,6 @@ class OpenVINOModelManager:
                 # Store pipeline and metadata
                 self.pipelines[model_name] = pipeline
                 self.last_used[model_name] = time.time()
-                self._pipeline_refs[model_name] = pipeline
 
                 logger.info(f"✓ Model {model_name} loaded successfully on {self.device}")
                 return pipeline
@@ -531,7 +546,6 @@ class OpenVINOModelManager:
             "memory_stats": {
                 "cached_models": len(self.pipelines),
                 "max_cached_models": self.max_cached_models,
-                "weak_refs": len(self._pipeline_refs),
             },
         }
 
