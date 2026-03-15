@@ -14,8 +14,6 @@ from .fireflies_client import (
     FirefliesGraphQLClient,
     FirefliesRealtimeClient,
 )
-from .translation_service_client import TranslationServiceClient
-
 __all__ = [
     "AudioServiceClient",
     "FirefliesAPIError",
@@ -25,5 +23,4 @@ __all__ = [
     "FirefliesConnectionError",
     "FirefliesGraphQLClient",
     "FirefliesRealtimeClient",
-    "TranslationServiceClient",
 ]

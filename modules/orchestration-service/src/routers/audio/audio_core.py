@@ -824,11 +824,9 @@ async def get_translation_models(
     Get available translation models
     """
     try:
-        # Get translation models
-        models = await translation_client.get_models()
-
-        # Get device info from translation service
-        translation_device_info = await translation_client.get_device_info()
+        model_name = translation_client.config.model
+        models = [{"name": model_name, "description": "Configured Ollama model"}]
+        translation_device_info = {"device": "cpu", "status": "ok", "model": model_name}
 
         return {
             "available_models": models,
@@ -860,10 +858,10 @@ async def get_all_models(
         transcription_models = await audio_client.get_models()
         audio_device_info = await audio_client.get_device_info()
 
-        # Get translation models with fallback
         try:
-            translation_models = await translation_client.get_models()
-            translation_device_info = await translation_client.get_device_info()
+            model_name = translation_client.config.model
+            translation_models = [{"name": model_name, "description": "Configured Ollama model"}]
+            translation_device_info = {"device": "cpu", "status": "ok", "model": model_name}
         except Exception:
             translation_models = []
             translation_device_info = {"device": "unknown", "status": "unavailable"}

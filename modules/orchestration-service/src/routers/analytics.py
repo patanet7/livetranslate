@@ -906,33 +906,18 @@ async def _collect_translation_metrics(
     translation_client, start_time: datetime, end_time: datetime
 ) -> TranslationMetrics:
     """Collect translation service metrics"""
-    try:
-        stats = await translation_client.get_analytics()
-
-        return TranslationMetrics(
-            total_translations=stats.get("total_translations", 0),
-            average_translation_time_ms=stats.get("avg_translation_time_ms", 0),
-            character_count=stats.get("total_characters", 0),
-            language_pairs_active=stats.get("active_language_pairs", []),
-            accuracy_score=stats.get("accuracy_score", 0),
-            cache_hit_rate=stats.get("cache_hit_rate", 0),
-            failed_translations=stats.get("failed_translations", 0),
-            model_performance=stats.get("model_performance", {}),
-            timestamp=end_time,
-        )
-    except Exception as e:
-        logger.error(f"Failed to collect translation metrics: {e}")
-        return TranslationMetrics(
-            total_translations=0,
-            average_translation_time_ms=0,
-            character_count=0,
-            language_pairs_active=[],
-            accuracy_score=0,
-            cache_hit_rate=0,
-            failed_translations=0,
-            model_performance={},
-            timestamp=end_time,
-        )
+    # get_analytics() is not yet available on TranslationService; return empty metrics.
+    return TranslationMetrics(
+        total_translations=0,
+        average_translation_time_ms=0,
+        character_count=0,
+        language_pairs_active=[],
+        accuracy_score=0,
+        cache_hit_rate=0,
+        failed_translations=0,
+        model_performance={},
+        timestamp=end_time,
+    )
 
 
 async def _collect_websocket_metrics(
