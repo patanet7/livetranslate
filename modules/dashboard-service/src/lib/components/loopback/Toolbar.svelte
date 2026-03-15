@@ -10,10 +10,10 @@
 		onDeviceChange?: (deviceId: string) => void;
 		onStartCapture?: () => void;
 		onStopCapture?: () => void;
-		onStart?: () => void;
-		onStop?: () => void;
 		onStartMeeting?: () => void;
 		onEndMeeting?: () => void;
+		/** I1: Callback to send config changes to the server via WebSocket */
+		onConfigChange?: (config: { model?: string; language?: string }) => void;
 	}
 
 	let {
@@ -22,19 +22,10 @@
 		onDeviceChange,
 		onStartCapture,
 		onStopCapture,
-		onStart,
-		onStop,
 		onStartMeeting,
 		onEndMeeting,
+		onConfigChange,
 	}: Props = $props();
-
-	function handleStartCapture() {
-		(onStartCapture ?? onStart)?.();
-	}
-
-	function handleStopCapture() {
-		(onStopCapture ?? onStop)?.();
-	}
 
 	const SOURCE_LANGUAGES = [
 		{ value: 'auto', label: 'Auto Detect' },
@@ -72,14 +63,26 @@
 	let targetLanguageValue = $state(loopbackStore.targetLanguage);
 	let modelOverride = $state('auto');
 
-	// Sync source language changes to store
+	// Sync source language changes to store and notify server
 	$effect(() => {
-		loopbackStore.sourceLanguage = sourceLanguageValue === 'auto' ? null : sourceLanguageValue;
+		const lang = sourceLanguageValue === 'auto' ? null : sourceLanguageValue;
+		loopbackStore.sourceLanguage = lang;
+		// I2: Send config change to server if capturing
+		if (loopbackStore.isCapturing && lang) {
+			onConfigChange?.({ language: lang });
+		}
 	});
 
 	// Sync target language changes to store
 	$effect(() => {
 		loopbackStore.targetLanguage = targetLanguageValue;
+	});
+
+	// I1: Send model override to server when changed during active session
+	$effect(() => {
+		if (loopbackStore.isCapturing && modelOverride !== 'auto') {
+			onConfigChange?.({ model: modelOverride });
+		}
 	});
 
 	function statusColor(status: 'up' | 'down'): string {
@@ -185,11 +188,11 @@
 	<!-- Capture Controls -->
 	<div class="toolbar-group toolbar-actions">
 		{#if loopbackStore.isCapturing}
-			<Button variant="destructive" size="sm" onclick={handleStopCapture}>
+			<Button variant="destructive" size="sm" onclick={onStopCapture}>
 				Stop Capture
 			</Button>
 		{:else}
-			<Button variant="default" size="sm" onclick={handleStartCapture}>
+			<Button variant="default" size="sm" onclick={onStartCapture}>
 				Start Capture
 			</Button>
 		{/if}
