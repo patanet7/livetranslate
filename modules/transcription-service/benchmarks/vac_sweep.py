@@ -54,9 +54,11 @@ from benchmarks.metrics import (
 
 # Each dimension represents the range of values to sweep.
 # Modify these lists to widen or narrow the search space.
+# Default grid for real-time streaming (caption delay ≤7s).
+# For offline/post-meeting, just run Whisper on the whole file — no VAC needed.
 PREBUFFER_VALUES: list[float] = [0.5, 1.0, 1.5, 2.0, 3.0]
-STRIDE_VALUES: list[float] = [1.5, 2.5, 3.5, 4.5, 6.0, 8.0, 10.0]
-OVERLAP_VALUES: list[float] = [0.3, 0.5, 1.0, 1.5, 2.0, 2.5]
+STRIDE_VALUES: list[float] = [1.5, 2.5, 3.5, 4.5, 6.0]
+OVERLAP_VALUES: list[float] = [0.3, 0.5, 1.0, 1.5]
 
 # Hallucination heuristic: if the last segment's character length
 # relative to any prior segment is unusually large AND its CER against

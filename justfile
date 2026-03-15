@@ -306,23 +306,6 @@ benchmark-pipeline lang="zh" target="en" stub="false" model="qwen3.5:7b":
         --prebuffer 0.5 \
         $STUB_FLAG
 
-# Offline transcript quality benchmark (post-meeting refinement, stride up to 10s)
-benchmark-offline lang="zh" target="en" stub="false" model="qwen3.5:7b":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    STUB_FLAG=""
-    if [ "{{stub}}" = "true" ]; then STUB_FLAG="--stub"; fi
-    cd {{transcription_dir}} && uv run python -m benchmarks.pipeline_benchmark \
-        --lang        {{lang}} \
-        --target-lang {{target}} \
-        --model       {{model}} \
-        --strides 6.0 8.0 10.0 \
-        --overlaps 1.5 2.0 2.5 \
-        --context-sizes 5 8 \
-        --temperatures 0.1 0.7 \
-        --max-context-tokens 500 800 \
-        --prebuffer 0.5 \
-        $STUB_FLAG
 
 # Quick pipeline benchmark — context sweep only (no temperature/token sweep)
 benchmark-pipeline-quick lang="zh" target="en" stub="false" model="qwen3.5:7b":
