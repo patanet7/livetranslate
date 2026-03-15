@@ -1,0 +1,6 @@
+Good morning everyone. Let's begin the weekly meeting. Maria, can you give us an update on the translation project?
+Sure. We've completed the integration of the transcription service with the translation module. The system can now transcribe and translate in real time.
+And how is the accuracy of the Chinese to Spanish translation working?
+The results are quite good. The error rate is less than ten percent for short sentences. For longer texts, context significantly improves the quality.
+Excellent. What are the next steps?
+We need to run tests with real meetings with multiple participants. We also want to add automatic language detection.

@@ -31,6 +31,50 @@ from vac_online_processor import VACOnlineProcessor
 logger = get_logger()
 
 
+class SimpleStabilityTracker:
+    """Track which words are stable (seen in 2+ consecutive decodes).
+
+    Words behind (chunk_start + overlap_s) in the previous decode are considered
+    stable — they've been seen by two overlapping inference windows and are
+    unlikely to change. Words in the last overlap window are unstable.
+    """
+
+    def __init__(self, overlap_s: float = 1.0) -> None:
+        self._overlap_s = overlap_s
+
+    def split(self, text: str, segments: list) -> tuple[str, str]:
+        """Split text into (stable, unstable) based on segment timing.
+
+        If there are timed segments, words whose end_ms falls before the overlap
+        boundary are stable. Otherwise, fall back to keeping the last ~20% as
+        unstable.
+        """
+        if not text:
+            return "", ""
+
+        overlap_ms = int(self._overlap_s * 1000)
+
+        # Use segment timing if available
+        if segments:
+            last_end_ms = max(s.end_ms for s in segments)
+            cutoff_ms = last_end_ms - overlap_ms
+            stable_parts = []
+            unstable_parts = []
+            for seg in segments:
+                if seg.end_ms <= cutoff_ms:
+                    stable_parts.append(seg.text)
+                else:
+                    unstable_parts.append(seg.text)
+            return " ".join(stable_parts), " ".join(unstable_parts)
+
+        # Fallback: last 20% of words are unstable
+        words = text.split()
+        if len(words) <= 2:
+            return "", text
+        cut = max(1, len(words) - max(1, len(words) // 5))
+        return " ".join(words[:cut]), " ".join(words[cut:])
+
+
 @dataclass
 class SessionState:
     session_id: str
@@ -65,8 +109,8 @@ def _dedup_overlap(prev_text: str, new_text: str) -> str:
     new_norm = _normalize(new_words)
 
     # Try progressively shorter suffixes of prev (normalized for punctuation)
-    # Cap at 8 words (~0.5s overlap at ~2.5 words/s) to avoid O(n^2)
-    max_overlap = min(len(prev_norm), len(new_norm), 8)
+    # Cap at 12 words (~1.0s overlap at ~2.5 words/s) to avoid O(n^2)
+    max_overlap = min(len(prev_norm), len(new_norm), 12)
     for overlap_len in range(max_overlap, 0, -1):
         suffix = prev_norm[-overlap_len:]
         prefix = new_norm[:overlap_len]
@@ -185,6 +229,7 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
         state = SessionState(session_id=session_id)
         # Track previous segment text for overlap dedup + context passing
         _prev_segment_text: str = ""
+        _stability_tracker: SimpleStabilityTracker | None = None
         # Track session-level sample count for absolute timestamps
         _session_samples_consumed: int = 0
 
@@ -235,23 +280,45 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                 transcription_backend = await manager.get_backend(config)
 
                 # Build prompt: glossary + user prompt + previous transcription context
+                # CJK languages: limit prompt to 80 chars (longer prompts cause decoder copying)
+                is_cjk = lang in ("zh", "ja", "ko")
+                max_prompt_chars = 80 if is_cjk else 200
                 effective_prompt = state.initial_prompt
                 if state.glossary_terms:
                     glossary_str = ", ".join(state.glossary_terms)
                     effective_prompt = f"{glossary_str}. {effective_prompt}" if effective_prompt else glossary_str
                 if _prev_segment_text:
-                    context_tail = _prev_segment_text[-200:]
+                    context_tail = _prev_segment_text[-max_prompt_chars:]
+                    # Trim to last complete sentence boundary for CJK
+                    # Keep full tail if trimming would produce empty context
+                    if is_cjk:
+                        for sep in ("。", "！", "？", "，"):  # noqa: RUF001 — CJK punctuation
+                            idx = context_tail.rfind(sep)
+                            if idx >= 0 and idx < len(context_tail) - 1:
+                                context_tail = context_tail[idx + 1:]
+                                break
                     effective_prompt = f"{effective_prompt} {context_tail}" if effective_prompt else context_tail
 
-                result = await asyncio.wait_for(
-                    transcription_backend.transcribe(
-                        inference_audio,
-                        language=state.language or state.lang_detector.current_language,
-                        beam_size=config.beam_size,
-                        initial_prompt=effective_prompt,
-                    ),
-                    timeout=30.0,
-                )
+                try:
+                    result = await asyncio.wait_for(
+                        transcription_backend.transcribe(
+                            inference_audio,
+                            language=state.language or state.lang_detector.current_language,
+                            beam_size=config.beam_size,
+                            initial_prompt=effective_prompt,
+                        ),
+                        timeout=30.0,
+                    )
+                    manager.record_success(config)
+                except (TimeoutError, RuntimeError):
+                    manager.record_failure(config)
+                    raise
+
+                # Gate: suppress if no_speech_prob indicates silence
+                # Must fire BEFORE language detector update to avoid polluting LID state
+                if result.no_speech_prob is not None and result.no_speech_prob > 0.6:
+                    logger.debug("no_speech_filtered", no_speech_prob=result.no_speech_prob)
+                    return
 
                 # language_detected fires BEFORE segment
                 if state.lang_detector.current_language is None:
@@ -270,6 +337,20 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                             "language": switched,
                             "confidence": result.confidence,
                         }))
+
+                # Language consistency filter: discard wrong-script hallucinations
+                if (
+                    state.language
+                    and result.language != state.language
+                    and result.confidence < 0.7
+                ):
+                    logger.debug(
+                        "language_mismatch_filtered",
+                        expected=state.language,
+                        detected=result.language,
+                        confidence=result.confidence,
+                    )
+                    return
 
                 # Filter hallucinated low-confidence short segments
                 if result.confidence < 0.4 and len(result.text.split()) <= 3:
@@ -295,6 +376,15 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                 deduped_text = _dedup_overlap(_prev_segment_text, result_data["text"])
                 result_data["text"] = deduped_text
                 _prev_segment_text = result.text
+
+                # Stability tracking: split into stable/unstable text
+                nonlocal _stability_tracker
+                if _stability_tracker is None:
+                    overlap = state.vac_processor.overlap_s if state.vac_processor else 1.0
+                    _stability_tracker = SimpleStabilityTracker(overlap_s=overlap)
+                stable, unstable = _stability_tracker.split(deduped_text, result.segments)
+                result_data["stable_text"] = stable
+                result_data["unstable_text"] = unstable
 
                 if deduped_text.strip():
                     await ws.send_text(json.dumps({

@@ -260,3 +260,88 @@ info:
     @curl -s http://localhost:3000/health 2>/dev/null && echo "  Orchestration: UP" || echo "  Orchestration: DOWN"
     @curl -s http://localhost:5173 2>/dev/null > /dev/null && echo "  Dashboard: UP" || echo "  Dashboard: DOWN"
     @curl -s http://localhost:11434/api/tags 2>/dev/null > /dev/null && echo "  Ollama: UP" || echo "  Ollama: DOWN"
+
+# ==============================================================================
+# Benchmarks
+# ==============================================================================
+
+# VAC parameter sweep — finds optimal prebuffer/stride/overlap for a language
+# Usage: just benchmark-vac [lang=zh] [stub=true] [model=large-v3-turbo] [backend=vllm]
+#   lang:     source language code (zh/en/ja/es)
+#   stub:     set to "true" to use stub transcriber (no GPU/service required)
+#   model:    Whisper model name (default: large-v3-turbo)
+#   backend:  whisper backend — vllm, faster-whisper, mlx (default: vllm)
+benchmark-vac lang="zh" stub="false" model="large-v3-turbo" backend="vllm":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STUB_FLAG=""
+    if [ "{{stub}}" = "true" ]; then STUB_FLAG="--stub"; fi
+    cd {{transcription_dir}} && uv run python -m benchmarks.vac_sweep \
+        --audio tests/fixtures/audio/meeting_{{lang}}.wav \
+        --ref   tests/fixtures/audio/meeting_{{lang}}.txt \
+        --lang  {{lang}} \
+        --model {{model}} \
+        --backend {{backend}} \
+        --output-dir benchmarks/results/vac_sweep \
+        $STUB_FLAG
+
+# Full pipeline benchmark — VAC × translation sweep
+# Usage: just benchmark-pipeline [lang=zh] [target=en] [stub=false] [model=qwen3.5:7b]
+#   Sweeps: strides × overlaps × context_sizes × temperatures × max_context_tokens
+benchmark-pipeline lang="zh" target="en" stub="false" model="qwen3.5:7b":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STUB_FLAG=""
+    if [ "{{stub}}" = "true" ]; then STUB_FLAG="--stub"; fi
+    cd {{transcription_dir}} && uv run python -m benchmarks.pipeline_benchmark \
+        --lang        {{lang}} \
+        --target-lang {{target}} \
+        --model       {{model}} \
+        --strides 4.0 6.0 \
+        --overlaps 0.5 1.0 1.5 \
+        --context-sizes 0 3 5 \
+        --temperatures 0.0 0.3 \
+        --max-context-tokens 200 500 \
+        --prebuffer 0.5 \
+        $STUB_FLAG
+
+# Quick pipeline benchmark — context sweep only (no temperature/token sweep)
+benchmark-pipeline-quick lang="zh" target="en" stub="false" model="qwen3.5:7b":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    STUB_FLAG=""
+    if [ "{{stub}}" = "true" ]; then STUB_FLAG="--stub"; fi
+    cd {{transcription_dir}} && uv run python -m benchmarks.pipeline_benchmark \
+        --lang        {{lang}} \
+        --target-lang {{target}} \
+        --model       {{model}} \
+        --context-sizes 0 3 5 \
+        --prebuffer 0.5 \
+        --stride 6.0 \
+        --overlap 1.5 \
+        $STUB_FLAG
+
+# Run benchmark pytest suite (no GPU — stub backend only)
+benchmark-tests:
+    uv run pytest {{transcription_dir}}/tests/benchmarks/test_vac_sweep.py \
+                  {{transcription_dir}}/tests/benchmarks/test_pipeline_benchmark.py \
+                  -v -s --timeout=120 -m benchmark
+
+# Full benchmark: VAC sweep + pipeline benchmark across all meeting languages (stub)
+# Use this for CI dry-run validation. Set stub=false to use real backend.
+benchmark lang="zh" stub="true":
+    @echo "=== VAC Sweep ({{lang}}, stub={{stub}}) ==="
+    just benchmark-vac lang={{lang}} stub={{stub}}
+    @echo ""
+    @echo "=== Pipeline Benchmark ({{lang}}→en, stub={{stub}}) ==="
+    just benchmark-pipeline lang={{lang}} target=en stub={{stub}}
+    @echo ""
+    @echo "Benchmark complete. Results in modules/transcription-service/benchmarks/results/"
+
+# Benchmark all languages sequentially (stub mode for CI)
+benchmark-all-stub:
+    @echo "=== Benchmarking all languages (stub mode) ==="
+    just benchmark lang=zh stub=true
+    just benchmark lang=en stub=true
+    just benchmark lang=ja stub=true
+    just benchmark lang=es stub=true

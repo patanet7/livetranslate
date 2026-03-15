@@ -424,6 +424,26 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Diarization worker failed to start: {e}")
 
+        # Warm up translation LLM at startup (not per-session)
+        try:
+            from translation.config import TranslationConfig
+            from translation.service import TranslationService
+            from livetranslate_common.models import TranslationRequest
+
+            translation_config = TranslationConfig()
+            translation_service = TranslationService(translation_config)
+            await translation_service.translate(TranslationRequest(
+                text="hello",
+                source_language="en",
+                target_language="es",
+            ))
+            translation_service.clear_context()
+            app.state.translation_service_warmed = True
+            logger.info("llm_warm_up_complete_at_startup")
+        except Exception as e:
+            app.state.translation_service_warmed = False
+            logger.debug("llm_warm_up_skipped_at_startup", reason=str(e))
+
         yield
 
     except Exception as e:

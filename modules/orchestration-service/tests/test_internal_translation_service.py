@@ -20,7 +20,7 @@ def test_translation_service_module_placeholder():
 
     # Verify the new service can be instantiated
     config = TranslationConfig(
-        llm_base_url="http://localhost:11434/v1",
+        base_url="http://localhost:11434/v1",
         model="test-model",
     )
     service = TranslationService(config)

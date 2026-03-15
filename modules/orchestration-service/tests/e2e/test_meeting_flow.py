@@ -205,7 +205,7 @@ class TestTranslationOnFinalSegments:
 
         # Use explicit config: prefer local Ollama, fall back to env config
         config = TranslationConfig(
-            llm_base_url=os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"),
+            base_url=os.getenv("LLM_BASE_URL", "http://localhost:11434/v1"),
             model=os.getenv("LLM_MODEL", "qwen3.5:4b"),
             timeout_s=30,  # generous for cold-start inference on local Ollama
         )

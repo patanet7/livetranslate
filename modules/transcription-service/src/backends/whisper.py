@@ -316,13 +316,20 @@ class WhisperBackend:
         model = self._model  # local ref avoids closure capture of self
 
         def _run():
+            # Merge defaults with caller kwargs (caller wins on collision)
+            transcribe_kwargs = {
+                "temperature": (0.0,),
+                "no_speech_threshold": 0.6,
+                "word_timestamps": True,
+            }
+            transcribe_kwargs.update(kwargs)
             segs_iter, info = model.transcribe(
                 audio,
                 language=language,
                 beam_size=self._beam_size,
                 vad_filter=self._vad_filter,
                 vad_parameters=self._vad_parameters,
-                **kwargs,
+                **transcribe_kwargs,
             )
             return list(segs_iter), info
 
@@ -354,6 +361,7 @@ class WhisperBackend:
             segments=seg_models,
             is_final=True,
             is_draft=False,
+            no_speech_prob=getattr(info, "no_speech_prob", None),
         )
 
     async def transcribe_stream(
@@ -387,13 +395,19 @@ class WhisperBackend:
         model = self._model  # local ref avoids closure capture of self
 
         def _run():
+            transcribe_kwargs = {
+                "temperature": (0.0,),
+                "no_speech_threshold": 0.6,
+                "word_timestamps": True,
+            }
+            transcribe_kwargs.update(kwargs)
             segs_iter, info = model.transcribe(
                 audio,
                 language=language,
                 beam_size=self._beam_size,
                 vad_filter=self._vad_filter,
                 vad_parameters=self._vad_parameters,
-                **kwargs,
+                **transcribe_kwargs,
             )
             return list(segs_iter), info
 

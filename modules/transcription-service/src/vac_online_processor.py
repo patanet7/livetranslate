@@ -941,10 +941,38 @@ class VACOnlineProcessor:
         - Before the first inference: fires once ``prebuffer_s`` has been fed.
         - After the first inference: fires once ``stride_s`` of *new* audio
           has accumulated since the previous inference.
+        - Suppressed if the new audio is pure silence (RMS < threshold).
         """
         if not self._first_inference_done:
-            return self._buffer_samples >= self._prebuffer_samples
-        return self._new_samples_since_inference >= self._stride_samples
+            if self._buffer_samples < self._prebuffer_samples:
+                return False
+        elif self._new_samples_since_inference < self._stride_samples:
+            return False
+        return self._has_speech()
+
+    def _has_speech(self, rms_threshold: float = 0.005) -> bool:
+        """Check if recent audio contains speech (RMS energy above threshold).
+
+        Only checks the last 0.5s of buffered audio to avoid O(n) concatenation
+        of the full buffer on every 100ms frame.
+        """
+        if not self._buffer:
+            return False
+        # Check only the last ~0.5s (8000 samples) for efficiency
+        check_samples = min(self._buffer_samples, 8000)
+        # Take from the last chunk(s) in the deque
+        chunks = []
+        remaining = check_samples
+        for chunk in reversed(self._buffer):
+            if remaining <= 0:
+                break
+            chunks.append(chunk[-remaining:] if len(chunk) > remaining else chunk)
+            remaining -= len(chunk)
+        if not chunks:
+            return False
+        audio = np.concatenate(chunks[::-1], axis=0)
+        rms = float(np.sqrt(np.mean(audio ** 2)))
+        return rms > rms_threshold
 
     def get_inference_audio(self) -> np.ndarray:
         """Return concatenated buffer audio for the next inference call.
