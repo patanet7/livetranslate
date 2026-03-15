@@ -55,12 +55,13 @@ _MEETING_FILES: dict[str, tuple[str, str]] = {
     "es": ("meeting_es.wav", "meeting_es.txt"),
 }
 
-# Translation reference files (ground-truth English translations of zh/ja/es)
-_TRANSLATION_REFS: dict[str, str] = {
-    "zh": "meeting_zh_en.reference.txt",
-    "ja": "meeting_ja_en.reference.txt",
-    "es": "meeting_es_en.reference.txt",
-    "en": "",  # no translation needed
+# Translation reference files keyed by (source_lang, target_lang)
+_TRANSLATION_REFS: dict[tuple[str, str], str] = {
+    ("zh", "en"): "meeting_zh_en.reference.txt",
+    ("ja", "en"): "meeting_ja_en.reference.txt",
+    ("es", "en"): "meeting_es_en.reference.txt",
+    ("en", "zh"): "meeting_en_zh.reference.txt",
+    ("en", "en"): "",  # no translation needed
 }
 
 
@@ -98,6 +99,9 @@ class PipelineResult:
     # Summary
     segment_count: int
     hallucination_flag: bool
+    # VAC config (for sweep tracking)
+    vac_stride_s: float = 4.0
+    vac_overlap_s: float = 1.0
     # Translation config (for sweep)
     llm_temperature: float = 0.3
     max_context_tokens: int = 500
@@ -360,6 +364,8 @@ async def run_pipeline(
         segments=segments,
         segment_count=len(segments),
         hallucination_flag=hallucination,
+        vac_stride_s=vac_stride_s,
+        vac_overlap_s=vac_overlap_s,
         llm_temperature=llm_temperature,
         max_context_tokens=max_context_tokens,
     )
@@ -513,7 +519,7 @@ def main() -> None:
         _, txt = _MEETING_FILES.get(args.lang, ("meeting_en.wav", "meeting_en.txt"))
         ref_path = _FIXTURES / txt
 
-    ref_trans_path = _FIXTURES / _TRANSLATION_REFS.get(args.lang, "")
+    ref_trans_path = _FIXTURES / _TRANSLATION_REFS.get((args.lang, args.target_lang), "")
 
     # Load audio
     audio_data, sr = sf.read(str(audio_path))
@@ -656,12 +662,11 @@ def main() -> None:
     header = f"Stride\tOverlap\tCtx\tTemp\tMaxTok\t{metric_name}\tBLEU\tSegs\tTTFT\tTTC\tE2E_p95"
     rows = [header]
     for r in sorted(all_results, key=lambda x: -x.translation_bleu):
-        # Infer stride/overlap from segment count + audio duration
         ttft = f"{r.ttft_s:.1f}" if r.ttft_s else ""
         ttc = f"{r.ttc_s:.1f}" if r.ttc_s else ""
         e2e_p95 = f"{r.e2e_latency_stats.get('p95', 0):.1f}"
         rows.append(
-            f"—\t—\t{r.context_size}\t{r.llm_temperature}\t{r.max_context_tokens}\t"
+            f"{r.vac_stride_s}\t{r.vac_overlap_s}\t{r.context_size}\t{r.llm_temperature}\t{r.max_context_tokens}\t"
             f"{r.transcription_error_rate:.4f}\t{r.translation_bleu:.4f}\t{r.segment_count}\t"
             f"{ttft}\t{ttc}\t{e2e_p95}"
         )
@@ -676,6 +681,8 @@ def main() -> None:
             "translation_model": args.model,
             "language": r.language,
             "target_language": r.target_language,
+            "vac_stride_s": r.vac_stride_s,
+            "vac_overlap_s": r.vac_overlap_s,
             "context_size": r.context_size,
             "llm_temperature": r.llm_temperature,
             "max_context_tokens": r.max_context_tokens,

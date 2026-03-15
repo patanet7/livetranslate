@@ -90,35 +90,6 @@ class LLMClient:
                 for k, v in list(glossary_terms.items())[:50]
             }
 
-        # Try using TranslationPromptBuilder for glossary-aware prompts
-        if glossary_terms:
-            try:
-                from services.translation_prompt_builder import (
-                    TranslationPromptBuilder,
-                    PromptContext,
-                )
-                builder = TranslationPromptBuilder()
-                previous_sentences = [ctx.text for ctx in context] if context else None
-                result = builder.build(PromptContext(
-                    current_sentence=text,
-                    target_language=target_language,
-                    source_language=source_language,
-                    previous_sentences=previous_sentences,
-                    glossary_terms=glossary_terms,
-                ))
-                return [
-                    {"role": "system", "content": result.system_prompt if hasattr(result, 'system_prompt') else (
-                        f"You are a professional translator from {source_language} "
-                        f"to {target_language}. Output ONLY the translation."
-                    )},
-                    {"role": "user", "content": result.prompt},
-                ]
-            except Exception:
-                logger.debug(
-                    "prompt_builder_unavailable",
-                    msg="TranslationPromptBuilder not available, using inline prompt with glossary",
-                )
-
         # Direction-specific system prompts for better register + output
         _SYSTEM_PROMPTS = {
             ("zh", "en"): "Translate spoken Chinese to natural English. Output only the translation.",
