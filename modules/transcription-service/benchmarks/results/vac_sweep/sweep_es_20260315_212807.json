@@ -1,0 +1,1090 @@
+{
+  "audio": "modules/transcription-service/tests/fixtures/audio/meeting_es.wav",
+  "language": "es",
+  "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+  "timestamp": "20260315_212807",
+  "model": "large-v3-turbo",
+  "backend": "vllm",
+  "results": [
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 4.5,
+        "overlap_s": 0.5
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el servicio de transcripción. con el módulo de traducción. El sistema ahora puede transcribir y traducir. traducir en tiempo real. ¿Y cómo está funcionando la precisión de la... ¿Qué opinan de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al 10% para oraciones. cortas. Para textos más largos, el contexto mejor asignado. mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con... pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.18691588785046728,
+      "segment_count": 13,
+      "ttft_s": 0.9622935830047936,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 0.9622935830047936,
+          "inference_latency_s": 0.9622126670001308
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal.",
+          "wall_time_s": 2.0936517500012997,
+          "inference_latency_s": 1.1311531249957625
+        },
+        {
+          "index": 2,
+          "text": "María, ¿puedes darnos una actualización sobre el proyecto de traducción?",
+          "wall_time_s": 3.2676670420041773,
+          "inference_latency_s": 1.1737240420043236
+        },
+        {
+          "index": 3,
+          "text": "Claro. Hemos completado la integración del servicio de transcripción con el servicio de transcripción.",
+          "wall_time_s": 4.5037057920053485,
+          "inference_latency_s": 1.2358943750004983
+        },
+        {
+          "index": 4,
+          "text": "con el módulo de traducción. El sistema ahora puede transcribir y traducir.",
+          "wall_time_s": 5.720547250006348,
+          "inference_latency_s": 1.2167218340036925
+        },
+        {
+          "index": 5,
+          "text": "traducir en tiempo real. ¿Y cómo está funcionando la precisión de la...",
+          "wall_time_s": 6.885395958001027,
+          "inference_latency_s": 1.1646921659994405
+        },
+        {
+          "index": 6,
+          "text": "¿Qué opinan de la traducción del chino al español? Los resultados son bastante buenos.",
+          "wall_time_s": 8.103050542005803,
+          "inference_latency_s": 1.21751316699374
+        },
+        {
+          "index": 7,
+          "text": "bastante buenos. La tasa de error es menor al 10% para oraciones.",
+          "wall_time_s": 9.250469667000289,
+          "inference_latency_s": 1.1472610830023768
+        },
+        {
+          "index": 8,
+          "text": "cortas. Para textos más largos, el contexto mejor asignado.",
+          "wall_time_s": 10.388918708005804,
+          "inference_latency_s": 1.138282166000863
+        },
+        {
+          "index": 9,
+          "text": "mejora significativamente la calidad. Excelente.",
+          "wall_time_s": 11.492724625000847,
+          "inference_latency_s": 1.1035307919955812
+        },
+        {
+          "index": 10,
+          "text": "¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con...",
+          "wall_time_s": 12.728635042003589,
+          "inference_latency_s": 1.2357227500033332
+        },
+        {
+          "index": 11,
+          "text": "pruebas con reuniones reales de múltiples participantes. También queremos agregar",
+          "wall_time_s": 13.91404875000444,
+          "inference_latency_s": 1.1852572919960949
+        },
+        {
+          "index": 12,
+          "text": "agregar detección automática del idioma.",
+          "wall_time_s": 15.016214167000726,
+          "inference_latency_s": 1.102068041000166
+        }
+      ],
+      "inference_latencies": [
+        0.9622126670001308,
+        1.1311531249957625,
+        1.1737240420043236,
+        1.2358943750004983,
+        1.2167218340036925,
+        1.1646921659994405,
+        1.21751316699374,
+        1.1472610830023768,
+        1.138282166000863,
+        1.1035307919955812,
+        1.2357227500033332,
+        1.1852572919960949,
+        1.102068041000166
+      ],
+      "latency_stats": {
+        "p50": 1.147,
+        "p90": 1.218,
+        "p95": 1.236,
+        "p99": 1.236,
+        "mean": 1.155,
+        "max": 1.236,
+        "samples": 13
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 3.5,
+        "overlap_s": 0.5
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización? Claro. Hemos completado la integración del servicio de transacción. de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? español. Los resultados son bastante buenos. La tasa de error es menor al 10% para ahora. para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agradecer a la comunidad de la Universidad de Queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.21495327102803738,
+      "segment_count": 16,
+      "ttft_s": 1.0037560000055237,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 1.0037560000055237,
+          "inference_latency_s": 1.003653416999441
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal.",
+          "wall_time_s": 2.1271919580030954,
+          "inference_latency_s": 1.123306458001025
+        },
+        {
+          "index": 2,
+          "text": "unión semanal. María, ¿puedes darnos una actualización?",
+          "wall_time_s": 3.2871861250023358,
+          "inference_latency_s": 1.1597410000031232
+        },
+        {
+          "index": 3,
+          "text": "Claro.",
+          "wall_time_s": 4.241797125003359,
+          "inference_latency_s": 0.9544562919982127
+        },
+        {
+          "index": 4,
+          "text": "Claro. Hemos completado la integración del servicio de transacción.",
+          "wall_time_s": 5.372515499999281,
+          "inference_latency_s": 1.1306047499965644
+        },
+        {
+          "index": 5,
+          "text": "de transcripción con el módulo de traducción. El sistema",
+          "wall_time_s": 6.503156625003612,
+          "inference_latency_s": 1.1304690420001862
+        },
+        {
+          "index": 6,
+          "text": "sistema ahora puede transcribir y traducir en tiempo real.",
+          "wall_time_s": 7.628273333000834,
+          "inference_latency_s": 1.1247603750016424
+        },
+        {
+          "index": 7,
+          "text": "¿Y cómo está funcionando la precisión de la traducción del chino al español?",
+          "wall_time_s": 8.875138208000863,
+          "inference_latency_s": 1.2466975420029485
+        },
+        {
+          "index": 8,
+          "text": "español. Los resultados son bastante buenos.",
+          "wall_time_s": 9.98490029200184,
+          "inference_latency_s": 1.109597875001782
+        },
+        {
+          "index": 9,
+          "text": "buenos. La tasa de error es menor al 10% para ahora.",
+          "wall_time_s": 11.19059145799838,
+          "inference_latency_s": 1.2055438340030378
+        },
+        {
+          "index": 10,
+          "text": "para oraciones cortas. Para textos más largos,",
+          "wall_time_s": 12.316498291998869,
+          "inference_latency_s": 1.1257513339951402
+        },
+        {
+          "index": 11,
+          "text": "el contexto mejora significativamente la calidad.",
+          "wall_time_s": 13.39309774999856,
+          "inference_latency_s": 1.0762054579972755
+        },
+        {
+          "index": 12,
+          "text": "Excelente. ¿Cuáles son los próximos pasos?",
+          "wall_time_s": 14.551130792002368,
+          "inference_latency_s": 1.1578247919969726
+        },
+        {
+          "index": 13,
+          "text": "Necesitamos hacer pruebas con reuniones reales",
+          "wall_time_s": 15.739250375001575,
+          "inference_latency_s": 1.1879957920027664
+        },
+        {
+          "index": 14,
+          "text": "reales de múltiples participantes. También queremos agradecer a la comunidad de la Universidad de",
+          "wall_time_s": 16.9902398750055,
+          "inference_latency_s": 1.250770749997173
+        },
+        {
+          "index": 15,
+          "text": "Queremos agregar detección automática del idioma.",
+          "wall_time_s": 18.112840917005087,
+          "inference_latency_s": 1.1224857079942012
+        }
+      ],
+      "inference_latencies": [
+        1.003653416999441,
+        1.123306458001025,
+        1.1597410000031232,
+        0.9544562919982127,
+        1.1306047499965644,
+        1.1304690420001862,
+        1.1247603750016424,
+        1.2466975420029485,
+        1.109597875001782,
+        1.2055438340030378,
+        1.1257513339951402,
+        1.0762054579972755,
+        1.1578247919969726,
+        1.1879957920027664,
+        1.250770749997173,
+        1.1224857079942012
+      ],
+      "latency_stats": {
+        "p50": 1.126,
+        "p90": 1.206,
+        "p95": 1.247,
+        "p99": 1.247,
+        "mean": 1.132,
+        "max": 1.251,
+        "samples": 16
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 6.0,
+        "overlap_s": 0.5
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos un momento? ¿Puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la actualización. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción? la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al 10% para oraciones cortas. Para textos más largos, el costo de la oración es menor al 10%. El contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples personas. múltiples participantes. También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.24299065420560748,
+      "segment_count": 10,
+      "ttft_s": 0.9826934170050663,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 0.9826934170050663,
+          "inference_latency_s": 0.9826190829990082
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos un momento?",
+          "wall_time_s": 2.3130810000002384,
+          "inference_latency_s": 1.3302365420022397
+        },
+        {
+          "index": 2,
+          "text": "¿Puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la actualización.",
+          "wall_time_s": 3.636279167003522,
+          "inference_latency_s": 1.3230287920014234
+        },
+        {
+          "index": 3,
+          "text": "Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede",
+          "wall_time_s": 4.958168542005296,
+          "inference_latency_s": 1.3217169999988982
+        },
+        {
+          "index": 4,
+          "text": "hora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción?",
+          "wall_time_s": 6.259488875002717,
+          "inference_latency_s": 1.3011329170039971
+        },
+        {
+          "index": 5,
+          "text": "la traducción del chino al español? Los resultados son bastante buenos.",
+          "wall_time_s": 7.422164750001684,
+          "inference_latency_s": 1.162442374996317
+        },
+        {
+          "index": 6,
+          "text": "La tasa de error es menor al 10% para oraciones cortas. Para textos más largos, el costo de la oración es menor al 10%.",
+          "wall_time_s": 8.831252167001367,
+          "inference_latency_s": 1.4089041659972281
+        },
+        {
+          "index": 7,
+          "text": "El contexto mejora significativamente la calidad. Excelente.",
+          "wall_time_s": 9.958144750002248,
+          "inference_latency_s": 1.1267526670053485
+        },
+        {
+          "index": 8,
+          "text": "¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples personas.",
+          "wall_time_s": 11.292836959000851,
+          "inference_latency_s": 1.334434958997008
+        },
+        {
+          "index": 9,
+          "text": "múltiples participantes. También queremos agregar detección automática del idioma.",
+          "wall_time_s": 12.480145959001675,
+          "inference_latency_s": 1.1871015840006294
+        }
+      ],
+      "inference_latencies": [
+        0.9826190829990082,
+        1.3302365420022397,
+        1.3230287920014234,
+        1.3217169999988982,
+        1.3011329170039971,
+        1.162442374996317,
+        1.4089041659972281,
+        1.1267526670053485,
+        1.334434958997008,
+        1.1871015840006294
+      ],
+      "latency_stats": {
+        "p50": 1.301,
+        "p90": 1.334,
+        "p95": 1.334,
+        "p99": 1.334,
+        "mean": 1.248,
+        "max": 1.409,
+        "samples": 10
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 6.0,
+        "overlap_s": 1.0
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos un momento? ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la actualización. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción? precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al 10% para oraciones cortas. Para textos más largos, el costo es menor al 10%. largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples personas. reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.2616822429906542,
+      "segment_count": 10,
+      "ttft_s": 0.9558713330043247,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 0.9558713330043247,
+          "inference_latency_s": 0.9557952499962994
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos un momento?",
+          "wall_time_s": 2.2358372080052504,
+          "inference_latency_s": 1.279834374996426
+        },
+        {
+          "index": 2,
+          "text": "¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la actualización.",
+          "wall_time_s": 3.518559792006272,
+          "inference_latency_s": 1.282601375001832
+        },
+        {
+          "index": 3,
+          "text": "Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede",
+          "wall_time_s": 4.809836208005436,
+          "inference_latency_s": 1.291110749996733
+        },
+        {
+          "index": 4,
+          "text": "sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción?",
+          "wall_time_s": 6.0982583750010235,
+          "inference_latency_s": 1.2882516249956097
+        },
+        {
+          "index": 5,
+          "text": "precisión de la traducción del chino al español? Los resultados son bastante buenos.",
+          "wall_time_s": 7.259169000004476,
+          "inference_latency_s": 1.1607341670023743
+        },
+        {
+          "index": 6,
+          "text": "La tasa de error es menor al 10% para oraciones cortas. Para textos más largos, el costo es menor al 10%.",
+          "wall_time_s": 8.593471708001744,
+          "inference_latency_s": 1.334133832999214
+        },
+        {
+          "index": 7,
+          "text": "largos, el contexto mejora significativamente la calidad. Excelente.",
+          "wall_time_s": 9.743462708000152,
+          "inference_latency_s": 1.1498072920003324
+        },
+        {
+          "index": 8,
+          "text": "¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples personas.",
+          "wall_time_s": 11.075066833000164,
+          "inference_latency_s": 1.3314019579993328
+        },
+        {
+          "index": 9,
+          "text": "reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+          "wall_time_s": 12.283651458004897,
+          "inference_latency_s": 1.2083590409965836
+        }
+      ],
+      "inference_latencies": [
+        0.9557952499962994,
+        1.279834374996426,
+        1.282601375001832,
+        1.291110749996733,
+        1.2882516249956097,
+        1.1607341670023743,
+        1.334133832999214,
+        1.1498072920003324,
+        1.3314019579993328,
+        1.2083590409965836
+      ],
+      "latency_stats": {
+        "p50": 1.28,
+        "p90": 1.331,
+        "p95": 1.331,
+        "p99": 1.331,
+        "mean": 1.228,
+        "max": 1.334,
+        "samples": 10
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 4.5,
+        "overlap_s": 1.0
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el servicio de transcripción. transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir. transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la ¿Estás escuchando la precisión de la traducción del chino al español? Los resultados son bastantes. son bastante buenos. La tasa de error es menor al 10% para oraciones. para oraciones cortas. Para textos más largos, el contexto mejor asignado. mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con... a hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.2616822429906542,
+      "segment_count": 13,
+      "ttft_s": 0.9696365409981809,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 0.9696365409981809,
+          "inference_latency_s": 0.9695744999989984
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal.",
+          "wall_time_s": 2.097602374997223,
+          "inference_latency_s": 1.1277510830041138
+        },
+        {
+          "index": 2,
+          "text": "María, ¿puedes darnos una actualización sobre el proyecto de traducción?",
+          "wall_time_s": 3.2699779579997994,
+          "inference_latency_s": 1.1720714589973795
+        },
+        {
+          "index": 3,
+          "text": "Claro. Hemos completado la integración del servicio de transcripción con el servicio de transcripción.",
+          "wall_time_s": 4.494411416002549,
+          "inference_latency_s": 1.2242566249988158
+        },
+        {
+          "index": 4,
+          "text": "transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir.",
+          "wall_time_s": 5.748692583001684,
+          "inference_latency_s": 1.2540932499978226
+        },
+        {
+          "index": 5,
+          "text": "transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la",
+          "wall_time_s": 6.9516034580010455,
+          "inference_latency_s": 1.2027523750002729
+        },
+        {
+          "index": 6,
+          "text": "¿Estás escuchando la precisión de la traducción del chino al español? Los resultados son bastantes.",
+          "wall_time_s": 8.224657040998864,
+          "inference_latency_s": 1.2729099589996622
+        },
+        {
+          "index": 7,
+          "text": "son bastante buenos. La tasa de error es menor al 10% para oraciones.",
+          "wall_time_s": 9.377547957999923,
+          "inference_latency_s": 1.152717582997866
+        },
+        {
+          "index": 8,
+          "text": "para oraciones cortas. Para textos más largos, el contexto mejor asignado.",
+          "wall_time_s": 10.55580416599696,
+          "inference_latency_s": 1.178098249998584
+        },
+        {
+          "index": 9,
+          "text": "mejora significativamente la calidad. Excelente.",
+          "wall_time_s": 11.626920165996125,
+          "inference_latency_s": 1.0708636670024134
+        },
+        {
+          "index": 10,
+          "text": "¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con...",
+          "wall_time_s": 12.830153957998846,
+          "inference_latency_s": 1.2030411250016186
+        },
+        {
+          "index": 11,
+          "text": "a hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar",
+          "wall_time_s": 14.033610624996072,
+          "inference_latency_s": 1.2033405830006814
+        },
+        {
+          "index": 12,
+          "text": "También queremos agregar detección automática del idioma.",
+          "wall_time_s": 15.142100749995734,
+          "inference_latency_s": 1.1084088749994407
+        }
+      ],
+      "inference_latencies": [
+        0.9695744999989984,
+        1.1277510830041138,
+        1.1720714589973795,
+        1.2242566249988158,
+        1.2540932499978226,
+        1.2027523750002729,
+        1.2729099589996622,
+        1.152717582997866,
+        1.178098249998584,
+        1.0708636670024134,
+        1.2030411250016186,
+        1.2033405830006814,
+        1.1084088749994407
+      ],
+      "latency_stats": {
+        "p50": 1.172,
+        "p90": 1.224,
+        "p95": 1.254,
+        "p99": 1.254,
+        "mean": 1.165,
+        "max": 1.273,
+        "samples": 13
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 4.5,
+        "overlap_s": 1.5
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el servicio de transcripción. servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir. puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastantes. Los resultados son bastante buenos. La tasa de error es menor al 10% para oraciones. por ciento para oraciones cortas. Para textos más largos, el contexto mejor asignado. El contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con... Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.27102803738317754,
+      "segment_count": 13,
+      "ttft_s": 0.960987667000154,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 0.960987667000154,
+          "inference_latency_s": 0.960902917002386
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal.",
+          "wall_time_s": 2.1043035840048105,
+          "inference_latency_s": 1.1431556250026915
+        },
+        {
+          "index": 2,
+          "text": "semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción?",
+          "wall_time_s": 3.323415750004642,
+          "inference_latency_s": 1.218817917004344
+        },
+        {
+          "index": 3,
+          "text": "Claro. Hemos completado la integración del servicio de transcripción con el servicio de transcripción.",
+          "wall_time_s": 4.563498625000648,
+          "inference_latency_s": 1.239861917005328
+        },
+        {
+          "index": 4,
+          "text": "servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir.",
+          "wall_time_s": 5.917622708999261,
+          "inference_latency_s": 1.3539480000035837
+        },
+        {
+          "index": 5,
+          "text": "puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la",
+          "wall_time_s": 7.1699904589986545,
+          "inference_latency_s": 1.2521839160035597
+        },
+        {
+          "index": 6,
+          "text": "funcionando la precisión de la traducción del chino al español? Los resultados son bastantes.",
+          "wall_time_s": 8.445956834002573,
+          "inference_latency_s": 1.2758218749950174
+        },
+        {
+          "index": 7,
+          "text": "Los resultados son bastante buenos. La tasa de error es menor al 10% para oraciones.",
+          "wall_time_s": 9.69876191700314,
+          "inference_latency_s": 1.2526562080020085
+        },
+        {
+          "index": 8,
+          "text": "por ciento para oraciones cortas. Para textos más largos, el contexto mejor asignado.",
+          "wall_time_s": 10.947172500003944,
+          "inference_latency_s": 1.248283499997342
+        },
+        {
+          "index": 9,
+          "text": "El contexto mejora significativamente la calidad. Excelente.",
+          "wall_time_s": 12.096444667004107,
+          "inference_latency_s": 1.149092625004414
+        },
+        {
+          "index": 10,
+          "text": "Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con...",
+          "wall_time_s": 13.363929042003292,
+          "inference_latency_s": 1.2673567080055363
+        },
+        {
+          "index": 11,
+          "text": "Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar",
+          "wall_time_s": 14.95427495900367,
+          "inference_latency_s": 1.5902004170056898
+        },
+        {
+          "index": 12,
+          "text": "También queremos agregar detección automática del idioma.",
+          "wall_time_s": 16.078868333999708,
+          "inference_latency_s": 1.124527334002778
+        }
+      ],
+      "inference_latencies": [
+        0.960902917002386,
+        1.1431556250026915,
+        1.218817917004344,
+        1.239861917005328,
+        1.3539480000035837,
+        1.2521839160035597,
+        1.2758218749950174,
+        1.2526562080020085,
+        1.248283499997342,
+        1.149092625004414,
+        1.2673567080055363,
+        1.5902004170056898,
+        1.124527334002778
+      ],
+      "latency_stats": {
+        "p50": 1.24,
+        "p90": 1.276,
+        "p95": 1.354,
+        "p99": 1.354,
+        "mean": 1.237,
+        "max": 1.59,
+        "samples": 13
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 3.5,
+        "overlap_s": 1.5
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización? ¿Puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transacción. integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al 10% para ahora. menor al 10% para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. ¡Excelente! ¿Cuáles son los próximos pasos? los próximos pasos. Necesitamos hacer pruebas con reuniones reales. hacer pruebas con reuniones reales de múltiples participantes. También queremos agradecer a También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.2803738317757009,
+      "segment_count": 16,
+      "ttft_s": 0.9826717079995433,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 0.9826717079995433,
+          "inference_latency_s": 0.9825556659998256
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal.",
+          "wall_time_s": 2.120960667001782,
+          "inference_latency_s": 1.1381558749999385
+        },
+        {
+          "index": 2,
+          "text": "a comenzar la reunión semanal. María, ¿puedes darnos una actualización?",
+          "wall_time_s": 3.395298832998378,
+          "inference_latency_s": 1.2741926250018878
+        },
+        {
+          "index": 3,
+          "text": "¿Puedes darnos una actualización sobre el proyecto de traducción? Claro.",
+          "wall_time_s": 4.61623837499792,
+          "inference_latency_s": 1.220820291993732
+        },
+        {
+          "index": 4,
+          "text": "Claro. Hemos completado la integración del servicio de transacción.",
+          "wall_time_s": 5.794970333001402,
+          "inference_latency_s": 1.1785853330002283
+        },
+        {
+          "index": 5,
+          "text": "integración del servicio de transcripción con el módulo de traducción. El sistema",
+          "wall_time_s": 7.06893479199789,
+          "inference_latency_s": 1.273811666003894
+        },
+        {
+          "index": 6,
+          "text": "El sistema ahora puede transcribir y traducir en tiempo real.",
+          "wall_time_s": 8.21435583299899,
+          "inference_latency_s": 1.1451500420007505
+        },
+        {
+          "index": 7,
+          "text": "¿Y cómo está funcionando la precisión de la traducción del chino al español?",
+          "wall_time_s": 9.39064820799831,
+          "inference_latency_s": 1.1761422920026234
+        },
+        {
+          "index": 8,
+          "text": "traducción del chino al español? Los resultados son bastante buenos.",
+          "wall_time_s": 10.50776408299862,
+          "inference_latency_s": 1.1169997500037425
+        },
+        {
+          "index": 9,
+          "text": "son bastante buenos. La tasa de error es menor al 10% para ahora.",
+          "wall_time_s": 11.654366124996159,
+          "inference_latency_s": 1.1464573330013081
+        },
+        {
+          "index": 10,
+          "text": "menor al 10% para oraciones cortas. Para textos más largos,",
+          "wall_time_s": 12.803431957996509,
+          "inference_latency_s": 1.1489356250021956
+        },
+        {
+          "index": 11,
+          "text": "Para textos más largos, el contexto mejora significativamente la calidad.",
+          "wall_time_s": 13.947958874996402,
+          "inference_latency_s": 1.1442383749963483
+        },
+        {
+          "index": 12,
+          "text": "¡Excelente! ¿Cuáles son los próximos pasos?",
+          "wall_time_s": 15.081368667000788,
+          "inference_latency_s": 1.1332448749963078
+        },
+        {
+          "index": 13,
+          "text": "los próximos pasos. Necesitamos hacer pruebas con reuniones reales.",
+          "wall_time_s": 16.26757566699962,
+          "inference_latency_s": 1.1860800420035957
+        },
+        {
+          "index": 14,
+          "text": "hacer pruebas con reuniones reales de múltiples participantes. También queremos agradecer a",
+          "wall_time_s": 17.464391707995674,
+          "inference_latency_s": 1.1966787910059793
+        },
+        {
+          "index": 15,
+          "text": "También queremos agregar detección automática del idioma.",
+          "wall_time_s": 18.552250417000323,
+          "inference_latency_s": 1.0877847079973435
+        }
+      ],
+      "inference_latencies": [
+        0.9825556659998256,
+        1.1381558749999385,
+        1.2741926250018878,
+        1.220820291993732,
+        1.1785853330002283,
+        1.273811666003894,
+        1.1451500420007505,
+        1.1761422920026234,
+        1.1169997500037425,
+        1.1464573330013081,
+        1.1489356250021956,
+        1.1442383749963483,
+        1.1332448749963078,
+        1.1860800420035957,
+        1.1966787910059793,
+        1.0877847079973435
+      ],
+      "latency_stats": {
+        "p50": 1.146,
+        "p90": 1.221,
+        "p95": 1.274,
+        "p99": 1.274,
+        "mean": 1.159,
+        "max": 1.274,
+        "samples": 16
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 3.5,
+        "overlap_s": 1.0
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el tema? ¿Podríamos hacer una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transacción. el servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? del chino al español. Los resultados son bastante buenos. La tasa de error es menor al 10% para ahora. por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? pasos. Necesitamos hacer pruebas con reuniones reales. con reuniones reales de múltiples participantes. También queremos agradecer a los participantes También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.2803738317757009,
+      "segment_count": 16,
+      "ttft_s": 1.045039500000712,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 1.045039500000712,
+          "inference_latency_s": 1.04496562499844
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal.",
+          "wall_time_s": 2.230484500003513,
+          "inference_latency_s": 1.1849856249973527
+        },
+        {
+          "index": 2,
+          "text": "María, ¿puedes darnos una actualización sobre el tema?",
+          "wall_time_s": 3.3774978750006994,
+          "inference_latency_s": 1.146816749998834
+        },
+        {
+          "index": 3,
+          "text": "¿Podríamos hacer una actualización sobre el proyecto de traducción? Claro.",
+          "wall_time_s": 4.679129666001245,
+          "inference_latency_s": 1.3014455829979852
+        },
+        {
+          "index": 4,
+          "text": "Claro. Hemos completado la integración del servicio de transacción.",
+          "wall_time_s": 5.910046791002969,
+          "inference_latency_s": 1.2306785420005326
+        },
+        {
+          "index": 5,
+          "text": "el servicio de transcripción con el módulo de traducción. El sistema",
+          "wall_time_s": 7.486999375003506,
+          "inference_latency_s": 1.5767780410023988
+        },
+        {
+          "index": 6,
+          "text": "El sistema ahora puede transcribir y traducir en tiempo real.",
+          "wall_time_s": 8.763433125001029,
+          "inference_latency_s": 1.2758717920005438
+        },
+        {
+          "index": 7,
+          "text": "¿Y cómo está funcionando la precisión de la traducción del chino al español?",
+          "wall_time_s": 10.044534041000588,
+          "inference_latency_s": 1.2809494159955648
+        },
+        {
+          "index": 8,
+          "text": "del chino al español. Los resultados son bastante buenos.",
+          "wall_time_s": 11.19570716599992,
+          "inference_latency_s": 1.1508868340024492
+        },
+        {
+          "index": 9,
+          "text": "bastante buenos. La tasa de error es menor al 10% para ahora.",
+          "wall_time_s": 12.366271875005623,
+          "inference_latency_s": 1.1704562080049072
+        },
+        {
+          "index": 10,
+          "text": "por ciento para oraciones cortas. Para textos más largos,",
+          "wall_time_s": 13.488781833002577,
+          "inference_latency_s": 1.1223444159986684
+        },
+        {
+          "index": 11,
+          "text": "más largos, el contexto mejora significativamente la calidad.",
+          "wall_time_s": 14.590854333000607,
+          "inference_latency_s": 1.1017497499997262
+        },
+        {
+          "index": 12,
+          "text": "Excelente. ¿Cuáles son los próximos pasos?",
+          "wall_time_s": 15.696924000003492,
+          "inference_latency_s": 1.1059179170042626
+        },
+        {
+          "index": 13,
+          "text": "pasos. Necesitamos hacer pruebas con reuniones reales.",
+          "wall_time_s": 16.82450308300031,
+          "inference_latency_s": 1.127462332995492
+        },
+        {
+          "index": 14,
+          "text": "con reuniones reales de múltiples participantes. También queremos agradecer a los participantes",
+          "wall_time_s": 18.028152833001513,
+          "inference_latency_s": 1.2034475420005037
+        },
+        {
+          "index": 15,
+          "text": "También queremos agregar detección automática del idioma.",
+          "wall_time_s": 19.114118000004964,
+          "inference_latency_s": 1.0858701249962905
+        }
+      ],
+      "inference_latencies": [
+        1.04496562499844,
+        1.1849856249973527,
+        1.146816749998834,
+        1.3014455829979852,
+        1.2306785420005326,
+        1.5767780410023988,
+        1.2758717920005438,
+        1.2809494159955648,
+        1.1508868340024492,
+        1.1704562080049072,
+        1.1223444159986684,
+        1.1017497499997262,
+        1.1059179170042626,
+        1.127462332995492,
+        1.2034475420005037,
+        1.0858701249962905
+      ],
+      "latency_stats": {
+        "p50": 1.151,
+        "p90": 1.281,
+        "p95": 1.301,
+        "p99": 1.301,
+        "mean": 1.194,
+        "max": 1.577,
+        "samples": 16
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 0.5,
+        "stride_s": 6.0,
+        "overlap_s": 1.5
+      },
+      "language": "es",
+      "reference": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al diez por ciento para oraciones cortas. Para textos más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "hypothesis": "Buenos días. Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos un momento? María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la actualización. Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción? ¿Estás funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos. La tasa de error es menor al 10% para oraciones cortas. Para textos más largos, el costo de la oración es menor al 10%. más largos, el contexto mejora significativamente la calidad. Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples personas. reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+      "error_metric": "wer",
+      "error_rate": 0.34579439252336447,
+      "segment_count": 10,
+      "ttft_s": 0.9566463750015828,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Buenos días.",
+          "wall_time_s": 0.9566463750015828,
+          "inference_latency_s": 0.956584791005298
+        },
+        {
+          "index": 1,
+          "text": "Buenos días a todos. Vamos a comenzar la reunión semanal. María, ¿puedes darnos un momento?",
+          "wall_time_s": 2.243808874998649,
+          "inference_latency_s": 1.2869584580039373
+        },
+        {
+          "index": 2,
+          "text": "María, ¿puedes darnos una actualización sobre el proyecto de traducción? Claro. Hemos completado la actualización.",
+          "wall_time_s": 3.558580333003192,
+          "inference_latency_s": 1.314597374999721
+        },
+        {
+          "index": 3,
+          "text": "Hemos completado la integración del servicio de transcripción con el módulo de traducción. El sistema ahora puede",
+          "wall_time_s": 4.8658059160006815,
+          "inference_latency_s": 1.3070177909976337
+        },
+        {
+          "index": 4,
+          "text": "El sistema ahora puede transcribir y traducir en tiempo real. ¿Y cómo está funcionando la precisión de la traducción?",
+          "wall_time_s": 6.186476125003537,
+          "inference_latency_s": 1.320539332999033
+        },
+        {
+          "index": 5,
+          "text": "¿Estás funcionando la precisión de la traducción del chino al español? Los resultados son bastante buenos.",
+          "wall_time_s": 7.446046874996682,
+          "inference_latency_s": 1.2594118749984773
+        },
+        {
+          "index": 6,
+          "text": "La tasa de error es menor al 10% para oraciones cortas. Para textos más largos, el costo de la oración es menor al 10%.",
+          "wall_time_s": 8.833528415998444,
+          "inference_latency_s": 1.3872804999991786
+        },
+        {
+          "index": 7,
+          "text": "más largos, el contexto mejora significativamente la calidad. Excelente.",
+          "wall_time_s": 9.994157082997845,
+          "inference_latency_s": 1.1604528749958263
+        },
+        {
+          "index": 8,
+          "text": "Excelente. ¿Cuáles son los próximos pasos? Necesitamos hacer pruebas con reuniones reales de múltiples personas.",
+          "wall_time_s": 11.389776500000153,
+          "inference_latency_s": 1.3954645000048913
+        },
+        {
+          "index": 9,
+          "text": "reuniones reales de múltiples participantes. También queremos agregar detección automática del idioma.",
+          "wall_time_s": 12.653236291000212,
+          "inference_latency_s": 1.2632746669987682
+        }
+      ],
+      "inference_latencies": [
+        0.956584791005298,
+        1.2869584580039373,
+        1.314597374999721,
+        1.3070177909976337,
+        1.320539332999033,
+        1.2594118749984773,
+        1.3872804999991786,
+        1.1604528749958263,
+        1.3954645000048913,
+        1.2632746669987682
+      ],
+      "latency_stats": {
+        "p50": 1.287,
+        "p90": 1.387,
+        "p95": 1.387,
+        "p99": 1.387,
+        "mean": 1.265,
+        "max": 1.395,
+        "samples": 10
+      },
+      "hallucination_flag": false,
+      "error": null
+    }
+  ]
+}

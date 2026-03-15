@@ -1,0 +1,320 @@
+{
+  "audio": "modules/transcription-service/tests/fixtures/audio/meeting_en.wav",
+  "language": "en",
+  "reference": "Good morning everyone. Let us start our weekly sync. Sarah, can you give us an update on the transcription pipeline? Sure. We have completed the WebSocket integration between the orchestration and transcription services. The streaming pipeline is now working end to end on both Apple Silicon and CUDA. That is great progress. What about the translation module? Translation is working with Ollama locally. We are using Qwen three point five with no-think mode. Latency is about one to two seconds per segment. And how is the accuracy looking? We tested with the JFK speech sample. Eighty six percent word match on the transcription side. The overlap dedup is working correctly, no repeated phrases at chunk boundaries. What about the Chinese and Japanese language support? We have test fixtures for both. The Whisper large v three turbo model handles multilingual well. Chinese character error rate is under five percent on our test samples.",
+  "timestamp": "20260315_193228",
+  "model": "large-v3-turbo",
+  "backend": "vllm",
+  "results": [
+    {
+      "config": {
+        "prebuffer_s": 1.0,
+        "stride_s": 4.0,
+        "overlap_s": 1.0
+      },
+      "language": "en",
+      "reference": "Good morning everyone. Let us start our weekly sync. Sarah, can you give us an update on the transcription pipeline? Sure. We have completed the WebSocket integration between the orchestration and transcription services. The streaming pipeline is now working end to end on both Apple Silicon and CUDA. That is great progress. What about the translation module? Translation is working with Ollama locally. We are using Qwen three point five with no-think mode. Latency is about one to two seconds per segment. And how is the accuracy looking? We tested with the JFK speech sample. Eighty six percent word match on the transcription side. The overlap dedup is working correctly, no repeated phrases at chunk boundaries. What about the Chinese and Japanese language support? We have test fixtures for both. The Whisper large v three turbo model handles multilingual well. Chinese character error rate is under five percent on our test samples.",
+      "hypothesis": "Good morning everyone. Let us start our weekly sync. Sarah, can you give us an update on the transcription pipeline? Sure. We have completed the WebSocket integration between the Org and the WebSocket. between the orchestration and transcription services. The streaming pipeline is now working end-to-end on both Apple Silicon and CUDA. That is great progress. What about the translation module? Translation is working with Alamo locally. We are using Qen 3.5 with no think mode. Latency is about 1-2 seconds per segment. And how is the accuracy looking? We tested with the J-Module. We tested with the JFK speech sample. 86% word match on the track. word match on the transcription side. The overlap to DEP is working correctly. working correctly, no repeated phrases at chunk boundaries. What about the Chinese and Japanese language support? We have test fixtures for both. The Whisper Large V3 Turbo large V3 turbo model handles multilingual well. Chinese character air Chinese character error rate is under 5% on our test samples.",
+      "error_metric": "wer",
+      "error_rate": 0.28289473684210525,
+      "segment_count": 18,
+      "ttft_s": 1.518465583001671,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Good morning everyone.",
+          "wall_time_s": 1.518465583001671,
+          "inference_latency_s": 1.5183417910011485
+        },
+        {
+          "index": 1,
+          "text": "Good morning everyone. Let us start our weekly sync.",
+          "wall_time_s": 3.1419820000010077,
+          "inference_latency_s": 1.6230869999999413
+        },
+        {
+          "index": 2,
+          "text": "Sarah, can you give us an update on the transcription pipeline?",
+          "wall_time_s": 4.80686704099935,
+          "inference_latency_s": 1.6645788329988136
+        },
+        {
+          "index": 3,
+          "text": "Sure. We have completed the WebSocket integration between the Org and the WebSocket.",
+          "wall_time_s": 6.574745457997778,
+          "inference_latency_s": 1.7677205830041203
+        },
+        {
+          "index": 4,
+          "text": "between the orchestration and transcription services. The streaming pipeline",
+          "wall_time_s": 8.22056591600267,
+          "inference_latency_s": 1.6456236250014626
+        },
+        {
+          "index": 5,
+          "text": "The streaming pipeline is now working end-to-end on both Apple Silicon and CUDA.",
+          "wall_time_s": 10.013623541002744,
+          "inference_latency_s": 1.7926632910020999
+        },
+        {
+          "index": 6,
+          "text": "That is great progress. What about the translation module?",
+          "wall_time_s": 11.618932999997924,
+          "inference_latency_s": 1.6051558750041295
+        },
+        {
+          "index": 7,
+          "text": "Translation is working with Alamo locally.",
+          "wall_time_s": 13.203057250000711,
+          "inference_latency_s": 1.5839857910032151
+        },
+        {
+          "index": 8,
+          "text": "locally. We are using Qen 3.5 with no think mode.",
+          "wall_time_s": 14.915496665998944,
+          "inference_latency_s": 1.7121975000045495
+        },
+        {
+          "index": 9,
+          "text": "Latency is about 1-2 seconds per segment.",
+          "wall_time_s": 16.548559666000074,
+          "inference_latency_s": 1.6328889999931562
+        },
+        {
+          "index": 10,
+          "text": "And how is the accuracy looking? We tested with the J-Module.",
+          "wall_time_s": 18.29650095800025,
+          "inference_latency_s": 1.747767417000432
+        },
+        {
+          "index": 11,
+          "text": "We tested with the JFK speech sample. 86% word match on the track.",
+          "wall_time_s": 20.064142540999455,
+          "inference_latency_s": 1.7675078750035027
+        },
+        {
+          "index": 12,
+          "text": "word match on the transcription side. The overlap to DEP is working correctly.",
+          "wall_time_s": 21.800220666002133,
+          "inference_latency_s": 1.7358192079991568
+        },
+        {
+          "index": 13,
+          "text": "working correctly, no repeated phrases at chunk boundaries.",
+          "wall_time_s": 23.375279166000837,
+          "inference_latency_s": 1.5748854580015177
+        },
+        {
+          "index": 14,
+          "text": "What about the Chinese and Japanese language support?",
+          "wall_time_s": 24.969326874997932,
+          "inference_latency_s": 1.5938542090007104
+        },
+        {
+          "index": 15,
+          "text": "We have test fixtures for both. The Whisper Large V3 Turbo",
+          "wall_time_s": 26.693195583000488,
+          "inference_latency_s": 1.7237193750042934
+        },
+        {
+          "index": 16,
+          "text": "large V3 turbo model handles multilingual well. Chinese character air",
+          "wall_time_s": 28.335501125002338,
+          "inference_latency_s": 1.642148457998701
+        },
+        {
+          "index": 17,
+          "text": "Chinese character error rate is under 5% on our test samples.",
+          "wall_time_s": 29.98684483300167,
+          "inference_latency_s": 1.6511800000007497
+        }
+      ],
+      "inference_latencies": [
+        1.5183417910011485,
+        1.6230869999999413,
+        1.6645788329988136,
+        1.7677205830041203,
+        1.6456236250014626,
+        1.7926632910020999,
+        1.6051558750041295,
+        1.5839857910032151,
+        1.7121975000045495,
+        1.6328889999931562,
+        1.747767417000432,
+        1.7675078750035027,
+        1.7358192079991568,
+        1.5748854580015177,
+        1.5938542090007104,
+        1.7237193750042934,
+        1.642148457998701,
+        1.6511800000007497
+      ],
+      "latency_stats": {
+        "p50": 1.646,
+        "p90": 1.768,
+        "p95": 1.768,
+        "p99": 1.768,
+        "mean": 1.666,
+        "max": 1.793,
+        "samples": 18
+      },
+      "hallucination_flag": false,
+      "error": null
+    },
+    {
+      "config": {
+        "prebuffer_s": 3.0,
+        "stride_s": 4.0,
+        "overlap_s": 1.0
+      },
+      "language": "en",
+      "reference": "Good morning everyone. Let us start our weekly sync. Sarah, can you give us an update on the transcription pipeline? Sure. We have completed the WebSocket integration between the orchestration and transcription services. The streaming pipeline is now working end to end on both Apple Silicon and CUDA. That is great progress. What about the translation module? Translation is working with Ollama locally. We are using Qwen three point five with no-think mode. Latency is about one to two seconds per segment. And how is the accuracy looking? We tested with the JFK speech sample. Eighty six percent word match on the transcription side. The overlap dedup is working correctly, no repeated phrases at chunk boundaries. What about the Chinese and Japanese language support? We have test fixtures for both. The Whisper large v three turbo model handles multilingual well. Chinese character error rate is under five percent on our test samples.",
+      "hypothesis": "Good morning everyone. Let us start our weekly sync. Sarah, can you give us an update on the trend? an update on the transcription pipeline? Sure. We have completed the WebSocket integration between the orchestration and transcription. and transcription services. The streaming pipeline is now working in to now working end-to-end on both Apple Silicon and CUDA. That is great progress. What about the translation module? Translation is working with Alamo locally. We are using Quentin. We are using Qen 3.5 with no think mode. Latency is about 1 to 2. is about one to two seconds per segment. And how is the accuracy? how is the accuracy looking? We tested with the JFK speech sample. of case speech sample. 86% word match on the transcription side. The overlap to DAP is working correctly, no repeated phrases. No repeated phrases at chunk boundaries. How about the Chinese and Japanese language support? We have test fixtures. We have test fixtures for both. The Whisper Large V3 Turbo model handles more than a hundred different types of model handles multilingual well. Chinese character error rate is under 5%. rate is under 5% on our test samples.",
+      "error_metric": "wer",
+      "error_rate": 0.39473684210526316,
+      "segment_count": 18,
+      "ttft_s": 1.594483417000447,
+      "segments": [
+        {
+          "index": 0,
+          "text": "Good morning everyone. Let us start our",
+          "wall_time_s": 1.594483417000447,
+          "inference_latency_s": 1.5942747500012047
+        },
+        {
+          "index": 1,
+          "text": "Let us start our weekly sync. Sarah, can you give us an update on the trend?",
+          "wall_time_s": 3.368057082996529,
+          "inference_latency_s": 1.7734549590022652
+        },
+        {
+          "index": 2,
+          "text": "an update on the transcription pipeline? Sure.",
+          "wall_time_s": 4.969206458001281,
+          "inference_latency_s": 1.600884125000448
+        },
+        {
+          "index": 3,
+          "text": "We have completed the WebSocket integration between the orchestration and transcription.",
+          "wall_time_s": 6.649108999998134,
+          "inference_latency_s": 1.679776958997536
+        },
+        {
+          "index": 4,
+          "text": "and transcription services. The streaming pipeline is now working in to",
+          "wall_time_s": 8.285576207999839,
+          "inference_latency_s": 1.636344291997375
+        },
+        {
+          "index": 5,
+          "text": "now working end-to-end on both Apple Silicon and CUDA.",
+          "wall_time_s": 9.96696908299782,
+          "inference_latency_s": 1.681230249996588
+        },
+        {
+          "index": 6,
+          "text": "That is great progress. What about the translation module?",
+          "wall_time_s": 11.57229579200066,
+          "inference_latency_s": 1.605044291995
+        },
+        {
+          "index": 7,
+          "text": "Translation is working with Alamo locally. We are using Quentin.",
+          "wall_time_s": 13.320356582997192,
+          "inference_latency_s": 1.7478811660039355
+        },
+        {
+          "index": 8,
+          "text": "We are using Qen 3.5 with no think mode. Latency is about 1 to 2.",
+          "wall_time_s": 15.113473291996343,
+          "inference_latency_s": 1.7929844579994096
+        },
+        {
+          "index": 9,
+          "text": "is about one to two seconds per segment. And how is the accuracy?",
+          "wall_time_s": 16.841713916997833,
+          "inference_latency_s": 1.7280919589975383
+        },
+        {
+          "index": 10,
+          "text": "how is the accuracy looking? We tested with the JFK speech sample.",
+          "wall_time_s": 18.522046958001738,
+          "inference_latency_s": 1.6802263339995989
+        },
+        {
+          "index": 11,
+          "text": "of case speech sample. 86% word match on the transcription side.",
+          "wall_time_s": 20.152577291999478,
+          "inference_latency_s": 1.6303845830043429
+        },
+        {
+          "index": 12,
+          "text": "side. The overlap to DAP is working correctly, no repeated phrases.",
+          "wall_time_s": 21.823320791998412,
+          "inference_latency_s": 1.6706227920003585
+        },
+        {
+          "index": 13,
+          "text": "No repeated phrases at chunk boundaries.",
+          "wall_time_s": 23.375232332997257,
+          "inference_latency_s": 1.5517580830055522
+        },
+        {
+          "index": 14,
+          "text": "How about the Chinese and Japanese language support? We have test fixtures.",
+          "wall_time_s": 25.113210457995592,
+          "inference_latency_s": 1.7378192090036464
+        },
+        {
+          "index": 15,
+          "text": "We have test fixtures for both. The Whisper Large V3 Turbo model handles more than a hundred different types of",
+          "wall_time_s": 27.031496374998824,
+          "inference_latency_s": 1.9181071249986417
+        },
+        {
+          "index": 16,
+          "text": "model handles multilingual well. Chinese character error rate is under 5%.",
+          "wall_time_s": 28.69840312499582,
+          "inference_latency_s": 1.666772625001613
+        },
+        {
+          "index": 17,
+          "text": "rate is under 5% on our test samples.",
+          "wall_time_s": 30.287316207999538,
+          "inference_latency_s": 1.5888390000036452
+        }
+      ],
+      "inference_latencies": [
+        1.5942747500012047,
+        1.7734549590022652,
+        1.600884125000448,
+        1.679776958997536,
+        1.636344291997375,
+        1.681230249996588,
+        1.605044291995,
+        1.7478811660039355,
+        1.7929844579994096,
+        1.7280919589975383,
+        1.6802263339995989,
+        1.6303845830043429,
+        1.6706227920003585,
+        1.5517580830055522,
+        1.7378192090036464,
+        1.9181071249986417,
+        1.666772625001613,
+        1.5888390000036452
+      ],
+      "latency_stats": {
+        "p50": 1.671,
+        "p90": 1.773,
+        "p95": 1.793,
+        "p99": 1.793,
+        "mean": 1.682,
+        "max": 1.918,
+        "samples": 18
+      },
+      "hallucination_flag": false,
+      "error": null
+    }
+  ]
+}
