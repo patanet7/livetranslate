@@ -42,23 +42,46 @@ install:
 # Development — Start Services
 # ==============================================================================
 
-# Start all 3 services locally (Mac: MLX, Linux: CUDA)
+# LLM model for translation (vllm-mlx on Mac, Ollama on thomas-pc)
+llm_model := env("LLM_MODEL", "mlx-community/Qwen3.5-4B-4bit")
+llm_port := "8000"
+
+# Start all services locally (Mac: MLX transcription + vllm-mlx translation)
 dev:
     @echo "Starting all services..."
-    @echo "  Transcription: http://localhost:5001"
-    @echo "  Orchestration: http://localhost:3000"
-    @echo "  Dashboard:     http://localhost:5173"
-    @echo "  Ollama:        http://localhost:11434"
+    @echo "  Translation LLM: http://localhost:{{llm_port}} ({{llm_model}})"
+    @echo "  Transcription:   http://localhost:5001 (MLX Whisper medium)"
+    @echo "  Orchestration:   http://localhost:3000"
+    @echo "  Dashboard:       http://localhost:5173"
     @echo ""
     @echo "Use Ctrl+C to stop all."
+    @trap 'kill 0' EXIT; \
+        uv run vllm-mlx serve {{llm_model}} --port {{llm_port}} 2>&1 | sed 's/^/[llm] /' & \
+        sleep 3 && \
+        uv run python {{transcription_dir}}/src/main_local.py --model medium 2>&1 | sed 's/^/[transcription] /' & \
+        sleep 5 && \
+        TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
+        LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
+        LLM_TIMEOUT_S=15 DEFAULT_TARGET_LANGUAGE=es \
+        uv run python {{orchestration_dir}}/src/main_fastapi.py 2>&1 | sed 's/^/[orchestration] /' & \
+        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | sed 's/^/[dashboard] /' & \
+        wait
+
+# Start all services with Ollama instead of vllm-mlx
+dev-ollama:
     @trap 'kill 0' EXIT; \
         uv run python {{transcription_dir}}/src/main_local.py --model medium 2>&1 | sed 's/^/[transcription] /' & \
         sleep 5 && \
         TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
-        LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen3.5:4b \
+        LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen2.5:3b \
+        LLM_TIMEOUT_S=15 DEFAULT_TARGET_LANGUAGE=es \
         uv run python {{orchestration_dir}}/src/main_fastapi.py 2>&1 | sed 's/^/[orchestration] /' & \
         sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | sed 's/^/[dashboard] /' & \
         wait
+
+# Start translation LLM server (vllm-mlx on Apple Silicon)
+dev-llm model=llm_model:
+    uv run vllm-mlx serve {{model}} --port {{llm_port}}
 
 # Start transcription service (Mac: auto-detect MLX/CPU)
 dev-transcription model='medium':
@@ -70,6 +93,9 @@ dev-transcription-gpu:
 
 # Start orchestration service
 dev-orchestration:
+    TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
+    LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
+    LLM_TIMEOUT_S=15 DEFAULT_TARGET_LANGUAGE=es \
     uv run python {{orchestration_dir}}/src/main_fastapi.py
 
 # Start dashboard (SvelteKit dev server)
