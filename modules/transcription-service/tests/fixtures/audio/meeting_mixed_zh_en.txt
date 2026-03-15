@@ -1,0 +1,9 @@
+大家好，欢迎参加今天的会议。今天我们要讨论第三季度的销售报告。
+好的，谢谢。根据数据显示，我们第三季度的总收入达到了两千五百万美元，比去年同期增长了百分之十五。
+这个增长率非常不错。能详细说一下各个地区的表现吗？
+当然可以。亚太地区表现最好，增长了百分之二十二。北美地区增长了百分之十。欧洲地区基本持平。
+我注意到人工智能产品的销售额增长特别快。这个趋势能持续吗？
+我们预计下个季度人工智能相关产品将继续保持强劲增长。客户对实时翻译和语音识别的需求越来越大。Good morning everyone. Let us start our weekly sync. Sarah, can you give us an update on the transcription pipeline?
+Sure. We have completed the WebSocket integration between the orchestration and transcription services. The streaming pipeline is now working end to end on both Apple Silicon and CUDA.
+That is great progress. What about the translation module?
+Translation is working with Ollama locally. We are using Qwen three point five with no-think mode. Latency is about one to two seconds per segment.
