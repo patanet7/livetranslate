@@ -14,10 +14,7 @@ from clients.audio_service_client import (
     TranscriptionRequest,
     TranscriptionResponse,
 )
-from clients.translation_service_client import (
-    TranslationRequest as ClientTranslationRequest,
-    TranslationResponse as ClientTranslationResponse,
-)
+# NOTE: clients.translation_service_client removed — superseded by translation.service
 from internal_services import audio as audio_module
 from internal_services.audio import (
     UnifiedAudioError,

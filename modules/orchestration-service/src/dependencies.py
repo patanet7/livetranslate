@@ -18,7 +18,8 @@ from audio.config_sync import ConfigurationSyncManager
 
 # Client imports
 from clients.audio_service_client import AudioServiceClient
-from clients.translation_service_client import TranslationServiceClient
+from translation.config import TranslationConfig
+from translation.service import TranslationService
 from config import DatabaseSettings
 
 # Database imports
@@ -68,7 +69,7 @@ _bot_manager: BotManager | None = None
 _database_manager: DatabaseManager | None = None
 _unified_repository: UnifiedBotSessionRepository | None = None
 _audio_service_client: AudioServiceClient | None = None
-_translation_service_client: TranslationServiceClient | None = None
+_translation_service_client: TranslationService | None = None
 _audio_coordinator: AudioCoordinator | None = None
 _config_sync_manager: ConfigurationSyncManager | None = None
 _audio_config_manager: AudioConfigurationManager | None = None
@@ -402,25 +403,13 @@ def get_audio_service_client() -> AudioServiceClient:
 
 
 @lru_cache
-def get_translation_service_client() -> TranslationServiceClient:
-    """Get singleton TranslationServiceClient instance."""
+def get_translation_service_client() -> TranslationService:
+    """Get singleton TranslationService instance (replaces legacy TranslationServiceClient)."""
     global _translation_service_client
     if _translation_service_client is None:
-        logger.info("Initializing TranslationServiceClient singleton")
-        config_manager = get_config_manager()
-        service_config = (
-            config_manager.get_service_config("translation-service")
-            if hasattr(config_manager, "get_service_config")
-            else None
-        )
-        base_url = os.getenv("TRANSLATION_SERVICE_URL")
-        if not base_url and service_config:
-            base_url = service_config.url
-        if not base_url:
-            base_url = "http://localhost:5003"
-        timeout = int(os.getenv("TRANSLATION_SERVICE_TIMEOUT", 30))
-        _translation_service_client = TranslationServiceClient(base_url=base_url, timeout=timeout)
-        logger.info("TranslationServiceClient initialized successfully")
+        logger.info("Initializing TranslationService singleton")
+        _translation_service_client = TranslationService(TranslationConfig.from_env())
+        logger.info("TranslationService initialized successfully")
     return _translation_service_client
 
 
@@ -887,9 +876,4 @@ def reset_dependencies():
     except (ImportError, Exception):
         pass
 
-    try:
-        from internal_services.translation import reset_unified_translation_service
-
-        reset_unified_translation_service()
-    except (ImportError, Exception):
-        pass
+    # NOTE: internal_services.translation removed — superseded by translation.service

@@ -26,8 +26,8 @@ classifiers = [
 members = [
     "modules/shared",
     "modules/orchestration-service",
-    "modules/transcription-service",
-    "modules/translation-service",
+    "modules/whisper-service",
+    "tools/translation_benchmark",
 ]
 
 [tool.bandit]
@@ -237,7 +237,7 @@ dev = [
     "autoflake>=2.3.0",
     "sqlfluff>=4.0.0",
     "numpy>=2.3.5",
-    "pytest-timeout>=2.4.0",
+    "testcontainers>=4.13.3",
 ]
 test = [
     "httpx>=0.28.1",

@@ -9,11 +9,12 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from clients.audio_service_client import AudioServiceClient
-from clients.translation_service_client import (
-    LanguageDetectionResponse,
-    TranslationRequest,
-    TranslationServiceClient,
-)
+
+# NOTE: TranslationServiceClient, TranslationRequest, and LanguageDetectionResponse
+# from clients.translation_service_client have been removed. The old HTTP-proxy client
+# is superseded by translation.service.TranslationService which calls Ollama directly.
+# The test_translation_client_contracts test below has been removed accordingly.
+# TODO: add contract tests for translation.service.TranslationService when ready.
 
 
 class MockResponse:
@@ -140,24 +141,4 @@ async def test_audio_client_realtime_contracts():
     assert expected_post_urls.issubset(seen_posts)
 
 
-@pytest.mark.asyncio
-async def test_translation_client_contracts():
-    client = TranslationServiceClient(base_url="http://mock-translation")
-    mock_session = MockSession()
-    client.session = mock_session
-
-    languages = await client.get_supported_languages()
-    assert languages[0]["code"] == "en"
-
-    detection = await client.detect_language("hello world")
-    assert isinstance(detection, LanguageDetectionResponse)
-    assert detection.language == "en"
-
-    request = TranslationRequest(text="hello", target_language="es")
-    response = await client.translate(request)
-    assert response.translated_text == "hola"
-
-    performance_calls = {call[1] for call in mock_session.calls}
-    assert "http://mock-translation/api/languages" in performance_calls
-    assert "http://mock-translation/api/detect" in performance_calls
-    assert "http://mock-translation/api/translate" in performance_calls
+# TODO: add test_translation_service_contracts() for translation.service.TranslationService
