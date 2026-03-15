@@ -49,6 +49,7 @@ export default defineConfig({
       '@emotion/react',
       '@emotion/styled',
     ],
+    exclude: ['@mui/x-date-pickers'],
   },
   test: {
     globals: true,

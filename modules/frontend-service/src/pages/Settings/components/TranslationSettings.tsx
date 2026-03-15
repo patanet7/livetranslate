@@ -24,21 +24,40 @@ import {
   Tooltip,
   Paper,
   Checkbox,
+  Collapse,
+  ToggleButton,
+  ToggleButtonGroup,
+  CircularProgress,
+  InputAdornment,
+  Autocomplete,
+  Divider,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import RestoreIcon from "@mui/icons-material/Restore";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import LinkIcon from "@mui/icons-material/Link";
+import { SUPPORTED_LANGUAGES } from "@/constants/languages";
+import {
+  DEFAULT_SOURCE_LANGUAGE,
+  DEFAULT_TARGET_LANGUAGES,
+  DEFAULT_CONFIDENCE_THRESHOLD,
+} from "@/config/translation";
 
 interface TranslationConfig {
   // Service Configuration
   service: {
     enabled: boolean;
     service_url: string;
-    inference_engine: "vllm" | "ollama" | "triton";
+    inference_engine: "vllm" | "ollama" | "triton" | "openai_compatible";
     model_name: string;
     fallback_model: string;
     timeout_ms: number;
     max_retries: number;
+    api_key: string;
   };
 
   // Language Configuration
@@ -88,31 +107,59 @@ interface TranslationConfig {
   };
 }
 
-import { SUPPORTED_LANGUAGES } from "@/constants/languages";
-
 interface TranslationSettingsProps {
   onSave: (message: string, success?: boolean) => void;
 }
 
 const availableLanguages = SUPPORTED_LANGUAGES;
 
-const availableModels = [
-  { id: "llama2-7b-chat", name: "Llama 2 7B Chat" },
-  { id: "mistral-7b-instruct", name: "Mistral 7B Instruct" },
-  { id: "codellama-7b-instruct", name: "CodeLlama 7B Instruct" },
-  { id: "vicuna-7b-v1.5", name: "Vicuna 7B v1.5" },
-  { id: "orca-mini-3b", name: "Orca Mini 3B" },
-];
+
+const engineDefaults: Record<
+  string,
+  {
+    url: string;
+    placeholder: string;
+    modelPlaceholder: string;
+    helperText: string;
+  }
+> = {
+  vllm: {
+    url: "http://localhost:8000",
+    placeholder: "http://localhost:8000",
+    modelPlaceholder: "meta-llama/Llama-2-7b-chat-hf",
+    helperText:
+      "vLLM serves OpenAI-compatible endpoints at /v1/chat/completions",
+  },
+  ollama: {
+    url: "http://localhost:11434",
+    placeholder: "http://localhost:11434",
+    modelPlaceholder: "llama2:7b",
+    helperText: "Ollama API serves models at /api/chat",
+  },
+  triton: {
+    url: "http://localhost:8001",
+    placeholder: "http://localhost:8001",
+    modelPlaceholder: "ensemble_model",
+    helperText: "NVIDIA Triton Inference Server",
+  },
+  openai_compatible: {
+    url: "https://api.openai.com/v1",
+    placeholder: "https://api.openai.com/v1",
+    modelPlaceholder: "gpt-4",
+    helperText: "Any OpenAI-compatible API endpoint",
+  },
+};
 
 const defaultTranslationConfig: TranslationConfig = {
   service: {
     enabled: true,
-    service_url: "http://localhost:5003",
+    service_url: "http://localhost:8000",
     inference_engine: "vllm",
-    model_name: "llama2-7b-chat",
-    fallback_model: "orca-mini-3b",
+    model_name: "meta-llama/Llama-2-7b-chat-hf",
+    fallback_model: "mistral-7b-instruct",
     timeout_ms: 30000,
     max_retries: 3,
+    api_key: "",
   },
   languages: {
     auto_detect: true,
@@ -166,6 +213,16 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({
     average_quality: 0,
     average_latency_ms: 0,
   });
+
+  // Connection panel state
+  const [connectionStatus, setConnectionStatus] = useState<
+    "unknown" | "connected" | "error" | "verifying"
+  >("unknown");
+  const [connectionMessage, setConnectionMessage] = useState<string>("");
+  const [discoveredModels, setDiscoveredModels] = useState<string[]>([]);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [useAuth, setUseAuth] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Load current configuration
   useEffect(() => {
@@ -223,6 +280,65 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({
       : [...currentLanguages, languageCode];
 
     handleConfigChange("languages", key, updatedLanguages);
+  };
+
+  const handleEngineChange = (
+    _event: React.MouseEvent<HTMLElement>,
+    newEngine: string | null,
+  ) => {
+    if (!newEngine) return;
+    const engine = newEngine as TranslationConfig["service"]["inference_engine"];
+    handleConfigChange("service", "inference_engine", engine);
+    const defaults = engineDefaults[engine];
+    if (defaults) {
+      handleConfigChange("service", "service_url", defaults.url);
+    }
+    // Reset connection status when engine changes
+    setConnectionStatus("unknown");
+    setConnectionMessage("");
+    setDiscoveredModels([]);
+  };
+
+  const handleVerifyConnection = async () => {
+    setConnectionStatus("verifying");
+    setConnectionMessage("");
+    try {
+      const response = await fetch(
+        "/api/settings/translation/verify-connection",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: config.service.service_url,
+            engine: config.service.inference_engine,
+            api_key: config.service.api_key,
+          }),
+        },
+      );
+      if (response.ok) {
+        const result = await response.json();
+        setConnectionStatus("connected");
+        const models: string[] = result.models ?? [];
+        setDiscoveredModels(models);
+        setConnectionMessage(
+          models.length > 0
+            ? `Connected. ${models.length} model${models.length !== 1 ? "s" : ""} available.`
+            : "Connected successfully.",
+        );
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        setConnectionStatus("error");
+        setConnectionMessage(
+          (errorData as { detail?: string }).detail ??
+            `Connection failed (HTTP ${response.status})`,
+        );
+      }
+    } catch (error) {
+      setConnectionStatus("error");
+      setConnectionMessage(
+        error instanceof Error ? error.message : "Unable to reach endpoint",
+      );
+    }
   };
 
   const handleSave = async () => {
@@ -328,6 +444,357 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({
         backends.
       </Alert>
 
+      {/* Translation Service Connection Card */}
+      <Card
+        variant="outlined"
+        sx={{
+          mb: 3,
+          borderColor:
+            connectionStatus === "connected"
+              ? "success.main"
+              : connectionStatus === "error"
+                ? "error.main"
+                : connectionStatus === "verifying"
+                  ? "warning.main"
+                  : "divider",
+          borderWidth: connectionStatus !== "unknown" ? 2 : 1,
+          transition: "border-color 0.3s ease",
+        }}
+      >
+        <CardHeader
+          avatar={<LinkIcon color="action" />}
+          title={
+            <Box display="flex" alignItems="center" gap={1}>
+              <Typography variant="h6">
+                Translation Service Connection
+              </Typography>
+              {connectionStatus === "connected" && (
+                <Chip
+                  icon={<CheckCircleIcon />}
+                  label="Connected"
+                  color="success"
+                  size="small"
+                />
+              )}
+              {connectionStatus === "error" && (
+                <Chip
+                  icon={<ErrorIcon />}
+                  label="Disconnected"
+                  color="error"
+                  size="small"
+                />
+              )}
+              {connectionStatus === "verifying" && (
+                <Chip
+                  icon={
+                    <CircularProgress size={12} color="inherit" sx={{ mr: 0 }} />
+                  }
+                  label="Verifying..."
+                  color="warning"
+                  size="small"
+                />
+              )}
+              {connectionStatus === "unknown" && (
+                <Chip label="Not verified" size="small" variant="outlined" />
+              )}
+            </Box>
+          }
+          action={
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={config.service.enabled}
+                  onChange={(e) =>
+                    handleConfigChange(
+                      "service",
+                      "enabled",
+                      e.target.checked,
+                    )
+                  }
+                />
+              }
+              label="Enable"
+              labelPlacement="start"
+            />
+          }
+        />
+
+        <CardContent>
+          <Grid container spacing={3}>
+            {/* Inference Engine Toggle */}
+            <Grid item xs={12}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                gutterBottom
+                fontWeight={500}
+              >
+                Inference Engine
+              </Typography>
+              <ToggleButtonGroup
+                value={config.service.inference_engine}
+                exclusive
+                onChange={handleEngineChange}
+                disabled={!config.service.enabled}
+                size="small"
+                sx={{ flexWrap: "wrap", gap: 0.5 }}
+              >
+                <ToggleButton value="vllm" sx={{ px: 2 }}>
+                  vLLM
+                </ToggleButton>
+                <ToggleButton value="ollama" sx={{ px: 2 }}>
+                  Ollama
+                </ToggleButton>
+                <ToggleButton value="triton" sx={{ px: 2 }}>
+                  Triton
+                </ToggleButton>
+                <ToggleButton value="openai_compatible" sx={{ px: 2 }}>
+                  OpenAI Compatible
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+
+            {/* Service URL with Verify button */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Service URL"
+                value={config.service.service_url}
+                onChange={(e) => {
+                  handleConfigChange(
+                    "service",
+                    "service_url",
+                    e.target.value,
+                  );
+                  setConnectionStatus("unknown");
+                }}
+                disabled={!config.service.enabled}
+                placeholder={
+                  engineDefaults[config.service.inference_engine]?.placeholder
+                }
+                helperText={
+                  connectionStatus === "error" && connectionMessage
+                    ? connectionMessage
+                    : (engineDefaults[config.service.inference_engine]
+                        ?.helperText ?? "")
+                }
+                error={connectionStatus === "error"}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={handleVerifyConnection}
+                        disabled={
+                          !config.service.enabled ||
+                          connectionStatus === "verifying" ||
+                          !config.service.service_url
+                        }
+                        startIcon={
+                          connectionStatus === "verifying" ? (
+                            <CircularProgress size={14} color="inherit" />
+                          ) : undefined
+                        }
+                        sx={{ whiteSpace: "nowrap", minWidth: 80 }}
+                      >
+                        {connectionStatus === "verifying"
+                          ? "Verifying"
+                          : "Verify"}
+                      </Button>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              {connectionStatus === "connected" && connectionMessage && (
+                <Typography
+                  variant="caption"
+                  color="success.main"
+                  sx={{ mt: 0.5, display: "block" }}
+                >
+                  {connectionMessage}
+                </Typography>
+              )}
+            </Grid>
+
+            {/* Authentication toggle + API key */}
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={
+                      useAuth ||
+                      config.service.inference_engine === "openai_compatible"
+                    }
+                    onChange={(e) => setUseAuth(e.target.checked)}
+                    disabled={
+                      config.service.inference_engine === "openai_compatible" ||
+                      !config.service.enabled
+                    }
+                  />
+                }
+                label="Authentication required"
+              />
+            </Grid>
+
+            <Grid item xs={12}>
+              <Collapse
+                in={
+                  useAuth ||
+                  config.service.inference_engine === "openai_compatible"
+                }
+              >
+                <TextField
+                  fullWidth
+                  label="API Key"
+                  type={showApiKey ? "text" : "password"}
+                  value={config.service.api_key}
+                  onChange={(e) =>
+                    handleConfigChange("service", "api_key", e.target.value)
+                  }
+                  disabled={!config.service.enabled}
+                  placeholder="sk-... or Bearer token"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowApiKey((prev) => !prev)}
+                          edge="end"
+                          size="small"
+                          aria-label={
+                            showApiKey ? "Hide API key" : "Show API key"
+                          }
+                        >
+                          {showApiKey ? (
+                            <VisibilityOffIcon fontSize="small" />
+                          ) : (
+                            <VisibilityIcon fontSize="small" />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Collapse>
+            </Grid>
+
+            {/* Primary Model */}
+            <Grid item xs={12} md={6}>
+              <Autocomplete
+                freeSolo
+                options={discoveredModels}
+                value={config.service.model_name}
+                onInputChange={(_event, newValue) =>
+                  handleConfigChange("service", "model_name", newValue)
+                }
+                disabled={!config.service.enabled}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    fullWidth
+                    label="Model"
+                    placeholder={
+                      engineDefaults[config.service.inference_engine]
+                        ?.modelPlaceholder
+                    }
+                    helperText={
+                      discoveredModels.length > 0
+                        ? `${discoveredModels.length} model${discoveredModels.length !== 1 ? "s" : ""} discovered`
+                        : "Type any model name or verify connection to discover models"
+                    }
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Fallback Model */}
+            <Grid item xs={12} md={6}>
+              <Autocomplete
+                freeSolo
+                options={discoveredModels}
+                value={config.service.fallback_model}
+                onInputChange={(_event, newValue) =>
+                  handleConfigChange("service", "fallback_model", newValue)
+                }
+                disabled={!config.service.enabled}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    fullWidth
+                    label="Fallback Model"
+                    placeholder={
+                      engineDefaults[config.service.inference_engine]
+                        ?.modelPlaceholder
+                    }
+                    helperText="Used when the primary model is unavailable"
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Advanced section */}
+            <Grid item xs={12}>
+              <Divider sx={{ mb: 1 }} />
+              <Button
+                size="small"
+                onClick={() => setShowAdvanced((prev) => !prev)}
+                endIcon={
+                  <ExpandMoreIcon
+                    sx={{
+                      transform: showAdvanced
+                        ? "rotate(180deg)"
+                        : "rotate(0deg)",
+                      transition: "transform 0.2s",
+                    }}
+                  />
+                }
+                sx={{ color: "text.secondary", textTransform: "none" }}
+              >
+                {showAdvanced ? "Hide advanced" : "Show advanced"}
+              </Button>
+              <Collapse in={showAdvanced}>
+                <Grid container spacing={3} sx={{ mt: 0.5 }}>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Timeout (ms)"
+                      type="number"
+                      value={config.service.timeout_ms}
+                      onChange={(e) =>
+                        handleConfigChange(
+                          "service",
+                          "timeout_ms",
+                          Number(e.target.value),
+                        )
+                      }
+                      disabled={!config.service.enabled}
+                      helperText="Request timeout in milliseconds"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Max Retries"
+                      type="number"
+                      value={config.service.max_retries}
+                      onChange={(e) =>
+                        handleConfigChange(
+                          "service",
+                          "max_retries",
+                          Number(e.target.value),
+                        )
+                      }
+                      disabled={!config.service.enabled}
+                      helperText="Number of retry attempts on failure"
+                    />
+                  </Grid>
+                </Grid>
+              </Collapse>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+
       {/* Translation Statistics */}
       <Card sx={{ mb: 3 }}>
         <CardHeader
@@ -398,142 +865,6 @@ const TranslationSettings: React.FC<TranslationSettingsProps> = ({
           </Grid>
         </CardContent>
       </Card>
-
-      {/* Service Configuration */}
-      <Accordion defaultExpanded>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">Service Configuration</Typography>
-          <Chip
-            label={config.service.enabled ? "Enabled" : "Disabled"}
-            color={config.service.enabled ? "success" : "default"}
-            size="small"
-            sx={{ ml: 2 }}
-          />
-        </AccordionSummary>
-        <AccordionDetails>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={config.service.enabled}
-                    onChange={(e) =>
-                      handleConfigChange("service", "enabled", e.target.checked)
-                    }
-                  />
-                }
-                label="Enable Translation Service"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Service URL"
-                value={config.service.service_url}
-                onChange={(e) =>
-                  handleConfigChange("service", "service_url", e.target.value)
-                }
-                disabled={!config.service.enabled}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel>Inference Engine</InputLabel>
-                <Select
-                  value={config.service.inference_engine}
-                  label="Inference Engine"
-                  onChange={(e) =>
-                    handleConfigChange(
-                      "service",
-                      "inference_engine",
-                      e.target.value,
-                    )
-                  }
-                  disabled={!config.service.enabled}
-                >
-                  <MenuItem value="vllm">vLLM (GPU Optimized)</MenuItem>
-                  <MenuItem value="ollama">Ollama (CPU/GPU)</MenuItem>
-                  <MenuItem value="triton">Triton Inference Server</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel>Primary Model</InputLabel>
-                <Select
-                  value={config.service.model_name}
-                  label="Primary Model"
-                  onChange={(e) =>
-                    handleConfigChange("service", "model_name", e.target.value)
-                  }
-                  disabled={!config.service.enabled}
-                >
-                  {availableModels.map((model) => (
-                    <MenuItem key={model.id} value={model.id}>
-                      {model.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel>Fallback Model</InputLabel>
-                <Select
-                  value={config.service.fallback_model}
-                  label="Fallback Model"
-                  onChange={(e) =>
-                    handleConfigChange(
-                      "service",
-                      "fallback_model",
-                      e.target.value,
-                    )
-                  }
-                  disabled={!config.service.enabled}
-                >
-                  {availableModels.map((model) => (
-                    <MenuItem key={model.id} value={model.id}>
-                      {model.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Timeout (ms)"
-                type="number"
-                value={config.service.timeout_ms}
-                onChange={(e) =>
-                  handleConfigChange(
-                    "service",
-                    "timeout_ms",
-                    Number(e.target.value),
-                  )
-                }
-                disabled={!config.service.enabled}
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                label="Max Retries"
-                type="number"
-                value={config.service.max_retries}
-                onChange={(e) =>
-                  handleConfigChange(
-                    "service",
-                    "max_retries",
-                    Number(e.target.value),
-                  )
-                }
-                disabled={!config.service.enabled}
-              />
-            </Grid>
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
 
       {/* Language Configuration */}
       <Accordion>
