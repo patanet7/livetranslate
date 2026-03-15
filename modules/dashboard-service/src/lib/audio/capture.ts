@@ -86,16 +86,28 @@ export class AudioCapture {
         this._systemStream = systemStream;
         this.context = new AudioContext();
 
-        // C1 fix: Use GainNode as a mono mixer instead of ChannelMerger.
-        // ChannelMerger produces stereo (mic on ch0, system on ch1) but the
-        // AudioWorklet only reads channel 0, silently dropping system audio.
-        // A GainNode sums both inputs into a single mono channel.
+        // C1 fix: Use per-source GainNodes at 0.7 feeding a DynamicsCompressor.
+        // A single shared GainNode at 0.5 attenuates both sources unconditionally,
+        // halving the amplitude when only one source is active — degrading Whisper
+        // accuracy on quiet speech. Per-source gain + compressor handles clipping
+        // adaptively while preserving signal integrity.
         const micSource = this.context.createMediaStreamSource(micStream);
         const systemSource = this.context.createMediaStreamSource(systemStream);
-        const mixer = this.context.createGain();
-        mixer.gain.value = 0.5; // prevent clipping from summing two sources
-        micSource.connect(mixer);
-        systemSource.connect(mixer);
+        const micGain = this.context.createGain();
+        micGain.gain.value = 0.7;
+        const systemGain = this.context.createGain();
+        systemGain.gain.value = 0.7;
+        const compressor = this.context.createDynamicsCompressor();
+        compressor.threshold.value = -6;  // Compress at -6dB to prevent clipping
+        compressor.ratio.value = 4;
+        micSource.connect(micGain).connect(compressor);
+        systemSource.connect(systemGain).connect(compressor);
+
+        // I3: Log actual sample rates for drift debugging in long sessions
+        const micTrack = micStream.getAudioTracks()[0];
+        const systemTrack = systemStream.getAudioTracks()[0];
+        console.info('Mic sample rate:', micTrack.getSettings().sampleRate);
+        console.info('System sample rate:', systemTrack.getSettings().sampleRate);
 
         await this.context.audioWorklet.addModule('/audio-worklet-processor.js');
         this.workletNode = new AudioWorkletNode(this.context, 'audio-chunk-processor');
@@ -104,7 +116,7 @@ export class AudioCapture {
             options.onChunk(new Float32Array(event.data.data));
           }
         };
-        mixer.connect(this.workletNode);
+        compressor.connect(this.workletNode);
 
         this._isCapturing = true;
         return;

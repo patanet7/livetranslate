@@ -5,6 +5,7 @@
   import { AudioCapture } from '$lib/audio/capture';
   import { LoopbackWebSocket } from '$lib/audio/websocket';
   import type { ServerMessage } from '$lib/types/ws-messages';
+  import { WS_BASE } from '$lib/config';
   import Toolbar from '$lib/components/loopback/Toolbar.svelte';
   import SplitView from '$lib/components/loopback/SplitView.svelte';
   import SubtitleView from '$lib/components/loopback/SubtitleView.svelte';
@@ -17,6 +18,7 @@
 
   let capture: AudioCapture | null = null;
   let ws: LoopbackWebSocket | null = null;
+  let stopping = false;  // C3: Re-entrancy guard for stopCapture
 
   function handleMessage(msg: ServerMessage) {
     switch (msg.type) {
@@ -64,9 +66,8 @@
   async function startCapture() {
     if (loopbackStore.isCapturing) return;
 
-    // Build WebSocket URL from current location
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:3000/ws/loopback`;
+    // S2: Use WS_BASE from config instead of hardcoded port
+    const wsUrl = `${WS_BASE}/ws/loopback`;
 
     // C2 fix: Use a settled flag to prevent calling resolve/reject multiple times.
     // Both onError and onStateChange('error') can fire, and reject after resolve is benign
@@ -151,23 +152,31 @@
   }
 
   async function stopCapture() {
-    if (ws && loopbackStore.isCapturing) {
-      ws.sendMessage({ type: 'end_session' });
-    }
+    // C3: Re-entrancy guard — stopCapture can be called from onError callback
+    // during the stop() sequence itself, causing interleaved cleanup.
+    if (stopping) return;
+    stopping = true;
+    try {
+      if (ws && loopbackStore.isCapturing) {
+        ws.sendMessage({ type: 'end_session' });
+      }
 
-    if (capture) {
-      await capture.stop();
-      capture = null;
-    }
+      if (capture) {
+        await capture.stop();
+        capture = null;
+      }
 
-    if (ws) {
-      ws.disconnect();
-      ws = null;
-    }
+      if (ws) {
+        ws.disconnect();
+        ws = null;
+      }
 
-    loopbackStore.isCapturing = false;
-    loopbackStore.connectionState = 'disconnected';
-    stopElapsedTimer();
+      loopbackStore.isCapturing = false;
+      loopbackStore.connectionState = 'disconnected';
+      stopElapsedTimer();
+    } finally {
+      stopping = false;
+    }
   }
 
   function startMeeting() {
