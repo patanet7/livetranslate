@@ -118,6 +118,7 @@ function createLoopbackStore() {
     interimText = '';
     interimConfidence = 0;
     nextId = 0;
+    speakerColorMap.clear();  // M2: Clear speaker colors with captions
   }
 
   return {

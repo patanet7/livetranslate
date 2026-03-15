@@ -21,6 +21,9 @@ export interface LoopbackWSOptions {
   onMessage: (msg: ServerMessage) => void;
   onStateChange: (state: ConnectionState) => void;
   onError?: (error: Event) => void;
+  /** Called after auto-reconnect succeeds (server sends ConnectedMessage).
+   * Use this to re-send start_session so the server has session context. */
+  onReconnect?: () => void;
 }
 
 export class LoopbackWebSocket {
@@ -31,6 +34,7 @@ export class LoopbackWebSocket {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private _state: ConnectionState = 'disconnected';
   private _sessionId: string | null = null;
+  private _hasConnectedOnce = false;  // C1: Track if this is a reconnect
 
   get state(): ConnectionState {
     return this._state;
@@ -77,6 +81,15 @@ export class LoopbackWebSocket {
           }
           this._sessionId = msg.session_id;
           this.setState('connected');
+
+          // C1 fix: If this is a reconnect (not the initial connect),
+          // fire onReconnect so the page can re-send start_session.
+          // Without this, the server receives raw audio on a fresh
+          // connection with no session context.
+          if (this._hasConnectedOnce) {
+            this.options.onReconnect?.();
+          }
+          this._hasConnectedOnce = true;
         }
 
         this.options.onMessage(msg);
@@ -100,6 +113,7 @@ export class LoopbackWebSocket {
       this.reconnectTimer = null;
     }
     this.reconnectAttempts = this.maxReconnectAttempts; // prevent auto-reconnect
+    this._hasConnectedOnce = false;
     this.ws?.close();
     this.ws = null;
     this._sessionId = null;
@@ -109,6 +123,10 @@ export class LoopbackWebSocket {
   /** Send a binary audio chunk (Float32Array) */
   sendAudio(data: Float32Array): void {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
+    // I5: Backpressure — drop frames if send buffer exceeds 1MB.
+    // Audio is real-time and lossy by nature; dropping under congestion
+    // is better than unbounded memory growth in long sessions.
+    if (this.ws.bufferedAmount > 1_048_576) return;
     // C2 fix: Defensive slice — data.buffer could be a view on a larger
     // ArrayBuffer or reference a detached buffer if the typed array was
     // created from a transferred buffer. Slicing ensures we send exactly

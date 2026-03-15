@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { beforeNavigate } from '$app/navigation';
   import { loopbackStore } from '$lib/stores/loopback.svelte';
   import { AudioCapture } from '$lib/audio/capture';
   import { LoopbackWebSocket } from '$lib/audio/websocket';
@@ -29,16 +30,33 @@
         loopbackStore.addTranslation(msg);
         break;
       case 'meeting_started':
-        loopbackStore.startMeeting(msg.session_id, msg.started_at);
-        startElapsedTimer(msg.started_at);
+        // C3: Guard against malformed message
+        if (typeof msg.session_id === 'string' && typeof msg.started_at === 'string') {
+          loopbackStore.startMeeting(msg.session_id, msg.started_at);
+          startElapsedTimer(msg.started_at);
+        }
         break;
       case 'service_status':
-        loopbackStore.transcriptionStatus = msg.transcription;
-        loopbackStore.translationStatus = msg.translation;
+        // C3: Guard field types
+        if (typeof msg.transcription === 'string' && typeof msg.translation === 'string') {
+          loopbackStore.transcriptionStatus = msg.transcription as 'up' | 'down';
+          loopbackStore.translationStatus = msg.translation as 'up' | 'down';
+        }
         break;
       case 'recording_status':
-        loopbackStore.isRecording = msg.recording;
-        loopbackStore.recordingChunks = msg.chunks_written;
+        if (typeof msg.recording === 'boolean' && typeof msg.chunks_written === 'number') {
+          loopbackStore.isRecording = msg.recording;
+          loopbackStore.recordingChunks = msg.chunks_written;
+        }
+        break;
+      // M6: Handle language_detected and backend_switched messages
+      case 'language_detected':
+        if (typeof msg.language === 'string') {
+          loopbackStore.sourceLanguage = msg.language;
+        }
+        break;
+      case 'backend_switched':
+        // Informational — could show a toast, for now just log
         break;
     }
   }
@@ -50,8 +68,10 @@
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.hostname}:3000/ws/loopback`;
 
-    // Create a promise that resolves when WS connects, so we can await it
-    // before starting audio capture (avoids sending audio before session starts).
+    // C2 fix: Use a settled flag to prevent calling resolve/reject multiple times.
+    // Both onError and onStateChange('error') can fire, and reject after resolve is benign
+    // but masks the actual failure sequence.
+    let settled = false;
     let resolveConnected: () => void;
     let rejectConnected: (reason: Error) => void;
     const connectedPromise = new Promise<void>((resolve, reject) => {
@@ -62,19 +82,31 @@
     ws = new LoopbackWebSocket({
       url: wsUrl,
       onMessage: (msg) => {
-        if (msg.type === 'connected') {
+        if (msg.type === 'connected' && !settled) {
+          settled = true;
           resolveConnected();
         }
         handleMessage(msg);
       },
       onStateChange: (state) => {
         loopbackStore.connectionState = state;
-        if (state === 'error') {
+        if (state === 'error' && !settled) {
+          settled = true;
           rejectConnected(new Error('WebSocket connection failed'));
         }
       },
       onError: () => {
-        rejectConnected(new Error('WebSocket error'));
+        if (!settled) {
+          settled = true;
+          rejectConnected(new Error('WebSocket error'));
+        }
+      },
+      // C1 fix: Re-send start_session after auto-reconnect so the server
+      // has session context for incoming audio frames.
+      onReconnect: () => {
+        if (capture) {
+          ws?.startSession(capture.sampleRate ?? 48000, 1, selectedDeviceId);
+        }
       },
     });
 
@@ -148,6 +180,15 @@
     stopElapsedTimer();
   }
 
+  /** I1/I2: Send config changes (model, language) to server via WebSocket */
+  function handleConfigChange(config: { model?: string; language?: string }) {
+    ws?.sendMessage({
+      type: 'config',
+      ...(config.model ? { model: config.model } : {}),
+      ...(config.language ? { language: config.language } : {}),
+    });
+  }
+
   function startElapsedTimer(startedAt: string) {
     stopElapsedTimer();
     const startTime = new Date(startedAt).getTime();
@@ -169,6 +210,11 @@
   }
 
   onMount(async () => {
+    // I4: Reset transient state on mount — the singleton store persists
+    // across SvelteKit navigations but AudioCapture/WS are recreated.
+    loopbackStore.isCapturing = false;
+    loopbackStore.connectionState = 'disconnected';
+
     try {
       devices = await AudioCapture.getDevices();
       if (devices.length > 0 && !selectedDeviceId) {
@@ -179,8 +225,14 @@
     }
   });
 
+  // I6: Use beforeNavigate to await async cleanup before SvelteKit navigates.
+  // onDestroy is synchronous and can't await AudioContext.close().
+  beforeNavigate(async () => {
+    await stopCapture();
+  });
+
   onDestroy(() => {
-    // Synchronous teardown: fire-and-forget the async stop
+    // Fallback for non-navigation unmounts (e.g., HMR)
     stopCapture();
   });
 </script>
@@ -189,10 +241,11 @@
   <Toolbar
     {devices}
     bind:selectedDeviceId
-    onStart={startCapture}
-    onStop={stopCapture}
+    onStartCapture={startCapture}
+    onStopCapture={stopCapture}
     onStartMeeting={startMeeting}
     onEndMeeting={endMeeting}
+    onConfigChange={handleConfigChange}
   />
 
   {#if loopbackStore.isMeetingActive}
