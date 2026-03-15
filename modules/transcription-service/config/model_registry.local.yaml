@@ -11,25 +11,28 @@ vram_budget_mb: 16000
 # prebuffer_s=3.0 ensures first inference gets enough audio for accurate
 # transcription. GPU config uses 0.3s because inference is <0.5s.
 # NOTE: stride_s MUST equal chunk_duration_s - overlap_s
+# Optimal configs from benchmark sweep (2026-03-15).
+# Local (Apple Silicon) uses same optimal configs as GPU but with
+# longer prebuffer (1.0s) since MLX inference is slower.
 language_routing:
   en:
     backend: mlx
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 6.5
+    stride_s: 6.0
+    overlap_s: 0.5
     vad_threshold: 0.5
     beam_size: 1
-    prebuffer_s: 3.0
+    prebuffer_s: 1.0
     batch_profile: realtime
   zh:
     backend: mlx
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 7.5
+    stride_s: 6.0
+    overlap_s: 1.5
     vad_threshold: 0.45
     beam_size: 1
     prebuffer_s: 1.0
@@ -38,9 +41,9 @@ language_routing:
     backend: mlx
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 7.5
+    stride_s: 6.0
+    overlap_s: 1.5
     vad_threshold: 0.45
     beam_size: 1
     prebuffer_s: 1.0
@@ -49,10 +52,10 @@ language_routing:
     backend: mlx
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 6.5
+    stride_s: 6.0
+    overlap_s: 0.5
     vad_threshold: 0.5
     beam_size: 1
-    prebuffer_s: 3.0
+    prebuffer_s: 1.0
     batch_profile: realtime
