@@ -310,7 +310,7 @@ class TestKVCacheOverflow:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en"],
@@ -318,6 +318,12 @@ class TestKVCacheOverflow:
             vad_threshold=0.5,
             sampling_rate=16000,
         )
+        yield t
+        t.reset()
+        del t
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def test_kv_cache_bounded_in_long_session(self, transcriber):
         """
@@ -349,6 +355,10 @@ class TestKVCacheOverflow:
 
         memory_tracker.sample("end")
         mem_stats = memory_tracker.get_stats()
+
+        # Free the large audio array
+        del audio
+        gc.collect()
 
         # KV cache overflow would cause memory to grow significantly
         assert (
@@ -407,7 +417,7 @@ class TestSessionHistoryBoundedGrowth:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en"],
@@ -415,6 +425,12 @@ class TestSessionHistoryBoundedGrowth:
             vad_threshold=0.5,
             sampling_rate=16000,
         )
+        yield t
+        t.reset()
+        del t
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def test_session_history_bounded_growth(self, transcriber):
         """
@@ -482,7 +498,7 @@ class TestNoCrashesOrDegradation:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en", "zh"],
@@ -490,6 +506,12 @@ class TestNoCrashesOrDegradation:
             vad_threshold=0.5,
             sampling_rate=16000,
         )
+        yield t
+        t.reset()
+        del t
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def test_no_performance_degradation_over_time(self, transcriber):
         """
@@ -535,6 +557,10 @@ class TestNoCrashesOrDegradation:
             # Early termination if we have all samples
             if chunks_processed > 10100:
                 break
+
+        # Free the large audio array (~384 MB for 10 min)
+        del audio
+        gc.collect()
 
         # Calculate average processing times
         avg_early = np.mean(processing_times["early"]) if processing_times["early"] else 0
@@ -583,6 +609,10 @@ class TestNoCrashesOrDegradation:
 
             if (i // chunk_size) % 1000 == 0:
                 logger.info(f"Processed {i // chunk_size} chunks...")
+
+        # Free the large audio array (~1.15 GB for 30 min)
+        del audio
+        gc.collect()
 
         assert (
             len(exceptions_caught) == 0

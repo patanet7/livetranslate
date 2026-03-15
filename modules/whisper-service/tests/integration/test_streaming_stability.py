@@ -168,13 +168,16 @@ def test_streaming_with_stability():
         sio.emit("leave_session", {"session_id": session_id})
         time.sleep(0.5)
 
-        sio.disconnect()
-
     except Exception as e:
         print(f"\n❌ Socket.IO test failed: {e}")
         import traceback
 
         traceback.print_exc()
+    finally:
+        try:
+            sio.disconnect()
+        except Exception:
+            pass
 
 
 def main():
