@@ -393,11 +393,12 @@ async def get_ui_config():
     # Fetch translation models from translation service (if available)
     translation_models = []
     translation_service_available = False
+    # TODO: wire up to new TranslationService — TranslationServiceClient removed.
+    # Model listing not yet available on translation.service.TranslationService.
     try:
-        from clients.translation_service_client import TranslationServiceClient
-
-        client = TranslationServiceClient()
-        translation_models = await client.get_models()
+        from dependencies import get_translation_service_client
+        svc = get_translation_service_client()
+        translation_models = [{"name": svc.config.model, "description": "Configured Ollama model"}]
         translation_service_available = True
     except Exception as e:
         logger.warning(f"Translation service unavailable for model list: {e}")
