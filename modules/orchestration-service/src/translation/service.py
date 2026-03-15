@@ -4,7 +4,7 @@ This is the high-level interface that the meeting pipeline calls.
 It manages:
 - LLM client for actual translation
 - Rolling context window for quality
-- Bounded queue with drop-oldest backpressure
+- Bounded queue with drop-newest backpressure
 """
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ class TranslationService:
         self._queue: asyncio.Queue[tuple] = asyncio.Queue(maxsize=config.max_queue_depth)
         self._processing = False
         self._process_task: asyncio.Task | None = None
+        self._concurrency = asyncio.Semaphore(min(config.max_queue_depth, 3))
 
     def _get_context_window(self, speaker: str | None = None) -> RollingContextWindow:
         """Get or create a context window for a speaker."""
@@ -80,21 +81,15 @@ class TranslationService:
     async def enqueue_translation(self, request: TranslationRequest) -> TranslationResponse:
         """Queue a translation request with backpressure.
 
-        If queue is full, drops the oldest pending request.
-        Accepts a TranslationRequest so speaker_name and all fields are preserved.
+        If queue is full, rejects the NEWEST (incoming) request.
+        For live captions, the oldest queued item is closest to what the
+        viewer expects next — dropping it creates visible caption gaps.
         """
         future: asyncio.Future[TranslationResponse] = asyncio.get_running_loop().create_future()
 
         if self._queue.full():
-            # Drop oldest
-            try:
-                old_request, old_future = self._queue.get_nowait()
-                old_future.set_exception(
-                    RuntimeError("Translation request dropped (backpressure)")
-                )
-                logger.warning("translation_dropped", text_len=len(old_request.text))
-            except asyncio.QueueEmpty:
-                pass
+            logger.warning("translation_rejected", text_len=len(request.text), reason="queue_full")
+            raise RuntimeError("Translation request rejected (backpressure — queue full)")
 
         await self._queue.put((request, future))
 
@@ -105,19 +100,30 @@ class TranslationService:
         return await future
 
     async def _process_queue(self) -> None:
-        """Process queued translation requests."""
+        """Process queued translation requests with bounded concurrency."""
         try:
-            while not self._queue.empty():
-                request, future = await self._queue.get()
-                try:
-                    result = await self.translate(request)
-                    if not future.done():
-                        future.set_result(result)
-                except Exception as e:
-                    if not future.done():
-                        future.set_exception(e)
+            while True:
+                tasks = []
+                while not self._queue.empty():
+                    request, future = await self._queue.get()
+                    task = asyncio.create_task(self._process_one(request, future))
+                    tasks.append(task)
+                if not tasks:
+                    break
+                await asyncio.gather(*tasks, return_exceptions=True)
         finally:
             self._processing = False
+
+    async def _process_one(self, request: TranslationRequest, future: asyncio.Future) -> None:
+        """Process a single translation with concurrency limit."""
+        async with self._concurrency:
+            try:
+                result = await self.translate(request)
+                if not future.done():
+                    future.set_result(result)
+            except Exception as e:
+                if not future.done():
+                    future.set_exception(e)
 
     def get_context(self, speaker: str | None = None) -> list[TranslationContext]:
         return self._get_context_window(speaker).get_context()

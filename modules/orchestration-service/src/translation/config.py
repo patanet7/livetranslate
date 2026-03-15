@@ -15,7 +15,7 @@ class TranslationConfig:
     llm_base_url: str = "http://thomas-pc:11434/v1"
     model: str = "qwen3.5:7b"
     temperature: float = 0.3
-    timeout_s: int = 10
+    timeout_s: int = 5
     context_window_size: int = 5
     max_context_tokens: int = 500
     max_queue_depth: int = 10

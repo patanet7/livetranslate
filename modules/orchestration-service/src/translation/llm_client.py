@@ -26,6 +26,7 @@ class LLMClient:
         self._client = httpx.AsyncClient(
             base_url=config.llm_base_url,
             timeout=httpx.Timeout(config.timeout_s),
+            max_redirects=0,
         )
 
     async def translate(
@@ -82,6 +83,13 @@ class LLMClient:
 
         See: modules/orchestration-service/src/services/translation_prompt_builder.py
         """
+        # Validate glossary terms to prevent prompt injection via oversized entries
+        if glossary_terms:
+            glossary_terms = {
+                k[:100]: v[:100]
+                for k, v in list(glossary_terms.items())[:50]
+            }
+
         # Try using TranslationPromptBuilder for glossary-aware prompts
         if glossary_terms:
             try:
@@ -142,7 +150,7 @@ class LLMClient:
             {"role": "user", "content": "\n".join(user_parts)},
         ]
 
-    async def _call_llm(self, messages: list[dict], max_retries: int = 2) -> str:
+    async def _call_llm(self, messages: list[dict], max_retries: int = 1) -> str:
         """Call the LLM API with retry logic."""
         last_error = None
         for attempt in range(max_retries + 1):
@@ -161,7 +169,7 @@ class LLMClient:
             except (httpx.HTTPError, KeyError, IndexError) as e:
                 last_error = e
                 if attempt < max_retries:
-                    wait = 0.5 * (2 ** attempt)
+                    wait = 0.3 * (2 ** attempt)
                     logger.warning(
                         "llm_retry",
                         attempt=attempt + 1,
