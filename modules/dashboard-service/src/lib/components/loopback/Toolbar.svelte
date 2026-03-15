@@ -161,11 +161,14 @@
 	<!-- Display Mode -->
 	<div class="toolbar-group">
 		<label class="toolbar-label">Display</label>
-		<div class="display-mode-switcher">
+		<!-- I5: Use radiogroup semantics for display mode switcher -->
+		<div class="display-mode-switcher" role="radiogroup" aria-label="Display mode">
 			{#each DISPLAY_MODES as mode (mode.value)}
 				<button
 					class="display-mode-btn"
 					class:active={loopbackStore.displayMode === mode.value}
+					role="radio"
+					aria-checked={loopbackStore.displayMode === mode.value}
 					onclick={() => { loopbackStore.displayMode = mode.value; }}
 				>
 					{mode.label}
@@ -177,10 +180,11 @@
 	<!-- Connection Status -->
 	<div class="toolbar-group">
 		<label class="toolbar-label">Status</label>
+		<!-- I4: Add role="status" and aria-label for screen readers -->
 		<div class="status-dots">
-			<span class="status-dot" style="background-color: {statusColor(loopbackStore.transcriptionStatus)};" title="STT: {loopbackStore.transcriptionStatus}"></span>
+			<span class="status-dot" role="status" aria-label="Speech-to-text: {loopbackStore.transcriptionStatus}" style="background-color: {statusColor(loopbackStore.transcriptionStatus)};"></span>
 			<span class="status-label">STT</span>
-			<span class="status-dot" style="background-color: {statusColor(loopbackStore.translationStatus)};" title="MT: {loopbackStore.translationStatus}"></span>
+			<span class="status-dot" role="status" aria-label="Machine translation: {loopbackStore.translationStatus}" style="background-color: {statusColor(loopbackStore.translationStatus)};"></span>
 			<span class="status-label">MT</span>
 		</div>
 	</div>
