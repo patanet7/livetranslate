@@ -906,6 +906,8 @@ async def _collect_translation_metrics(
     translation_client, start_time: datetime, end_time: datetime
 ) -> TranslationMetrics:
     """Collect translation service metrics"""
+    # TODO: wire up to new TranslationService — get_analytics() not on new service.
+    # Will fall through to the except block and return empty metrics until implemented.
     try:
         stats = await translation_client.get_analytics()
 

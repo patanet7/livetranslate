@@ -2865,11 +2865,11 @@ async def import_transcript_to_db(
                 logger.info("import_llm_client_connected")
             except Exception as e:
                 logger.warning("import_llm_client_unavailable", error=str(e))
-                # Fall back to legacy TranslationServiceClient
+                # TODO: wire up to new TranslationService — TranslationServiceClient removed.
+                # Falling back to new TranslationService singleton when LLM client unavailable.
                 try:
-                    from clients.translation_service_client import TranslationServiceClient
-
-                    translation_client = TranslationServiceClient()
+                    from dependencies import get_translation_service_client
+                    translation_client = get_translation_service_client()
                 except Exception as e2:
                     logger.warning("import_translation_client_unavailable", error=str(e2))
 
@@ -3033,12 +3033,12 @@ async def get_dashboard_config():
         "prompt_variables": PROMPT_TEMPLATE_VARIABLES,
     }
 
-    # Fetch available models from translation service (NO FALLBACK)
+    # TODO: wire up to new TranslationService — TranslationServiceClient removed.
+    # get_models() not yet on new TranslationService; returning config model for now.
     try:
-        from clients.translation_service_client import TranslationServiceClient
-
-        client = TranslationServiceClient()
-        models = await client.get_models()
+        from dependencies import get_translation_service_client
+        svc = get_translation_service_client()
+        models = [{"name": svc.config.model, "description": "Configured Ollama model"}]
         config["translation_models"] = models
         config["translation_service_available"] = True
     except Exception as e:
