@@ -15,48 +15,52 @@ vram_budget_mb: 10000
 
 # NOTE: stride_s MUST equal chunk_duration_s - overlap_s
 # Changing chunk_duration_s or overlap_s requires updating stride_s accordingly
+# Optimal configs from benchmark sweep (2026-03-15).
+# English: WER 19.1% at stride=6.0, overlap=0.5 (benchmark best)
+# Chinese: CER 9.5% at stride=6.0, overlap=1.5 (benchmark best)
+# NOTE: stride_s MUST equal chunk_duration_s - overlap_s
 language_routing:
   en:
     backend: whisper
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 6.5
+    stride_s: 6.0
+    overlap_s: 0.5
     vad_threshold: 0.5
     beam_size: 1
-    prebuffer_s: 0.3
+    prebuffer_s: 0.5
     batch_profile: realtime
   zh:
     backend: whisper
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 7.5
+    stride_s: 6.0
+    overlap_s: 1.5
     vad_threshold: 0.45
     beam_size: 1
-    prebuffer_s: 0.3
+    prebuffer_s: 0.5
     batch_profile: realtime
   ja:
     backend: whisper
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 7.5
+    stride_s: 6.0
+    overlap_s: 1.5
     vad_threshold: 0.45
     beam_size: 1
-    prebuffer_s: 0.3
+    prebuffer_s: 0.5
     batch_profile: realtime
   "*":
     backend: whisper
     model: large-v3-turbo
     compute_type: float16
-    chunk_duration_s: 5.0
-    stride_s: 4.0
-    overlap_s: 1.0
+    chunk_duration_s: 6.5
+    stride_s: 6.0
+    overlap_s: 0.5
     vad_threshold: 0.5
     beam_size: 1
-    prebuffer_s: 0.3
+    prebuffer_s: 0.5
     batch_profile: realtime

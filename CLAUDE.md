@@ -159,10 +159,14 @@ just benchmark-all-stub
 
 | Language | Prebuffer | Stride | Overlap | CER/WER | Caption freq | Use case |
 |----------|-----------|--------|---------|---------|--------------|----------|
-| zh (best accuracy) | 0.5s | 6.0s | 1.5s | 9.5% CER | every 6s | Transcripts, offline |
+| zh (best) | 0.5s | 6.0s | 1.5s | **9.5% CER** | every 6s | Best accuracy |
 | zh (balanced) | 0.5s | 4.5s | 0.5s | 15.6% CER | every 4.5s | Live captions |
 | zh (fastest) | 0.5s | 1.5s | 0.5s | 20.4% CER | every 1.5s | Real-time subtitles |
-| en | 1.0s | 4.0s | 1.0s | 28.3% WER | every 4s | General |
+| en (best) | 0.5s | 6.0s | 0.5s | **19.1% WER** | every 6s | Best accuracy |
+| en (balanced) | 0.5s | 4.5s | 1.0s | 21.7% WER | every 4.5s | Live captions |
+| en (fastest) | 0.5s | 1.5s | 0.5s | 32.2% WER | every 1.5s | Real-time subtitles |
+
+**Key finding:** English needs overlap=0.5s (word boundaries dedup well). Chinese needs overlap=1.5s (CJK characters need more context).
 
 ### Benchmark Output
 
