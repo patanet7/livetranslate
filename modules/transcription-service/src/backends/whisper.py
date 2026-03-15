@@ -440,6 +440,7 @@ class WhisperBackend:
                 segments=list(accumulated_segments),
                 is_final=False,
                 is_draft=True,
+                no_speech_prob=getattr(info, "no_speech_prob", None),
             )
 
     def supports_language(self, lang: str) -> bool:

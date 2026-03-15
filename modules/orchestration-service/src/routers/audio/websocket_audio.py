@@ -125,6 +125,7 @@ async def websocket_audio_stream(websocket: WebSocket):
     transcription_client = None
     translation_service = None
     session_tasks: set[asyncio.Task] = set()
+    _translation_semaphore = asyncio.Semaphore(2)  # limit concurrent translations
     segment_counter = 0
     sample_rate = DEFAULT_SAMPLE_RATE
     channels = DEFAULT_CHANNELS
@@ -476,10 +477,11 @@ async def _translate_and_send(
     target_lang: str,
     speaker_name: str | None,
 ) -> None:
-    """Translate a final segment and send the result to the frontend.
+    """Translate a segment and send the result to the frontend.
 
-    Runs as a fire-and-forget task. Errors are silently logged — translation
-    failure should never crash the main audio pipeline.
+    Runs as a fire-and-forget task with bounded concurrency (semaphore=2).
+    Errors are silently logged — translation failure should never crash
+    the main audio pipeline.
     """
     try:
         from livetranslate_common.models import TranslationRequest

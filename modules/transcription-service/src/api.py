@@ -42,7 +42,7 @@ class SimpleStabilityTracker:
     def __init__(self, overlap_s: float = 1.0) -> None:
         self._overlap_s = overlap_s
 
-    def split(self, text: str, segments: list) -> tuple[str, str]:
+    def split(self, text: str, segments: list["Segment"]) -> tuple[str, str]:
         """Split text into (stable, unstable) based on segment timing.
 
         If there are timed segments, words whose end_ms falls before the overlap
