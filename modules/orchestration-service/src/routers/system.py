@@ -393,7 +393,6 @@ async def get_ui_config():
     # Fetch translation models from translation service (if available)
     translation_models = []
     translation_service_available = False
-    # TODO: wire up to new TranslationService — TranslationServiceClient removed.
     # Model listing not yet available on translation.service.TranslationService.
     try:
         from dependencies import get_translation_service_client
@@ -402,29 +401,6 @@ async def get_ui_config():
         translation_service_available = True
     except Exception as e:
         logger.warning(f"Translation service unavailable for model list: {e}")
-
-    # Fetch prompts from translation service (if available)
-    prompt_templates = []
-    prompts_available = False
-    try:
-        import aiohttp
-        from config import get_settings
-
-        settings = get_settings()
-        translation_url = getattr(settings, "translation_service_url", "http://localhost:5003")
-
-        async with (
-            aiohttp.ClientSession() as session,
-            session.get(
-                f"{translation_url}/prompts", timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp,
-        ):
-            if resp.status == 200:
-                prompts_data = await resp.json()
-                prompt_templates = prompts_data.get("prompts", [])
-                prompts_available = True
-    except Exception as e:
-        logger.debug(f"Could not fetch prompts: {e}")
 
     # Load user overrides
     overrides = await load_config(SYSTEM_CONFIG_FILE, {})

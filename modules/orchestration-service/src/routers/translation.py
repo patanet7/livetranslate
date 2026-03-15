@@ -23,13 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from translation.service import TranslationService
 
 
-class LanguageDetectionResponse(BaseModel):
-    """Response model for language detection (retained for router compatibility)."""
-
-    language: str
-    confidence: float
-    alternatives: list[dict[str, float]] = Field(default_factory=list)
-
 logger = get_logger()
 
 # Create router
@@ -141,21 +134,6 @@ class BatchTranslateRequest(BaseModel):
     requests: list[TranslateTextRequest] = Field(..., min_length=1, max_length=100)
 
 
-class LanguageDetectRequest(BaseModel):
-    """Request model for language detection"""
-
-    text: str = Field(..., min_length=1, max_length=10000)
-
-
-class StreamTranslateRequest(BaseModel):
-    """Request model for streaming translation"""
-
-    session_id: str = Field(..., description="Session ID for streaming")
-    text: str = Field(..., description="Text chunk to translate")
-    target_language: str = Field(..., description="Target language")
-    is_final: bool = Field(False, description="Whether this is the final chunk")
-
-
 class TranslationApiResponse(BaseModel):
     """Standardized translation response"""
 
@@ -188,9 +166,8 @@ async def _translate_text_impl(
         f"{request.source_language or 'auto'} -> {request.target_language}"
     )
 
-    # TODO: wire up to new TranslationService — 'model'/'quality' fields are not
-    # part of the new shared TranslationRequest contract; they are ignored for now.
-    # source_language is required by the shared contract; default to "en" when absent.
+    # 'model'/'quality' fields are not part of the shared TranslationRequest contract
+    # and are intentionally ignored. source_language defaults to "en" when absent.
     translation_request = TranslationRequest(
         text=request.text,
         source_language=request.source_language or "en",
@@ -206,11 +183,9 @@ async def _translate_text_impl(
             detail=f"Translation service unavailable: {service_error!s}",
         ) from service_error
 
-    # TranslationResponse (new contract) uses latency_ms; confidence/backend_used
-    # are not available on the new service — use sensible defaults.
-    confidence = getattr(result, "confidence", getattr(result, "quality_score", 0.9) or 0.9)
-    processing_time_s = getattr(result, "processing_time", getattr(result, "latency_ms", 0.0) / 1000)
-    backend_used = getattr(result, "backend_used", result.model_used)
+    confidence = getattr(result, "confidence", 0.9) or 0.9
+    processing_time_s = result.latency_ms / 1000
+    backend_used = result.model_used
 
     if request.session_id:
         await persist_translation_to_db(
@@ -297,8 +272,6 @@ async def translate_batch(
     - Parallel processing for better performance
     - Individual error handling per text
     """
-    # TODO: wire up to new TranslationService — translate_batch() not yet on new service.
-    # For now, translate sequentially via translate() to keep the endpoint functional.
     try:
         logger.info(f"Batch translation request: {len(request.requests)} texts")
 
@@ -310,9 +283,9 @@ async def translate_batch(
                 target_language=req.target_language,
             )
             result = await translation_client.translate(service_request)
-            confidence = getattr(result, "confidence", getattr(result, "quality_score", 0.9) or 0.9)
-            processing_time_s = getattr(result, "processing_time", getattr(result, "latency_ms", 0.0) / 1000)
-            backend_used = getattr(result, "backend_used", result.model_used)
+            confidence = getattr(result, "confidence", 0.9) or 0.9
+            processing_time_s = result.latency_ms / 1000
+            backend_used = result.model_used
             api_responses.append(
                 TranslationApiResponse(
                     translated_text=result.translated_text,
@@ -603,123 +576,9 @@ async def list_jobs(
         ) from e
 
 
-@router.post("/detect", response_model=LanguageDetectionResponse)
-async def detect_language(
-    request: LanguageDetectRequest,
-    translation_client: TranslationService = Depends(get_translation_service_client),
-    _: None = Depends(rate_limit_api),
-    current_user: dict[str, Any] | None = Depends(get_current_user),
-) -> LanguageDetectionResponse:
-    """
-    Detect the language of input text
-
-    **Features:**
-    - High accuracy language detection
-    - Confidence scoring
-    - Alternative language suggestions
-    """
-    # TODO: wire up to new TranslationService — detect_language() not on new service.
-    try:
-        logger.info(f"Language detection request for text: {request.text[:50]}...")
-
-        # TODO: wire up to new TranslationService — detect_language() not yet implemented.
-        # Returning a default fallback response until language detection is added.
-        return LanguageDetectionResponse(language="en", confidence=0.5, alternatives=[])
-
-    except Exception as e:
-        logger.error(f"Language detection failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Language detection failed: {e!s}",
-        ) from e
-
-
-@router.post("/stream")
-async def translate_stream(
-    request: StreamTranslateRequest,
-    translation_client: TranslationService = Depends(get_translation_service_client),
-    _: None = Depends(rate_limit_api),
-    current_user: dict[str, Any] | None = Depends(get_current_user),
-):
-    """
-    Stream translation for real-time processing
-
-    **Features:**
-    - Real-time translation streaming
-    - Session-based context management
-    - Progressive translation updates
-    """
-    # TODO: wire up to new TranslationService — translate_realtime() not on new service.
-    try:
-        logger.info(f"Stream translation request for session: {request.session_id}")
-
-        # TODO: wire up to new TranslationService — translate_realtime() not yet implemented.
-        # Falling back to a basic translate() call using the rolling context window.
-        translation_req = TranslationRequest(
-            text=request.text,
-            source_language="en",
-            target_language=request.target_language,
-        )
-        result = await translation_client.translate(translation_req)
-        return {
-            "session_id": request.session_id,
-            "translated_text": result.translated_text,
-            "target_language": result.target_language,
-        }
-
-    except Exception as e:
-        logger.error(f"Stream translation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Stream translation failed: {e!s}",
-        ) from e
-
-
 # ============================================================================
 # Service Information Endpoints
 # ============================================================================
-
-
-@router.get("/languages")
-async def get_supported_languages(
-    translation_client: TranslationService = Depends(get_translation_service_client),
-    current_user: dict[str, Any] | None = Depends(get_current_user),
-) -> dict[str, Any]:
-    """
-    Get list of supported languages
-
-    **Returns:**
-    - Complete list of supported language codes and names
-    - Language capabilities and features
-    """
-    # TODO: wire up to new TranslationService — get_supported_languages() not on new service.
-    try:
-        # TODO: wire up to new TranslationService — returning hardcoded defaults for now.
-        default_languages = [
-            {"code": "en", "name": "English"},
-            {"code": "es", "name": "Spanish"},
-            {"code": "fr", "name": "French"},
-            {"code": "de", "name": "German"},
-            {"code": "it", "name": "Italian"},
-            {"code": "pt", "name": "Portuguese"},
-            {"code": "ru", "name": "Russian"},
-            {"code": "ja", "name": "Japanese"},
-            {"code": "ko", "name": "Korean"},
-            {"code": "zh", "name": "Chinese"},
-        ]
-        return {
-            "languages": default_languages,
-            "total_count": len(default_languages),
-            "auto_detect": True,
-            "bidirectional": True,
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to get supported languages: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get supported languages: {e!s}",
-        ) from e
 
 
 @router.get("/models")
@@ -734,9 +593,7 @@ async def get_available_models(
     - Available translation models
     - Model capabilities and performance characteristics
     """
-    # TODO: wire up to new TranslationService — get_models() not on new service.
     try:
-        # TODO: wire up to new TranslationService — returning config model for now.
         model_name = translation_client.config.model
         models = [{"name": model_name, "description": "Configured Ollama model"}]
         return {
@@ -766,9 +623,7 @@ async def translation_service_health(
     - Performance metrics
     - Backend information
     """
-    # TODO: wire up to new TranslationService — health_check()/get_device_info() not on new service.
     try:
-        # TODO: wire up to new TranslationService — returning config info as health response.
         model_name = translation_client.config.model
         llm_base_url = translation_client.config.llm_base_url
         return {
@@ -790,155 +645,6 @@ async def translation_service_health(
             "error": str(e),
             "timestamp": datetime.now(UTC).isoformat(),
         }
-
-
-@router.get("/stats")
-async def get_translation_statistics(
-    translation_client: TranslationService = Depends(get_translation_service_client),
-    current_user: dict[str, Any] | None = Depends(get_current_user),
-) -> dict[str, Any]:
-    """
-    Get translation service statistics
-
-    **Returns:**
-    - Usage statistics
-    - Performance metrics
-    - Service analytics
-    """
-    # TODO: wire up to new TranslationService — get_statistics() not on new service.
-    try:
-        # TODO: wire up to new TranslationService — returning empty stats for now.
-        return {
-            "statistics": {},
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to get translation statistics: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get translation statistics: {e!s}",
-        ) from e
-
-
-# ============================================================================
-# Session Management Endpoints
-# ============================================================================
-
-
-@router.post("/session/start")
-async def start_translation_session(
-    config: dict[str, Any],
-    translation_client: TranslationService = Depends(get_translation_service_client),
-    _: None = Depends(rate_limit_api),
-    current_user: dict[str, Any] | None = Depends(get_current_user),
-) -> dict[str, Any]:
-    """
-    Start a real-time translation session
-
-    **Features:**
-    - Session-based translation with context
-    - Configuration for streaming parameters
-    - Real-time session management
-    """
-    # TODO: wire up to new TranslationService — start_realtime_session() not on new service.
-    try:
-        import uuid as _uuid
-        # TODO: wire up to new TranslationService — session management not yet implemented.
-        session_id = config.get("session_id") or str(_uuid.uuid4())
-        return {
-            "session_id": session_id,
-            "status": "started",
-            "config": config,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to start translation session: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to start translation session: {e!s}",
-        ) from e
-
-
-@router.post("/session/{session_id}/stop")
-async def stop_translation_session(
-    session_id: str,
-    translation_client: TranslationService = Depends(get_translation_service_client),
-    _: None = Depends(rate_limit_api),
-    current_user: dict[str, Any] | None = Depends(get_current_user),
-) -> dict[str, Any]:
-    """
-    Stop a real-time translation session
-
-    **Features:**
-    - Clean session termination
-    - Session statistics and summary
-    - Resource cleanup
-    """
-    # TODO: wire up to new TranslationService — stop_realtime_session() not on new service.
-    try:
-        # TODO: wire up to new TranslationService — session management not yet implemented.
-        return {
-            "session_id": session_id,
-            "status": "stopped",
-            "result": {},
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to stop translation session: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to stop translation session: {e!s}",
-        ) from e
-
-
-# ============================================================================
-# Quality Assessment Endpoints
-# ============================================================================
-
-
-@router.post("/quality")
-async def assess_translation_quality(
-    original: str,
-    translated: str,
-    source_language: str,
-    target_language: str,
-    translation_client: TranslationService = Depends(get_translation_service_client),
-    _: None = Depends(rate_limit_api),
-    current_user: dict[str, Any] | None = Depends(get_current_user),
-) -> dict[str, Any]:
-    """
-    Assess translation quality metrics
-
-    **Features:**
-    - Quality scoring algorithms
-    - Detailed quality metrics
-    - Translation accuracy assessment
-    """
-    # TODO: wire up to new TranslationService — get_translation_quality() not on new service.
-    try:
-        # TODO: wire up to new TranslationService — quality assessment not yet implemented.
-        from difflib import SequenceMatcher
-        score = SequenceMatcher(None, original.lower().strip(), translated.lower().strip()).ratio()
-        quality_data = {
-            "score": score,
-            "method": "sequence_matcher_fallback",
-            "source_language": source_language,
-            "target_language": target_language,
-        }
-        return {
-            "quality_assessment": quality_data,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-
-    except Exception as e:
-        logger.error(f"Translation quality assessment failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Translation quality assessment failed: {e!s}",
-        ) from e
 
 
 # ============================================================================

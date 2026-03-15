@@ -1410,8 +1410,6 @@ class AudioCoordinator:
             )
 
             try:
-                # TODO: wire up to new TranslationService — translate_to_multiple_languages()
-                # not on new service. Falling back to sequential translate() calls.
                 if self.translation_client:
                     from livetranslate_common.models import TranslationRequest as _TReq
                     for lang in needs_translation:
