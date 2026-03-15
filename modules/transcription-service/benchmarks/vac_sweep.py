@@ -133,6 +133,7 @@ async def _run_single_config(
     transcribe_fn: TranscribeFn,
     chunk_size: int = 1600,   # 100 ms at 16 kHz
     sample_rate: int = 16_000,
+    rms_threshold: float = 0.005,
 ) -> SweepResult:
     """Run one VACOnlineProcessor configuration against a full audio file."""
     # Import here so the module is importable even without the full service env
@@ -143,6 +144,7 @@ async def _run_single_config(
         overlap_s=config.overlap_s,
         stride_s=config.stride_s,
         sampling_rate=sample_rate,
+        rms_threshold=rms_threshold,
     )
 
     segments: list[SegmentRecord] = []
@@ -253,6 +255,7 @@ async def run_vac_sweep(
     stride_values: list[float] | None = None,
     overlap_values: list[float] | None = None,
     sample_rate: int = 16_000,
+    rms_threshold: float = 0.005,
 ) -> list[SweepResult]:
     """Run the full parameter sweep and return results sorted by error_rate."""
     pb = prebuffer_values or PREBUFFER_VALUES
@@ -275,6 +278,7 @@ async def run_vac_sweep(
             config=cfg,
             transcribe_fn=transcribe_fn,
             sample_rate=sample_rate,
+            rms_threshold=rms_threshold,
         )
         results.append(result)
 
@@ -360,6 +364,10 @@ def main() -> None:
                         help="vllm-mlx API base URL")
     parser.add_argument("--model", default="large-v3-turbo",
                         help="Whisper model name for non-vllm backends")
+    parser.add_argument("--beam-size", type=int, default=None,
+                        help="Override beam_size for faster-whisper backend (default: backend default)")
+    parser.add_argument("--vad-threshold", type=float, default=None,
+                        help="Override RMS VAD speech gate threshold (default: 0.005)")
     args = parser.parse_args()
 
     # Load audio
@@ -407,6 +415,7 @@ def main() -> None:
         prebuffer_values=args.prebuffer,
         stride_values=args.stride,
         overlap_values=args.overlap,
+        rms_threshold=args.vad_threshold or 0.005,
     ))
 
     print_sweep_table(results)
@@ -499,11 +508,14 @@ def _build_real_transcribe_fn(args) -> TranscribeFn:
     elif args.backend == "faster-whisper":
         from faster_whisper import WhisperModel
         model = WhisperModel(args.model, device="auto", compute_type="float16")
+        beam = args.beam_size or 5
 
         async def _fw_transcribe(audio: np.ndarray, language: str) -> str:
+            lang_arg = language if language and language != "auto" else None
             segments, _ = model.transcribe(
-                audio, language=language, beam_size=5,
+                audio, language=lang_arg, beam_size=beam,
                 temperature=(0.0,), no_speech_threshold=0.6,
+                word_timestamps=True,
             )
             return " ".join(s.text for s in segments).strip()
 

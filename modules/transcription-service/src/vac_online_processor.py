@@ -893,11 +893,13 @@ class VACOnlineProcessor:
         overlap_s: float = 0.5,
         stride_s: float = 4.5,
         sampling_rate: int = 16_000,
+        rms_threshold: float = 0.005,
     ) -> None:
         self.prebuffer_s = prebuffer_s
         self.overlap_s = overlap_s
         self.stride_s = stride_s
         self.SAMPLING_RATE = sampling_rate
+        self._rms_threshold = rms_threshold
 
         # Async queue: each item is a 1-D float32 numpy array
         self._audio_queue: asyncio.Queue[np.ndarray] = asyncio.Queue()
@@ -954,12 +956,13 @@ class VACOnlineProcessor:
             return False
         return self._has_speech()
 
-    def _has_speech(self, rms_threshold: float = 0.005) -> bool:
+    def _has_speech(self, rms_threshold: float | None = None) -> bool:
         """Check if recent audio contains speech (RMS energy above threshold).
 
         Only checks the last 0.5s of buffered audio to avoid O(n) concatenation
         of the full buffer on every 100ms frame.
         """
+        rms_threshold = rms_threshold if rms_threshold is not None else self._rms_threshold
         if not self._buffer:
             return False
         # Check only the last ~0.5s (8000 samples) for efficiency
