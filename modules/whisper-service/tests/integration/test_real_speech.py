@@ -27,12 +27,28 @@ class TestJFKSpeech:
     @pytest.fixture(scope="class")
     def service(self):
         """Create WhisperService for testing"""
+        import asyncio
+        import gc
+
+        import torch
+
         config = {
             "models_dir": ".models/pytorch",
-            "device": "cpu",  # Use CPU for consistency
-            "model_name": "tiny",  # Fast model for testing
+            "device": "cpu",
+            "model_name": "tiny",
         }
-        return WhisperService(config=config)
+        svc = WhisperService(config=config)
+        try:
+            yield svc
+        finally:
+            try:
+                asyncio.run(svc.shutdown())
+            except Exception:
+                pass
+            del svc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     async def test_jfk_transcription_contains_famous_quote(self, service, jfk_audio):
         """Test that JFK audio transcribes the famous quote"""
@@ -92,8 +108,24 @@ class TestChineseSpeech:
     @pytest.fixture(scope="class")
     def service(self):
         """Create WhisperService for testing"""
+        import asyncio
+        import gc
+
+        import torch
+
         config = {"models_dir": ".models/pytorch", "device": "cpu", "model_name": "tiny"}
-        return WhisperService(config=config)
+        svc = WhisperService(config=config)
+        try:
+            yield svc
+        finally:
+            try:
+                asyncio.run(svc.shutdown())
+            except Exception:
+                pass
+            del svc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     async def test_chinese_transcription_produces_text(self, service, chinese_audio_1):
         """Test that Chinese audio produces transcribed text"""
@@ -144,8 +176,24 @@ class TestMultiLanguage:
     @pytest.fixture(scope="class")
     def service(self):
         """Create WhisperService for testing"""
+        import asyncio
+        import gc
+
+        import torch
+
         config = {"models_dir": ".models/pytorch", "device": "cpu", "model_name": "tiny"}
-        return WhisperService(config=config)
+        svc = WhisperService(config=config)
+        try:
+            yield svc
+        finally:
+            try:
+                asyncio.run(svc.shutdown())
+            except Exception:
+                pass
+            del svc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     async def test_english_and_chinese_in_same_session(self, service, jfk_audio, chinese_audio_1):
         """Test transcribing different languages in same session"""
