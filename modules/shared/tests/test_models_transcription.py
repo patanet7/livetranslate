@@ -114,3 +114,33 @@ class TestModelInfo:
         assert "en" in info.languages
         assert info.vram_mb == 1024
         assert info.compute_type == "int8"
+
+
+class TestTranscriptionResultNoSpeechProbDefault:
+    """Verify no_speech_prob field defaults and contract."""
+
+    def test_no_speech_prob_defaults_to_none(self) -> None:
+        """TranscriptionResult created without no_speech_prob must have it as None."""
+        result = TranscriptionResult(text="x", language="en", confidence=0.5)
+        assert result.no_speech_prob is None
+
+    def test_no_speech_prob_can_be_set_to_float(self) -> None:
+        """no_speech_prob must accept a float value."""
+        result = TranscriptionResult(
+            text="hello", language="en", confidence=0.9, no_speech_prob=0.2
+        )
+        assert result.no_speech_prob == pytest.approx(0.2)
+
+    def test_no_speech_prob_survives_roundtrip(self) -> None:
+        """no_speech_prob must be preserved through JSON serialisation round-trip."""
+        result = TranscriptionResult(
+            text="hello", language="en", confidence=0.9, no_speech_prob=0.75
+        )
+        restored = TranscriptionResult.model_validate_json(result.model_dump_json())
+        assert restored.no_speech_prob == pytest.approx(0.75)
+
+    def test_no_speech_prob_none_survives_roundtrip(self) -> None:
+        """no_speech_prob=None must survive JSON serialisation round-trip."""
+        result = TranscriptionResult(text="hi", language="en", confidence=0.8)
+        restored = TranscriptionResult.model_validate_json(result.model_dump_json())
+        assert restored.no_speech_prob is None
