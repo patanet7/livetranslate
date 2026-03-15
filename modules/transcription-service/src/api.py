@@ -375,6 +375,8 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
                     inference_audio = state.vac_processor.get_inference_audio()
                     inference_task = asyncio.create_task(_run_inference(inference_audio))
+                    # Yield to event loop so inference task can start immediately
+                    await asyncio.sleep(0)
 
                 except Exception as exc:
                     logger.exception("consumer_error", session_id=session_id, error=str(exc))
