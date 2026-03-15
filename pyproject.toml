@@ -27,7 +27,7 @@ members = [
     "modules/shared",
     "modules/orchestration-service",
     "modules/whisper-service",
-    "modules/translation-service",
+    "tools/translation_benchmark",
 ]
 
 [tool.bandit]
