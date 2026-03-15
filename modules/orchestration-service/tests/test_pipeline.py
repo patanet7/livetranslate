@@ -15,7 +15,7 @@ _src = Path(__file__).parent.parent / "src"
 if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
-from database.meeting_models import MeetingSession
+from database.models import Meeting
 from meeting.pipeline import MeetingPipeline
 from meeting.session_manager import MeetingSessionManager
 
@@ -41,7 +41,7 @@ class TestMeetingPipeline:
         assert session_id is not None
         assert not pipeline.is_meeting
 
-        session = await manager.db.get(MeetingSession, session_id)
+        session = await manager.db.get(Meeting, session_id)
         assert session is not None
         assert session.status == "ephemeral"
 
@@ -70,7 +70,7 @@ class TestMeetingPipeline:
 
         assert pipeline.is_meeting is True
 
-        session = await db_session.get(MeetingSession, pipeline.session_id)
+        session = await db_session.get(Meeting, pipeline.session_id)
         assert session.status == "active"
         assert session.recording_path is not None
 
@@ -107,7 +107,7 @@ class TestMeetingPipeline:
 
         assert pipeline.is_meeting is False
 
-        session = await db_session.get(MeetingSession, session_id)
+        session = await db_session.get(Meeting, session_id)
         assert session.status == "completed"
         assert session.ended_at is not None
 

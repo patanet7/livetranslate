@@ -11,7 +11,7 @@ _src = Path(__file__).parent.parent / "src"
 if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
-from database.meeting_models import MeetingSession
+from database.models import Meeting
 from meeting.heartbeat import run_heartbeat_monitor
 from meeting.session_manager import MeetingSessionManager
 
@@ -33,7 +33,7 @@ class TestHeartbeatMonitor:
         await manager.promote_to_meeting(session.id)
 
         # Backdate last_activity_at to 200 seconds ago (> 120 s timeout)
-        db_obj = await db_session.get(MeetingSession, session.id)
+        db_obj = await db_session.get(Meeting, session.id)
         db_obj.last_activity_at = datetime.now(timezone.utc) - timedelta(seconds=200)
         await db_session.commit()
 
@@ -68,7 +68,7 @@ class TestHeartbeatMonitor:
         except asyncio.CancelledError:
             pass
 
-        db_obj = await db_session.get(MeetingSession, session.id)
+        db_obj = await db_session.get(Meeting, session.id)
         assert db_obj.status == "active"
 
     async def test_ephemeral_session_not_interrupted(self, manager, db_session: AsyncSession):
@@ -77,7 +77,7 @@ class TestHeartbeatMonitor:
         # Do NOT promote — leave as ephemeral
 
         # Backdate so it would qualify if status were checked incorrectly
-        db_obj = await db_session.get(MeetingSession, session.id)
+        db_obj = await db_session.get(Meeting, session.id)
         db_obj.last_activity_at = datetime.now(timezone.utc) - timedelta(seconds=200)
         await db_session.commit()
 

@@ -12,7 +12,7 @@ _src = Path(__file__).parent.parent / "src"
 if str(_src) not in sys.path:
     sys.path.insert(0, str(_src))
 
-from database.meeting_models import MeetingSession, SessionTranslation
+from database.models import Meeting, MeetingTranslation
 from meeting.session_manager import MeetingSessionManager
 
 
@@ -30,7 +30,8 @@ class TestMeetingSessionManager:
     async def test_create_ephemeral(self, manager):
         session = await manager.create_session(source_type="loopback")
         assert session.status == "ephemeral"
-        assert session.source_type == "loopback"
+        assert session.source == "loopback"
+        assert session.source_type == "loopback"  # property alias
         assert session.recording_path is None
 
     async def test_promote_to_meeting(self, manager):
@@ -52,7 +53,7 @@ class TestMeetingSessionManager:
         await manager.promote_to_meeting(session.id)
 
         # Manually backdate last_activity_at to 200 seconds ago
-        result = await db_session.get(MeetingSession, session.id)
+        result = await db_session.get(Meeting, session.id)
         result.last_activity_at = datetime.now(timezone.utc) - timedelta(seconds=200)
         await db_session.commit()
 
@@ -66,7 +67,7 @@ class TestMeetingSessionManager:
         await manager.promote_to_meeting(session.id)
         await manager.mark_interrupted(session.id)
 
-        result = await db_session.get(MeetingSession, session.id)
+        result = await db_session.get(Meeting, session.id)
         assert result.status == "interrupted"
         assert result.ended_at is not None
 
@@ -81,15 +82,15 @@ class TestMeetingSessionManager:
         assert len(orphans) == 2
 
         for sid in [s1.id, s2.id]:
-            row = await db_session.get(MeetingSession, sid)
+            row = await db_session.get(Meeting, sid)
             assert row.status == "interrupted"
 
     async def test_recover_untranslated(self, manager):
-        """Transcripts without translations should be returned for re-submission."""
+        """Chunks without translations should be returned for re-submission."""
         session = await manager.create_session(source_type="loopback")
         await manager.promote_to_meeting(session.id)
 
-        transcript = await manager.add_transcript(
+        chunk = await manager.add_transcript(
             session_id=session.id,
             text="Hello world",
             timestamp_ms=1000,
@@ -100,14 +101,14 @@ class TestMeetingSessionManager:
 
         untranslated = await manager.recover_untranslated()
         assert len(untranslated) >= 1
-        assert any(t.id == transcript.id for t in untranslated)
+        assert any(t.id == chunk.id for t in untranslated)
 
     async def test_recover_untranslated_excludes_translated(self, manager, db_session: AsyncSession):
-        """Transcripts that already have a translation must NOT be returned."""
+        """Chunks that already have a translation must NOT be returned."""
         session = await manager.create_session(source_type="loopback")
         await manager.promote_to_meeting(session.id)
 
-        transcript = await manager.add_transcript(
+        chunk = await manager.add_transcript(
             session_id=session.id,
             text="Hello world",
             timestamp_ms=1000,
@@ -116,8 +117,8 @@ class TestMeetingSessionManager:
             is_final=True,
         )
 
-        translation = SessionTranslation(
-            transcript_id=transcript.id,
+        translation = MeetingTranslation(
+            chunk_id=chunk.id,
             target_language="es",
             translated_text="Hola mundo",
             model_used="qwen3.5:7b",
@@ -126,14 +127,14 @@ class TestMeetingSessionManager:
         await db_session.commit()
 
         untranslated = await manager.recover_untranslated()
-        assert not any(t.id == transcript.id for t in untranslated)
+        assert not any(t.id == chunk.id for t in untranslated)
 
     async def test_recover_untranslated_excludes_non_final(self, manager):
-        """Non-final transcripts must be excluded from untranslated recovery."""
+        """Non-final chunks must be excluded from untranslated recovery."""
         session = await manager.create_session(source_type="loopback")
         await manager.promote_to_meeting(session.id)
 
-        transcript = await manager.add_transcript(
+        chunk = await manager.add_transcript(
             session_id=session.id,
             text="Partial...",
             timestamp_ms=500,
@@ -143,7 +144,7 @@ class TestMeetingSessionManager:
         )
 
         untranslated = await manager.recover_untranslated()
-        assert not any(t.id == transcript.id for t in untranslated)
+        assert not any(t.id == chunk.id for t in untranslated)
 
     async def test_update_heartbeat(self, manager, db_session: AsyncSession):
         """update_heartbeat should refresh last_activity_at."""
@@ -151,7 +152,7 @@ class TestMeetingSessionManager:
         await manager.promote_to_meeting(session.id)
 
         # Backdate the heartbeat
-        row = await db_session.get(MeetingSession, session.id)
+        row = await db_session.get(Meeting, session.id)
         row.last_activity_at = datetime.now(timezone.utc) - timedelta(seconds=200)
         await db_session.commit()
 
