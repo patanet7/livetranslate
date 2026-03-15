@@ -21,6 +21,9 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
+dependencies = [
+    "vllm-mlx>=0.2.1",
+]
 
 [tool.uv.workspace]
 members = [
