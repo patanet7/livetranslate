@@ -1,8 +1,9 @@
 """Tests for the 013_meeting_tables Alembic migration.
 
 Verifies that:
-- upgrade() creates meeting_sessions, meeting_transcripts, session_translations
-- downgrade() drops those tables cleanly
+- upgrade() adds the pipeline columns to meetings, meeting_chunks,
+  and meeting_translations (no new tables are created)
+- downgrade() removes those columns cleanly
 
 Uses the testcontainers PostgreSQL fixture from conftest.py.
 """
@@ -10,7 +11,7 @@ Uses the testcontainers PostgreSQL fixture from conftest.py.
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect
 
 
 @pytest.mark.integration
@@ -22,27 +23,35 @@ class TestMeetingMigration:
         inspector = inspect(engine)
         return set(inspector.get_table_names(schema="public"))
 
-    def test_upgrade_creates_meeting_tables(self, database_url, run_migrations):
-        """After alembic upgrade head the three meeting tables must exist."""
-        # run_migrations has already run upgrade head — just verify the result.
+    def _get_columns(self, engine, table: str) -> set[str]:
+        inspector = inspect(engine)
+        return {c["name"] for c in inspector.get_columns(table)}
+
+    def test_upgrade_does_not_create_duplicate_tables(self, database_url, run_migrations):
+        """After upgrade head the duplicate tables must NOT exist."""
         engine = create_engine(database_url)
         try:
             tables = self._get_tables(engine)
-            assert "meeting_sessions" in tables, "meeting_sessions table missing after upgrade"
-            assert "meeting_transcripts" in tables, "meeting_transcripts table missing after upgrade"
-            assert "session_translations" in tables, "session_translations table missing after upgrade"
+            assert "meeting_sessions" not in tables, (
+                "meeting_sessions duplicate table must not exist — use meetings instead"
+            )
+            assert "meeting_transcripts" not in tables, (
+                "meeting_transcripts duplicate table must not exist — use meeting_chunks instead"
+            )
+            assert "session_translations" not in tables, (
+                "session_translations duplicate table must not exist — use meeting_translations instead"
+            )
         finally:
             engine.dispose()
 
-    def test_meeting_sessions_columns(self, database_url, run_migrations):
-        """meeting_sessions must have the columns specified in the migration."""
+    def test_upgrade_extends_meetings_table(self, database_url, run_migrations):
+        """After upgrade, meetings must have all pipeline columns."""
         engine = create_engine(database_url)
         try:
-            inspector = inspect(engine)
-            cols = {c["name"] for c in inspector.get_columns("meeting_sessions")}
+            cols = self._get_columns(engine, "meetings")
             expected = {
                 "id",
-                "source_type",
+                "source",
                 "status",
                 "started_at",
                 "ended_at",
@@ -52,53 +61,53 @@ class TestMeetingMigration:
                 "metadata",
                 "last_activity_at",
             }
-            assert expected <= cols, f"Missing columns: {expected - cols}"
+            assert expected <= cols, f"Missing columns in meetings: {expected - cols}"
         finally:
             engine.dispose()
 
-    def test_meeting_transcripts_columns(self, database_url, run_migrations):
-        """meeting_transcripts must have the columns specified in the migration."""
+    def test_upgrade_extends_meeting_chunks_table(self, database_url, run_migrations):
+        """After upgrade, meeting_chunks must have all pipeline columns."""
         engine = create_engine(database_url)
         try:
-            inspector = inspect(engine)
-            cols = {c["name"] for c in inspector.get_columns("meeting_transcripts")}
+            cols = self._get_columns(engine, "meeting_chunks")
             expected = {
                 "id",
-                "session_id",
-                "timestamp_ms",
-                "speaker_id",
+                "meeting_id",
+                "chunk_id",
+                "text",
                 "speaker_name",
+                "timestamp_ms",
+                "is_final",
+                "confidence",
                 "source_language",
                 "source_id",
-                "text",
-                "confidence",
-                "is_final",
+                "speaker_id",
                 "created_at",
             }
-            assert expected <= cols, f"Missing columns: {expected - cols}"
+            assert expected <= cols, f"Missing columns in meeting_chunks: {expected - cols}"
         finally:
             engine.dispose()
 
-    def test_session_translations_columns(self, database_url, run_migrations):
-        """session_translations must have the columns specified in the migration."""
+    def test_upgrade_extends_meeting_translations_table(self, database_url, run_migrations):
+        """After upgrade, meeting_translations must have chunk_id column."""
         engine = create_engine(database_url)
         try:
-            inspector = inspect(engine)
-            cols = {c["name"] for c in inspector.get_columns("session_translations")}
+            cols = self._get_columns(engine, "meeting_translations")
             expected = {
                 "id",
-                "transcript_id",
+                "sentence_id",
+                "chunk_id",
                 "target_language",
                 "translated_text",
                 "model_used",
                 "created_at",
             }
-            assert expected <= cols, f"Missing columns: {expected - cols}"
+            assert expected <= cols, f"Missing columns in meeting_translations: {expected - cols}"
         finally:
             engine.dispose()
 
-    def test_downgrade_removes_meeting_tables(self, database_url, run_migrations):
-        """Downgrade -1 must drop the three meeting tables, leaving others intact."""
+    def test_downgrade_removes_pipeline_columns(self, database_url, run_migrations):
+        """Downgrade -1 must remove the added columns, leaving base schema intact."""
         from alembic import command
         from alembic.config import Config
 
@@ -110,17 +119,28 @@ class TestMeetingMigration:
             async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
         cfg.set_main_option("sqlalchemy.url", async_url)
 
-        # Downgrade one step (removes 013_meeting_tables)
+        # Downgrade one step (removes 013_meeting_tables additions)
         command.downgrade(cfg, "-1")
 
         engine = create_engine(database_url)
         try:
-            tables = self._get_tables(engine)
-            assert "meeting_sessions" not in tables, "meeting_sessions still exists after downgrade"
-            assert "meeting_transcripts" not in tables, "meeting_transcripts still exists after downgrade"
-            assert "session_translations" not in tables, "session_translations still exists after downgrade"
-            # The previous migration's tables must still be present
-            assert "alembic_version" in tables
+            cols = self._get_columns(engine, "meetings")
+            assert "last_activity_at" not in cols, "last_activity_at still present after downgrade"
+            assert "recording_path" not in cols, "recording_path still present after downgrade"
+            assert "started_at" not in cols, "started_at still present after downgrade"
+            # Base columns must remain
+            assert "id" in cols
+            assert "source" in cols
+            assert "status" in cols
+
+            chunk_cols = self._get_columns(engine, "meeting_chunks")
+            assert "timestamp_ms" not in chunk_cols, "timestamp_ms still present after downgrade"
+            assert "is_final" not in chunk_cols, "is_final still present after downgrade"
+
+            trans_cols = self._get_columns(engine, "meeting_translations")
+            assert "chunk_id" not in trans_cols, "chunk_id still present after downgrade"
+            # sentence_id must be back and still present
+            assert "sentence_id" in trans_cols
         finally:
             engine.dispose()
 

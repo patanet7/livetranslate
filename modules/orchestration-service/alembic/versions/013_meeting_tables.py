@@ -1,7 +1,8 @@
-"""Create meeting_sessions, meeting_transcripts, session_translations tables.
+"""Extend existing meeting tables for unified pipeline support.
 
-Additive migration: creates new tables alongside existing bot_sessions.
-Does NOT drop or modify bot_sessions.
+Adds columns needed by the loopback/gmeet pipeline to the existing
+meetings, meeting_chunks, and meeting_translations tables.  Does NOT
+create new tables and does NOT drop any existing columns.
 
 Revision ID: 013_meeting_tables
 Revises: 012_ai_connections
@@ -18,78 +19,126 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "meeting_sessions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("source_type", sa.Text(), nullable=False),
-        sa.Column("status", sa.Text(), nullable=False, server_default="ephemeral"),
-        sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+    # -----------------------------------------------------------------------
+    # meetings — add pipeline columns
+    # -----------------------------------------------------------------------
+    op.add_column(
+        "meetings",
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+    )
+    op.add_column(
+        "meetings",
         sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("source_languages", postgresql.ARRAY(sa.Text()), nullable=True),
-        sa.Column("target_languages", postgresql.ARRAY(sa.Text()), nullable=True),
+    )
+    op.add_column(
+        "meetings",
+        sa.Column(
+            "source_languages", postgresql.ARRAY(sa.Text()), nullable=True
+        ),
+    )
+    op.add_column(
+        "meetings",
+        sa.Column(
+            "target_languages", postgresql.ARRAY(sa.Text()), nullable=True
+        ),
+    )
+    op.add_column(
+        "meetings",
         sa.Column("recording_path", sa.Text(), nullable=True),
+    )
+    op.add_column(
+        "meetings",
         sa.Column("metadata", postgresql.JSONB(), nullable=True),
+    )
+    op.add_column(
+        "meetings",
         sa.Column(
             "last_activity_at",
             sa.DateTime(timezone=True),
             server_default=sa.func.now(),
+            nullable=True,
         ),
     )
-    op.create_index("ix_meeting_sessions_status", "meeting_sessions", ["status"])
     op.create_index(
-        "ix_meeting_sessions_started_at", "meeting_sessions", ["started_at"]
+        "ix_meetings_last_activity_at", "meetings", ["last_activity_at"]
     )
 
-    op.create_table(
-        "meeting_transcripts",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
-        sa.Column(
-            "session_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("meeting_sessions.id"),
-            nullable=False,
-        ),
-        sa.Column("timestamp_ms", sa.BigInteger(), nullable=False),
-        sa.Column("speaker_id", sa.Text(), nullable=True),
-        sa.Column("speaker_name", sa.Text(), nullable=True),
-        sa.Column("source_language", sa.Text(), nullable=True),
-        sa.Column("source_id", sa.Text(), nullable=True),
-        sa.Column("text", sa.Text(), nullable=False),
+    # -----------------------------------------------------------------------
+    # meeting_chunks — add real-time pipeline columns
+    # -----------------------------------------------------------------------
+    op.add_column(
+        "meeting_chunks",
+        sa.Column("timestamp_ms", sa.BigInteger(), nullable=True),
+    )
+    op.add_column(
+        "meeting_chunks",
+        sa.Column("is_final", sa.Boolean(), server_default="false", nullable=False),
+    )
+    op.add_column(
+        "meeting_chunks",
         sa.Column("confidence", sa.Float(), nullable=True),
-        sa.Column("is_final", sa.Boolean(), server_default="false"),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+    )
+    op.add_column(
+        "meeting_chunks",
+        sa.Column("source_language", sa.Text(), nullable=True),
+    )
+    op.add_column(
+        "meeting_chunks",
+        sa.Column("source_id", sa.Text(), nullable=True),
+    )
+    op.add_column(
+        "meeting_chunks",
+        sa.Column("speaker_id", sa.Text(), nullable=True),
     )
     op.create_index(
-        "ix_meeting_transcripts_session", "meeting_transcripts", ["session_id"]
+        "ix_chunks_timestamp_ms", "meeting_chunks", ["timestamp_ms"]
     )
     op.create_index(
-        "ix_meeting_transcripts_ts", "meeting_transcripts", ["timestamp_ms"]
+        "ix_chunks_is_final", "meeting_chunks", ["is_final"]
     )
 
-    op.create_table(
-        "session_translations",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+    # -----------------------------------------------------------------------
+    # meeting_translations — make sentence_id nullable so translations can
+    # attach to chunks directly (loopback/gmeet pipeline path).
+    # Add chunk_id FK for the direct-to-chunk translation path.
+    # -----------------------------------------------------------------------
+    op.alter_column("meeting_translations", "sentence_id", nullable=True)
+    op.add_column(
+        "meeting_translations",
         sa.Column(
-            "transcript_id",
-            sa.BigInteger(),
-            sa.ForeignKey("meeting_transcripts.id"),
-            nullable=False,
-        ),
-        sa.Column("target_language", sa.Text(), nullable=False),
-        sa.Column("translated_text", sa.Text(), nullable=False),
-        sa.Column("model_used", sa.Text(), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+            "chunk_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("meeting_chunks.id", ondelete="CASCADE"),
+            nullable=True,
         ),
     )
     op.create_index(
-        "ix_session_translations_transcript", "session_translations", ["transcript_id"]
+        "ix_mtrans_chunk", "meeting_translations", ["chunk_id"]
     )
 
 
 def downgrade() -> None:
-    op.drop_table("session_translations")
-    op.drop_table("meeting_transcripts")
-    op.drop_table("meeting_sessions")
+    # meeting_translations
+    op.drop_index("ix_mtrans_chunk", table_name="meeting_translations")
+    op.drop_column("meeting_translations", "chunk_id")
+    op.alter_column("meeting_translations", "sentence_id", nullable=False)
+
+    # meeting_chunks
+    op.drop_index("ix_chunks_is_final", table_name="meeting_chunks")
+    op.drop_index("ix_chunks_timestamp_ms", table_name="meeting_chunks")
+    op.drop_column("meeting_chunks", "speaker_id")
+    op.drop_column("meeting_chunks", "source_id")
+    op.drop_column("meeting_chunks", "source_language")
+    op.drop_column("meeting_chunks", "confidence")
+    op.drop_column("meeting_chunks", "is_final")
+    op.drop_column("meeting_chunks", "timestamp_ms")
+
+    # meetings
+    op.drop_index("ix_meetings_last_activity_at", table_name="meetings")
+    op.drop_column("meetings", "last_activity_at")
+    op.drop_column("meetings", "metadata")
+    op.drop_column("meetings", "recording_path")
+    op.drop_column("meetings", "target_languages")
+    op.drop_column("meetings", "source_languages")
+    op.drop_column("meetings", "ended_at")
+    op.drop_column("meetings", "started_at")
