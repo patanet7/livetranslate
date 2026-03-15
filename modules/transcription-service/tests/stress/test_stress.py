@@ -311,7 +311,7 @@ class TestAudioStress:
 
         import soundfile as sf
 
-        temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=True)
         sf.write(temp_file.name, test_audio_sine_wave, 16000)
 
         with open(temp_file.name, "rb") as f:
@@ -377,9 +377,7 @@ class TestAudioStress:
         for client in clients:
             await client.disconnect()
 
-        import os
-
-        os.unlink(temp_file.name)
+        temp_file.close()
 
     @pytest.mark.asyncio
     @pytest.mark.stress
@@ -400,7 +398,7 @@ class TestAudioStress:
 
             import soundfile as sf
 
-            temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            temp_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=True)
             sf.write(temp_file.name, audio_data, 16000)
 
             with open(temp_file.name, "rb") as f:
@@ -453,10 +451,8 @@ class TestAudioStress:
                 processing_time < max_time
             ), f"{duration}s audio took {processing_time:.1f}s to process"
 
-            # Cleanup
-            import os
-
-            os.unlink(temp_file.name)
+            # Cleanup temp file
+            temp_file.close()
 
             # Wait between tests
             await asyncio.sleep(1)

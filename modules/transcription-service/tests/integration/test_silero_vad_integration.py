@@ -25,6 +25,22 @@ SRC_DIR = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
 
+@pytest.fixture(scope="module")
+def silero_vad_model():
+    """Load Silero VAD model once for all tests in this module."""
+    import gc
+
+    model, _utils = torch.hub.load(
+        repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False, onnx=False
+    )
+    model.eval()
+    yield model
+    del model
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
 class TestSileroVADIntegration:
     """
     REAL INTEGRATION TESTS: Silero VAD with actual model
@@ -37,7 +53,7 @@ class TestSileroVADIntegration:
     """
 
     @pytest.mark.integration
-    def test_silero_vad_model_loading(self):
+    def test_silero_vad_model_loading(self, silero_vad_model):
         """
         Test loading real Silero VAD model from torch.hub
 
@@ -45,19 +61,14 @@ class TestSileroVADIntegration:
         """
         print("\n[SILERO VAD] Testing model loading...")
 
-        # Load Silero VAD model (real model from torch.hub)
-        model, _utils = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False, onnx=False
-        )
-
-        assert model is not None, "Silero VAD model should load"
-        assert callable(model), "Model should be callable"
+        assert silero_vad_model is not None, "Silero VAD model should load"
+        assert callable(silero_vad_model), "Model should be callable"
 
         print("✅ Silero VAD model loaded successfully")
-        print(f"   Model type: {type(model)}")
+        print(f"   Model type: {type(silero_vad_model)}")
 
     @pytest.mark.integration
-    def test_vad_iterator_creation(self):
+    def test_vad_iterator_creation(self, silero_vad_model):
         """
         Test creating VADIterator with real Silero model
 
@@ -67,14 +78,8 @@ class TestSileroVADIntegration:
 
         from silero_vad_iterator import VADIterator
 
-        # Load model
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        # Create VADIterator
         vad = VADIterator(
-            model=model,
+            model=silero_vad_model,
             threshold=0.5,  # SimulStreaming default
             sampling_rate=16000,
             min_silence_duration_ms=500,
@@ -90,7 +95,7 @@ class TestSileroVADIntegration:
         print(f"   Sampling rate: {vad.sampling_rate}Hz")
 
     @pytest.mark.integration
-    def test_fixed_vad_iterator(self):
+    def test_fixed_vad_iterator(self, silero_vad_model):
         """
         Test FixedVADIterator with variable-length audio
 
@@ -100,11 +105,7 @@ class TestSileroVADIntegration:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        vad = FixedVADIterator(model, threshold=0.5)
+        vad = FixedVADIterator(silero_vad_model, threshold=0.5)
 
         # Test with different audio lengths
         for length in [256, 512, 1024, 2048]:
@@ -118,7 +119,7 @@ class TestSileroVADIntegration:
         print("✅ FixedVADIterator handles variable audio lengths")
 
     @pytest.mark.integration
-    def test_silence_detection(self):
+    def test_silence_detection(self, silero_vad_model):
         """
         Test that VAD correctly detects silence
 
@@ -128,11 +129,7 @@ class TestSileroVADIntegration:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        vad = FixedVADIterator(model, threshold=0.5)
+        vad = FixedVADIterator(silero_vad_model, threshold=0.5)
 
         # Process silent audio (zeros)
         silent_audio = np.zeros(16000, dtype=np.float32)  # 1 second
@@ -144,7 +141,7 @@ class TestSileroVADIntegration:
         print("✅ VAD processes silence correctly")
 
     @pytest.mark.integration
-    def test_speech_probability_calculation(self):
+    def test_speech_probability_calculation(self, silero_vad_model):
         """
         Test VAD speech probability calculation
 
@@ -152,15 +149,8 @@ class TestSileroVADIntegration:
         """
         print("\n[SILERO VAD] Testing speech probability...")
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        # Test with 512-sample chunk (Silero requirement)
         audio_chunk = torch.zeros(512, dtype=torch.float32)
-
-        # Get speech probability
-        speech_prob = model(audio_chunk, 16000).item()
+        speech_prob = silero_vad_model(audio_chunk, 16000).item()
 
         assert isinstance(speech_prob, float)
         assert 0.0 <= speech_prob <= 1.0
@@ -170,7 +160,7 @@ class TestSileroVADIntegration:
         print("   (should be close to 0.0 for silent audio)")
 
     @pytest.mark.integration
-    def test_vad_with_noisy_audio(self):
+    def test_vad_with_noisy_audio(self, silero_vad_model):
         """
         Test VAD with noise (should detect as non-speech if below threshold)
 
@@ -180,11 +170,7 @@ class TestSileroVADIntegration:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        vad = FixedVADIterator(model, threshold=0.5)
+        vad = FixedVADIterator(silero_vad_model, threshold=0.5)
 
         # Generate random noise
         np.random.seed(42)
@@ -196,7 +182,7 @@ class TestSileroVADIntegration:
         print("✅ VAD processes noise correctly")
 
     @pytest.mark.integration
-    def test_vad_threshold_parameter(self):
+    def test_vad_threshold_parameter(self, silero_vad_model):
         """
         Test VAD with different threshold values
 
@@ -208,14 +194,10 @@ class TestSileroVADIntegration:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
         thresholds = [0.3, 0.5, 0.7]
 
         for threshold in thresholds:
-            vad = FixedVADIterator(model, threshold=threshold)
+            vad = FixedVADIterator(silero_vad_model, threshold=threshold)
 
             assert vad.threshold == threshold
 
@@ -224,7 +206,7 @@ class TestSileroVADIntegration:
         print("✅ Threshold parameter works correctly")
 
     @pytest.mark.integration
-    def test_vad_sampling_rate_validation(self):
+    def test_vad_sampling_rate_validation(self, silero_vad_model):
         """
         Test VAD sampling rate validation
 
@@ -234,19 +216,14 @@ class TestSileroVADIntegration:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        # Valid sampling rates
         for sr in [8000, 16000]:
-            vad = FixedVADIterator(model, sampling_rate=sr)
+            vad = FixedVADIterator(silero_vad_model, sampling_rate=sr)
             assert vad.sampling_rate == sr
             print(f"   {sr}Hz: valid")
 
         # Invalid sampling rate should raise error
         with pytest.raises(ValueError):
-            vad = FixedVADIterator(model, sampling_rate=44100)
+            vad = FixedVADIterator(silero_vad_model, sampling_rate=44100)
 
         print("✅ Sampling rate validation works")
 
@@ -259,7 +236,7 @@ class TestSileroVADFiltering:
     """
 
     @pytest.mark.integration
-    def test_vad_filters_silent_chunks(self):
+    def test_vad_filters_silent_chunks(self, silero_vad_model):
         """
         Test that VAD filters out silent audio chunks
 
@@ -269,11 +246,7 @@ class TestSileroVADFiltering:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        vad = FixedVADIterator(model, threshold=0.5)
+        vad = FixedVADIterator(silero_vad_model, threshold=0.5)
 
         # Simulate streaming: 10 silent chunks
         silent_count = 0
@@ -293,7 +266,7 @@ class TestSileroVADFiltering:
         print("✅ VAD filters silent chunks")
 
     @pytest.mark.integration
-    def test_vad_preserves_speech_chunks(self):
+    def test_vad_preserves_speech_chunks(self, silero_vad_model):
         """
         Test that VAD preserves chunks with speech
 
@@ -304,75 +277,67 @@ class TestSileroVADFiltering:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
+        FixedVADIterator(silero_vad_model, threshold=0.5)
 
-        FixedVADIterator(model, threshold=0.5)
-
-        # Test that VAD can detect speech-like patterns
-        # (with real speech audio, speech_prob would be > 0.5)
-
-        # For now, verify the mechanism works
         test_audio = np.zeros(16000, dtype=np.float32)
-
-        # Get probability
         test_chunk = torch.tensor(test_audio[:512])
-        speech_prob = model(test_chunk, 16000).item()
+        speech_prob = silero_vad_model(test_chunk, 16000).item()
 
         print(f"   Test audio probability: {speech_prob:.4f}")
         print("   Threshold: 0.5")
         print("✅ VAD mechanism operational")
 
     @pytest.mark.integration
-    def test_vad_integration_with_whisper_pipeline(self):
+    def test_vad_integration_with_whisper_pipeline(self, silero_vad_model):
         """
         Test VAD integration with Whisper transcription pipeline
 
         VAD should filter silence BEFORE Whisper processes audio
         """
+        import gc
+
         print("\n[VAD FILTERING] Testing Whisper pipeline integration...")
 
         from silero_vad_iterator import FixedVADIterator
         from whisper_service import ModelManager
 
-        # Load VAD
-        vad_model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-        vad = FixedVADIterator(vad_model, threshold=0.5)
+        vad = FixedVADIterator(silero_vad_model, threshold=0.5)
 
         # Load Whisper
         models_dir = Path(__file__).parent.parent / ".models"
         whisper_manager = ModelManager(models_dir=str(models_dir))
-        whisper_manager.load_model("large-v3")
+        try:
+            whisper_manager.load_model("large-v3")
+        except Exception:
+            pytest.skip("large-v3 model not available")
 
-        # Simulate streaming with VAD filtering
-        chunks_processed = 0
-        chunks_filtered = 0
+        try:
+            chunks_processed = 0
+            chunks_filtered = 0
 
-        for i in range(5):
-            # Create test chunk
-            chunk = np.zeros(1600, dtype=np.float32)  # 0.1s
+            for i in range(5):
+                chunk = np.zeros(1600, dtype=np.float32)
+                vad_result = vad(chunk, return_seconds=True)
 
-            # VAD check
-            vad_result = vad(chunk, return_seconds=True)
+                if vad_result is None or "start" not in vad_result:
+                    chunks_filtered += 1
+                    print(f"   Chunk {i}: FILTERED (silence)")
+                else:
+                    chunks_processed += 1
+                    print(f"   Chunk {i}: PROCESSED (speech)")
 
-            if vad_result is None or "start" not in vad_result:
-                # SILENCE - filter out, don't send to Whisper
-                chunks_filtered += 1
-                print(f"   Chunk {i}: FILTERED (silence)")
-            else:
-                # SPEECH - process with Whisper
-                chunks_processed += 1
-                print(f"   Chunk {i}: PROCESSED (speech)")
-
-        print("✅ VAD integration with Whisper pipeline works")
-        print(f"   Chunks filtered: {chunks_filtered}")
-        print(f"   Chunks processed: {chunks_processed}")
+            print("✅ VAD integration with Whisper pipeline works")
+            print(f"   Chunks filtered: {chunks_filtered}")
+            print(f"   Chunks processed: {chunks_processed}")
+        finally:
+            whisper_manager.dec_attns.clear()
+            del whisper_manager
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     @pytest.mark.integration
-    def test_vad_state_reset(self):
+    def test_vad_state_reset(self, silero_vad_model):
         """
         Test VAD state reset between sessions
 
@@ -382,11 +347,7 @@ class TestSileroVADFiltering:
 
         from silero_vad_iterator import FixedVADIterator
 
-        model, _ = torch.hub.load(
-            repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False
-        )
-
-        vad = FixedVADIterator(model, threshold=0.5)
+        vad = FixedVADIterator(silero_vad_model, threshold=0.5)
 
         # Process some audio
         audio1 = np.zeros(1600, dtype=np.float32)

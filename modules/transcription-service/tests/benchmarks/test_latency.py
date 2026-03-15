@@ -14,6 +14,7 @@ Critical metrics:
 Reference: FEEDBACK.md lines 171-184, session_manager.py
 """
 
+import gc
 import json
 import logging
 import sys
@@ -24,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 
 # Add src to path
 src_path = Path(__file__).parent.parent.parent / "src"
@@ -211,7 +213,7 @@ class TestEndToEndLatency:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en"],
@@ -219,6 +221,12 @@ class TestEndToEndLatency:
             vad_threshold=0.5,
             sampling_rate=16000,
         )
+        yield t
+        t.reset()
+        del t
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def test_end_to_end_latency_500ms_chunks(self, transcriber):
         """
@@ -334,19 +342,25 @@ class TestEndToEndLatency:
             min_dwell_frames=6,
         )
 
-        tracker = LatencyTracker("latency_with_switching")
+        try:
+            tracker = LatencyTracker("latency_with_switching")
 
-        # Process enough chunks to potentially trigger switches
-        for _i in range(100):
-            audio = generate_test_audio(0.5)
-            tracker.measure(transcriber_multi.process, audio)
+            for _i in range(100):
+                audio = generate_test_audio(0.5)
+                tracker.measure(transcriber_multi.process, audio)
 
-        stats = tracker.get_stats()
-        tracker.print_stats()
+            stats = tracker.get_stats()
+            tracker.print_stats()
 
-        BenchmarkStorage.update_benchmark("latency_with_switching", stats)
+            BenchmarkStorage.update_benchmark("latency_with_switching", stats)
 
-        logger.info(f"✅ Latency with switching P95: {stats.p95_ms:.2f}ms")
+            logger.info(f"✅ Latency with switching P95: {stats.p95_ms:.2f}ms")
+        finally:
+            transcriber_multi.reset()
+            del transcriber_multi
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
 
 @pytest.mark.benchmark
@@ -362,7 +376,7 @@ class TestLIDProbeLatency:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en", "zh"],
@@ -371,6 +385,12 @@ class TestLIDProbeLatency:
             sampling_rate=16000,
             lid_hop_ms=100,
         )
+        yield t
+        t.reset()
+        del t
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def test_lid_probe_latency(self, transcriber):
         """
@@ -547,7 +567,7 @@ class TestThroughput:
         if not Path(model_path).exists():
             pytest.skip(f"Model not found: {model_path}")
 
-        return SessionRestartTranscriber(
+        t = SessionRestartTranscriber(
             model_path=model_path,
             models_dir=str(models_dir),
             target_languages=["en"],
@@ -555,6 +575,12 @@ class TestThroughput:
             vad_threshold=0.5,
             sampling_rate=16000,
         )
+        yield t
+        t.reset()
+        del t
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     def test_throughput_audio_seconds_per_second(self, transcriber):
         """
