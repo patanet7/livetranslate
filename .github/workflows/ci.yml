@@ -61,7 +61,7 @@ jobs:
 
       - name: Set up Python
         if: matrix.service.changed == 'true' || github.event_name == 'push'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -114,7 +114,7 @@ jobs:
 
       - name: Set up Python
         if: matrix.service.changed == 'true' || github.event_name == 'push'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -161,7 +161,7 @@ jobs:
 
       - name: Set up Python
         if: matrix.service.changed == 'true' || github.event_name == 'push'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
