@@ -12,7 +12,7 @@
   import TranscriptView from '$lib/components/loopback/TranscriptView.svelte';
 
   let devices = $state<MediaDeviceInfo[]>([]);
-  let selectedDeviceId = $state<string | undefined>(undefined);
+  let selectedDeviceId = $state('');
   let elapsedTime = $state('00:00:00');
   let elapsedTimerInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -106,7 +106,7 @@
       // has session context for incoming audio frames.
       onReconnect: () => {
         if (capture) {
-          ws?.startSession(capture.sampleRate ?? 48000, 1, selectedDeviceId);
+          ws?.startSession(capture.sampleRate ?? 48000, 1, selectedDeviceId || undefined);
         }
       },
     });
@@ -127,7 +127,7 @@
     capture = new AudioCapture();
     try {
       await capture.start({
-        deviceId: selectedDeviceId,
+        deviceId: selectedDeviceId || undefined,
         sourceType: 'system',
         onChunk: (data) => {
           ws?.sendAudio(data);
