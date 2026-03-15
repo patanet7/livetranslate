@@ -1,37 +1,36 @@
 version: 1
 
 backends:
-  whisper:
-    module: backends.whisper
-    class: WhisperBackend
   mlx:
     module: backends.mlx_whisper
     class: MLXWhisperBackend
 
-vram_budget_mb: 10000
+vram_budget_mb: 16000
 
+# Local dev (Apple Silicon / CPU) — longer prebuffer than GPU config.
+# prebuffer_s=3.0 ensures first inference gets enough audio for accurate
+# transcription. GPU config uses 0.3s because inference is <0.5s.
 # NOTE: stride_s MUST equal chunk_duration_s - overlap_s
-# Changing chunk_duration_s or overlap_s requires updating stride_s accordingly
 language_routing:
   en:
-    backend: whisper
-    model: large-v3-turbo
+    backend: mlx
+    model: medium
     compute_type: float16
     chunk_duration_s: 5.0
     stride_s: 4.5
     overlap_s: 0.5
     vad_threshold: 0.5
     beam_size: 1
-    prebuffer_s: 0.3
+    prebuffer_s: 3.0
     batch_profile: realtime
   "*":
-    backend: whisper
-    model: large-v3-turbo
+    backend: mlx
+    model: medium
     compute_type: float16
     chunk_duration_s: 5.0
     stride_s: 4.5
     overlap_s: 0.5
     vad_threshold: 0.5
     beam_size: 1
-    prebuffer_s: 0.3
+    prebuffer_s: 3.0
     batch_profile: realtime

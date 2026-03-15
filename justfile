@@ -2,24 +2,21 @@
 # LiveTranslate Justfile
 # ==============================================================================
 #
-# Enhanced just commands for the LiveTranslate project.
-# Install just: https://github.com/casey/just
-#
 # Usage:
-#   just [recipe]
-#   just --list
+#   just              Show this help
+#   just dev           Start all services locally
+#   just test          Run all tests (no GPU)
+#   just test-stream   Run streaming e2e tests (needs transcription service)
 #
+# Install just: https://github.com/casey/just
 
 set shell := ['bash', '-eu', '-o', 'pipefail', '-c']
 
-# Project directories
 project_root := justfile_directory()
 orchestration_dir := project_root / "modules/orchestration-service"
 transcription_dir := project_root / "modules/transcription-service"
-translation_dir := project_root / "modules/translation-service"
-frontend_dir := project_root / "modules/frontend-service"
+dashboard_dir := project_root / "modules/dashboard-service"
 
-# Default recipe
 default: help
 
 # ==============================================================================
@@ -30,377 +27,209 @@ default: help
 help:
     @printf "LiveTranslate Just Commands\n"
     @printf "===========================\n\n"
-    @just --list
+    @just --list --unsorted
 
 # ==============================================================================
-# Environment Setup
+# Setup
 # ==============================================================================
 
-# Bootstrap development environment
-bootstrap-env:
-    @cp -n env.template .env.local || true
-    @echo ".env.local ready (edit as needed)."
-
-# Install all dependencies
-install-all:
-    @echo "Installing all dependencies..."
-    @cd {{orchestration_dir}} && (pdm install --no-self 2>/dev/null || pdm install || poetry install --no-root)
-    @cd {{transcription_dir}} && (pdm install --no-self 2>/dev/null || pdm install || poetry install --no-root)
-    @cd {{translation_dir}} && (pdm install --no-self 2>/dev/null || pdm install || poetry install --no-root)
-    @cd {{frontend_dir}} && pnpm install
-    @echo "All dependencies installed!"
+# Install all dependencies (Python + Node)
+install:
+    uv sync --all-packages --group dev
+    cd {{dashboard_dir}} && npm install
 
 # ==============================================================================
-# Development
+# Development — Start Services
 # ==============================================================================
 
-# Start full development environment
+# Start all 3 services locally (Mac: MLX, Linux: CUDA)
 dev:
-    @./start-development.sh
+    @echo "Starting all services..."
+    @echo "  Transcription: http://localhost:5001"
+    @echo "  Orchestration: http://localhost:3000"
+    @echo "  Dashboard:     http://localhost:5173"
+    @echo "  Ollama:        http://localhost:11434"
+    @echo ""
+    @echo "Use Ctrl+C to stop all."
+    @trap 'kill 0' EXIT; \
+        uv run python {{transcription_dir}}/src/main_local.py --model medium 2>&1 | sed 's/^/[transcription] /' & \
+        sleep 5 && \
+        TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
+        LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen3.5:4b \
+        uv run python {{orchestration_dir}}/src/main_fastapi.py 2>&1 | sed 's/^/[orchestration] /' & \
+        sleep 2 && cd {{dashboard_dir}} && npm run dev 2>&1 | sed 's/^/[dashboard] /' & \
+        wait
 
-# Start frontend only
-dev-frontend:
-    @cd {{frontend_dir}} && ./start-frontend.sh
+# Start transcription service (Mac: auto-detect MLX/CPU)
+dev-transcription model='medium':
+    uv run python {{transcription_dir}}/src/main_local.py --model {{model}}
 
-# Start backend only
-dev-backend:
-    @cd {{orchestration_dir}} && ./start-backend.sh
+# Start transcription service (GPU — thomas-pc)
+dev-transcription-gpu:
+    uv run python {{transcription_dir}}/src/main.py
+
+# Start orchestration service
+dev-orchestration:
+    uv run python {{orchestration_dir}}/src/main_fastapi.py
+
+# Start dashboard (SvelteKit dev server)
+dev-dashboard:
+    cd {{dashboard_dir}} && npm run dev
 
 # ==============================================================================
-# Docker Compose
+# Testing — Unit + Integration (no GPU needed)
 # ==============================================================================
 
-# Start compose with profiles (default: core,inference)
-compose-up profiles='core,inference':
-    @echo "Starting compose profiles: {{profiles}}"
-    @COMPOSE_PROFILES={{profiles}} docker compose -f compose.local.yml up --build
+# Run all tests that don't need GPU or running services
+test:
+    @echo "=== Shared contracts ==="
+    uv run pytest modules/shared/tests/ -v --timeout=30
+    @echo ""
+    @echo "=== Transcription registry + backpressure ==="
+    uv run pytest {{transcription_dir}}/tests/test_registry.py {{transcription_dir}}/tests/test_backpressure.py -v --timeout=30
+    @echo ""
+    @echo "=== Orchestration unit + integration ==="
+    cd {{orchestration_dir}} && uv run pytest tests/unit/ tests/integration/ tests/test_recorder.py -v --timeout=30
 
-# Stop compose services
-compose-down:
-    @docker compose -f compose.local.yml down
+# Run shared contract + TS alignment tests
+test-contracts:
+    uv run pytest modules/shared/tests/ -v --timeout=30
 
-# Show compose logs
-compose-logs:
-    @docker compose -f compose.local.yml logs -f
+# Run orchestration tests
+test-orchestration:
+    cd {{orchestration_dir}} && uv run pytest tests/unit/ tests/integration/ tests/test_recorder.py -v --timeout=30
 
-# Build deployment images
-deploy-build:
-    @docker compose -f compose.local.yml build orchestration frontend
+# Run transcription registry + config tests
+test-transcription:
+    uv run pytest {{transcription_dir}}/tests/test_registry.py {{transcription_dir}}/tests/test_backpressure.py -v --timeout=30
+
+# ==============================================================================
+# Testing — E2E (needs running services)
+# ==============================================================================
+
+# Run streaming e2e tests (needs transcription service on :5001)
+test-stream:
+    uv run pytest {{transcription_dir}}/tests/integration/test_streaming_e2e.py -v -s --timeout=120
+
+# Run meeting flow e2e tests (testcontainers PostgreSQL)
+test-meeting:
+    cd {{orchestration_dir}} && uv run pytest tests/e2e/test_meeting_flow.py -v --timeout=60
+
+# Run translation smoke test (needs local Ollama)
+test-translation:
+    cd {{orchestration_dir}} && uv run pytest tests/e2e/test_meeting_flow.py::TestTranslationOnFinalSegments -v --timeout=60
+
+# Run Playwright visual regression (needs all services running)
+test-playwright:
+    cd {{dashboard_dir}} && npx playwright test tests/e2e/loopback-playback.spec.ts --headed
+
+# Run ALL tests (unit + integration + e2e + streaming)
+test-all: test test-stream test-meeting
+
+# ==============================================================================
+# Testing — Coverage
+# ==============================================================================
+
+# Generate coverage for orchestration service
+coverage-orchestration:
+    cd {{orchestration_dir}} && uv run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing -v --timeout=60
+
+# Generate coverage for transcription service
+coverage-transcription:
+    uv run pytest {{transcription_dir}}/tests/ --cov={{transcription_dir}}/src --cov-report=html --cov-report=term-missing -v --timeout=60
+
+# Generate coverage for all backend services
+coverage-backend: coverage-orchestration coverage-transcription
 
 # ==============================================================================
 # Database
 # ==============================================================================
 
-# Start PostgreSQL and Redis containers
+# Start PostgreSQL + Redis containers
 db-up:
-    @echo "Starting database services..."
-    @docker compose -f docker-compose.database.yml up -d postgres redis
-    @echo "Waiting for PostgreSQL to be ready..."
-    @sleep 5
-    @docker exec livetranslate-postgres pg_isready -U livetranslate -d livetranslate || echo "PostgreSQL starting..."
-    @echo "Database services started!"
-    @echo "  PostgreSQL: localhost:5432"
-    @echo "  Redis: localhost:6379"
+    docker compose -f docker-compose.database.yml up -d postgres redis
+    @echo "PostgreSQL: localhost:5432 | Redis: localhost:6379"
 
-# Stop PostgreSQL and Redis containers
+# Stop database containers
 db-down:
-    @echo "Stopping database services..."
-    @docker compose -f docker-compose.database.yml down
-    @echo "Database services stopped."
+    docker compose -f docker-compose.database.yml down
 
-# Run database migrations
+# Run Alembic migrations
 db-migrate:
-    @echo "Running database migrations..."
-    @cd {{orchestration_dir}} && (pdm run alembic upgrade head 2>/dev/null || poetry run alembic upgrade head)
-    @echo "Migrations complete!"
+    cd {{orchestration_dir}} && uv run alembic upgrade head
 
 # Open PostgreSQL shell
 db-shell:
-    @docker exec -it livetranslate-postgres psql -U livetranslate -d livetranslate
-
-# Reset database (WARNING: destroys all data)
-db-reset:
-    @echo "WARNING: This will destroy all database data!"
-    @read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
-    @docker compose -f docker-compose.database.yml down -v
-    @docker compose -f docker-compose.database.yml up -d postgres redis
-    @echo "Database reset complete!"
+    docker exec -it livetranslate-postgres psql -U livetranslate -d livetranslate
 
 # ==============================================================================
-# Testing
+# Code Quality
 # ==============================================================================
 
-# Run orchestration service tests
-test-orchestration mark='':
-    @echo "Running orchestration service tests..."
-    @mkdir -p {{orchestration_dir}}/tests/output
-    @cd {{orchestration_dir}} && \
-        (pdm run pytest tests/ {{mark}} -v 2>&1 || poetry run pytest tests/ {{mark}} -v 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_test_orchestration_results.log
-    @echo "Test results saved to tests/output/"
+# Lint all Python code
+lint:
+    uv run ruff check modules/
 
-# Run transcription service tests
-test-transcription mark='':
-    @echo "Running transcription service tests..."
-    @mkdir -p {{transcription_dir}}/tests/output
-    @cd {{transcription_dir}} && \
-        (pdm run pytest tests/ {{mark}} -v 2>&1 || poetry run pytest tests/ {{mark}} -v 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_test_transcription_results.log
-    @echo "Test results saved to tests/output/"
+# Format all Python code
+fmt:
+    uv run ruff format modules/
 
-# Run translation service tests
-test-translation mark='':
-    @echo "Running translation service tests..."
-    @mkdir -p {{translation_dir}}/tests/output
-    @cd {{translation_dir}} && \
-        (pdm run pytest tests/ {{mark}} -v 2>&1 || poetry run pytest tests/ {{mark}} -v 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_test_translation_results.log
-    @echo "Test results saved to tests/output/"
+# Type check
+typecheck:
+    uv run mypy modules/orchestration-service/src/ modules/shared/src/
 
-# Run all backend tests
-test-backend mark='':
-    @just test-orchestration "{{mark}}"
-    @just test-transcription "{{mark}}"
-    @just test-translation "{{mark}}"
+# Run pre-commit hooks
+pre-commit:
+    pre-commit run --all-files
 
-# Run frontend tests
-test-frontend:
-    @cd {{frontend_dir}} && pnpm test
-
-# Run all tests
-test-all:
-    @just test-backend
-    @just test-frontend
+# Full CI check (lint + type + test)
+ci: lint typecheck test
 
 # ==============================================================================
-# Coverage
+# Docker
 # ==============================================================================
 
-# Generate coverage report for orchestration service
-coverage-orchestration:
-    @echo "Generating orchestration service coverage..."
-    @mkdir -p {{orchestration_dir}}/tests/output
-    @cd {{orchestration_dir}} && \
-        (pdm run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1 || \
-         poetry run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_coverage_orchestration.log
-    @echo "Coverage report: {{orchestration_dir}}/htmlcov/index.html"
+# Build all Docker images
+docker-build:
+    docker compose -f compose.local.yml build
 
-# Generate coverage report for transcription service
-coverage-transcription:
-    @echo "Generating transcription service coverage..."
-    @mkdir -p {{transcription_dir}}/tests/output
-    @cd {{transcription_dir}} && \
-        (pdm run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1 || \
-         poetry run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_coverage_transcription.log
-    @echo "Coverage report: {{transcription_dir}}/htmlcov/index.html"
+# Start compose (core + inference)
+compose-up:
+    COMPOSE_PROFILES=core,inference docker compose -f compose.local.yml up --build
 
-# Generate coverage report for translation service
-coverage-translation:
-    @echo "Generating translation service coverage..."
-    @mkdir -p {{translation_dir}}/tests/output
-    @cd {{translation_dir}} && \
-        (pdm run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1 || \
-         poetry run pytest tests/ --cov=src --cov-report=html --cov-report=term-missing 2>&1) | \
-        tee tests/output/$(date +%Y%m%d_%H%M%S)_coverage_translation.log
-    @echo "Coverage report: {{translation_dir}}/htmlcov/index.html"
-
-# Generate coverage reports for all backend services
-coverage-backend:
-    @just coverage-orchestration
-    @just coverage-transcription
-    @just coverage-translation
-
-# Generate frontend coverage report
-coverage-frontend:
-    @echo "Generating frontend coverage..."
-    @cd {{frontend_dir}} && (pnpm test:coverage || pnpm test -- --coverage)
-
-# ==============================================================================
-# Code Formatting
-# ==============================================================================
-
-# Format backend code (orchestration)
-fmt-backend:
-    @cd {{orchestration_dir}} && (pdm run black src && pdm run isort src 2>/dev/null || poetry run black src && poetry run isort src)
-
-# Format transcription service code
-fmt-transcription:
-    @cd {{transcription_dir}} && (pdm run black src && pdm run isort src 2>/dev/null || poetry run black src && poetry run isort src)
-
-# Format translation service code
-fmt-translation:
-    @cd {{translation_dir}} && (pdm run black src && pdm run isort src 2>/dev/null || poetry run black src && poetry run isort src)
-
-# Format all backend code
-fmt-all-backend:
-    @just fmt-backend
-    @just fmt-transcription
-    @just fmt-translation
-
-# Format frontend code
-fmt-frontend:
-    @cd {{frontend_dir}} && pnpm format
-
-# Format all code
-fmt-all:
-    @just fmt-all-backend
-    @just fmt-frontend
-
-# ==============================================================================
-# Linting
-# ==============================================================================
-
-# Lint orchestration service
-lint-backend:
-    @cd {{orchestration_dir}} && (pdm run flake8 src 2>/dev/null || poetry run flake8 src)
-
-# Lint transcription service
-lint-transcription:
-    @cd {{transcription_dir}} && (pdm run flake8 src 2>/dev/null || poetry run flake8 src)
-
-# Lint translation service
-lint-translation:
-    @cd {{translation_dir}} && (pdm run flake8 src 2>/dev/null || poetry run flake8 src)
-
-# Lint all backend code
-lint-all-backend:
-    @just lint-backend
-    @just lint-transcription
-    @just lint-translation
-
-# Lint frontend code
-lint-frontend:
-    @cd {{frontend_dir}} && pnpm lint
-
-# Lint all code
-lint-all:
-    @just lint-all-backend
-    @just lint-frontend
-
-# ==============================================================================
-# Type Checking
-# ==============================================================================
-
-# Run mypy on orchestration service
-mypy:
-    @cd {{orchestration_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src)
-
-# Run mypy on all backend services
-mypy-all:
-    @cd {{orchestration_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src) || true
-    @cd {{transcription_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src) || true
-    @cd {{translation_dir}} && (pdm run mypy src 2>/dev/null || poetry run mypy src) || true
-
-# ==============================================================================
-# Docker Build
-# ==============================================================================
-
-# Build specific service Docker image
-docker-build service:
-    @echo "Building {{service}} Docker image..."
-    @case "{{service}}" in \
-        orchestration) cd {{orchestration_dir}} && docker build -t livetranslate-orchestration:latest . ;; \
-        frontend) cd {{frontend_dir}} && docker build -t livetranslate-frontend:latest . ;; \
-        transcription) cd {{transcription_dir}} && docker build -t livetranslate-transcription:latest . ;; \
-        translation) cd {{translation_dir}} && docker build -t livetranslate-translation:latest . ;; \
-        *) echo "Unknown service: {{service}}"; exit 1 ;; \
-    esac
-    @echo "Docker image built: livetranslate-{{service}}:latest"
-
-# Build all service Docker images
-docker-build-all:
-    @echo "Building all Docker images..."
-    @just docker-build orchestration
-    @just docker-build frontend
-    @just docker-build transcription || echo "Transcription Dockerfile not found, skipping..."
-    @just docker-build translation || echo "Translation Dockerfile not found, skipping..."
-    @echo "All Docker images built!"
+# Stop compose
+compose-down:
+    docker compose -f compose.local.yml down
 
 # ==============================================================================
 # Cleanup
 # ==============================================================================
 
-# Clean all build artifacts, caches, and temporary files
+# Clean Python caches + build artifacts
 clean:
-    @echo "Cleaning build artifacts and caches..."
-    @# Python artifacts
-    @find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-    @find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-    @find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
-    @find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
-    @find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-    @find . -type f -name "*.pyc" -delete 2>/dev/null || true
-    @find . -type f -name "*.pyo" -delete 2>/dev/null || true
-    @find . -type f -name ".coverage" -delete 2>/dev/null || true
-    @find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
-    @# Node artifacts
-    @find . -path "*/node_modules" -prune -type d -exec rm -rf {} + 2>/dev/null || true
-    @find . -type d -name "dist" -not -path "*/node_modules/*" -exec rm -rf {} + 2>/dev/null || true
-    @find . -type d -name "build" -not -path "*/node_modules/*" -exec rm -rf {} + 2>/dev/null || true
-    @# OS artifacts
-    @find . -type f -name ".DS_Store" -delete 2>/dev/null || true
-    @find . -type f -name "Thumbs.db" -delete 2>/dev/null || true
-    @echo "Cleanup complete!"
-
-# Clean Docker resources
-clean-docker:
-    @echo "Cleaning Docker resources..."
-    @docker compose -f docker-compose.database.yml down -v --remove-orphans 2>/dev/null || true
-    @docker system prune -f
-    @echo "Docker cleanup complete!"
-
-# ==============================================================================
-# Pre-commit
-# ==============================================================================
-
-# Install pre-commit hooks
-pre-commit-install:
-    @pre-commit install
-
-# Run pre-commit on all files
-pre-commit-run:
-    @pre-commit run --all-files
-
-# ==============================================================================
-# CI/CD
-# ==============================================================================
-
-# Run full CI check (format, lint, type check, test)
-ci-check:
-    @just fmt-backend
-    @just lint-backend
-    @just mypy
-    @just fmt-frontend
-    @just lint-frontend
-    @just test-backend
-    @just test-frontend
-
-# Quick check (lint only, no tests)
-quick-check:
-    @just lint-all-backend
-    @just lint-frontend
-    @just mypy-all
+    find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+    find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+    find . -type f -name "*.pyc" -delete 2>/dev/null || true
+    find . -type f -name ".DS_Store" -delete 2>/dev/null || true
+    @echo "Clean!"
 
 # ==============================================================================
 # Utilities
 # ==============================================================================
 
-# Check Docker environment
-check-docker:
-    @./scripts/check_docker_env.sh
-
-# Show version info
-version:
-    @echo "LiveTranslate Development Environment"
-    @echo "====================================="
+# Show environment info
+info:
+    @echo "LiveTranslate Environment"
+    @echo "========================="
+    @uv --version
+    @python3 --version
+    @node --version 2>/dev/null || echo "Node: not found"
+    @echo "Platform: $(uname -sm)"
     @echo ""
-    @echo "Tools:"
-    @node --version 2>/dev/null && echo "  Node.js: $(node --version)" || echo "  Node.js: not found"
-    @pnpm --version 2>/dev/null && echo "  pnpm: $(pnpm --version)" || echo "  pnpm: not found"
-    @python3 --version 2>/dev/null && echo "  Python: $(python3 --version 2>&1)" || echo "  Python: not found"
-    @pdm --version 2>/dev/null && echo "  PDM: $(pdm --version 2>&1)" || echo "  PDM: not found"
-    @poetry --version 2>/dev/null && echo "  Poetry: $(poetry --version 2>&1)" || echo "  Poetry: not found"
-    @docker --version 2>/dev/null && echo "  Docker: $(docker --version)" || echo "  Docker: not found"
-    @just --version 2>/dev/null && echo "  Just: $(just --version)" || echo "  Just: not found"
+    @echo "Services:"
+    @curl -s http://localhost:5001/health 2>/dev/null && echo "  Transcription: UP" || echo "  Transcription: DOWN"
+    @curl -s http://localhost:3000/health 2>/dev/null && echo "  Orchestration: UP" || echo "  Orchestration: DOWN"
+    @curl -s http://localhost:5173 2>/dev/null > /dev/null && echo "  Dashboard: UP" || echo "  Dashboard: DOWN"
+    @curl -s http://localhost:11434/api/tags 2>/dev/null > /dev/null && echo "  Ollama: UP" || echo "  Ollama: DOWN"

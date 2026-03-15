@@ -678,6 +678,19 @@ app.include_router(websocket_audio_router, prefix="/api/audio", tags=["WebSocket
 registered_routes.append(("/api/audio", "websocket_audio_router"))
 router_logger.info(" websocket_audio_router registered successfully")
 
+# Mount the same audio stream handler at /ws/loopback for dashboard compatibility.
+# The loopback page connects to ${WS_BASE}/ws/loopback (Plan 2 convention).
+from routers.audio.websocket_audio import websocket_audio_stream as _loopback_handler
+
+
+@app.websocket("/ws/loopback")
+async def websocket_loopback(websocket: WebSocket):
+    """Dashboard loopback page WebSocket — delegates to websocket_audio_stream."""
+    await _loopback_handler(websocket)
+
+
+router_logger.info(" /ws/loopback alias registered for loopback page")
+
 # Register glossary_router (Glossary management for translation)
 router_logger.info("[13] Registering glossary_router...")
 log_router_details("glossary_router", glossary_router, "/api/glossaries")

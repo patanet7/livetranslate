@@ -113,21 +113,27 @@ class FlacChunkRecorder:
             # Re-shape mono buffer into multi-channel by repeating (best-effort)
             audio_to_write = np.stack([combined] * self.channels, axis=1)
 
-        sf.write(str(filepath), audio_to_write, self.sample_rate, format="FLAC")
+        try:
+            sf.write(str(filepath), audio_to_write, self.sample_rate, format="FLAC")
+            written_samples = len(combined)
+        except OSError as exc:
+            logger.error("chunk_write_failed", filename=filename, error=str(exc))
+            written_samples = 0
 
         chunk_info = {
             "sequence": self._sequence,
             "filename": filename,
-            "samples": len(combined),
+            "samples": written_samples,
             "timestamp_ms": timestamp_ms,
         }
         self._manifest["chunks"].append(chunk_info)
-        self._total_samples += len(combined)
+        self._total_samples += written_samples
         self._manifest["total_samples"] = self._total_samples
         self._write_manifest()
 
         self._sequence += 1
-        logger.debug("chunk_flushed", filename=filename, samples=len(combined))
+        if written_samples > 0:
+            logger.debug("chunk_flushed", filename=filename, samples=written_samples)
 
     def _write_manifest(self) -> None:
         """Write manifest.json atomically (write to tmp then rename)."""
