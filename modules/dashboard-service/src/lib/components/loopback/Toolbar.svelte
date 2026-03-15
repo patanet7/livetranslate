@@ -63,9 +63,19 @@
 	let targetLanguageValue = $state(loopbackStore.targetLanguage);
 	let modelOverride = $state('auto');
 
+	// Track previous values to avoid writing to the store on initial render.
+	// Effects run immediately during component initialization and writing to
+	// the shared store can cause reactive cascades that break hydration.
+	let prevSourceLang = sourceLanguageValue;
+	let prevTargetLang = targetLanguageValue;
+	let prevModel = modelOverride;
+
 	// Sync source language changes to store and notify server
 	$effect(() => {
-		const lang = sourceLanguageValue === 'auto' ? null : sourceLanguageValue;
+		const val = sourceLanguageValue;
+		if (val === prevSourceLang) return;
+		prevSourceLang = val;
+		const lang = val === 'auto' ? null : val;
 		loopbackStore.sourceLanguage = lang;
 		// I2: Send config change to server if capturing
 		if (loopbackStore.isCapturing && lang) {
@@ -75,13 +85,19 @@
 
 	// Sync target language changes to store
 	$effect(() => {
-		loopbackStore.targetLanguage = targetLanguageValue;
+		const val = targetLanguageValue;
+		if (val === prevTargetLang) return;
+		prevTargetLang = val;
+		loopbackStore.targetLanguage = val;
 	});
 
 	// I1: Send model override to server when changed during active session
 	$effect(() => {
-		if (loopbackStore.isCapturing && modelOverride !== 'auto') {
-			onConfigChange?.({ model: modelOverride });
+		const val = modelOverride;
+		if (val === prevModel) return;
+		prevModel = val;
+		if (loopbackStore.isCapturing && val !== 'auto') {
+			onConfigChange?.({ model: val });
 		}
 	});
 
@@ -163,17 +179,27 @@
 		<label class="toolbar-label">Display</label>
 		<!-- I5: Use radiogroup semantics for display mode switcher -->
 		<div class="display-mode-switcher" role="radiogroup" aria-label="Display mode">
-			{#each DISPLAY_MODES as mode (mode.value)}
-				<button
-					class="display-mode-btn"
-					class:active={loopbackStore.displayMode === mode.value}
-					role="radio"
-					aria-checked={loopbackStore.displayMode === mode.value}
-					onclick={() => { loopbackStore.displayMode = mode.value; }}
-				>
-					{mode.label}
-				</button>
-			{/each}
+			<button
+				class="display-mode-btn"
+				class:active={loopbackStore.displayMode === 'split'}
+				role="radio"
+				aria-checked={loopbackStore.displayMode === 'split'}
+				onclick={() => { loopbackStore.displayMode = 'split'; }}
+			>Split</button>
+			<button
+				class="display-mode-btn"
+				class:active={loopbackStore.displayMode === 'subtitle'}
+				role="radio"
+				aria-checked={loopbackStore.displayMode === 'subtitle'}
+				onclick={() => { loopbackStore.displayMode = 'subtitle'; }}
+			>Subtitle</button>
+			<button
+				class="display-mode-btn"
+				class:active={loopbackStore.displayMode === 'transcript'}
+				role="radio"
+				aria-checked={loopbackStore.displayMode === 'transcript'}
+				onclick={() => { loopbackStore.displayMode = 'transcript'; }}
+			>Transcript</button>
 		</div>
 	</div>
 
