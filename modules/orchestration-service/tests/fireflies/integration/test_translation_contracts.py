@@ -22,10 +22,9 @@ sys.path.insert(0, str(src_path))
 sys.path.insert(0, str(orchestration_root))
 
 # Import ACTUAL contracts from production code
-from clients.translation_service_client import (
-    TranslationRequest,
-    TranslationResponse,
-)
+# NOTE: TranslationRequest/TranslationResponse now come from livetranslate_common.models
+# (shared contracts from Plan 0), not from the removed clients.translation_service_client.
+from livetranslate_common.models import TranslationRequest, TranslationResponse
 from models.fireflies import (
     TranslationUnit,
 )
@@ -36,25 +35,20 @@ from models.fireflies import (
 
 
 def validate_translation_request(request: TranslationRequest) -> None:
-    """Validate a TranslationRequest matches expected contract."""
-    # Required fields
+    """Validate a TranslationRequest matches the new shared contract."""
+    # Required fields (new shared contract — no model/quality fields)
     assert isinstance(request.text, str), "text must be a string"
     assert len(request.text) > 0, "text cannot be empty"
+    assert isinstance(request.source_language, str), "source_language must be a string"
     assert isinstance(request.target_language, str), "target_language must be a string"
-
-    # Optional fields with defaults
-    assert request.source_language is None or isinstance(request.source_language, str)
-    assert isinstance(request.model, str), "model must have a default"
-    assert request.quality in ("fast", "balanced", "quality"), f"Invalid quality: {request.quality}"
 
 
 def validate_translation_response(response: TranslationResponse) -> None:
-    """Validate a TranslationResponse matches expected contract."""
+    """Validate a TranslationResponse matches the new shared contract."""
     assert isinstance(response.translated_text, str), "translated_text must be a string"
     assert isinstance(response.target_language, str), "target_language must be a string"
-    assert isinstance(response.confidence, float), "confidence must be a float"
-    assert 0.0 <= response.confidence <= 1.0, "confidence must be between 0 and 1"
-    assert isinstance(response.processing_time, float), "processing_time must be a float"
+    assert isinstance(response.model_used, str), "model_used must be a string"
+    assert isinstance(response.latency_ms, float), "latency_ms must be a float"
 
 
 # =============================================================================
@@ -89,17 +83,13 @@ class ContractValidatingTranslationClient:
             request.text, f"[{request.target_language}] {request.text}"
         )
 
-        # BUILD RESPONSE USING ACTUAL CONTRACT
+        # BUILD RESPONSE USING NEW SHARED CONTRACT (latency_ms, model_used — no confidence)
         response = TranslationResponse(
             translated_text=translated_text,
-            source_language=request.source_language or "auto",
+            source_language=request.source_language,
             target_language=request.target_language,
-            confidence=0.95,
-            processing_time=0.05,
-            model_used=request.model,
-            backend_used="contract_test",
-            session_id=request.session_id,
-            timestamp=datetime.now(UTC).isoformat(),
+            model_used="contract_test",
+            latency_ms=50.0,
         )
 
         # VALIDATE OUTPUT CONTRACT
@@ -123,40 +113,32 @@ class TestTranslationRequestContract:
     """Test that TranslationRequest contract is correctly used."""
 
     def test_request_requires_text(self):
-        """TranslationRequest must have text field."""
-        # GIVEN: Required fields
+        """TranslationRequest must have text, source_language, and target_language fields."""
+        # GIVEN: Required fields (new shared contract requires source_language)
         # WHEN: Creating a request
         request = TranslationRequest(
             text="Hello world",
+            source_language="en",
             target_language="es",
         )
 
         # THEN: Required fields are set
         assert request.text == "Hello world"
+        assert request.source_language == "en"
         assert request.target_language == "es"
 
     def test_request_has_defaults(self):
-        """TranslationRequest has sensible defaults."""
+        """TranslationRequest has sensible defaults (new shared contract)."""
         request = TranslationRequest(
             text="Hello",
+            source_language="en",
             target_language="es",
         )
 
-        # THEN: Defaults are applied
-        assert request.source_language is None  # auto-detect
-        assert request.model == "default"
-        assert request.quality == "balanced"
-        assert request.session_id is None
-
-    def test_request_validates_quality(self):
-        """TranslationRequest accepts valid quality values."""
-        for quality in ["fast", "balanced", "quality"]:
-            request = TranslationRequest(
-                text="Hello",
-                target_language="es",
-                quality=quality,
-            )
-            assert request.quality == quality
+        # THEN: Defaults are applied (new contract — no model/quality/session_id)
+        assert request.context == []
+        assert request.glossary_terms == {}
+        assert request.speaker_name is None
 
     def test_request_serialization(self):
         """TranslationRequest can be serialized to dict."""
@@ -164,7 +146,6 @@ class TestTranslationRequestContract:
             text="Hello world",
             target_language="es",
             source_language="en",
-            quality="balanced",
         )
 
         # THEN: Can serialize
@@ -183,45 +164,32 @@ class TestTranslationResponseContract:
     """Test that TranslationResponse contract is correctly used."""
 
     def test_response_has_required_fields(self):
-        """TranslationResponse has required translated_text."""
-        response = TranslationResponse(
-            translated_text="Hola mundo",
-            target_language="es",
-        )
-
-        assert response.translated_text == "Hola mundo"
-        assert response.target_language == "es"
-
-    def test_response_has_defaults(self):
-        """TranslationResponse has sensible defaults."""
+        """TranslationResponse requires translated_text, target_language, model_used, latency_ms."""
         response = TranslationResponse(
             translated_text="Hola",
-            target_language="es",
-        )
-
-        # THEN: Defaults are applied
-        assert response.source_language == "auto"
-        assert response.confidence == 0.95
-        assert response.processing_time == 0.0
-        assert response.model_used == "default"
-
-    def test_response_accepts_all_fields(self):
-        """TranslationResponse accepts all optional fields."""
-        response = TranslationResponse(
-            translated_text="Hola mundo",
             source_language="en",
             target_language="es",
-            confidence=0.98,
-            processing_time=0.123,
-            model_used="advanced",
-            backend_used="local_llm",
-            session_id="session-123",
-            timestamp="2026-01-10T12:00:00Z",
+            model_used="qwen3.5:7b",
+            latency_ms=42.0,
         )
 
-        assert response.confidence == 0.98
-        assert response.processing_time == 0.123
-        assert response.backend_used == "local_llm"
+        assert response.translated_text == "Hola"
+        assert response.target_language == "es"
+        assert response.model_used == "qwen3.5:7b"
+        assert response.latency_ms == 42.0
+
+    def test_response_has_optional_quality_score(self):
+        """TranslationResponse has optional quality_score."""
+        response = TranslationResponse(
+            translated_text="Hola",
+            source_language="en",
+            target_language="es",
+            model_used="qwen3.5:7b",
+            latency_ms=42.0,
+            quality_score=0.95,
+        )
+
+        assert response.quality_score == 0.95
 
 
 # =============================================================================
@@ -278,11 +246,10 @@ class TestRollingWindowTranslatorContracts:
         assert contract_client.call_count == 1
         request = contract_client.requests_received[0]
 
-        # Verify request contract fields
+        # Verify request contract fields (new shared contract — no quality field)
         assert request.text == "Hello, how are you?"
         assert request.target_language == "es"
         assert request.source_language == "en"
-        assert request.quality == "balanced"  # Default from translator
 
     @pytest.mark.asyncio
     async def test_translator_handles_response_correctly(self, contract_client, translation_unit):

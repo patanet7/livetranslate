@@ -54,6 +54,10 @@ See `ARCHITECTURE.md` for the full system topology diagram.
    - **Model**: qwen3.5:7b (or compatible)
    - **Protocol**: OpenAI-compatible API
 
+**Legacy (archived):** `modules/translation-service/` → `archive/translation-service-archived/` — translation is now handled directly by the orchestration service's `src/translation/` module calling Ollama over Tailscale. Also: `modules/frontend-service/` (React), `modules/whisper-service/` — superseded by active services above.
+
+**Tools:** `tools/translation_benchmark/` — Standalone CLI for benchmarking translation models (BLEU/COMET metrics, multi-model comparison, concurrency throughput). Run: `uv run python -m tools.translation_benchmark --model qwen3.5:7b --lang-pair zh-en`
+
 ### Key Technical Components
 
 #### Google Meet Bot Management System ✅

@@ -49,6 +49,8 @@ from models.fireflies import (
     TranslationUnit,
 )
 from services.caption_buffer import Caption, CaptionBuffer
+
+# Legacy: RollingWindowTranslator used for speaker-level context windowing. Migration to TranslationService pending per-speaker context API.
 from services.rolling_window_translator import RollingWindowTranslator
 
 # Import existing services

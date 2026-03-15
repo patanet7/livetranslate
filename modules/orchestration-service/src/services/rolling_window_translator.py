@@ -23,10 +23,10 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from clients.protocol import LLMClientProtocol
-from clients.translation_service_client import (
-    TranslationRequest,
-    TranslationServiceClient,
-)
+
+# Legacy: used by TranscriptionPipelineCoordinator for speaker-level context. Will be replaced when TranslationService gains per-speaker context APIs.
+from livetranslate_common.models import TranslationRequest
+from translation.service import TranslationService
 from livetranslate_common.logging import get_logger
 from models.fireflies import (
     TranslationContext,
@@ -145,7 +145,7 @@ class RollingWindowTranslator:
 
     def __init__(
         self,
-        translation_client: TranslationServiceClient,
+        translation_client: TranslationService | None,
         glossary_service=None,
         window_size: int = 3,
         include_cross_speaker_context: bool = True,
@@ -597,16 +597,17 @@ class RollingWindowTranslator:
                 "Configure llm_client to use prompt-based translation for full functionality."
             )
 
+        # New TranslationRequest (shared contract) does not have a 'quality' field.
         request = TranslationRequest(
             text=text,
-            source_language=context.source_language,
+            source_language=context.source_language or "en",
             target_language=context.target_language,
-            quality="balanced",
         )
 
         response = await self.translation_client.translate(request)
 
-        return response.translated_text, response.confidence
+        confidence = getattr(response, "confidence", getattr(response, "quality_score", 0.9) or 0.9)
+        return response.translated_text, confidence
 
     async def _translate_direct(
         self,
@@ -630,16 +631,17 @@ class RollingWindowTranslator:
                 logger.debug("Translation passthrough (no backend)")
             return text, 0.0
 
+        # New TranslationRequest (shared contract) does not have a 'quality' field.
         request = TranslationRequest(
             text=text,
-            source_language=source_language,
+            source_language=source_language or "en",
             target_language=target_language,
-            quality="balanced",
         )
 
         response = await self.translation_client.translate(request)
 
-        return response.translated_text, response.confidence
+        confidence = getattr(response, "confidence", getattr(response, "quality_score", 0.9) or 0.9)
+        return response.translated_text, confidence
 
     def _find_applied_glossary_terms(
         self,
@@ -681,7 +683,7 @@ class RollingWindowTranslator:
 
 
 def create_rolling_window_translator(
-    translation_client: TranslationServiceClient,
+    translation_client: TranslationService | None,
     glossary_service=None,
     config: dict | None = None,
     llm_client: LLMClientProtocol | None = None,

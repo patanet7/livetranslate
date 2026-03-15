@@ -32,10 +32,8 @@ from clients.audio_service_client import (
     AudioServiceClient,
     TranscriptionRequest as ClientTranscriptionRequest,
 )
-from clients.translation_service_client import (
-    TranslationRequest as ClientTranslationRequest,
-    TranslationServiceClient,
-)
+from livetranslate_common.models import TranslationRequest as ClientTranslationRequest
+from translation.service import TranslationService
 
 from .chunk_manager import ChunkManager, create_chunk_manager
 from .database_adapter import AudioDatabaseAdapter
@@ -96,7 +94,7 @@ class ServiceClientPool:
         service_urls: dict[str, str],
         pool_config: dict | None = None,
         audio_client: AudioServiceClient | None = None,
-        translation_client: TranslationServiceClient | None = None,
+        translation_client: TranslationService | None = None,
     ):
         self.service_urls = service_urls
         pool_config = pool_config or {}
@@ -631,7 +629,7 @@ class AudioCoordinator:
         max_concurrent_sessions: int = 10,
         audio_config_file: str | None = None,
         audio_client: AudioServiceClient | None = None,
-        translation_client: TranslationServiceClient | None = None,
+        translation_client: TranslationService | None = None,
         data_pipeline: Optional["TranscriptionDataPipeline"] = None,
     ):
         self.config = config
@@ -1412,29 +1410,27 @@ class AudioCoordinator:
             )
 
             try:
-                # Use optimized multi-language endpoint via translation client
                 if self.translation_client:
-                    translation_results = (
-                        await self.translation_client.translate_to_multiple_languages(
-                            text=text,
-                            source_language=source_language,
-                            target_languages=needs_translation,
-                            session_id=session_id,
-                        )
-                    )
-
-                    # Convert TranslationResponse objects to dict format
-                    for lang, response in translation_results.items():
-                        if response and hasattr(response, "translated_text"):
+                    from livetranslate_common.models import TranslationRequest as _TReq
+                    for lang in needs_translation:
+                        try:
+                            req = _TReq(
+                                text=text,
+                                source_language=source_language or "en",
+                                target_language=lang,
+                            )
+                            response = await self.translation_client.translate(req)
                             new_translations[lang] = {
                                 "translated_text": response.translated_text,
-                                "confidence": response.confidence,
+                                "confidence": getattr(response, "quality_score", 0.9) or 0.9,
                                 "metadata": {
-                                    "backend_used": response.backend_used,
+                                    "backend_used": getattr(response, "backend_used", response.model_used),
                                     "model_used": response.model_used,
-                                    "processing_time": response.processing_time,
+                                    "processing_time": getattr(response, "latency_ms", 0.0) / 1000,
                                 },
                             }
+                        except Exception as _lang_err:
+                            logger.warning(f"Translation to {lang} failed: {_lang_err}")
                 else:
                     # Fallback to service client pool (sequential)
                     logger.warning("Translation client not available, using service pool")
@@ -2296,7 +2292,7 @@ def create_audio_coordinator(
     max_concurrent_sessions: int = 10,
     audio_config_file: str | None = None,
     audio_client: AudioServiceClient | None = None,
-    translation_client: TranslationServiceClient | None = None,
+    translation_client: TranslationService | None = None,
     data_pipeline: Optional["TranscriptionDataPipeline"] = None,
 ) -> AudioCoordinator:
     """
