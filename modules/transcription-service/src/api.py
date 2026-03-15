@@ -79,6 +79,7 @@ class SimpleStabilityTracker:
 class SessionState:
     session_id: str
     language: str | None = None
+    lock_language: bool = False  # True = force language, no auto-switching
     initial_prompt: str | None = None
     glossary_terms: list[str] | None = None
     current_backend_key: str | None = None
@@ -280,6 +281,7 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                         msg_type = msg.get("type")
                         if msg_type == "config":
                             state.language = msg.get("language")
+                            state.lock_language = msg.get("lock_language", False)
                             state.initial_prompt = msg.get("initial_prompt")
                             state.glossary_terms = msg.get("glossary_terms")
                         elif msg_type == "end":
@@ -324,11 +326,18 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                                 break
                     effective_prompt = f"{effective_prompt} {context_tail}" if effective_prompt else context_tail
 
+                # Language selection:
+                # - If user set a language AND lock_language=True → force it (no switching)
+                # - Otherwise → use detected language, fall back to user hint
+                if state.language and getattr(state, "lock_language", False):
+                    whisper_lang = state.language
+                else:
+                    whisper_lang = state.lang_detector.current_language or state.language
                 try:
                     result = await asyncio.wait_for(
                         transcription_backend.transcribe(
                             inference_audio,
-                            language=state.language or state.lang_detector.current_language,
+                            language=whisper_lang,
                             beam_size=config.beam_size,
                             initial_prompt=effective_prompt,
                         ),

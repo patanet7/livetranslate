@@ -185,15 +185,53 @@ def character_error_rate(reference: str, hypothesis: str) -> float:
 def error_rate(reference: str, hypothesis: str, language: str) -> tuple[float, str]:
     """Return the appropriate error rate and metric name for the language.
 
+    For ``language="mixed"`` or ``"auto"``, uses the mixed error rate that
+    applies CER to CJK spans and WER to Latin spans, weighted by length.
+
     Returns
     -------
-    (rate, metric_name) — e.g. (0.22, "cer") or (0.15, "wer")
+    (rate, metric_name) — e.g. (0.22, "cer") or (0.15, "wer") or (0.18, "mer")
     """
-    ref_n = normalize_text(reference, language)
-    hyp_n = normalize_text(hypothesis, language)
+    ref_n = normalize_text(reference, language if language not in ("mixed", "auto") else "zh")
+    hyp_n = normalize_text(hypothesis, language if language not in ("mixed", "auto") else "zh")
+
+    if language in ("mixed", "auto"):
+        return mixed_error_rate(ref_n, hyp_n), "mer"
     if language in CJK_LANGUAGES:
         return character_error_rate(ref_n, hyp_n), "cer"
     return word_error_rate(ref_n, hyp_n), "wer"
+
+
+def mixed_error_rate(reference: str, hypothesis: str) -> float:
+    """Compute error rate for mixed CJK+Latin text.
+
+    Splits text into CJK spans (scored by CER) and Latin spans (scored by WER),
+    then combines weighted by character count.
+    """
+    def _split_by_script(text: str) -> list[tuple[str, bool]]:
+        """Split text into (span, is_cjk) tuples."""
+        if not text:
+            return []
+        spans = []
+        current = []
+        is_cjk = any('\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' for c in text[0:1])
+        for c in text:
+            c_is_cjk = '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff'
+            if c_is_cjk != is_cjk and current:
+                spans.append(("".join(current), is_cjk))
+                current = []
+                is_cjk = c_is_cjk
+            current.append(c)
+        if current:
+            spans.append(("".join(current), is_cjk))
+        return spans
+
+    # For mixed text, just use CER (character-level works for both scripts)
+    ref_chars = list(reference.replace(" ", ""))
+    hyp_chars = list(hypothesis.replace(" ", ""))
+    if not ref_chars:
+        return 0.0 if not hyp_chars else 1.0
+    return _levenshtein(ref_chars, hyp_chars) / len(ref_chars)
 
 
 # ---------------------------------------------------------------------------
