@@ -9,13 +9,13 @@ Provides:
 """
 
 import gc
-import logging
 from pathlib import Path
 
 import pytest
 import torch
+from livetranslate_common.logging import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 @pytest.fixture(scope="session", autouse=True)

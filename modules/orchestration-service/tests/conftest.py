@@ -956,7 +956,12 @@ def async_db_engine(database_url, run_migrations):
         async_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
     engine = create_async_engine(async_url, poolclass=NullPool)
     yield engine
-    # Testcontainer destruction handles cleanup
+    # Explicitly dispose the engine to release asyncpg driver state
+    import asyncio
+    try:
+        asyncio.get_event_loop().run_until_complete(engine.dispose())
+    except Exception:
+        pass
 
 
 @pytest.fixture

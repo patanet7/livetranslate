@@ -521,8 +521,9 @@ async def intelligence_service(db_session_factory):
     from config import MeetingIntelligenceSettings
     from services.meeting_intelligence import MeetingIntelligenceService
 
-    return MeetingIntelligenceService(
+    svc = MeetingIntelligenceService(
         db_session_factory=db_session_factory,
         translation_client=None,
         settings=MeetingIntelligenceSettings(),
     )
+    yield svc
