@@ -105,16 +105,29 @@ class TestTranslationServiceIntegration:
             await service.close()
 
 
-@pytest.mark.integration
 class TestBackpressure:
     @pytest.mark.asyncio
-    async def test_queue_drops_oldest_when_full(self, config):
-        config.max_queue_depth = 2
-        service = TranslationService(config)
+    async def test_queue_rejects_newest_when_full(self):
+        """When queue is full, newest request should be rejected.
+
+        Strategy: fill the queue via concurrent tasks before the event loop
+        can drain it. We schedule all tasks atomically (no awaits between
+        create_task calls), then yield once with asyncio.sleep(0) so the
+        coroutines run up to their first suspension point. At that moment
+        items 1+ find the queue full and raise immediately.
+        """
+        # Use a bad URL — queued items will fail, but we only care about
+        # synchronous rejection before any LLM call is made.
+        bad_config = TranslationConfig(
+            llm_base_url="http://localhost:1",
+            model="nonexistent",
+            max_queue_depth=1,
+            timeout_s=1,
+        )
+        service = TranslationService(bad_config)
         try:
-            tasks = []
-            for i in range(3):
-                task = asyncio.create_task(
+            tasks = [
+                asyncio.create_task(
                     service.enqueue_translation(
                         TranslationRequest(
                             text=f"翻译句子{i}",
@@ -123,17 +136,28 @@ class TestBackpressure:
                         )
                     )
                 )
-                tasks.append(task)
-                await asyncio.sleep(0.05)
+                for i in range(3)
+            ]
+            # Yield once — all three coroutines run to their first await.
+            # Tasks 1 and 2 hit _queue.full() == True and raise RuntimeError
+            # before yielding, so they complete with an exception on this tick.
+            await asyncio.sleep(0)
+
+            # Cancel any tasks still waiting (they would block on the LLM)
+            for t in tasks:
+                if not t.done():
+                    t.cancel()
 
             results = await asyncio.gather(*tasks, return_exceptions=True)
-            completed = [r for r in results if isinstance(r, TranslationResponse)]
-            dropped = [r for r in results if isinstance(r, RuntimeError)]
-            assert len(completed) >= 1
-            assert len(dropped) <= 1
+            rejected = [
+                r for r in results
+                if isinstance(r, RuntimeError) and "rejected" in str(r)
+            ]
+            assert len(rejected) >= 1
         finally:
             await service.close()
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_queue_completes_all_when_not_full(self, config):
         """Queue fewer items than max depth — all should complete."""

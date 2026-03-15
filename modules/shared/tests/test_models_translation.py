@@ -107,6 +107,61 @@ class TestTranslationRequest:
         )
         assert req.context_window_size == 0
 
+    def test_text_max_length_rejected(self) -> None:
+        """Text field should reject oversized input (>10000 chars)."""
+        with pytest.raises(ValidationError):
+            TranslationRequest(
+                text="x" * 10_001,
+                source_language="en",
+                target_language="zh",
+            )
+
+    def test_text_min_length_rejected(self) -> None:
+        """Text field should reject empty input."""
+        with pytest.raises(ValidationError):
+            TranslationRequest(
+                text="",
+                source_language="en",
+                target_language="zh",
+            )
+
+    def test_text_at_max_length_accepted(self) -> None:
+        """Text field should accept exactly 10000 chars."""
+        req = TranslationRequest(
+            text="x" * 10_000,
+            source_language="en",
+            target_language="zh",
+        )
+        assert len(req.text) == 10_000
+
+    def test_context_max_length_rejected(self) -> None:
+        """Context list should be bounded to 20 entries."""
+        contexts = [
+            TranslationContext(text=f"t{i}", translation=f"r{i}")
+            for i in range(21)
+        ]
+        with pytest.raises(ValidationError):
+            TranslationRequest(
+                text="hello",
+                source_language="en",
+                target_language="zh",
+                context=contexts,
+            )
+
+    def test_context_at_max_length_accepted(self) -> None:
+        """Context list with exactly 20 entries should be valid."""
+        contexts = [
+            TranslationContext(text=f"t{i}", translation=f"r{i}")
+            for i in range(20)
+        ]
+        req = TranslationRequest(
+            text="hello",
+            source_language="en",
+            target_language="zh",
+            context=contexts,
+        )
+        assert len(req.context) == 20
+
     def test_quality_score_out_of_range_rejected(self) -> None:
         """quality_score must be in [0.0, 1.0]."""
         with pytest.raises(ValidationError):

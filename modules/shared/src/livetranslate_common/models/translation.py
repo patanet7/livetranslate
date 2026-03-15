@@ -31,10 +31,10 @@ class TranslationRequest(BaseModel):
         speaker_name: Optional speaker name for personalised prompts.
     """
 
-    text: str
+    text: str = Field(..., min_length=1, max_length=10_000)
     source_language: str
     target_language: str
-    context: list[TranslationContext] = Field(default_factory=list)
+    context: list[TranslationContext] = Field(default_factory=list, max_length=20)
     context_window_size: int = Field(default=5, ge=0)
     max_context_tokens: int = Field(default=500, ge=0)
     glossary_terms: dict[str, str] = Field(default_factory=dict)
