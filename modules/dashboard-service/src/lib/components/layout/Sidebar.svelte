@@ -7,6 +7,7 @@
 	import DatabaseIcon from '@lucide/svelte/icons/database';
 	import LightbulbIcon from '@lucide/svelte/icons/lightbulb';
 	import AudioWaveformIcon from '@lucide/svelte/icons/audio-waveform';
+	import HeadphonesIcon from '@lucide/svelte/icons/headphones';
 	import GlobeIcon from '@lucide/svelte/icons/globe';
 	import SettingsIcon from '@lucide/svelte/icons/settings';
 	import MessageSquareIcon from '@lucide/svelte/icons/message-square';
@@ -36,6 +37,7 @@
 	const navItems: NavItem[] = [
 		{ label: 'Dashboard', href: '/', icon: HomeIcon },
 		{ label: 'Meetings', href: '/meetings', icon: CalendarDaysIcon },
+		{ label: 'Loopback', href: '/loopback', icon: HeadphonesIcon },
 		{
 			label: 'Fireflies',
 			href: '/fireflies',
