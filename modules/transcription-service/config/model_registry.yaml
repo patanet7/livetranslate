@@ -7,6 +7,9 @@ backends:
   mlx:
     module: backends.mlx_whisper
     class: MLXWhisperBackend
+  vllm:
+    module: backends.vllm_whisper
+    class: VLLMWhisperBackend
 
 vram_budget_mb: 10000
 

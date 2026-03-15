@@ -23,6 +23,18 @@ def _detect_backend() -> str:
     system = platform.system()
     machine = platform.machine()
 
+    # Check if vllm-mlx server is running
+    import os
+    vllm_url = os.getenv("VLLM_MLX_URL")
+    if vllm_url:
+        try:
+            import httpx
+            resp = httpx.get(f"{vllm_url}/health", timeout=2)
+            if resp.status_code == 200:
+                return "vllm"
+        except Exception:
+            pass
+
     # Apple Silicon
     if system == "Darwin" and machine == "arm64":
         try:
@@ -59,6 +71,11 @@ def _generate_registry(backend: str, model: str, compute_type: str) -> dict:
             "module": "backends.mlx_whisper",
             "class": "MLXWhisperBackend",
         }
+    elif backend == "vllm":
+        backends["vllm"] = {
+            "module": "backends.vllm_whisper",
+            "class": "VLLMWhisperBackend",
+        }
     else:
         backends["whisper"] = {
             "module": "backends.whisper",
@@ -79,7 +96,7 @@ def _generate_registry(backend: str, model: str, compute_type: str) -> dict:
                 "overlap_s": 0.5,
                 "vad_threshold": 0.5,
                 "beam_size": 1,
-                "prebuffer_s": 3.0 if backend == "mlx" else 0.3,
+                "prebuffer_s": 3.0 if backend in ("mlx", "vllm") else 0.3,
                 "batch_profile": "realtime",
             },
             "*": {
@@ -91,7 +108,7 @@ def _generate_registry(backend: str, model: str, compute_type: str) -> dict:
                 "overlap_s": 0.5,
                 "vad_threshold": 0.5,
                 "beam_size": 1,
-                "prebuffer_s": 3.0 if backend == "mlx" else 0.3,
+                "prebuffer_s": 3.0 if backend in ("mlx", "vllm") else 0.3,
                 "batch_profile": "realtime",
             },
         },

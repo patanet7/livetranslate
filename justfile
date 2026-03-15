@@ -46,20 +46,21 @@ install:
 llm_model := env("LLM_MODEL", "mlx-community/Qwen3.5-4B-4bit")
 llm_port := "8000"
 
-# Start all services locally (Mac: MLX transcription + vllm-mlx translation)
+# Start all services locally (vllm-mlx handles both Whisper + LLM)
 dev:
     @echo "Starting all services..."
-    @echo "  Translation LLM: http://localhost:{{llm_port}} ({{llm_model}})"
-    @echo "  Transcription:   http://localhost:5001 (MLX Whisper medium)"
+    @echo "  vllm-mlx:        http://localhost:{{llm_port}} ({{llm_model}} + Whisper)"
+    @echo "  Transcription:   http://localhost:5001 (vllm backend → :{{llm_port}})"
     @echo "  Orchestration:   http://localhost:3000"
     @echo "  Dashboard:       http://localhost:5173"
     @echo ""
     @echo "Use Ctrl+C to stop all."
     @trap 'kill 0' EXIT; \
-        uv run vllm-mlx serve {{llm_model}} --port {{llm_port}} 2>&1 | sed 's/^/[llm] /' & \
-        sleep 3 && \
-        uv run python {{transcription_dir}}/src/main_local.py --model medium 2>&1 | sed 's/^/[transcription] /' & \
+        uv run vllm-mlx serve {{llm_model}} --port {{llm_port}} 2>&1 | sed 's/^/[vllm-mlx] /' & \
         sleep 5 && \
+        VLLM_MLX_URL=http://localhost:{{llm_port}} \
+        uv run python {{transcription_dir}}/src/main_local.py --model large-v3-turbo --backend vllm 2>&1 | sed 's/^/[transcription] /' & \
+        sleep 3 && \
         TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
         LLM_BASE_URL=http://localhost:{{llm_port}}/v1 LLM_MODEL={{llm_model}} \
         LLM_TIMEOUT_S=15 DEFAULT_TARGET_LANGUAGE=es \
