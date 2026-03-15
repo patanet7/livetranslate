@@ -1,0 +1,109 @@
+<h2>Loopback Page Display Modes</h2>
+<p class="subtitle">How should live captions + translations appear during a meeting?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Subtitle Overlay</h3>
+      <p>Captions pinned to bottom — original language on top, translation below. Minimal, like watching a subtitled video. Great for screen-sharing.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Subtitle Mode</div>
+        <div class="mockup-body" style="background:#1a1a2e;color:#fff;min-height:200px;display:flex;flex-direction:column;justify-content:flex-end;padding:20px;font-family:sans-serif">
+          <div style="text-align:center;opacity:0.5;font-size:12px;margin-bottom:auto;padding:40px">[ Meeting content / shared screen visible here ]</div>
+          <div style="background:rgba(0,0,0,0.7);padding:12px 20px;border-radius:8px;text-align:center;margin-bottom:8px">
+            <div style="color:#ffd700;font-size:14px;margin-bottom:4px">🎤 这是一个关于人工智能的演示文稿</div>
+            <div style="color:#90EE90;font-size:16px">🌐 This is a presentation about artificial intelligence</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.7);padding:12px 20px;border-radius:8px;text-align:center">
+            <div style="color:#ffd700;font-size:14px;margin-bottom:4px">🎤 我们今天要讨论三个主要话题</div>
+            <div style="color:#90EE90;font-size:16px">🌐 We will discuss three main topics today</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Meeting Transcript</h3>
+      <p>Scrolling feed with speaker names, timestamps, original text + translation. Like a live meeting transcript. Best for note-taking and review.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Transcript Mode</div>
+        <div class="mockup-body" style="background:#1a1a2e;color:#fff;min-height:200px;padding:16px;font-family:sans-serif;font-size:13px">
+          <div style="margin-bottom:16px;padding:12px;background:rgba(59,130,246,0.15);border-left:3px solid #3b82f6;border-radius:4px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+              <span style="color:#3b82f6;font-weight:bold">Speaker 1 (张伟)</span>
+              <span style="color:#666;font-size:11px">14:32:05</span>
+            </div>
+            <div style="color:#ffd700;margin-bottom:4px">这是一个关于人工智能的演示文稿</div>
+            <div style="color:#90EE90">This is a presentation about artificial intelligence</div>
+          </div>
+          <div style="margin-bottom:16px;padding:12px;background:rgba(168,85,247,0.15);border-left:3px solid #a855f7;border-radius:4px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+              <span style="color:#a855f7;font-weight:bold">Speaker 2 (李明)</span>
+              <span style="color:#666;font-size:11px">14:32:12</span>
+            </div>
+            <div style="color:#ffd700;margin-bottom:4px">我们今天要讨论三个主要话题</div>
+            <div style="color:#90EE90">We will discuss three main topics today</div>
+          </div>
+          <div style="padding:12px;background:rgba(59,130,246,0.15);border-left:3px solid #3b82f6;border-radius:4px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+              <span style="color:#3b82f6;font-weight:bold">Speaker 1 (张伟)</span>
+              <span style="color:#666;font-size:11px">14:32:18</span>
+            </div>
+            <div style="color:#ffd700;margin-bottom:4px;opacity:0.6;font-style:italic">第一个话题是关于...</div>
+            <div style="color:#90EE90;opacity:0.6;font-style:italic">The first topic is about...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Split View</h3>
+      <p>Left panel: original language captions scrolling. Right panel: translations scrolling. Side-by-side comparison. Good for language learning.</p>
+      <div class="mockup" style="margin-top:12px">
+        <div class="mockup-header">Split Mode</div>
+        <div class="mockup-body" style="background:#1a1a2e;color:#fff;min-height:200px;display:flex;gap:2px;font-family:sans-serif;font-size:13px">
+          <div style="flex:1;padding:12px;background:rgba(255,215,0,0.08);border-right:1px solid #333">
+            <div style="color:#ffd700;font-weight:bold;font-size:11px;text-transform:uppercase;margin-bottom:12px;letter-spacing:1px">Original (中文)</div>
+            <div style="margin-bottom:12px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px">
+              <span style="color:#3b82f6;font-size:11px">张伟:</span>
+              <span style="color:#ffd700"> 这是一个关于人工智能的演示文稿</span>
+            </div>
+            <div style="margin-bottom:12px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px">
+              <span style="color:#a855f7;font-size:11px">李明:</span>
+              <span style="color:#ffd700"> 我们今天要讨论三个主要话题</span>
+            </div>
+          </div>
+          <div style="flex:1;padding:12px;background:rgba(144,238,144,0.08)">
+            <div style="color:#90EE90;font-weight:bold;font-size:11px;text-transform:uppercase;margin-bottom:12px;letter-spacing:1px">Translation (English)</div>
+            <div style="margin-bottom:12px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px">
+              <span style="color:#3b82f6;font-size:11px">Zhang Wei:</span>
+              <span style="color:#90EE90"> This is a presentation about artificial intelligence</span>
+            </div>
+            <div style="margin-bottom:12px;padding:8px;background:rgba(0,0,0,0.3);border-radius:4px">
+              <span style="color:#a855f7;font-size:11px">Li Ming:</span>
+              <span style="color:#90EE90"> We will discuss three main topics today</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>Flexible — All Modes</h3>
+      <p>Toggle between subtitle, transcript, and split modes. Start with transcript as default. Add overlay mode for screen-sharing. User picks what works for the moment.</p>
+      <div style="margin-top:8px;padding:12px;background:rgba(255,255,255,0.05);border-radius:6px;font-size:12px;color:#aaa">
+        <strong style="color:#fff">Includes all three modes above</strong> with a mode switcher in the toolbar. Default: Transcript mode. Can pop out subtitle overlay as a separate window.
+      </div>
+    </div>
+  </div>
+</div>

@@ -20,7 +20,7 @@ class HealthStore {
 
 	async #poll() {
 		try {
-			const res = await fetch('/api/system/health');
+			const res = await fetch('/api/health');
 			const data = await res.json();
 
 			const rawStatus = data.status ?? 'unknown';

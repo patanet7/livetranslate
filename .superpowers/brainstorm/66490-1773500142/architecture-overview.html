@@ -1,0 +1,214 @@
+<h2>System Architecture Overview</h2>
+<p class="subtitle">Real-Time Loopback Transcription & Translation — Final Design</p>
+
+<!-- Local Machine -->
+<div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:20px">
+
+  <div style="flex:1;min-width:340px">
+    <div class="mockup">
+      <div class="mockup-header" style="background:#2563eb;color:white">Local Machine (Your Mac)</div>
+      <div class="mockup-body" style="background:#0f172a;color:#e2e8f0;padding:16px;font-size:13px">
+
+        <!-- Browser -->
+        <div style="border:2px solid #3b82f6;border-radius:8px;padding:12px;margin-bottom:12px">
+          <div style="color:#60a5fa;font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Dashboard Service (SvelteKit)</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <div style="background:#1e3a5f;padding:6px 10px;border-radius:4px;font-size:11px;flex:1;text-align:center">🎤 Mic Capture</div>
+            <div style="background:#1e3a5f;padding:6px 10px;border-radius:4px;font-size:11px;flex:1;text-align:center">🔊 System Audio</div>
+          </div>
+          <div style="background:#1e3a5f;padding:8px;border-radius:4px;margin-bottom:8px;font-size:11px">
+            <strong>Loopback Page</strong> — Split | Subtitle | Transcript modes
+          </div>
+          <div style="display:flex;gap:6px">
+            <div style="background:#064e3b;padding:4px 8px;border-radius:4px;font-size:10px;flex:1;text-align:center">Original 🟡</div>
+            <div style="background:#064e3b;padding:4px 8px;border-radius:4px;font-size:10px;flex:1;text-align:center">Translation 🟢</div>
+          </div>
+        </div>
+
+        <div style="text-align:center;color:#60a5fa;font-size:18px;margin:4px 0">↕ Binary WebSocket</div>
+
+        <!-- Orchestration -->
+        <div style="border:2px solid #8b5cf6;border-radius:8px;padding:12px;margin-bottom:12px">
+          <div style="color:#a78bfa;font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Orchestration Service</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+            <div style="background:#2e1065;padding:6px;border-radius:4px;text-align:center">WebSocket Hub</div>
+            <div style="background:#2e1065;padding:6px;border-radius:4px;text-align:center">Session Mgmt</div>
+            <div style="background:#2e1065;padding:6px;border-radius:4px;text-align:center">⬇️ Downsample<br><span style="color:#a78bfa;font-size:10px">48kHz→16kHz</span></div>
+            <div style="background:#2e1065;padding:6px;border-radius:4px;text-align:center">💾 FLAC Recording<br><span style="color:#a78bfa;font-size:10px">Native quality</span></div>
+          </div>
+        </div>
+
+        <!-- PostgreSQL -->
+        <div style="border:2px solid #f59e0b;border-radius:8px;padding:8px;text-align:center">
+          <div style="color:#fbbf24;font-weight:bold;font-size:11px">🗄️ PostgreSQL</div>
+          <div style="font-size:10px;color:#92400e">meeting_sessions · transcripts · translations</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div style="display:flex;align-items:center;justify-content:center;min-width:80px">
+    <div style="text-align:center">
+      <div style="font-size:28px">⟷</div>
+      <div style="background:#10b981;color:white;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:bold;white-space:nowrap">Tailscale</div>
+      <div style="color:#6b7280;font-size:10px;margin-top:4px">~1-5ms</div>
+      <div style="color:#6b7280;font-size:10px">16kHz mono</div>
+      <div style="color:#6b7280;font-size:10px">~32KB/s</div>
+    </div>
+  </div>
+
+  <!-- thomas-pc -->
+  <div style="flex:1;min-width:340px">
+    <div class="mockup">
+      <div class="mockup-header" style="background:#dc2626;color:white">thomas-pc (RTX 4090 · 24GB VRAM)</div>
+      <div class="mockup-body" style="background:#0f172a;color:#e2e8f0;padding:16px;font-size:13px">
+
+        <!-- Transcription Service -->
+        <div style="border:2px solid #22c55e;border-radius:8px;padding:12px;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="color:#4ade80;font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:1px">Transcription Service</div>
+            <div style="background:#14532d;padding:2px 8px;border-radius:10px;font-size:10px;color:#4ade80">~10GB VRAM budget</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;margin-bottom:8px">
+            <div style="background:#14532d;padding:6px;border-radius:4px;text-align:center">Silero VAD</div>
+            <div style="background:#14532d;padding:6px;border-radius:4px;text-align:center">Language ID</div>
+          </div>
+          <div style="background:#0a2818;border:1px solid #166534;border-radius:6px;padding:8px;margin-bottom:8px">
+            <div style="font-size:10px;color:#4ade80;margin-bottom:6px;font-weight:bold">Backend Manager (LRU eviction)</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <div style="background:#166534;padding:4px 8px;border-radius:4px;font-size:10px">🔤 Whisper<br><span style="color:#86efac">large-v3-turbo</span></div>
+              <div style="background:#166534;padding:4px 8px;border-radius:4px;font-size:10px">🈶 SenseVoice<br><span style="color:#86efac">CJK specialist</span></div>
+              <div style="background:#166534;padding:4px 8px;border-radius:4px;font-size:10px">🇨🇳 FunASR<br><span style="color:#86efac">Paraformer-zh</span></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+            <div style="background:#14532d;padding:6px;border-radius:4px;text-align:center">Token Dedup</div>
+            <div style="background:#14532d;padding:6px;border-radius:4px;text-align:center">Text Dedup</div>
+          </div>
+        </div>
+
+        <!-- Translation Service -->
+        <div style="border:2px solid #f97316;border-radius:8px;padding:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="color:#fb923c;font-weight:bold;font-size:11px;text-transform:uppercase;letter-spacing:1px">Translation Service</div>
+            <div style="background:#431407;padding:2px 8px;border-radius:10px;font-size:10px;color:#fb923c">~8GB VRAM (int4)</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+            <div style="background:#431407;padding:6px;border-radius:4px;text-align:center">Ollama / vLLM<br><span style="color:#fb923c">Qwen 2.5 7B</span></div>
+            <div style="background:#431407;padding:6px;border-radius:4px;text-align:center">Rolling Context<br><span style="color:#fb923c">Last 5 sentences</span></div>
+          </div>
+        </div>
+
+        <!-- VRAM bar -->
+        <div style="margin-top:12px;background:#1e293b;border-radius:8px;padding:8px;font-size:10px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="color:#94a3b8">VRAM Usage</span>
+            <span style="color:#94a3b8">24GB Total</span>
+          </div>
+          <div style="background:#334155;border-radius:4px;height:16px;display:flex;overflow:hidden">
+            <div style="background:#22c55e;width:25%;display:flex;align-items:center;justify-content:center;font-size:9px;color:white">Whisper 6G</div>
+            <div style="background:#f97316;width:33%;display:flex;align-items:center;justify-content:center;font-size:9px;color:white">Translation 8G</div>
+            <div style="background:#6366f1;width:4%;display:flex;align-items:center;justify-content:center;font-size:9px"></div>
+            <div style="background:#475569;width:38%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#94a3b8">Free ~9G</div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:4px;color:#64748b;font-size:9px">
+            <span>🟩 Transcription</span>
+            <span>🟧 Translation</span>
+            <span>🟪 CUDA</span>
+            <span>⬜ Free</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Data Flow -->
+<h3 style="margin-top:30px">Audio Data Flow</h3>
+
+<div class="mockup" style="margin-top:10px">
+  <div class="mockup-header">End-to-End Pipeline — Target &lt;500ms</div>
+  <div class="mockup-body" style="background:#0f172a;color:#e2e8f0;padding:20px;font-size:12px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center">
+      <div style="background:#1e3a5f;padding:8px 12px;border-radius:6px;text-align:center;border:1px solid #3b82f6">
+        🎤 Mic<br><span style="font-size:10px;color:#60a5fa">48kHz stereo</span>
+      </div>
+      <div style="color:#60a5fa">→</div>
+      <div style="background:#2e1065;padding:8px 12px;border-radius:6px;text-align:center;border:1px solid #8b5cf6">
+        Fork<br>
+        <span style="font-size:10px;color:#c084fc">↗ FLAC disk (native)</span><br>
+        <span style="font-size:10px;color:#c084fc">↘ 16kHz mono</span>
+      </div>
+      <div style="color:#10b981">→ Tailscale →</div>
+      <div style="background:#14532d;padding:8px 12px;border-radius:6px;text-align:center;border:1px solid #22c55e">
+        VAD → LID<br><span style="font-size:10px;color:#4ade80">Silero + faster-whisper</span>
+      </div>
+      <div style="color:#22c55e">→</div>
+      <div style="background:#14532d;padding:8px 12px;border-radius:6px;text-align:center;border:1px solid #22c55e">
+        Backend<br><span style="font-size:10px;color:#4ade80">Registry lookup</span>
+      </div>
+      <div style="color:#22c55e">→</div>
+      <div style="background:#14532d;padding:8px 12px;border-radius:6px;text-align:center;border:1px solid #22c55e">
+        Dedup<br><span style="font-size:10px;color:#4ade80">Token + Text</span>
+      </div>
+      <div style="color:#f97316">→</div>
+      <div style="background:#431407;padding:8px 12px;border-radius:6px;text-align:center;border:1px solid #f97316">
+        Translate<br><span style="font-size:10px;color:#fb923c">is_final only</span>
+      </div>
+      <div style="color:#10b981">→ Tailscale →</div>
+      <div style="background:#1e3a5f;padding:8px 12px;border-radius:6px;text-align:center;border:1px solid #3b82f6">
+        Display<br><span style="font-size:10px;color:#60a5fa">Split | Sub | Log</span>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:20px;justify-content:center;color:#64748b;font-size:11px">
+      <div>⚡ Prebuffer: 0.3-0.5s</div>
+      <div>🔄 Stride: 4-4.5s</div>
+      <div>📡 Network: ~2-10ms round trip</div>
+      <div>🎯 Target: &lt;500ms to first caption</div>
+    </div>
+  </div>
+</div>
+
+<!-- Session Lifecycle -->
+<h3 style="margin-top:30px">Meeting Session Lifecycle</h3>
+
+<div class="mockup" style="margin-top:10px">
+  <div class="mockup-header">Ephemeral → Meeting Promotion</div>
+  <div class="mockup-body" style="background:#0f172a;color:#e2e8f0;padding:20px;font-size:12px">
+    <div style="display:flex;align-items:stretch;gap:12px;justify-content:center">
+      <div style="background:#1e293b;border:2px solid #475569;border-radius:8px;padding:16px;text-align:center;flex:1;max-width:200px">
+        <div style="font-size:24px;margin-bottom:8px">💨</div>
+        <div style="font-weight:bold;color:#94a3b8;margin-bottom:4px">Ephemeral</div>
+        <div style="font-size:10px;color:#64748b">Stream-through only<br>No recording<br>No persistence<br>No DB session</div>
+      </div>
+
+      <div style="display:flex;align-items:center;flex-direction:column;justify-content:center">
+        <div style="color:#22c55e;font-size:20px">→</div>
+        <div style="background:#166534;color:#4ade80;padding:4px 10px;border-radius:12px;font-size:10px;white-space:nowrap">Start Meeting</div>
+      </div>
+
+      <div style="background:#14532d;border:2px solid #22c55e;border-radius:8px;padding:16px;text-align:center;flex:1;max-width:200px">
+        <div style="font-size:24px;margin-bottom:8px">🔴</div>
+        <div style="font-weight:bold;color:#4ade80;margin-bottom:4px">Meeting (Active)</div>
+        <div style="font-size:10px;color:#86efac">FLAC recording (native)<br>DB persistence (row-by-row)<br>Manifest tracking<br>Heartbeat monitoring</div>
+      </div>
+
+      <div style="display:flex;align-items:center;flex-direction:column;justify-content:center">
+        <div style="color:#f59e0b;font-size:20px">→</div>
+        <div style="background:#713f12;color:#fbbf24;padding:4px 10px;border-radius:12px;font-size:10px;white-space:nowrap">End Meeting</div>
+      </div>
+
+      <div style="background:#1e293b;border:2px solid #f59e0b;border-radius:8px;padding:16px;text-align:center;flex:1;max-width:200px">
+        <div style="font-size:24px;margin-bottom:8px">⚙️</div>
+        <div style="font-weight:bold;color:#fbbf24;margin-bottom:4px">Post-Processing</div>
+        <div style="font-size:10px;color:#fcd34d">Async (non-blocking)<br>Concatenate FLAC<br>Batch re-transcribe<br>Full diarization</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;text-align:center;font-size:10px;color:#64748b">
+      Same pipeline feeds both loopback page and Google Meet bots · Crash-safe with 120s heartbeat timeout
+    </div>
+  </div>
+</div>
