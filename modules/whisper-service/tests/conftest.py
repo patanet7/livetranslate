@@ -198,7 +198,7 @@ def generate_audio_fixtures():
 # ============================================================================
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def hello_world_audio() -> tuple[np.ndarray, int]:
     """
     Load hello_world.wav fixture.
@@ -211,7 +211,7 @@ def hello_world_audio() -> tuple[np.ndarray, int]:
     return audio, sr
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def silence_audio() -> tuple[np.ndarray, int]:
     """
     Load silence.wav fixture.
@@ -276,7 +276,7 @@ def white_noise_audio() -> tuple[np.ndarray, int]:
     return audio, sr
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def all_audio_fixtures() -> dict[str, tuple[np.ndarray, int]]:
     """
     Load all audio fixtures as a dictionary.
