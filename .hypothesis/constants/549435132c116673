@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/vac_online_processor.py
+# hypothesis_version: 6.151.8
+
+[0.0, 0.02, 0.04, 0.3, 0.5, 0.9, 1.0, 1.2, 4.5, 5.0, 100, 120, 500, 16000, '.models', '__main__', 'absolute_end_time', 'absolute_start_time', 'attention_tracking', 'audio_end_time', 'audio_start_time', 'compute_efficiency', 'content_mel_len', 'detected_language', 'end', 'frames_len', 'frames_threshold', 'generation_progress', 'is_caught_up', 'is_final', 'is_last_chunk', 'is_session_complete', 'lag_seconds', 'large-v3', 'most_attended_frame', 'most_attended_frames', 'nonvoice', 'progress', 'savings_percent', 'silero_vad', 'snakers4/silero-vad', 'start', 'text', 'timestamp_tracking', 'tokens', 'total_audio_duration', 'updated_at', 'vad_checks', 'voice', 'whisper_calls']

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/_legacy/simple_auth.py
+# hypothesis_version: 6.151.8
+
+['active_tokens', 'admin', 'admin123', 'auth', 'connected_tokens', 'connection_id', 'created_at', 'expires_at', 'guest', 'max_tokens_per_user', 'password_hash', 'role', 'role_distribution', 'token', 'token_expiry_hours', 'total_users', 'user', 'user123', 'user_id']

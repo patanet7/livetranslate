@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/models/__init__.py
+# hypothesis_version: 6.151.8
+
+['ModelFactory', 'OPENVINO_AVAILABLE', 'OpenVINOModelManager', 'PyTorchModelManager', 'WhisperModel', 'WhisperModelExtended', 'create_model']

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/shared/src/livetranslate_common/health/endpoints.py
+# hypothesis_version: 6.151.8
+
+[200, 503, '/health', 'checks', 'failing', 'health_check_failed', 'healthy', 'ok', 'service', 'status', 'unhealthy', 'version']

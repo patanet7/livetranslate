@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/utils/performance_metrics.py
+# hypothesis_version: 6.151.8
+
+[0.0, 60.0, 1000, '=', 'Reset all metrics', '_last_log_time', 'active_timers', 'count', 'enable_logging', 'inf', 'log_interval_seconds', 'max', 'max_samples', 'mean', 'metrics', 'min', 'operation_name', 'operations', 'p50', 'p95', 'p99', 'start_time']

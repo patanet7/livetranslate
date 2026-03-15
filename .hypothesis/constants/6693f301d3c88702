@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/api.py
+# hypothesis_version: 6.151.8
+
+[16000.0, 1600, ', ', '/api/models', '/api/registry', '/api/registry/reload', '/api/stream', '/health', 'No registry loaded', 'backend_switched', 'bytes', 'confidence', 'config', 'en', 'end', 'error', 'from', 'glossary_terms', 'initial_prompt', 'is_final', 'language', 'language_detected', 'loaded_backends', 'message', 'ok', 'reason', 'recoverable', 'reloaded', 'segment', 'segments', 'status', 'text', 'to', 'transcribe_error', 'type', 'version', 'vram_usage_mb', 'ws_connected', 'ws_disconnected', 'ws_session_ended']

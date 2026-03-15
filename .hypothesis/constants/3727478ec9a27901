@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/orchestration/response_formatter.py
+# hypothesis_version: 6.151.8
+
+[0.0, 'chunk_id', 'chunk_metadata', 'chunk_sequence', 'chunk_timing', 'confidence_score', 'device_used', 'duration', 'end_time', 'error', 'error_type', 'language', 'model_used', 'orchestration', 'overlap_end', 'overlap_start', 'processing_info', 'processing_time', 'segments', 'sequence_number', 'service_mode', 'session_id', 'start_time', 'status', 'success', 'text', 'timestamp', 'transcription']

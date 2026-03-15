@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/models/openvino_manager.py
+# hypothesis_version: 6.151.8
+
+[0.1, 0.2, 0.8, '*', '*.xml', './models', 'CPU', 'GPU', 'High error rate', 'NPU', 'No models available', 'OPENVINO_DEVICE', 'cached_models', 'degraded', 'device', 'device hung', 'device lost', 'device_capabilities', 'device_error_rate', 'device_errors', 'error_count', 'error_rate', 'healthy', 'inference_count', 'issues', 'last_inference_time', 'last_modified', 'loaded_models', 'max_cached_models', 'memory', 'memory_efficient', 'memory_stats', 'models_available', 'models_directory', 'models_loaded', 'out of memory', 'path', 'requires_cooldown', 'size', 'status', 'text', 'timestamp', 'unhealthy', 'weak_refs', 'whisper-base', '✓ Using CPU device']

@@ -44,3 +44,27 @@ class TestVACProcessorQueue:
         audio = np.zeros(4800, dtype=np.float32)
         await proc.feed_audio(audio)
         assert proc.ready_for_inference() is True
+
+    @pytest.mark.asyncio
+    async def test_not_ready_before_prebuffer(self):
+        """Should not be ready for inference before prebuffer threshold."""
+        proc = VACOnlineProcessor(prebuffer_s=0.3, overlap_s=0.5, stride_s=4.5)
+        # Feed 0.2s = 3200 samples (less than 0.3s prebuffer)
+        audio = np.zeros(3200, dtype=np.float32)
+        await proc.feed_audio(audio)
+        assert proc.ready_for_inference() is False
+
+    @pytest.mark.asyncio
+    async def test_subsequent_inference_at_stride(self):
+        """After first inference, next should wait for stride_s of new audio."""
+        proc = VACOnlineProcessor(prebuffer_s=0.3, overlap_s=0.5, stride_s=4.5)
+        # Feed prebuffer amount and trigger first inference
+        audio = np.zeros(4800, dtype=np.float32)  # 0.3s
+        await proc.feed_audio(audio)
+        assert proc.ready_for_inference() is True
+        proc.get_inference_audio()  # consume
+
+        # Feed less than stride_s — should not be ready
+        audio2 = np.zeros(16000, dtype=np.float32)  # 1.0s < 4.5s stride
+        await proc.feed_audio(audio2)
+        assert proc.ready_for_inference() is False

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/language_id/lid_detector.py
+# hypothesis_version: 6.151.8
+
+[0.0, 0.2, 0.95, 1.0, 100, 'cpu', 'cuda', 'en', 'mps', 'zh']

@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/session/session_manager.py
+# hypothesis_version: 6.151.8
+
+[0.0, -100, 200, '..', 'avg_confidence', 'closed_at', 'confidence', 'config', 'created_at', 'device', 'last_updated', 'model', 'processing_time', 'session_data', 'session_id', 'sessions', 'sessions.json', 'stats', 'text', 'timestamp', 'total_duration', 'total_words', 'transcriptions', 'transcriptions.json', 'utf-8', 'w']

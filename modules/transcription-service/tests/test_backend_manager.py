@@ -104,3 +104,84 @@ class TestBackendManager:
         assert b1._loaded is False  # evicted
         assert b2._loaded is True
         assert manager.current_vram_mb == 6000
+
+    @pytest.mark.asyncio
+    async def test_ref_counting_increments_on_get(self, manager):
+        """get_backend should increment ref count for the backend key."""
+        backend = FakeBackend("test-model", vram_mb=3000, languages=["en"])
+        config = BackendConfig(
+            backend="fake", model="test-model", compute_type="float16",
+            chunk_duration_s=5.0, stride_s=4.5, overlap_s=0.5,
+            vad_threshold=0.5, beam_size=1, prebuffer_s=0.3,
+            batch_profile="realtime",
+        )
+        manager.register_factory("fake", lambda cfg: backend)
+
+        await manager.get_backend(config)
+        key = "fake:test-model"
+        assert manager._ref_counts.get(key, 0) == 1
+
+        # Second get increments to 2
+        await manager.get_backend(config)
+        assert manager._ref_counts.get(key, 0) == 2
+
+    @pytest.mark.asyncio
+    async def test_release_decrements_ref_count(self, manager):
+        """release_backend should decrement the ref count."""
+        backend = FakeBackend("test-model", vram_mb=3000, languages=["en"])
+        config = BackendConfig(
+            backend="fake", model="test-model", compute_type="float16",
+            chunk_duration_s=5.0, stride_s=4.5, overlap_s=0.5,
+            vad_threshold=0.5, beam_size=1, prebuffer_s=0.3,
+            batch_profile="realtime",
+        )
+        manager.register_factory("fake", lambda cfg: backend)
+
+        await manager.get_backend(config)
+        key = "fake:test-model"
+        assert manager._ref_counts.get(key, 0) == 1
+
+        manager.release_backend(key)
+        assert manager._ref_counts.get(key, 0) == 0
+
+    @pytest.mark.asyncio
+    async def test_in_use_backend_skipped_during_eviction(self, manager):
+        """LRU eviction should skip backends with ref_count > 0."""
+        b1 = FakeBackend("model-a", vram_mb=5000, languages=["en"])
+        b2 = FakeBackend("model-b", vram_mb=5000, languages=["zh"])
+        b3 = FakeBackend("model-c", vram_mb=5000, languages=["fr"])
+
+        manager.register_factory("fake_a", lambda cfg: b1)
+        manager.register_factory("fake_b", lambda cfg: b2)
+        manager.register_factory("fake_c", lambda cfg: b3)
+
+        cfg_a = BackendConfig(
+            backend="fake_a", model="model-a", compute_type="float16",
+            chunk_duration_s=5.0, stride_s=4.5, overlap_s=0.5,
+            vad_threshold=0.5, beam_size=1, prebuffer_s=0.3,
+            batch_profile="realtime",
+        )
+        cfg_b = BackendConfig(
+            backend="fake_b", model="model-b", compute_type="float16",
+            chunk_duration_s=5.0, stride_s=4.5, overlap_s=0.5,
+            vad_threshold=0.5, beam_size=1, prebuffer_s=0.3,
+            batch_profile="realtime",
+        )
+        cfg_c = BackendConfig(
+            backend="fake_c", model="model-c", compute_type="float16",
+            chunk_duration_s=5.0, stride_s=4.5, overlap_s=0.5,
+            vad_threshold=0.5, beam_size=1, prebuffer_s=0.3,
+            batch_profile="realtime",
+        )
+
+        # Budget is 10000MB. Load a (5000) then b (5000) = 10000MB used.
+        await manager.get_backend(cfg_a)  # ref_count[a] = 1
+        await manager.get_backend(cfg_b)  # ref_count[b] = 1
+
+        # a is LRU but still in use (ref_count=1), so loading c should evict b instead
+        # First release b so it can be evicted, keep a in use
+        manager.release_backend("fake_b:model-b")  # ref_count[b] = 0
+
+        await manager.get_backend(cfg_c)  # should evict b (oldest unreferenced)
+        assert b2._loaded is False  # b evicted
+        assert b1._loaded is True   # a still loaded (was in use)

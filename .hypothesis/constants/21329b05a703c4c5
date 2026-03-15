@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/shared/src/livetranslate_common/middleware/logging.py
+# hypothesis_version: 6.151.8
+
+[400, 500, 1000, '/health', '/healthz', '/metrics', '/ready', '/readyz', 'request_completed', 'request_failed', 'request_started']

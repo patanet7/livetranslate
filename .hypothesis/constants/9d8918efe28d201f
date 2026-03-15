@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/_legacy/heartbeat_manager.py
+# hypothesis_version: 6.151.8
+
+[0.0, 1000, 'average_rtt_ms', 'cleanup_interval', 'configuration', 'connection_id', 'critical', 'disconnected', 'healthy', 'last_heartbeat', 'last_pong', 'last_rtt_ms', 'missed_heartbeats', 'pending_pings', 'ping', 'ping_count', 'ping_interval', 'pong_count', 'pong_timeout', 'rtt_measurements', 'state', 'state_distribution', 'timestamp', 'total_connections', 'total_disconnections', 'total_pings_sent', 'total_pongs_received', 'total_timeouts', 'type', 'warning']

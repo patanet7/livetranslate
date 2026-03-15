@@ -7,6 +7,8 @@ backends:
 
 vram_budget_mb: 10000
 
+# NOTE: stride_s MUST equal chunk_duration_s - overlap_s
+# Changing chunk_duration_s or overlap_s requires updating stride_s accordingly
 language_routing:
   en:
     backend: whisper

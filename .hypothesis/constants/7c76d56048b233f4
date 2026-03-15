@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/transcription/request_models.py
+# hypothesis_version: 6.151.8
+
+[0.0, 16000, 'alignatt', 'en', 'none', 'transcribe', 'whisper-large-v3', 'word']

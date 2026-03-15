@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/language_id/smoother.py
+# hypothesis_version: 6.151.8
+
+[0.0, 1e-10, 0.1, 0.3, 1.0, 'LID smoother reset', 'current_language', 'history_length', 'smoothed_transitions', 'transition_cost', 'window_size']

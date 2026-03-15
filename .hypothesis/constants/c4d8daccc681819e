@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/shared/src/livetranslate_common/logging/processors.py
+# hypothesis_version: 6.151.8
+
+['***REDACTED***', 'access_token', 'api_key', 'apikey', 'authorization', 'cookie', 'credit_card', 'passwd', 'password', 'refresh_token', 'secret', 'secret_key', 'service', 'session_id', 'token']

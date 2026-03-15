@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/utf8_boundary_fixer.py
+# hypothesis_version: 6.151.8
+
+['=', 'Clean text', '__main__', 'dev', 'whisper', '院子门口不远�', '�', '�就是一个地铁站', '��Hello��World��']

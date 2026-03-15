@@ -1,0 +1,4 @@
+# file: /Users/thomaspatane/GitHub/personal/livetranslate/.worktrees/plan-1-transcription-service/modules/transcription-service/src/language_id/sustained_detector.py
+# hypothesis_version: 6.151.8
+
+[0.0, 0.2, 100.0, 250.0, 1000, 'candidate_frames', 'candidate_language', 'candidate_progress', 'current_language', 'language', 'margin', 'none', 'timestamp', 'top_prob', 'total_switches']
