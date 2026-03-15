@@ -1,11 +1,12 @@
-"""Tests for BackendManager VRAM budget enforcement and LRU eviction."""
+"""Tests for BackendManager VRAM budget enforcement, LRU eviction, and CircuitBreaker."""
 import asyncio
+import time
 
 import numpy as np
 import pytest
 
 from backends.base import TranscriptionBackend
-from backends.manager import BackendManager
+from backends.manager import BackendManager, BackendUnavailableError, CircuitBreaker
 from livetranslate_common.models import BackendConfig, ModelInfo, TranscriptionResult
 
 
@@ -185,3 +186,123 @@ class TestBackendManager:
         await manager.get_backend(cfg_c)  # should evict b (oldest unreferenced)
         assert b2._loaded is False  # b evicted
         assert b1._loaded is True   # a still loaded (was in use)
+
+
+class TestCircuitBreaker:
+    """Behavioral tests for the CircuitBreaker class."""
+
+    def test_initially_closed(self):
+        """A fresh circuit breaker must be closed."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=30.0)
+        assert cb.is_open is False
+
+    def test_stays_closed_below_threshold(self):
+        """Two consecutive failures with threshold=3 must leave the breaker closed."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=30.0)
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.is_open is False
+
+    def test_opens_after_exactly_threshold_failures(self):
+        """The breaker must open on the third (threshold) consecutive failure."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=30.0)
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.is_open is False
+        cb.record_failure()
+        assert cb.is_open is True
+
+    def test_remains_open_during_cooldown(self):
+        """The breaker must stay open until cooldown elapses."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=60.0)
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.is_open is True
+        # Not enough time has passed — still open
+        assert cb.is_open is True
+
+    def test_is_open_returns_false_after_cooldown_elapses(self):
+        """is_open must return False once cooldown_s has elapsed (probe window)."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=0.05)
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.is_open is True
+        time.sleep(0.1)
+        assert cb.is_open is False
+
+    def test_record_success_resets_failure_count(self):
+        """record_success must reset consecutive failure count to zero."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=30.0)
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_success()
+        # Two more failures should not open the breaker (count was reset)
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.is_open is False
+
+    def test_record_success_clears_opened_at(self):
+        """record_success after cooldown must clear _opened_at so the breaker closes."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=0.05)
+        cb.record_failure()
+        cb.record_failure()
+        cb.record_failure()
+        time.sleep(0.1)
+        # Probe window: is_open returns False
+        assert cb.is_open is False
+        cb.record_success()
+        # After success _opened_at must be cleared
+        assert cb._opened_at is None
+        assert cb._consecutive_failures == 0
+
+    def test_backend_manager_auto_creates_circuit_breaker_for_new_key(self):
+        """get_circuit_breaker must create a fresh breaker for an unseen key."""
+        manager = BackendManager(max_vram_mb=10000)
+        key = "fake:model-x"
+        assert key not in manager._circuit_breakers
+        cb = manager.get_circuit_breaker(key)
+        assert key in manager._circuit_breakers
+        assert isinstance(cb, CircuitBreaker)
+        assert cb.is_open is False
+
+    def test_backend_manager_returns_same_breaker_for_same_key(self):
+        """get_circuit_breaker must return the identical object on repeated calls."""
+        manager = BackendManager(max_vram_mb=10000)
+        key = "fake:model-y"
+        cb1 = manager.get_circuit_breaker(key)
+        cb2 = manager.get_circuit_breaker(key)
+        assert cb1 is cb2
+
+    @pytest.mark.asyncio
+    async def test_get_backend_raises_when_circuit_open(self):
+        """get_backend must raise BackendUnavailableError when the circuit is open."""
+        manager = BackendManager(max_vram_mb=10000)
+        config = BackendConfig(
+            backend="fake", model="test-model", compute_type="float16",
+            chunk_duration_s=5.0, stride_s=4.5, overlap_s=0.5,
+            vad_threshold=0.5, beam_size=1, prebuffer_s=0.3,
+            batch_profile="realtime",
+        )
+        # Open the breaker manually via record_failure three times
+        manager.record_failure(config)
+        manager.record_failure(config)
+        manager.record_failure(config)
+        with pytest.raises(BackendUnavailableError):
+            await manager.get_backend(config)
+
+    def test_recovery_after_cooldown_record_success_closes_circuit(self):
+        """After cooldown, record_success must fully close the circuit breaker."""
+        cb = CircuitBreaker(failure_threshold=3, cooldown_s=0.05)
+        for _ in range(3):
+            cb.record_failure()
+        assert cb.is_open is True
+        time.sleep(0.1)
+        # Probe window — allowed through (is_open is False)
+        assert cb.is_open is False
+        cb.record_success()
+        # Breaker fully reset — three new failures required to reopen
+        cb.record_failure()
+        cb.record_failure()
+        assert cb.is_open is False
