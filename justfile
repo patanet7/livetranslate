@@ -71,7 +71,7 @@ dev:
 # Start all services with Ollama instead of vllm-mlx
 dev-ollama:
     @trap 'kill 0' EXIT; \
-        uv run python {{transcription_dir}}/src/main_local.py --model medium 2>&1 | sed 's/^/[transcription] /' & \
+        uv run python {{transcription_dir}}/src/main_local.py --model large-v3-turbo 2>&1 | sed 's/^/[transcription] /' & \
         sleep 5 && \
         TRANSCRIPTION_HOST=localhost TRANSCRIPTION_PORT=5001 \
         LLM_BASE_URL=http://localhost:11434/v1 LLM_MODEL=qwen2.5:3b \
