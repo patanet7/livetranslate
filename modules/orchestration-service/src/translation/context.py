@@ -47,7 +47,7 @@ class RollingContextWindow:
         """Estimate token count: ~1 token per CJK char, ~4 chars per token for Latin."""
         cjk = sum(
             1 for c in text
-            if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\u30a0' <= c <= '\u30ff'
+            if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff'
         )
         latin = len(text) - cjk
         return max(1, cjk + latin // 4)
