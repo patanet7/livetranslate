@@ -234,10 +234,13 @@
     }
   });
 
-  // I6: Use beforeNavigate to await async cleanup before SvelteKit navigates.
-  // onDestroy is synchronous and can't await AudioContext.close().
-  beforeNavigate(async () => {
-    await stopCapture();
+  // I6: Clean up audio capture before SvelteKit navigates away.
+  // beforeNavigate callbacks must be synchronous — async callbacks return a
+  // Promise that SvelteKit ignores, so the navigation proceeds immediately.
+  // We fire-and-forget stopCapture(); the re-entrancy guard inside it
+  // prevents double-cleanup if onDestroy also fires.
+  beforeNavigate(() => {
+    stopCapture();
   });
 
   onDestroy(() => {
