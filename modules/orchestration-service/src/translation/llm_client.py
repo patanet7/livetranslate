@@ -162,6 +162,12 @@ class LLMClient:
                         "model": self.config.model,
                         "messages": messages,
                         "temperature": self.config.temperature,
+                        # Qwen3 /nothink mode settings per Alibaba docs:
+                        # temp=0.7, top_p=0.8, top_k=20, presence_penalty=0-2
+                        "top_p": 0.8,
+                        "top_k": 20,
+                        "presence_penalty": 1.0,
+                        "repetition_penalty": 1.05,
                         # Disable thinking/reasoning for Qwen3+ models (latency)
                         "think": False,
                         "chat_template_kwargs": {"enable_thinking": False},
