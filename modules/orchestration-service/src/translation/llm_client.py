@@ -188,6 +188,8 @@ class LLMClient:
         """Clean up LLM response to extract just the translation."""
         import re
         text = response.strip()
+        # Strip Qwen3 <think>...</think> reasoning blocks
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
         # Remove common LLM prefix patterns (case-insensitive)
         text = re.sub(
             r'^(?:translation|translated text|output|result|the translation is|翻译|译文)\s*[:：]\s*',
