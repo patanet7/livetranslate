@@ -11,7 +11,7 @@ from translation.llm_client import LLMClient
 @pytest.fixture
 def config():
     return TranslationConfig(
-        llm_base_url="http://thomas-pc:11434/v1",
+        base_url="http://thomas-pc:11434/v1",
         model="qwen3.5:7b",
         temperature=0.3,
         timeout_s=10,

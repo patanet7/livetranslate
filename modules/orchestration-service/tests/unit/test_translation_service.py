@@ -16,7 +16,7 @@ from livetranslate_common.models import TranslationRequest, TranslationResponse
 @pytest.fixture
 def config():
     return TranslationConfig(
-        llm_base_url="http://thomas-pc:11434/v1",
+        base_url="http://thomas-pc:11434/v1",
         model="qwen3.5:7b",
         context_window_size=3,
         max_queue_depth=5,
@@ -83,7 +83,7 @@ class TestTranslationServiceIntegration:
     async def test_failed_translation_not_in_context(self, config):
         """Use a bad URL to trigger a real failure — context must stay empty."""
         bad_config = TranslationConfig(
-            llm_base_url="http://localhost:1",
+            base_url="http://localhost:1",
             model="nonexistent-model",
             context_window_size=3,
             max_queue_depth=5,
@@ -119,7 +119,7 @@ class TestBackpressure:
         # Use a bad URL — queued items will fail, but we only care about
         # synchronous rejection before any LLM call is made.
         bad_config = TranslationConfig(
-            llm_base_url="http://localhost:1",
+            base_url="http://localhost:1",
             model="nonexistent",
             max_queue_depth=1,
             timeout_s=1,
@@ -189,7 +189,7 @@ class TestPerSpeakerContext:
     async def test_per_speaker_context_isolation(self, config):
         """Different speakers should have isolated context windows."""
         bad_config = TranslationConfig(
-            llm_base_url="http://localhost:1",
+            base_url="http://localhost:1",
             model="test",
             context_window_size=3,
             max_queue_depth=5,

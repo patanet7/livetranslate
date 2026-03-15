@@ -1,9 +1,10 @@
-"""BackendManager — VRAM-aware backend lifecycle with LRU eviction."""
+"""BackendManager — VRAM-aware backend lifecycle with LRU eviction + circuit breaker."""
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import OrderedDict
-from typing import Callable
+from collections.abc import Callable
 
 from livetranslate_common.logging import get_logger
 from livetranslate_common.models import BackendConfig
@@ -13,6 +14,42 @@ from backends.base import TranscriptionBackend
 logger = get_logger()
 
 
+class BackendUnavailableError(RuntimeError):
+    """Raised when a backend's circuit breaker is open (too many consecutive failures)."""
+
+
+class CircuitBreaker:
+    """Simple circuit breaker: opens after N consecutive failures, probes after cooldown."""
+
+    def __init__(self, failure_threshold: int = 3, cooldown_s: float = 120.0) -> None:
+        self.failure_threshold = failure_threshold
+        self.cooldown_s = cooldown_s
+        self._consecutive_failures: int = 0
+        self._opened_at: float | None = None
+
+    @property
+    def is_open(self) -> bool:
+        if self._opened_at is None:
+            return False
+        if time.monotonic() - self._opened_at >= self.cooldown_s:
+            return False  # allow probe
+        return True
+
+    def record_success(self) -> None:
+        self._consecutive_failures = 0
+        self._opened_at = None
+
+    def record_failure(self) -> None:
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.failure_threshold:
+            self._opened_at = time.monotonic()
+            logger.warning(
+                "circuit_breaker_opened",
+                failures=self._consecutive_failures,
+                cooldown_s=self.cooldown_s,
+            )
+
+
 class BackendManager:
     def __init__(self, max_vram_mb: int = 10000):
         self.max_vram_mb = max_vram_mb
@@ -20,6 +57,7 @@ class BackendManager:
         self._factories: dict[str, Callable[[BackendConfig], TranscriptionBackend]] = {}
         self._load_lock = asyncio.Lock()
         self._ref_counts: dict[str, int] = {}
+        self._circuit_breakers: dict[str, CircuitBreaker] = {}
 
     def register_factory(
         self, backend_name: str, factory: Callable[[BackendConfig], TranscriptionBackend]
@@ -33,9 +71,34 @@ class BackendManager:
     def _backend_key(self, config: BackendConfig) -> str:
         return f"{config.backend}:{config.model}"
 
-    async def get_backend(self, config: BackendConfig) -> TranscriptionBackend:
-        """Return a loaded backend for the given config, evicting LRU if needed."""
+    def get_circuit_breaker(self, key: str) -> CircuitBreaker:
+        """Get or create a circuit breaker for a backend key."""
+        if key not in self._circuit_breakers:
+            self._circuit_breakers[key] = CircuitBreaker()
+        return self._circuit_breakers[key]
+
+    def record_success(self, config: BackendConfig) -> None:
+        """Record a successful inference for circuit breaker tracking."""
         key = self._backend_key(config)
+        self.get_circuit_breaker(key).record_success()
+
+    def record_failure(self, config: BackendConfig) -> None:
+        """Record a failed inference for circuit breaker tracking."""
+        key = self._backend_key(config)
+        self.get_circuit_breaker(key).record_failure()
+
+    async def get_backend(self, config: BackendConfig) -> TranscriptionBackend:
+        """Return a loaded backend for the given config, evicting LRU if needed.
+
+        Raises BackendUnavailableError if the backend's circuit breaker is open.
+        """
+        key = self._backend_key(config)
+        cb = self.get_circuit_breaker(key)
+        if cb.is_open:
+            raise BackendUnavailableError(
+                f"Backend {key} circuit breaker is open — "
+                f"will probe again in {cb.cooldown_s}s"
+            )
 
         async with self._load_lock:
             if key in self.loaded_backends:

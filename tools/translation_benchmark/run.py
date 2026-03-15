@@ -113,7 +113,7 @@ async def run_single_model_benchmark(
 
     for ctx_size in context_sizes:
         config = TranslationConfig(
-            llm_base_url=ollama_url,
+            base_url=ollama_url,
             model=model,
             context_window_size=ctx_size,
         )
@@ -174,7 +174,7 @@ async def run_single_model_benchmark(
     # Concurrent throughput measurement
     if concurrency > 1:
         config = TranslationConfig(
-            llm_base_url=ollama_url,
+            base_url=ollama_url,
             model=model,
             context_window_size=0,
         )

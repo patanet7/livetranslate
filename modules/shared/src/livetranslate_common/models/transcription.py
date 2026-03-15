@@ -63,6 +63,7 @@ class TranscriptionResult(BaseModel):
     speaker_id: str | None = None
     should_translate: bool = False
     context_text: str = ""
+    no_speech_prob: float | None = None
 
 
 class ModelInfo(BaseModel):

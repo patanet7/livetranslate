@@ -146,7 +146,7 @@ class TestTranslationUnreachableGracefulDegradation:
         from livetranslate_common.models import TranslationRequest
 
         config = TranslationConfig(
-            llm_base_url="http://127.0.0.1:1/v1",
+            base_url="http://127.0.0.1:1/v1",
             timeout_s=2,
         )
         service = TranslationService(config)
@@ -170,7 +170,7 @@ class TestTranslationUnreachableGracefulDegradation:
         from livetranslate_common.models import TranslationRequest
 
         config = TranslationConfig(
-            llm_base_url="http://127.0.0.1:1/v1",
+            base_url="http://127.0.0.1:1/v1",
             timeout_s=2,
         )
         service = TranslationService(config)
@@ -204,7 +204,7 @@ class TestTranslationUnreachableGracefulDegradation:
         from livetranslate_common.models import TranslationRequest
 
         config = TranslationConfig(
-            llm_base_url="http://127.0.0.1:1/v1",
+            base_url="http://127.0.0.1:1/v1",
             timeout_s=2,
             max_queue_depth=5,
         )

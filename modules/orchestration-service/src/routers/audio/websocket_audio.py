@@ -131,9 +131,13 @@ async def websocket_audio_stream(websocket: WebSocket):
     source_language: str | None = None
     target_language: str | None = TARGET_LANGUAGE
 
+    # Accumulator for stable text across segments (for sentence-level translation)
+    _stable_text_buffer: str = ""
+    _last_translated_stable: str = ""
+
     async def handle_transcription_segment(data: dict) -> None:
         """Transform transcription result → SegmentMessage → forward to frontend."""
-        nonlocal segment_counter, source_language
+        nonlocal segment_counter, source_language, _stable_text_buffer, _last_translated_stable
         segment_counter += 1
 
         msg = SegmentMessage(
@@ -158,14 +162,31 @@ async def websocket_audio_stream(websocket: WebSocket):
         except Exception:
             return  # frontend disconnected
 
-        # Trigger translation for final segments
-        if msg.is_final and translation_service and target_language and source_language != target_language:
+        # Translation trigger: prefer stable_text accumulation, fall back to is_final
+        if not (translation_service and target_language and source_language != target_language):
+            return
+
+        translate_text = ""
+        if msg.stable_text:
+            # Accumulate stable text and translate when a sentence boundary is detected
+            _stable_text_buffer += msg.stable_text
+            # Check for sentence boundaries (period, question mark, exclamation)
+            import re
+            if re.search(r"[.!?。！？]$", _stable_text_buffer.strip()):  # noqa: RUF001
+                translate_text = _stable_text_buffer.strip()
+                _last_translated_stable = translate_text
+                _stable_text_buffer = ""
+        elif msg.is_final:
+            # Fallback: use is_final when stable_text is not populated
+            translate_text = msg.text
+
+        if translate_text:
             task = asyncio.create_task(
                 _translate_and_send(
                     websocket,
                     translation_service,
                     segment_id=msg.segment_id,
-                    text=msg.text,
+                    text=translate_text,
                     source_lang=msg.language,
                     target_lang=target_language,
                     speaker_name=msg.speaker_id,
@@ -294,7 +315,10 @@ async def websocket_audio_stream(websocket: WebSocket):
                     # Optionally init translation service + warm up LLM
                     translation_service = _try_create_translation_service()
                     if translation_service:
-                        asyncio.create_task(_warm_up_llm(translation_service))
+                        # Skip warm-up if already warmed at startup (lifespan)
+                        already_warm = getattr(websocket.app.state, "translation_service_warmed", False)
+                        if not already_warm:
+                            asyncio.create_task(_warm_up_llm(translation_service))
 
                     # Send service status
                     await websocket.send_text(

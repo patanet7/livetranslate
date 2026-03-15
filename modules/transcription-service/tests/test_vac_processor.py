@@ -7,6 +7,12 @@ import pytest
 from vac_online_processor import VACOnlineProcessor
 
 
+def _speech_audio(n_samples: int) -> np.ndarray:
+    """Generate non-silent audio (sine wave) that passes the RMS speech gate."""
+    t = np.arange(n_samples, dtype=np.float32) / 16000.0
+    return (0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+
+
 class TestVACProcessorQueue:
     @pytest.mark.asyncio
     async def test_uses_asyncio_queue(self):
@@ -40,8 +46,8 @@ class TestVACProcessorQueue:
         proc = VACOnlineProcessor(
             prebuffer_s=0.3, overlap_s=0.5, stride_s=4.5,
         )
-        # 0.3s at 16kHz = 4800 samples
-        audio = np.zeros(4800, dtype=np.float32)
+        # 0.3s at 16kHz = 4800 samples (must be non-silent to pass RMS gate)
+        audio = _speech_audio(4800)
         await proc.feed_audio(audio)
         assert proc.ready_for_inference() is True
 
@@ -58,13 +64,22 @@ class TestVACProcessorQueue:
     async def test_subsequent_inference_at_stride(self):
         """After first inference, next should wait for stride_s of new audio."""
         proc = VACOnlineProcessor(prebuffer_s=0.3, overlap_s=0.5, stride_s=4.5)
-        # Feed prebuffer amount and trigger first inference
-        audio = np.zeros(4800, dtype=np.float32)  # 0.3s
+        # Feed prebuffer amount and trigger first inference (non-silent)
+        audio = _speech_audio(4800)  # 0.3s
         await proc.feed_audio(audio)
         assert proc.ready_for_inference() is True
         proc.get_inference_audio()  # consume
 
         # Feed less than stride_s — should not be ready
-        audio2 = np.zeros(16000, dtype=np.float32)  # 1.0s < 4.5s stride
+        audio2 = _speech_audio(16000)  # 1.0s < 4.5s stride
         await proc.feed_audio(audio2)
         assert proc.ready_for_inference() is False
+
+    @pytest.mark.asyncio
+    async def test_silence_suppressed_by_rms_gate(self):
+        """Pure silence should not trigger inference even with enough samples."""
+        proc = VACOnlineProcessor(prebuffer_s=0.3, overlap_s=0.5, stride_s=4.5)
+        # Feed silent audio exceeding prebuffer threshold
+        audio = np.zeros(4800, dtype=np.float32)  # 0.3s of silence
+        await proc.feed_audio(audio)
+        assert proc.ready_for_inference() is False  # silence gated

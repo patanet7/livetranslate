@@ -21,9 +21,31 @@ language_routing:
     model: large-v3-turbo
     compute_type: float16
     chunk_duration_s: 5.0
-    stride_s: 4.5
-    overlap_s: 0.5
+    stride_s: 4.0
+    overlap_s: 1.0
     vad_threshold: 0.5
+    beam_size: 1
+    prebuffer_s: 0.3
+    batch_profile: realtime
+  zh:
+    backend: whisper
+    model: large-v3-turbo
+    compute_type: float16
+    chunk_duration_s: 5.0
+    stride_s: 4.0
+    overlap_s: 1.0
+    vad_threshold: 0.45
+    beam_size: 1
+    prebuffer_s: 0.3
+    batch_profile: realtime
+  ja:
+    backend: whisper
+    model: large-v3-turbo
+    compute_type: float16
+    chunk_duration_s: 5.0
+    stride_s: 4.0
+    overlap_s: 1.0
+    vad_threshold: 0.45
     beam_size: 1
     prebuffer_s: 0.3
     batch_profile: realtime
@@ -32,8 +54,8 @@ language_routing:
     model: large-v3-turbo
     compute_type: float16
     chunk_duration_s: 5.0
-    stride_s: 4.5
-    overlap_s: 0.5
+    stride_s: 4.0
+    overlap_s: 1.0
     vad_threshold: 0.5
     beam_size: 1
     prebuffer_s: 0.3
