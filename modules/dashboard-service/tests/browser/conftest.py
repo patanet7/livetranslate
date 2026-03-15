@@ -361,40 +361,41 @@ def orchestration_server(db_ready):
     SCREENSHOT_DIR.mkdir(exist_ok=True)
     orch_log_file = open(orch_log_path, "w")
 
-    proc = subprocess.Popen(
-        [
-            sys.executable, "-c",
-            f"import sys; sys.path.insert(0, '{orch_src}'); "
-            f"import uvicorn; from main_fastapi import app; "
-            f"uvicorn.run(app, host='127.0.0.1', port={ORCHESTRATION_PORT}, log_level='info')"
-        ],
-        stdout=orch_log_file,
-        stderr=orch_log_file,
-        cwd=orch_src,
-        env=orch_env,
-    )
-
-    if not _wait_for_port("localhost", ORCHESTRATION_PORT, timeout=60):
-        proc.terminate()
-        proc.wait(timeout=5)
-        orch_log_file.close()
-        log_tail = orch_log_path.read_text()[-1000:] if orch_log_path.exists() else ""
-        pytest.fail(
-            f"Orchestration server failed to start on port {ORCHESTRATION_PORT}. "
-            f"Log tail: {log_tail}"
+    try:
+        proc = subprocess.Popen(
+            [
+                sys.executable, "-c",
+                f"import sys; sys.path.insert(0, '{orch_src}'); "
+                f"import uvicorn; from main_fastapi import app; "
+                f"uvicorn.run(app, host='127.0.0.1', port={ORCHESTRATION_PORT}, log_level='info')"
+            ],
+            stdout=orch_log_file,
+            stderr=orch_log_file,
+            cwd=orch_src,
+            env=orch_env,
         )
 
-    logger.info(f"Orchestration server started on port {ORCHESTRATION_PORT} (pid={proc.pid})")
-    yield ORCHESTRATION_URL
+        if not _wait_for_port("localhost", ORCHESTRATION_PORT, timeout=60):
+            proc.terminate()
+            proc.wait(timeout=5)
+            log_tail = orch_log_path.read_text()[-1000:] if orch_log_path.exists() else ""
+            pytest.fail(
+                f"Orchestration server failed to start on port {ORCHESTRATION_PORT}. "
+                f"Log tail: {log_tail}"
+            )
 
-    proc.terminate()
-    try:
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait(timeout=5)
-    orch_log_file.close()
-    logger.info("Orchestration server stopped")
+        logger.info(f"Orchestration server started on port {ORCHESTRATION_PORT} (pid={proc.pid})")
+        yield ORCHESTRATION_URL
+
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+        logger.info("Orchestration server stopped")
+    finally:
+        orch_log_file.close()
 
 
 @pytest.fixture(scope="session")
@@ -418,8 +419,8 @@ def sveltekit_server(orchestration_server):
     proc = subprocess.Popen(
         ["npm", "run", "dev"],
         cwd=str(DASHBOARD_DIR),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         env=env,
     )
 
