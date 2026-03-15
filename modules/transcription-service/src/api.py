@@ -13,22 +13,35 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 from livetranslate_common.logging import get_logger
 
 from backends.manager import BackendManager
 from language_detection import LanguageDetector
 from registry import ModelRegistry
+from vac_online_processor import VACOnlineProcessor
 
 logger = get_logger()
 
 
-def create_app(registry_path: Path | None = None) -> FastAPI:
-    app = FastAPI(title="Transcription Service")
+@dataclass
+class SessionState:
+    session_id: str
+    language: str | None = None
+    initial_prompt: str | None = None
+    glossary_terms: list[str] | None = None
+    current_backend_key: str | None = None
+    lang_detector: LanguageDetector = field(default_factory=LanguageDetector)
+    vac_processor: VACOnlineProcessor | None = None
 
+
+def create_app(registry_path: Path | None = None) -> FastAPI:
     if registry_path and registry_path.exists():
         registry = ModelRegistry(registry_path)
         manager = BackendManager(max_vram_mb=registry.vram_budget_mb)
@@ -36,10 +49,22 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
         registry = None
         manager = BackendManager()
 
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        yield
+        # Shutdown: unload all backends
+        for key in list(manager.loaded_backends.keys()):
+            backend = manager.loaded_backends[key]
+            await backend.unload_model()
+        logger.info("all_backends_unloaded")
+
+    app = FastAPI(title="Transcription Service", lifespan=lifespan)
+
     @app.get("/health")
     async def health():
+        status = "ok" if registry is not None else "degraded"
         return {
-            "status": "ok",
+            "status": status,
             "loaded_backends": list(manager.loaded_backends.keys()),
             "vram_usage_mb": manager.current_vram_mb,
         }
@@ -60,10 +85,10 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
     @app.post("/api/registry/reload")
     async def reload_registry():
         if registry is None:
-            return {"error": "No registry loaded"}
+            return JSONResponse({"error": "No registry loaded"}, status_code=400)
         success = registry.reload()
         if not success:
-            return {"error": "Registry reload failed — check logs for details", "version": registry.version}
+            return JSONResponse({"error": "Reload failed — check logs"}, status_code=500)
         return {"status": "reloaded", "version": registry.version}
 
     @app.websocket("/api/stream")
@@ -72,16 +97,20 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
         session_id = str(uuid.uuid4())[:8]
         logger.info("ws_connected", session_id=session_id)
 
+        if registry is None:
+            await ws.send_text(json.dumps({
+                "type": "error",
+                "message": "No registry loaded — service cannot transcribe",
+                "recoverable": False,
+            }))
+            await ws.close()
+            return
+
         audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=16)
-        session_language: str | None = None
-        session_initial_prompt: str | None = None
-        session_glossary_terms: list[str] | None = None
-        lang_detector = LanguageDetector()
-        current_backend_key: str | None = None
+        state = SessionState(session_id=session_id)
 
         async def producer():
             """Read frames from WebSocket and route to queue or handle control messages."""
-            nonlocal session_language, session_initial_prompt, session_glossary_terms
             try:
                 while True:
                     data = await ws.receive()
@@ -101,9 +130,9 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
                         msg_type = msg.get("type")
                         if msg_type == "config":
-                            session_language = msg.get("language")
-                            session_initial_prompt = msg.get("initial_prompt")
-                            session_glossary_terms = msg.get("glossary_terms")
+                            state.language = msg.get("language")
+                            state.initial_prompt = msg.get("initial_prompt")
+                            state.glossary_terms = msg.get("glossary_terms")
                         elif msg_type == "end":
                             await audio_queue.put(None)  # sentinel
                             return
@@ -112,7 +141,6 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
 
         async def consumer():
             """Process audio frames from queue and send results."""
-            nonlocal current_backend_key
             while True:
                 raw_audio = await audio_queue.get()
                 if raw_audio is None:
@@ -123,50 +151,66 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                 if len(audio) < 1600:  # < 100ms at 16kHz
                     continue
 
-                if registry is None:
-                    continue
-
                 try:
-                    lang = session_language or lang_detector.current_language or "en"
+                    lang = state.language or state.lang_detector.current_language or "en"
                     config = registry.get_config(lang)
                     transcription_backend = await manager.get_backend(config)
 
                     new_backend_key = f"{config.backend}:{config.model}"
-                    if current_backend_key is not None and new_backend_key != current_backend_key:
+                    if state.current_backend_key is not None and new_backend_key != state.current_backend_key:
+                        # Release the old backend before switching
+                        manager.release_backend(state.current_backend_key)
                         await ws.send_text(json.dumps({
                             "type": "backend_switched",
-                            "from": current_backend_key,
+                            "from": state.current_backend_key,
                             "to": new_backend_key,
                             "reason": f"language changed to {lang}",
                         }))
-                    current_backend_key = new_backend_key
+                    state.current_backend_key = new_backend_key
 
-                    effective_prompt = session_initial_prompt
-                    if session_glossary_terms:
-                        glossary_str = ", ".join(session_glossary_terms)
+                    # Lazily initialize VACOnlineProcessor on first frame
+                    if state.vac_processor is None:
+                        state.vac_processor = VACOnlineProcessor(
+                            prebuffer_s=config.prebuffer_s,
+                            overlap_s=config.overlap_s,
+                            stride_s=config.stride_s,
+                        )
+
+                    await state.vac_processor.feed_audio(audio)
+                    if not state.vac_processor.ready_for_inference():
+                        continue  # not enough audio yet
+
+                    inference_audio = state.vac_processor.get_inference_audio()
+
+                    effective_prompt = state.initial_prompt
+                    if state.glossary_terms:
+                        glossary_str = ", ".join(state.glossary_terms)
                         if effective_prompt:
                             effective_prompt = f"{glossary_str}. {effective_prompt}"
                         else:
                             effective_prompt = glossary_str
 
-                    result = await transcription_backend.transcribe(
-                        audio,
-                        language=session_language or lang_detector.current_language,
-                        beam_size=config.beam_size,
-                        initial_prompt=effective_prompt,
+                    result = await asyncio.wait_for(
+                        transcription_backend.transcribe(
+                            inference_audio,
+                            language=state.language or state.lang_detector.current_language,
+                            beam_size=config.beam_size,
+                            initial_prompt=effective_prompt,
+                        ),
+                        timeout=30.0,
                     )
 
                     # language_detected fires BEFORE segment
-                    if lang_detector.current_language is None:
-                        detected = lang_detector.detect_initial(result.language, result.confidence)
+                    if state.lang_detector.current_language is None:
+                        detected = state.lang_detector.detect_initial(result.language, result.confidence)
                         await ws.send_text(json.dumps({
                             "type": "language_detected",
                             "language": detected,
                             "confidence": result.confidence,
                         }))
                     else:
-                        chunk_duration_s = len(audio) / 16000.0
-                        switched = lang_detector.update(result.language, chunk_duration_s)
+                        chunk_duration_s = len(inference_audio) / 16000.0
+                        switched = state.lang_detector.update(result.language, chunk_duration_s)
                         if switched:
                             await ws.send_text(json.dumps({
                                 "type": "language_detected",
@@ -179,6 +223,16 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
                         **result.model_dump(include={"text", "language", "confidence", "is_final", "segments"}),
                     }))
 
+                except asyncio.TimeoutError:
+                    logger.error("transcribe_timeout", session_id=session_id)
+                    try:
+                        await ws.send_text(json.dumps({
+                            "type": "error",
+                            "message": "Transcription timed out",
+                            "recoverable": True,
+                        }))
+                    except Exception:
+                        break
                 except Exception as exc:
                     logger.exception("transcribe_error", session_id=session_id, error=str(exc))
                     try:
@@ -194,6 +248,10 @@ def create_app(registry_path: Path | None = None) -> FastAPI:
             await asyncio.gather(producer(), consumer())
         except WebSocketDisconnect:
             pass
+        finally:
+            # Release backend reference on session end
+            if state.current_backend_key is not None:
+                manager.release_backend(state.current_backend_key)
 
         logger.info("ws_session_ended", session_id=session_id)
 

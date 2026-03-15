@@ -14,6 +14,10 @@ from pathlib import Path
 # Add src directory to path for imports
 src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
+# Add _legacy directory so legacy tests can still import quarantined modules
+legacy_path = src_path / "_legacy"
+if legacy_path.exists():
+    sys.path.insert(1, str(legacy_path))
 
 import numpy as np
 import pytest
