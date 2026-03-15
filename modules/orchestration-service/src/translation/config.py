@@ -14,7 +14,7 @@ class TranslationConfig(BaseSettings):
 
     base_url: str = "http://localhost:11434/v1"
     model: str = "qwen3.5:7b"
-    temperature: float = 0.3
+    temperature: float = 0.7
     timeout_s: int = 5
     context_window_size: int = 5
     max_context_tokens: int = 500
