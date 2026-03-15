@@ -24,10 +24,7 @@ from uuid import UUID
 
 from clients.protocol import LLMClientProtocol
 
-# TODO: wire up to new TranslationService — RollingWindowTranslator is a legacy class
-# superseded by translation.service.TranslationService. The legacy translation_client
-# parameter now accepts TranslationService (or None) via duck typing.
-# Full migration tracked in services/pipeline/coordinator.py.
+# Legacy: used by TranscriptionPipelineCoordinator for speaker-level context. Will be replaced when TranslationService gains per-speaker context APIs.
 from livetranslate_common.models import TranslationRequest
 from translation.service import TranslationService
 from livetranslate_common.logging import get_logger

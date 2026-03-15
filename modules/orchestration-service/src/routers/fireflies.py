@@ -2865,7 +2865,6 @@ async def import_transcript_to_db(
                 logger.info("import_llm_client_connected")
             except Exception as e:
                 logger.warning("import_llm_client_unavailable", error=str(e))
-                # TODO: wire up to new TranslationService — TranslationServiceClient removed.
                 # Falling back to new TranslationService singleton when LLM client unavailable.
                 try:
                     from dependencies import get_translation_service_client
@@ -3033,7 +3032,6 @@ async def get_dashboard_config():
         "prompt_variables": PROMPT_TEMPLATE_VARIABLES,
     }
 
-    # TODO: wire up to new TranslationService — TranslationServiceClient removed.
     # get_models() not yet on new TranslationService; returning config model for now.
     try:
         from dependencies import get_translation_service_client

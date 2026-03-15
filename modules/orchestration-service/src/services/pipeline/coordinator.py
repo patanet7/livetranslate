@@ -50,9 +50,7 @@ from models.fireflies import (
 )
 from services.caption_buffer import Caption, CaptionBuffer
 
-# TODO: wire up to new TranslationService — RollingWindowTranslator is superseded by
-# translation.service.TranslationService. This coordinator still uses the legacy class
-# for context-window + glossary support. Migrate after TranslationService gains those APIs.
+# Legacy: RollingWindowTranslator used for speaker-level context windowing. Migration to TranslationService pending per-speaker context API.
 from services.rolling_window_translator import RollingWindowTranslator
 
 # Import existing services

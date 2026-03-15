@@ -823,9 +823,7 @@ async def get_translation_models(
     """
     Get available translation models
     """
-    # TODO: wire up to new TranslationService — get_models()/get_device_info() not on new service.
     try:
-        # TODO: wire up to new TranslationService — returning config info for now.
         model_name = translation_client.config.model
         models = [{"name": model_name, "description": "Configured Ollama model"}]
         translation_device_info = {"device": "cpu", "status": "ok", "model": model_name}
@@ -860,7 +858,6 @@ async def get_all_models(
         transcription_models = await audio_client.get_models()
         audio_device_info = await audio_client.get_device_info()
 
-        # TODO: wire up to new TranslationService — get_models()/get_device_info() not on new service.
         try:
             model_name = translation_client.config.model
             translation_models = [{"name": model_name, "description": "Configured Ollama model"}]
