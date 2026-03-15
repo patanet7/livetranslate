@@ -21,7 +21,7 @@ class BackendUnavailableError(RuntimeError):
 class CircuitBreaker:
     """Simple circuit breaker: opens after N consecutive failures, probes after cooldown."""
 
-    def __init__(self, failure_threshold: int = 3, cooldown_s: float = 120.0) -> None:
+    def __init__(self, failure_threshold: int = 3, cooldown_s: float = 30.0) -> None:
         self.failure_threshold = failure_threshold
         self.cooldown_s = cooldown_s
         self._consecutive_failures: int = 0
