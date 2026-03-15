@@ -99,16 +99,16 @@ class LLMClient:
                     glossary_terms=glossary_terms,
                 ))
                 return [
-                    {"role": "system", "content": (
+                    {"role": "system", "content": result.system_prompt if hasattr(result, 'system_prompt') else (
                         f"You are a professional translator from {source_language} "
                         f"to {target_language}. Output ONLY the translation."
                     )},
                     {"role": "user", "content": result.prompt},
                 ]
-            except ImportError:
+            except Exception:
                 logger.debug(
                     "prompt_builder_unavailable",
-                    msg="TranslationPromptBuilder not found, using inline prompt with glossary",
+                    msg="TranslationPromptBuilder not available, using inline prompt with glossary",
                 )
 
         system_prompt = (
@@ -174,15 +174,21 @@ class LLMClient:
 
     def _extract_translation(self, response: str) -> str:
         """Clean up LLM response to extract just the translation."""
+        import re
         text = response.strip()
-        # Remove common LLM wrapping patterns
-        for prefix in ["Translation:", "翻译:", "Here is the translation:"]:
-            if text.lower().startswith(prefix.lower()):
-                text = text[len(prefix):].strip()
-        # Remove surrounding quotes if present
-        if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
-            text = text[1:-1]
-        return text
+        # Remove common LLM prefix patterns (case-insensitive)
+        text = re.sub(
+            r'^(?:translation|translated text|output|result|the translation is|翻译|译文)\s*[:：]\s*',
+            '', text, count=1, flags=re.IGNORECASE,
+        )
+        # Remove surrounding quotes (straight or curly, single or double)
+        if len(text) >= 2:
+            if (text[0] == '"' and text[-1] == '"') or \
+               (text[0] == '\u201c' and text[-1] == '\u201d') or \
+               (text[0] == "'" and text[-1] == "'") or \
+               (text[0] == '\u2018' and text[-1] == '\u2019'):
+                text = text[1:-1]
+        return text.strip()
 
     async def close(self) -> None:
         await self._client.aclose()

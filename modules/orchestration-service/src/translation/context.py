@@ -44,6 +44,10 @@ class RollingContextWindow:
 
     @staticmethod
     def _estimate_tokens(text: str) -> int:
-        """Rough token estimate: ~4 chars per token for English, ~2 for CJK."""
-        # Simple heuristic — good enough for context window sizing
-        return max(1, len(text) // 3)
+        """Estimate token count: ~1 token per CJK char, ~4 chars per token for Latin."""
+        cjk = sum(
+            1 for c in text
+            if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\u30a0' <= c <= '\u30ff'
+        )
+        latin = len(text) - cjk
+        return max(1, cjk + latin // 4)

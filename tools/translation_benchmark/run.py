@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import platform
 import time
 from datetime import datetime, timezone
@@ -143,7 +144,7 @@ async def run_single_model_benchmark(
             "bleu": round(bleu, 4),
             "avg_latency_ms": round(sum(latencies) / max(len(latencies), 1), 1),
             "p95_latency_ms": round(
-                sorted(latencies)[int(len(latencies) * 0.95)] if latencies else 0, 1
+                sorted(latencies)[min(math.ceil(len(latencies) * 0.95) - 1, len(latencies) - 1)] if latencies else 0, 1
             ),
             "samples": len(sources),
             "failures": sum(1 for h in hypotheses if not h),

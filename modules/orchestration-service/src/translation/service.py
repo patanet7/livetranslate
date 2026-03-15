@@ -25,13 +25,19 @@ class TranslationService:
     def __init__(self, config: TranslationConfig):
         self.config = config
         self._client = LLMClient(config)
-        self._context = RollingContextWindow(
-            max_entries=config.context_window_size,
-            max_tokens=config.max_context_tokens,
-        )
+        self._contexts: dict[str | None, RollingContextWindow] = {}
         self._queue: asyncio.Queue[tuple] = asyncio.Queue(maxsize=config.max_queue_depth)
         self._processing = False
         self._process_task: asyncio.Task | None = None
+
+    def _get_context_window(self, speaker: str | None = None) -> RollingContextWindow:
+        """Get or create a context window for a speaker."""
+        if speaker not in self._contexts:
+            self._contexts[speaker] = RollingContextWindow(
+                max_entries=self.config.context_window_size,
+                max_tokens=self.config.max_context_tokens,
+            )
+        return self._contexts[speaker]
 
     async def translate(
         self,
@@ -46,8 +52,8 @@ class TranslationService:
         Used for direct translation. For queued translation with
         backpressure, use enqueue_translation().
         """
-        # Merge: use request context if provided, otherwise use rolling window
-        context = request.context if request.context else self._context.get_context()
+        # Merge: use request context if provided, otherwise use per-speaker rolling window
+        context = request.context if request.context else self._get_context_window(request.speaker_name).get_context()
         start = time.monotonic()
 
         translated = await self._client.translate(
@@ -60,8 +66,8 @@ class TranslationService:
 
         latency_ms = (time.monotonic() - start) * 1000
 
-        # Only add to context on success
-        self._context.add(request.text, translated)
+        # Only add to context on success, keyed by speaker
+        self._get_context_window(request.speaker_name).add(request.text, translated)
 
         return TranslationResponse(
             translated_text=translated,
@@ -71,33 +77,26 @@ class TranslationService:
             latency_ms=round(latency_ms, 1),
         )
 
-    async def enqueue_translation(
-        self,
-        text: str,
-        source_language: str,
-        target_language: str,
-        glossary_terms: dict[str, str] | None = None,
-    ) -> TranslationResponse:
+    async def enqueue_translation(self, request: TranslationRequest) -> TranslationResponse:
         """Queue a translation request with backpressure.
 
         If queue is full, drops the oldest pending request.
-        Each queued item stores its own language pair so _process_queue
-        does not need to assume a single pair for all items.
+        Accepts a TranslationRequest so speaker_name and all fields are preserved.
         """
         future: asyncio.Future[TranslationResponse] = asyncio.get_running_loop().create_future()
 
         if self._queue.full():
             # Drop oldest
             try:
-                old_text, _old_src, _old_tgt, _old_glossary, old_future = self._queue.get_nowait()
+                old_request, old_future = self._queue.get_nowait()
                 old_future.set_exception(
                     RuntimeError("Translation request dropped (backpressure)")
                 )
-                logger.warning("translation_dropped", text_len=len(old_text))
+                logger.warning("translation_dropped", text_len=len(old_request.text))
             except asyncio.QueueEmpty:
                 pass
 
-        await self._queue.put((text, source_language, target_language, glossary_terms, future))
+        await self._queue.put((request, future))
 
         if not self._processing:
             self._processing = True
@@ -106,18 +105,11 @@ class TranslationService:
         return await future
 
     async def _process_queue(self) -> None:
-        """Process queued translation requests. Each item carries its own language pair."""
+        """Process queued translation requests."""
         try:
             while not self._queue.empty():
-                text, source_language, target_language, glossary_terms, future = await self._queue.get()
+                request, future = await self._queue.get()
                 try:
-                    request = TranslationRequest(
-                        text=text,
-                        source_language=source_language,
-                        target_language=target_language,
-                        context=self._context.get_context(),
-                        glossary_terms=glossary_terms or {},
-                    )
                     result = await self.translate(request)
                     if not future.done():
                         future.set_result(result)
@@ -127,11 +119,14 @@ class TranslationService:
         finally:
             self._processing = False
 
-    def get_context(self) -> list[TranslationContext]:
-        return self._context.get_context()
+    def get_context(self, speaker: str | None = None) -> list[TranslationContext]:
+        return self._get_context_window(speaker).get_context()
 
-    def clear_context(self) -> None:
-        self._context.clear()
+    def clear_context(self, speaker: str | None = None) -> None:
+        if speaker is None:
+            self._contexts.clear()
+        elif speaker in self._contexts:
+            self._contexts[speaker].clear()
 
     async def close(self) -> None:
         if self._process_task and not self._process_task.done():

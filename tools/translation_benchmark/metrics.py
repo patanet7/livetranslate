@@ -9,6 +9,47 @@ import math
 from collections import Counter
 
 
+_CJK_RANGES = (
+    ('\u4e00', '\u9fff'),   # CJK Unified Ideographs
+    ('\u3040', '\u30ff'),   # Hiragana + Katakana
+    ('\u30a0', '\u30ff'),   # Katakana (subset, already covered above)
+)
+
+_SMOOTHING_EPSILON = 0.1
+
+
+def _is_cjk(char: str) -> bool:
+    return any(lo <= char <= hi for lo, hi in _CJK_RANGES)
+
+
+def _tokenize(text: str) -> list[str]:
+    """Tokenize text for BLEU scoring.
+
+    CJK scripts have no whitespace between tokens, so each character is
+    treated as a token.  Latin/other scripts use whitespace splitting.
+    Mixed text (e.g. "Hello 你好") is handled by splitting on whitespace
+    first, then expanding CJK words into individual characters.
+    """
+    tokens: list[str] = []
+    for word in text.strip().split():
+        if any(_is_cjk(c) for c in word):
+            # Expand: non-CJK prefix/suffix stay together, CJK chars split out
+            buf = ""
+            for c in word:
+                if _is_cjk(c):
+                    if buf:
+                        tokens.append(buf)
+                        buf = ""
+                    tokens.append(c)
+                else:
+                    buf += c
+            if buf:
+                tokens.append(buf)
+        else:
+            tokens.append(word)
+    return tokens
+
+
 def bleu_score(
     references: list[str],
     hypotheses: list[str],
@@ -18,6 +59,10 @@ def bleu_score(
 
     Simplified implementation for benchmarking — for publication-grade
     results, use sacrebleu.
+
+    Smoothing: Chen & Cherry add-epsilon (epsilon=0.1) applied to zero
+    n-gram precisions so that short hypotheses do not collapse to BLEU=0.
+    CJK scripts are tokenized at character level.
     """
     if len(references) != len(hypotheses):
         raise ValueError("references and hypotheses must have same length")
@@ -33,8 +78,8 @@ def bleu_score(
         matches = 0
         total = 0
         for ref, hyp in zip(references, hypotheses):
-            ref_tokens = ref.strip().split()
-            hyp_tokens = hyp.strip().split()
+            ref_tokens = _tokenize(ref)
+            hyp_tokens = _tokenize(hyp)
 
             if n == 1:
                 bp_r += len(ref_tokens)
@@ -48,11 +93,19 @@ def bleu_score(
                 matches += min(count, ref_ngrams.get(ngram, 0))
             total += sum(hyp_ngrams.values())
 
-        precision = matches / total if total > 0 else 0.0
+        if total > 0:
+            precision = matches / total
+        else:
+            precision = 0.0
+
+        # Chen & Cherry add-epsilon smoothing for zero precision values
+        if precision == 0.0:
+            precision = _SMOOTHING_EPSILON / (total + 1) if total == 0 else _SMOOTHING_EPSILON
+
         precisions.append(precision)
 
     # Geometric mean of precisions
-    log_avg = sum(math.log(p) if p > 0 else float("-inf") for p in precisions) / max_n
+    log_avg = sum(math.log(p) for p in precisions) / max_n
     if log_avg == float("-inf"):
         return 0.0
 

@@ -32,6 +32,15 @@ class TestLLMClientUnit:
         assert "translator" in messages[0]["content"].lower()
         assert "你好世界" in messages[1]["content"]
 
+    def test_extract_translation_strips_prefixes(self, config):
+        client = LLMClient(config)
+        assert client._extract_translation("Translation: Hello world") == "Hello world"
+        assert client._extract_translation("翻译：你好世界") == "你好世界"
+        assert client._extract_translation("译文: 测试") == "测试"
+        assert client._extract_translation('"Hello world"') == "Hello world"
+        assert client._extract_translation('\u201cHello world\u201d') == "Hello world"
+        assert client._extract_translation("Just the translation") == "Just the translation"
+
     def test_build_prompt_with_context(self, config):
         from livetranslate_common.models import TranslationContext
 

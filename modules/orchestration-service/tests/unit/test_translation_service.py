@@ -116,9 +116,11 @@ class TestBackpressure:
             for i in range(3):
                 task = asyncio.create_task(
                     service.enqueue_translation(
-                        text=f"翻译句子{i}",
-                        source_language="zh",
-                        target_language="en",
+                        TranslationRequest(
+                            text=f"翻译句子{i}",
+                            source_language="zh",
+                            target_language="en",
+                        )
                     )
                 )
                 tasks.append(task)
@@ -142,9 +144,11 @@ class TestBackpressure:
             for i in range(2):
                 task = asyncio.create_task(
                     service.enqueue_translation(
-                        text=f"句子{i}",
-                        source_language="zh",
-                        target_language="en",
+                        TranslationRequest(
+                            text=f"句子{i}",
+                            source_language="zh",
+                            target_language="en",
+                        )
                     )
                 )
                 tasks.append(task)
@@ -152,5 +156,44 @@ class TestBackpressure:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             completed = [r for r in results if isinstance(r, TranslationResponse)]
             assert len(completed) == 2
+        finally:
+            await service.close()
+
+
+class TestPerSpeakerContext:
+    @pytest.mark.asyncio
+    async def test_per_speaker_context_isolation(self, config):
+        """Different speakers should have isolated context windows."""
+        bad_config = TranslationConfig(
+            llm_base_url="http://localhost:1",
+            model="test",
+            context_window_size=3,
+            max_queue_depth=5,
+            timeout_s=1,
+        )
+        service = TranslationService(bad_config)
+        try:
+            # Manually add context for two speakers
+            service._get_context_window("Alice").add("Hello", "你好")
+            service._get_context_window("Bob").add("Goodbye", "再见")
+
+            alice_ctx = service.get_context("Alice")
+            bob_ctx = service.get_context("Bob")
+            none_ctx = service.get_context()
+
+            assert len(alice_ctx) == 1
+            assert alice_ctx[0].text == "Hello"
+            assert len(bob_ctx) == 1
+            assert bob_ctx[0].text == "Goodbye"
+            assert len(none_ctx) == 0  # default speaker has no context
+
+            # Clear Alice's context
+            service.clear_context("Alice")
+            assert len(service.get_context("Alice")) == 0
+            assert len(service.get_context("Bob")) == 1  # Bob untouched
+
+            # Clear all
+            service.clear_context()
+            assert len(service.get_context("Bob")) == 0
         finally:
             await service.close()
