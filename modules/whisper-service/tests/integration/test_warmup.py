@@ -30,6 +30,21 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 class TestWarmupSystem:
     """Test warmup system to eliminate cold start delays"""
 
+    @pytest.fixture(scope="class")
+    def warmup_manager(self):
+        """Shared ModelManager for warmup tests — loads once, cleans up after."""
+        import gc
+
+        import torch
+
+        models_dir = ROOT_DIR / ".models"
+        mgr = ModelManager(models_dir=str(models_dir))
+        yield mgr
+        del mgr
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def test_warmup_audio_file_exists(self):
         """Test that warmup audio file is available"""
         warmup_file = ROOT_DIR / "warmup.wav"
@@ -40,25 +55,17 @@ class TestWarmupSystem:
         # Should be a valid WAV file (at least 44 bytes for WAV header)
         assert warmup_file.stat().st_size >= 44, "Warmup file is too small to be valid WAV"
 
-    def test_model_manager_has_warmup_method(self):
+    def test_model_manager_has_warmup_method(self, warmup_manager):
         """Test that ModelManager has warmup() method"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
+        assert hasattr(warmup_manager, "warmup"), "ModelManager should have warmup() method"
+        assert callable(warmup_manager.warmup), "warmup should be callable"
 
-        assert hasattr(manager, "warmup"), "ModelManager should have warmup() method"
-        assert callable(manager.warmup), "warmup should be callable"
-
-    def test_warmup_runs_successfully(self):
+    def test_warmup_runs_successfully(self, warmup_manager):
         """Test that warmup runs without errors"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        # Create 1 second of silent audio (16kHz)
         warmup_audio = np.zeros(16000, dtype=np.float32)
 
-        # Warmup should complete without exceptions
         try:
-            manager.warmup(warmup_audio)
+            warmup_manager.warmup(warmup_audio)
             success = True
         except Exception as e:
             success = False
@@ -66,61 +73,44 @@ class TestWarmupSystem:
 
         assert success, "Warmup should complete successfully"
 
-    def test_warmup_sets_warmed_up_flag(self):
+    def test_warmup_sets_warmed_up_flag(self, warmup_manager):
         """Test that warmup sets is_warmed_up flag"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
+        assert hasattr(warmup_manager, "is_warmed_up"), "ModelManager should have is_warmed_up attribute"
 
-        # Should not be warmed up initially
-        assert hasattr(manager, "is_warmed_up"), "ModelManager should have is_warmed_up attribute"
-        assert manager.is_warmed_up is False, "Should not be warmed up initially"
-
-        # Run warmup
         warmup_audio = np.zeros(16000, dtype=np.float32)
-        manager.warmup(warmup_audio)
+        warmup_manager.warmup(warmup_audio)
 
-        # Should be warmed up after warmup
-        assert manager.is_warmed_up is True, "Should be warmed up after warmup()"
+        assert warmup_manager.is_warmed_up is True, "Should be warmed up after warmup()"
 
-    def test_warmup_with_default_model(self):
+    def test_warmup_with_default_model(self, warmup_manager):
         """Test that warmup uses default model if no model loaded"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
         warmup_audio = np.zeros(16000, dtype=np.float32)
+        warmup_manager.warmup(warmup_audio)
 
-        # Should load default model during warmup
-        manager.warmup(warmup_audio)
-
-        # Default model should be loaded
         assert (
-            manager.default_model in manager.models
-        ), f"Default model '{manager.default_model}' should be loaded after warmup"
+            warmup_manager.default_model in warmup_manager.models
+        ), f"Default model '{warmup_manager.default_model}' should be loaded after warmup"
 
     @pytest.mark.integration
-    def test_first_inference_fast_after_warmup(self):
+    def test_first_inference_fast_after_warmup(self, warmup_manager):
         """
         CRITICAL: Test that first inference is fast after warmup
 
         Without warmup: ~20 seconds (cold start)
         With warmup: <2 seconds (warm start)
         """
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
-        # Warmup with 1 second of audio
         warmup_audio = np.zeros(16000, dtype=np.float32)
-        manager.warmup(warmup_audio)
+        warmup_manager.warmup(warmup_audio)
 
         # Now test that first real inference is fast
         # Use "base" model for smoke test (fast download, still tests warmup effectiveness)
         test_audio = np.zeros(16000, dtype=np.float32)
 
         start_time = time.time()
-        manager.safe_inference(
-            model_name="base",  # Small model for quick smoke test
+        warmup_manager.safe_inference(
+            model_name="base",
             audio_data=test_audio,
-            beam_size=1,  # Greedy for speed
+            beam_size=1,
         )
         inference_time = time.time() - start_time
 
@@ -132,16 +122,12 @@ class TestWarmupSystem:
         print(f"✅ First inference after warmup: {inference_time:.2f}s")
 
     @pytest.mark.integration
-    def test_warmup_initializes_attention_hooks(self):
+    def test_warmup_initializes_attention_hooks(self, warmup_manager):
         """Test that warmup initializes attention capture system"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
         warmup_audio = np.zeros(16000, dtype=np.float32)
-        manager.warmup(warmup_audio)
+        warmup_manager.warmup(warmup_audio)
 
-        # Attention hooks should be installed
-        model = manager.models.get(manager.default_model)
+        model = warmup_manager.models.get(warmup_manager.default_model)
         assert model is not None, "Default model should be loaded"
 
         # Check hooks on decoder blocks
@@ -153,36 +139,25 @@ class TestWarmupSystem:
         assert hook_count > 0, "Attention hooks should be installed during warmup"
         print(f"✅ {hook_count} attention hooks installed during warmup")
 
-    def test_warmup_idempotent(self):
+    def test_warmup_idempotent(self, warmup_manager):
         """Test that calling warmup multiple times is safe"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
         warmup_audio = np.zeros(16000, dtype=np.float32)
 
-        # Call warmup multiple times
-        manager.warmup(warmup_audio)
-        manager.warmup(warmup_audio)
-        manager.warmup(warmup_audio)
+        warmup_manager.warmup(warmup_audio)
+        warmup_manager.warmup(warmup_audio)
+        warmup_manager.warmup(warmup_audio)
 
-        # Should still be warmed up
-        assert manager.is_warmed_up is True
+        assert warmup_manager.is_warmed_up is True
+        assert warmup_manager.default_model in warmup_manager.models
 
-        # Should have default model loaded once
-        assert manager.default_model in manager.models
-
-    def test_warmup_with_custom_model(self):
+    def test_warmup_with_custom_model(self, warmup_manager):
         """Test warmup with specific model name"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
-
         warmup_audio = np.zeros(16000, dtype=np.float32)
 
-        # Warmup with specific model
-        manager.warmup(warmup_audio, model_name="large-v3")
+        warmup_manager.warmup(warmup_audio, model_name="large-v3")
 
-        assert "large-v3" in manager.models, "Specified model should be loaded"
-        assert manager.is_warmed_up is True
+        assert "large-v3" in warmup_manager.models, "Specified model should be loaded"
+        assert warmup_manager.is_warmed_up is True
 
 
 class TestWarmupConfiguration:
@@ -190,51 +165,76 @@ class TestWarmupConfiguration:
 
     def test_warmup_file_path_configurable(self):
         """Test that warmup file path can be configured"""
+        import gc
+
+        import torch
+
         models_dir = ROOT_DIR / ".models"
-
-        # Should accept warmup_file parameter
         manager = ModelManager(models_dir=str(models_dir), warmup_file=str(ROOT_DIR / "warmup.wav"))
-
-        assert hasattr(manager, "warmup_file"), "Should have warmup_file attribute"
+        try:
+            assert hasattr(manager, "warmup_file"), "Should have warmup_file attribute"
+        finally:
+            del manager
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def test_auto_warmup_on_startup(self):
         """Test auto-warmup on ModelManager initialization"""
+        import gc
+
+        import torch
+
         models_dir = ROOT_DIR / ".models"
         warmup_file = ROOT_DIR / "warmup.wav"
 
-        # Should support auto_warmup parameter
         manager = ModelManager(
             models_dir=str(models_dir), warmup_file=str(warmup_file), auto_warmup=True
         )
-
-        # Should be warmed up automatically
-        assert (
-            manager.is_warmed_up is True
-        ), "ModelManager with auto_warmup=True should warmup on initialization"
+        try:
+            assert (
+                manager.is_warmed_up is True
+            ), "ModelManager with auto_warmup=True should warmup on initialization"
+        finally:
+            del manager
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
 
 class TestWarmupPerformance:
     """Test warmup performance characteristics"""
 
-    @pytest.mark.integration
-    def test_warmup_completes_quickly(self):
-        """Test that warmup itself completes in reasonable time"""
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
+    @pytest.fixture(scope="class")
+    def perf_manager(self):
+        """Shared ModelManager for performance tests."""
+        import gc
 
+        import torch
+
+        models_dir = ROOT_DIR / ".models"
+        mgr = ModelManager(models_dir=str(models_dir))
+        yield mgr
+        del mgr
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    @pytest.mark.integration
+    def test_warmup_completes_quickly(self, perf_manager):
+        """Test that warmup itself completes in reasonable time"""
         warmup_audio = np.zeros(16000, dtype=np.float32)
 
         start_time = time.time()
-        manager.warmup(warmup_audio)
+        perf_manager.warmup(warmup_audio)
         warmup_time = time.time() - start_time
 
-        # Warmup should complete in <10 seconds (even on CPU)
         assert warmup_time < 10.0, f"Warmup took {warmup_time:.2f}s, expected <10s"
 
         print(f"✅ Warmup completed in {warmup_time:.2f}s")
 
     @pytest.mark.integration
-    def test_warmup_memory_overhead_minimal(self):
+    def test_warmup_memory_overhead_minimal(self, perf_manager):
         """Test that warmup doesn't cause significant memory overhead"""
         import os
 
@@ -242,21 +242,14 @@ class TestWarmupPerformance:
 
         process = psutil.Process(os.getpid())
 
-        # Get memory before warmup
-        mem_before = process.memory_info().rss / 1024 / 1024  # MB
-
-        models_dir = ROOT_DIR / ".models"
-        manager = ModelManager(models_dir=str(models_dir))
+        mem_before = process.memory_info().rss / 1024 / 1024
 
         warmup_audio = np.zeros(16000, dtype=np.float32)
-        manager.warmup(warmup_audio)
+        perf_manager.warmup(warmup_audio)
 
-        # Get memory after warmup
-        mem_after = process.memory_info().rss / 1024 / 1024  # MB
+        mem_after = process.memory_info().rss / 1024 / 1024
         mem_increase = mem_after - mem_before
 
-        # Memory increase should be reasonable (model loading + working memory)
-        # Large-v3 is ~3GB, so allow up to 4GB increase
         assert (
             mem_increase < 4096
         ), f"Warmup caused {mem_increase:.1f}MB memory increase, expected <4096MB"

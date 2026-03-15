@@ -39,23 +39,37 @@ class TestPyTorchModelManagerREAL:
     @pytest.fixture(scope="class")
     def whisper_service_cpu(self):
         """Create WhisperService with CPU (fastest for testing)"""
+        import asyncio
+        import gc
+
         print("\n🔧 Loading Whisper model on CPU...")
 
-        # Use REAL WhisperService API with config dict
         config = {
-            "models_dir": ".models/pytorch",  # Separate PyTorch models
+            "models_dir": ".models/pytorch",
             "device": "cpu",
-            "model_name": "tiny",  # Use tiny for speed
+            "model_name": "tiny",
         }
 
         service = WhisperService(config=config)
         print(f"✅ Model loaded on {service.model_manager.device}")
-        return service
+        try:
+            yield service
+        finally:
+            try:
+                asyncio.run(service.shutdown())
+            except Exception:
+                pass
+            del service
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     @pytest.fixture(scope="class")
     def whisper_service_gpu(self):
         """Create WhisperService with GPU/MPS if available"""
-        # Check what's available
+        import asyncio
+        import gc
+
         if torch.cuda.is_available():
             device = "cuda"
         elif torch.backends.mps.is_available():
@@ -69,7 +83,17 @@ class TestPyTorchModelManagerREAL:
 
         service = WhisperService(config=config)
         print(f"✅ Model loaded on {service.model_manager.device}")
-        return service
+        try:
+            yield service
+        finally:
+            try:
+                asyncio.run(service.shutdown())
+            except Exception:
+                pass
+            del service
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def test_model_actually_loads(self, whisper_service_cpu):
         """Test that model actually loads (NO MOCKS!)"""
@@ -238,32 +262,41 @@ class TestPyTorchModelManagerREAL:
 
     def test_device_detection_priority(self):
         """Test device detection follows GPU/MPS → CPU priority"""
+        import asyncio
+        import gc
+
         from whisper_service import WhisperService
 
         print("\n🔍 Testing device detection...")
 
-        # Create service with auto device detection
         config = {
             "models_dir": ".models/pytorch",
-            "device": "auto",  # Let it auto-detect
+            "device": "auto",
             "model_name": "tiny",
         }
         service = WhisperService(config=config)
 
-        device = service.model_manager.device
+        try:
+            device = service.model_manager.device
+            assert device in ["cpu", "cuda", "mps"]
 
-        # Should be one of the valid devices
-        assert device in ["cpu", "cuda", "mps"]
+            print(f"✅ Auto-detected device: {device}")
 
-        print(f"✅ Auto-detected device: {device}")
-
-        # Verify priority order
-        if torch.cuda.is_available():
-            assert device == "cuda", "Should prefer CUDA GPU"
-        elif torch.backends.mps.is_available():
-            assert device == "mps", "Should prefer Apple MPS"
-        else:
-            assert device == "cpu", "Should fallback to CPU"
+            if torch.cuda.is_available():
+                assert device == "cuda", "Should prefer CUDA GPU"
+            elif torch.backends.mps.is_available():
+                assert device == "mps", "Should prefer Apple MPS"
+            else:
+                assert device == "cpu", "Should fallback to CPU"
+        finally:
+            try:
+                asyncio.run(service.shutdown())
+            except Exception:
+                pass
+            del service
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def test_model_warmup(self, whisper_service_cpu):
         """Test model warmup with dummy audio"""
@@ -327,10 +360,24 @@ class TestPyTorchContextManagementREAL:
     @pytest.fixture(scope="class")
     def service(self):
         """Create service for context tests"""
+        import asyncio
+        import gc
+
         from whisper_service import WhisperService
 
         config = {"models_dir": ".models/pytorch", "device": "cpu", "model_name": "tiny"}
-        return WhisperService(config=config)
+        svc = WhisperService(config=config)
+        try:
+            yield svc
+        finally:
+            try:
+                asyncio.run(svc.shutdown())
+            except Exception:
+                pass
+            del svc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def test_context_init_and_cleanup(self, service):
         """Test session context initialization and cleanup"""
@@ -376,10 +423,24 @@ class TestPyTorchPerformanceREAL:
 
     @pytest.fixture(scope="class")
     def service(self):
+        import asyncio
+        import gc
+
         from whisper_service import WhisperService
 
         config = {"models_dir": ".models/pytorch", "device": "cpu", "model_name": "tiny"}
-        return WhisperService(config=config)
+        svc = WhisperService(config=config)
+        try:
+            yield svc
+        finally:
+            try:
+                asyncio.run(svc.shutdown())
+            except Exception:
+                pass
+            del svc
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     async def test_transcription_performance(self, service, hello_world_audio):
         """Measure real transcription performance"""

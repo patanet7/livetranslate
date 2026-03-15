@@ -207,7 +207,7 @@ class ModelFactory:
             return False
 
         try:
-            core = ov.Core()
+            core = OpenVINOModelManager._get_ov_core()
             available_devices = core.available_devices
 
             # Check for NPU in available devices
@@ -264,7 +264,7 @@ class ModelFactory:
         # Intel NPU
         if OPENVINO_AVAILABLE:
             try:
-                core = ov.Core()
+                core = OpenVINOModelManager._get_ov_core()
                 npu_devices = [d for d in core.available_devices if d.startswith("NPU")]
                 info["npu"] = {
                     "available": len(npu_devices) > 0,
