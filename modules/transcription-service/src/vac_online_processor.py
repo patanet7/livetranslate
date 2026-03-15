@@ -914,6 +914,10 @@ class VACOnlineProcessor:
         self._prebuffer_samples: int = int(prebuffer_s * sampling_rate)
         self._stride_samples: int = int(stride_s * sampling_rate)
 
+        # Max buffer: 60s of audio. Prevents OOM during sustained silence
+        # or when inference is slower than stride (positive feedback loop).
+        self._max_buffer_samples: int = 60 * sampling_rate
+
         # New-audio counter since last inference (resets after each inference)
         self._new_samples_since_inference: int = 0
 
@@ -989,6 +993,12 @@ class VACOnlineProcessor:
         # Concatenate everything in the deque
         audio = np.concatenate(list(self._buffer), axis=0) if self._buffer else np.array([], dtype=np.float32)
 
+        # Cap at 30s (Whisper positional encoding limit) to prevent
+        # runaway chunks when inference is slower than stride
+        max_inference_samples = 30 * self.SAMPLING_RATE
+        if len(audio) > max_inference_samples:
+            audio = audio[-max_inference_samples:]
+
         # Retain last overlap_s seconds
         if len(audio) > self._overlap_samples:
             retained = audio[-self._overlap_samples:]
@@ -1008,13 +1018,22 @@ class VACOnlineProcessor:
     # ------------------------------------------------------------------
 
     async def _drain_queue(self) -> None:
-        """Move all pending items from the asyncio queue into _buffer."""
+        """Move all pending items from the asyncio queue into _buffer.
+
+        Trims oldest audio when buffer exceeds 60s to prevent OOM during
+        sustained silence or when inference is slower than stride.
+        """
         while not self._audio_queue.empty():
             chunk: np.ndarray = self._audio_queue.get_nowait()
             self._buffer.append(chunk)
             self._buffer_samples += len(chunk)
             self._new_samples_since_inference += len(chunk)
             self._audio_queue.task_done()
+
+        # Evict oldest chunks if buffer exceeds cap
+        while self._buffer_samples > self._max_buffer_samples and len(self._buffer) > 1:
+            evicted = self._buffer.popleft()
+            self._buffer_samples -= len(evicted)
 
 
 # Example usage and testing
