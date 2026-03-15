@@ -123,7 +123,8 @@ class LLMClient:
             f"You are a professional translator from {source_language} to {target_language}. "
             "Translate the given text naturally and accurately. "
             "Output ONLY the translation, nothing else. "
-            "Preserve the original meaning, tone, and style."
+            "Preserve the original meaning, tone, and style. "
+            "/nothink"
         )
 
         user_parts = []
@@ -161,6 +162,9 @@ class LLMClient:
                         "model": self.config.model,
                         "messages": messages,
                         "temperature": self.config.temperature,
+                        # Disable thinking/reasoning for Qwen3+ models (latency)
+                        "think": False,
+                        "chat_template_kwargs": {"enable_thinking": False},
                     },
                 )
                 response.raise_for_status()

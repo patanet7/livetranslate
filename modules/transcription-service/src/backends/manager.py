@@ -52,7 +52,8 @@ class BackendManager:
             while self.current_vram_mb + needed > self.max_vram_mb and self.loaded_backends:
                 await self._evict_lru()
 
-            await backend.load_model(config.model)
+            device = getattr(config, "device", "auto") or "auto"
+            await backend.load_model(config.model, device=device)
             await backend.warmup()
             self.loaded_backends[key] = backend
             self._ref_counts[key] = 1

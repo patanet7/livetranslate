@@ -127,6 +127,33 @@ class TestFlacChunkRecorder:
         manifest = json.loads((rec_dir / "manifest.json").read_text())
         assert manifest["total_samples"] == 0
 
+    def test_disk_full_does_not_reraise(self, rec_dir, monkeypatch):
+        """Task 3.6: write() absorbs OSError (disk full) instead of propagating."""
+        recorder = FlacChunkRecorder(
+            session_id="test-session",
+            base_path=rec_dir.parent,
+            sample_rate=16000,
+            channels=1,
+            chunk_duration_s=0.1,  # tiny chunk = 1600 samples at 16kHz
+        )
+        recorder.start()
+
+        def failing_write(*args, **kwargs):
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(sf, "write", failing_write)
+
+        # Write enough audio to trigger a flush — must NOT raise
+        audio = np.random.randn(1600).astype(np.float32) * 0.1
+        recorder.write(audio)
+
+        recorder.stop()
+
+        # Manifest should reflect 0 samples for the failed chunk
+        manifest = json.loads((rec_dir / "manifest.json").read_text())
+        failed_chunks = [c for c in manifest["chunks"] if c["samples"] == 0]
+        assert len(failed_chunks) >= 1
+
     def test_chunk_sequence_numbers_are_monotonic(self, rec_dir):
         """Chunk sequence numbers in the manifest must be strictly increasing."""
         recorder = FlacChunkRecorder(
