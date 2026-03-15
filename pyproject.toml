@@ -119,6 +119,13 @@ addopts = [
     "--tb=short",
     "-ra",
 ]
+collect_ignore_glob = [
+    ".worktrees/*",
+    ".claude/worktrees/*",
+    ".venv/*",
+    "reference/*",
+    "deprecated/*",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
