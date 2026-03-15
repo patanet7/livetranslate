@@ -91,8 +91,10 @@ def _dedup_overlap(prev_text: str, new_text: str) -> str:
 
     The VAC processor retains ``overlap_s`` seconds of audio for context,
     which causes the start of the new segment to repeat the end of the
-    previous one. This finds the longest suffix of ``prev_text`` that
-    matches a prefix of ``new_text`` (word-level) and strips it.
+    previous one.
+
+    For CJK text (no spaces): character-level suffix/prefix matching.
+    For Latin text: word-level suffix/prefix matching.
     """
     if not prev_text or not new_text:
         return new_text
@@ -100,6 +102,32 @@ def _dedup_overlap(prev_text: str, new_text: str) -> str:
     import re
     _strip_punct = re.compile(r"[^\w\s]")
 
+    # Detect CJK: if >30% of chars are CJK, use character-level dedup
+    cjk_count = sum(1 for c in new_text if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff')
+    is_cjk = cjk_count > len(new_text) * 0.3
+
+    if is_cjk:
+        # Character-level dedup for CJK (no spaces between words)
+        # Normalize: strip punctuation for matching
+        prev_chars = re.sub(r'[^\w]', '', prev_text)
+        new_chars = re.sub(r'[^\w]', '', new_text)
+        # Cap at 20 chars (~1.5s of CJK at ~3 chars/s per speaker)
+        max_overlap = min(len(prev_chars), len(new_chars), 20)
+        for overlap_len in range(max_overlap, 2, -1):  # min 3 chars to avoid false matches
+            suffix = prev_chars[-overlap_len:]
+            if new_chars.startswith(suffix):
+                # Found character overlap — find where it ends in the original new_text
+                # Strip from new_text by finding the suffix position
+                stripped = new_text
+                for i in range(len(new_text)):
+                    candidate = re.sub(r'[^\w]', '', new_text[:i + 1])
+                    if len(candidate) >= overlap_len:
+                        stripped = new_text[i + 1:].lstrip()
+                        break
+                return stripped if stripped else new_text
+        return new_text
+
+    # Word-level dedup for Latin scripts
     def _normalize(words: list[str]) -> list[str]:
         return [_strip_punct.sub("", w).lower() for w in words]
 
@@ -108,14 +136,11 @@ def _dedup_overlap(prev_text: str, new_text: str) -> str:
     prev_norm = _normalize(prev_words)
     new_norm = _normalize(new_words)
 
-    # Try progressively shorter suffixes of prev (normalized for punctuation)
-    # Cap at 12 words (~1.0s overlap at ~2.5 words/s) to avoid O(n^2)
     max_overlap = min(len(prev_norm), len(new_norm), 12)
     for overlap_len in range(max_overlap, 0, -1):
         suffix = prev_norm[-overlap_len:]
         prefix = new_norm[:overlap_len]
         if suffix == prefix:
-            # Found overlap — strip the repeated prefix (using original words)
             return " ".join(new_words[overlap_len:])
 
     return new_text
